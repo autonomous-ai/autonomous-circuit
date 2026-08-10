@@ -140,6 +140,37 @@ user actually wanted.
 
 ---
 
+## Known defects the first real boards surfaced (2026-08-10)
+
+Building three real products found more than any amount of reasoning did.
+Fixed tonight: the plan loop had no approve button; the safety gate refused a
+board for saying "no mains, ever"; the pipeline reported COMPILE_ERROR for
+boards that compiled; test points were treated as unorderable parts; vias were
+judged by the through-hole annular rule; KiCad graded boards against its own
+defaults. Still open, in leverage order:
+
+1. **`usb-c-power`'s alignment holes are unroutable-through, and the router
+   routes through them anyway.** The gap between an NPTH edge (x=3.20) and the
+   pin-1 shell hole (x=3.725) is 0.525mm, so the widest legal track is 0.125mm
+   — under the 0.127mm floor. Every USB-C board comes back with a
+   hole-clearance error that is the footprint's fault, not the board's. A
+   keepout is the obvious fix; `<pcbkeepout>` exists in the props typings but
+   broke the block build when I tried it, so the element name or shape needs
+   working out. **This blocks two of the three example boards.**
+2. **No ground plane is possible.** `<copperpour>` fills to 0.200mm of the
+   board edge against an exported 0.290mm rule, so any pour is a blocking
+   error, and the board props that ought to raise it are silently ignored.
+   This is the highest-leverage fix available: a GND plane removes roughly 40%
+   of routed nets and most of the incidental clearance failures with them.
+3. **`rp2040-core` places its crystal 11.78mm from XIN**, past the router's
+   10mm ceiling, so every board built from that block is unroutable until the
+   placement is tightened. C15 is the real binding constraint at 9.89mm — a
+   0.11mm margin, which is not a margin.
+4. **`ws2812-chain`, the TS-1187A pad pairing, and the ABM8 load capacitance
+   are unverified against hardware.** If the TS-1187A pairing is 1+3/2+4
+   rather than 1+2/3+4, every switch on every board is a short. That one is
+   worth checking before anything is ordered.
+
 ## Standing principles this list keeps rediscovering
 
 - **A gate set to a preference instead of a floor is noise, and noise trains
