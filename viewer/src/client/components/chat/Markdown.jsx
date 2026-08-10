@@ -110,7 +110,7 @@ const COMPONENTS = {
     // Intercept the question protocol: render clickable choice chips instead
     // of a code block. Fall back to a code block if the JSON isn't valid yet
     // (e.g. still streaming) or malformed.
-    if (lang === "video-questions") {
+    if (lang === "circuit-questions") {
       // children may be a string or an array of nodes; flatten to text so
       // commas aren't injected (which would break JSON.parse).
       const raw = flattenText(children).trim();

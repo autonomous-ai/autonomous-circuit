@@ -186,7 +186,7 @@ export default function EpisodeWorkspace({
     <div data-slot="episode-workspace" className="flex h-full w-full flex-col bg-background">
       {/* Header: project name + settings. */}
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/60 px-2.5">
-        <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous TV</span>
+        <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous Circuit</span>
         <ProjectMenu />
         {catalogRefreshing ? (
           <Loader2
@@ -293,10 +293,10 @@ export default function EpisodeWorkspace({
                 {catalogHydrated || catalogError ? (
                   <>
                     <span className="text-5xl font-semibold tracking-tight text-white">
-                      Video
+                      Circuit
                     </span>
                     <span className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
-                      Autonomous TV
+                      Autonomous Circuit
                     </span>
                     <p className="max-w-xs text-sm leading-6 text-white/60">
                       Chat a story into short vertical episodes. Describe your

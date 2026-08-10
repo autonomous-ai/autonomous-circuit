@@ -20,7 +20,7 @@ import {
   transport,
 } from "../../client/lib/transport.ts";
 
-/** Tiny Video-shaped test server: records POST bodies, answers per-route. */
+/** Tiny Circuit-shaped test server: records POST bodies, answers per-route. */
 async function bootTinyServer() {
   const calls = [];
   const sseClients = new Set();
@@ -42,7 +42,7 @@ async function bootTinyServer() {
       calls.push({ cmd, method: req.method, body: body ? JSON.parse(body) : null });
       if (cmd === "project_open") {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ workspaceRoot: "/video/projects/x" }));
+        res.end(JSON.stringify({ workspaceRoot: "/circuit/projects/x" }));
         return;
       }
       if (cmd === "project_delete") {
@@ -83,7 +83,7 @@ test("commands POST /api/<cmd> with the camelCase args body and return the parse
   setApiBase(tiny.base);
 
   const opened = await transport.project_open("proj-1");
-  assert.deepEqual(opened, { workspaceRoot: "/video/projects/x" });
+  assert.deepEqual(opened, { workspaceRoot: "/circuit/projects/x" });
   assert.deepEqual(tiny.calls.at(-1), {
     cmd: "project_open",
     method: "POST",

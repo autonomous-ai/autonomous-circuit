@@ -19,7 +19,7 @@ export const FOCUS_CHAT_INPUT_EVENT = "panda:focus-chat-input";
 // 00:14): ") so the creator types taste notes and sends them as a normal turn
 // — chat-driven shot regeneration with no new commands. The composer listens
 // (see ChatInput) because it owns the textarea state.
-export const PREFILL_CHAT_INPUT_EVENT = "video:prefill-chat-input";
+export const PREFILL_CHAT_INPUT_EVENT = "circuit:prefill-chat-input";
 
 /** Fire the composer pre-fill event. No-op outside a window (tests). */
 export function prefillChatInput(text) {

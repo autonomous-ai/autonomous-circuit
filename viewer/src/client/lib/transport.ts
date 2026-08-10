@@ -1,5 +1,5 @@
-// Video transport — the bridge between the React client and the Video Node
-// server (viewer/src/server/video/).
+// Circuit transport — the bridge between the React client and the Circuit Node
+// server (viewer/src/server/circuit/).
 //
 // Source of truth: `docs/video-interfaces.md` §2.
 //
@@ -17,7 +17,7 @@
 // (used by the chat-event flow tests).
 
 // ---------------------------------------------------------------------------
-// Shared interfaces (donor types kept verbatim; Video additions are marked)
+// Shared interfaces (donor types kept verbatim; Circuit additions are marked)
 // ---------------------------------------------------------------------------
 
 export interface AppInfo {
@@ -26,8 +26,8 @@ export interface AppInfo {
   pid: number;
 }
 
-// Video widening: the donor CAD kinds are kept for not-yet-excised client
-// code; Video's catalog emits `mp4 | png | srt | py | json` (contract §2).
+// Circuit widening: the donor CAD kinds are kept for not-yet-excised client
+// code; Circuit's catalog emits `mp4 | png | srt | py | json` (contract §2).
 export type CatalogKind =
   | "step"
   | "stl"
@@ -49,7 +49,7 @@ export interface CatalogPart {
   url: string;
 }
 
-/** One rendered shot clip grouped under its episode entry (Video, §2). */
+/** One rendered shot clip grouped under its episode entry (Circuit, §2). */
 export interface CatalogShot {
   id: string;
   file: string;
@@ -65,11 +65,11 @@ export interface CatalogArtifact {
    * viewer groups these under the integrated model. Empty for single-solid projects.
    */
   parts?: CatalogPart[];
-  /** Video: the episode's subtitles, when any dialogue exists. */
+  /** Circuit: the episode's subtitles, when any dialogue exists. */
   srtUrl?: string;
-  /** Video: the `_review/_poster.png` cover frame. */
+  /** Circuit: the `_review/_poster.png` cover frame. */
   posterUrl?: string;
-  /** Video: per-shot clips from `<stem>_shots/`, grouped under the episode. */
+  /** Circuit: per-shot clips from `<stem>_shots/`, grouped under the episode. */
   shots?: CatalogShot[];
 }
 
@@ -383,7 +383,7 @@ export interface PrereqCheck {
   claudeCli: { found: boolean; version?: string };
   python: { found: boolean; version?: string; healthy: boolean };
   slicer: { found: boolean; binaryPath: string };
-  /** Video addition (§2): ffmpeg is required to stitch episodes. */
+  /** Circuit addition (§2): ffmpeg is required to stitch episodes. */
   ffmpeg?: { found: boolean; version?: string };
 }
 
@@ -572,7 +572,7 @@ function activeBridge(): TauriBridge | null {
 }
 
 export function isTauriRuntime(): boolean {
-  // Video is a web app; this reads true only when a bridge was injected
+  // Circuit is a web app; this reads true only when a bridge was injected
   // (tests). Kept because donor client code branches on it.
   return activeBridge() !== null;
 }
@@ -593,7 +593,7 @@ export function isWindowsPlatform(): boolean {
   return /windows|win32|win64/i.test(navigator.userAgent || "");
 }
 
-// Base URL for the Video API. Empty (same-origin relative) in the browser;
+// Base URL for the Circuit API. Empty (same-origin relative) in the browser;
 // tests point it at an ephemeral server via `setApiBase`.
 let apiBaseOverride = "";
 
@@ -616,16 +616,16 @@ export function _resetTransportForTests(): void {
 }
 
 // Toggle transport call logging. On by default in dev; flip the global
-// `__VIDEO_TRANSPORT_LOG__` to override at runtime from the console.
+// `__CIRCUIT_TRANSPORT_LOG__` to override at runtime from the console.
 function transportLogEnabled(): boolean {
-  const w = globalThis as unknown as { __VIDEO_TRANSPORT_LOG__?: boolean };
-  if (typeof w.__VIDEO_TRANSPORT_LOG__ === "boolean") {
-    return w.__VIDEO_TRANSPORT_LOG__;
+  const w = globalThis as unknown as { __CIRCUIT_TRANSPORT_LOG__?: boolean };
+  if (typeof w.__CIRCUIT_TRANSPORT_LOG__ === "boolean") {
+    return w.__CIRCUIT_TRANSPORT_LOG__;
   }
   return false;
 }
 
-const TRANSPORT_TAG = "[video:transport]";
+const TRANSPORT_TAG = "[circuit:transport]";
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const bridge = activeBridge();

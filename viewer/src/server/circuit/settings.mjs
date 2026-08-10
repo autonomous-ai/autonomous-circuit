@@ -1,4 +1,4 @@
-// Video settings — ~/.autonomous-video/settings.json {hasOnboarded, autoBuild, model}.
+// Circuit settings — ~/.autonomous-circuit/settings.json {hasOnboarded, autoBuild, model}.
 //
 // Contract §2: the settings file carries exactly these three fields. The
 // `app_settings_read` reply is padded with harmless legacy defaults so the
@@ -8,10 +8,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { videoHome } from "./projects.mjs";
+import { circuitHome } from "./projects.mjs";
 
 export function settingsFilePath(env = process.env) {
-  return path.join(videoHome(env), "settings.json");
+  return path.join(circuitHome(env), "settings.json");
 }
 
 const DEFAULTS = Object.freeze({
@@ -48,7 +48,7 @@ export function createSettingsStore({ filePath = settingsFilePath() } = {}) {
     }
   }
 
-  /** Merge-write: only the Video trio is persisted; unknown keys are dropped. */
+  /** Merge-write: only the Circuit trio is persisted; unknown keys are dropped. */
   function write(partial) {
     const current = read();
     const merged = { ...current, ...(partial && typeof partial === "object" ? partial : {}) };
@@ -67,7 +67,7 @@ export function createSettingsStore({ filePath = settingsFilePath() } = {}) {
     return next;
   }
 
-  /** The full AppSettings wire shape (video trio + legacy-compatible pads). */
+  /** The full AppSettings wire shape (circuit trio + legacy-compatible pads). */
   function readWire() {
     const s = read();
     return {

@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createVideoServices } from "./http.mjs";
+import { createCircuitServices } from "./http.mjs";
 import { sessionIdForProject } from "./driver.mjs";
 import { sessionJsonlPath } from "./projects.mjs";
 import { MockEventSource, waitFor } from "./fixtures/sse.mjs";
@@ -24,18 +24,18 @@ function tmpdir(prefix) {
 }
 
 async function bootServer({ scenario } = {}) {
-  const home = tmpdir("video-home-");
-  const cfgDir = tmpdir("video-cfg-");
+  const home = tmpdir("circuit-home-");
+  const cfgDir = tmpdir("circuit-cfg-");
   const scenarioPath = path.join(home, "scenario.json");
   fs.writeFileSync(scenarioPath, JSON.stringify(scenario || {}));
   const env = {
     ...process.env,
-    VIDEO_HOME: home,
+    CIRCUIT_HOME: home,
     CLAUDE_CONFIG_DIR: cfgDir,
-    VIDEO_CLAUDE_BIN: FAKE_CLAUDE,
-    VIDEO_FAKE_SCENARIO: scenarioPath,
+    CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    CIRCUIT_FAKE_SCENARIO: scenarioPath,
   };
-  const services = createVideoServices({ env });
+  const services = createCircuitServices({ env });
   const server = http.createServer((req, res) => {
     services.apiMiddleware(req, res, () => {
       services.assetMiddleware(req, res, () => {
@@ -99,7 +99,7 @@ test("app_info, app_prereq_check shape, settings round-trip and app_set_model", 
 
     const prereq = await s.post("app_prereq_check");
     assert.equal(prereq.status, 200);
-    // VIDEO_CLAUDE_BIN points at the stub → claude reads as found.
+    // CIRCUIT_CLAUDE_BIN points at the stub → claude reads as found.
     assert.equal(prereq.body.claudeCli.found, true);
     assert.ok("found" in prereq.body.ffmpeg);
     assert.ok("found" in prereq.body.python);
@@ -117,7 +117,7 @@ test("app_info, app_prereq_check shape, settings round-trip and app_set_model", 
     assert.equal(written.body.hasOnboarded, true);
     assert.equal(written.body.autoBuild, false);
     assert.equal(written.body.model, "opus");
-    // The file persists exactly the video trio.
+    // The file persists exactly the circuit trio.
     const onDisk = JSON.parse(fs.readFileSync(path.join(s.home, "settings.json"), "utf8"));
     assert.deepEqual(Object.keys(onDisk).sort(), ["autoBuild", "hasOnboarded", "model"]);
 

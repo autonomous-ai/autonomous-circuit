@@ -89,7 +89,7 @@ export default function WelcomeScreen({ onComplete }) {
   return (
     <div
       role="dialog"
-      aria-label="Welcome to Autonomous TV"
+      aria-label="Welcome to Autonomous Circuit"
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4"
     >
       <div className="w-full max-w-md rounded-lg border border-border bg-background p-8 shadow-xl">

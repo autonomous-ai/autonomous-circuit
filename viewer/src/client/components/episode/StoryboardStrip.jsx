@@ -89,7 +89,7 @@ export default function StoryboardStrip({
             <button
               type="button"
               onClick={() => (failed ? onPrefillNote?.(noteText) : onSeek?.(startS))}
-              title={failed ? `Tell Video what to fix in ${shot.id}` : `Play from ${shot.id}`}
+              title={failed ? `Tell Circuit what to fix in ${shot.id}` : `Play from ${shot.id}`}
               data-slot="storyboard-shot-button"
               className="flex min-w-0 flex-1 flex-col items-start justify-between gap-1 text-left outline-none"
             >

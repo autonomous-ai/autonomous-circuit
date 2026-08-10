@@ -1,11 +1,11 @@
-// Video chat driver — Node port of the donor's Rust
+// Circuit chat driver — Node port of the donor's Rust
 // `desktop/src-tauri/src/commands/claude_driver.rs` + `chat.rs` semantics,
 // coded against docs/video-interfaces.md §2 (the frozen contract).
 //
 // One chat turn = one spawned `claude -p --output-format stream-json` child.
 // The driver translates stream-json lines into the 9-kind ChatEvent union,
 // intercepts ExitPlanMode (→ plan_proposed + kill child) and AskUserQuestion
-// (→ ```video-questions fence + end turn), snapshots the workspace mtimes to
+// (→ ```circuit-questions fence + end turn), snapshots the workspace mtimes to
 // emit artifact_changed, chains the autopilot build turn after a proposed
 // plan, and runs the silent 3-phase post-build review loop.
 
@@ -21,14 +21,14 @@ import {
   skipDirNames,
 } from "./projects.mjs";
 
-const LOG_TAG = "[video:driver]";
+const LOG_TAG = "[circuit:driver]";
 
 function log(...args) {
   console.log(LOG_TAG, ...args);
 }
 
 function debugEnabled() {
-  return Boolean(process.env.VIDEO_DEBUG_CLAUDE);
+  return Boolean(process.env.CIRCUIT_DEBUG_CLAUDE);
 }
 
 // ---------------------------------------------------------------------------
@@ -36,14 +36,14 @@ function debugEnabled() {
 // ---------------------------------------------------------------------------
 
 /**
- * UUID v5 namespace for deriving per-project Claude session UUIDs. Matches the
- * donor (`chat.rs` uses `Uuid::NAMESPACE_OID`), so a given projectId maps to
- * the same session UUID the desktop app would use.
+ * UUID v5 namespace for deriving per-project Claude session UUIDs. Circuit's
+ * own namespace (freshly minted at fork — new product, no donor sessions to
+ * preserve); a given projectId always maps to the same session UUID.
  */
-export const VIDEO_SESSION_NS = "6ba7b812-9dad-11d1-80b4-00c04fd430c8";
+export const CIRCUIT_SESSION_NS = "f466e3eb-799c-4a95-bc9a-72092027e9f7";
 
 /** RFC 4122 UUID v5 (SHA-1) — implemented on node:crypto, no deps. */
-export function uuidv5(name, namespace = VIDEO_SESSION_NS) {
+export function uuidv5(name, namespace = CIRCUIT_SESSION_NS) {
   const ns = Buffer.from(String(namespace).replace(/-/g, ""), "hex");
   if (ns.length !== 16) {
     throw new Error(`invalid uuid namespace: ${namespace}`);
@@ -62,7 +62,7 @@ export function uuidv5(name, namespace = VIDEO_SESSION_NS) {
 /** Deterministic per-project Claude session id (same projectId → same UUID
  * across restarts, which is what `--session-id`/`--resume` need). */
 export function sessionIdForProject(projectId) {
-  return uuidv5(String(projectId), VIDEO_SESSION_NS);
+  return uuidv5(String(projectId), CIRCUIT_SESSION_NS);
 }
 
 /** Has Claude Code already persisted a session JSONL for this UUID? False on
@@ -80,7 +80,7 @@ export function claudeSessionExists(workspace, sessionId, env = process.env) {
 // ---------------------------------------------------------------------------
 
 export const PLAN_SYSTEM_PROMPT = [
-  "You are running inside Autonomous TV, the AI short-drama studio. Every user",
+  "You are running inside Autonomous Circuit, the AI short-drama studio. Every user",
   "message is a request to create or refine a vertical short-drama series or",
   "episode. You are in PLANNING mode: design, do not build. You MAY run",
   "read-only analysis (list the project, read series.py, episode sources, and",
@@ -103,7 +103,7 @@ export const PLAN_SYSTEM_PROMPT = [
   "length) by CALLING the AskUserQuestion tool — do NOT write the questions",
   "as plain text or a JSON/code block; only the tool call renders the",
   "multiple-choice UI. Give EVERY question a first option labelled \"Let",
-  "Video choose\" (description: \"Recommended — we pick the best for you\");",
+  "Circuit choose\" (description: \"Recommended — we pick the best for you\");",
   "when the user picks it, use your best default and proceed without",
   "re-asking. The tool call ends the turn — do not call ExitPlanMode in the",
   "same turn. A trivial edit needs no questions.",
@@ -116,7 +116,7 @@ export const PLAN_SYSTEM_PROMPT = [
 ].join("\n");
 
 export const IMPLEMENT_SYSTEM_PROMPT = [
-  "You are running inside Autonomous TV, the AI short-drama studio. The user has",
+  "You are running inside Autonomous Circuit, the AI short-drama studio. The user has",
   "APPROVED a plan. Implement it now using the dramacode skill: write",
   "series.py (the series bible) and the episode source under episodes/",
   "(episodes/epNNN.py defining gen_episode()), then run the generator",
@@ -129,7 +129,7 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
 ].join("\n");
 
 export const REVIEW_SYSTEM_PROMPT = [
-  "You are running inside Autonomous TV, the AI short-drama studio. An automatic",
+  "You are running inside Autonomous Circuit, the AI short-drama studio. An automatic",
   "post-build review of the episode you just built is running. Work",
   "SILENTLY: do not greet, explain, summarize, ask questions, or re-plan —",
   "just improve the episode and regenerate with the dramacode skill",
@@ -148,7 +148,7 @@ export const REVIEW_SYSTEM_PROMPT = [
 // The screening critic's phase prompt. The marker "SCREENING ROOM" (never
 // "post-build") is how the phase is told apart from a plain review round.
 export const SCREENING_SYSTEM_PROMPT = [
-  "You are running inside Autonomous TV as the SCREENING ROOM: the critic",
+  "You are running inside Autonomous Circuit as the SCREENING ROOM: the critic",
   "who WATCHES the rendered episode and judges its quality. Use the",
   "screening-room skill. Work SILENTLY — no greeting, no summary, no",
   "questions. Run the skill's bundle script to sample frames through every",
@@ -172,7 +172,7 @@ export function workspaceDirective(workspace) {
     "below. Every file you create — series.py, the episode sources under " +
     "episodes/, and every artifact the drama generator produces — MUST live " +
     "inside it, and you MUST pass paths inside it to the dramacode tools. Do " +
-    "not create the project or write artifacts anywhere else: Video only " +
+    "not create the project or write artifacts anywhere else: Circuit only " +
     "detects artifacts inside this directory, so anything written outside it " +
     `is invisible to the app.\n${workspace}`
   );
@@ -250,12 +250,12 @@ export function augmentedPath(env = process.env) {
 }
 
 /**
- * Resolve the absolute path of the `claude` binary. VIDEO_CLAUDE_BIN wins
+ * Resolve the absolute path of the `claude` binary. CIRCUIT_CLAUDE_BIN wins
  * (tests point it at a stub script — the driver never spawns real claude in
  * tests); otherwise search the augmented PATH. Returns null when not found.
  */
 export function resolveClaude(env = process.env) {
-  const override = env.VIDEO_CLAUDE_BIN;
+  const override = env.CIRCUIT_CLAUDE_BIN;
   if (override) {
     return fs.existsSync(override) ? override : null;
   }
@@ -319,25 +319,25 @@ export function buildCommandArgs({
 }
 
 /** Provider vars the render chain understands; keys.env supplies them, the
- * settings renderProvider wins for VIDEO_PROVIDER, real env wins overall. */
+ * settings renderProvider wins for CIRCUIT_PROVIDER, real env wins overall. */
 const PROVIDER_ENV_VARS = new Set([
-  "VIDEO_PROVIDER",
+  "CIRCUIT_PROVIDER",
   "FAL_KEY",
   "DASHSCOPE_API_KEY",
   "MINIMAX_API_KEY",
-  "VIDEO_FAL_MODEL",
-  "VIDEO_DASHSCOPE_MODEL",
-  "VIDEO_DASHSCOPE_BASE_URL",
-  "VIDEO_MINIMAX_MODEL",
-  "VIDEO_MINIMAX_BASE_URL",
-  "VIDEO_MOCK_TTS",
+  "CIRCUIT_FAL_MODEL",
+  "CIRCUIT_DASHSCOPE_MODEL",
+  "CIRCUIT_DASHSCOPE_BASE_URL",
+  "CIRCUIT_MINIMAX_MODEL",
+  "CIRCUIT_MINIMAX_BASE_URL",
+  "CIRCUIT_MOCK_TTS",
 ]);
 
-/** Parse ~/.autonomous-video/keys.env (KEY=value lines, # comments). The
+/** Parse ~/.autonomous-circuit/keys.env (KEY=value lines, # comments). The
  * paste-a-key file: drop FAL_KEY / DASHSCOPE_API_KEY / MINIMAX_API_KEY here
  * and every render — app or terminal — can reach the hosted providers. */
 export function readKeysEnv(env = process.env) {
-  const filePath = path.join(env.HOME || os.homedir(), ".autonomous-video", "keys.env");
+  const filePath = path.join(env.HOME || os.homedir(), ".autonomous-circuit", "keys.env");
   const out = {};
   let text = "";
   try {
@@ -362,7 +362,7 @@ export function readKeysEnv(env = process.env) {
 export function buildChildEnv(env = process.env, { renderProvider } = {}) {
   const child = {
     ...readKeysEnv(env),
-    ...(renderProvider ? { VIDEO_PROVIDER: renderProvider } : {}),
+    ...(renderProvider ? { CIRCUIT_PROVIDER: renderProvider } : {}),
     ...env,
     PATH: augmentedPath(env),
     DISABLE_AUTOUPDATER: "1",
@@ -518,7 +518,7 @@ export function planFromExitPlanMode(input) {
   return "";
 }
 
-/** Build the synthetic ```video-questions fenced block from an
+/** Build the synthetic ```circuit-questions fenced block from an
  * AskUserQuestion tool input (donor mechanism, renamed fence). Null when the
  * tool carried no questions. */
 export function questionsFenceFromAskUserQuestion(input) {
@@ -527,7 +527,7 @@ export function questionsFenceFromAskUserQuestion(input) {
     return null;
   }
   const json = JSON.stringify({ questions });
-  return `\n\n\`\`\`video-questions\n${json}\n\`\`\`\n`;
+  return `\n\n\`\`\`circuit-questions\n${json}\n\`\`\`\n`;
 }
 
 function toolResultText(content) {
@@ -977,7 +977,7 @@ export async function spawnTurn({
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk) => {
     if (debugEnabled()) {
-      process.stderr.write(`[video:claude:err] ${chunk}`);
+      process.stderr.write(`[circuit:claude:err] ${chunk}`);
     }
     if (stderrBuf.length < 8192) {
       stderrBuf += chunk;
@@ -1010,7 +1010,7 @@ export async function spawnTurn({
         break;
       }
       if (debugEnabled()) {
-        process.stderr.write(`[video:claude:out] ${line}\n`);
+        process.stderr.write(`[circuit:claude:out] ${line}\n`);
       }
       const events = parseStreamLine(line, turnId, state);
       const stopTurn = state.planProposed || state.questionsAsked;
@@ -1096,7 +1096,7 @@ export async function spawnTurn({
       env,
     });
     // Then the screening room WATCHES the cut and closes the quality loop:
-    // critic verdict → targeted re-render → re-screen (behind VIDEO_SCREENING).
+    // critic verdict → targeted re-render → re-screen (behind CIRCUIT_SCREENING).
     // Skip it while the cut is still structurally broken — a critic can't
     // judge an episode that didn't render clean.
     const stillBlocked =
@@ -1161,7 +1161,7 @@ async function runReviewRound({
   }
   if (debugEnabled()) {
     child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => process.stderr.write(`[video:claude:review] ${chunk}`));
+    child.stdout.on("data", (chunk) => process.stderr.write(`[circuit:claude:review] ${chunk}`));
   } else {
     child.stdout.resume(); // drain so a full pipe can't deadlock the child
   }
@@ -1295,23 +1295,23 @@ export async function runReviewFixLoop({
 // the session with those notes as fix instructions — reroll the named shots,
 // re-time the beat, fix the orientation — re-renders, and re-screens. Up to
 // MAX_SCREENING_ROUNDS cycles. Silent + best-effort like the review phases;
-// never fails the build. Behind VIDEO_SCREENING (default on).
+// never fails the build. Behind CIRCUIT_SCREENING (default on).
 
 // Backstop only — the loop keeps going until the critic PASSES the bar, or it
 // can no longer improve. This cap just bounds cost/oscillation when a film
 // stubbornly won't converge (stochastic rerolls). Raise it with
-// VIDEO_SCREENING_MAX_ROUNDS when you want to grind harder for quality.
+// CIRCUIT_SCREENING_MAX_ROUNDS when you want to grind harder for quality.
 export const MAX_SCREENING_ROUNDS = 6;
 
-/** The convergence backstop: VIDEO_SCREENING_MAX_ROUNDS or the default. */
+/** The convergence backstop: CIRCUIT_SCREENING_MAX_ROUNDS or the default. */
 export function screeningMaxRounds(env = process.env) {
-  const raw = Number.parseInt(String(env.VIDEO_SCREENING_MAX_ROUNDS ?? "").trim(), 10);
+  const raw = Number.parseInt(String(env.CIRCUIT_SCREENING_MAX_ROUNDS ?? "").trim(), 10);
   return Number.isInteger(raw) && raw > 0 ? Math.min(raw, 30) : MAX_SCREENING_ROUNDS;
 }
 
-/** VIDEO_SCREENING gate: on by default; "0"/"false"/"off"/"no" disables. */
+/** CIRCUIT_SCREENING gate: on by default; "0"/"false"/"off"/"no" disables. */
 export function screeningEnabled(env = process.env) {
-  const raw = String(env.VIDEO_SCREENING ?? "").trim().toLowerCase();
+  const raw = String(env.CIRCUIT_SCREENING ?? "").trim().toLowerCase();
   if (raw === "") return true;
   return !["0", "false", "off", "no"].includes(raw);
 }
@@ -1536,7 +1536,7 @@ async function runScreeningRound({
     for await (const line of rl) {
       if (signal?.aborted) break;
       if (debugEnabled()) {
-        process.stderr.write(`[video:claude:screening] ${line}\n`);
+        process.stderr.write(`[circuit:claude:screening] ${line}\n`);
       }
       accumulateAssistantText(line, acc);
     }

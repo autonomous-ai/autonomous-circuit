@@ -1,4 +1,4 @@
-// Catalog store for the Video episode workspace.
+// Catalog store for the Circuit episode workspace.
 //
 // Replaces the donor's cadjs `cadManifestStore` for the app: one zustand store
 // holding the workspace catalog, refreshed via `transport.catalog_read()` and

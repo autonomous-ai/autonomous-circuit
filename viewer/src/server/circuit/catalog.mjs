@@ -1,4 +1,4 @@
-// Video catalog — Node scanner over a project workspace, per contract §2:
+// Circuit catalog — Node scanner over a project workspace, per contract §2:
 //
 //   Kinds: mp4 | png | srt | py | json.
 //   Visibility: `.json` hidden (surfaced via the episode entry's

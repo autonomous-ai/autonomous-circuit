@@ -1,7 +1,7 @@
 // Tests for the per-project "waiting for user answer" tracking that drives the
 // sidebar amber dot. A project is awaiting an answer when its session paused for
 // input: a proposed plan (plan_proposed) or unanswered preference questions (a
-// video-questions fence in the turn text). Tracked in a top-level
+// circuit-questions fence in the turn text). Tracked in a top-level
 // `awaitingAnswerProjectIds` map keyed by projectId, so it survives project
 // switches; cleared when the user responds.
 
@@ -16,7 +16,7 @@ import {
 } from "../../../store/chat.js";
 
 const NOW = 1_000;
-const QUESTIONS_FENCE = "\n\n```video-questions\n{\"questions\":[]}\n```\n";
+const QUESTIONS_FENCE = "\n\n```circuit-questions\n{\"questions\":[]}\n```\n";
 
 function withProject(projectId) {
   return chatReducer(INITIAL_CHAT_STATE, { type: "set_project", projectId }, NOW);
@@ -44,7 +44,7 @@ test("plan_proposed marks the owning project as awaiting an answer", () => {
   assert.equal(awaiting(state).A, "plan");
 });
 
-test("turn_end with a video-questions fence marks the project awaiting", () => {
+test("turn_end with a circuit-questions fence marks the project awaiting", () => {
   const state = applyEvents(
     [
       { kind: "turn_start", turnId: "t1", phase: "plan", projectId: "A" },
@@ -171,7 +171,7 @@ test("awaitingNeedsUser: questions always wait; a plan waits only when autopilot
 test("a paused project's question UI survives a project switch and return", () => {
   // Regression: switching away from a project mid-question then returning used to
   // drop the rich slice (the turn had ended, so the in-flight retain checks
-  // missed it) and re-hydrate from the transcript, which has no video-questions
+  // missed it) and re-hydrate from the transcript, which has no circuit-questions
   // fence — so the QuestionCard vanished. The awaiting flag now retains the slice.
   let state = applyEvents(
     [
@@ -187,8 +187,8 @@ test("a paused project's question UI survives a project switch and return", () =
   const turn = state.history.find((t) => t.role === "assistant" && t.id === "t1");
   assert.ok(turn, "the question turn should be restored, not re-hydrated away");
   assert.ok(
-    turn.blocks.some((b) => b.kind === "text" && b.text.includes("```video-questions")),
-    "the video-questions fence should survive the round-trip so the QuestionCard renders",
+    turn.blocks.some((b) => b.kind === "text" && b.text.includes("```circuit-questions")),
+    "the circuit-questions fence should survive the round-trip so the QuestionCard renders",
   );
   assert.equal(awaiting(state).A, "questions", "the awaiting dot should persist");
 });

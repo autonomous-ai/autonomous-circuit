@@ -6,7 +6,7 @@ import { startTurn, useChatStore } from "@/store/chat";
 
 /**
  * Renders a set of preference questions the model asked during planning
- * (parsed from a `video-questions` fenced block) as clickable option chips.
+ * (parsed from a `circuit-questions` fenced block) as clickable option chips.
  * Submitting sends the formatted answers back as a normal turn — the backend
  * stays in plan mode (session resume), so planning continues.
  *

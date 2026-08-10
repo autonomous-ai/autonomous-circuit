@@ -17,7 +17,7 @@ import { setProject as setChatProject } from "./store/chat.js";
 import { useProjectsStore } from "./store/projects.ts";
 
 const ROOT_ID = "root";
-const ROOT_CACHE_KEY = "__videoViewerRoot";
+const ROOT_CACHE_KEY = "__circuitViewerRoot";
 
 function ensureFavicon() {
   if (typeof document === "undefined") {
@@ -31,7 +31,7 @@ function ensureFavicon() {
     document.head.appendChild(icon);
   }
   icon.type = "image/x-icon";
-  icon.href = `${faviconUrl}?v=video-episode-workspace`;
+  icon.href = `${faviconUrl}?v=circuit-workspace`;
 }
 
 // In the production desktop bundle the WKWebView's native right-click menu
@@ -54,7 +54,7 @@ function bootstrap() {
   }
   ensureFavicon();
   suppressNativeContextMenuInProduction();
-  document.title = "Autonomous TV";
+  document.title = "Autonomous Circuit";
   const cachedRoot = globalThis[ROOT_CACHE_KEY];
   const root = cachedRoot?.element === rootElement && cachedRoot?.root
     ? cachedRoot.root

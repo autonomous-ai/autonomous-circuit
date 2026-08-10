@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const DEFAULT_VIEWER_HOST = "127.0.0.1";
-export const DEFAULT_VIEWER_PORT = 4178;
+export const DEFAULT_VIEWER_PORT = 4179;
 
 const CONTENT_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],

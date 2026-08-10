@@ -1,5 +1,5 @@
 // Minimal SSE client for tests (Node 22.0 ships no global EventSource).
-// Parses `event:`/`data:` frames; enough for the Video /api/events stream.
+// Parses `event:`/`data:` frames; enough for the Circuit /api/events stream.
 
 import http from "node:http";
 

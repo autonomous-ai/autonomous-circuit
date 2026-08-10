@@ -2,11 +2,11 @@
 //
 // `id` is the selection key: it's what gets persisted as
 // AppSettings.renderProvider (via app_settings_write) and what the server
-// driver exports to the render chain as VIDEO_PROVIDER. The id set mirrors
-// the server's allowlist in src/server/video/settings.mjs — absent/unknown
+// driver exports to the render chain as CIRCUIT_PROVIDER. The id set mirrors
+// the server's allowlist in src/server/circuit/settings.mjs — absent/unknown
 // means mock, the zero-network default the whole loop must work on.
 //
-// API keys for the hosted providers live in ~/.autonomous-video/keys.env;
+// API keys for the hosted providers live in ~/.autonomous-circuit/keys.env;
 // docs/providers.md explains which key each provider needs.
 export const RENDER_PROVIDER_CHOICES = [
   {
@@ -32,7 +32,7 @@ export const RENDER_PROVIDER_CHOICES = [
 ];
 
 // Default selection when AppSettings.renderProvider is unset; matches the
-// server's default (no VIDEO_PROVIDER exported → dramapy renders mock).
+// server's default (no CIRCUIT_PROVIDER exported → dramapy renders mock).
 export const DEFAULT_RENDER_PROVIDER = "mock";
 
 // Coerce a stored value to a known provider id. Absent, empty, or

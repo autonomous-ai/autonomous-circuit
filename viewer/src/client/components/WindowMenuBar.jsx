@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { isEditableTarget } from "@/ui/dom";
 import { transport, isTauriRuntime } from "@/lib/transport.ts";
-import videoLogoUrl from "@/assets/favicon.png";
+import circuitLogoUrl from "@/assets/favicon.png";
 
 /**
  * In-window menu bar (Windows-style row) mirroring the native macOS application
@@ -202,16 +202,16 @@ export default function WindowMenuBar() {
       className="flex h-7 w-full shrink-0 select-none items-center gap-0.5 border-b border-border/60 bg-background/95 px-1.5 text-xs font-medium text-foreground/90 backdrop-blur"
     >
       <img
-        src={videoLogoUrl}
-        alt="Autonomous TV"
+        src={circuitLogoUrl}
+        alt="Autonomous Circuit"
         draggable={false}
         className="ml-0.5 mr-1 size-4 shrink-0 rounded-[3px]"
       />
 
       <DropdownMenu>
-        <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Video</DropdownMenuTrigger>
+        <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Circuit</DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={4} className="min-w-44">
-          <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About Autonomous TV</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About Autonomous Circuit</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -297,7 +297,7 @@ export default function WindowMenuBar() {
       <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>Autonomous TV</DialogTitle>
+            <DialogTitle>Autonomous Circuit</DialogTitle>
             <DialogDescription>
               {version ? `Version ${version}` : "Chat → story → shots → episodes."}
             </DialogDescription>

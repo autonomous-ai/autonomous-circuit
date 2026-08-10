@@ -206,7 +206,7 @@ export default function ChatHistory({
         )}
       >
         <p>Describe the drama you want to make.</p>
-        <p className="opacity-70">Video shapes the story, casts it, and renders the shots — right here.</p>
+        <p className="opacity-70">Circuit shapes the story, casts it, and renders the shots — right here.</p>
       </div>
     );
   }

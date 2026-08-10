@@ -31,8 +31,8 @@ test("encodeCwd replaces EVERY non-alphanumeric char with '-' (spaces and dots i
 });
 
 test("sessionJsonlPath is rooted at CLAUDE_CONFIG_DIR with the encoded cwd", () => {
-  const cfg = tmpdir("video-cfg-");
-  const workspace = tmpdir("video-ws-");
+  const cfg = tmpdir("circuit-cfg-");
+  const workspace = tmpdir("circuit-ws-");
   const real = fs.realpathSync(workspace);
   const p = sessionJsonlPath(workspace, "abc-123", { CLAUDE_CONFIG_DIR: cfg });
   assert.equal(p, path.join(cfg, "projects", encodeCwd(real), "abc-123.jsonl"));
@@ -51,7 +51,7 @@ test("parseLatestAiTitle takes the last non-empty ai-title line", () => {
 });
 
 test("create writes snake_case pretty project.json and returns a camelCase summary", () => {
-  const root = tmpdir("video-projects-");
+  const root = tmpdir("circuit-projects-");
   const store = createProjectsStore({ rootDir: root });
   const summary = store.create("My Drama");
   assert.match(summary.id, /^[0-9a-f-]{36}$/);
@@ -68,7 +68,7 @@ test("create writes snake_case pretty project.json and returns a camelCase summa
 });
 
 test("CRUD: list, open, rename, delete; empty name create falls back to the placeholder", () => {
-  const root = tmpdir("video-projects-");
+  const root = tmpdir("circuit-projects-");
   const store = createProjectsStore({ rootDir: root });
   const a = store.create("");
   assert.equal(a.name, PLACEHOLDER_PROJECT_NAME);
@@ -92,7 +92,7 @@ test("CRUD: list, open, rename, delete; empty name create falls back to the plac
 });
 
 test("hasModel: an episode .mp4 counts; shot clips and skip-dirs do not", () => {
-  const root = tmpdir("video-projects-");
+  const root = tmpdir("circuit-projects-");
   const store = createProjectsStore({ rootDir: root });
   const p = store.create("X");
   const dir = path.join(root, p.id);
@@ -108,8 +108,8 @@ test("hasModel: an episode .mp4 counts; shot clips and skip-dirs do not", () => 
 });
 
 test("placeholder-name self-heal adopts the session JSONL's ai-title and persists it", () => {
-  const root = tmpdir("video-projects-");
-  const cfg = tmpdir("video-cfg-");
+  const root = tmpdir("circuit-projects-");
+  const cfg = tmpdir("circuit-cfg-");
   const env = { CLAUDE_CONFIG_DIR: cfg };
   const store = createProjectsStore({ rootDir: root, env, sessionIdForProject });
   const p = store.create(""); // placeholder

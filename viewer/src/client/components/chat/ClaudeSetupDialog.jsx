@@ -35,7 +35,7 @@ export default function ClaudeSetupDialog() {
         <DialogHeader>
           <DialogTitle>Set up Claude Code</DialogTitle>
           <DialogDescription>
-            Autonomous TV runs on Claude Code, and it isn’t on this computer
+            Autonomous Circuit runs on Claude Code, and it isn’t on this computer
             yet. Two quick steps in a terminal and you’re in.
             {hasPendingSend
               ? " Your message will send automatically once it’s detected."

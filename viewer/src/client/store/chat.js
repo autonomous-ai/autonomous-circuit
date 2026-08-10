@@ -1,4 +1,4 @@
-// Chat store for the Video sidebar.
+// Chat store for the Circuit sidebar.
 //
 // Holds the per-project turn history, pending image attachments, and the
 // active turn/event subscription. Implemented as a tiny "Zustand-style"
@@ -250,7 +250,7 @@ export function segmentSpans(segments, startedAt) {
 export const FRAME_SUGGESTION_DIRECTIVE =
   "The user attached a frame from the episode viewer but did not say what to change. " +
   "Before editing anything, view the image, then propose 3–5 specific, concrete improvement options for " +
-  "that moment of the episode and ask the user which to apply (offer them via a video-questions block). " +
+  "that moment of the episode and ask the user which to apply (offer them via a circuit-questions block). " +
   "Do not modify the episode until they choose.";
 
 // ---------------------------------------------------------------------------
@@ -433,12 +433,12 @@ function projectHasInFlightTurn(turnOwners, projectId) {
 // tool and a model-authored preference fork; the chat renders it as a
 // QuestionCard. Its presence in a finished turn means the model is waiting on
 // the user.
-const VIDEO_QUESTIONS_FENCE = "```video-questions";
+const CIRCUIT_QUESTIONS_FENCE = "```circuit-questions";
 
 function turnHasPendingQuestions(turn) {
   if (!turn || !Array.isArray(turn.blocks)) return false;
   return turn.blocks.some(
-    (b) => b.kind === "text" && typeof b.text === "string" && b.text.includes(VIDEO_QUESTIONS_FENCE),
+    (b) => b.kind === "text" && typeof b.text === "string" && b.text.includes(CIRCUIT_QUESTIONS_FENCE),
   );
 }
 
@@ -461,7 +461,7 @@ function clearAwaiting(map, projectId) {
 
 // Evolve the awaiting-answer map for one chat event. `ownerProject` is the event's
 // resolved owner and `history` is the owner session's history (post-apply, where
-// the paused turn's blocks already hold any video-questions fence text).
+// the paused turn's blocks already hold any circuit-questions fence text).
 function nextAwaitingMap(map, event, ownerProject, history) {
   if (!ownerProject) return map;
   switch (event.kind) {
@@ -613,7 +613,7 @@ export function chatReducer(state, action, now = Date.now()) {
       // plan or unanswered questions). Its turn has ENDED, so the in-flight
       // checks miss it — but its rich blocks (the plan/QuestionCard) only live
       // in this slice: re-hydrating from the persisted transcript flattens them
-      // to plain text AND can't recover the driver-synthesized `video-questions`
+      // to plain text AND can't recover the driver-synthesized `circuit-questions`
       // fence at all, so the answer UI would vanish on return. Keeping the slice
       // restores it intact (and skips the hydrate fetch — see `setProject`).
       let sessions = state.sessions;
@@ -1166,7 +1166,7 @@ export function setProject(projectId) {
   // A retained session (a project we left mid-turn, or one paused waiting for an
   // answer) is restored by the reducer with its live history; re-hydrating would
   // clobber it with the backend's snapshot — which lacks the not-yet-persisted
-  // stream and the synthesized video-questions/plan blocks — so skip the fetch.
+  // stream and the synthesized circuit-questions/plan blocks — so skip the fetch.
   const hadRetained = Boolean(getChatState().sessions?.[projectId]);
   const shouldHydrate = Boolean(projectId && projectId !== previous && !hadRetained);
   dispatch({ type: "set_project", projectId, hydrating: shouldHydrate });

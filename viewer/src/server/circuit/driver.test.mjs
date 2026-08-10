@@ -71,10 +71,10 @@ function readLog(logPath) {
 function makeEnv({ scenarioPath, cfgDir, logPath }) {
   return {
     ...process.env,
-    VIDEO_CLAUDE_BIN: FAKE_CLAUDE,
-    VIDEO_FAKE_SCENARIO: scenarioPath,
+    CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    CIRCUIT_FAKE_SCENARIO: scenarioPath,
     CLAUDE_CONFIG_DIR: cfgDir,
-    ...(logPath ? { VIDEO_FAKE_LOG: logPath } : {}),
+    ...(logPath ? { CIRCUIT_FAKE_LOG: logPath } : {}),
   };
 }
 
@@ -113,10 +113,10 @@ const toolResult = (id, ok = true, content = "ok") => ({
 // uuidv5 / sessions
 // ---------------------------------------------------------------------------
 
-test("uuidv5 matches the donor's NAMESPACE_OID vectors", () => {
-  // python3: uuid.uuid5(uuid.NAMESPACE_OID, 'proj-A') / 'proj-B'
-  assert.equal(sessionIdForProject("proj-A"), "1d0e3bc7-3990-520e-bccd-3dc4af70e1e4");
-  assert.equal(sessionIdForProject("proj-B"), "4fbde27b-235d-5375-ac8a-3b3377317a75");
+test("uuidv5 matches the CIRCUIT_SESSION_NS reference vectors", () => {
+  // python3: uuid.uuid5(uuid.UUID('f466e3eb-799c-4a95-bc9a-72092027e9f7'), 'proj-A') / 'proj-B'
+  assert.equal(sessionIdForProject("proj-A"), "ade6fea8-1df3-58fe-ac16-1493d2e7619c");
+  assert.equal(sessionIdForProject("proj-B"), "d5b3d481-c0d5-5496-a892-4c35348dfb96");
   assert.equal(sessionIdForProject("proj-A"), sessionIdForProject("proj-A"));
   assert.notEqual(uuidv5("a"), uuidv5("b"));
 });
@@ -126,8 +126,8 @@ test("uuidv5 matches the donor's NAMESPACE_OID vectors", () => {
 // ---------------------------------------------------------------------------
 
 test("buildCommandArgs emits the contract flags, plan permission mode, --session-id for a fresh session", () => {
-  const cfgDir = tmpdir("video-cfg-");
-  const workspace = tmpdir("video-ws-");
+  const cfgDir = tmpdir("circuit-cfg-");
+  const workspace = tmpdir("circuit-ws-");
   const sessionId = sessionIdForProject("p1");
   const env = { ...process.env, CLAUDE_CONFIG_DIR: cfgDir };
   const args = buildCommandArgs({ workspace, phase: PHASE.PLAN, sessionId, env });
@@ -158,8 +158,8 @@ test("buildCommandArgs emits the contract flags, plan permission mode, --session
 });
 
 test("buildCommandArgs resumes an existing session and passes the configured model; build/review run bypassPermissions", () => {
-  const cfgDir = tmpdir("video-cfg-");
-  const workspace = tmpdir("video-ws-");
+  const cfgDir = tmpdir("circuit-cfg-");
+  const workspace = tmpdir("circuit-ws-");
   const sessionId = sessionIdForProject("p2");
   const env = { ...process.env, CLAUDE_CONFIG_DIR: cfgDir };
   // Persisted JSONL at the encoded-cwd path → --resume.
@@ -263,7 +263,7 @@ test("parseStreamLine intercepts ExitPlanMode as plan_proposed (inline plan or p
   assert.equal(state.planProposed, true);
 
   // planFilePath fallback when the inline plan is empty.
-  const dir = tmpdir("video-plan-");
+  const dir = tmpdir("circuit-plan-");
   const planFile = path.join(dir, "plan.md");
   fs.writeFileSync(planFile, "# From file");
   const state2 = newStreamState();
@@ -277,10 +277,10 @@ test("parseStreamLine intercepts ExitPlanMode as plan_proposed (inline plan or p
   assert.deepEqual(events2, [{ kind: "plan_proposed", turnId: "t", plan: "# From file" }]);
 });
 
-test("parseStreamLine converts AskUserQuestion to a video-questions fence and flags the turn", () => {
+test("parseStreamLine converts AskUserQuestion to a circuit-questions fence and flags the turn", () => {
   const state = newStreamState();
   const questions = [
-    { question: "Genre?", options: [{ label: "Let Video choose" }, { label: "Revenge" }] },
+    { question: "Genre?", options: [{ label: "Let Circuit choose" }, { label: "Revenge" }] },
   ];
   const events = parseStreamLine(
     JSON.stringify(assistant([toolUse("tq", "AskUserQuestion", { questions })])),
@@ -289,7 +289,7 @@ test("parseStreamLine converts AskUserQuestion to a video-questions fence and fl
   );
   assert.equal(events.length, 1);
   assert.equal(events[0].kind, "text_delta");
-  assert.ok(events[0].text.includes("```video-questions"));
+  assert.ok(events[0].text.includes("```circuit-questions"));
   assert.ok(events[0].text.includes(JSON.stringify({ questions })));
   assert.equal(state.questionsAsked, true);
   // Empty questions → no fence, no flag.
@@ -335,7 +335,7 @@ test("diffSnapshots reports new files and ≥1s forward mtimes only", () => {
 // ---------------------------------------------------------------------------
 
 test("collectEpisodeWarnings walks *.episode.json recursively, skipping malformed sidecars", () => {
-  const dir = tmpdir("video-warn-");
+  const dir = tmpdir("circuit-warn-");
   fs.mkdirSync(path.join(dir, "episodes"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, "episodes", "ep001.episode.json"),
@@ -494,7 +494,7 @@ test("approvedPlanMessage keeps the strippable preamble even for an empty plan",
 // ---------------------------------------------------------------------------
 
 test("persistAttachments writes uuid-named files under inputs/ and rejects bad input", () => {
-  const workspace = tmpdir("video-att-");
+  const workspace = tmpdir("circuit-att-");
   const rels = persistAttachments(workspace, [
     { name: "../../evil.png", mediaType: "image/png", dataBase64: Buffer.from("hello").toString("base64") },
   ]);
@@ -516,7 +516,7 @@ test("persistAttachments writes uuid-named files under inputs/ and rejects bad i
 // ---------------------------------------------------------------------------
 
 test("plan turn: text delta → plan_proposed → turn ends (child killed, later lines dropped)", async () => {
-  const dir = tmpdir("video-run-");
+  const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
   const scenarioPath = writeScenario(dir, {
     plan: {
@@ -549,10 +549,10 @@ test("plan turn: text delta → plan_proposed → turn ends (child killed, later
   assert.equal(result.cancelled, false);
 });
 
-test("plan turn: AskUserQuestion ends the turn with a video-questions fence and NO proposed plan", async () => {
-  const dir = tmpdir("video-run-");
+test("plan turn: AskUserQuestion ends the turn with a circuit-questions fence and NO proposed plan", async () => {
+  const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
-  const questions = [{ question: "Genre?", options: [{ label: "Let Video choose" }] }];
+  const questions = [{ question: "Genre?", options: [{ label: "Let Circuit choose" }] }];
   const scenarioPath = writeScenario(dir, {
     plan: {
       lines: [assistant([toolUse("tq1", "AskUserQuestion", { questions })])],
@@ -570,13 +570,13 @@ test("plan turn: AskUserQuestion ends the turn with a video-questions fence and 
     env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
   });
   const fence = events.find((e) => e.kind === "text_delta");
-  assert.ok(fence.text.includes("```video-questions"));
+  assert.ok(fence.text.includes("```circuit-questions"));
   assert.equal(events.at(-1).kind, "turn_end");
   assert.equal(result.proposedPlan, null, "questions ≠ plan; autopilot must not chain");
 });
 
 test("implement turn: tool pairing, incremental artifact_changed, result-line suppressed after text", async () => {
-  const dir = tmpdir("video-run-");
+  const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
   const scenarioPath = writeScenario(dir, {
     implement: {
@@ -619,7 +619,7 @@ test("implement turn: tool pairing, incremental artifact_changed, result-line su
 });
 
 test("cancel: kills the child and emits error{cancelled} then turn_end", async () => {
-  const dir = tmpdir("video-run-");
+  const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
   const scenarioPath = writeScenario(dir, {
     plan: { lines: [delta("thinking...")], sleepAfterMs: 30000 },
@@ -650,7 +650,7 @@ test("cancel: kills the child and emits error{cancelled} then turn_end", async (
 });
 
 test("silent failure: no stream output surfaces stderr as error BEFORE turn_end", async () => {
-  const dir = tmpdir("video-run-");
+  const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
   const scenarioPath = writeScenario(dir, {
     plan: { lines: [], stderr: "Session ID already in use", exitCode: 1 },
@@ -673,7 +673,7 @@ test("silent failure: no stream output surfaces stderr as error BEFORE turn_end"
 });
 
 test("missing claude binary → CLAUDE not-found error then turn_end", async () => {
-  const dir = tmpdir("video-run-");
+  const dir = tmpdir("circuit-run-");
   const events = [];
   await spawnTurn({
     workspace: path.join(dir, "ws"),
@@ -682,7 +682,7 @@ test("missing claude binary → CLAUDE not-found error then turn_end", async () 
     turnId: "t6",
     phase: PHASE.PLAN,
     onEvent: (e) => events.push(e),
-    env: { ...process.env, VIDEO_CLAUDE_BIN: path.join(dir, "does-not-exist") },
+    env: { ...process.env, CIRCUIT_CLAUDE_BIN: path.join(dir, "does-not-exist") },
   });
   assert.equal(events[1].kind, "error");
   assert.ok(events[1].message.includes("`claude` CLI not found"));
@@ -701,7 +701,7 @@ const BLOCKED_SIDECAR = JSON.stringify({
 });
 
 test("review loop: structure round fixes the blocking warning, then craft always runs once — all silently", async () => {
-  const dir = tmpdir("video-review-");
+  const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
@@ -750,7 +750,7 @@ test("review loop: structure round fixes the blocking warning, then craft always
 });
 
 test("review loop: non-converging structure stops at the 2-round cap with one unresolved note; craft skipped", async () => {
-  const dir = tmpdir("video-review-");
+  const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
@@ -784,7 +784,7 @@ test("review loop: non-converging structure stops at the 2-round cap with one un
 });
 
 test("functional phase: kind=functional warnings get the beat-sheet prompt after structure is clean", async () => {
-  const dir = tmpdir("video-review-");
+  const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(
@@ -837,7 +837,7 @@ function makeChatHarness({ dir, scenario, autoBuild = true }) {
 }
 
 test("autopilot: a proposed plan chains a build turn (plan-present gate, even when plan text is empty)", async () => {
-  const dir = tmpdir("video-auto-");
+  const dir = tmpdir("circuit-auto-");
   const { chat, events, logPath } = makeChatHarness({
     dir,
     scenario: {
@@ -868,7 +868,7 @@ test("autopilot: a proposed plan chains a build turn (plan-present gate, even wh
 });
 
 test("autopilot off (autoBuild=false): the plan turn does NOT chain", async () => {
-  const dir = tmpdir("video-auto-");
+  const dir = tmpdir("circuit-auto-");
   const { chat, events, logPath } = makeChatHarness({
     dir,
     autoBuild: false,
@@ -885,7 +885,7 @@ test("autopilot off (autoBuild=false): the plan turn does NOT chain", async () =
 });
 
 test("a questions turn does not chain a build even with autopilot on", async () => {
-  const dir = tmpdir("video-auto-");
+  const dir = tmpdir("circuit-auto-");
   const { chat, events } = makeChatHarness({
     dir,
     scenario: {
@@ -907,7 +907,7 @@ test("a questions turn does not chain a build even with autopilot on", async () 
 });
 
 test("cancelTurn aborts an in-flight turn via the registry; unknown ids are a safe no-op", async () => {
-  const dir = tmpdir("video-auto-");
+  const dir = tmpdir("circuit-auto-");
   const { chat, events } = makeChatHarness({
     dir,
     scenario: { plan: { lines: [delta("working...")], sleepAfterMs: 30000 } },
@@ -966,18 +966,18 @@ test("actionableScreeningNotes keeps only blocker/major; buildScreeningFixPrompt
 
 test("screeningMaxRounds: default backstop, env override, clamp", () => {
   assert.equal(screeningMaxRounds({}), MAX_SCREENING_ROUNDS);
-  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "12" }), 12);
-  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "999" }), 30, "clamped");
-  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "nope" }), MAX_SCREENING_ROUNDS);
-  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "0" }), MAX_SCREENING_ROUNDS);
+  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "12" }), 12);
+  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "999" }), 30, "clamped");
+  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "nope" }), MAX_SCREENING_ROUNDS);
+  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "0" }), MAX_SCREENING_ROUNDS);
 });
 
-test("screeningEnabled defaults on and honors the VIDEO_SCREENING flag", () => {
+test("screeningEnabled defaults on and honors the CIRCUIT_SCREENING flag", () => {
   assert.equal(screeningEnabled({}), true);
-  assert.equal(screeningEnabled({ VIDEO_SCREENING: "" }), true);
-  assert.equal(screeningEnabled({ VIDEO_SCREENING: "1" }), true);
+  assert.equal(screeningEnabled({ CIRCUIT_SCREENING: "" }), true);
+  assert.equal(screeningEnabled({ CIRCUIT_SCREENING: "1" }), true);
   for (const off of ["0", "false", "off", "no", "OFF"]) {
-    assert.equal(screeningEnabled({ VIDEO_SCREENING: off }), false, off);
+    assert.equal(screeningEnabled({ CIRCUIT_SCREENING: off }), false, off);
   }
 });
 
@@ -1003,7 +1003,7 @@ const ABOVE_BAR = {
 };
 
 test("screening: a below-bar verdict triggers a targeted fix round, and stops when the fix can't make progress", async () => {
-  const dir = tmpdir("video-screen-");
+  const dir = tmpdir("circuit-screen-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
@@ -1046,7 +1046,7 @@ test("screening: a below-bar verdict triggers a targeted fix round, and stops wh
 });
 
 test("screening: an above-bar verdict stops after one screen — no fix round", async () => {
-  const dir = tmpdir("video-screen-");
+  const dir = tmpdir("circuit-screen-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
@@ -1078,8 +1078,8 @@ test("screening: an above-bar verdict stops after one screen — no fix round", 
   );
 });
 
-test("screening: VIDEO_SCREENING=off disables the screening phase entirely", async () => {
-  const dir = tmpdir("video-screen-");
+test("screening: CIRCUIT_SCREENING=off disables the screening phase entirely", async () => {
+  const dir = tmpdir("circuit-screen-");
   const workspace = path.join(dir, "ws");
   fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
@@ -1099,7 +1099,7 @@ test("screening: VIDEO_SCREENING=off disables the screening phase entirely", asy
     turnId: "ts3",
     phase: PHASE.IMPLEMENT,
     onEvent: () => {},
-    env: { ...makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }), VIDEO_SCREENING: "off" },
+    env: { ...makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }), CIRCUIT_SCREENING: "off" },
   });
 
   const log = readLog(logPath);

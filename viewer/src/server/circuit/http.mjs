@@ -1,4 +1,4 @@
-// Video HTTP layer — `POST /api/<command>` + `GET /api/events` (SSE) + the
+// Circuit HTTP layer — `POST /api/<command>` + `GET /api/events` (SSE) + the
 // `/projects/<id>/…` asset routes, per contract §2. Mirrors the donor's
 // middleware-factory style (httpHandlers.mjs): plain (req, res, next)
 // connect-style middlewares, mounted by Vite in dev and by the standalone
@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 
-import { createProjectsStore, projectsRootDir, videoHome } from "./projects.mjs";
+import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import {
@@ -24,7 +24,7 @@ import {
   sessionIdForProject,
 } from "./driver.mjs";
 
-const LOG_TAG = "[video:http]";
+const LOG_TAG = "[circuit:http]";
 const MAX_BODY_BYTES = 128 * 1024 * 1024; // 6 reference images @ 10 MiB, base64
 const SSE_HEARTBEAT_MS = 15_000;
 
@@ -157,7 +157,7 @@ async function prereqCheck(env) {
       ...(pythonVersion ? { version: pythonVersion } : {}),
       healthy: pythonHealthy,
     },
-    // Shape-compat pad for the donor's PrereqCheck TS type; Video bundles no
+    // Shape-compat pad for the donor's PrereqCheck TS type; Circuit bundles no
     // slicer.
     slicer: { found: false, binaryPath: "" },
   };
@@ -183,16 +183,16 @@ function readViewerVersion() {
 }
 
 /**
- * Build the full Video backend: settings + projects + catalog + chat driver +
+ * Build the full Circuit backend: settings + projects + catalog + chat driver +
  * SSE hub, exposed as two connect middlewares.
  *
- *   const video = createVideoServices();
- *   server.use(video.apiMiddleware);   // POST /api/<cmd>, GET /api/events
- *   server.use(video.assetMiddleware); // GET /projects/<id>/<rel>?v=…
- *   … video.close();
+ *   const circuit = createCircuitServices();
+ *   server.use(circuit.apiMiddleware);   // POST /api/<cmd>, GET /api/events
+ *   server.use(circuit.assetMiddleware); // GET /projects/<id>/<rel>?v=…
+ *   … circuit.close();
  */
-export function createVideoServices({ env = process.env } = {}) {
-  const home = videoHome(env);
+export function createCircuitServices({ env = process.env } = {}) {
+  const home = circuitHome(env);
   const projectsRoot = projectsRootDir(env);
   fs.mkdirSync(projectsRoot, { recursive: true });
 

@@ -1,4 +1,4 @@
-// Video projects store — ~/.autonomous-video/projects/<uuid4>/ CRUD.
+// Circuit projects store — ~/.autonomous-circuit/projects/<uuid4>/ CRUD.
 //
 // Ports the donor's `desktop/src-tauri/src/commands/project.rs` semantics to
 // Node per docs/video-interfaces.md §2:
@@ -38,13 +38,13 @@ export function skipDirNames() {
   return SKIP_DIR_NAMES;
 }
 
-/** Root of all Video state (`~/.autonomous-video` unless VIDEO_HOME overrides). */
-export function videoHome(env = process.env) {
-  return env.VIDEO_HOME || path.join(os.homedir(), ".autonomous-video");
+/** Root of all Circuit state (`~/.autonomous-circuit` unless CIRCUIT_HOME overrides). */
+export function circuitHome(env = process.env) {
+  return env.CIRCUIT_HOME || path.join(os.homedir(), ".autonomous-circuit");
 }
 
 export function projectsRootDir(env = process.env) {
-  return path.join(videoHome(env), "projects");
+  return path.join(circuitHome(env), "projects");
 }
 
 /** Claude Code's config dir. The `claude` CLI honors CLAUDE_CONFIG_DIR, so we

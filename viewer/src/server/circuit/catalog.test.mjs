@@ -42,7 +42,7 @@ function seedProject(dir) {
 }
 
 test("scanProjectCatalog applies the §2 visibility and grouping rules", () => {
-  const dir = tmpdir("video-cat-");
+  const dir = tmpdir("circuit-cat-");
   seedProject(dir);
   const { entries, rootPath } = scanProjectCatalog({ projectDir: dir, projectId: "p1" });
   assert.equal(rootPath, fs.realpathSync(dir));
@@ -90,7 +90,7 @@ test("scanProjectCatalog applies the §2 visibility and grouping rules", () => {
 });
 
 test("a bare mp4 without a sidecar is a plain entry (no artifact, sourceKind null)", () => {
-  const dir = tmpdir("video-cat-");
+  const dir = tmpdir("circuit-cat-");
   fs.writeFileSync(path.join(dir, "clip.mp4"), "x");
   const { entries } = scanProjectCatalog({ projectDir: dir, projectId: "p2" });
   assert.equal(entries.length, 1);
@@ -100,7 +100,7 @@ test("a bare mp4 without a sidecar is a plain entry (no artifact, sourceKind nul
 });
 
 test("cache-bust token changes when the file changes (mtimeNs-size)", async () => {
-  const dir = tmpdir("video-cat-");
+  const dir = tmpdir("circuit-cat-");
   fs.writeFileSync(path.join(dir, "clip.mp4"), "x");
   const first = scanProjectCatalog({ projectDir: dir, projectId: "p" }).entries[0].url;
   await new Promise((resolve) => setTimeout(resolve, 5));
@@ -115,7 +115,7 @@ test("shotIdFromFilename strips the shot_ prefix", () => {
 });
 
 test("catalog service: refresh bumps the revision and notifies; read carries the revision", () => {
-  const dir = tmpdir("video-cat-");
+  const dir = tmpdir("circuit-cat-");
   seedProject(dir);
   const revisions = [];
   const service = createCatalogService({
@@ -133,7 +133,7 @@ test("catalog service: refresh bumps the revision and notifies; read carries the
 });
 
 test("catalog service: fs.watch → 150ms debounce → catalog_changed", async () => {
-  const dir = tmpdir("video-cat-");
+  const dir = tmpdir("circuit-cat-");
   seedProject(dir);
   const revisions = [];
   const service = createCatalogService({

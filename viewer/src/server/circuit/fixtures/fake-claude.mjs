@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Fake `claude` CLI for driver tests. NEVER the real thing — tests point
-// VIDEO_CLAUDE_BIN here and the driver spawns it through the current node.
+// CIRCUIT_CLAUDE_BIN here and the driver spawns it through the current node.
 //
-// Behavior is scripted by the JSON file at VIDEO_FAKE_SCENARIO:
+// Behavior is scripted by the JSON file at CIRCUIT_FAKE_SCENARIO:
 //
 //   {
 //     "plan":      { "lines": [...], "writeFiles": [...], "sleepAfterMs": 0, "exitCode": 0 },
@@ -18,7 +18,7 @@
 // `lines` entries are emitted to stdout one per line; objects are
 // JSON.stringify'd, strings pass through raw. `writeFiles` are written
 // relative to cwd (the workspace) BEFORE the lines are emitted. When
-// VIDEO_FAKE_LOG is set, one JSON line {phase, argv, stdin} is appended per
+// CIRCUIT_FAKE_LOG is set, one JSON line {phase, argv, stdin} is appended per
 // invocation so tests can assert spawn sequences and prompt contents.
 
 import fs from "node:fs";
@@ -55,7 +55,7 @@ const phase = detectPhase(argv);
 
 let scenario = {};
 try {
-  scenario = JSON.parse(fs.readFileSync(process.env.VIDEO_FAKE_SCENARIO, "utf8"));
+  scenario = JSON.parse(fs.readFileSync(process.env.CIRCUIT_FAKE_SCENARIO, "utf8"));
 } catch {
   scenario = {};
 }
@@ -63,9 +63,9 @@ const script = scenario[phase] || {};
 
 const stdin = await readStdin();
 
-if (process.env.VIDEO_FAKE_LOG) {
+if (process.env.CIRCUIT_FAKE_LOG) {
   fs.appendFileSync(
-    process.env.VIDEO_FAKE_LOG,
+    process.env.CIRCUIT_FAKE_LOG,
     `${JSON.stringify({ phase, argv, stdin })}\n`,
   );
 }

@@ -4,13 +4,13 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { transform as esbuildTransform } from "esbuild";
 import react from "@vitejs/plugin-react";
-import { DEFAULT_VIEWER_PORT } from "./src/server/video/static.mjs";
+import { DEFAULT_VIEWER_PORT } from "./src/server/circuit/static.mjs";
 
 function normalizeViewerPort(raw, fallback) {
   const parsed = Number.parseInt(String(raw ?? ""), 10);
   return Number.isInteger(parsed) && parsed > 0 && parsed < 65536 ? parsed : fallback;
 }
-import { createVideoServices } from "./src/server/video/http.mjs";
+import { createCircuitServices } from "./src/server/circuit/http.mjs";
 import {
   normalizeServerLifetimeMs,
   scheduleProcessShutdown,
@@ -30,19 +30,19 @@ function normalizeViewerAllowedHosts(value) {
     .filter(Boolean);
 }
 
-// Video replaces the donor's cadCatalogPlugin: the API + SSE + asset routes
-// come from one middleware factory (src/server/video/http.mjs). Catalog
-// watching lives inside the Video services (fs.watch + 150 ms debounce →
+// Circuit replaces the donor's cadCatalogPlugin: the API + SSE + asset routes
+// come from one middleware factory (src/server/circuit/http.mjs). Catalog
+// watching lives inside the Circuit services (fs.watch + 150 ms debounce →
 // SSE `catalog_changed`), not in Vite's watcher/HMR — the same code path
 // serves the standalone prod server.
-function videoApiPlugin() {
+function circuitApiPlugin() {
   return {
-    name: "video-api",
+    name: "circuit-api",
     configureServer(server) {
-      const video = createVideoServices();
-      server.middlewares.use(video.apiMiddleware);
-      server.middlewares.use(video.assetMiddleware);
-      server.httpServer?.once("close", () => video.close());
+      const circuit = createCircuitServices();
+      server.middlewares.use(circuit.apiMiddleware);
+      server.middlewares.use(circuit.assetMiddleware);
+      server.httpServer?.once("close", () => circuit.close());
     },
   };
 }
@@ -111,7 +111,7 @@ export default defineConfig(({ command }) => ({
   plugins: [
     typescriptSourcePlugin(),
     react(),
-    ...(command === "serve" ? [videoApiPlugin()] : []),
+    ...(command === "serve" ? [circuitApiPlugin()] : []),
     serverLifetimePlugin(),
   ],
   resolve: {

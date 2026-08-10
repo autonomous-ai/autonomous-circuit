@@ -92,7 +92,7 @@ export default function AccountScreen({ open, onOpenChange }) {
   );
 
   // Render provider defaults to mock (matches the server: no renderProvider
-  // persisted → no VIDEO_PROVIDER exported → dramapy renders the animatic).
+  // persisted → no CIRCUIT_PROVIDER exported → dramapy renders the animatic).
   const activeProvider = normalizeRenderProvider(settings?.renderProvider);
 
   const pickProvider = useCallback(
@@ -262,7 +262,7 @@ export default function AccountScreen({ open, onOpenChange }) {
               </Select>
               <p className="mt-1.5 text-xs text-muted-foreground">
                 Keys go in{" "}
-                <span className="font-mono">~/.autonomous-video/keys.env</span>{" "}
+                <span className="font-mono">~/.autonomous-circuit/keys.env</span>{" "}
                 — see <span className="font-mono">docs/providers.md</span>
               </p>
             </div>

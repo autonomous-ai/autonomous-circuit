@@ -58,7 +58,7 @@ function makeTauriShapedBridge({ adapt }) {
 
 const PANDA_QUESTIONS = [
   "Pick a mount:",
-  "```video-questions",
+  "```circuit-questions",
   '{"questions":[{"question":"Mount?","header":"Mount","multiSelect":false,',
   '"options":[{"label":"Screw","description":"M3"}]}]}',
   "```",
@@ -74,7 +74,7 @@ test("full plan+implement turn flows through the real Tauri seam into render sta
   try {
     attachChatEventStream();
 
-    // --- Plan turn: model streams text (incl. a video-questions fence) and
+    // --- Plan turn: model streams text (incl. a circuit-questions fence) and
     // proposes a plan, then the turn ends. ---
     emitTauri("chat_event", { kind: "turn_start", turnId: "t-plan", phase: "plan" });
     emitTauri("chat_event", { kind: "thinking_delta", turnId: "t-plan", text: "considering..." });
@@ -88,7 +88,7 @@ test("full plan+implement turn flows through the real Tauri seam into render sta
     assert.ok(planTurn, "assistant plan turn must exist (turn_start was delivered)");
     assert.equal(planTurn.phase, "plan");
     const textBlock = planTurn.blocks.find((b) => b.kind === "text");
-    assert.ok(textBlock && textBlock.text.includes("video-questions"), "assistant text rendered");
+    assert.ok(textBlock && textBlock.text.includes("circuit-questions"), "assistant text rendered");
     assert.ok(planTurn.blocks.some((b) => b.kind === "plan"), "plan block rendered");
     // Plan gates approval, and the spinner is cleared after turn_end.
     assert.equal(state.awaitingApproval, true, "plan_proposed gates approval");
