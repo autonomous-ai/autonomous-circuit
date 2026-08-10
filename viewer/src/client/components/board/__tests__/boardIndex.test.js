@@ -188,6 +188,20 @@ test("hit testing prefers pads over traces and uses real stroke geometry", () =>
   assert.equal(hitTestPcb(index, -2, 1), null, "a bounding-box hit test would wrongly report the trace here");
 });
 
+test("clicking inside a component body with no copper under it still selects the part", () => {
+  // LED1 sits at (5,0) with a 1.6×0.8 body and pads at ±0.5 — the exact centre
+  // is bare board. A connector or a big QFN is mostly bare board between pads,
+  // so this fallback is what makes "click the part" work at all.
+  const index = buildBoardIndex(fixture());
+  const hit = hitTestPcb(index, 5, 0.3);
+  assert.equal(hit.componentKey, "sc_led1");
+  assert.equal(hit.element.type, "pcb_component");
+  // It is a last resort: real copper still wins where there is any.
+  assert.equal(hitTestPcb(index, 4.5, 0).element.type, "pcb_smtpad");
+  // And bare board outside every body still selects nothing.
+  assert.equal(hitTestPcb(index, 9, 4), null);
+});
+
 test("hit testing respects layer visibility, per trace segment", () => {
   const index = buildBoardIndex(fixture());
   // x=3 is on the bottom half of the trace. Hide bottom and it stops answering.

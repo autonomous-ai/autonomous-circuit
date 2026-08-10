@@ -727,7 +727,28 @@ export function hitTestPcb(index, x, y, { visibleLayers = null, tolerance = 0 } 
     bestRank = rank;
     best = element;
   }
-  if (!best) return null;
+  if (!best) {
+    // Nothing drawn is under the cursor — but the cursor may still be inside a
+    // component's body, which on a connector or a large IC is mostly empty
+    // space between the pads. Altium selects the part there, so we do too.
+    // Last resort, so it can never steal a click from real copper.
+    for (const component of index.components) {
+      const pcb = component.pcb;
+      if (!pcb) continue;
+      if (visibleLayers && pcb.layer && !visibleLayers.has(pcb.layer)) continue;
+      const box = pcbElementBox(pcb);
+      if (!boxIsReal(box)) continue;
+      if (x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) continue;
+      return {
+        elementId: component.pcbId,
+        element: pcb,
+        netKey: "",
+        componentKey: component.key,
+        layer: String(pcb.layer || "top"),
+      };
+    }
+    return null;
+  }
   const id = elementId(best);
   // A trace reports the layer of the segment actually under the cursor.
   let layer = String(best.layer || (best.layers || [])[0] || "");
