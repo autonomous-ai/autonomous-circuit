@@ -1,0 +1,531 @@
+// Pure unit tests for the chat store reducer + selectors. This is the heart
+// of the "ChatHistory replays a canned stream of `chat_event` JSON fixtures
+// and renders the expected turns" requirement — the reducer is what the UI
+// consumes via `useSyncExternalStore`, so reducer output == rendered turns.
+
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  chatReducer,
+  selectArtifactFiles,
+  selectAnyTurnInProgress,
+  INITIAL_CHAT_STATE,
+} from "../../../store/chat.js";
+
+const FIXED_NOW = 1_700_000_000_000;
+
+function applyEvents(state, events) {
+  let cursor = state;
+  for (const event of events) {
+    cursor = chatReducer(cursor, { type: "chat_event", event }, FIXED_NOW);
+  }
+  return cursor;
+}
+
+test("hydrate_session rebuilds an assistant turn's blocks and per-block timings", () => {
+  const session = {
+    history: [
+      { role: "user", content: "make a box", at: 1000 },
+      {
+        role: "assistant",
+        content: "Let me check.\n\nDone.",
+        at: 1100,
+        blocks: [
+          { kind: "text", text: "Let me check." },
+          {
+            kind: "tool_use",
+            tool: "Read",
+            toolUseId: "u1",
+            input: { file_path: "a.py" },
+            status: "ok",
+            resultSummary: "3 lines",
+            at: 1100,
+            endedAt: 1400,
+          },
+          { kind: "text", text: "Done." },
+        ],
+      },
+    ],
+  };
+  const state = chatReducer(INITIAL_CHAT_STATE, { type: "hydrate_session", session }, FIXED_NOW);
+  const asst = state.history[1];
+  assert.equal(asst.role, "assistant");
+  assert.equal(asst.status, "complete");
+  // Structured blocks are preserved (they drive segment/duration rendering).
+  assert.equal(asst.blocks.length, 3);
+  assert.equal(asst.blocks[1].kind, "tool_use");
+  assert.equal(asst.blocks[1].status, "ok");
+  // startedAt is floored at the preceding user prompt (1000) so the first
+  // segment counts the pre-first-block thinking; endedAt is the last block time.
+  assert.equal(asst.startedAt, 1000);
+  assert.equal(asst.endedAt, 1400);
+  // A user turn (no blocks) falls back to one text block from `content`.
+  assert.deepEqual(state.history[0].blocks, [{ kind: "text", text: "make a box" }]);
+});
+
+test("set_project clears history and resets the composer state", () => {
+  const state = {
+    ...INITIAL_CHAT_STATE,
+    history: [{ id: "u-1", role: "user", blocks: [], status: "complete", startedAt: 0 }],
+    pendingViewContext: "[Viewer context: frame at 00:14 of ep001]",
+  };
+  const next = chatReducer(state, { type: "set_project", projectId: "proj-1" }, FIXED_NOW);
+  assert.equal(next.currentProjectId, "proj-1");
+  assert.deepEqual(next.history, []);
+  // The frame note describes the previous project's viewer — it must not leak.
+  assert.equal(next.pendingViewContext, "");
+});
+
+test("queue_user_message appends a user turn and marks turnInProgress", () => {
+  const next = chatReducer(
+    { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" },
+    { type: "queue_user_message", turnId: "t-1", text: "make a 10mm cube", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  assert.equal(next.turnInProgress, true);
+  assert.equal(next.currentTurnId, "t-1");
+  assert.equal(next.history.length, 1);
+  assert.equal(next.history[0].role, "user");
+  assert.equal(next.history[0].userText, "make a 10mm cube");
+});
+
+test("note_revert appends a linear revert marker turn without disturbing history", () => {
+  const base = {
+    ...INITIAL_CHAT_STATE,
+    currentProjectId: "proj-1",
+    history: [
+      { id: "u-1", role: "user", blocks: [], status: "complete", startedAt: 0 },
+    ],
+  };
+  const next = chatReducer(
+    base,
+    { type: "note_revert", label: "Version 2", id: "revert-1", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  // The prior turn is untouched; the marker is appended at the end.
+  assert.equal(next.history.length, 2);
+  assert.equal(next.history[0].id, "u-1");
+  const marker = next.history[1];
+  assert.equal(marker.role, "assistant");
+  assert.equal(marker.status, "complete");
+  assert.deepEqual(marker.blocks, [{ kind: "revert", label: "Version 2" }]);
+  // It does not start a turn or flip turnInProgress (model files only).
+  assert.equal(next.turnInProgress, false);
+  assert.equal(next.currentTurnId, "");
+});
+
+test("queue_user_message slots the user turn before an already-arrived assistant turn", () => {
+  // Race: the backend's `turn_start` lands before `chat_start_turn` resolves
+  // and queues the user message. The user prompt must still render above
+  // Claude's response, not below it.
+  const withAssistant = applyEvents(
+    { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" },
+    [{ kind: "turn_start", turnId: "t-1", phase: "plan" }],
+  );
+  assert.equal(withAssistant.history.length, 1);
+  assert.equal(withAssistant.history[0].role, "assistant");
+
+  const next = chatReducer(
+    withAssistant,
+    { type: "queue_user_message", turnId: "t-1", text: "I need a hex tiles holder", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  assert.equal(next.history.length, 2);
+  assert.equal(next.history[0].role, "user", "user turn comes first");
+  assert.equal(next.history[0].id, "user-t-1");
+  assert.equal(next.history[1].role, "assistant", "assistant turn stays second");
+  assert.equal(next.history[1].id, "t-1");
+});
+
+test("a turn started in one project does not stream into another project's chat", () => {
+  // Start a turn in proj-1, then switch to proj-2 mid-turn.
+  let state = chatReducer(
+    { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" },
+    { type: "queue_user_message", turnId: "t-1", text: "make a tray", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  assert.equal(state.turnOwners["t-1"], "proj-1");
+
+  state = chatReducer(state, { type: "set_project", projectId: "proj-2" }, FIXED_NOW);
+  assert.equal(state.history.length, 0, "switching clears the visible history");
+  assert.equal(state.turnOwners["t-1"], "proj-1", "owner is preserved across the switch");
+
+  // proj-1's turn keeps streaming — none of it may land in proj-2's chat.
+  state = applyEvents(state, [
+    { kind: "turn_start", turnId: "t-1", phase: "implement" },
+    { kind: "text_delta", turnId: "t-1", text: "On it…" },
+    { kind: "artifact_changed", turnId: "t-1", file: "tray.stl", reason: "new" },
+  ]);
+  assert.equal(state.history.length, 0, "background turn does not pollute the active chat");
+
+  // turn_end for the backgrounded turn prunes its owner without touching history.
+  state = applyEvents(state, [{ kind: "turn_end", turnId: "t-1" }]);
+  assert.equal(state.history.length, 0);
+  assert.equal(state.turnOwners["t-1"], undefined, "owner pruned when the turn ends");
+});
+
+test("a streamed response is preserved (and keeps growing) across switch-away-and-back", () => {
+  // Stream part of proj-1's response.
+  let state = chatReducer(
+    { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" },
+    { type: "queue_user_message", turnId: "t-1", text: "make a tray", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  state = applyEvents(state, [
+    { kind: "turn_start", turnId: "t-1", phase: "implement" },
+    { kind: "text_delta", turnId: "t-1", text: "Part 1 " },
+  ]);
+
+  // Switch away mid-turn — proj-1 is retained because its turn is running.
+  state = chatReducer(state, { type: "set_project", projectId: "proj-2" }, FIXED_NOW);
+  assert.equal(state.history.length, 0, "the new project's chat is empty");
+
+  // More of proj-1's response streams in while it's backgrounded.
+  state = applyEvents(state, [{ kind: "text_delta", turnId: "t-1", text: "Part 2 " }]);
+
+  // Return to proj-1: everything streamed before AND during the away period is
+  // restored, and the turn is still in progress (not lost / reset).
+  state = chatReducer(state, { type: "set_project", projectId: "proj-1" }, FIXED_NOW);
+  let assistant = state.history.find((t) => t.id === "t-1" && t.role === "assistant");
+  assert.ok(assistant, "assistant turn restored");
+  assert.equal(assistant.blocks[0].text, "Part 1 Part 2 ");
+  assert.equal(state.turnInProgress, true, "still streaming after return");
+
+  // Live deltas after returning keep appending to the same turn.
+  state = applyEvents(state, [
+    { kind: "text_delta", turnId: "t-1", text: "Part 3" },
+    { kind: "turn_end", turnId: "t-1" },
+  ]);
+  assistant = state.history.find((t) => t.id === "t-1" && t.role === "assistant");
+  assert.equal(assistant.blocks[0].text, "Part 1 Part 2 Part 3");
+  assert.equal(state.turnInProgress, false, "turn completed");
+  assert.equal(state.turnOwners["t-1"], undefined, "owner pruned on end");
+});
+
+test("overlapping turns keep their project retained until every turn ends", () => {
+  let state = { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" };
+  state = chatReducer(
+    state,
+    { type: "queue_user_message", turnId: "t-1", text: "first", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  state = chatReducer(
+    state,
+    { type: "queue_user_message", turnId: "t-2", text: "second", at: FIXED_NOW + 1 },
+    FIXED_NOW,
+  );
+  state = applyEvents(state, [
+    { kind: "turn_start", turnId: "t-1", phase: "implement" },
+    { kind: "turn_start", turnId: "t-2", phase: "plan" },
+    { kind: "text_delta", turnId: "t-1", text: "first done" },
+    { kind: "turn_end", turnId: "t-1" },
+  ]);
+  assert.equal(state.turnInProgress, true, "t-2 still keeps the project live");
+
+  state = chatReducer(state, { type: "set_project", projectId: "proj-2" }, FIXED_NOW);
+  assert.equal(state.history.length, 0, "active project has a clean chat");
+
+  state = applyEvents(state, [
+    { kind: "text_delta", turnId: "t-2", text: "still streaming" },
+  ]);
+  assert.equal(state.history.length, 0, "background stream stays out of proj-2");
+
+  state = chatReducer(state, { type: "set_project", projectId: "proj-1" }, FIXED_NOW);
+  const assistant = state.history.find((t) => t.id === "t-2" && t.role === "assistant");
+  assert.ok(assistant, "second turn is restored");
+  assert.equal(assistant.blocks[0].text, "still streaming");
+  assert.equal(state.turnInProgress, true);
+});
+
+test("returning to the owning project lets its turn's events apply again", () => {
+  let state = chatReducer(
+    { ...INITIAL_CHAT_STATE, currentProjectId: "proj-1" },
+    { type: "queue_user_message", turnId: "t-1", text: "make a tray", at: FIXED_NOW },
+    FIXED_NOW,
+  );
+  state = chatReducer(state, { type: "set_project", projectId: "proj-2" }, FIXED_NOW);
+  // Switch back to the project that owns t-1.
+  state = chatReducer(state, { type: "set_project", projectId: "proj-1" }, FIXED_NOW);
+  state = applyEvents(state, [
+    { kind: "turn_start", turnId: "t-1", phase: "implement" },
+    { kind: "text_delta", turnId: "t-1", text: "On it…" },
+  ]);
+  const assistant = state.history.find((t) => t.id === "t-1" && t.role === "assistant");
+  assert.ok(assistant, "owner project shows its own turn's response");
+  assert.equal(assistant.blocks[0].text, "On it…");
+});
+
+test("a backend-started turn for another project does not pollute the active chat (routed by projectId)", () => {
+  // Repro of the "two BUILDING blocks in one project" bug: a build started by
+  // the backend (autopilot) for proj-B, while proj-A is on screen. Without the
+  // projectId stamp, proj-B's `turn_start` would be adopted by proj-A and both
+  // builds would render in one chat. With it, proj-B's events route to proj-B
+  // (which has no retained slice here) and are dropped from proj-A's view.
+  let state = { ...INITIAL_CHAT_STATE, currentProjectId: "proj-A" };
+  state = applyEvents(state, [
+    { kind: "turn_start", turnId: "t-b", projectId: "proj-B", phase: "implement" },
+    { kind: "text_delta", turnId: "t-b", projectId: "proj-B", text: "building…" },
+    { kind: "artifact_changed", turnId: "t-b", projectId: "proj-B", file: "x.stl", reason: "new" },
+  ]);
+  assert.equal(state.history.length, 0, "proj-B's build stays out of proj-A's chat");
+  assert.equal(state.turnInProgress, false, "proj-A shows no spinner for proj-B's turn");
+  assert.equal(state.turnOwners["t-b"], "proj-B", "owner taken from the event, not the screen");
+});
+
+test("a turn whose turn_start was missed still gets an owner + running indicator (projectId)", () => {
+  // Repro of "no spinner, but messages keep arriving": an HMR/reload wiped
+  // turnOwners mid-build, so the active project's turn arrives mid-stream with
+  // no `turn_start`. The projectId on later events re-establishes ownership, so
+  // the message renders AND the spinner comes back.
+  let state = { ...INITIAL_CHAT_STATE, currentProjectId: "proj-A" };
+  state = applyEvents(state, [
+    { kind: "text_delta", turnId: "t-1", projectId: "proj-A", text: "still working…" },
+  ]);
+  const assistant = state.history.find((t) => t.id === "t-1" && t.role === "assistant");
+  assert.ok(assistant, "the orphaned turn's message renders in its project");
+  assert.equal(assistant.blocks[0].text, "still working…");
+  assert.equal(state.turnInProgress, true, "spinner restored from the event's projectId");
+  assert.equal(state.turnOwners["t-1"], "proj-A");
+});
+
+test("chat_event stream renders a single assistant turn with merged text deltas", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-1" },
+    { kind: "text_delta", turnId: "t-1", text: "Hello, " },
+    { kind: "text_delta", turnId: "t-1", text: "I'll make " },
+    { kind: "text_delta", turnId: "t-1", text: "a cube." },
+    { kind: "turn_end", turnId: "t-1" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  assert.equal(state.history.length, 1);
+  const turn = state.history[0];
+  assert.equal(turn.role, "assistant");
+  assert.equal(turn.status, "complete");
+  assert.equal(turn.blocks.length, 1);
+  assert.equal(turn.blocks[0].kind, "text");
+  assert.equal(turn.blocks[0].text, "Hello, I'll make a cube.");
+  assert.equal(state.turnInProgress, false);
+});
+
+test("chat_event stream interleaves text, tool_use, artifact and error blocks in order", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-2" },
+    { kind: "text_delta", turnId: "t-2", text: "Working" },
+    { kind: "tool_use_start", turnId: "t-2", tool: "cadcode", input: { spec: "10mm cube" } },
+    { kind: "tool_use_end", turnId: "t-2", tool: "cadcode", ok: true },
+    { kind: "artifact_changed", turnId: "t-2", file: "model.step", reason: "new" },
+    { kind: "artifact_changed", turnId: "t-2", file: "model.stl", reason: "new" },
+    { kind: "text_delta", turnId: "t-2", text: "\nDone." },
+    { kind: "turn_end", turnId: "t-2" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const turn = state.history[0];
+  const kinds = turn.blocks.map((b) => b.kind);
+  assert.deepEqual(kinds, ["text", "tool_use", "artifact", "artifact", "text"]);
+  assert.equal(turn.blocks[1].status, "ok");
+  assert.equal(turn.blocks[2].file, "model.step");
+  assert.equal(turn.blocks[3].file, "model.stl");
+});
+
+test("error event flips turn status to error and renders inline only (no banner dupe)", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-3" },
+    { kind: "text_delta", turnId: "t-3", text: "thinking..." },
+    { kind: "error", turnId: "t-3", message: "sandbox timeout" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  assert.equal(state.turnInProgress, false);
+  // Turn errors show inline in the turn's error block; the bottom banner
+  // (lastError) stays empty so the same message isn't shown twice.
+  assert.equal(state.lastError, "");
+  assert.equal(state.history[0].status, "error");
+  const errorBlocks = state.history[0].blocks.filter((b) => b.kind === "error");
+  assert.equal(errorBlocks.length, 1);
+  assert.equal(errorBlocks[0].message, "sandbox timeout");
+});
+
+test("tool_use_end without a running start is still recorded for observability", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-4" },
+    { kind: "tool_use_end", turnId: "t-4", tool: "Read", ok: false },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const blocks = state.history[0].blocks;
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].kind, "tool_use");
+  assert.equal(blocks[0].status, "error");
+});
+
+test("a nameless orphan tool_use_end is dropped, not shown as a phantom row", () => {
+  // The driver suppresses ToolUseStart for intercepted built-ins
+  // (AskUserQuestion / ExitPlanMode); should a nameless end still slip through,
+  // it must not fabricate an unnamed "Working" error chip in the thread.
+  const events = [
+    { kind: "turn_start", turnId: "t-4b" },
+    { kind: "tool_use_end", turnId: "t-4b", tool: "", ok: false, resultSummary: "2 lines" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  assert.equal(state.history[0].blocks.length, 0, "no phantom block for a nameless orphan end");
+});
+
+test("interleaved same-name tools resolve by tool_use_id, not by name/recency", () => {
+  // Two Edit calls run concurrently; their results arrive out of order. Matching
+  // by name+recency would flip the wrong block and strand one on "Running".
+  const events = [
+    { kind: "turn_start", turnId: "t-5" },
+    { kind: "tool_use_start", turnId: "t-5", tool: "Edit", toolUseId: "tu_a", input: { n: 1 } },
+    { kind: "tool_use_start", turnId: "t-5", tool: "Edit", toolUseId: "tu_b", input: { n: 2 } },
+    // Resolve the *first* (older) call first.
+    { kind: "tool_use_end", turnId: "t-5", tool: "Edit", toolUseId: "tu_a", ok: true },
+    { kind: "tool_use_end", turnId: "t-5", tool: "Edit", toolUseId: "tu_b", ok: false },
+    { kind: "turn_end", turnId: "t-5" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const tools = state.history[0].blocks.filter((b) => b.kind === "tool_use");
+  assert.equal(tools.length, 2);
+  assert.equal(tools.find((b) => b.toolUseId === "tu_a").status, "ok");
+  assert.equal(tools.find((b) => b.toolUseId === "tu_b").status, "error");
+  // No leftover spinner.
+  assert.ok(!tools.some((b) => b.status === "running"));
+});
+
+test("turn_end sweeps a tool whose result never arrived to 'cancelled' (no stuck spinner)", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-6" },
+    { kind: "tool_use_start", turnId: "t-6", tool: "Edit", toolUseId: "tu_a", input: {} },
+    { kind: "tool_use_end", turnId: "t-6", tool: "Edit", toolUseId: "tu_a", ok: true },
+    // This one never gets a tool_use_end (dropped event / early kill).
+    { kind: "tool_use_start", turnId: "t-6", tool: "Bash", toolUseId: "tu_b", input: {} },
+    { kind: "turn_end", turnId: "t-6" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const turn = state.history[0];
+  assert.equal(turn.status, "complete");
+  const tools = turn.blocks.filter((b) => b.kind === "tool_use");
+  assert.equal(tools.find((b) => b.toolUseId === "tu_a").status, "ok");
+  assert.equal(tools.find((b) => b.toolUseId === "tu_b").status, "cancelled");
+  assert.ok(!tools.some((b) => b.status === "running"));
+});
+
+test("cancel/error sweeps running tools to 'cancelled' but keeps real tool errors as 'error'", () => {
+  const events = [
+    { kind: "turn_start", turnId: "t-7" },
+    // A tool that genuinely failed — must stay "error", not be relabelled.
+    { kind: "tool_use_start", turnId: "t-7", tool: "Bash", toolUseId: "tu_a", input: {} },
+    { kind: "tool_use_end", turnId: "t-7", tool: "Bash", toolUseId: "tu_a", ok: false },
+    // A tool still running when the turn is cancelled.
+    { kind: "tool_use_start", turnId: "t-7", tool: "Edit", toolUseId: "tu_b", input: {} },
+    { kind: "error", turnId: "t-7", message: "cancelled" },
+    { kind: "turn_end", turnId: "t-7" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const turn = state.history[0];
+  assert.equal(turn.status, "cancelled");
+  assert.equal(state.lastError, "");
+  assert.ok(!turn.blocks.some((b) => b.kind === "error"));
+  const tools = turn.blocks.filter((b) => b.kind === "tool_use");
+  assert.equal(tools.find((b) => b.toolUseId === "tu_a").status, "error");
+  assert.equal(tools.find((b) => b.toolUseId === "tu_b").status, "cancelled");
+  assert.ok(!tools.some((b) => b.status === "running"));
+});
+
+test("selectArtifactFiles returns one entry per unique file, latest reason wins", () => {
+  let state = INITIAL_CHAT_STATE;
+  state = chatReducer(state, {
+    type: "chat_event",
+    event: { kind: "turn_start", turnId: "t-1" },
+  });
+  state = chatReducer(state, {
+    type: "chat_event",
+    event: { kind: "artifact_changed", turnId: "t-1", file: "model.step", reason: "new" },
+  });
+  state = chatReducer(state, {
+    type: "chat_event",
+    event: { kind: "artifact_changed", turnId: "t-1", file: "model.stl", reason: "new" },
+  });
+  state = chatReducer(state, {
+    type: "chat_event",
+    event: { kind: "artifact_changed", turnId: "t-1", file: "model.stl", reason: "modified" },
+  });
+  const artifacts = selectArtifactFiles(state);
+  const files = artifacts.map((a) => a.file).sort();
+  assert.deepEqual(files, ["model.step", "model.stl"]);
+});
+
+test("selectAnyTurnInProgress is false when idle and true for the active project's turn", () => {
+  assert.equal(selectAnyTurnInProgress(INITIAL_CHAT_STATE), false);
+  const running = applyEvents(INITIAL_CHAT_STATE, [
+    { kind: "turn_start", turnId: "t-1" },
+  ]);
+  assert.equal(running.turnInProgress, true);
+  assert.equal(selectAnyTurnInProgress(running), true);
+});
+
+test("selectAnyTurnInProgress is true when only a backgrounded session is mid-turn", () => {
+  const state = {
+    ...INITIAL_CHAT_STATE,
+    turnInProgress: false,
+    sessions: {
+      "proj-bg": { turnInProgress: true },
+      "proj-idle": { turnInProgress: false },
+    },
+  };
+  assert.equal(selectAnyTurnInProgress(state), true);
+});
+
+test("selectAnyTurnInProgress is false when active and all backgrounded sessions are idle", () => {
+  const state = {
+    ...INITIAL_CHAT_STATE,
+    turnInProgress: false,
+    sessions: { "proj-a": { turnInProgress: false } },
+  };
+  assert.equal(selectAnyTurnInProgress(state), false);
+});
+
+// --- Change 4: clearer plan card + post-build "ask to modify" hint ---------
+
+test("Change 4: a plan turn surfaces a proposed plan block and awaitingApproval (drives PlanBlock)", () => {
+  const events = [
+    { kind: "turn_start", turnId: "p-1", phase: "plan" },
+    { kind: "plan_proposed", turnId: "p-1", plan: "**What I'll make**\n- a 10mm cube" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const turn = state.history[0];
+  const planBlock = turn.blocks.find((b) => b.kind === "plan");
+  assert.ok(planBlock, "a plan block is rendered");
+  assert.equal(planBlock.status, "proposed");
+  assert.equal(planBlock.plan, "**What I'll make**\n- a 10mm cube");
+  assert.equal(state.awaitingApproval, true);
+  assert.equal(state.activePlanTurnId, "p-1");
+});
+
+test("Change 4: a completed build turn yields the exact condition that shows the post-build modify hint", () => {
+  const events = [
+    { kind: "turn_start", turnId: "b-1", phase: "implement" },
+    { kind: "tool_use_start", turnId: "b-1", tool: "cadcode", input: {} },
+    { kind: "tool_use_end", turnId: "b-1", tool: "cadcode", ok: true },
+    { kind: "artifact_changed", turnId: "b-1", file: "bracket.stl", reason: "new" },
+    { kind: "turn_end", turnId: "b-1" },
+  ];
+  const state = applyEvents(INITIAL_CHAT_STATE, events);
+  const turn = state.history[0];
+  // Mirrors ChatTurn.jsx's `showModifyHint` exactly.
+  const showModifyHint =
+    turn.phase === "implement" &&
+    turn.status === "complete" &&
+    turn.blocks.some((b) => b.kind === "artifact");
+  assert.equal(showModifyHint, true);
+  // A plan-only (read-only) turn must NOT show the hint.
+  const planState = applyEvents(INITIAL_CHAT_STATE, [
+    { kind: "turn_start", turnId: "p-2", phase: "plan" },
+    { kind: "plan_proposed", turnId: "p-2", plan: "x" },
+    { kind: "turn_end", turnId: "p-2" },
+  ]);
+  const planTurn = planState.history[0];
+  const planShowsHint =
+    planTurn.phase === "implement" &&
+    planTurn.status === "complete" &&
+    planTurn.blocks.some((b) => b.kind === "artifact");
+  assert.equal(planShowsHint, false);
+});

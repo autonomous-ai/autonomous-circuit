@@ -1,0 +1,1107 @@
+// Driver tests — stream-json translation, spawn semantics against the FAKE
+// claude stub (fixtures/fake-claude.mjs; the real CLI is never spawned),
+// cancel, autopilot chaining, and the 3-phase review loop.
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  APPROVE_PLAN_PREAMBLE,
+  MAX_SCREENING_ROUNDS,
+  screeningMaxRounds,
+  MAX_STRUCTURE_ROUNDS,
+  PHASE,
+  actionableScreeningNotes,
+  approvedPlanMessage,
+  attachmentNote,
+  buildCommandArgs,
+  buildCraftPrompt,
+  buildFunctionalPrompt,
+  buildScreeningFixPrompt,
+  buildStructurePrompt,
+  collectEpisodeWarnings,
+  createChatService,
+  diffSnapshots,
+  isBlocking,
+  isFunctional,
+  newStreamState,
+  parseScreeningReport,
+  parseSessionHistory,
+  parseStreamLine,
+  persistAttachments,
+  questionsFenceFromAskUserQuestion,
+  recoverPlanFromTranscript,
+  screeningEnabled,
+  sessionIdForProject,
+  spawnTurn,
+  summarizeToolResult,
+  uuidv5,
+} from "./driver.mjs";
+import { encodeCwd, sessionJsonlPath } from "./projects.mjs";
+
+const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const FAKE_CLAUDE = path.join(FIXTURE_DIR, "fixtures", "fake-claude.mjs");
+
+function tmpdir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function writeScenario(dir, scenario) {
+  const file = path.join(dir, "scenario.json");
+  fs.writeFileSync(file, JSON.stringify(scenario));
+  return file;
+}
+
+function readLog(logPath) {
+  try {
+    return fs
+      .readFileSync(logPath, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
+function makeEnv({ scenarioPath, cfgDir, logPath }) {
+  return {
+    ...process.env,
+    VIDEO_CLAUDE_BIN: FAKE_CLAUDE,
+    VIDEO_FAKE_SCENARIO: scenarioPath,
+    CLAUDE_CONFIG_DIR: cfgDir,
+    ...(logPath ? { VIDEO_FAKE_LOG: logPath } : {}),
+  };
+}
+
+async function waitFor(predicate, { timeoutMs = 8000, stepMs = 20 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (predicate()) {
+      return;
+    }
+    if (Date.now() > deadline) {
+      throw new Error("waitFor timed out");
+    }
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+}
+
+// stream-json line builders
+const delta = (text) => ({
+  type: "stream_event",
+  event: { type: "content_block_delta", delta: { type: "text_delta", text } },
+});
+const thinking = (text) => ({
+  type: "stream_event",
+  event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: text } },
+});
+const assistant = (content) => ({ type: "assistant", message: { content } });
+const toolUse = (id, name, input = {}) => ({ type: "tool_use", id, name, input });
+const toolResult = (id, ok = true, content = "ok") => ({
+  type: "user",
+  message: {
+    content: [{ type: "tool_result", tool_use_id: id, is_error: !ok, content }],
+  },
+});
+
+// ---------------------------------------------------------------------------
+// uuidv5 / sessions
+// ---------------------------------------------------------------------------
+
+test("uuidv5 matches the donor's NAMESPACE_OID vectors", () => {
+  // python3: uuid.uuid5(uuid.NAMESPACE_OID, 'proj-A') / 'proj-B'
+  assert.equal(sessionIdForProject("proj-A"), "1d0e3bc7-3990-520e-bccd-3dc4af70e1e4");
+  assert.equal(sessionIdForProject("proj-B"), "4fbde27b-235d-5375-ac8a-3b3377317a75");
+  assert.equal(sessionIdForProject("proj-A"), sessionIdForProject("proj-A"));
+  assert.notEqual(uuidv5("a"), uuidv5("b"));
+});
+
+// ---------------------------------------------------------------------------
+// buildCommandArgs — the §2 flag set
+// ---------------------------------------------------------------------------
+
+test("buildCommandArgs emits the contract flags, plan permission mode, --session-id for a fresh session", () => {
+  const cfgDir = tmpdir("video-cfg-");
+  const workspace = tmpdir("video-ws-");
+  const sessionId = sessionIdForProject("p1");
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: cfgDir };
+  const args = buildCommandArgs({ workspace, phase: PHASE.PLAN, sessionId, env });
+
+  assert.deepEqual(args.slice(0, 7), [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--input-format",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
+  ]);
+  const mode = args[args.indexOf("--permission-mode") + 1];
+  assert.equal(mode, "plan");
+  const addDirs = args
+    .map((a, i) => (a === "--add-dir" ? args[i + 1] : null))
+    .filter(Boolean);
+  assert.deepEqual(addDirs, [workspace, path.join(cfgDir, "skills")]);
+  assert.ok(args.includes("--strict-mcp-config"));
+  assert.equal(args[args.indexOf("--settings") + 1], '{"disableAllHooks":true}');
+  assert.equal(args[args.indexOf("--session-id") + 1], sessionId);
+  assert.ok(!args.includes("--resume"));
+  assert.ok(!args.includes("--model"), "no --model without a configured model");
+  const prompt = args[args.indexOf("--append-system-prompt") + 1];
+  assert.ok(prompt.includes("PLANNING"), "plan prompt");
+  assert.ok(prompt.includes(workspace), "workspace directive names the dir");
+});
+
+test("buildCommandArgs resumes an existing session and passes the configured model; build/review run bypassPermissions", () => {
+  const cfgDir = tmpdir("video-cfg-");
+  const workspace = tmpdir("video-ws-");
+  const sessionId = sessionIdForProject("p2");
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: cfgDir };
+  // Persisted JSONL at the encoded-cwd path → --resume.
+  const jsonl = sessionJsonlPath(workspace, sessionId, env);
+  fs.mkdirSync(path.dirname(jsonl), { recursive: true });
+  fs.writeFileSync(jsonl, "");
+
+  const args = buildCommandArgs({
+    workspace,
+    phase: PHASE.IMPLEMENT,
+    sessionId,
+    model: "opus",
+    env,
+  });
+  assert.equal(args[args.indexOf("--permission-mode") + 1], "bypassPermissions");
+  assert.equal(args[args.indexOf("--resume") + 1], sessionId);
+  assert.ok(!args.includes("--session-id"));
+  assert.equal(args[args.indexOf("--model") + 1], "opus");
+
+  const review = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, env });
+  assert.equal(review[review.indexOf("--permission-mode") + 1], "bypassPermissions");
+  assert.ok(
+    review[review.indexOf("--append-system-prompt") + 1].includes("post-build"),
+    "review prompt carries the post-build marker",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// parseStreamLine — the 9-kind translation
+// ---------------------------------------------------------------------------
+
+test("parseStreamLine translates deltas and suppresses duplicated consolidated text", () => {
+  const state = newStreamState();
+  let events = parseStreamLine(JSON.stringify(delta("Hel")), "t", state);
+  assert.deepEqual(events, [{ kind: "text_delta", turnId: "t", text: "Hel" }]);
+  events = parseStreamLine(JSON.stringify(thinking("hmm")), "t", state);
+  assert.deepEqual(events, [{ kind: "thinking_delta", turnId: "t", text: "hmm" }]);
+  // Consolidated assistant text after deltas → suppressed.
+  events = parseStreamLine(
+    JSON.stringify(assistant([{ type: "text", text: "Hello" }])),
+    "t",
+    state,
+  );
+  assert.deepEqual(events, []);
+  // Next message with NO deltas → consolidated text is the only copy.
+  events = parseStreamLine(
+    JSON.stringify(assistant([{ type: "text", text: "Second" }])),
+    "t",
+    state,
+  );
+  assert.deepEqual(events, [{ kind: "text_delta", turnId: "t", text: "Second" }]);
+});
+
+test("parseStreamLine pairs tool_use/tool_result by stable toolUseId and drops orphans", () => {
+  const state = newStreamState();
+  let events = parseStreamLine(
+    JSON.stringify(assistant([toolUse("tu1", "Bash", { command: "ls" })])),
+    "t",
+    state,
+  );
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0], {
+    kind: "tool_use_start",
+    turnId: "t",
+    tool: "Bash",
+    toolUseId: "tu1",
+    input: { command: "ls" },
+  });
+  // Orphan result (unknown id) → dropped (intercepted-builtin discipline).
+  events = parseStreamLine(JSON.stringify(toolResult("nope")), "t", state);
+  assert.deepEqual(events, []);
+  // Matching result → paired end with the start's tool name + line count.
+  events = parseStreamLine(
+    JSON.stringify(toolResult("tu1", true, [{ type: "text", text: "a\nb\nc" }])),
+    "t",
+    state,
+  );
+  assert.deepEqual(events, [
+    {
+      kind: "tool_use_end",
+      turnId: "t",
+      tool: "Bash",
+      toolUseId: "tu1",
+      ok: true,
+      resultSummary: "3 lines",
+    },
+  ]);
+  // The id is consumed — a duplicate result is dropped.
+  events = parseStreamLine(JSON.stringify(toolResult("tu1")), "t", state);
+  assert.deepEqual(events, []);
+});
+
+test("parseStreamLine intercepts ExitPlanMode as plan_proposed (inline plan or planFilePath)", () => {
+  const state = newStreamState();
+  const events = parseStreamLine(
+    JSON.stringify(assistant([toolUse("tp", "ExitPlanMode", { plan: "# The plan" })])),
+    "t",
+    state,
+  );
+  assert.deepEqual(events, [{ kind: "plan_proposed", turnId: "t", plan: "# The plan" }]);
+  assert.equal(state.planProposed, true);
+
+  // planFilePath fallback when the inline plan is empty.
+  const dir = tmpdir("video-plan-");
+  const planFile = path.join(dir, "plan.md");
+  fs.writeFileSync(planFile, "# From file");
+  const state2 = newStreamState();
+  const events2 = parseStreamLine(
+    JSON.stringify(
+      assistant([toolUse("tp2", "ExitPlanMode", { plan: "", planFilePath: planFile })]),
+    ),
+    "t",
+    state2,
+  );
+  assert.deepEqual(events2, [{ kind: "plan_proposed", turnId: "t", plan: "# From file" }]);
+});
+
+test("parseStreamLine converts AskUserQuestion to a video-questions fence and flags the turn", () => {
+  const state = newStreamState();
+  const questions = [
+    { question: "Genre?", options: [{ label: "Let Video choose" }, { label: "Revenge" }] },
+  ];
+  const events = parseStreamLine(
+    JSON.stringify(assistant([toolUse("tq", "AskUserQuestion", { questions })])),
+    "t",
+    state,
+  );
+  assert.equal(events.length, 1);
+  assert.equal(events[0].kind, "text_delta");
+  assert.ok(events[0].text.includes("```video-questions"));
+  assert.ok(events[0].text.includes(JSON.stringify({ questions })));
+  assert.equal(state.questionsAsked, true);
+  // Empty questions → no fence, no flag.
+  assert.equal(questionsFenceFromAskUserQuestion({ questions: [] }), null);
+});
+
+test("parseStreamLine result-line fallback fires only for a text-less turn; garbage skipped", () => {
+  const state = newStreamState();
+  assert.deepEqual(parseStreamLine("not json", "t", state), []);
+  assert.deepEqual(parseStreamLine("", "t", state), []);
+  let events = parseStreamLine(JSON.stringify({ type: "result", result: "fallback" }), "t", state);
+  assert.deepEqual(events, [{ kind: "text_delta", turnId: "t", text: "fallback" }]);
+  // Once text was emitted, the result line is silent.
+  events = parseStreamLine(JSON.stringify({ type: "result", result: "again" }), "t", state);
+  assert.deepEqual(events, []);
+});
+
+// ---------------------------------------------------------------------------
+// Snapshot diff
+// ---------------------------------------------------------------------------
+
+test("diffSnapshots reports new files and ≥1s forward mtimes only", () => {
+  const before = new Map([
+    ["a.mp4", 1_000_000],
+    ["b.png", 1_000_000],
+    ["c.srt", 1_000_000],
+  ]);
+  const after = new Map([
+    ["a.mp4", 1_000_500], // +0.5s — same whole second bucket → not modified
+    ["b.png", 2_000_000], // +1000s → modified
+    ["c.srt", 1_000_000],
+    ["d.py", 5],
+  ]);
+  const events = diffSnapshots(before, after, "t");
+  assert.deepEqual(events, [
+    { kind: "artifact_changed", turnId: "t", file: "b.png", reason: "modified" },
+    { kind: "artifact_changed", turnId: "t", file: "d.py", reason: "new" },
+  ]);
+});
+
+// ---------------------------------------------------------------------------
+// Review-loop plumbing
+// ---------------------------------------------------------------------------
+
+test("collectEpisodeWarnings walks *.episode.json recursively, skipping malformed sidecars", () => {
+  const dir = tmpdir("video-warn-");
+  fs.mkdirSync(path.join(dir, "episodes"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "episodes", "ep001.episode.json"),
+    JSON.stringify({
+      validation: {
+        warnings: [
+          { part: "s1_02", kind: "duration_drift", detail: "off", severity: "warning" },
+          { part: "s1_04", kind: "missing_shot", detail: "no clip", severity: "error" },
+          { part: "scene_2", kind: "functional", detail: "recap too long", severity: "warning" },
+        ],
+      },
+    }),
+  );
+  fs.writeFileSync(path.join(dir, "episodes", "broken.episode.json"), "{nope");
+  fs.writeFileSync(path.join(dir, "notes.json"), JSON.stringify({ validation: { warnings: [{ part: "x" }] } }));
+
+  const warnings = collectEpisodeWarnings(dir);
+  assert.equal(warnings.length, 3, "only *.episode.json sidecars count");
+  const blocking = warnings.filter(isBlocking);
+  assert.deepEqual(blocking.map((w) => w.part), ["s1_04"]);
+  const functional = warnings.filter(isFunctional);
+  assert.deepEqual(functional.map((w) => w.part), ["scene_2"]);
+});
+
+test("review prompts gate on their warning sets; craft prompt always builds", () => {
+  assert.equal(buildStructurePrompt([]), null);
+  assert.equal(buildFunctionalPrompt([]), null);
+  const w = { part: "s1_04", kind: "missing_shot", detail: "no clip", severity: "error" };
+  const structure = buildStructurePrompt([w]);
+  assert.ok(structure.includes("- [s1_04] missing_shot: no clip"));
+  const craft = buildCraftPrompt([]);
+  assert.ok(craft.includes("_board.png"));
+  assert.ok(craft.includes("_poster.png"));
+});
+
+// ---------------------------------------------------------------------------
+// Session history rehydration
+// ---------------------------------------------------------------------------
+
+test("parseSessionHistory groups an assistant trace with tool timings and drops meta/synthetic lines", () => {
+  const jsonl = [
+    JSON.stringify({
+      type: "user",
+      isMeta: true,
+      message: { role: "user", content: "<system-reminder>noise</system-reminder>" },
+      timestamp: "2026-08-01T05:00:00.000Z",
+    }),
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: `${approvedPlanMessage("Build ep1.")}` },
+      timestamp: "2026-08-01T05:00:01.000Z",
+    }),
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: "make a revenge drama" },
+      timestamp: "2026-08-01T05:00:02.000Z",
+    }),
+    JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          { type: "thinking", thinking: "beats..." },
+          { type: "text", text: "Writing." },
+          { type: "tool_use", id: "u1", name: "Read", input: { file_path: "series.py" } },
+          { type: "tool_use", id: "p1", name: "ExitPlanMode", input: { plan: "x" } },
+        ],
+      },
+      timestamp: "2026-08-01T05:00:03.000Z",
+    }),
+    JSON.stringify({
+      type: "user",
+      message: {
+        content: [
+          { type: "tool_result", tool_use_id: "u1", is_error: false, content: [{ type: "text", text: "a\nb" }] },
+        ],
+      },
+      timestamp: "2026-08-01T05:00:05.000Z",
+    }),
+    JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "Done." }] },
+      timestamp: "2026-08-01T05:00:06.000Z",
+    }),
+  ].join("\n");
+
+  const history = parseSessionHistory(jsonl);
+  assert.equal(history.length, 2, `got ${JSON.stringify(history)}`);
+  assert.equal(history[0].role, "user");
+  assert.equal(history[0].content, "make a revenge drama");
+  assert.ok(history[0].at > 0);
+
+  const asst = history[1];
+  assert.equal(asst.role, "assistant");
+  assert.equal(asst.content, "Writing.\n\nDone.");
+  const kinds = asst.blocks.map((b) => b.kind);
+  // ExitPlanMode never becomes a tool block.
+  assert.deepEqual(kinds, ["thinking", "text", "tool_use", "text"]);
+  const tool = asst.blocks[2];
+  assert.equal(tool.tool, "Read");
+  assert.equal(tool.status, "ok");
+  assert.equal(tool.resultSummary, "2 lines");
+  assert.ok(tool.endedAt > tool.at, "tool end resolves from the tool_result timestamp");
+});
+
+test("parseSessionHistory strips the attachment note and resolves tool errors", () => {
+  const content = `make it darker${attachmentNote(["inputs/a.png"])}`;
+  const jsonl = [
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content },
+      timestamp: "2026-08-01T05:00:00.000Z",
+    }),
+    JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", id: "w1", name: "Write", input: {} }] },
+      timestamp: "2026-08-01T05:00:01.000Z",
+    }),
+    JSON.stringify({
+      type: "user",
+      message: { content: [{ type: "tool_result", tool_use_id: "w1", is_error: true, content: "boom" }] },
+      timestamp: "2026-08-01T05:00:02.000Z",
+    }),
+  ].join("\n");
+  const history = parseSessionHistory(jsonl);
+  assert.equal(history[0].content, "make it darker");
+  assert.equal(history[1].blocks[0].status, "error");
+  assert.equal(parseSessionHistory("garbage\n{bad}\n").length, 0);
+});
+
+test("recoverPlanFromTranscript prefers the last substantial text block over thinking", () => {
+  const long = (label) => `${label} ${"x".repeat(220)}`;
+  const jsonl = [
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "thinking", thinking: long("THINK") }] } }),
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: long("PLAN") }] } }),
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "short ack" }] } }),
+  ].join("\n");
+  assert.ok(recoverPlanFromTranscript(jsonl).startsWith("PLAN"));
+  const thinkingOnly = JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "thinking", thinking: long("THINK") }] },
+  });
+  assert.ok(recoverPlanFromTranscript(thinkingOnly).startsWith("THINK"));
+  assert.equal(recoverPlanFromTranscript(""), "");
+});
+
+test("approvedPlanMessage keeps the strippable preamble even for an empty plan", () => {
+  assert.ok(approvedPlanMessage("Build it.").startsWith(APPROVE_PLAN_PREAMBLE));
+  const empty = approvedPlanMessage("   ");
+  assert.ok(empty.startsWith(APPROVE_PLAN_PREAMBLE));
+  assert.ok(empty.includes("Implement the plan you just designed"));
+  assert.equal(summarizeToolResult(""), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// persistAttachments
+// ---------------------------------------------------------------------------
+
+test("persistAttachments writes uuid-named files under inputs/ and rejects bad input", () => {
+  const workspace = tmpdir("video-att-");
+  const rels = persistAttachments(workspace, [
+    { name: "../../evil.png", mediaType: "image/png", dataBase64: Buffer.from("hello").toString("base64") },
+  ]);
+  assert.equal(rels.length, 1);
+  assert.ok(rels[0].startsWith("inputs/"));
+  assert.ok(!rels[0].includes("evil"), "user-supplied name never reaches the path");
+  assert.ok(fs.existsSync(path.join(workspace, rels[0])));
+
+  assert.throws(
+    () => persistAttachments(workspace, [{ mediaType: "text/plain", dataBase64: "aGk=" }]),
+    /unsupported image type/,
+  );
+  const one = { mediaType: "image/png", dataBase64: "aGk=" };
+  assert.throws(() => persistAttachments(workspace, Array(7).fill(one)), /too many images/);
+});
+
+// ---------------------------------------------------------------------------
+// spawnTurn against the fake claude
+// ---------------------------------------------------------------------------
+
+test("plan turn: text delta → plan_proposed → turn ends (child killed, later lines dropped)", async () => {
+  const dir = tmpdir("video-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    plan: {
+      lines: [
+        delta("Designing the pilot."),
+        assistant([toolUse("tp1", "ExitPlanMode", { plan: "# Plan\nEpisode 1: The Slap" })]),
+        delta("SHOULD NOT APPEAR"),
+      ],
+      sleepAfterMs: 3000,
+    },
+  });
+  const events = [];
+  const result = await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-plan"),
+    message: "make a drama",
+    turnId: "t1",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+
+  assert.deepEqual(events[0], { kind: "turn_start", turnId: "t1", phase: "plan" });
+  assert.deepEqual(events[1], { kind: "text_delta", turnId: "t1", text: "Designing the pilot." });
+  assert.equal(events[2].kind, "plan_proposed");
+  assert.equal(events[2].plan, "# Plan\nEpisode 1: The Slap");
+  assert.deepEqual(events.at(-1), { kind: "turn_end", turnId: "t1" });
+  assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("SHOULD NOT APPEAR")));
+  assert.equal(result.proposedPlan, "# Plan\nEpisode 1: The Slap");
+  assert.equal(result.cancelled, false);
+});
+
+test("plan turn: AskUserQuestion ends the turn with a video-questions fence and NO proposed plan", async () => {
+  const dir = tmpdir("video-run-");
+  const workspace = path.join(dir, "ws");
+  const questions = [{ question: "Genre?", options: [{ label: "Let Video choose" }] }];
+  const scenarioPath = writeScenario(dir, {
+    plan: {
+      lines: [assistant([toolUse("tq1", "AskUserQuestion", { questions })])],
+      sleepAfterMs: 3000,
+    },
+  });
+  const events = [];
+  const result = await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-q"),
+    message: "make a drama",
+    turnId: "t2",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+  const fence = events.find((e) => e.kind === "text_delta");
+  assert.ok(fence.text.includes("```video-questions"));
+  assert.equal(events.at(-1).kind, "turn_end");
+  assert.equal(result.proposedPlan, null, "questions ≠ plan; autopilot must not chain");
+});
+
+test("implement turn: tool pairing, incremental artifact_changed, result-line suppressed after text", async () => {
+  const dir = tmpdir("video-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [
+        assistant([{ type: "text", text: "Building." }, toolUse("tb1", "Bash", { command: "drama" })]),
+        toolResult("tb1", true, [{ type: "text", text: "x\ny\nz" }]),
+        { type: "result", result: "done" },
+      ],
+    },
+    review: {}, // craft pass runs once, changes nothing, breaks
+  });
+  const events = [];
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-impl"),
+    message: approvedPlanMessage("plan"),
+    turnId: "t3",
+    phase: PHASE.IMPLEMENT,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+
+  assert.deepEqual(events[0], { kind: "turn_start", turnId: "t3", phase: "implement" });
+  const kinds = events.map((e) => e.kind);
+  const startIdx = kinds.indexOf("tool_use_start");
+  const endIdx = kinds.indexOf("tool_use_end");
+  assert.ok(startIdx > 0 && endIdx > startIdx, `pairing order: ${kinds}`);
+  assert.equal(events[endIdx].toolUseId, events[startIdx].toolUseId);
+  assert.equal(events[endIdx].resultSummary, "3 lines");
+  const artifact = events.find((e) => e.kind === "artifact_changed");
+  assert.deepEqual(artifact, {
+    kind: "artifact_changed",
+    turnId: "t3",
+    file: "episodes/ep001.mp4",
+    reason: "new",
+  });
+  assert.ok(!events.some((e) => e.kind === "text_delta" && e.text === "done"), "result fallback suppressed");
+  assert.equal(events.at(-1).kind, "turn_end");
+});
+
+test("cancel: kills the child and emits error{cancelled} then turn_end", async () => {
+  const dir = tmpdir("video-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    plan: { lines: [delta("thinking...")], sleepAfterMs: 30000 },
+  });
+  const controller = new AbortController();
+  const events = [];
+  const startedAt = Date.now();
+  const turn = spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-cancel"),
+    message: "make a drama",
+    turnId: "t4",
+    phase: PHASE.PLAN,
+    onEvent: (e) => {
+      events.push(e);
+      if (e.kind === "text_delta") {
+        controller.abort();
+      }
+    },
+    signal: controller.signal,
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+  const result = await turn;
+  assert.equal(result.cancelled, true);
+  assert.deepEqual(events.at(-2), { kind: "error", turnId: "t4", message: "cancelled" });
+  assert.deepEqual(events.at(-1), { kind: "turn_end", turnId: "t4" });
+  assert.ok(Date.now() - startedAt < 10000, "cancel does not wait out the child's sleep");
+});
+
+test("silent failure: no stream output surfaces stderr as error BEFORE turn_end", async () => {
+  const dir = tmpdir("video-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    plan: { lines: [], stderr: "Session ID already in use", exitCode: 1 },
+  });
+  const events = [];
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-fail"),
+    message: "hi",
+    turnId: "t5",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+  const errIdx = events.findIndex((e) => e.kind === "error");
+  const endIdx = events.findIndex((e) => e.kind === "turn_end");
+  assert.ok(errIdx !== -1 && errIdx < endIdx, "error precedes turn_end");
+  assert.ok(events[errIdx].message.includes("claude produced no response"));
+  assert.ok(events[errIdx].message.includes("Session ID already in use"));
+});
+
+test("missing claude binary → CLAUDE not-found error then turn_end", async () => {
+  const dir = tmpdir("video-run-");
+  const events = [];
+  await spawnTurn({
+    workspace: path.join(dir, "ws"),
+    sessionId: sessionIdForProject("p-missing"),
+    message: "hi",
+    turnId: "t6",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: { ...process.env, VIDEO_CLAUDE_BIN: path.join(dir, "does-not-exist") },
+  });
+  assert.equal(events[1].kind, "error");
+  assert.ok(events[1].message.includes("`claude` CLI not found"));
+  assert.equal(events[2].kind, "turn_end");
+});
+
+// ---------------------------------------------------------------------------
+// Review loop through a build turn
+// ---------------------------------------------------------------------------
+
+const CLEAN_SIDECAR = JSON.stringify({ validation: { durationS: 96.4, shotCount: 14 } });
+const BLOCKED_SIDECAR = JSON.stringify({
+  validation: {
+    warnings: [{ part: "s1_02", kind: "missing_shot", detail: "no clip", severity: "error" }],
+  },
+});
+
+test("review loop: structure round fixes the blocking warning, then craft always runs once — all silently", async () => {
+  const dir = tmpdir("video-review-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: {
+      writeFiles: [{ path: "episodes/ep001.episode.json", content: CLEAN_SIDECAR }],
+      lines: [delta("review chatter")],
+    },
+  });
+  const events = [];
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-review"),
+    message: approvedPlanMessage("plan"),
+    turnId: "t7",
+    phase: PHASE.IMPLEMENT,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+
+  const log = readLog(logPath);
+  assert.equal(log[0].phase, "implement");
+  const reviews = log.filter((entry) => entry.phase === "review");
+  assert.ok(reviews.length >= 2, `structure round + craft round(s), got ${reviews.length}`);
+  assert.ok(
+    reviews[0].stdin.includes("- [s1_02] missing_shot: no clip"),
+    "structure prompt lists the blocking warning",
+  );
+  assert.ok(reviews[0].stdin.includes("structural check"));
+  assert.ok(
+    reviews.some((r) => r.stdin.includes("craft verification")),
+    "craft pass always runs once after structure clears",
+  );
+  assert.ok(
+    !reviews.some((r) => r.stdin.includes("DRAMATIC-FUNCTION")),
+    "no functional warnings → no functional round",
+  );
+  // Review is silent: its chat never reaches the event stream.
+  assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("review chatter")));
+  assert.equal(events.at(-1).kind, "turn_end");
+});
+
+test("review loop: non-converging structure stops at the 2-round cap with one unresolved note; craft skipped", async () => {
+  const dir = tmpdir("video-review-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: { lines: [] }, // never fixes anything
+  });
+  const events = [];
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-review2"),
+    message: approvedPlanMessage("plan"),
+    turnId: "t8",
+    phase: PHASE.IMPLEMENT,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+
+  const reviews = readLog(logPath).filter((entry) => entry.phase === "review");
+  assert.equal(reviews.length, MAX_STRUCTURE_ROUNDS, "exactly the structure cap, then bail");
+  assert.ok(reviews.every((r) => r.stdin.includes("structural check")));
+  const note = events.find((e) => e.kind === "text_delta" && e.text.includes("unresolved"));
+  assert.ok(note, "one unresolved-issues note surfaces");
+  assert.ok(note.text.includes("structure"));
+  assert.ok(note.text.includes("s1_02"));
+  assert.ok(events.indexOf(note) < events.findIndex((e) => e.kind === "turn_end"));
+});
+
+test("functional phase: kind=functional warnings get the beat-sheet prompt after structure is clean", async () => {
+  const dir = tmpdir("video-review-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workspace, "episodes", "ep001.episode.json"),
+    JSON.stringify({
+      validation: {
+        warnings: [{ part: "scene_2", kind: "functional", detail: "recap beat exceeds 8s", severity: "warning" }],
+      },
+    }),
+  );
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: {
+      writeFiles: [{ path: "episodes/ep001.episode.json", content: CLEAN_SIDECAR }],
+    },
+  });
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-review3"),
+    message: approvedPlanMessage("plan"),
+    turnId: "t9",
+    phase: PHASE.IMPLEMENT,
+    onEvent: () => {},
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+  const reviews = readLog(logPath).filter((entry) => entry.phase === "review");
+  assert.ok(reviews[0].stdin.includes("DRAMATIC-FUNCTION"), "functional prompt first (no blocking errors)");
+  assert.ok(reviews[0].stdin.includes("- [scene_2] functional: recap beat exceeds 8s"));
+});
+
+// ---------------------------------------------------------------------------
+// Chat service — autopilot chaining
+// ---------------------------------------------------------------------------
+
+function makeChatHarness({ dir, scenario, autoBuild = true }) {
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, scenario);
+  const events = [];
+  const chat = createChatService({
+    projectDir: (id) => path.join(dir, "projects", id),
+    settings: { read: () => ({ autoBuild, model: "" }) },
+    emit: (projectId, event) => events.push({ projectId, ...event }),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+  return { chat, events, logPath };
+}
+
+test("autopilot: a proposed plan chains a build turn (plan-present gate, even when plan text is empty)", async () => {
+  const dir = tmpdir("video-auto-");
+  const { chat, events, logPath } = makeChatHarness({
+    dir,
+    scenario: {
+      // ExitPlanMode with NO plan text and no file — plan-present must still build.
+      plan: { lines: [assistant([toolUse("tp", "ExitPlanMode", {})])], sleepAfterMs: 2000 },
+      implement: {
+        writeFiles: [{ path: "episodes/ep001.mp4", content: "v" }],
+        lines: [assistant([{ type: "text", text: "Built it." }])],
+      },
+      review: {},
+    },
+  });
+  const turnId = chat.startTurn({ projectId: "proj-1", message: "go", phase: PHASE.PLAN });
+  assert.ok(turnId);
+  await waitFor(() => events.filter((e) => e.kind === "turn_end").length >= 2, { timeoutMs: 15000 });
+  const starts = events.filter((e) => e.kind === "turn_start");
+  assert.equal(starts.length, 2);
+  assert.equal(starts[0].phase, "plan");
+  assert.equal(starts[1].phase, "implement");
+  assert.notEqual(starts[0].turnId, starts[1].turnId, "the chained build is its own turn");
+  assert.ok(events.every((e) => e.projectId === "proj-1"), "every event is enveloped with projectId");
+
+  const log = readLog(logPath);
+  const implement = log.find((entry) => entry.phase === "implement");
+  assert.ok(implement.stdin.includes(APPROVE_PLAN_PREAMBLE));
+  assert.ok(implement.stdin.includes("Implement the plan you just designed"), "empty plan body fallback");
+  chat.close();
+});
+
+test("autopilot off (autoBuild=false): the plan turn does NOT chain", async () => {
+  const dir = tmpdir("video-auto-");
+  const { chat, events, logPath } = makeChatHarness({
+    dir,
+    autoBuild: false,
+    scenario: {
+      plan: { lines: [assistant([toolUse("tp", "ExitPlanMode", { plan: "P" })])], sleepAfterMs: 2000 },
+    },
+  });
+  chat.startTurn({ projectId: "proj-2", message: "go", phase: PHASE.PLAN });
+  await waitFor(() => events.some((e) => e.kind === "turn_end"));
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(events.filter((e) => e.kind === "turn_start").length, 1);
+  assert.equal(readLog(logPath).length, 1, "exactly one claude spawn");
+  chat.close();
+});
+
+test("a questions turn does not chain a build even with autopilot on", async () => {
+  const dir = tmpdir("video-auto-");
+  const { chat, events } = makeChatHarness({
+    dir,
+    scenario: {
+      plan: {
+        lines: [
+          assistant([
+            toolUse("tq", "AskUserQuestion", { questions: [{ question: "Genre?", options: [] }] }),
+          ]),
+        ],
+        sleepAfterMs: 2000,
+      },
+    },
+  });
+  chat.startTurn({ projectId: "proj-3", message: "go", phase: PHASE.PLAN });
+  await waitFor(() => events.some((e) => e.kind === "turn_end"));
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(events.filter((e) => e.kind === "turn_start").length, 1);
+  chat.close();
+});
+
+test("cancelTurn aborts an in-flight turn via the registry; unknown ids are a safe no-op", async () => {
+  const dir = tmpdir("video-auto-");
+  const { chat, events } = makeChatHarness({
+    dir,
+    scenario: { plan: { lines: [delta("working...")], sleepAfterMs: 30000 } },
+  });
+  assert.equal(chat.cancelTurn("does-not-exist"), false);
+  const turnId = chat.startTurn({ projectId: "proj-4", message: "go", phase: PHASE.PLAN });
+  await waitFor(() => events.some((e) => e.kind === "text_delta"));
+  assert.equal(chat.turnInProgress("proj-4"), true);
+  assert.equal(chat.cancelTurn(turnId), true);
+  await waitFor(() => events.some((e) => e.kind === "turn_end"));
+  const errIdx = events.findIndex((e) => e.kind === "error" && e.message === "cancelled");
+  const endIdx = events.findIndex((e) => e.kind === "turn_end");
+  assert.ok(errIdx !== -1 && errIdx < endIdx);
+  assert.equal(chat.turnInProgress("proj-4"), false);
+  chat.close();
+});
+
+// ---------------------------------------------------------------------------
+// Screening room — the quality gate
+// ---------------------------------------------------------------------------
+
+test("parseScreeningReport extracts the last valid fenced report and rejects junk", () => {
+  assert.equal(parseScreeningReport("no fence"), null);
+  assert.equal(parseScreeningReport("```screening-report\n{bad json}\n```"), null);
+  // Missing a required key → rejected.
+  assert.equal(
+    parseScreeningReport('```screening-report\n{"overall_1_10":8,"notes":[]}\n```'),
+    null,
+  );
+  const text =
+    'prose\n```screening-report\n{"overall_1_10":3,"dimension_scores":{},' +
+    '"pass_at_bar":false,"notes":[]}\n```\n' +
+    'more\n```screening-report\n{"overall_1_10":9,"dimension_scores":{"hook":9},' +
+    '"pass_at_bar":true,"notes":[{"department":"vfx","severity":"minor"}]}\n```';
+  const report = parseScreeningReport(text);
+  assert.equal(report.overall_1_10, 9, "last block wins");
+  assert.equal(report.pass_at_bar, true);
+});
+
+test("actionableScreeningNotes keeps only blocker/major; buildScreeningFixPrompt routes them", () => {
+  const report = {
+    notes: [
+      { department: "vfx", shot_ids: ["s1_02"], severity: "blocker", note: "rotated", fix: "re-render portrait" },
+      { department: "editor", shot_ids: ["s2_01"], severity: "minor", note: "long", fix: "trim" },
+      { department: "cast", shot_ids: ["s3_01"], severity: "major", note: "face drift", fix: "reroll pinned" },
+    ],
+  };
+  const actionable = actionableScreeningNotes(report);
+  assert.deepEqual(actionable.map((n) => n.department), ["vfx", "cast"]);
+  const prompt = buildScreeningFixPrompt(actionable);
+  assert.ok(prompt.includes("did NOT pass"));
+  assert.ok(prompt.includes("[vfx] (blocker) s1_02: rotated"));
+  assert.ok(prompt.includes("[cast] (major) s3_01: face drift"));
+  assert.ok(!prompt.includes("editor"), "minor notes are not routed to a fix round");
+});
+
+test("screeningMaxRounds: default backstop, env override, clamp", () => {
+  assert.equal(screeningMaxRounds({}), MAX_SCREENING_ROUNDS);
+  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "12" }), 12);
+  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "999" }), 30, "clamped");
+  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "nope" }), MAX_SCREENING_ROUNDS);
+  assert.equal(screeningMaxRounds({ VIDEO_SCREENING_MAX_ROUNDS: "0" }), MAX_SCREENING_ROUNDS);
+});
+
+test("screeningEnabled defaults on and honors the VIDEO_SCREENING flag", () => {
+  assert.equal(screeningEnabled({}), true);
+  assert.equal(screeningEnabled({ VIDEO_SCREENING: "" }), true);
+  assert.equal(screeningEnabled({ VIDEO_SCREENING: "1" }), true);
+  for (const off of ["0", "false", "off", "no", "OFF"]) {
+    assert.equal(screeningEnabled({ VIDEO_SCREENING: off }), false, off);
+  }
+});
+
+const SCREEN_CLEAN_SIDECAR = JSON.stringify({ validation: { durationS: 50, shotCount: 8 } });
+
+// A screening-report emitted by the fake critic, as an assistant text block.
+const screeningReportLine = (report) =>
+  assistant([{ type: "text", text: "```screening-report\n" + JSON.stringify(report) + "\n```" }]);
+
+const BELOW_BAR = {
+  overall_1_10: 5,
+  dimension_scores: { hook: 6, story: 5, consistency: 4, technical: 3 },
+  pass_at_bar: false,
+  notes: [
+    { department: "vfx", shot_ids: ["s1_02"], severity: "blocker", note: "rotated 90°", fix: "re-render s1_02 portrait" },
+  ],
+};
+const ABOVE_BAR = {
+  overall_1_10: 9,
+  dimension_scores: { hook: 9, story: 9, consistency: 8, technical: 10 },
+  pass_at_bar: true,
+  notes: [],
+};
+
+test("screening: a below-bar verdict triggers a targeted fix round, and stops when the fix can't make progress", async () => {
+  const dir = tmpdir("video-screen-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: {}, // craft pass + the screening fix rounds (no re-render needed to test wiring)
+    screening: { lines: [screeningReportLine(BELOW_BAR)] },
+  });
+  const events = [];
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-screen-fail"),
+    message: approvedPlanMessage("plan"),
+    turnId: "ts1",
+    phase: PHASE.IMPLEMENT,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+
+  const log = readLog(logPath);
+  const screenings = log.filter((e) => e.phase === "screening");
+  // Convergence loop: it screens, fixes once, re-checks — but this fake's fix
+  // round changes no artifacts, so the loop correctly stops (no progress) rather
+  // than burning the whole cap re-screening an identical cut.
+  assert.equal(screenings.length, 1, "stops once a fix round makes no change (no progress)");
+  assert.ok(
+    screenings[0].stdin.includes("screening-room bundle") || screenings[0].stdin.includes("screening-report"),
+    "the critic prompt asks for the bundle + report",
+  );
+  const fixRounds = log.filter((e) => e.phase === "review" && e.stdin.includes("did NOT pass"));
+  assert.ok(fixRounds.length >= 1, "a below-bar verdict resumes the session with the notes as a fix");
+  assert.ok(fixRounds[0].stdin.includes("s1_02"), "the fix round names the flagged shot");
+  // Silent: the critique never reaches the user's event stream.
+  assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("screening-report")));
+  assert.equal(events.at(-1).kind, "turn_end");
+});
+
+test("screening: an above-bar verdict stops after one screen — no fix round", async () => {
+  const dir = tmpdir("video-screen-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: {},
+    screening: { lines: [screeningReportLine(ABOVE_BAR)] },
+  });
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-screen-pass"),
+    message: approvedPlanMessage("plan"),
+    turnId: "ts2",
+    phase: PHASE.IMPLEMENT,
+    onEvent: () => {},
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+  });
+
+  const log = readLog(logPath);
+  assert.equal(log.filter((e) => e.phase === "screening").length, 1, "passes on the first screen");
+  assert.equal(
+    log.filter((e) => e.phase === "review" && e.stdin.includes("did NOT pass")).length,
+    0,
+    "no screening fix round when the cut clears the bar",
+  );
+});
+
+test("screening: VIDEO_SCREENING=off disables the screening phase entirely", async () => {
+  const dir = tmpdir("video-screen-");
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    implement: {
+      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      lines: [assistant([{ type: "text", text: "Built." }])],
+    },
+    review: {},
+    screening: { lines: [screeningReportLine(BELOW_BAR)] },
+  });
+  await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-screen-off"),
+    message: approvedPlanMessage("plan"),
+    turnId: "ts3",
+    phase: PHASE.IMPLEMENT,
+    onEvent: () => {},
+    env: { ...makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }), VIDEO_SCREENING: "off" },
+  });
+
+  const log = readLog(logPath);
+  assert.equal(log.filter((e) => e.phase === "screening").length, 0, "no critic spawned when disabled");
+});

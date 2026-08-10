@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dramapy:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run dramapy tests
+        run: cd packages/dramapy && python -m pytest -q
+
+  viewer:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          check-latest: true
+      - run: npm --prefix viewer ci
+      - run: npm --prefix viewer test
+      - run: npm --prefix viewer run build
+
+  skills:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run dramacode skill tests
+        run: cd skills/dramacode && python -m pytest tests/ -q
+
+  evals:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run structural evals (mock provider)
+        run: python evals/run.py

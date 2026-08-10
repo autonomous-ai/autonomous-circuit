@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Autonomous TV dev entry — web mode (no Tauri).
+#
+# Starts the whole app: Vite dev server + the Video API middleware (chat driver,
+# SSE, catalog, projects) mounted by viewer/vite.config.mjs. One process.
+#
+# Node: the test runner needs >=22.6 (--experimental-strip-types) and Vite 7
+# wants >=22.12. If the system node is older, prefer Homebrew's keg-only
+# node@22 (installed 2026-08-09 for exactly this reason).
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+NODE22="/usr/local/opt/node@22/bin"
+if [ -x "$NODE22/node" ]; then
+  # Prefer node@22 whenever the system node is broken (crashes) or older than
+  # Vite 7's floor (22.12). `node --version` runs in a guarded subshell — a
+  # dyld-broken brew node aborts instead of failing politely.
+  v="$( (node --version 2>/dev/null || true) | sed 's/^v//' )"
+  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
+  case "$major" in (*[!0-9]*|"") major=0; minor=0;; esac
+  if [ "${major:-0}" -lt 22 ] || { [ "$major" -eq 22 ] && [ "${minor:-0}" -lt 12 ]; }; then
+    export PATH="$NODE22:$PATH"
+    echo "[dev] using $("$NODE22/node" --version) from node@22 (system node missing, broken, or <22.12)"
+  fi
+fi
+
+if [ ! -d "$REPO_ROOT/viewer/node_modules" ]; then
+  echo "[dev] installing viewer dependencies…"
+  npm --prefix "$REPO_ROOT/viewer" install
+fi
+
+# The claude CLI drives every chat turn; fail loud now, not mid-turn.
+if ! command -v claude >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/claude" ]; then
+  echo "[dev] WARNING: claude CLI not found on PATH — chat turns will fail." >&2
+fi
+for bin in ffmpeg ffprobe; do
+  command -v "$bin" >/dev/null 2>&1 || {
+    echo "[dev] WARNING: $bin not found — episode rendering will fail." >&2
+  }
+done
+
+exec npm --prefix "$REPO_ROOT/viewer" run dev
