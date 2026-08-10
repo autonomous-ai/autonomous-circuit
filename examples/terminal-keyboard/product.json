@@ -1,0 +1,12 @@
+{
+  "name": "terminal-keyboard",
+  "description": "The Autonomous Terminal thumb keyboard: a 5x10 diode-isolated key matrix on an RP2040 that enumerates as a USB HID keyboard for the Terminal handheld Linux computer",
+  "power": "usb-c-5v",
+  "envelopeMm": [
+    112,
+    90
+  ],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
