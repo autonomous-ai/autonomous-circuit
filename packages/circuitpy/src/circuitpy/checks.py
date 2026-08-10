@@ -222,6 +222,57 @@ def kicad_unavailable_warning() -> Warning:
     )
 
 
+#: Finding types measured (2026-08-10) as artifacts of the tscircuit->KiCad
+#: conversion rather than defects in the board, and the floor they are pinned
+#: to. Method: export a *correct* board, run kicad-cli, and count what fires.
+#:
+#: ERC came back with 152 findings on a clean skeleton board, and **every type
+#: it reported was an artifact** — the schematic converter does not produce
+#: KiCad-recognised connectivity, so `pin_not_connected` lands on pins that are
+#: demonstrably wired, wires read as dangling, and symbols sit off KiCad's
+#: connection grid. The whole ERC leg is therefore advisory: it measures the
+#: converter, not the design. It stays wired up because the converter is
+#: upstream and improving, and the day it emits real nets this becomes a free
+#: second opinion — flip these back to their reported severity then.
+#:
+#: DRC is real signal once the fab's design rules are supplied (see
+#: fab.kicad_project_json): 207 findings -> 50, and the survivors match our own
+#: stage-4 gate. Only the library/cosmetic types below stay pinned.
+KICAD_NOISE_FLOOR: dict[str, str] = {
+    # ERC — converter artifacts, all of them.
+    "pin_not_connected": "info",
+    "wire_dangling": "info",
+    "label_dangling": "info",
+    "endpoint_off_grid": "info",
+    "unconnected_wire_endpoint": "info",
+    "isolated_pin_label": "info",
+    "lib_symbol_issues": "info",
+    "lib_symbol_mismatch": "info",
+    "simulation_model_issue": "info",
+    # DRC — library/cosmetic noise from converted footprints.
+    "lib_footprint_issues": "info",
+    "lib_footprint_mismatch": "info",
+    "text_height": "info",
+    "text_thickness": "info",
+    "silk_over_copper": "info",
+    "silk_overlap": "info",
+}
+
+#: Everything from the ERC leg is advisory today; see KICAD_NOISE_FLOOR.
+_ADVISORY_KINDS = {"erc_violation"}
+
+
+def _kicad_severity(reported: str, type_tag: str, kind: str) -> str:
+    """Reported severity, lowered to the measured noise floor where the finding
+    describes the conversion rather than the board."""
+    if kind in _ADVISORY_KINDS:
+        return "info"
+    floor = KICAD_NOISE_FLOOR.get(type_tag)
+    if floor is not None:
+        return floor
+    return reported
+
+
 def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
     """A kicad-cli ``--format json`` ERC/DRC report -> warnings with the given
     kind (``erc_violation`` / ``drc_violation``). Accepts a dict, JSON text,
@@ -257,6 +308,7 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
                     match = _REFDES_RE.search(item_desc)
                     part = match.group(1) if match else (item_desc[:60] or "board")
             type_tag = str(violation.get("type") or "")
+            severity = _kicad_severity(severity, type_tag, kind)
             detail = f"[{type_tag}] {description}".strip() if type_tag else description
             warnings.append(_warning(part, kind, detail or "violation", severity))
         return warnings
@@ -367,47 +419,96 @@ def dfm_warnings(
                         )
                         break
             elif etype in ("pcb_via", "pcb_plated_hole"):
+                # A via is a routing feature; a plated hole is where a component
+                # leg goes. JLC specs them separately and the via numbers are
+                # much finer — checking a via against the PTH annular-ring rule
+                # flags every routed board, which trains everyone to ignore DFM.
                 part = _localize(element, names)
                 hole = element.get("hole_diameter")
                 outer = element.get("outer_diameter")
-                if isinstance(hole, (int, float)) and hole < profile.min_drill_mm:
+                is_via = etype == "pcb_via"
+                min_drill = (
+                    profile.min_via_drill_mm if is_via else profile.min_pth_drill_mm
+                )
+                min_annular = (
+                    profile.min_via_annular_mm if is_via else profile.min_pth_annular_mm
+                )
+                kindname = "via" if is_via else "plated hole"
+
+                if isinstance(hole, (int, float)) and hole < min_drill - 1e-9:
                     warnings.append(
                         _warning(
                             part,
                             "dfm_drill_size",
-                            f"hole {hole:g}mm is below the fab minimum drill "
-                            f"{profile.min_drill_mm:g}mm",
+                            f"{kindname} hole {hole:g}mm is below the fab minimum "
+                            f"drill {min_drill:g}mm",
                             "error",
                         )
                     )
-                if (
-                    etype == "pcb_via"
-                    and isinstance(outer, (int, float))
-                    and outer < profile.min_via_diameter_mm
+                elif (
+                    is_via
+                    and isinstance(hole, (int, float))
+                    and hole < profile.warn_via_drill_mm - 1e-9
                 ):
                     warnings.append(
                         _warning(
                             part,
-                            "dfm_via_diameter",
-                            f"via diameter {outer:g}mm is below the fab minimum "
-                            f"{profile.min_via_diameter_mm:g}mm",
-                            "error",
+                            "dfm_drill_size",
+                            f"via hole {hole:g}mm is legal but below the "
+                            f"{profile.warn_via_drill_mm:g}mm we prefer on the "
+                            "cheap tier",
+                            "warning",
                         )
                     )
+
+                if is_via and isinstance(outer, (int, float)):
+                    if outer < profile.min_via_diameter_mm - 1e-9:
+                        warnings.append(
+                            _warning(
+                                part,
+                                "dfm_via_diameter",
+                                f"via diameter {outer:g}mm is below the fab "
+                                f"minimum {profile.min_via_diameter_mm:g}mm",
+                                "error",
+                            )
+                        )
+                    elif outer < profile.warn_via_diameter_mm - 1e-9:
+                        warnings.append(
+                            _warning(
+                                part,
+                                "dfm_via_diameter",
+                                f"via diameter {outer:g}mm is legal but below the "
+                                f"{profile.warn_via_diameter_mm:g}mm we prefer on "
+                                "the cheap tier",
+                                "warning",
+                            )
+                        )
+
                 if (
                     isinstance(hole, (int, float))
                     and isinstance(outer, (int, float))
                     and outer > hole
                 ):
                     annular = (float(outer) - float(hole)) / 2
-                    if annular < profile.min_annular_mm - 1e-9:
+                    if annular < min_annular - 1e-9:
                         warnings.append(
                             _warning(
                                 part,
                                 "dfm_annular_ring",
-                                f"annular ring {annular:.3f}mm is below the fab "
-                                f"minimum {profile.min_annular_mm:g}mm",
+                                f"{kindname} annular ring {annular:.3f}mm is below "
+                                f"the fab minimum {min_annular:g}mm",
                                 "error",
+                            )
+                        )
+                    elif is_via and annular < profile.warn_via_annular_mm - 1e-9:
+                        warnings.append(
+                            _warning(
+                                part,
+                                "dfm_annular_ring",
+                                f"via annular ring {annular:.3f}mm is legal but "
+                                f"thin; {profile.warn_via_annular_mm:g}mm is the "
+                                "safer cheap-tier target",
+                                "warning",
                             )
                         )
             if board_rect is not None and etype in ("pcb_smtpad", "pcb_via", "pcb_plated_hole"):

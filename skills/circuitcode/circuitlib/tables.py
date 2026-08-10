@@ -35,9 +35,18 @@ MAX_DC_INPUT_V = 24.0
 MIN_TRACE_WIDTH_MM = 0.127        # JLC floor 0.10; we block below 5mil
 WARN_TRACE_WIDTH_MM = 0.15
 MIN_TRACE_SPACING_MM = 0.127
-MIN_VIA_DRILL_MM = 0.30           # JLC floor 0.15; conservative for the cheap tier
-MIN_VIA_DIAMETER_MM = 0.50
-MIN_ANNULAR_RING_MM = 0.20
+# Vias and component through-holes are separate JLC rules. A via is a routing
+# feature and is specced far finer than any component hole; checking one against
+# the other's floor flags every routed board. Block at JLC's true floor, warn at
+# the cheap-tier number we would rather see.
+MIN_VIA_DIAMETER_MM = 0.30
+WARN_VIA_DIAMETER_MM = 0.45
+MIN_VIA_DRILL_MM = 0.15
+WARN_VIA_DRILL_MM = 0.30
+MIN_VIA_ANNULAR_MM = 0.075        # implied by a 0.3mm pad on a 0.15mm hole
+WARN_VIA_ANNULAR_MM = 0.10
+MIN_PTH_DRILL_MM = 0.30           # component through-hole
+MIN_PTH_ANNULAR_MM = 0.20         # PTH annular ring (JLC spec)
 MIN_PAD_TRACE_CLEARANCE_MM = 0.10
 MIN_VIA_HOLE_TO_HOLE_MM = 0.20
 MIN_PAD_HOLE_TO_HOLE_MM = 0.45

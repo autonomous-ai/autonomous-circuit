@@ -208,7 +208,7 @@ class DfmGate(unittest.TestCase):
             self._board(),
             {
                 "type": "pcb_trace",
-                "route": [{"route_type": "wire", "width": 0.1, "x": 0, "y": 0}],
+                "route": [{"route_type": "wire", "width": 0.08, "x": 0, "y": 0}],
             },
         ]
         warnings = checks.dfm_warnings(cj, _product(), PROFILE)
@@ -232,9 +232,26 @@ class DfmGate(unittest.TestCase):
         self.assertIn("dfm_drill_size", kinds)
 
     def test_small_via_diameter_blocks(self) -> None:
-        cj = [self._board(), {"type": "pcb_via", "hole_diameter": 0.3, "outer_diameter": 0.45, "x": 0, "y": 0}]
+        cj = [self._board(), {"type": "pcb_via", "hole_diameter": 0.1, "outer_diameter": 0.2, "x": 0, "y": 0}]
         kinds = {w["kind"] for w in checks.dfm_warnings(cj, _product(), PROFILE)}
         self.assertIn("dfm_via_diameter", kinds)
+
+    def test_legal_but_thin_via_warns_not_blocks(self) -> None:
+        """A via at JLC's floor is legal. Blocking it would flag every routed
+        board (the router's own vias are fine) and train everyone to ignore DFM."""
+        cj = [self._board(), {"type": "pcb_via", "hole_diameter": 0.2, "outer_diameter": 0.35, "x": 0, "y": 0}]
+        warnings = [w for w in checks.dfm_warnings(cj, _product(), PROFILE)
+                    if w["kind"].startswith("dfm_")]
+        self.assertTrue(warnings, "expected advisory DFM warnings")
+        self.assertEqual({w["severity"] for w in warnings}, {"warning"})
+
+    def test_via_not_judged_by_pth_annular_rule(self) -> None:
+        """Regression: vias were checked against the PTH annular-ring spec
+        (0.2mm), which no ordinary via meets."""
+        cj = [self._board(), {"type": "pcb_via", "hole_diameter": 0.3, "outer_diameter": 0.6, "x": 0, "y": 0}]
+        blocking = [w for w in checks.dfm_warnings(cj, _product(), PROFILE)
+                    if w["severity"] == "error"]
+        self.assertEqual(blocking, [])
 
     def test_thin_annular_ring_blocks(self) -> None:
         cj = [

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,11 +42,25 @@ class FabProfile:
     bom_columns: tuple[str, ...] = ("Comment", "Designator", "Footprint", "LCSC Part #")
     cpl_columns: tuple[str, ...] = ("Designator", "Mid X", "Mid Y", "Layer", "Rotation")
     # DFM limits (mm) — conservative cheap-tier encodings of JLC's caps table.
-    min_trace_mm: float = 0.127          # block below 5mil
-    warn_trace_mm: float = 0.15          # warn below
-    min_drill_mm: float = 0.3            # via hole
-    min_via_diameter_mm: float = 0.5     # via outer
-    min_annular_mm: float = 0.2          # PTH annular ring
+    # Two bands everywhere: block at the fab's real floor, warn at what we
+    # would rather see. A blocking gate set to a preference flags legal boards,
+    # and a gate that cries wolf is one everyone learns to skip.
+    min_trace_mm: float = 0.10           # JLC 1oz floor
+    warn_trace_mm: float = 0.15          # our cheap-tier preference
+    min_clearance_mm: float = 0.10       # JLC 1oz floor
+    warn_clearance_mm: float = 0.127
+    # Vias and component through-holes are DIFFERENT JLC rules; conflating them
+    # false-positives on every routed board (the router's own vias are finer
+    # than any component hole). Block at JLC's true floor, warn at the
+    # conservative cheap-tier number we would rather see.
+    min_via_diameter_mm: float = 0.3     # JLC min via pad
+    warn_via_diameter_mm: float = 0.45
+    min_via_drill_mm: float = 0.15       # JLC min via hole
+    warn_via_drill_mm: float = 0.3
+    min_via_annular_mm: float = 0.075    # implied by 0.3 pad / 0.15 hole
+    warn_via_annular_mm: float = 0.1
+    min_pth_drill_mm: float = 0.3        # component through-hole
+    min_pth_annular_mm: float = 0.2      # PTH annular ring (JLC spec)
     min_edge_clearance_mm: float = 0.3   # copper to board edge
     min_board_mm: float = 3.0            # min board dimension
     standard_thickness_mm: float = 1.6   # JLC standard (toolchain default is 1.4)
@@ -281,3 +296,57 @@ def fab_ready(warnings: list[dict], gerber_source: str) -> bool:
     if gerber_source != "kicad-cli":
         return False
     return not any(w.get("severity") == "error" for w in warnings)
+
+
+def kicad_project_json(profile: FabProfile) -> str:
+    """A `.kicad_pro` carrying this fab's design rules.
+
+    Why this exists (measured 2026-08-10): `circuit-json-to-kicad` emits a
+    `.kicad_pcb` with no project file, so `kicad-cli pcb drc` falls back to
+    KiCad's stock defaults — min track 0.2mm, netclass clearance 0.2mm — and
+    judges the board against rules no fab uses. On a correct skeleton board
+    that produced **207 findings, 124 of them `track_width`** on perfectly
+    legal 0.15mm traces. Writing this file beside the board before DRC drops
+    the same board to **50 findings**, and what survives is real: thin via
+    annular rings that our own stage-4 gate independently flags.
+
+    Without it the second-substrate check is noise, and a noisy gate is one
+    everybody learns to ignore.
+    """
+    rules = {
+        "min_clearance": profile.min_clearance_mm,
+        "min_connection": 0.0,
+        "min_copper_edge_clearance": profile.min_edge_clearance_mm,
+        "min_hole_clearance": 0.2,
+        "min_hole_to_hole": 0.2,
+        "min_silk_clearance": 0.0,
+        "min_text_height": 0.8,
+        "min_text_thickness": 0.08,
+        "min_through_hole_diameter": profile.min_via_drill_mm,
+        "min_track_width": profile.min_trace_mm,
+        "min_via_annular_width": profile.min_via_annular_mm,
+        "min_via_diameter": profile.min_via_diameter_mm,
+    }
+    netclass = {
+        "name": "Default",
+        "clearance": profile.min_clearance_mm,
+        "track_width": profile.warn_trace_mm,
+        "via_diameter": 0.6,
+        "via_drill": 0.3,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+    }
+    payload = {
+        "board": {"design_settings": {"rules": rules}},
+        "net_settings": {"classes": [netclass]},
+        "meta": {"filename": "board.kicad_pro", "version": 3},
+    }
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def write_kicad_project(board_path: Path, profile: FabProfile) -> Path:
+    """Write `<board stem>.kicad_pro` beside a `.kicad_pcb`. kicad-cli picks the
+    project up by basename, which is how the rules above reach DRC."""
+    path = board_path.with_suffix(".kicad_pro")
+    path.write_text(kicad_project_json(profile), encoding="utf-8")
+    return path

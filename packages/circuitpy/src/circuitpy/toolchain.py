@@ -40,7 +40,16 @@ from typing import Sequence
 _OUTPUT_TAIL_CHARS = 800
 
 TOOLCHAIN_ENV = "CIRCUIT_TOOLCHAIN"
-KICAD_APP_BUNDLE = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+KICAD_ENV = "CIRCUIT_KICAD_CLI"
+#: Where a macOS KiCad keeps its CLI. The user-local bundle is listed because
+#: the Homebrew cask needs sudo for a shared demos folder — extracting the app
+#: into ~/Applications is the no-sudo install, and it is a first-class location.
+KICAD_APP_BUNDLES = (
+    "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
+    "/Applications/KiCad.app/Contents/MacOS/kicad-cli",
+    str(Path.home() / "Applications/KiCad.app/Contents/MacOS/kicad-cli"),
+    str(Path.home() / "Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"),
+)
 
 
 def toolchain_dir() -> Path:
@@ -88,11 +97,16 @@ def node_exe() -> str:
 
 def kicad_cli_exe() -> str | None:
     """kicad-cli, or ``None`` when not installed. Never raises for absence."""
+    override = os.environ.get(KICAD_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser()
+        return str(path) if path.is_file() else None
     exe = shutil.which("kicad-cli")
     if exe:
         return exe
-    if Path(KICAD_APP_BUNDLE).is_file():
-        return KICAD_APP_BUNDLE
+    for bundle in KICAD_APP_BUNDLES:
+        if Path(bundle).is_file():
+            return bundle
     return None
 
 

@@ -8,6 +8,11 @@
 #
 # Currently vendors:
 #   packages/circuitpy/src/circuitpy/  →  skills/circuitcode/scripts/packages/circuitpy/
+#   packages/golden-blocks/blocks/     →  skills/circuitcode/blocks/
+#
+# The blocks are vendored because circuitcode copies them into each new board
+# project (contract §1: "copied in at project creation"), which is what freezes
+# a project's block versions and keeps its gerbers reproducible.
 #
 # Run automatically by scripts/dev.sh, so live skill runs work from a fresh
 # clone. The vendored trees are gitignored; only README.md and .gitignore
@@ -58,3 +63,13 @@ if [ ! -d "${CIRCUITPY_SRC}" ]; then
 fi
 vendor_package "${CIRCUITPY_SRC}" "${CIRCUITCODE_VENDOR}"
 echo "vendored circuitpy → skills/circuitcode/scripts/packages/circuitpy"
+
+BLOCKS_SRC="${REPO_ROOT}/packages/golden-blocks/blocks"
+BLOCKS_VENDOR="${REPO_ROOT}/skills/circuitcode/blocks"
+
+if [ ! -d "${BLOCKS_SRC}" ]; then
+  echo "note: no golden blocks at ${BLOCKS_SRC}; skipping"
+  exit 0
+fi
+vendor_package "${BLOCKS_SRC}" "${BLOCKS_VENDOR}"
+echo "vendored golden blocks → skills/circuitcode/blocks"

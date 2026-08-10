@@ -38,7 +38,9 @@ class Profiles(unittest.TestCase):
     def test_jlcpcb_exists(self) -> None:
         self.assertEqual(PROFILE.id, "jlcpcb")
         self.assertEqual(PROFILE.standard_thickness_mm, 1.6)
-        self.assertEqual(PROFILE.min_trace_mm, 0.127)
+        # Block at the fab's floor, warn at our preference (see FabProfile).
+        self.assertEqual(PROFILE.min_trace_mm, 0.10)
+        self.assertEqual(PROFILE.warn_trace_mm, 0.15)
 
     def test_unknown_profile_raises(self) -> None:
         with self.assertRaises(ProjectShapeError):

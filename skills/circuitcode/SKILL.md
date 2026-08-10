@@ -54,6 +54,21 @@ Four habits, applied without being asked:
 └── .circuit/             build cache — never edit, never read
 ```
 
+### Starting a new project
+
+The app creates the workspace; you fill it. From the skill's own templates:
+
+```bash
+SKILL=~/.claude/skills/circuitcode
+cp -R "$SKILL/templates/project_skeleton/." /abs/project/
+cp -R "$SKILL/blocks" /abs/project/blocks
+```
+
+**Copying the blocks in is not optional** — `boards/main.tsx` imports them by
+relative path, and a project that owns its own snapshot keeps building the same
+board after the shared library moves on. Then edit `product.json` (name,
+description, power, envelope) before you write any board source.
+
 Rules of the project format:
 
 - **Device-wide facts live in `product.json` only.** Power source, envelope,

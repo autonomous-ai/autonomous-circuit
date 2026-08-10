@@ -394,6 +394,16 @@ def build_board(
             except (RuntimeError, TimeoutError) as exc:
                 warnings.append(checks.check_failed(f"kicad ERC failed: {exc}"))
         if kicad_pcb is not None:
+            # Give kicad this fab's design rules before asking its opinion.
+            # Without the project file KiCad grades the board against its own
+            # stock defaults and buries the real findings (see
+            # fab.kicad_project_json for the measured before/after).
+            try:
+                fab_mod.write_kicad_project(kicad_pcb, profile)
+            except OSError as exc:
+                warnings.append(
+                    checks.check_failed(f"kicad project file not written: {exc}")
+                )
             drc_json = built_dir / "drc.json"
             try:
                 toolchain.run_kicad(
