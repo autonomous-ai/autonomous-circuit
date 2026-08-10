@@ -183,12 +183,34 @@ export function warningNoteText(warning) {
  * The model-facing note for "Send to AI" — names the current tab and board so
  * the model maps the request onto the right artifact (rides the chat store's
  * `pendingViewContext`, never shown in the echoed bubble).
- * @param {{board?: string, tab?: string}} input
+ *
+ * When something is selected in the workspace the note names it too, in the
+ * model's own vocabulary ("component R20", "net GND"): the user pointing at a
+ * part on screen and then typing "make this bigger" should not have to say
+ * which part. `selection` and `index` are optional — the base note is unchanged
+ * without them.
+ *
+ * @param {{board?: string, tab?: string, selection?: object|null, index?: object|null}} input
  * @returns {string} "" when there's no board to name
  */
-export function buildViewContextNote({ board, tab } = {}) {
+export function buildViewContextNote({ board, tab, selection, index } = {}) {
   const stem = String(board || "").trim();
   if (!stem) return "";
   const view = String(tab || "").trim().toLowerCase() || "board";
-  return `[Viewer context: ${view} view of board ${stem}]`;
+  const focus = describeSelection(selection, index);
+  return `[Viewer context: ${view} view of board ${stem}${focus ? `, ${focus} selected` : ""}]`;
+}
+
+/** "component R20" / "net GND" / "" — the human name for the current selection. */
+export function describeSelection(selection, index) {
+  if (!selection?.kind || !selection.key) return "";
+  if (selection.kind === "component") {
+    const refdes = index?.componentBySourceId?.get(selection.key)?.refdes;
+    return refdes ? `component ${refdes}` : "";
+  }
+  if (selection.kind === "net") {
+    const name = index?.netByKey?.get(selection.key)?.name;
+    return name ? `net ${name}` : "";
+  }
+  return "";
 }

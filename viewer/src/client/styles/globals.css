@@ -467,3 +467,22 @@
     scroll-behavior: auto !important;
   }
 }
+/* --- Board workspace (components/board/**) ------------------------------- */
+
+/* DRC jump marker. Double-clicking a Messages row zooms the canvas to the
+   offender and flashes this ring around it; it fades on its own after ~1.6s so
+   a stale marker never becomes furniture. Honors reduce-motion via the global
+   rule above (animation collapses to a single instant frame). */
+@keyframes board-flash-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.board-flash {
+  animation: board-flash-pulse 380ms ease-in-out 4;
+}
