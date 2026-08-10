@@ -1,0 +1,51 @@
+{
+ "components": {
+  "C18": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "C19": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "U5": {
+   "ftype": "simple_chip",
+   "lcsc": "C92489"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 3,
+  "pcb_board": 1,
+  "pcb_component": 3,
+  "pcb_courtyard_outline": 1,
+  "pcb_courtyard_rect": 2,
+  "pcb_group": 1,
+  "pcb_port": 12,
+  "pcb_silkscreen_path": 3,
+  "pcb_silkscreen_text": 3,
+  "pcb_smtpad": 12,
+  "pcb_solder_paste": 4,
+  "pcb_trace": 8,
+  "pcb_via": 3,
+  "schematic_component": 3,
+  "schematic_group": 2,
+  "schematic_net_label": 7,
+  "schematic_port": 12,
+  "schematic_text": 2,
+  "schematic_trace": 9,
+  "source_board": 1,
+  "source_component": 3,
+  "source_group": 2,
+  "source_net": 4,
+  "source_port": 12,
+  "source_project_metadata": 1,
+  "source_trace": 12
+ },
+ "nets": [
+  "GND",
+  "SCL",
+  "SDA",
+  "V3_3"
+ ],
+ "traceCount": 12
+}

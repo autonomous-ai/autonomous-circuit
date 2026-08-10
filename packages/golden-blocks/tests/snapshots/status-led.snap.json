@@ -1,0 +1,43 @@
+{
+ "components": {
+  "LED1": {
+   "ftype": "simple_led",
+   "lcsc": "C2297"
+  },
+  "R20": {
+   "ftype": "simple_resistor",
+   "lcsc": "C11702"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 2,
+  "pcb_board": 1,
+  "pcb_component": 2,
+  "pcb_courtyard_rect": 2,
+  "pcb_group": 1,
+  "pcb_port": 4,
+  "pcb_silkscreen_path": 3,
+  "pcb_silkscreen_text": 2,
+  "pcb_smtpad": 4,
+  "pcb_solder_paste": 4,
+  "pcb_trace": 1,
+  "schematic_component": 2,
+  "schematic_group": 2,
+  "schematic_net_label": 2,
+  "schematic_port": 4,
+  "schematic_text": 1,
+  "schematic_trace": 2,
+  "source_board": 1,
+  "source_component": 2,
+  "source_group": 2,
+  "source_net": 2,
+  "source_port": 4,
+  "source_project_metadata": 1,
+  "source_trace": 3
+ },
+ "nets": [
+  "GND",
+  "V3_3"
+ ],
+ "traceCount": 3
+}

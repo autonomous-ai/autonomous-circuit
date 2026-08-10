@@ -1,0 +1,79 @@
+{
+ "components": {
+  "C40": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "C41": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "C42": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "C43": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "D10": {
+   "ftype": "simple_chip",
+   "lcsc": "C2761795"
+  },
+  "D11": {
+   "ftype": "simple_chip",
+   "lcsc": "C2761795"
+  },
+  "D12": {
+   "ftype": "simple_chip",
+   "lcsc": "C2761795"
+  },
+  "D13": {
+   "ftype": "simple_chip",
+   "lcsc": "C2761795"
+  },
+  "R30": {
+   "ftype": "simple_resistor",
+   "lcsc": "C25104"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 9,
+  "pcb_board": 1,
+  "pcb_component": 9,
+  "pcb_courtyard_outline": 4,
+  "pcb_courtyard_rect": 5,
+  "pcb_group": 5,
+  "pcb_port": 26,
+  "pcb_silkscreen_path": 10,
+  "pcb_silkscreen_text": 5,
+  "pcb_smtpad": 26,
+  "pcb_solder_paste": 26,
+  "pcb_trace": 18,
+  "pcb_via": 10,
+  "schematic_component": 9,
+  "schematic_group": 6,
+  "schematic_net_label": 14,
+  "schematic_port": 26,
+  "schematic_text": 8,
+  "schematic_trace": 20,
+  "source_board": 1,
+  "source_component": 9,
+  "source_group": 6,
+  "source_net": 8,
+  "source_port": 26,
+  "source_project_metadata": 1,
+  "source_trace": 26
+ },
+ "nets": [
+  "GND",
+  "LED_DATA",
+  "PX_10_DIN",
+  "PX_11_DIN",
+  "PX_12_DIN",
+  "PX_13_DIN",
+  "PX_14_DIN",
+  "V3_3"
+ ],
+ "traceCount": 26
+}
