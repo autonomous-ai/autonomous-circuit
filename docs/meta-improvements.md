@@ -170,11 +170,13 @@ defaults. Still open, in leverage order:
    single point away from the holes; or get the router to honour hole
    clearance upstream. The first is most likely to work and is a block-local
    change.
-2. **No ground plane is possible.** `<copperpour>` fills to 0.200mm of the
-   board edge against an exported 0.290mm rule, so any pour is a blocking
-   error, and the board props that ought to raise it are silently ignored.
-   This is the highest-leverage fix available: a GND plane removes roughly 40%
-   of routed nets and most of the incidental clearance failures with them.
+2. ~~No ground plane is possible.~~ **Fixed 2026-08-10.** `<copperpour>` fills
+   to exactly 0.200mm of the board edge and cannot be told otherwise
+   (`minBoardEdgeClearance` is silently ignored — verified). But 0.2mm *is*
+   JLC's routed-outline floor; 0.3mm is the V-cut figure, and the condensed
+   research table had dropped that parenthetical. So the gate was blocking a
+   legal geometry — the same preference-as-floor mistake as the via rule. Now
+   blocks at 0.2 and warns at 0.3, and a board with a ground plane builds.
 3. **`rp2040-core` places its crystal 11.78mm from XIN**, past the router's
    10mm ceiling, so every board built from that block is unroutable until the
    placement is tightened. C15 is the real binding constraint at 9.89mm — a

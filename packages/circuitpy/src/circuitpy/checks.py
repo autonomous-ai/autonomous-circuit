@@ -538,6 +538,18 @@ def dfm_warnings(
                             "error",
                         )
                     )
+                elif margin < profile.warn_edge_clearance_mm - 1e-9:
+                    warnings.append(
+                        _warning(
+                            _localize(element, names),
+                            "dfm_edge_clearance",
+                            f"copper is {margin:.3f}mm from the board edge — "
+                            f"legal on a routed outline, but "
+                            f"{profile.warn_edge_clearance_mm:g}mm is the safer "
+                            "target and is required for a V-cut edge",
+                            "warning",
+                        )
+                    )
         return warnings
     except Exception as exc:
         return [check_failed(f"DFM gate raised {type(exc).__name__}: {exc}")]

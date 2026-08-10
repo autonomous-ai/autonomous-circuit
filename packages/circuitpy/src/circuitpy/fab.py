@@ -68,7 +68,13 @@ class FabProfile:
     warn_via_annular_mm: float = 0.1
     min_pth_drill_mm: float = 0.3        # component through-hole
     min_pth_annular_mm: float = 0.2      # PTH annular ring (JLC spec)
-    min_edge_clearance_mm: float = 0.3   # copper to board edge
+    # JLC holds 0.2mm copper-to-outline on a routed edge; 0.3mm is the
+    # conservative figure for V-cut and bevelled edges. Blocking at 0.3 made a
+    # ground pour impossible — the pour fills to exactly 0.2mm and cannot be
+    # told otherwise (minBoardEdgeClearance is silently ignored, verified
+    # 2026-08-10), so every board with a plane failed on a legal geometry.
+    min_edge_clearance_mm: float = 0.2   # routed-edge floor
+    warn_edge_clearance_mm: float = 0.3  # what we would rather see
     min_board_mm: float = 3.0            # min board dimension
     standard_thickness_mm: float = 1.6   # JLC standard (toolchain default is 1.4)
     # Footprint-IoU bands (supplier_footprint_mismatch_warning): correct 0402

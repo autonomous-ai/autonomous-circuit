@@ -162,8 +162,18 @@ export const Rp2040Core = (props: {
     <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Rp2040Chip name={u} pcbX={0} pcbY={0} schX={0} schY={0} />
       <W25q128 name={f} pcbX={13} pcbY={0} schX={14} schY={-6} />
+      {/* PLACEMENT IS LOAD-BEARING HERE (fixed 2026-08-10). v1 placed Y1 at
+          pcbX={-11}, putting Y1.pin1 11.78mm from U3.XIN. tscircuit enforces a
+          10mm maximum on a crystal connection and, when it cannot be met,
+          SKIPS AUTOROUTING FOR THE WHOLE BOARD — so no board built on this
+          block could route at all, and the error it reports names Y1 rather
+          than the cause. The rule covers the load caps too. U3.XIN is the
+          bottom-centre pin of the QFN-56, so the whole crystal cluster (Y1 +
+          C15/C16 + the 1k XOUT series R11) sits in the strip directly below
+          the chip, every endpoint within 9.1mm of XIN. Found independently by
+          two boards; keep the cluster together if you move it. */}
       <crystal name={y} frequency="12MHz" loadCapacitance="10pF" pinVariant="four_pin"
-        footprint="crystal" pcbX={-11} pcbY={0} schX={-14} schY={6}
+        footprint="crystal" pcbX={0} pcbY={-10.5} schX={-14} schY={6}
         supplierPartNumbers={{ jlcpcb: ["C20625731"] }} />
 
       {/* --- Rails ------------------------------------------------------- */}
@@ -190,16 +200,16 @@ export const Rp2040Core = (props: {
 
       {/* --- Crystal: XIN direct, XOUT through 1k series ------------------ */}
       <trace name={`TR_${y}_xin`} from={`.${y} > .pin1`} to={`.${u} > .XIN`} />
-      <resistor name="R11" resistance="1k" footprint="0402" pcbX={-7.5} pcbY={3} schX={-10} schY={7}
+      <resistor name="R11" resistance="1k" footprint="0402" pcbX={6} pcbY={-10.5} schX={-10} schY={7}
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
       <trace name={`TR_${u}_xout_r`} from={`.${u} > .XOUT`} to=".R11 > .pin1" />
       <trace name={`TR_R11_${y}`} from=".R11 > .pin2" to={`.${y} > .pin3`} />
       {/* four_pin crystal: pin2/pin4 are the ground pads */}
       <trace name={`TR_${y}_gnd1`} from={`.${y} > .pin2`} to="net.GND" />
       <trace name={`TR_${y}_gnd2`} from={`.${y} > .pin4`} to="net.GND" />
-      <capacitor name="C15" capacitance="15pF" footprint="0402" pcbX={-11} pcbY={3.5} schX={-16} schY={9}
+      <capacitor name="C15" capacitance="15pF" footprint="0402" pcbX={-4.5} pcbY={-10.5} schX={-16} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
-      <capacitor name="C16" capacitance="15pF" footprint="0402" pcbX={-11} pcbY={-3.5} schX={-12} schY={9}
+      <capacitor name="C16" capacitance="15pF" footprint="0402" pcbX={3.2} pcbY={-10.5} schX={-12} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
       <trace name={`TR_C15_xin`} from=".C15 > .pin1" to={`.${u} > .XIN`} />
       <trace name={`TR_C15_gnd`} from=".C15 > .pin2" to="net.GND" />
@@ -225,7 +235,7 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
       <pushbutton name="SW2"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-12} schX={14} schY={-10} />
+        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-15.5} schX={14} schY={-10} />
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1" />
       <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to=".SW2 > .pin1" />
@@ -237,7 +247,7 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C25744"] }} />
       <pushbutton name="SW3"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-12} schX={-14} schY={-10} />
+        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-15.5} schX={-14} schY={-10} />
       <trace name={`TR_R12_v`} from=".R12 > .pin1" to="net.V3_3" />
       <trace name={`TR_R12_run`} from=".R12 > .pin2" to={`.${u} > .RUN`} />
       <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to={`.${u} > .RUN`} />

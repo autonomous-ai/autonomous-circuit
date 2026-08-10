@@ -53,7 +53,7 @@ Other verified facts:
 | PTH annular ring | ≥0.20mm | block <0.20mm |
 | Pad-to-trace clearance | 0.1mm | already blocked by @tscircuit/checks (verified) |
 | Via hole-to-hole / pad hole-to-hole / NPTH | 0.2 / 0.45 / 0.50mm | block |
-| Copper-to-board-edge | ≥0.3mm | block <0.3mm |
+| Copper-to-board-edge | 0.2mm routed / 0.3mm V-cut | block <0.2mm, warn <0.3mm |
 | Board | min 3×3mm; thickness 0.4–4.5mm | block; force 1.6mm explicitly |
 | Silkscreen | line ≥0.15mm, text ≥1.0mm | warn |
 
