@@ -29,6 +29,7 @@ import {
   parseSessionHistory,
   parseStreamLine,
   persistAttachments,
+  planFromFencedBlock,
   questionsFenceFromAskUserQuestion,
   recoverPlanFromTranscript,
   sessionIdForProject,
@@ -206,6 +207,54 @@ test("parseStreamLine translates deltas and suppresses duplicated consolidated t
     state,
   );
   assert.deepEqual(events, [{ kind: "text_delta", turnId: "t", text: "Second" }]);
+});
+
+// A headless `claude -p` subprocess is never handed ExitPlanMode. Observed
+// live on 2026-08-10: the model searched for the tool, failed, wrote its plan
+// to a file, and ended the turn — leaving the user with nothing to approve and
+// the loop dead. The fence is the transport that does not depend on a tool
+// existing, so these tests guard the product's spine.
+test("planFromFencedBlock extracts a circuit-plan fence and ignores everything else", () => {
+  assert.equal(
+    planFromFencedBlock("intro\n```circuit-plan\n# Plan\n- do the thing\n```\nouttro"),
+    "# Plan\n- do the thing",
+  );
+  assert.equal(planFromFencedBlock("```circuit-plan\n\n```"), null, "empty fence");
+  assert.equal(planFromFencedBlock("no fence at all"), null);
+  assert.equal(planFromFencedBlock("```json\n{}\n```"), null, "wrong fence");
+  assert.equal(planFromFencedBlock(undefined), null);
+});
+
+test("a plan arriving only as a fence still proposes a plan", () => {
+  const state = newStreamState();
+  const events = parseStreamLine(
+    JSON.stringify(
+      assistant([
+        { type: "text", text: "Here it is.\n```circuit-plan\n# Board plan\nUSB-C in.\n```" },
+      ]),
+    ),
+    "t",
+    state,
+  );
+  const proposed = events.filter((e) => e.kind === "plan_proposed");
+  assert.equal(proposed.length, 1, "the fence must produce exactly one plan");
+  assert.equal(proposed[0].plan, "# Board plan\nUSB-C in.");
+  assert.equal(state.planProposed, true);
+});
+
+test("a fence repeated across messages proposes the plan only once", () => {
+  const state = newStreamState();
+  const line = JSON.stringify(
+    assistant([{ type: "text", text: "```circuit-plan\n# P\n```" }]),
+  );
+  const first = parseStreamLine(line, "t", state);
+  const second = parseStreamLine(line, "t", state);
+  assert.equal(first.filter((e) => e.kind === "plan_proposed").length, 1);
+  assert.equal(
+    second.filter((e) => e.kind === "plan_proposed").length,
+    0,
+    "a second fence must not re-arm the approve button",
+  );
 });
 
 test("parseStreamLine pairs tool_use/tool_result by stable toolUseId and drops orphans", () => {
