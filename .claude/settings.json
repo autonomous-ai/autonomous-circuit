@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo test *)",
       "Bash(node viewer/scripts/run-tests.mjs *)",
       "Bash(npm --prefix viewer test *)"
     ]
