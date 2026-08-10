@@ -267,6 +267,23 @@ def build_board(
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
     _mirror_project(project_root, work)
+    # Anchor the CLI's output resolution. `tscircuit-cli` places `dist/` beside
+    # the nearest ancestor package.json; with none in the work dir it can pick
+    # a directory far outside the project (observed: /Users/d/code), leaving us
+    # to report a COMPILE_ERROR for a board that built perfectly. A private
+    # stub stops the search here. Board projects intentionally carry no
+    # node_modules — the toolchain is repo-level — so this file exists purely
+    # as a boundary marker.
+    anchor = work / "package.json"
+    if not anchor.exists():
+        anchor.write_text(
+            json.dumps(
+                {"name": "circuit-build-workspace", "private": True, "version": "0.0.0"},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     build_args = ["build", rel_entry.as_posix(), "--schematic-png", "--pcb-png"]
     if _parts_engine_off():
@@ -287,6 +304,18 @@ def build_board(
     built_circuit_json = built_dir / "circuit.json"
     if not built_circuit_json.is_file():
         tail = build_result.output.strip()[-800:]
+        # A build that logged success but left nothing here means the CLI
+        # resolved `dist/` somewhere else — it walks up to the nearest
+        # package.json, so without an anchor it can escape the work dir
+        # entirely and we would report a compile failure for a board that
+        # compiled fine. Say which of the two actually happened.
+        if "✓" in build_result.output or "Done" in build_result.output:
+            raise CompileError(
+                f"tscircuit reported success for {rel_entry.as_posix()} but wrote "
+                f"no circuit.json under {built_dir} — the CLI resolved its output "
+                f"directory outside the work dir (it walks up to the nearest "
+                f"package.json). Output tail: {tail or 'none'}"
+            )
         raise CompileError(
             f"tscircuit eval failed for {rel_entry.as_posix()} "
             f"(exit {build_result.returncode}): {tail or 'no output'}"

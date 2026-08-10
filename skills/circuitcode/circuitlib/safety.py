@@ -99,9 +99,38 @@ class Verdict:
         ]
 
 
+#: Words that turn a mention into a disavowal. A board brief that says
+#: "no mains, ever" is stating compliance, not requesting a violation — and
+#: refusing it was a real false positive (found 2026-08-10 by a board whose
+#: own description quoted the envelope rule back at us).
+_NEGATORS = r"(?:no|not|never|without|avoid|avoids|excludes?|free\s+of|zero)"
+
+
+def _negated(text: str, start: int) -> bool:
+    """True when a negator sits immediately before the match.
+
+    Deliberately narrow — the negator must sit immediately before the match.
+    The asymmetry decides the design: a false refusal is an annoyance, a false
+    pass is a fire. So "no mains" is exonerated and "switches mains, no
+    problem" is not, and the rule stays adjacency-only even though that leaves
+    "never touches mains" refused. Allowing intervening words would also
+    exonerate "no problem, switches mains", which is exactly the sentence this
+    gate exists to catch. Rephrasing costs a user seconds; the other error
+    costs them a fire.
+    """
+    window = text[max(0, start - 24):start]
+    return re.search(rf"\b{_NEGATORS}\b[\s,\-]*$", window) is not None
+
+
 def _hits(text: str, patterns: tuple[str, ...]) -> list[str]:
     lowered = text.lower()
-    return [p for p in patterns if re.search(p, lowered)]
+    found = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, lowered):
+            if not _negated(lowered, match.start()):
+                found.append(pattern)
+                break
+    return found
 
 
 def screen_text(text: str, *, origin: str = "source") -> Verdict:
