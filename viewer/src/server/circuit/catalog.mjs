@@ -134,6 +134,9 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       ["cplUrl", path.join(`${stem}_fab`, "cpl.csv")],
       ["orderUrl", path.join(`${stem}_fab`, "ORDER.md")],
       ["glbUrl", path.join(`${stem}_fab`, "board.glb")],
+      // The enclosure brief — outline, holes, connector edges — is what Vibe
+      // reads to model the printed body, so it belongs beside the packet.
+      ["enclosureUrl", path.join(`${stem}_fab`, "enclosure.json")],
     ];
     const artifact = {};
     for (const [key, absPath] of members) {
