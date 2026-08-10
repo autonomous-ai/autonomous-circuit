@@ -12,11 +12,43 @@ ignored — the build succeeds and the board is wrong.
 
 ```tsx
 export default () => (
-  <board width="40mm" height="30mm" thickness={1.6}>
+  <board
+    width="40mm" height="30mm" thickness={1.6}
+    minTraceWidth="0.2mm"
+    minViaPadDiameter="0.6mm"
+    minViaHoleDiameter="0.3mm"
+  >
     …children…
   </board>
 )
 ```
+
+**Set those four on every board.** The defaults do not meet JLC's economy
+process: the router otherwise emits 0.3/0.2mm vias, whose 0.05mm annular ring
+is below the fab's floor, and both DFM gates block it. With them set, the same
+board routes with 0.15mm annular and passes.
+
+The full set the board accepts, all `Distance` (a number in mm or a string
+like `"0.2mm"`) — verified against the pinned `@tscircuit/props`:
+
+| Prop | What it constrains |
+|---|---|
+| `minTraceWidth` | narrowest track the router may draw |
+| `minViaPadDiameter` / `minViaHoleDiameter` | via geometry, and so its annular ring |
+| `minViaHoleEdgeToViaHoleEdgeClearance` | via-to-via spacing |
+| `minViaEdgeToPadEdgeClearance` | via-to-pad spacing |
+| `minTraceToPadEdgeClearance` | track-to-pad spacing |
+| `minPadEdgeToPadEdgeClearance` | pad-to-pad spacing |
+| `minPlatedHoleDrillEdgeToDrillEdgeClearance` | drill-to-drill spacing |
+| `minBoardEdgeClearance` | how close copper may come to the outline |
+
+There is **no** via-to-trace clearance prop. If you get
+`pcb_via_trace_clearance_error`, the answer is space — spread the placement so
+the router is not threading a via between tracks — not a setting.
+
+Other useful board props: `layers`, `borderRadius` (a large radius on a square
+is how you get a round board), `material`, `doubleSidedAssembly`,
+`isViaInPadAllowed`.
 
 Every placed element carries both coordinate systems:
 
