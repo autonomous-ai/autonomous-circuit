@@ -101,9 +101,18 @@ test("app_info, app_prereq_check shape, settings round-trip and app_set_model", 
     assert.equal(prereq.status, 200);
     // CIRCUIT_CLAUDE_BIN points at the stub → claude reads as found.
     assert.equal(prereq.body.claudeCli.found, true);
-    assert.ok("found" in prereq.body.ffmpeg);
+    // Contract §2 probes: node ≥22.12, toolchain node_modules, python ≥3.10,
+    // kicad-cli reported-not-required.
+    assert.ok("found" in prereq.body.node);
+    assert.ok("healthy" in prereq.body.node);
+    assert.ok("found" in prereq.body.toolchain);
     assert.ok("found" in prereq.body.python);
-    assert.deepEqual(prereq.body.slicer, { found: false, binaryPath: "" });
+    assert.ok("healthy" in prereq.body.python);
+    assert.ok("found" in prereq.body.kicadCli);
+    assert.equal(prereq.body.kicadCli.required, false);
+    // Donor probes are gone.
+    assert.equal(prereq.body.ffmpeg, undefined);
+    assert.equal(prereq.body.slicer, undefined);
 
     const defaults = await s.post("app_settings_read");
     assert.equal(defaults.body.hasOnboarded, false);
@@ -190,7 +199,7 @@ test("chat turn end-to-end over SSE: enveloped chat_events in order, plus catalo
     await new Promise((resolve) => setTimeout(resolve, 100)); // let SSE attach
 
     const started = await s.post("chat_start_turn", {
-      req: { projectId: project.id, userMessage: "make a pilot" },
+      req: { projectId: project.id, userMessage: "design a board" },
     });
     assert.equal(started.status, 200);
     assert.ok(started.body.turnId);
@@ -205,8 +214,8 @@ test("chat turn end-to-end over SSE: enveloped chat_events in order, plus catalo
     // The project watcher (activated by project_open) turns a new artifact
     // into a catalog_changed with a bumped revision.
     fs.writeFileSync(
-      path.join(s.services.projectsRoot, project.id, "ep001.mp4"),
-      "video-bytes",
+      path.join(s.services.projectsRoot, project.id, "main.tsx"),
+      "<board />",
     );
     await waitFor(() => catalogEvents.length >= 1, { timeoutMs: 8000 });
     assert.ok(catalogEvents[0].revision >= 1);
@@ -230,7 +239,7 @@ test("chat_session_state rehydrates history (with blocks) from the session JSONL
       [
         JSON.stringify({
           type: "user",
-          message: { role: "user", content: "make a pilot" },
+          message: { role: "user", content: "design a board" },
           timestamp: "2026-08-01T05:00:00.000Z",
         }),
         JSON.stringify({
@@ -238,7 +247,7 @@ test("chat_session_state rehydrates history (with blocks) from the session JSONL
           message: {
             content: [
               { type: "text", text: "On it." },
-              { type: "tool_use", id: "u1", name: "Bash", input: { command: "drama" } },
+              { type: "tool_use", id: "u1", name: "Bash", input: { command: "circuit" } },
             ],
           },
           timestamp: "2026-08-01T05:00:01.000Z",
@@ -276,15 +285,15 @@ test("catalog_read requires an open project; project_catalog_read serves §2 ent
 
     const { body: project } = await s.post("project_create", { req: { name: "Cat" } });
     const dir = path.join(s.services.projectsRoot, project.id);
-    fs.mkdirSync(path.join(dir, "episodes"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "episodes", "ep001.mp4"), "video");
-    fs.writeFileSync(path.join(dir, "episodes", "ep001.episode.json"), "{}");
+    fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
+    fs.writeFileSync(path.join(dir, "boards", "main.board.json"), "{}");
 
     const catalog = await s.post("project_catalog_read", { id: project.id });
     assert.equal(catalog.status, 200);
     assert.equal(catalog.body.entries.length, 1);
     const entry = catalog.body.entries[0];
-    assert.equal(entry.file, "episodes/ep001.mp4");
+    assert.equal(entry.file, "boards/main.tsx");
     assert.match(entry.url, /\?v=\d+-\d+$/);
     assert.ok(entry.artifact.metadataUrl);
 
@@ -301,30 +310,35 @@ test("asset routes: content-type, immutable caching with ?v, byte ranges, traver
   try {
     const { body: project } = await s.post("project_create", { req: { name: "Assets" } });
     const dir = path.join(s.services.projectsRoot, project.id);
-    fs.mkdirSync(path.join(dir, "episodes"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "episodes", "ep001.mp4"), "0123456789");
+    fs.mkdirSync(path.join(dir, "boards", "main_fab"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "boards", "main_fab", "gerbers.zip"), "0123456789");
+    fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
 
-    const full = await fetch(`${s.base}/projects/${project.id}/episodes/ep001.mp4?v=1-1`);
+    const full = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip?v=1-1`);
     assert.equal(full.status, 200);
-    assert.equal(full.headers.get("content-type"), "video/mp4");
+    assert.equal(full.headers.get("content-type"), "application/zip");
     assert.equal(full.headers.get("accept-ranges"), "bytes");
     assert.ok(full.headers.get("cache-control").includes("immutable"));
     assert.equal(await full.text(), "0123456789");
 
-    const range = await fetch(`${s.base}/projects/${project.id}/episodes/ep001.mp4`, {
+    const tsx = await fetch(`${s.base}/projects/${project.id}/boards/main.tsx`);
+    assert.equal(tsx.status, 200);
+    assert.equal(tsx.headers.get("content-type"), "text/plain; charset=utf-8");
+
+    const range = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip`, {
       headers: { range: "bytes=2-5" },
     });
     assert.equal(range.status, 206);
     assert.equal(range.headers.get("content-range"), "bytes 2-5/10");
     assert.equal(await range.text(), "2345");
 
-    const suffix = await fetch(`${s.base}/projects/${project.id}/episodes/ep001.mp4`, {
+    const suffix = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip`, {
       headers: { range: "bytes=-3" },
     });
     assert.equal(suffix.status, 206);
     assert.equal(await suffix.text(), "789");
 
-    const badRange = await fetch(`${s.base}/projects/${project.id}/episodes/ep001.mp4`, {
+    const badRange = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip`, {
       headers: { range: "bytes=99-" },
     });
     assert.equal(badRange.status, 416);
@@ -339,8 +353,9 @@ test("asset routes: content-type, immutable caching with ?v, byte ranges, traver
     );
     assert.equal(traversal.status, 403);
 
-    // Non-allowlisted extensions fall through (SPA routes stay servable).
-    const spa = await fetch(`${s.base}/projects/${project.id}/episodes/ep001.xyz`);
+    // Non-allowlisted extensions fall through (SPA routes stay servable) —
+    // including the donor's mp4, which is no longer on the allowlist.
+    const spa = await fetch(`${s.base}/projects/${project.id}/boards/ep001.mp4`);
     assert.equal(spa.status, 404);
     assert.equal(await spa.text(), "fallthrough");
   } finally {

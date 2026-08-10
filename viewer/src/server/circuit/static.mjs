@@ -20,8 +20,6 @@ const CONTENT_TYPES = new Map([
   [".jpeg", "image/jpeg"],
   [".webp", "image/webp"],
   [".ico", "image/x-icon"],
-  [".mp4", "video/mp4"],
-  [".srt", "text/plain; charset=utf-8"],
   [".woff2", "font/woff2"],
   [".woff", "font/woff"],
   [".txt", "text/plain; charset=utf-8"],

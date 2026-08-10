@@ -29,13 +29,14 @@ const MAX_BODY_BYTES = 128 * 1024 * 1024; // 6 reference images @ 10 MiB, base64
 const SSE_HEARTBEAT_MS = 15_000;
 
 const ASSET_CONTENT_TYPES = new Map([
-  [".mp4", "video/mp4"],
-  [".png", "image/png"],
-  [".srt", "text/plain; charset=utf-8"],
-  [".py", "text/plain; charset=utf-8"],
+  [".tsx", "text/plain; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
-  [".wav", "audio/wav"],
-  [".mp3", "audio/mpeg"],
+  [".svg", "image/svg+xml"],
+  [".png", "image/png"],
+  [".zip", "application/zip"],
+  [".csv", "text/csv; charset=utf-8"],
+  [".md", "text/markdown; charset=utf-8"],
+  [".glb", "model/gltf-binary"],
 ]);
 
 function ipcError(code, message, statusCode = 500, detail = undefined) {
@@ -94,7 +95,9 @@ function readJsonBody(req) {
 }
 
 // ---------------------------------------------------------------------------
-// Prereq probes (app_prereq_check: claude on PATH, ffmpeg, python3.10+)
+// Prereq probes (contract §2 app_prereq_check: claude on PATH · node ≥22.12 ·
+// toolchain installed (toolchain/node_modules present) · python ≥3.10 ·
+// kicad-cli reported, NOT required)
 // ---------------------------------------------------------------------------
 
 function probeVersion(bin, args, parse) {
@@ -124,11 +127,53 @@ function findOnAugmentedPath(name, env) {
   return null;
 }
 
+/** The repo's pinned Node toolchain dir: env CIRCUIT_TOOLCHAIN > repo default
+ * (`<repo>/toolchain`, four levels above this file). */
+export function toolchainDir(env = process.env) {
+  if (env.CIRCUIT_TOOLCHAIN) {
+    return path.resolve(env.CIRCUIT_TOOLCHAIN);
+  }
+  return path.resolve(
+    path.dirname(new URL(import.meta.url).pathname),
+    "..",
+    "..",
+    "..",
+    "..",
+    "toolchain",
+  );
+}
+
+/** kicad-cli lives on PATH or inside the macOS app bundle (contract §1). */
+const KICAD_APP_BUNDLE_BIN = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
+
 async function prereqCheck(env) {
   const claudePath = resolveClaude(env);
-  const ffmpegPath = findOnAugmentedPath("ffmpeg", env);
-  const pythonPath = findOnAugmentedPath("python3", env);
 
+  // node ≥22.12 — the tscircuit toolchain's floor.
+  const nodePath = findOnAugmentedPath("node", env);
+  let nodeVersion;
+  let nodeHealthy = false;
+  if (nodePath) {
+    nodeVersion = await probeVersion(nodePath, ["--version"], (out) => {
+      const match = out.match(/v?(\d+)\.(\d+)\.(\d+)/);
+      return match ? `${match[1]}.${match[2]}.${match[3]}` : undefined;
+    });
+    if (nodeVersion) {
+      const [major, minor] = nodeVersion.split(".").map((n) => Number(n));
+      nodeHealthy = major > 22 || (major === 22 && minor >= 12);
+    }
+  }
+
+  // toolchain — pinned deps installed by scripts/setup-toolchain.sh.
+  const toolchain = toolchainDir(env);
+  const toolchainFound = fs.existsSync(path.join(toolchain, "node_modules"));
+
+  // python ≥3.10 — CIRCUIT_PYTHON wins; else python3.12 (the known-good
+  // interpreter), else whatever python3 is on the augmented PATH.
+  const pythonPath =
+    (env.CIRCUIT_PYTHON && fs.existsSync(env.CIRCUIT_PYTHON) ? env.CIRCUIT_PYTHON : null) ||
+    findOnAugmentedPath("python3.12", env) ||
+    findOnAugmentedPath("python3", env);
   let pythonVersion;
   let pythonHealthy = false;
   if (pythonPath) {
@@ -141,25 +186,45 @@ async function prereqCheck(env) {
       pythonHealthy = major > 3 || (major === 3 && minor >= 10);
     }
   }
-  let ffmpegVersion;
-  if (ffmpegPath) {
-    ffmpegVersion = await probeVersion(ffmpegPath, ["-version"], (out) => {
-      const match = out.match(/ffmpeg version\s+(\S+)/);
+
+  // kicad-cli — reported, not required (absent → tscircuit-exported gerbers
+  // with a blocking-for-ship unverified_gerbers warning, per contract §1).
+  let kicadPath = findOnAugmentedPath("kicad-cli", env);
+  if (!kicadPath) {
+    try {
+      if (fs.statSync(KICAD_APP_BUNDLE_BIN).isFile()) {
+        kicadPath = KICAD_APP_BUNDLE_BIN;
+      }
+    } catch {
+      // not installed
+    }
+  }
+  let kicadVersion;
+  if (kicadPath) {
+    kicadVersion = await probeVersion(kicadPath, ["version"], (out) => {
+      const match = out.match(/(\d+\.\d+\.\d+)/);
       return match ? match[1] : undefined;
     });
   }
 
   return {
     claudeCli: { found: Boolean(claudePath) },
-    ffmpeg: { found: Boolean(ffmpegPath), ...(ffmpegVersion ? { version: ffmpegVersion } : {}) },
+    node: {
+      found: Boolean(nodePath),
+      ...(nodeVersion ? { version: nodeVersion } : {}),
+      healthy: nodeHealthy,
+    },
+    toolchain: { found: toolchainFound, path: toolchain },
     python: {
       found: Boolean(pythonPath),
       ...(pythonVersion ? { version: pythonVersion } : {}),
       healthy: pythonHealthy,
     },
-    // Shape-compat pad for the donor's PrereqCheck TS type; Circuit bundles no
-    // slicer.
-    slicer: { found: false, binaryPath: "" },
+    kicadCli: {
+      found: Boolean(kicadPath),
+      ...(kicadVersion ? { version: kicadVersion } : {}),
+      required: false,
+    },
   };
 }
 
@@ -516,7 +581,8 @@ export function createCircuitServices({ env = process.env } = {}) {
         ? "public, max-age=31536000, immutable"
         : "no-store");
 
-      // Byte ranges: <video> seeking (and Safari playback at all) needs 206s.
+      // Byte ranges: kept from the donor — cheap, and resumable downloads of
+      // large fab zips/GLBs get 206s for free.
       const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ""));
       let start = 0;
       let end = stats.size - 1;

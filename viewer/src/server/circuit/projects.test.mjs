@@ -22,8 +22,8 @@ function tmpdir(prefix) {
 
 test("encodeCwd replaces EVERY non-alphanumeric char with '-' (spaces and dots included)", () => {
   assert.equal(
-    encodeCwd("/Users/ab/Library/Application Support/app.video.web/projects/u1"),
-    "-Users-ab-Library-Application-Support-app-video-web-projects-u1",
+    encodeCwd("/Users/ab/Library/Application Support/app.circuit.web/projects/u1"),
+    "-Users-ab-Library-Application-Support-app-circuit-web-projects-u1",
   );
   // Existing hyphens map to themselves; a `/`-only encoding would differ.
   assert.equal(encodeCwd("/a-b/c_d.e f"), "-a-b-c-d-e-f");
@@ -53,9 +53,9 @@ test("parseLatestAiTitle takes the last non-empty ai-title line", () => {
 test("create writes snake_case pretty project.json and returns a camelCase summary", () => {
   const root = tmpdir("circuit-projects-");
   const store = createProjectsStore({ rootDir: root });
-  const summary = store.create("My Drama");
+  const summary = store.create("My Board");
   assert.match(summary.id, /^[0-9a-f-]{36}$/);
-  assert.equal(summary.name, "My Drama");
+  assert.equal(summary.name, "My Board");
   assert.ok(summary.createdAt > 0);
   assert.equal(summary.hasModel, false);
 
@@ -91,19 +91,22 @@ test("CRUD: list, open, rename, delete; empty name create falls back to the plac
   assert.throws(() => store.open("../escape"), /project not found/);
 });
 
-test("hasModel: an episode .mp4 counts; shot clips and skip-dirs do not", () => {
+test("hasModel: a built *.circuit.json counts; plain json and skip-dirs do not", () => {
   const root = tmpdir("circuit-projects-");
   const store = createProjectsStore({ rootDir: root });
   const p = store.create("X");
   const dir = path.join(root, p.id);
 
-  fs.mkdirSync(path.join(dir, "episodes", "ep001_shots"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "episodes", "ep001_shots", "shot_s1_01.mp4"), "clip");
-  fs.mkdirSync(path.join(dir, ".video", "render-cache"), { recursive: true });
-  fs.writeFileSync(path.join(dir, ".video", "render-cache", "x.mp4"), "cache");
-  assert.equal(store.get(p.id).hasModel, false, "shots and cache don't count");
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "boards", "main.board.json"), "{}");
+  fs.writeFileSync(path.join(dir, "product.json"), "{}");
+  fs.mkdirSync(path.join(dir, ".circuit", "cache"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".circuit", "cache", "x.circuit.json"), "{}");
+  fs.mkdirSync(path.join(dir, "blocks"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "blocks", "reg.circuit.json"), "{}");
+  assert.equal(store.get(p.id).hasModel, false, "plain json, caches, and blocks don't count");
 
-  fs.writeFileSync(path.join(dir, "episodes", "ep001.mp4"), "episode");
+  fs.writeFileSync(path.join(dir, "boards", "main.circuit.json"), "{}");
   assert.equal(store.get(p.id).hasModel, true);
 });
 

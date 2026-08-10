@@ -1,14 +1,14 @@
 // Circuit catalog — Node scanner over a project workspace, per contract §2:
 //
-//   Kinds: mp4 | png | srt | py | json.
-//   Visibility: `.json` hidden (surfaced via the episode entry's
-//   `artifact.metadataUrl`); `.png` hidden unless its parent dir ends
-//   `_review`; shot `.mp4` hidden if its parent dir ends `_shots` (grouped
-//   under the episode entry's `artifact.shots[]`); `.py` hidden if its name
-//   starts `_`. Episode entries carry
-//   `artifact: {srtUrl?, metadataUrl?, posterUrl?, shots?: [{id, file, url}]}`.
-//   EVERY media URL carries `?v=<mtime_nanos>-<size>` (`<video>` caches
-//   harder than STL).
+//   Kinds: tsx | json | svg | png | zip | csv | md.
+//   Visibility: `.json` hidden (the sidecar is surfaced via the board entry's
+//   `artifact.metadataUrl`); `_review/` and `_fab/` members hidden, grouped
+//   under the board entry's `artifact`; `.tsx` names starting `_` hidden;
+//   `blocks/` and `.circuit/` skipped (projects skip-list). Board entries
+//   (`boards/<stem>.tsx`) carry `artifact: {schematicUrl, pcbUrl,
+//   pcbBottomUrl?, metadataUrl, circuitJsonUrl, gerbersUrl?, bomUrl?,
+//   cplUrl?, orderUrl?, glbUrl?}` — members present only when the file
+//   exists on disk. EVERY media URL carries `?v=<mtime_nanos>-<size>`.
 //
 // The service watches the activated project dirs (fs.watch recursive — no
 // chokidar dependency in this package), debounces 150ms, rescans, bumps the
@@ -19,7 +19,7 @@ import path from "node:path";
 
 import { skipDirNames } from "./projects.mjs";
 
-export const CATALOG_KINDS = new Set(["mp4", "png", "srt", "py", "json"]);
+export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md"]);
 
 const DEBOUNCE_MS = 150;
 
@@ -72,10 +72,11 @@ function relPath(rootDir, filePath) {
   return path.relative(rootDir, filePath).split(path.sep).join("/");
 }
 
-/** Shot id from a `shot_<id>.mp4` filename (falls back to the bare stem). */
-export function shotIdFromFilename(name) {
-  const stem = String(name).replace(/\.mp4$/i, "");
-  return stem.startsWith("shot_") ? stem.slice("shot_".length) : stem;
+/** Is this file a member of a generated `<stem>_review/` or `<stem>_fab/`
+ * dir? Members are hidden as entries — grouped under the board's artifact. */
+function inGeneratedDir(absPath) {
+  const parent = path.basename(path.dirname(absPath));
+  return parent.endsWith("_review") || parent.endsWith("_fab");
 }
 
 /**
@@ -91,7 +92,6 @@ export function scanProjectCatalog({ projectDir, projectId }) {
   }
   const files = walkFiles(rootDir);
   const byExt = new Map();
-  const fileSet = new Set();
   for (const file of files) {
     const ext = path.extname(file).slice(1).toLowerCase();
     if (!CATALOG_KINDS.has(ext)) {
@@ -101,58 +101,45 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       byExt.set(ext, []);
     }
     byExt.get(ext).push(file);
-    fileSet.add(file);
   }
 
   const entries = [];
   const url = (abs) => mediaUrl(projectId, relPath(rootDir, abs), abs);
 
-  // mp4 — episode entries (with grouped artifact) unless inside a *_shots dir.
-  for (const mp4 of byExt.get("mp4") || []) {
-    const parent = path.dirname(mp4);
-    if (path.basename(parent).endsWith("_shots")) {
-      continue; // grouped under its episode's artifact.shots[]
+  // tsx — board entries (with the grouped artifact object). Names starting
+  // `_` are hidden (helper sources); blocks/ never reaches here (skip-list).
+  for (const tsx of byExt.get("tsx") || []) {
+    if (path.basename(tsx).startsWith("_")) {
+      continue;
     }
-    const stemBase = path.basename(mp4, ".mp4");
-    const stem = path.join(parent, stemBase);
-    const sidecar = `${stem}.episode.json`;
-    const srt = `${stem}.srt`;
-    const poster = path.join(`${stem}_review`, "_poster.png");
-    const shotsDir = `${stem}_shots`;
+    const parent = path.dirname(tsx);
+    const stem = path.join(parent, path.basename(tsx, ".tsx"));
 
     const entry = {
-      file: relPath(rootDir, mp4),
-      kind: "mp4",
-      sourceKind: fileSet.has(`${stem}.py`) || fs.existsSync(sidecar) ? "python" : null,
-      url: url(mp4),
+      file: relPath(rootDir, tsx),
+      kind: "tsx",
+      sourceKind: "tsx",
+      url: url(tsx),
     };
 
+    // Contract §2 board-entry artifact members, present only when on disk.
+    const members = [
+      ["metadataUrl", `${stem}.board.json`],
+      ["circuitJsonUrl", `${stem}.circuit.json`],
+      ["schematicUrl", path.join(`${stem}_review`, "_schematic.png")],
+      ["pcbUrl", path.join(`${stem}_review`, "_pcb.png")],
+      ["pcbBottomUrl", path.join(`${stem}_review`, "_pcb_bottom.png")],
+      ["gerbersUrl", path.join(`${stem}_fab`, "gerbers.zip")],
+      ["bomUrl", path.join(`${stem}_fab`, "bom.csv")],
+      ["cplUrl", path.join(`${stem}_fab`, "cpl.csv")],
+      ["orderUrl", path.join(`${stem}_fab`, "ORDER.md")],
+      ["glbUrl", path.join(`${stem}_fab`, "board.glb")],
+    ];
     const artifact = {};
-    if (fs.existsSync(sidecar)) {
-      artifact.metadataUrl = url(sidecar);
-    }
-    if (fs.existsSync(srt)) {
-      artifact.srtUrl = url(srt);
-    }
-    if (fs.existsSync(poster)) {
-      artifact.posterUrl = url(poster);
-    }
-    let shotFiles = [];
-    try {
-      shotFiles = fs
-        .readdirSync(shotsDir, { withFileTypes: true })
-        .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".mp4"))
-        .map((d) => path.join(shotsDir, d.name))
-        .sort();
-    } catch {
-      shotFiles = [];
-    }
-    if (shotFiles.length) {
-      artifact.shots = shotFiles.map((shot) => ({
-        id: shotIdFromFilename(path.basename(shot)),
-        file: relPath(rootDir, shot),
-        url: url(shot),
-      }));
+    for (const [key, absPath] of members) {
+      if (fs.existsSync(absPath)) {
+        artifact[key] = url(absPath);
+      }
     }
     if (Object.keys(artifact).length) {
       entry.artifact = artifact;
@@ -160,59 +147,28 @@ export function scanProjectCatalog({ projectDir, projectId }) {
     entries.push(entry);
   }
 
-  // png — visible only inside *_review dirs.
-  for (const png of byExt.get("png") || []) {
-    if (!path.basename(path.dirname(png)).endsWith("_review")) {
-      continue;
+  // svg / png / zip / csv / md — visible standalone files, hidden inside
+  // `_review/` and `_fab/` dirs (those surface via the board artifact).
+  for (const kind of ["svg", "png", "zip", "csv", "md"]) {
+    for (const file of byExt.get(kind) || []) {
+      if (inGeneratedDir(file)) {
+        continue;
+      }
+      entries.push({
+        file: relPath(rootDir, file),
+        kind,
+        sourceKind: null,
+        url: url(file),
+      });
     }
-    entries.push({
-      file: relPath(rootDir, png),
-      kind: "png",
-      sourceKind: null,
-      url: url(png),
-    });
   }
 
-  // srt — visible.
-  for (const srt of byExt.get("srt") || []) {
-    entries.push({
-      file: relPath(rootDir, srt),
-      kind: "srt",
-      sourceKind: null,
-      url: url(srt),
-    });
-  }
-
-  // py — hidden when the name starts with `_`.
-  for (const py of byExt.get("py") || []) {
-    if (path.basename(py).startsWith("_")) {
-      continue;
-    }
-    entries.push({
-      file: relPath(rootDir, py),
-      kind: "py",
-      sourceKind: "python",
-      url: url(py),
-    });
-  }
-
-  // json — hidden (surfaced via artifact.metadataUrl), with one exception
-  // (contract CHANGES 2026-08-09): a root-level series.json — the series
-  // bible the cast panel renders — is surfaced as an entry.
-  for (const json of byExt.get("json") || []) {
-    if (relPath(rootDir, json) !== "series.json") {
-      continue;
-    }
-    entries.push({
-      file: "series.json",
-      kind: "json",
-      sourceKind: null,
-      url: url(json),
-    });
-  }
+  // json — hidden entirely: the sidecar surfaces via artifact.metadataUrl,
+  // the IR via artifact.circuitJsonUrl; product.json/parts.json are served
+  // by the asset route directly (no catalog entry).
 
   // Plain code-unit ordering (not locale-aware) so the order is stable across
-  // machines and "ep001.mp4" sorts before "ep001_review/…".
+  // machines and "boards/main.tsx" sorts before "boards/main_review/…".
   entries.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   return { entries, rootPath: rootDir };
 }

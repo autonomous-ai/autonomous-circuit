@@ -12,12 +12,13 @@
 //
 // The phase is derived from argv exactly the way the driver builds it:
 // `--permission-mode plan` → "plan"; otherwise the `--append-system-prompt`
-// text containing "SCREENING ROOM" → "screening", "post-build" → "review",
-// else "implement".
+// text containing "post-build" (the REVIEW_SYSTEM_PROMPT marker) → "review",
+// else "implement". Keep these strings in sync with driver.mjs prompts.
 //
 // `lines` entries are emitted to stdout one per line; objects are
 // JSON.stringify'd, strings pass through raw. `writeFiles` are written
-// relative to cwd (the workspace) BEFORE the lines are emitted. When
+// relative to cwd (the workspace) BEFORE the lines are emitted — circuit
+// scenarios write boards/main.tsx, boards/main.board.json, and friends. When
 // CIRCUIT_FAKE_LOG is set, one JSON line {phase, argv, stdin} is appended per
 // invocation so tests can assert spawn sequences and prompt contents.
 
@@ -32,9 +33,6 @@ function detectPhase(argv) {
   }
   const promptIdx = argv.indexOf("--append-system-prompt");
   const systemPrompt = promptIdx !== -1 ? String(argv[promptIdx + 1] || "") : "";
-  if (systemPrompt.includes("SCREENING ROOM")) {
-    return "screening";
-  }
   return systemPrompt.includes("post-build") ? "review" : "implement";
 }
 

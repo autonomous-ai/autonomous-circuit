@@ -31,11 +31,7 @@ function normalize(raw) {
   if (model) {
     out.model = model;
   }
-  // Render provider (contract §1 set); absent → dramapy's default (mock).
-  const provider = typeof obj.renderProvider === "string" ? obj.renderProvider.trim() : "";
-  if (["mock", "fal", "dashscope", "minimax"].includes(provider)) {
-    out.renderProvider = provider;
-  }
+  // Contract §2: the donor's renderProvider is dropped — no field survives.
   return out;
 }
 
@@ -77,7 +73,6 @@ export function createSettingsStore({ filePath = settingsFilePath() } = {}) {
       autoUpdate: false,
       autoBuild: s.autoBuild,
       ...(s.model ? { model: s.model } : {}),
-      ...(s.renderProvider ? { renderProvider: s.renderProvider } : {}),
     };
   }
 

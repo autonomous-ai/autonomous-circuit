@@ -11,31 +11,26 @@ import { fileURLToPath } from "node:url";
 
 import {
   APPROVE_PLAN_PREAMBLE,
-  MAX_SCREENING_ROUNDS,
-  screeningMaxRounds,
+  ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
-  actionableScreeningNotes,
   approvedPlanMessage,
   attachmentNote,
   buildCommandArgs,
   buildCraftPrompt,
-  buildFunctionalPrompt,
-  buildScreeningFixPrompt,
+  buildElectricalPrompt,
   buildStructurePrompt,
-  collectEpisodeWarnings,
+  collectBoardWarnings,
   createChatService,
   diffSnapshots,
   isBlocking,
-  isFunctional,
+  isElectrical,
   newStreamState,
-  parseScreeningReport,
   parseSessionHistory,
   parseStreamLine,
   persistAttachments,
   questionsFenceFromAskUserQuestion,
   recoverPlanFromTranscript,
-  screeningEnabled,
   sessionIdForProject,
   spawnTurn,
   summarizeToolResult,
@@ -313,20 +308,20 @@ test("parseStreamLine result-line fallback fires only for a text-less turn; garb
 
 test("diffSnapshots reports new files and ≥1s forward mtimes only", () => {
   const before = new Map([
-    ["a.mp4", 1_000_000],
-    ["b.png", 1_000_000],
-    ["c.srt", 1_000_000],
+    ["boards/main.tsx", 1_000_000],
+    ["boards/main_review/_pcb.png", 1_000_000],
+    ["boards/main_fab/bom.csv", 1_000_000],
   ]);
   const after = new Map([
-    ["a.mp4", 1_000_500], // +0.5s — same whole second bucket → not modified
-    ["b.png", 2_000_000], // +1000s → modified
-    ["c.srt", 1_000_000],
-    ["d.py", 5],
+    ["boards/main.tsx", 1_000_500], // +0.5s — same whole second bucket → not modified
+    ["boards/main_review/_pcb.png", 2_000_000], // +1000s → modified
+    ["boards/main_fab/bom.csv", 1_000_000],
+    ["boards/main.circuit.json", 5],
   ]);
   const events = diffSnapshots(before, after, "t");
   assert.deepEqual(events, [
-    { kind: "artifact_changed", turnId: "t", file: "b.png", reason: "modified" },
-    { kind: "artifact_changed", turnId: "t", file: "d.py", reason: "new" },
+    { kind: "artifact_changed", turnId: "t", file: "boards/main.circuit.json", reason: "new" },
+    { kind: "artifact_changed", turnId: "t", file: "boards/main_review/_pcb.png", reason: "modified" },
   ]);
 });
 
@@ -334,41 +329,56 @@ test("diffSnapshots reports new files and ≥1s forward mtimes only", () => {
 // Review-loop plumbing
 // ---------------------------------------------------------------------------
 
-test("collectEpisodeWarnings walks *.episode.json recursively, skipping malformed sidecars", () => {
+test("collectBoardWarnings walks *.board.json recursively, skipping malformed sidecars", () => {
   const dir = tmpdir("circuit-warn-");
-  fs.mkdirSync(path.join(dir, "episodes"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
   fs.writeFileSync(
-    path.join(dir, "episodes", "ep001.episode.json"),
+    path.join(dir, "boards", "main.board.json"),
     JSON.stringify({
       validation: {
         warnings: [
-          { part: "s1_02", kind: "duration_drift", detail: "off", severity: "warning" },
-          { part: "s1_04", kind: "missing_shot", detail: "no clip", severity: "error" },
-          { part: "scene_2", kind: "functional", detail: "recap too long", severity: "warning" },
+          { part: "board", kind: "dfm_trace_width", detail: "0.1mm < 0.127mm", severity: "info" },
+          { part: "U3.pin7", kind: "source_trace_not_connected_error", detail: "floating", severity: "error" },
+          { part: "3V3", kind: "power_budget", detail: "rail at 96% of budget", severity: "warning" },
         ],
       },
     }),
   );
-  fs.writeFileSync(path.join(dir, "episodes", "broken.episode.json"), "{nope");
+  fs.writeFileSync(path.join(dir, "boards", "broken.board.json"), "{nope");
   fs.writeFileSync(path.join(dir, "notes.json"), JSON.stringify({ validation: { warnings: [{ part: "x" }] } }));
 
-  const warnings = collectEpisodeWarnings(dir);
-  assert.equal(warnings.length, 3, "only *.episode.json sidecars count");
+  const warnings = collectBoardWarnings(dir);
+  assert.equal(warnings.length, 3, "only *.board.json sidecars count");
   const blocking = warnings.filter(isBlocking);
-  assert.deepEqual(blocking.map((w) => w.part), ["s1_04"]);
-  const functional = warnings.filter(isFunctional);
-  assert.deepEqual(functional.map((w) => w.part), ["scene_2"]);
+  assert.deepEqual(blocking.map((w) => w.part), ["U3.pin7"]);
+  const electrical = warnings.filter(isElectrical);
+  assert.deepEqual(electrical.map((w) => w.part), ["3V3"]);
+});
+
+test("phase-2 electrical kind set matches the contract; severity is the only blocking gate", () => {
+  assert.deepEqual(
+    [...ELECTRICAL_KINDS].sort(),
+    ["functional", "netlist_mismatch", "part_drift", "part_not_orderable", "power_budget"],
+  );
+  for (const kind of ELECTRICAL_KINDS) {
+    assert.equal(isElectrical({ part: "p", kind, detail: "", severity: "warning" }), true, kind);
+  }
+  assert.equal(isElectrical({ part: "p", kind: "drc_violation", severity: "warning" }), false);
+  assert.equal(isBlocking({ part: "p", kind: "anything_at_all", severity: "error" }), true);
+  assert.equal(isBlocking({ part: "p", kind: "functional", severity: "warning" }), false);
 });
 
 test("review prompts gate on their warning sets; craft prompt always builds", () => {
   assert.equal(buildStructurePrompt([]), null);
-  assert.equal(buildFunctionalPrompt([]), null);
-  const w = { part: "s1_04", kind: "missing_shot", detail: "no clip", severity: "error" };
+  assert.equal(buildElectricalPrompt([]), null);
+  const w = { part: "U3.pin7", kind: "source_trace_not_connected_error", detail: "floating", severity: "error" };
   const structure = buildStructurePrompt([w]);
-  assert.ok(structure.includes("- [s1_04] missing_shot: no clip"));
+  assert.ok(structure.includes("- [U3.pin7] source_trace_not_connected_error: floating"));
   const craft = buildCraftPrompt([]);
-  assert.ok(craft.includes("_board.png"));
-  assert.ok(craft.includes("_poster.png"));
+  assert.ok(craft.includes("_schematic.png"));
+  assert.ok(craft.includes("_pcb.png"));
+  assert.ok(craft.includes("decoupling"));
+  assert.ok(craft.includes("mounting"));
 });
 
 // ---------------------------------------------------------------------------
@@ -385,21 +395,21 @@ test("parseSessionHistory groups an assistant trace with tool timings and drops 
     }),
     JSON.stringify({
       type: "user",
-      message: { role: "user", content: `${approvedPlanMessage("Build ep1.")}` },
+      message: { role: "user", content: `${approvedPlanMessage("Build the board.")}` },
       timestamp: "2026-08-01T05:00:01.000Z",
     }),
     JSON.stringify({
       type: "user",
-      message: { role: "user", content: "make a revenge drama" },
+      message: { role: "user", content: "design a desk air monitor" },
       timestamp: "2026-08-01T05:00:02.000Z",
     }),
     JSON.stringify({
       type: "assistant",
       message: {
         content: [
-          { type: "thinking", thinking: "beats..." },
+          { type: "thinking", thinking: "blocks..." },
           { type: "text", text: "Writing." },
-          { type: "tool_use", id: "u1", name: "Read", input: { file_path: "series.py" } },
+          { type: "tool_use", id: "u1", name: "Read", input: { file_path: "boards/main.tsx" } },
           { type: "tool_use", id: "p1", name: "ExitPlanMode", input: { plan: "x" } },
         ],
       },
@@ -424,7 +434,7 @@ test("parseSessionHistory groups an assistant trace with tool timings and drops 
   const history = parseSessionHistory(jsonl);
   assert.equal(history.length, 2, `got ${JSON.stringify(history)}`);
   assert.equal(history[0].role, "user");
-  assert.equal(history[0].content, "make a revenge drama");
+  assert.equal(history[0].content, "design a desk air monitor");
   assert.ok(history[0].at > 0);
 
   const asst = history[1];
@@ -521,8 +531,8 @@ test("plan turn: text delta → plan_proposed → turn ends (child killed, later
   const scenarioPath = writeScenario(dir, {
     plan: {
       lines: [
-        delta("Designing the pilot."),
-        assistant([toolUse("tp1", "ExitPlanMode", { plan: "# Plan\nEpisode 1: The Slap" })]),
+        delta("Speccing the board."),
+        assistant([toolUse("tp1", "ExitPlanMode", { plan: "# Plan\nBoard: desk air monitor" })]),
         delta("SHOULD NOT APPEAR"),
       ],
       sleepAfterMs: 3000,
@@ -532,7 +542,7 @@ test("plan turn: text delta → plan_proposed → turn ends (child killed, later
   const result = await spawnTurn({
     workspace,
     sessionId: sessionIdForProject("p-plan"),
-    message: "make a drama",
+    message: "design a board",
     turnId: "t1",
     phase: PHASE.PLAN,
     onEvent: (e) => events.push(e),
@@ -540,19 +550,19 @@ test("plan turn: text delta → plan_proposed → turn ends (child killed, later
   });
 
   assert.deepEqual(events[0], { kind: "turn_start", turnId: "t1", phase: "plan" });
-  assert.deepEqual(events[1], { kind: "text_delta", turnId: "t1", text: "Designing the pilot." });
+  assert.deepEqual(events[1], { kind: "text_delta", turnId: "t1", text: "Speccing the board." });
   assert.equal(events[2].kind, "plan_proposed");
-  assert.equal(events[2].plan, "# Plan\nEpisode 1: The Slap");
+  assert.equal(events[2].plan, "# Plan\nBoard: desk air monitor");
   assert.deepEqual(events.at(-1), { kind: "turn_end", turnId: "t1" });
   assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("SHOULD NOT APPEAR")));
-  assert.equal(result.proposedPlan, "# Plan\nEpisode 1: The Slap");
+  assert.equal(result.proposedPlan, "# Plan\nBoard: desk air monitor");
   assert.equal(result.cancelled, false);
 });
 
 test("plan turn: AskUserQuestion ends the turn with a circuit-questions fence and NO proposed plan", async () => {
   const dir = tmpdir("circuit-run-");
   const workspace = path.join(dir, "ws");
-  const questions = [{ question: "Genre?", options: [{ label: "Let Circuit choose" }] }];
+  const questions = [{ question: "Power source?", options: [{ label: "Let Circuit choose" }] }];
   const scenarioPath = writeScenario(dir, {
     plan: {
       lines: [assistant([toolUse("tq1", "AskUserQuestion", { questions })])],
@@ -563,7 +573,7 @@ test("plan turn: AskUserQuestion ends the turn with a circuit-questions fence an
   const result = await spawnTurn({
     workspace,
     sessionId: sessionIdForProject("p-q"),
-    message: "make a drama",
+    message: "design a board",
     turnId: "t2",
     phase: PHASE.PLAN,
     onEvent: (e) => events.push(e),
@@ -580,9 +590,9 @@ test("implement turn: tool pairing, incremental artifact_changed, result-line su
   const workspace = path.join(dir, "ws");
   const scenarioPath = writeScenario(dir, {
     implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      writeFiles: [{ path: "boards/main.circuit.json", content: "{}" }],
       lines: [
-        assistant([{ type: "text", text: "Building." }, toolUse("tb1", "Bash", { command: "drama" })]),
+        assistant([{ type: "text", text: "Building." }, toolUse("tb1", "Bash", { command: "circuit" })]),
         toolResult("tb1", true, [{ type: "text", text: "x\ny\nz" }]),
         { type: "result", result: "done" },
       ],
@@ -611,7 +621,7 @@ test("implement turn: tool pairing, incremental artifact_changed, result-line su
   assert.deepEqual(artifact, {
     kind: "artifact_changed",
     turnId: "t3",
-    file: "episodes/ep001.mp4",
+    file: "boards/main.circuit.json",
     reason: "new",
   });
   assert.ok(!events.some((e) => e.kind === "text_delta" && e.text === "done"), "result fallback suppressed");
@@ -630,7 +640,7 @@ test("cancel: kills the child and emits error{cancelled} then turn_end", async (
   const turn = spawnTurn({
     workspace,
     sessionId: sessionIdForProject("p-cancel"),
-    message: "make a drama",
+    message: "design a board",
     turnId: "t4",
     phase: PHASE.PLAN,
     onEvent: (e) => {
@@ -693,26 +703,32 @@ test("missing claude binary → CLAUDE not-found error then turn_end", async () 
 // Review loop through a build turn
 // ---------------------------------------------------------------------------
 
-const CLEAN_SIDECAR = JSON.stringify({ validation: { durationS: 96.4, shotCount: 14 } });
+const CLEAN_SIDECAR = JSON.stringify({
+  generator: "circuitpy",
+  entryKind: "board",
+  validation: {},
+});
 const BLOCKED_SIDECAR = JSON.stringify({
   validation: {
-    warnings: [{ part: "s1_02", kind: "missing_shot", detail: "no clip", severity: "error" }],
+    warnings: [
+      { part: "U3.pin7", kind: "source_trace_not_connected_error", detail: "floating", severity: "error" },
+    ],
   },
 });
 
 test("review loop: structure round fixes the blocking warning, then craft always runs once — all silently", async () => {
   const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
-  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
+  fs.mkdirSync(path.join(workspace, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "boards", "main.board.json"), BLOCKED_SIDECAR);
   const logPath = path.join(dir, "log.jsonl");
   const scenarioPath = writeScenario(dir, {
     implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      writeFiles: [{ path: "boards/main.circuit.json", content: "{}" }],
       lines: [assistant([{ type: "text", text: "Built." }])],
     },
     review: {
-      writeFiles: [{ path: "episodes/ep001.episode.json", content: CLEAN_SIDECAR }],
+      writeFiles: [{ path: "boards/main.board.json", content: CLEAN_SIDECAR }],
       lines: [delta("review chatter")],
     },
   });
@@ -732,7 +748,7 @@ test("review loop: structure round fixes the blocking warning, then craft always
   const reviews = log.filter((entry) => entry.phase === "review");
   assert.ok(reviews.length >= 2, `structure round + craft round(s), got ${reviews.length}`);
   assert.ok(
-    reviews[0].stdin.includes("- [s1_02] missing_shot: no clip"),
+    reviews[0].stdin.includes("- [U3.pin7] source_trace_not_connected_error: floating"),
     "structure prompt lists the blocking warning",
   );
   assert.ok(reviews[0].stdin.includes("structural check"));
@@ -741,8 +757,8 @@ test("review loop: structure round fixes the blocking warning, then craft always
     "craft pass always runs once after structure clears",
   );
   assert.ok(
-    !reviews.some((r) => r.stdin.includes("DRAMATIC-FUNCTION")),
-    "no functional warnings → no functional round",
+    !reviews.some((r) => r.stdin.includes("ELECTRICAL-FUNCTION")),
+    "no electrical warnings → no electrical round",
   );
   // Review is silent: its chat never reaches the event stream.
   assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("review chatter")));
@@ -752,12 +768,12 @@ test("review loop: structure round fixes the blocking warning, then craft always
 test("review loop: non-converging structure stops at the 2-round cap with one unresolved note; craft skipped", async () => {
   const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
-  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), BLOCKED_SIDECAR);
+  fs.mkdirSync(path.join(workspace, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "boards", "main.board.json"), BLOCKED_SIDECAR);
   const logPath = path.join(dir, "log.jsonl");
   const scenarioPath = writeScenario(dir, {
     implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      writeFiles: [{ path: "boards/main.circuit.json", content: "{}" }],
       lines: [assistant([{ type: "text", text: "Built." }])],
     },
     review: { lines: [] }, // never fixes anything
@@ -779,30 +795,33 @@ test("review loop: non-converging structure stops at the 2-round cap with one un
   const note = events.find((e) => e.kind === "text_delta" && e.text.includes("unresolved"));
   assert.ok(note, "one unresolved-issues note surfaces");
   assert.ok(note.text.includes("structure"));
-  assert.ok(note.text.includes("s1_02"));
+  assert.ok(note.text.includes("U3.pin7"));
   assert.ok(events.indexOf(note) < events.findIndex((e) => e.kind === "turn_end"));
 });
 
-test("functional phase: kind=functional warnings get the beat-sheet prompt after structure is clean", async () => {
+test("electrical phase: contract kinds get the electrical-function prompt after structure is clean", async () => {
   const dir = tmpdir("circuit-review-");
   const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
+  fs.mkdirSync(path.join(workspace, "boards"), { recursive: true });
   fs.writeFileSync(
-    path.join(workspace, "episodes", "ep001.episode.json"),
+    path.join(workspace, "boards", "main.board.json"),
     JSON.stringify({
       validation: {
-        warnings: [{ part: "scene_2", kind: "functional", detail: "recap beat exceeds 8s", severity: "warning" }],
+        warnings: [
+          { part: "3V3", kind: "power_budget", detail: "rail at 96% of budget", severity: "warning" },
+          { part: "U2", kind: "part_not_orderable", detail: "no LCSC number", severity: "warning" },
+        ],
       },
     }),
   );
   const logPath = path.join(dir, "log.jsonl");
   const scenarioPath = writeScenario(dir, {
     implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
+      writeFiles: [{ path: "boards/main.circuit.json", content: "{}" }],
       lines: [assistant([{ type: "text", text: "Built." }])],
     },
     review: {
-      writeFiles: [{ path: "episodes/ep001.episode.json", content: CLEAN_SIDECAR }],
+      writeFiles: [{ path: "boards/main.board.json", content: CLEAN_SIDECAR }],
     },
   });
   await spawnTurn({
@@ -815,8 +834,9 @@ test("functional phase: kind=functional warnings get the beat-sheet prompt after
     env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
   });
   const reviews = readLog(logPath).filter((entry) => entry.phase === "review");
-  assert.ok(reviews[0].stdin.includes("DRAMATIC-FUNCTION"), "functional prompt first (no blocking errors)");
-  assert.ok(reviews[0].stdin.includes("- [scene_2] functional: recap beat exceeds 8s"));
+  assert.ok(reviews[0].stdin.includes("ELECTRICAL-FUNCTION"), "electrical prompt first (no blocking errors)");
+  assert.ok(reviews[0].stdin.includes("- [3V3] power_budget: rail at 96% of budget"));
+  assert.ok(reviews[0].stdin.includes("- [U2] part_not_orderable: no LCSC number"));
 });
 
 // ---------------------------------------------------------------------------
@@ -844,7 +864,7 @@ test("autopilot: a proposed plan chains a build turn (plan-present gate, even wh
       // ExitPlanMode with NO plan text and no file — plan-present must still build.
       plan: { lines: [assistant([toolUse("tp", "ExitPlanMode", {})])], sleepAfterMs: 2000 },
       implement: {
-        writeFiles: [{ path: "episodes/ep001.mp4", content: "v" }],
+        writeFiles: [{ path: "boards/main.tsx", content: "<board />" }],
         lines: [assistant([{ type: "text", text: "Built it." }])],
       },
       review: {},
@@ -923,185 +943,4 @@ test("cancelTurn aborts an in-flight turn via the registry; unknown ids are a sa
   assert.ok(errIdx !== -1 && errIdx < endIdx);
   assert.equal(chat.turnInProgress("proj-4"), false);
   chat.close();
-});
-
-// ---------------------------------------------------------------------------
-// Screening room — the quality gate
-// ---------------------------------------------------------------------------
-
-test("parseScreeningReport extracts the last valid fenced report and rejects junk", () => {
-  assert.equal(parseScreeningReport("no fence"), null);
-  assert.equal(parseScreeningReport("```screening-report\n{bad json}\n```"), null);
-  // Missing a required key → rejected.
-  assert.equal(
-    parseScreeningReport('```screening-report\n{"overall_1_10":8,"notes":[]}\n```'),
-    null,
-  );
-  const text =
-    'prose\n```screening-report\n{"overall_1_10":3,"dimension_scores":{},' +
-    '"pass_at_bar":false,"notes":[]}\n```\n' +
-    'more\n```screening-report\n{"overall_1_10":9,"dimension_scores":{"hook":9},' +
-    '"pass_at_bar":true,"notes":[{"department":"vfx","severity":"minor"}]}\n```';
-  const report = parseScreeningReport(text);
-  assert.equal(report.overall_1_10, 9, "last block wins");
-  assert.equal(report.pass_at_bar, true);
-});
-
-test("actionableScreeningNotes keeps only blocker/major; buildScreeningFixPrompt routes them", () => {
-  const report = {
-    notes: [
-      { department: "vfx", shot_ids: ["s1_02"], severity: "blocker", note: "rotated", fix: "re-render portrait" },
-      { department: "editor", shot_ids: ["s2_01"], severity: "minor", note: "long", fix: "trim" },
-      { department: "cast", shot_ids: ["s3_01"], severity: "major", note: "face drift", fix: "reroll pinned" },
-    ],
-  };
-  const actionable = actionableScreeningNotes(report);
-  assert.deepEqual(actionable.map((n) => n.department), ["vfx", "cast"]);
-  const prompt = buildScreeningFixPrompt(actionable);
-  assert.ok(prompt.includes("did NOT pass"));
-  assert.ok(prompt.includes("[vfx] (blocker) s1_02: rotated"));
-  assert.ok(prompt.includes("[cast] (major) s3_01: face drift"));
-  assert.ok(!prompt.includes("editor"), "minor notes are not routed to a fix round");
-});
-
-test("screeningMaxRounds: default backstop, env override, clamp", () => {
-  assert.equal(screeningMaxRounds({}), MAX_SCREENING_ROUNDS);
-  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "12" }), 12);
-  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "999" }), 30, "clamped");
-  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "nope" }), MAX_SCREENING_ROUNDS);
-  assert.equal(screeningMaxRounds({ CIRCUIT_SCREENING_MAX_ROUNDS: "0" }), MAX_SCREENING_ROUNDS);
-});
-
-test("screeningEnabled defaults on and honors the CIRCUIT_SCREENING flag", () => {
-  assert.equal(screeningEnabled({}), true);
-  assert.equal(screeningEnabled({ CIRCUIT_SCREENING: "" }), true);
-  assert.equal(screeningEnabled({ CIRCUIT_SCREENING: "1" }), true);
-  for (const off of ["0", "false", "off", "no", "OFF"]) {
-    assert.equal(screeningEnabled({ CIRCUIT_SCREENING: off }), false, off);
-  }
-});
-
-const SCREEN_CLEAN_SIDECAR = JSON.stringify({ validation: { durationS: 50, shotCount: 8 } });
-
-// A screening-report emitted by the fake critic, as an assistant text block.
-const screeningReportLine = (report) =>
-  assistant([{ type: "text", text: "```screening-report\n" + JSON.stringify(report) + "\n```" }]);
-
-const BELOW_BAR = {
-  overall_1_10: 5,
-  dimension_scores: { hook: 6, story: 5, consistency: 4, technical: 3 },
-  pass_at_bar: false,
-  notes: [
-    { department: "vfx", shot_ids: ["s1_02"], severity: "blocker", note: "rotated 90°", fix: "re-render s1_02 portrait" },
-  ],
-};
-const ABOVE_BAR = {
-  overall_1_10: 9,
-  dimension_scores: { hook: 9, story: 9, consistency: 8, technical: 10 },
-  pass_at_bar: true,
-  notes: [],
-};
-
-test("screening: a below-bar verdict triggers a targeted fix round, and stops when the fix can't make progress", async () => {
-  const dir = tmpdir("circuit-screen-");
-  const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
-  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
-  const logPath = path.join(dir, "log.jsonl");
-  const scenarioPath = writeScenario(dir, {
-    implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
-      lines: [assistant([{ type: "text", text: "Built." }])],
-    },
-    review: {}, // craft pass + the screening fix rounds (no re-render needed to test wiring)
-    screening: { lines: [screeningReportLine(BELOW_BAR)] },
-  });
-  const events = [];
-  await spawnTurn({
-    workspace,
-    sessionId: sessionIdForProject("p-screen-fail"),
-    message: approvedPlanMessage("plan"),
-    turnId: "ts1",
-    phase: PHASE.IMPLEMENT,
-    onEvent: (e) => events.push(e),
-    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
-  });
-
-  const log = readLog(logPath);
-  const screenings = log.filter((e) => e.phase === "screening");
-  // Convergence loop: it screens, fixes once, re-checks — but this fake's fix
-  // round changes no artifacts, so the loop correctly stops (no progress) rather
-  // than burning the whole cap re-screening an identical cut.
-  assert.equal(screenings.length, 1, "stops once a fix round makes no change (no progress)");
-  assert.ok(
-    screenings[0].stdin.includes("screening-room bundle") || screenings[0].stdin.includes("screening-report"),
-    "the critic prompt asks for the bundle + report",
-  );
-  const fixRounds = log.filter((e) => e.phase === "review" && e.stdin.includes("did NOT pass"));
-  assert.ok(fixRounds.length >= 1, "a below-bar verdict resumes the session with the notes as a fix");
-  assert.ok(fixRounds[0].stdin.includes("s1_02"), "the fix round names the flagged shot");
-  // Silent: the critique never reaches the user's event stream.
-  assert.ok(!events.some((e) => e.kind === "text_delta" && e.text.includes("screening-report")));
-  assert.equal(events.at(-1).kind, "turn_end");
-});
-
-test("screening: an above-bar verdict stops after one screen — no fix round", async () => {
-  const dir = tmpdir("circuit-screen-");
-  const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
-  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
-  const logPath = path.join(dir, "log.jsonl");
-  const scenarioPath = writeScenario(dir, {
-    implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
-      lines: [assistant([{ type: "text", text: "Built." }])],
-    },
-    review: {},
-    screening: { lines: [screeningReportLine(ABOVE_BAR)] },
-  });
-  await spawnTurn({
-    workspace,
-    sessionId: sessionIdForProject("p-screen-pass"),
-    message: approvedPlanMessage("plan"),
-    turnId: "ts2",
-    phase: PHASE.IMPLEMENT,
-    onEvent: () => {},
-    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
-  });
-
-  const log = readLog(logPath);
-  assert.equal(log.filter((e) => e.phase === "screening").length, 1, "passes on the first screen");
-  assert.equal(
-    log.filter((e) => e.phase === "review" && e.stdin.includes("did NOT pass")).length,
-    0,
-    "no screening fix round when the cut clears the bar",
-  );
-});
-
-test("screening: CIRCUIT_SCREENING=off disables the screening phase entirely", async () => {
-  const dir = tmpdir("circuit-screen-");
-  const workspace = path.join(dir, "ws");
-  fs.mkdirSync(path.join(workspace, "episodes"), { recursive: true });
-  fs.writeFileSync(path.join(workspace, "episodes", "ep001.episode.json"), SCREEN_CLEAN_SIDECAR);
-  const logPath = path.join(dir, "log.jsonl");
-  const scenarioPath = writeScenario(dir, {
-    implement: {
-      writeFiles: [{ path: "episodes/ep001.mp4", content: "vid" }],
-      lines: [assistant([{ type: "text", text: "Built." }])],
-    },
-    review: {},
-    screening: { lines: [screeningReportLine(BELOW_BAR)] },
-  });
-  await spawnTurn({
-    workspace,
-    sessionId: sessionIdForProject("p-screen-off"),
-    message: approvedPlanMessage("plan"),
-    turnId: "ts3",
-    phase: PHASE.IMPLEMENT,
-    onEvent: () => {},
-    env: { ...makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }), CIRCUIT_SCREENING: "off" },
-  });
-
-  const log = readLog(logPath);
-  assert.equal(log.filter((e) => e.phase === "screening").length, 0, "no critic spawned when disabled");
 });

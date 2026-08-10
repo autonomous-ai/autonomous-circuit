@@ -1,6 +1,6 @@
 // Circuit chat driver — Node port of the donor's Rust
 // `desktop/src-tauri/src/commands/claude_driver.rs` + `chat.rs` semantics,
-// coded against docs/video-interfaces.md §2 (the frozen contract).
+// coded against docs/circuit-interfaces.md §2 (the frozen contract).
 //
 // One chat turn = one spawned `claude -p --output-format stream-json` child.
 // The driver translates stream-json lines into the 9-kind ChatEvent union,
@@ -16,6 +16,7 @@ import readline from "node:readline";
 import { spawn } from "node:child_process";
 
 import {
+  circuitHome,
   claudeConfigDir,
   sessionJsonlPath,
   skipDirNames,
@@ -80,29 +81,33 @@ export function claudeSessionExists(workspace, sessionId, env = process.env) {
 // ---------------------------------------------------------------------------
 
 export const PLAN_SYSTEM_PROMPT = [
-  "You are running inside Autonomous Circuit, the AI short-drama studio. Every user",
-  "message is a request to create or refine a vertical short-drama series or",
-  "episode. You are in PLANNING mode: design, do not build. You MAY run",
-  "read-only analysis (list the project, read series.py, episode sources, and",
-  ".episode.json sidecars) to ground the plan in what already exists, but do",
-  "NOT write or edit any source file and do NOT run the drama generator or",
-  "produce/update episode artifacts yet — the build happens only after the",
-  "plan is approved.",
+  "You are running inside Autonomous Circuit, the AI PCB studio. Every user",
+  "message is a request to design or refine a printed circuit board. You are",
+  "in PLANNING mode: design, do not build. You MAY run read-only analysis",
+  "(list the project, read product.json, parts.json, the board sources under",
+  "boards/, and the .board.json sidecars) to ground the plan in what already",
+  "exists, but do NOT write or edit any source file and do NOT run the",
+  "circuit generator or produce/update board artifacts yet — the build",
+  "happens only after the plan is approved.",
   "",
-  "Design with the story-analysis and dramacode skills' knowledge. A full",
-  "plan covers: the series bible (title, genre, visual style, language, cast",
-  "with ids, looks, and voices), the episode beat sheet (a cold-open hook",
-  "inside hook_max_s, escalating beats, a hard cliffhanger), and the concrete",
-  "shot list (per shot: kind establish/action/dialogue/insert, duration_s in",
-  "[3, 15], cast ids, dialogue lines, prompt). Be specific — names, shot",
-  "counts, durations, the exact cliffhanger. A trivial edit needs only the",
-  "exact change and its consequence, one to three lines.",
+  "Design with the circuit-analysis and circuitcode skills' knowledge",
+  "(~/.claude/skills/circuit-analysis, ~/.claude/skills/circuitcode). A full",
+  "plan is an engineering spec: the golden blocks chosen (composition is",
+  "blocks + glue only — never a novel IC circuit invented from a datasheet),",
+  "the power budget math (source, per-rail current sums, headroom), the pin",
+  "allocation table (every block pin → MCU pin/net), the board size against",
+  "product.json's envelope, and the estimated parts-cost band. Mark any",
+  "number a circuitlib table does not own as an estimate. The safety",
+  "envelope is non-negotiable and refused at spec time, in the plan: no",
+  "mains ever (low-voltage DC ≤24V only), battery power only via the sealed",
+  "charge/protect block, radio only as certified modules. A trivial edit",
+  "needs only the exact change and its consequence, one to three lines.",
   "",
-  "PREFERENCES FIRST. For a NEW series (not a trivial edit), open the turn by",
-  "asking 2-4 preference questions (genre, visual style, language, episode",
-  "length) by CALLING the AskUserQuestion tool — do NOT write the questions",
-  "as plain text or a JSON/code block; only the tool call renders the",
-  "multiple-choice UI. Give EVERY question a first option labelled \"Let",
+  "PREFERENCES FIRST. For a NEW board (not a trivial edit), open the turn by",
+  "asking 2-4 preference questions (power source, size class, PCBA vs bare",
+  "PCB, must-have I/O) by CALLING the AskUserQuestion tool — do NOT write the",
+  "questions as plain text or a JSON/code block; only the tool call renders",
+  "the multiple-choice UI. Give EVERY question a first option labelled \"Let",
   "Circuit choose\" (description: \"Recommended — we pick the best for you\");",
   "when the user picks it, use your best default and proceed without",
   "re-asking. The tool call ends the turn — do not call ExitPlanMode in the",
@@ -116,51 +121,38 @@ export const PLAN_SYSTEM_PROMPT = [
 ].join("\n");
 
 export const IMPLEMENT_SYSTEM_PROMPT = [
-  "You are running inside Autonomous Circuit, the AI short-drama studio. The user has",
-  "APPROVED a plan. Implement it now using the dramacode skill: write",
-  "series.py (the series bible) and the episode source under episodes/",
-  "(episodes/epNNN.py defining gen_episode()), then run the generator",
-  "(`python ~/.claude/skills/dramacode/scripts/drama episodes/epNNN.py`) to",
-  "render the episode .mp4, the .episode.json sidecar, the .srt subtitles,",
-  "the per-shot clips, and the _review/ poster and board. Follow the",
-  "dramacode protocol. Do not re-plan or ask further questions unless a",
-  "blocking ambiguity remains. If the generator reports validation errors,",
-  "fix the source and re-run until the episode builds.",
+  "You are running inside Autonomous Circuit, the AI PCB studio. The user has",
+  "APPROVED a plan. Implement it now using the circuitcode skill: write the",
+  "board source boards/<stem>.tsx (normal case boards/main.tsx; golden",
+  "blocks + glue only), lock parts with the parts-book skill when the BOM",
+  "changes, then run the generator",
+  "(`python ~/.claude/skills/circuitcode/scripts/circuit boards/<stem>.tsx`)",
+  "to build the .circuit.json IR, the .board.json sidecar, the _review/",
+  "schematic and PCB images, and the _fab/ packet. The generator's verdict",
+  "is its one stdout JSON line plus the sidecar's validation.warnings —",
+  "read it, make the smallest responsible fix in the source, and re-run",
+  "until the board builds clean. `Read` _review/_schematic.png and",
+  "_review/_pcb.png before you call it done. Follow the circuitcode",
+  "protocol. Do not re-plan or ask further questions unless a blocking",
+  "ambiguity remains.",
 ].join("\n");
 
 export const REVIEW_SYSTEM_PROMPT = [
-  "You are running inside Autonomous Circuit, the AI short-drama studio. An automatic",
-  "post-build review of the episode you just built is running. Work",
-  "SILENTLY: do not greet, explain, summarize, ask questions, or re-plan —",
-  "just improve the episode and regenerate with the dramacode skill",
-  "(`python ~/.claude/skills/dramacode/scripts/drama <episodes/epNNN.py>`).",
-  "The per-round message says what to check. STRUCTURE problems (from the",
-  ".episode.json sidecars) are blocking and come first. DRAMATIC-FUNCTION",
-  "problems (warnings of kind \"functional\") mean the episode renders but",
-  "breaks the beat-sheet rules in the dramacode skill's references — fix the",
-  "story/shots until they clear. CRAFT is a final visual pass: re-render,",
-  "Read the <stem>_review/_board.png contact sheet and _poster.png, and fix",
-  "continuity, composition, and caption legibility. Edit the Python source",
-  "(never the rendered artifacts), regenerate, and stop as soon as the",
-  "episode is clean.",
-].join("\n");
-
-// The screening critic's phase prompt. The marker "SCREENING ROOM" (never
-// "post-build") is how the phase is told apart from a plain review round.
-export const SCREENING_SYSTEM_PROMPT = [
-  "You are running inside Autonomous Circuit as the SCREENING ROOM: the critic",
-  "who WATCHES the rendered episode and judges its quality. Use the",
-  "screening-room skill. Work SILENTLY — no greeting, no summary, no",
-  "questions. Run the skill's bundle script to sample frames through every",
-  "shot and detect technical defects, then `Read` every sampled frame plus",
-  "the board and poster (Read returns images — actually look), read the",
-  "metadata, audio stats, defects, and the episode source, and score the",
-  "film against the rubric. Your ENTIRE output is exactly one fenced",
-  "```screening-report JSON block: {overall_1_10, dimension_scores{...},",
-  "pass_at_bar, notes:[{department, shot_ids, severity, note, fix}]}. Be a",
-  "tough, specific, Oscar-level critic; cite shot ids; and never pass a cut",
-  "that carries a technical defect — the orientation/rotation bug fails the",
-  "bar on its own.",
+  "You are running inside Autonomous Circuit, the AI PCB studio. An automatic",
+  "post-build review of the board you just built is running. Work SILENTLY:",
+  "do not greet, explain, summarize, ask questions, or re-plan — just",
+  "improve the board and regenerate with the circuitcode skill",
+  "(`python ~/.claude/skills/circuitcode/scripts/circuit boards/<stem>.tsx`).",
+  "The per-round message says what to check; fix by severity. STRUCTURE",
+  "problems (severity \"error\" in the .board.json sidecars — compile",
+  "errors, ERC/DRC violations, safety envelope, DFM blockers) are blocking",
+  "and come first. ELECTRICAL-FUNCTION problems (power budget, unorderable",
+  "or drifted parts, netlist mismatches) mean the board builds but would",
+  "not work or could not be ordered — fix them next. CRAFT is a final",
+  "visual pass: rebuild, `Read` <stem>_review/_schematic.png and",
+  "<stem>_review/_pcb.png, and fix what reads wrong. Edit the TSX source",
+  "(never the generated artifacts), regenerate, and stop as soon as the",
+  "board is clean.",
 ].join("\n");
 
 /** Appended to every phase prompt so the model knows the one absolute
@@ -169,12 +161,12 @@ export const SCREENING_SYSTEM_PROMPT = [
 export function workspaceDirective(workspace) {
   return (
     "PROJECT WORKSPACE. This project lives in the single absolute directory " +
-    "below. Every file you create — series.py, the episode sources under " +
-    "episodes/, and every artifact the drama generator produces — MUST live " +
-    "inside it, and you MUST pass paths inside it to the dramacode tools. Do " +
-    "not create the project or write artifacts anywhere else: Circuit only " +
-    "detects artifacts inside this directory, so anything written outside it " +
-    `is invisible to the app.\n${workspace}`
+    "below. Every file you create — product.json, parts.json, the board " +
+    "sources under boards/, and every artifact the circuit generator " +
+    "produces — MUST live inside it, and you MUST pass paths inside it to " +
+    "the circuitcode tools. Do not create the project or write artifacts " +
+    "anywhere else: Circuit only detects artifacts inside this directory, " +
+    `so anything written outside it is invisible to the app.\n${workspace}`
   );
 }
 
@@ -184,13 +176,11 @@ export const PHASE = Object.freeze({
   PLAN: "plan",
   IMPLEMENT: "implement",
   REVIEW: "review",
-  SCREENING: "screening",
 });
 
 function systemPromptForPhase(phase) {
   if (phase === PHASE.PLAN) return PLAN_SYSTEM_PROMPT;
   if (phase === PHASE.REVIEW) return REVIEW_SYSTEM_PROMPT;
-  if (phase === PHASE.SCREENING) return SCREENING_SYSTEM_PROMPT;
   return IMPLEMENT_SYSTEM_PROMPT;
 }
 
@@ -318,26 +308,21 @@ export function buildCommandArgs({
   return args;
 }
 
-/** Provider vars the render chain understands; keys.env supplies them, the
- * settings renderProvider wins for CIRCUIT_PROVIDER, real env wins overall. */
-const PROVIDER_ENV_VARS = new Set([
-  "CIRCUIT_PROVIDER",
-  "FAL_KEY",
-  "DASHSCOPE_API_KEY",
-  "MINIMAX_API_KEY",
-  "CIRCUIT_FAL_MODEL",
-  "CIRCUIT_DASHSCOPE_MODEL",
-  "CIRCUIT_DASHSCOPE_BASE_URL",
-  "CIRCUIT_MINIMAX_MODEL",
-  "CIRCUIT_MINIMAX_BASE_URL",
-  "CIRCUIT_MOCK_TTS",
+/** Pipeline vars the circuit generator understands (contract §1); keys.env
+ * supplies them, the real environment wins overall. */
+const PIPELINE_ENV_VARS = new Set([
+  "CIRCUIT_PARTS_ENGINE",
+  "CIRCUIT_FAB",
+  "CIRCUIT_TOOLCHAIN",
+  "CIRCUIT_WALL_CLOCK_S",
 ]);
 
 /** Parse ~/.autonomous-circuit/keys.env (KEY=value lines, # comments). The
- * paste-a-key file: drop FAL_KEY / DASHSCOPE_API_KEY / MINIMAX_API_KEY here
- * and every render — app or terminal — can reach the hosted providers. */
+ * paste-a-setting file: drop CIRCUIT_PARTS_ENGINE / CIRCUIT_FAB /
+ * CIRCUIT_TOOLCHAIN / CIRCUIT_WALL_CLOCK_S here and every build — app or
+ * terminal — picks them up. */
 export function readKeysEnv(env = process.env) {
-  const filePath = path.join(env.HOME || os.homedir(), ".autonomous-circuit", "keys.env");
+  const filePath = path.join(circuitHome(env), "keys.env");
   const out = {};
   let text = "";
   try {
@@ -351,18 +336,17 @@ export function readKeysEnv(env = process.env) {
     const eq = line.indexOf("=");
     const key = line.slice(0, eq).trim();
     const value = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-    if (PROVIDER_ENV_VARS.has(key) && value) out[key] = value;
+    if (PIPELINE_ENV_VARS.has(key) && value) out[key] = value;
   }
   return out;
 }
 
 /** Env for the spawned child: inherited env + augmented PATH + the donor's
- * self-updater/background-task guards + provider keys/selection (keys.env <
- * settings.renderProvider < real environment). */
-export function buildChildEnv(env = process.env, { renderProvider } = {}) {
+ * self-updater/background-task guards + pipeline settings (keys.env < real
+ * environment). */
+export function buildChildEnv(env = process.env) {
   const child = {
     ...readKeysEnv(env),
-    ...(renderProvider ? { CIRCUIT_PROVIDER: renderProvider } : {}),
     ...env,
     PATH: augmentedPath(env),
     DISABLE_AUTOUPDATER: "1",
@@ -413,19 +397,19 @@ export function streamJsonInput(prompt, imagePaths = []) {
 // Artifact snapshotter
 // ---------------------------------------------------------------------------
 
-/** Extensions watched per §2: `.mp4 .png .json .srt .py .wav .mp3`. */
+/** Extensions watched per §2: `.tsx .json .svg .png .zip .csv .md`. */
 export const WATCHED_EXTENSIONS = new Set([
-  "mp4",
-  "png",
+  "tsx",
   "json",
-  "srt",
-  "py",
-  "wav",
-  "mp3",
+  "svg",
+  "png",
+  "zip",
+  "csv",
+  "md",
 ]);
 
 /** Snapshot every watched file under `workspace` → Map(relPath → mtimeMs).
- * Recursive; skips inputs/, .video/, .claude/, node_modules, __pycache__. */
+ * Recursive; skips inputs/, .circuit/, .claude/, blocks/, node_modules. */
 export function snapshotWorkspace(workspace) {
   const snapshot = new Map();
   const skip = skipDirNames();
@@ -758,12 +742,12 @@ export function recoverPlanFromSession(workspace, sessionId, env = process.env) 
 // ---------------------------------------------------------------------------
 
 export const MAX_STRUCTURE_ROUNDS = 2;
-export const MAX_FUNCTIONAL_ROUNDS = 3;
+export const MAX_ELECTRICAL_ROUNDS = 3;
 export const MAX_CRAFT_ROUNDS = 2;
 
-/** Read every `*.episode.json` sidecar under `dir` (skip-list honored) and
+/** Read every `*.board.json` sidecar under `dir` (skip-list honored) and
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
-export function collectEpisodeWarnings(dir) {
+export function collectBoardWarnings(dir) {
   const out = [];
   const skip = skipDirNames();
   const stack = [dir];
@@ -783,7 +767,7 @@ export function collectEpisodeWarnings(dir) {
         }
         continue;
       }
-      if (!entry.isFile() || !entry.name.endsWith(".episode.json")) {
+      if (!entry.isFile() || !entry.name.endsWith(".board.json")) {
         continue;
       }
       let json;
@@ -814,8 +798,19 @@ export function isBlocking(warning) {
   return warning.severity === "error";
 }
 
-export function isFunctional(warning) {
-  return warning.kind === "functional";
+/** Phase-2 kinds (contract §2): the board builds but would not work or could
+ * not be ordered. The severity gate stays the only *blocking* gate; this set
+ * only routes non-blocking warnings into the electrical-function rounds. */
+export const ELECTRICAL_KINDS = new Set([
+  "functional",
+  "power_budget",
+  "part_not_orderable",
+  "part_drift",
+  "netlist_mismatch",
+]);
+
+export function isElectrical(warning) {
+  return ELECTRICAL_KINDS.has(warning.kind);
 }
 
 function warningLines(warnings) {
@@ -828,33 +823,36 @@ export function buildStructurePrompt(warnings) {
   }
   return (
     "An automatic structural check found these blocking problems in the " +
-    "episode(s) you just built. Fix every one, then regenerate with the " +
-    "dramacode generator until the check is clean:\n\n" +
+    "board(s) you just built. Fix every one, then regenerate with the " +
+    "circuitcode generator until the check is clean:\n\n" +
     `${warningLines(warnings)}\n`
   );
 }
 
-export function buildFunctionalPrompt(warnings) {
+export function buildElectricalPrompt(warnings) {
   if (!warnings.length) {
     return null;
   }
   return (
-    "An automatic DRAMATIC-FUNCTION check found these problems in the " +
-    "episode(s) you just built — the episode renders but does not work as " +
-    "drama. Re-read the beat-sheet rules in the dramacode skill's " +
-    "references, fix the story/shots in the episode source, and regenerate " +
-    "until every functional check is clean:\n\n" +
+    "An automatic ELECTRICAL-FUNCTION check found these problems in the " +
+    "board(s) you just built — the board builds but would not work or could " +
+    "not be ordered as-is (power budget, part orderability, part drift, " +
+    "netlist parity). Fix the board source (re-lock parts with the " +
+    "parts-book skill when a part must change), regenerate, and repeat " +
+    "until every one is clear:\n\n" +
     `${warningLines(warnings)}\n`
   );
 }
 
 export function buildCraftPrompt(hints = []) {
   let body =
-    "Structure and dramatic function are clean. Do ONE craft verification " +
-    "pass now. Re-render the episode so the generator refreshes " +
-    "<stem>_review/_board.png and <stem>_review/_poster.png, `Read` the " +
-    "board contact sheet and the poster, and check continuity across shots, " +
-    "composition, and caption legibility. Fix anything wrong in the episode " +
+    "Structure and electrical function are clean. Do ONE craft verification " +
+    "pass now. Rebuild the board so the generator refreshes " +
+    "<stem>_review/_schematic.png and <stem>_review/_pcb.png, `Read` both " +
+    "images, and check: net labels present and legible? decoupling " +
+    "capacitors adjacent to their ICs? connectors oriented and placed at " +
+    "the board edge? silkscreen legible (no refdes under parts)? mounting " +
+    "holes where the enclosure needs them? Fix anything wrong in the TSX " +
     "source, regenerate, and re-check. If everything already reads right, " +
     "change nothing. Then stop.\n";
   if (hints.length) {
@@ -870,7 +868,7 @@ export function buildCraftPrompt(hints = []) {
 // Subprocess driver
 // ---------------------------------------------------------------------------
 
-function spawnClaude(claudePath, args, { workspace, env, renderProvider }) {
+function spawnClaude(claudePath, args, { workspace, env }) {
   // Test stubs are node scripts; spawn them through the current node binary
   // so they need no chmod/shebang gymnastics on any platform.
   const viaNode = /\.(mjs|cjs|js)$/.test(claudePath);
@@ -878,7 +876,7 @@ function spawnClaude(claudePath, args, { workspace, env, renderProvider }) {
   const argv = viaNode ? [claudePath, ...args] : args;
   return spawn(bin, argv, {
     cwd: workspace,
-    env: buildChildEnv(env, { renderProvider }),
+    env: buildChildEnv(env),
     stdio: ["pipe", "pipe", "pipe"],
   });
 }
@@ -924,7 +922,6 @@ export async function spawnTurn({
   turnId,
   phase,
   model = "",
-  renderProvider = "",
   onEvent,
   signal,
   env = process.env,
@@ -959,7 +956,7 @@ export async function spawnTurn({
 
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env, renderProvider });
+    child = spawnClaude(claudePath, args, { workspace, env });
   } catch (error) {
     fail(`failed to spawn claude: ${error?.message || error}`);
     return { proposedPlan: null, cancelled: false, sawOutput: false };
@@ -1090,30 +1087,10 @@ export async function spawnTurn({
       sessionId,
       turnId,
       model,
-      renderProvider,
       onEvent,
       signal,
       env,
     });
-    // Then the screening room WATCHES the cut and closes the quality loop:
-    // critic verdict → targeted re-render → re-screen (behind CIRCUIT_SCREENING).
-    // Skip it while the cut is still structurally broken — a critic can't
-    // judge an episode that didn't render clean.
-    const stillBlocked =
-      collectEpisodeWarnings(workspace).filter(isBlocking).length > 0;
-    if (!cancelled && !stillBlocked && screeningEnabled(env)) {
-      await runScreeningLoop({
-        claudePath,
-        workspace,
-        sessionId,
-        turnId,
-        model,
-        renderProvider,
-        onEvent,
-        signal,
-        env,
-      });
-    }
   }
 
   if (cancelled) {
@@ -1134,7 +1111,6 @@ async function runReviewRound({
   turnId,
   model,
   prompt,
-  renderProvider = "",
   onEvent,
   signal,
   env,
@@ -1143,7 +1119,7 @@ async function runReviewRound({
   const args = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, env });
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env, renderProvider });
+    child = spawnClaude(claudePath, args, { workspace, env });
   } catch {
     return false; // best-effort: a build that can't be reviewed just ends
   }
@@ -1185,7 +1161,7 @@ function emitUnresolvedNote(turnId, label, remaining, onEvent) {
     turnId,
     text:
       `\n\n_Note: automatic ${label} review left ${remaining.length} issue(s) ` +
-      `unresolved (parts: ${parts.length ? parts.join(", ") : "episode"}). ` +
+      `unresolved (parts: ${parts.length ? parts.join(", ") : "board"}). ` +
       "You may want to inspect those parts._",
   });
 }
@@ -1194,12 +1170,13 @@ function emitUnresolvedNote(turnId, label, remaining, onEvent) {
  * The silent 3-phase post-build review loop (contract §2, donor caps 2/3/2):
  *
  * 1. **Structure** (≤2): while any `severity:"error"` warning remains in the
- *    `*.episode.json` sidecars, resume the session with the warning list.
- * 2. **Dramatic function** (≤3): while any `kind:"functional"` warning
- *    remains, fix against the beat-sheet rules.
- * 3. **Craft** (≤2, ALWAYS runs once): re-render board + poster, Read them,
- *    fix continuity/composition/caption legibility; break when a round
- *    changes no files. Non-blocking leftovers seed the prompt as hints.
+ *    `*.board.json` sidecars, resume the session with the warning list.
+ * 2. **Electrical function** (≤3): while any warning with
+ *    `kind ∈ ELECTRICAL_KINDS` remains, fix power budget / orderability /
+ *    part drift / netlist parity.
+ * 3. **Craft** (≤2, ALWAYS runs once): rebuild, Read `_schematic.png` +
+ *    `_pcb.png`, fix what reads wrong; break when a round changes no files.
+ *    Non-blocking leftovers seed the prompt as hints.
  *
  * Best-effort throughout — never fails the build turn.
  */
@@ -1209,7 +1186,6 @@ export async function runReviewFixLoop({
   sessionId,
   turnId,
   model = "",
-  renderProvider = "",
   onEvent,
   signal,
   env = process.env,
@@ -1224,7 +1200,6 @@ export async function runReviewFixLoop({
       turnId,
       model,
       prompt,
-      renderProvider,
       onEvent,
       signal,
       env,
@@ -1233,39 +1208,39 @@ export async function runReviewFixLoop({
   // Phase 1 — structure (blocking = severity "error").
   for (let i = 0; i < MAX_STRUCTURE_ROUNDS; i += 1) {
     if (aborted()) return changed;
-    const blocking = collectEpisodeWarnings(workspace).filter(isBlocking);
+    const blocking = collectBoardWarnings(workspace).filter(isBlocking);
     const prompt = buildStructurePrompt(blocking);
     if (!prompt) break;
     log(`review structure round ${i + 1}: ${blocking.length} blocking warning(s)`);
     changed = (await round(prompt)) || changed;
   }
   if (aborted()) return changed;
-  const structureRemaining = collectEpisodeWarnings(workspace).filter(isBlocking);
+  const structureRemaining = collectBoardWarnings(workspace).filter(isBlocking);
   if (structureRemaining.length) {
     emitUnresolvedNote(turnId, "structure", structureRemaining, onEvent);
     return changed;
   }
 
-  // Phase 2 — dramatic function (kind "functional").
-  for (let i = 0; i < MAX_FUNCTIONAL_ROUNDS; i += 1) {
+  // Phase 2 — electrical function (contract kind set).
+  for (let i = 0; i < MAX_ELECTRICAL_ROUNDS; i += 1) {
     if (aborted()) return changed;
-    const functional = collectEpisodeWarnings(workspace).filter(isFunctional);
-    const prompt = buildFunctionalPrompt(functional);
+    const electrical = collectBoardWarnings(workspace).filter(isElectrical);
+    const prompt = buildElectricalPrompt(electrical);
     if (!prompt) break;
-    log(`review functional round ${i + 1}: ${functional.length} functional warning(s)`);
+    log(`review electrical round ${i + 1}: ${electrical.length} electrical warning(s)`);
     changed = (await round(prompt)) || changed;
   }
   if (aborted()) return changed;
-  const functionalRemaining = collectEpisodeWarnings(workspace).filter(isFunctional);
-  if (functionalRemaining.length) {
-    emitUnresolvedNote(turnId, "dramatic-function", functionalRemaining, onEvent);
+  const electricalRemaining = collectBoardWarnings(workspace).filter(isElectrical);
+  if (electricalRemaining.length) {
+    emitUnresolvedNote(turnId, "electrical-function", electricalRemaining, onEvent);
     return changed;
   }
 
   // Phase 3 — craft. ALWAYS at least one round; break when a round changes
   // nothing. Remaining advisory warnings seed the prompt as hints.
-  let hints = collectEpisodeWarnings(workspace).filter(
-    (w) => !isBlocking(w) && !isFunctional(w),
+  let hints = collectBoardWarnings(workspace).filter(
+    (w) => !isBlocking(w) && !isElectrical(w),
   );
   for (let i = 0; i < MAX_CRAFT_ROUNDS; i += 1) {
     if (aborted()) return changed;
@@ -1276,370 +1251,10 @@ export async function runReviewFixLoop({
       break;
     }
     if (i + 1 < MAX_CRAFT_ROUNDS) {
-      hints = collectEpisodeWarnings(workspace).filter(
-        (w) => !isBlocking(w) && !isFunctional(w),
+      hints = collectBoardWarnings(workspace).filter(
+        (w) => !isBlocking(w) && !isElectrical(w),
       );
     }
-  }
-  return changed;
-}
-
-// ---------------------------------------------------------------------------
-// Screening room — the quality gate (the critic that closes the quality loop)
-// ---------------------------------------------------------------------------
-//
-// After the mechanical review loop clears STRUCTURE/FUNCTION/CRAFT, a critic
-// actually WATCHES the rendered cut (the screening-room skill: sample frames,
-// Read them, score the film) and returns a ```screening-report verdict. When
-// the cut misses the bar and carries blocker/major notes, the driver resumes
-// the session with those notes as fix instructions — reroll the named shots,
-// re-time the beat, fix the orientation — re-renders, and re-screens. Up to
-// MAX_SCREENING_ROUNDS cycles. Silent + best-effort like the review phases;
-// never fails the build. Behind CIRCUIT_SCREENING (default on).
-
-// Backstop only — the loop keeps going until the critic PASSES the bar, or it
-// can no longer improve. This cap just bounds cost/oscillation when a film
-// stubbornly won't converge (stochastic rerolls). Raise it with
-// CIRCUIT_SCREENING_MAX_ROUNDS when you want to grind harder for quality.
-export const MAX_SCREENING_ROUNDS = 6;
-
-/** The convergence backstop: CIRCUIT_SCREENING_MAX_ROUNDS or the default. */
-export function screeningMaxRounds(env = process.env) {
-  const raw = Number.parseInt(String(env.CIRCUIT_SCREENING_MAX_ROUNDS ?? "").trim(), 10);
-  return Number.isInteger(raw) && raw > 0 ? Math.min(raw, 30) : MAX_SCREENING_ROUNDS;
-}
-
-/** CIRCUIT_SCREENING gate: on by default; "0"/"false"/"off"/"no" disables. */
-export function screeningEnabled(env = process.env) {
-  const raw = String(env.CIRCUIT_SCREENING ?? "").trim().toLowerCase();
-  if (raw === "") return true;
-  return !["0", "false", "off", "no"].includes(raw);
-}
-
-/** Numeric overall score from a report, or null. */
-function screeningScore(report) {
-  const v = Number(report?.overall_1_10);
-  return Number.isFinite(v) ? v : null;
-}
-
-/** The episode deliverables in a workspace (mp4 + sidecar + srt + review dir)
- * — what "the cut" is. Used to snapshot/restore the best-scoring version so
- * extra screening rounds can never ship a worse result than a prior round. */
-function episodeDeliverables(workspace) {
-  const epDir = path.join(workspace, "episodes");
-  let names = [];
-  try {
-    names = fs.readdirSync(epDir).filter((n) => n.endsWith(".mp4"));
-  } catch {
-    return [];
-  }
-  return names.map((mp4) => {
-    const stem = mp4.slice(0, -4);
-    return {
-      files: [`${stem}.mp4`, `${stem}.episode.json`, `${stem}.srt`].map((f) =>
-        path.join(epDir, f),
-      ),
-      reviewDir: path.join(epDir, `${stem}_review`),
-    };
-  });
-}
-
-function snapshotBestCut(workspace, tag) {
-  const dest = path.join(workspace, ".video", "keepbest", String(tag));
-  try {
-    fs.rmSync(dest, { recursive: true, force: true });
-    fs.mkdirSync(dest, { recursive: true });
-    for (const d of episodeDeliverables(workspace)) {
-      for (const f of d.files) {
-        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(dest, path.basename(f)));
-      }
-      if (fs.existsSync(d.reviewDir)) {
-        fs.cpSync(d.reviewDir, path.join(dest, path.basename(d.reviewDir)), {
-          recursive: true,
-        });
-      }
-    }
-    return dest;
-  } catch {
-    return null;
-  }
-}
-
-function restoreBestCut(workspace, snapshotDir) {
-  if (!snapshotDir) return false;
-  try {
-    const epDir = path.join(workspace, "episodes");
-    for (const entry of fs.readdirSync(snapshotDir)) {
-      const src = path.join(snapshotDir, entry);
-      const dst = path.join(epDir, entry);
-      if (fs.statSync(src).isDirectory()) {
-        fs.rmSync(dst, { recursive: true, force: true });
-        fs.cpSync(src, dst, { recursive: true });
-      } else {
-        fs.copyFileSync(src, dst);
-      }
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const SCREENING_REPORT_FENCE = /```screening-report\s*\n([\s\S]*?)```/g;
-const SCREENING_REPORT_KEYS = ["overall_1_10", "dimension_scores", "pass_at_bar", "notes"];
-
-/**
- * Extract + parse the LAST ` ```screening-report ` fenced JSON block from a
- * critic transcript. Returns the report object, or null when absent / invalid
- * JSON / missing a required key. Mirrors the skill's Python parser (last block
- * wins, same discipline as "one JSON line, last line wins").
- */
-export function parseScreeningReport(text) {
-  const source = String(text || "");
-  const re = new RegExp(SCREENING_REPORT_FENCE.source, "g");
-  let match;
-  let last = null;
-  while ((match = re.exec(source)) !== null) {
-    last = match[1];
-  }
-  if (last === null) {
-    return null;
-  }
-  let report;
-  try {
-    report = JSON.parse(last.trim());
-  } catch {
-    return null;
-  }
-  if (!report || typeof report !== "object" || Array.isArray(report)) {
-    return null;
-  }
-  if (SCREENING_REPORT_KEYS.some((key) => !(key in report))) {
-    return null;
-  }
-  if (!Array.isArray(report.notes)) {
-    return null;
-  }
-  return report;
-}
-
-/** Blocker/major notes — the ones that trigger a fix round. */
-export function actionableScreeningNotes(report) {
-  const notes = Array.isArray(report?.notes) ? report.notes : [];
-  return notes.filter(
-    (n) => n && (n.severity === "blocker" || n.severity === "major"),
-  );
-}
-
-/** Reconstruct the critic's assistant text from one stream-json line — text
- * deltas, consolidated assistant text blocks, and the final result string —
- * so the ```screening-report can be recovered however claude surfaced it. */
-function accumulateAssistantText(line, acc) {
-  let obj;
-  try {
-    obj = JSON.parse(String(line || "").trim());
-  } catch {
-    return;
-  }
-  if (obj?.type === "stream_event") {
-    const ev = obj.event;
-    if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta") {
-      if (typeof ev.delta.text === "string") acc.push(ev.delta.text);
-    }
-  } else if (obj?.type === "assistant") {
-    const content = obj?.message?.content;
-    if (Array.isArray(content)) {
-      for (const block of content) {
-        if (block?.type === "text" && typeof block.text === "string") {
-          acc.push(block.text);
-        }
-      }
-    }
-  } else if (obj?.type === "result" && typeof obj.result === "string") {
-    acc.push(obj.result);
-  }
-}
-
-/** The per-round message that runs the critic. */
-export function buildScreeningCriticPrompt() {
-  return (
-    "Screen the episode(s) you just built. Run the screening-room bundle " +
-    "(`python ~/.claude/skills/screening-room/scripts/bundle <the episode " +
-    ".mp4>`), `Read` every sampled frame plus the board and poster, judge " +
-    "them against the rubric, and emit exactly one ```screening-report JSON " +
-    "block with the overall score, dimension scores, pass_at_bar, and " +
-    "department-routed, shot-specific notes. Output nothing else."
-  );
-}
-
-/** The fix-round message: the critic's actionable notes as instructions. */
-export function buildScreeningFixPrompt(notes) {
-  const lines = notes
-    .map((n) => {
-      const shots =
-        Array.isArray(n.shot_ids) && n.shot_ids.length
-          ? n.shot_ids.join(", ")
-          : "episode";
-      const dept = n.department || "crew";
-      const fix = n.fix ? ` → FIX: ${n.fix}` : "";
-      return `- [${dept}] (${n.severity}) ${shots}: ${n.note || ""}${fix}`;
-    })
-    .join("\n");
-  return (
-    "The screening room watched the rendered episode and it did NOT pass the " +
-    "quality bar. Fix these flagged issues in the episode source, then " +
-    "regenerate with the dramacode generator so the episode re-renders. " +
-    "Reroll only the named shots for consistency or orientation, re-time or " +
-    "rewrite the beat as noted, fix any orientation/aspect defect, and " +
-    "re-render. Work silently:\n\n" +
-    `${lines}\n`
-  );
-}
-
-/** One critic pass: spawn a SCREENING-phase child, capture its stdout WITHOUT
- * surfacing it (the critique is internal), parse the ```screening-report, and
- * return it (or null). Best-effort — a critic that can't run just returns
- * null and the loop ends. */
-async function runScreeningRound({
-  claudePath,
-  workspace,
-  sessionId,
-  turnId,
-  model,
-  renderProvider = "",
-  signal,
-  env,
-}) {
-  const args = buildCommandArgs({ workspace, phase: PHASE.SCREENING, sessionId, model, env });
-  let child;
-  try {
-    child = spawnClaude(claudePath, args, { workspace, env, renderProvider });
-  } catch {
-    return null;
-  }
-  child.stdin.on("error", () => {});
-  child.stdin.end(streamJsonInput(buildScreeningCriticPrompt()));
-  child.stderr.resume();
-
-  const onAbort = () => killChild(child);
-  if (signal) {
-    if (signal.aborted) {
-      onAbort();
-    } else {
-      signal.addEventListener("abort", onAbort, { once: true });
-    }
-  }
-
-  const acc = [];
-  const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
-  try {
-    for await (const line of rl) {
-      if (signal?.aborted) break;
-      if (debugEnabled()) {
-        process.stderr.write(`[circuit:claude:screening] ${line}\n`);
-      }
-      accumulateAssistantText(line, acc);
-    }
-  } catch {
-    // stream torn down — parse whatever we captured
-  } finally {
-    rl.close();
-  }
-  await waitForExit(child);
-  if (signal) {
-    signal.removeEventListener("abort", onAbort);
-  }
-  return parseScreeningReport(acc.join(""));
-}
-
-/**
- * The screening loop: screen → (if below bar with blocker/major notes) fix +
- * re-render → re-screen, up to MAX_SCREENING_ROUNDS. The fix round rides the
- * REVIEW phase (silent, drains, surfaces changed artifacts) with the critic's
- * notes as its prompt. Best-effort; never throws.
- */
-export async function runScreeningLoop({
-  claudePath,
-  workspace,
-  sessionId,
-  turnId,
-  model = "",
-  renderProvider = "",
-  onEvent,
-  signal,
-  env = process.env,
-}) {
-  const aborted = () => Boolean(signal?.aborted);
-  const maxRounds = screeningMaxRounds(env);
-  let changed = false;
-  // Keep the best-scored cut so extra rounds are always safe: a fix that makes
-  // things worse can't ship because we restore the best at the end.
-  let bestScore = -Infinity;
-  let bestSnapshot = null;
-  for (let i = 0; i < maxRounds; i += 1) {
-    if (aborted()) break;
-    const report = await runScreeningRound({
-      claudePath,
-      workspace,
-      sessionId,
-      turnId,
-      model,
-      renderProvider,
-      signal,
-      env,
-    });
-    if (!report) {
-      log(`screening round ${i + 1}: no verdict (skipped)`);
-      break;
-    }
-    const overall = report.overall_1_10;
-    const pass = report.pass_at_bar === true;
-    const score = screeningScore(report);
-    log(
-      `screening round ${i + 1}/${maxRounds}: verdict=${pass ? "pass" : "fail"} ` +
-        `overall=${overall} (best=${bestScore === -Infinity ? "-" : bestScore})`,
-    );
-    // Snapshot this cut if it's the best we've seen (best-effort).
-    if (score !== null && score > bestScore) {
-      bestScore = score;
-      bestSnapshot = snapshotBestCut(workspace, `r${i + 1}-s${score}`) || bestSnapshot;
-    }
-    if (pass) {
-      log(`screening: PASSED the bar at round ${i + 1} (overall=${overall})`);
-      return changed; // current on-disk cut is the passing one
-    }
-    const notes = actionableScreeningNotes(report);
-    if (notes.length === 0) {
-      log(`screening round ${i + 1}: below bar but no actionable notes — stopping`);
-      break;
-    }
-    if (i === maxRounds - 1) {
-      log(`screening: hit round cap (${maxRounds}) without passing — keeping best cut`);
-      break; // don't fix on the last round; nothing would re-screen it
-    }
-    if (aborted()) break;
-    log(`screening round ${i + 1}: ${notes.length} note(s) → targeted fix round`);
-    const fixChanged = await runReviewRound({
-      claudePath,
-      workspace,
-      sessionId,
-      turnId,
-      model,
-      prompt: buildScreeningFixPrompt(notes),
-      renderProvider,
-      onEvent,
-      signal,
-      env,
-    });
-    changed = fixChanged || changed;
-    if (!fixChanged) {
-      log(`screening round ${i + 1}: fix changed nothing — cannot improve, stopping`);
-      break; // no progress possible; re-screening the same cut is waste
-    }
-  }
-  // Ship the best cut seen, not necessarily the last (a late fix may regress).
-  if (bestSnapshot && restoreBestCut(workspace, bestSnapshot)) {
-    log(`screening: restored best cut (overall=${bestScore})`);
   }
   return changed;
 }
@@ -1663,8 +1278,8 @@ export function approvedPlanMessage(planText) {
     ? String(planText)
     : "(Implement the plan you just designed in this session.)";
   return (
-    "The plan below is approved. Implement it now: write the episode " +
-    "source and generate the episode and all artifacts as described.\n\n" +
+    "The plan below is approved. Implement it now: write the board " +
+    "source and generate the board and all fab artifacts as described.\n\n" +
     body
   );
 }
@@ -1918,14 +1533,6 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     }
   }
 
-  function activeRenderProvider() {
-    try {
-      return settings.read().renderProvider || "";
-    } catch {
-      return "";
-    }
-  }
-
   function runTurn({ projectId, message, imagePaths, phase, turnId }) {
     const controller = new AbortController();
     turns.set(turnId, { projectId, controller });
@@ -1941,7 +1548,6 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       turnId,
       phase,
       model: activeModel(),
-      renderProvider: activeRenderProvider(),
       onEvent,
       signal: controller.signal,
       env,

@@ -1,7 +1,7 @@
 // Circuit projects store — ~/.autonomous-circuit/projects/<uuid4>/ CRUD.
 //
 // Ports the donor's `desktop/src-tauri/src/commands/project.rs` semantics to
-// Node per docs/video-interfaces.md §2:
+// Node per docs/circuit-interfaces.md §2:
 //   - `project.json` is snake_case and pretty-printed: {id, name, created_at,
 //     updated_at}.
 //   - Placeholder-name self-heal: while a project still carries the
@@ -24,12 +24,14 @@ export const PLACEHOLDER_PROJECT_NAME = "New project";
 
 const PROJECT_META_FILE = "project.json";
 
-/** Dirs never scanned for artifacts (mirrors the catalog skip-list). */
+/** Dirs never scanned for artifacts (mirrors the catalog skip-list, contract
+ * §2: inputs/, .circuit/, .claude/, node_modules, blocks/). */
 const SKIP_DIR_NAMES = new Set([
   "inputs",
-  ".video",
+  ".circuit",
   ".claude",
   "node_modules",
+  "blocks",
   "__pycache__",
   ".git",
 ]);
@@ -148,9 +150,9 @@ function readMeta(projectDir) {
   }
 }
 
-/** Does the project dir contain any episode video yet? Recursive, honors the
- * skip-list; shot clips under `*_shots/` don't count as "the model". */
-function hasEpisodeVideo(projectDir) {
+/** Does the project dir contain any built board yet (contract §2: any
+ * `*.circuit.json`)? Recursive, honors the skip-list. */
+function hasBoard(projectDir) {
   const stack = [projectDir];
   while (stack.length) {
     const dir = stack.pop();
@@ -168,13 +170,9 @@ function hasEpisodeVideo(projectDir) {
         stack.push(path.join(dir, entry.name));
         continue;
       }
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".mp4")) {
-        continue;
+      if (entry.isFile() && entry.name.toLowerCase().endsWith(".circuit.json")) {
+        return true;
       }
-      if (path.basename(dir).endsWith("_shots")) {
-        continue;
-      }
-      return true;
     }
   }
   return false;
@@ -186,7 +184,7 @@ function toSummary(projectDir, meta) {
     name: meta.name,
     createdAt: meta.created_at,
     updatedAt: meta.updated_at,
-    hasModel: hasEpisodeVideo(projectDir),
+    hasModel: hasBoard(projectDir),
   };
 }
 
