@@ -15,10 +15,10 @@ export const PLACEHOLDER_PROJECT_NAME = "New project";
 export const FOCUS_CHAT_INPUT_EVENT = "panda:focus-chat-input";
 
 // Window event that pre-fills the composer with a starter line and focuses it.
-// Fired by the storyboard strip's per-shot "note" affordance ("Shot s1_02 (at
-// 00:14): ") so the creator types taste notes and sends them as a normal turn
-// — chat-driven shot regeneration with no new commands. The composer listens
-// (see ChatInput) because it owns the textarea state.
+// Fired by the warnings strip's per-finding chips ("U3.pin7
+// (source_trace_not_connected_error): ") so the user types the fix request and
+// sends it as a normal turn — chat-driven board repair with no new commands.
+// The composer listens (see ChatInput) because it owns the textarea state.
 export const PREFILL_CHAT_INPUT_EVENT = "circuit:prefill-chat-input";
 
 /** Fire the composer pre-fill event. No-op outside a window (tests). */

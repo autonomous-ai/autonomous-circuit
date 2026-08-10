@@ -1,7 +1,7 @@
 // Circuit transport — the bridge between the React client and the Circuit Node
 // server (viewer/src/server/circuit/).
 //
-// Source of truth: `docs/video-interfaces.md` §2.
+// Source of truth: `docs/circuit-interfaces.md` §2.
 //
 // At runtime:
 //   - Every command is `fetch POST /api/<command>` with a JSON body; errors
@@ -26,51 +26,43 @@ export interface AppInfo {
   pid: number;
 }
 
-// Circuit widening: the donor CAD kinds are kept for not-yet-excised client
-// code; Circuit's catalog emits `mp4 | png | srt | py | json` (contract §2).
+// Circuit's catalog kinds (contract §2): `tsx | json | svg | png | zip | csv | md`.
 export type CatalogKind =
-  | "step"
-  | "stl"
-  | "gcode"
-  | "py"
+  | "tsx"
   | "json"
+  | "svg"
   | "png"
-  | "implicit"
-  | "mp4"
-  | "srt";
+  | "zip"
+  | "csv"
+  | "md";
 export type SourceKindValue = "python" | "static";
 
-export interface CatalogPart {
-  /** Part name (e.g. `chassis`), used as the display label. */
-  name: string;
-  /** Workspace-relative path of the part `.stl` (the catalog/entry key). */
-  file: string;
-  /** Cache-busted asset URL the viewer loads to render this part. */
-  url: string;
-}
-
-/** One rendered shot clip grouped under its episode entry (Circuit, §2). */
-export interface CatalogShot {
-  id: string;
-  file: string;
-  url: string;
-}
-
+/**
+ * The board entry's grouped artifact (contract §2). Every URL carries
+ * `?v=<mtime_nanos>-<size>` — use them verbatim, never strip the query.
+ * Absent members are omitted (e.g. no fab packet yet, no bottom-side parts).
+ */
 export interface CatalogArtifact {
-  /** URL of the sibling `.stl` the viewer renders as a `.step` entry's preview. */
-  stlUrl?: string;
+  /** `<stem>_review/_schematic.png` — the schematic render. */
+  schematicUrl?: string;
+  /** `<stem>_review/_pcb.png` — the board render (top). */
+  pcbUrl?: string;
+  /** `<stem>_review/_pcb_bottom.png` when parts sit on both sides. */
+  pcbBottomUrl?: string;
+  /** `<stem>.board.json` — the sidecar (camelCase machine contract). */
   metadataUrl?: string;
-  /**
-   * For assemblies: one printable `.stl` per named part (at build origin). The
-   * viewer groups these under the integrated model. Empty for single-solid projects.
-   */
-  parts?: CatalogPart[];
-  /** Circuit: the episode's subtitles, when any dialogue exists. */
-  srtUrl?: string;
-  /** Circuit: the `_review/_poster.png` cover frame. */
-  posterUrl?: string;
-  /** Circuit: per-shot clips from `<stem>_shots/`, grouped under the episode. */
-  shots?: CatalogShot[];
+  /** `<stem>.circuit.json` — the compiled IR of record. */
+  circuitJsonUrl?: string;
+  /** `<stem>_fab/gerbers.zip` when fab-ready. */
+  gerbersUrl?: string;
+  /** `<stem>_fab/bom.csv` when fab-ready. */
+  bomUrl?: string;
+  /** `<stem>_fab/cpl.csv` when assembly. */
+  cplUrl?: string;
+  /** `<stem>_fab/ORDER.md` when fab-ready. */
+  orderUrl?: string;
+  /** `<stem>_fab/board.glb` best-effort 3D body (viewer tab is post-v1). */
+  glbUrl?: string;
 }
 
 export interface CatalogEntry {
@@ -101,12 +93,6 @@ export interface GenerationStatus {
 }
 
 export type AssetKind = "output" | "source" | "artifact";
-
-export interface StepSourceStatus {
-  hasSource: boolean;
-  sourcePath?: string;
-  sourceKind?: "python";
-}
 
 // Chat -----------------------------------------------------------------------
 
@@ -188,157 +174,13 @@ export type ChatEvent = (
   | { kind: "error"; turnId: string; message: string }
 ) & { projectId: string };
 
-// Slicer ---------------------------------------------------------------------
-// (Donor types kept verbatim for not-yet-excised client code; the slicer /
-// printer / cloud / step / social / update / snapshot COMMAND families are
-// deleted from the transport surface.)
+// Settings wire-shape padding ------------------------------------------------
+// (The donor AppSettings shape rides the settings wire; FilamentKind survives
+// only because AppSettings.defaultFilament names it. The slicer / printer /
+// cloud / step / social / update / snapshot COMMAND families and their type
+// blocks are deleted from the transport surface.)
 
 export type FilamentKind = "PLA" | "PETG" | "TPU";
-
-export interface SliceRequest {
-  meshFile: string;
-  printerId: string;
-  filament: FilamentKind;
-}
-
-export interface SliceStats {
-  durationSeconds: number;
-  filamentGrams: number;
-  filamentMeters: number;
-  layerCount: number;
-  supportsUsed: boolean;
-  gcodeFile: string;
-  /** Sliced project `.3mf` (gcode embedded) for the cloud print path. */
-  gcode3mfFile?: string;
-  /** Static analysis of the produced G-code; absent if it couldn't be read. */
-  validation?: SliceValidation;
-  /**
-   * Actionable warnings OrcaSlicer reported about the model itself during a
-   * successful slice (floating regions, unsupported overhangs, …) — the same
-   * "re-orient or enable supports" notices its GUI shows. Empty/absent when none.
-   */
-  slicerWarnings?: string[];
-}
-
-export interface SliceValidation {
-  /** Structural integrity only (non-empty + has movement + has extrusion). */
-  ok: boolean;
-  errors: string[];
-  /** Non-fatal findings: bed bounds, missing temps, unrecognized commands. */
-  warnings: string[];
-  movementCommands: number;
-  extrusionMoves: number;
-  temperatureCommands: number;
-}
-
-export interface SliceStatus {
-  inFlight: boolean;
-  stage?: "preparing" | "slicing" | "writing";
-  progress?: number;
-}
-
-export interface SliceProgressEvent {
-  stage: string;
-  progress: number;
-}
-
-// Printer --------------------------------------------------------------------
-
-// "bambustudio" is not a network printer — it hands the model off to the
-// locally installed Bambu Studio app.
-export type PrinterTransport = "lan" | "cloud" | "bambustudio";
-
-export interface PrinterCard {
-  id: string;
-  model: string;
-  transport: PrinterTransport;
-  /** LAN IP — absent for cloud-only devices. */
-  ipAddress?: string;
-  hostName: string;
-  /** Online flag from the cloud bind list — absent for LAN cards. */
-  online?: boolean;
-}
-
-export interface AddPrinterRequest {
-  ipAddress: string;
-  accessCode: string;
-  serial?: string;
-}
-
-export interface PrinterStatus {
-  online: boolean;
-  state: "idle" | "printing" | "paused" | "error";
-  job?: { name: string; progress: number; etaSeconds: number };
-}
-
-export interface UploadGcodeRequest {
-  printerId: string;
-  gcodeFile: string;
-  remoteName?: string;
-}
-
-export interface StartPrintRequest {
-  printerId: string;
-  remoteName: string;
-  confirmed: true;
-}
-
-export interface PrintProgressEvent {
-  printerId: string;
-  state: string;
-  progress: number;
-}
-
-export interface OpenInStudioRequest {
-  /** Workspace-relative (catalog key) or absolute path to the model / gcode. */
-  file: string;
-}
-
-/**
- * Which slicer app the open-in handoff would launch: Bambu Studio when
- * installed, else OrcaSlicer, else none.
- */
-export type OpenTargetApp = "bambustudio" | "orcaslicer" | "none";
-
-// Bambu cloud account --------------------------------------------------------
-
-export type CloudRegion = "global" | "china";
-
-export interface CloudLoginRequest {
-  account: string;
-  region?: CloudRegion;
-}
-
-export interface CloudLoginSubmit {
-  account: string;
-  code: string;
-}
-
-export interface CloudPasswordLogin {
-  account: string;
-  password: string;
-  region?: CloudRegion;
-}
-
-export interface AddCloudPrinterRequest {
-  serial: string;
-  accessCode: string;
-  name?: string;
-}
-
-export interface CloudLoginChallenge {
-  /** "codeSent" | "success" | "needPassword" | "tfa" */
-  kind: string;
-  tfaKey?: string;
-}
-
-export interface CloudAccountStatus {
-  signedIn: boolean;
-  account?: string;
-  region?: CloudRegion;
-  expiresAt?: number;
-  needsReauth: boolean;
-}
 
 // Projects -------------------------------------------------------------------
 
@@ -354,37 +196,21 @@ export interface CreateProjectRequest {
   name: string;
 }
 
-// Result of publishing a project to panda-social (donor; command deleted).
-export interface PublishResponse {
-  designId: string;
-  slug: string;
-  title: string;
-  status: string;
-  projectUrl: string;
-  alreadyPublished: boolean;
-}
-
-// Snapshots (git-tag-style model save states; donor; commands deleted) -------
-
-export interface SnapshotSummary {
-  id: string;
-  label: string;
-  createdAt: number;
-}
-
-export interface SnapshotRestore {
-  summary: SnapshotSummary;
-  chatRewound: boolean;
-}
-
 // App ------------------------------------------------------------------------
 
+/**
+ * Contract §2: claude on PATH · node ≥22.12 · toolchain installed
+ * (`toolchain/node_modules` present) · python ≥3.10 · kicad-cli (reported,
+ * not required). `healthy` = found AND the version clears the floor. The
+ * client treats absent members as ok-but-unknown, so field drift never bricks
+ * onboarding.
+ */
 export interface PrereqCheck {
   claudeCli: { found: boolean; version?: string };
-  python: { found: boolean; version?: string; healthy: boolean };
-  slicer: { found: boolean; binaryPath: string };
-  /** Circuit addition (§2): ffmpeg is required to stitch episodes. */
-  ffmpeg?: { found: boolean; version?: string };
+  node?: { found: boolean; version?: string; healthy?: boolean };
+  toolchain?: { found: boolean };
+  python?: { found: boolean; version?: string; healthy?: boolean };
+  kicadCli?: { found: boolean; version?: string };
 }
 
 export interface AppSettings {
@@ -411,23 +237,6 @@ export interface AppSettings {
   // switcher (app_set_model). undefined = the CLI's own default.
   model?: string;
 }
-
-// Auto-update (donor types kept; commands deleted) ----------------------------
-
-export interface UpdateInfo {
-  version: string;
-  currentVersion: string;
-  notes?: string;
-  date?: string;
-}
-
-export type UpdateEvent =
-  | { status: "checking" }
-  | { status: "up_to_date" }
-  | ({ status: "available" } & UpdateInfo)
-  | { status: "downloading"; downloadedBytes: number; totalBytes?: number }
-  | { status: "ready"; version: string }
-  | { status: "error"; message: string };
 
 // Claude Code install / sign-in ----------------------------------------------
 
@@ -459,62 +268,6 @@ export type ClaudeLoginProgress =
   | { stage: "awaiting_browser"; url: string }
   | { stage: "verifying" }
   | { stage: "done" }
-  | { stage: "error"; message: string };
-
-/** Result of `app_install_orcaslicer` (donor; command deleted). */
-export interface InstalledSlicer {
-  version: string;
-  binaryPath: string;
-}
-
-export type SlicerInstallProgress =
-  | { stage: "downloading"; receivedBytes?: number; totalBytes?: number }
-  | { stage: "extracting" }
-  | { stage: "installing" }
-  | { stage: "verifying" }
-  | { stage: "done"; version: string; binaryPath: string }
-  | { stage: "error"; message: string };
-
-// panda-social (donor types kept; commands deleted) ---------------------------
-
-export interface SocialUser {
-  id: string;
-  username: string;
-  displayName?: string;
-}
-
-export interface SocialLoginResult {
-  user: SocialUser;
-}
-
-export interface SocialProfile {
-  id: string;
-  username: string;
-  displayName?: string;
-  email?: string;
-  avatarUrl?: string;
-  bio?: string;
-  modelCount?: number;
-  followerCount?: number;
-  followingCount?: number;
-  verified?: boolean;
-  plan?: string;
-  planStatus?: string;
-}
-
-export interface SocialDesign {
-  id: string;
-  slug?: string;
-  title?: string;
-  thumbnailUrl?: string;
-  status?: string;
-}
-
-export type SocialLoginProgress =
-  | { stage: "starting" }
-  | { stage: "awaiting_browser"; url: string }
-  | { stage: "verifying" }
-  | { stage: "done"; user: SocialUser }
   | { stage: "error"; message: string };
 
 export interface CatalogChangedEvent {

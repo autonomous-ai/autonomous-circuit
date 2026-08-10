@@ -260,8 +260,8 @@ export default memo(function ChatTurn({ turn }) {
             data-slot="chat-modify-hint"
             className="mt-0.5 border-t border-border/40 pt-1.5 text-xs text-muted-foreground"
           >
-            Done. Want changes? Just describe them below — e.g. “tighten the
-            hook” or “reshoot shot 3 as a close-up”.
+            Done. Want changes? Just describe them below — e.g. “move the USB
+            port to the top edge” or “swap the sensor for a cheaper one”.
           </p>
         ) : null}
         </div>

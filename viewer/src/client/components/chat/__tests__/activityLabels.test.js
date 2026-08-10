@@ -11,9 +11,10 @@ import {
 } from "../activityLabels.js";
 
 test("toolLabel maps known tools to friendly phrases", () => {
-  assert.equal(toolLabel("dramacode"), "Writing the episode");
-  assert.equal(toolLabel("story-analysis"), "Shaping the story");
-  assert.equal(toolLabel("cast-book"), "Casting characters");
+  assert.equal(toolLabel("circuitcode"), "Designing the board");
+  assert.equal(toolLabel("circuit-analysis"), "Shaping the spec");
+  assert.equal(toolLabel("parts-book"), "Picking parts");
+  assert.equal(toolLabel("board-viewer"), "Opening the viewer");
   assert.equal(toolLabel("Write"), "Writing script");
   assert.equal(toolLabel("Edit"), "Editing script");
   assert.equal(toolLabel("MultiEdit"), "Editing script");
@@ -22,19 +23,29 @@ test("toolLabel maps known tools to friendly phrases", () => {
 });
 
 test("toolLabel resolves the generic Skill tool through its skill name", () => {
-  assert.equal(toolLabel("Skill", { skill: "dramacode" }), "Writing the episode");
-  assert.equal(toolLabel("Skill", { command: "story-analysis a revenge romance" }), "Shaping the story");
-  assert.equal(toolLabel("Skill", { name: "cast-book" }), "Casting characters");
+  assert.equal(toolLabel("Skill", { skill: "circuitcode" }), "Designing the board");
+  assert.equal(toolLabel("Skill", { command: "circuit-analysis a desk air monitor" }), "Shaping the spec");
+  assert.equal(toolLabel("Skill", { name: "parts-book" }), "Picking parts");
   assert.equal(toolLabel("Skill", {}), "Running a skill");
   assert.equal(toolLabel("Skill", { skill: "something-else" }), "Running a skill");
 });
 
-test("toolLabel inspects Bash command to distinguish shot rendering from generic", () => {
+test("toolLabel inspects Bash command to distinguish board builds from generic", () => {
   assert.equal(
-    toolLabel("Bash", { command: "python skills/dramacode/scripts/drama episodes/ep001.py" }),
-    "Rendering shots",
+    toolLabel("Bash", { command: "python skills/circuitcode/scripts/circuit boards/main.tsx" }),
+    "Building the board",
   );
-  assert.equal(toolLabel("Bash", { command: "ffmpeg -i shot_001.mp4 …" }), "Rendering shots");
+  assert.equal(
+    toolLabel("Bash", { command: "python skills/circuitcode/scripts/check boards/main.tsx" }),
+    "Building the board",
+  );
+  assert.equal(
+    toolLabel("Bash", { command: "python skills/circuitcode/scripts/review ." }),
+    "Building the board",
+  );
+  assert.equal(toolLabel("Bash", { command: "tscircuit-cli build boards/main.tsx" }), "Building the board");
+  assert.equal(toolLabel("Bash", { command: "kicad-cli pcb drc out.kicad_pcb" }), "Building the board");
+  assert.equal(toolLabel("Bash", { command: "unzip main_fab/gerbers.zip" }), "Building the board");
   assert.equal(toolLabel("Bash", { command: "ls -la" }), "Running command");
   assert.equal(toolLabel("Bash", {}), "Running command");
 });

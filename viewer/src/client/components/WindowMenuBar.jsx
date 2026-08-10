@@ -299,7 +299,7 @@ export default function WindowMenuBar() {
           <DialogHeader>
             <DialogTitle>Autonomous Circuit</DialogTitle>
             <DialogDescription>
-              {version ? `Version ${version}` : "Chat → story → shots → episodes."}
+              {version ? `Version ${version}` : "Chat → spec → board → fab packet."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

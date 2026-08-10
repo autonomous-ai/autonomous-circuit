@@ -84,15 +84,15 @@ export const INITIAL_CHAT_STATE = Object.freeze({
   currentTurnId: "",
   turnInProgress: false,
   history: [],
-  // Reference images the user has attached (paste/drag/pick) but not yet sent,
-  // plus frames grabbed from the episode player. Consumed at send. Each carries
+  // Reference images the user has attached (paste/drag/pick) but not yet sent
+  // (hand-drawn circuits, enclosure sketches). Consumed at send. Each carries
   // base64 data (for transport) plus a local objectUrl (composer thumbnail).
   pendingAttachments: [],
-  // A model-facing note describing WHERE the attached frame came from (episode
-  // + timecode), set by the player's "Send to AI" action alongside the grabbed
-  // frame (see lib/frameContext.js). Appended to the next turn's userMessage
-  // (not shown in the echoed bubble) and consumed at send; cleared if the frame
-  // attachment is removed first.
+  // A model-facing note describing WHAT the user is looking at (current tab +
+  // board name), set by the board workspace's "Send to AI" action (see
+  // components/board/boardData.js buildViewContextNote). Appended to the next
+  // turn's userMessage (not shown in the echoed bubble) and consumed at send;
+  // cleared if every attachment is removed first.
   pendingViewContext: "",
   lastError: "",
   // True while a proposed plan is waiting for the user to approve / request
@@ -243,15 +243,15 @@ export function segmentSpans(segments, startedAt) {
   return spans;
 }
 
-// Injected (model-facing only) when the user sends a grabbed frame with no
+// Injected (model-facing only) when the user sends an attachment with no
 // instruction of their own. Steers the plan phase toward proposing options for
-// that moment of the episode instead of guessing at an edit. Pairs with the
-// `pendingViewContext` note, which names the episode + timecode of the frame.
+// the view they sent instead of guessing at an edit. Pairs with the
+// `pendingViewContext` note, which names the current tab + board.
 export const FRAME_SUGGESTION_DIRECTIVE =
-  "The user attached a frame from the episode viewer but did not say what to change. " +
-  "Before editing anything, view the image, then propose 3–5 specific, concrete improvement options for " +
-  "that moment of the episode and ask the user which to apply (offer them via a circuit-questions block). " +
-  "Do not modify the episode until they choose.";
+  "The user sent a view from the board workspace but did not say what to change. " +
+  "Before editing anything, look at any attached image, then propose 3–5 specific, concrete improvement options for " +
+  "that part of the board and ask the user which to apply (offer them via a circuit-questions block). " +
+  "Do not modify the board until they choose.";
 
 // ---------------------------------------------------------------------------
 // Reducer — pure; the only place state evolves

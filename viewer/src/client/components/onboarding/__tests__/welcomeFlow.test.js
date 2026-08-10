@@ -20,29 +20,46 @@ test("shouldOnboard gates only on hasOnboarded", () => {
 });
 
 test("welcome Continue gate mirrors evaluatePrereqCheck.canContinue", () => {
-  // Both tools present → the Start creating button unlocks.
+  // All required tools present → the Start building button unlocks.
   assert.equal(
     evaluatePrereqCheck({
       claudeCli: { found: true, version: "2.1.0" },
-      ffmpeg: { found: true },
+      node: { found: true, version: "22.12.0" },
+      toolchain: { found: true },
+      python: { found: true, version: "3.12.4", healthy: true },
     }).canContinue,
     true,
   );
-  // Either required tool missing → blocked, regardless of python.
+  // Any required tool missing → blocked, regardless of kicad.
   assert.equal(
     evaluatePrereqCheck({
       claudeCli: { found: false },
-      ffmpeg: { found: true },
+      node: { found: true },
+      toolchain: { found: true },
       python: { found: true, healthy: true },
+      kicadCli: { found: true },
     }).canContinue,
     false,
   );
   assert.equal(
     evaluatePrereqCheck({
       claudeCli: { found: true },
-      ffmpeg: { found: false },
+      node: { found: true },
+      toolchain: { found: false },
+      python: { found: true, healthy: true },
     }).canContinue,
     false,
+  );
+  // kicad-cli is reported, never required (contract §2).
+  assert.equal(
+    evaluatePrereqCheck({
+      claudeCli: { found: true },
+      node: { found: true },
+      toolchain: { found: true },
+      python: { found: true, healthy: true },
+      kicadCli: { found: false },
+    }).canContinue,
+    true,
   );
 });
 

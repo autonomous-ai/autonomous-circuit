@@ -4,23 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { transport } from "@/lib/transport.ts";
 import { cn } from "@/ui/utils";
 import ThemeSetting from "@/components/workbench/ThemeSetting.jsx";
 import { useProjectsStore } from "@/store/projects.ts";
 import { DEFAULT_MODEL, MODEL_CHOICES } from "@/components/chat/modelChoices.js";
-import {
-  normalizeRenderProvider,
-  RENDER_PROVIDER_CHOICES,
-} from "@/components/workbench/renderProviderChoices.js";
 
 // v1 is Create-only and local-only: the only selectable models are the ones
 // the user's own Claude Code runs (no hosted/proxy tiers, no accounts).
@@ -29,16 +18,12 @@ const LOCAL_MODEL_CHOICES = MODEL_CHOICES.filter(
 );
 
 /**
- * Full-screen settings overlay. v1 (Create-only) has no account, no social
- * profile, and no publish — this screen is the settings shell only: Appearance
- * (theme), Model (app_set_model), Render provider (renderProvider), and
- * Autopilot (autoBuild) via app_settings_read/write, plus a "Local workspace"
- * note. Opened from the workspace header's user card.
- *
- * `renderProvider` rides through app_settings_read/write untyped (the wire
- * passes arbitrary fields; the donor AppSettings type in transport.ts — Track
- * A's file — doesn't list it), so this .jsx file reads it loosely and
- * normalizes absent/unknown to "mock".
+ * Full-screen settings overlay. v1 has no account and no publish — this
+ * screen is the settings shell only: Appearance (theme), Model
+ * (app_set_model), and Autopilot (autoBuild) via app_settings_read/write,
+ * plus a "Local workspace" note. Opened from the workspace header's user
+ * card. (The donor's render-provider picker is gone: the board pipeline is
+ * local tooling, no hosted providers.)
  */
 export default function AccountScreen({ open, onOpenChange }) {
   const projectCount = useProjectsStore((state) => state.projects.length);
@@ -48,7 +33,6 @@ export default function AccountScreen({ open, onOpenChange }) {
   const [loadError, setLoadError] = useState("");
   const [busyModel, setBusyModel] = useState(false);
   const [busyAutopilot, setBusyAutopilot] = useState(false);
-  const [busyProvider, setBusyProvider] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,27 +73,6 @@ export default function AccountScreen({ open, onOpenChange }) {
       }
     },
     [busyModel, activeModel],
-  );
-
-  // Render provider defaults to mock (matches the server: no renderProvider
-  // persisted → no CIRCUIT_PROVIDER exported → dramapy renders the animatic).
-  const activeProvider = normalizeRenderProvider(settings?.renderProvider);
-
-  const pickProvider = useCallback(
-    async (id) => {
-      if (busyProvider || !settings || id === activeProvider) return;
-      setBusyProvider(true);
-      const next = { ...settings, renderProvider: id };
-      try {
-        await transport.app_settings_write(next);
-        setSettings(next);
-      } catch {
-        // Keep showing the persisted value on failure.
-      } finally {
-        setBusyProvider(false);
-      }
-    },
-    [busyProvider, settings, activeProvider],
   );
 
   // Autopilot defaults ON (matches the driver's default when unset).
@@ -214,60 +177,6 @@ export default function AccountScreen({ open, onOpenChange }) {
             </p>
           </section>
 
-          {/* Render provider */}
-          <section className="mb-6">
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Render provider
-            </h2>
-            <div className="rounded-xl border border-border bg-card/50 p-4">
-              <Select
-                value={activeProvider}
-                onValueChange={(id) => void pickProvider(id)}
-                disabled={busyProvider || !settings}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  data-testid="settings-render-provider"
-                >
-                  {/* Children override radix's default rendered value so the
-                      closed trigger shows only the label, not the two-line
-                      item content. */}
-                  <SelectValue placeholder="Choose a provider">
-                    {
-                      RENDER_PROVIDER_CHOICES.find(
-                        (choice) => choice.id === activeProvider,
-                      )?.label
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {RENDER_PROVIDER_CHOICES.map((choice) => (
-                    <SelectItem
-                      key={choice.id}
-                      value={choice.id}
-                      textValue={choice.label}
-                      data-testid={`settings-provider-${choice.id}`}
-                    >
-                      <span className="flex flex-col">
-                        <span className="text-sm text-foreground">
-                          {choice.label}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {choice.description}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Keys go in{" "}
-                <span className="font-mono">~/.autonomous-circuit/keys.env</span>{" "}
-                — see <span className="font-mono">docs/providers.md</span>
-              </p>
-            </div>
-          </section>
-
           {/* Autopilot */}
           <section className="mb-6">
             <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -279,7 +188,7 @@ export default function AccountScreen({ open, onOpenChange }) {
                   Build without approval
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  On: after your answers, episodes build and review unattended.
+                  On: after your answers, boards build and review unattended.
                   Off: every plan waits for your approval first.
                 </span>
               </span>

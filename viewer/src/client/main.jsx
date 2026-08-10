@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import AppErrorBoundary from "./components/AppErrorBoundary.jsx";
-import EpisodeWorkspace from "./components/episode/EpisodeWorkspace.jsx";
+import BoardWorkspace from "./components/board/BoardWorkspace.jsx";
 import ChatSidebar, { readStoredChatSidebarWidth, persistChatSidebarWidth } from "./components/chat/ChatSidebar";
 import { CHAT_MIN_WIDTH, maxChatWidth } from "./workbench/chatLayout.js";
 import WindowMenuBar from "./components/WindowMenuBar.jsx";
@@ -12,7 +12,7 @@ import faviconUrl from "./assets/favicon.ico";
 import "./styles/globals.css";
 import { isWindowsPlatform, transport } from "./lib/transport.ts";
 import { attachCatalogStream, useCatalogStore } from "./store/catalog.ts";
-import { selectEpisodeEntries, selectSeriesEntry } from "./lib/episodeModel.js";
+import { selectBoardEntries, selectPartsEntry } from "./lib/boardModel.js";
 import { setProject as setChatProject } from "./store/chat.js";
 import { useProjectsStore } from "./store/projects.ts";
 
@@ -116,7 +116,7 @@ function AppRoot() {
   const onboarded = needsOnboarding === false;
 
   // Live catalog: `catalog_changed` SSE → refetch; `artifact_changed` chat
-  // events → per-file activity for the episode rail's "rendering" dot.
+  // events → per-file activity for the board rail's "building" dot.
   useEffect(() => attachCatalogStream(), []);
 
   // Native "Run Setup Again…" menu item emits `run_setup_again`. Clear the
@@ -145,9 +145,9 @@ function AppRoot() {
   const [accountScreenOpen, setAccountScreenOpen] = useState(false);
 
   // Chat-vs-workspace layout coordination. AppRoot is the one place the chat
-  // panel and the workspace meet, so it owns the math that keeps the episode
+  // panel and the workspace meet, so it owns the math that keeps the board
   // stage visible while the chat resizes (see workbench/chatLayout.js).
-  // EpisodeWorkspace keeps owning its panel state and only *publishes* the
+  // BoardWorkspace keeps owning its panel state and only *publishes* the
   // widths they occupy here; AppRoot commands a panel close via a nonce.
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== "undefined" && window.innerWidth > 0 ? window.innerWidth : 1600,
@@ -236,7 +236,7 @@ function AppRoot() {
       .catch((err) => console.warn("Failed to open project", err));
   }, [onboarded, currentProjectId, projectsStatus, projects, openProject]);
 
-  // The catalog (episode rail) is scoped to the open project on the backend,
+  // The catalog (board rail) is scoped to the open project on the backend,
   // so re-read it whenever the active project changes. Project
   // open/create/switch all set the backend's active project before
   // `currentProjectId` updates, so by the time this runs the scan is scoped.
@@ -248,10 +248,10 @@ function AppRoot() {
       .catch((err) => console.warn("Failed to refresh catalog after project change", err));
   }, [currentProjectId]);
 
-  // Episode entries (episodes/epNNN.mp4, sorted) and the series bible artifact
-  // — the two catalog views the workspace renders.
-  const episodeEntries = useMemo(() => selectEpisodeEntries(catalog), [catalog]);
-  const seriesEntry = useMemo(() => selectSeriesEntry(catalog), [catalog]);
+  // Board entries (boards/<stem>.tsx / .circuit.json, sorted) and the parts
+  // lock artifact — the two catalog views the workspace renders.
+  const boardEntries = useMemo(() => selectBoardEntries(catalog), [catalog]);
+  const partsEntry = useMemo(() => selectPartsEntry(catalog), [catalog]);
 
   // The in-window menu bar duplicates the native macOS menu and only earns its
   // place on Windows, which has no native global menu bar; macOS and Linux
@@ -259,8 +259,8 @@ function AppRoot() {
   const showWindowMenuBar = isWindowsPlatform();
 
   // On a phone-width viewport the create/chat panel becomes full-screen (the
-  // primary task) instead of a fixed sidebar squeezed next to the player — the
-  // personas we build for are on phones. Desktop is untouched.
+  // primary task) instead of a fixed sidebar squeezed next to the board stage.
+  // Desktop is untouched.
   const isMobile = viewportWidth > 0 && viewportWidth < 640;
   const effectiveChatWidth = isMobile ? viewportWidth : chatSidebarWidth;
 
@@ -283,10 +283,10 @@ function AppRoot() {
             className="flex-1 overflow-hidden"
             style={{ paddingRight: isMobile ? 0 : chatSidebarWidth }}
           >
-            <EpisodeWorkspace
+            <BoardWorkspace
               manifestRevision={revision}
-              episodeEntries={episodeEntries}
-              seriesEntry={seriesEntry}
+              boardEntries={boardEntries}
+              partsEntry={partsEntry}
               artifactActivity={artifactActivity}
               catalogHydrated={catalogHydrated}
               catalogRefreshing={catalogRefreshing}

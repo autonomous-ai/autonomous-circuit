@@ -1,10 +1,11 @@
 // Pure helpers for the onboarding wizard. Kept JSX/dep-free so Node's
 // --test runner can exercise the state machine and re-poll logic.
 //
-// v1 is Create-only: onboarding is a prereq check (Claude Code + ffmpeg, with
-// python shown but non-blocking) followed by done. There is no in-app
-// installer, no guided sign-in, and no social account — missing tools get
-// friendly manual instructions and the screen re-polls until they appear.
+// v1 onboarding is a prereq check (contract §2: claude on PATH · node ≥22.12 ·
+// toolchain installed · python ≥3.10 · kicad-cli reported-but-not-required)
+// followed by done. There is no in-app installer, no guided sign-in, and no
+// account — missing tools get friendly manual instructions and the screen
+// re-polls until they appear.
 
 export const ONBOARDING_STEPS = Object.freeze([
   "prereq",
@@ -47,33 +48,44 @@ export function evaluateClaudeCheck(check) {
 }
 
 /**
+ * Row model for one reported tool. A server that doesn't report the field
+ * can't be gated on it, so an absent object reads as ok-but-unknown rather
+ * than blocking onboarding forever (the donor's ffmpeg posture, kept for
+ * every non-claude tool). `healthy: false` (version too old) blocks even
+ * when the binary is found.
+ */
+function toolRow(reported) {
+  const known = reported != null;
+  return {
+    ok: known ? Boolean(reported.found) && reported.healthy !== false : true,
+    known,
+    version: known ? String(reported.version || "") : "",
+  };
+}
+
+/**
  * Collapse a full `app_prereq_check` result into the welcome screen's row
- * model. Gating: Claude Code AND ffmpeg must be present; python is surfaced
- * but never blocks (the render pipeline reports its own errors with more
- * context). A server that predates the ffmpeg field can't be gated on it, so
- * an absent `ffmpeg` object reads as ok-but-unknown rather than blocking
- * onboarding forever.
+ * model. Gating (contract §2): Claude Code, Node ≥22.12, the pinned toolchain
+ * (`toolchain/node_modules` present), and Python ≥3.10 must all pass;
+ * kicad-cli is reported but never blocks (fab packets need it; everything
+ * else works without it).
  */
 export function evaluatePrereqCheck(check) {
   const claude = {
     ok: Boolean(check?.claudeCli?.found),
     version: String(check?.claudeCli?.version || ""),
   };
-  const ffmpegReported = check?.ffmpeg != null;
-  const ffmpeg = {
-    ok: ffmpegReported ? Boolean(check.ffmpeg.found) : true,
-    known: ffmpegReported,
-    version: ffmpegReported ? String(check.ffmpeg.version || "") : "",
-  };
-  const python = {
-    ok: Boolean(check?.python?.found),
-    version: String(check?.python?.version || ""),
-  };
+  const node = toolRow(check?.node);
+  const toolchain = toolRow(check?.toolchain);
+  const python = toolRow(check?.python);
+  const kicad = toolRow(check?.kicadCli);
   return {
     claude,
-    ffmpeg,
+    node,
+    toolchain,
     python,
-    canContinue: claude.ok && ffmpeg.ok,
+    kicad,
+    canContinue: claude.ok && node.ok && toolchain.ok && python.ok,
   };
 }
 
@@ -87,8 +99,12 @@ export function schedulePoll(callback, intervalMs, scheduler = setTimeout) {
 
 export const CLAUDE_INSTALL_URL = "https://claude.ai/install";
 
-/** Manual ffmpeg install (macOS; the dev platform for v1). */
-export const FFMPEG_INSTALL_COMMAND = "brew install ffmpeg";
+/** Manual installs (macOS; the dev platform for v1). */
+export const NODE_INSTALL_COMMAND = "brew install node";
+export const PYTHON_INSTALL_COMMAND = "brew install python@3.12";
+export const KICAD_INSTALL_COMMAND = "brew install --cask kicad";
+/** The pinned toolchain installs from the repo, not brew. */
+export const TOOLCHAIN_INSTALL_COMMAND = "scripts/setup-toolchain.sh";
 
 /** How the user signs Claude Code in — there is no in-app login flow in v1. */
 export const CLAUDE_LOGIN_HINT =

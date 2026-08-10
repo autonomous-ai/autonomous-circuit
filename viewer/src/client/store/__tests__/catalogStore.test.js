@@ -15,7 +15,7 @@ import {
 
 test("applyCatalogSnapshot folds a read into the slice and clears refresh/error state", () => {
   const catalog = {
-    entries: [{ file: "episodes/ep001.mp4", kind: "mp4", url: "/f?v=1-2" }],
+    entries: [{ file: "boards/main.tsx", kind: "tsx", url: "/f?v=1-2" }],
     rootPath: "/proj",
     revision: 7,
   };
@@ -45,22 +45,22 @@ test("shouldRefetchForRevision refetches only when the revision moved forward", 
 
 test("noteArtifactActivity stamps the file and prunes entries past the TTL", () => {
   const t0 = 1_000_000;
-  let activity = noteArtifactActivity({}, "episodes/ep001_shots/shot_s1_01.mp4", t0);
-  assert.deepEqual(activity, { "episodes/ep001_shots/shot_s1_01.mp4": t0 });
+  let activity = noteArtifactActivity({}, "boards/main_review/_pcb.png", t0);
+  assert.deepEqual(activity, { "boards/main_review/_pcb.png": t0 });
 
   // A second file within the TTL keeps both.
-  activity = noteArtifactActivity(activity, "episodes/ep001.mp4", t0 + 1000);
+  activity = noteArtifactActivity(activity, "boards/main.circuit.json", t0 + 1000);
   assert.equal(Object.keys(activity).length, 2);
 
   // A stamp far past the TTL prunes the stale ones.
   const later = t0 + ARTIFACT_ACTIVITY_TTL_MS + 5000;
-  activity = noteArtifactActivity(activity, "episodes/ep002.mp4", later);
-  assert.deepEqual(activity, { "episodes/ep002.mp4": later });
+  activity = noteArtifactActivity(activity, "boards/aux.tsx", later);
+  assert.deepEqual(activity, { "boards/aux.tsx": later });
 });
 
 test("noteArtifactActivity ignores a blank file but still prunes", () => {
   const t0 = 1_000_000;
-  const seeded = { "old.mp4": t0 - ARTIFACT_ACTIVITY_TTL_MS - 1 };
+  const seeded = { "old.tsx": t0 - ARTIFACT_ACTIVITY_TTL_MS - 1 };
   const activity = noteArtifactActivity(seeded, "", t0);
   assert.deepEqual(activity, {});
 });

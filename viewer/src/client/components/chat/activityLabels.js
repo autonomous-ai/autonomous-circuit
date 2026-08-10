@@ -20,14 +20,14 @@ function titleize(name) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// The product skills (video-interfaces §3) mapped to what they mean for the
+// The product skills (circuit-interfaces §3) mapped to what they mean for the
 // user. Used both when a skill surfaces as its own tool name and when it runs
 // through the generic `Skill` tool (input carries the skill name).
 const SKILL_LABELS = Object.freeze({
-  dramacode: "Writing the episode",
-  "story-analysis": "Shaping the story",
-  "cast-book": "Casting characters",
-  "episode-viewer": "Opening the episode",
+  circuitcode: "Designing the board",
+  "circuit-analysis": "Shaping the spec",
+  "parts-book": "Picking parts",
+  "board-viewer": "Opening the viewer",
 });
 
 function skillNameFromInput(input) {
@@ -35,7 +35,7 @@ function skillNameFromInput(input) {
   for (const key of ["skill", "name", "command"]) {
     const value = obj[key];
     if (typeof value === "string" && value.trim()) {
-      // A command like "dramacode episodes/ep001.py" still names the skill first.
+      // A command like "circuitcode boards/main.tsx" still names the skill first.
       return value.trim().split(/[\s/]+/)[0];
     }
   }
@@ -81,7 +81,7 @@ export function toolLabel(tool, input) {
         input && typeof input === "object" && "command" in input
           ? String(/** @type {{command?: unknown}} */ (input).command || "")
           : "";
-      if (/scripts\/drama|ffmpeg|render/.test(cmd)) return "Rendering shots";
+      if (/scripts\/(circuit|check|review)|tscircuit|kicad|gerber/.test(cmd)) return "Building the board";
       return "Running command";
     }
     default:
@@ -125,10 +125,10 @@ export function toolDetail(tool, input) {
     case "Task":
     case "Agent":
       return str(obj.description);
-    case "dramacode":
-    case "story-analysis":
-    case "cast-book":
-    case "episode-viewer":
+    case "circuitcode":
+    case "circuit-analysis":
+    case "parts-book":
+    case "board-viewer":
     case "Skill":
       return str(obj.command) || str(obj.skill) || str(obj.name);
     default: {

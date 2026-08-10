@@ -12,18 +12,21 @@ import {
   CLAUDE_INSTALL_URL,
   CLAUDE_LOGIN_HINT,
   evaluatePrereqCheck,
-  FFMPEG_INSTALL_COMMAND,
+  KICAD_INSTALL_COMMAND,
+  NODE_INSTALL_COMMAND,
+  PYTHON_INSTALL_COMMAND,
+  TOOLCHAIN_INSTALL_COMMAND,
 } from "./onboardingHelpers.js";
 
 /**
- * Single-screen onboarding, v1 (Create-only): a prereq check and nothing else.
+ * Single-screen onboarding, v1: a prereq check and nothing else.
  *
- * `app_prereq_check` reports the two tools an episode build needs — the
- * `claude` CLI and ffmpeg — plus python (shown, but non-blocking). Anything
- * missing gets friendly manual instructions (claude.ai/install,
- * `brew install ffmpeg`; signing in = run `claude` once in a terminal). The
- * screen re-polls every few seconds so finishing an install out-of-band lights
- * the row green on its own. Continue persists `hasOnboarded: true` and hands
+ * `app_prereq_check` reports the tools a board build needs (contract §2) —
+ * the `claude` CLI, Node ≥22.12, the pinned toolchain, and Python ≥3.10 —
+ * plus kicad-cli (shown, but non-blocking: fab packets need it; everything
+ * else works). Anything missing gets friendly manual instructions. The screen
+ * re-polls every few seconds so finishing an install out-of-band lights the
+ * row green on its own. Continue persists `hasOnboarded: true` and hands
  * control to the app. No auth flows, no installers, no accounts.
  */
 export default function WelcomeScreen({ onComplete }) {
@@ -96,10 +99,10 @@ export default function WelcomeScreen({ onComplete }) {
         <header className="flex flex-col gap-1 text-center">
           <Sparkles className="mx-auto size-7 text-emerald-600" />
           <h1 className="mt-3 text-2xl font-semibold">
-            Make short dramas by chatting with AI.
+            Design real circuit boards by chatting with AI.
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Two tools power the studio. Install what’s missing and continue.
+            A few tools power the workshop. Install what’s missing and continue.
           </p>
         </header>
 
@@ -127,18 +130,33 @@ export default function WelcomeScreen({ onComplete }) {
           </PrereqRow>
 
           <PrereqRow
-            label="ffmpeg"
-            ok={Boolean(prereqs?.ffmpeg.ok)}
-            version={prereqs?.ffmpeg.version}
+            label="Node 22+"
+            ok={Boolean(prereqs?.node.ok)}
+            version={prereqs?.node.version}
             checking={checking}
-            testId="prereq-ffmpeg"
+            testId="prereq-node"
           >
             <p className="flex flex-wrap items-center gap-1.5">
-              Stitches your shots into episodes. Install it with{" "}
+              Runs the board compiler. Install it with{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {FFMPEG_INSTALL_COMMAND}
+                {NODE_INSTALL_COMMAND}
               </code>
-              <CopyCommand text={FFMPEG_INSTALL_COMMAND} />
+              <CopyCommand text={NODE_INSTALL_COMMAND} />
+            </p>
+          </PrereqRow>
+
+          <PrereqRow
+            label="Circuit toolchain"
+            ok={Boolean(prereqs?.toolchain.ok)}
+            checking={checking}
+            testId="prereq-toolchain"
+          >
+            <p className="flex flex-wrap items-center gap-1.5">
+              The pinned board compiler. From the repo, run{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {TOOLCHAIN_INSTALL_COMMAND}
+              </code>
+              <CopyCommand text={TOOLCHAIN_INSTALL_COMMAND} />
             </p>
           </PrereqRow>
 
@@ -147,12 +165,32 @@ export default function WelcomeScreen({ onComplete }) {
             ok={Boolean(prereqs?.python.ok)}
             version={prereqs?.python.version}
             checking={checking}
-            optional
             testId="prereq-python"
           >
-            <p>
-              Used by the render pipeline. You can continue without it — the
-              chat will tell you if a build needs it.
+            <p className="flex flex-wrap items-center gap-1.5">
+              Runs the build pipeline. Install it with{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {PYTHON_INSTALL_COMMAND}
+              </code>
+              <CopyCommand text={PYTHON_INSTALL_COMMAND} />
+            </p>
+          </PrereqRow>
+
+          <PrereqRow
+            label="KiCad"
+            ok={Boolean(prereqs?.kicad.ok)}
+            version={prereqs?.kicad.version}
+            checking={checking}
+            optional
+            testId="prereq-kicad"
+          >
+            <p className="flex flex-wrap items-center gap-1.5">
+              Verifies boards and exports the fab gerbers. You can continue
+              without it — install later with{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {KICAD_INSTALL_COMMAND}
+              </code>
+              <CopyCommand text={KICAD_INSTALL_COMMAND} />
             </p>
           </PrereqRow>
         </div>
@@ -185,7 +223,7 @@ export default function WelcomeScreen({ onComplete }) {
                 <Loader2 className="mr-2 size-4 animate-spin" /> Finishing…
               </>
             ) : (
-              "Start creating"
+              "Start building"
             )}
           </Button>
         </div>

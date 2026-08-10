@@ -19,7 +19,7 @@ import ModelControl from "./ModelControl";
 
 const MAX_TEXTAREA_HEIGHT = 192; // tailwind max-h-48
 
-function ChatInput({ className, placeholder = "Make a short drama" }, ref) {
+function ChatInput({ className, placeholder = "Describe a circuit board" }, ref) {
   const [value, setValue] = useState("");
   const turnInProgress = useChatStore((state) => state.turnInProgress);
   const pendingAttachments = useChatStore((state) => state.pendingAttachments);
@@ -181,7 +181,7 @@ function ChatInput({ className, placeholder = "Make a short drama" }, ref) {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // Pre-fill from elsewhere in the app (the storyboard's per-shot note
+  // Pre-fill from elsewhere in the app (the warnings strip's per-finding
   // affordance): replace the draft with the starter line and put the caret at
   // its end so the creator types the note and hits Enter.
   useEffect(() => {

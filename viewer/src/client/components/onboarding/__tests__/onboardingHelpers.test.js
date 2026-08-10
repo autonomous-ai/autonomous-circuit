@@ -52,45 +52,75 @@ test("evaluateClaudeCheck guards against missing payloads", () => {
   );
 });
 
-test("evaluatePrereqCheck gates on Claude Code AND ffmpeg", () => {
+test("evaluatePrereqCheck gates on claude + node + toolchain + python", () => {
   const result = evaluatePrereqCheck({
     claudeCli: { found: true, version: "2.1.0" },
-    ffmpeg: { found: true, version: "7.1" },
-    python: { found: false, healthy: false },
+    node: { found: true, version: "22.12.0" },
+    toolchain: { found: true },
+    python: { found: true, version: "3.12.4", healthy: true },
+    kicadCli: { found: false },
   });
   assert.equal(result.claude.ok, true);
   assert.equal(result.claude.version, "2.1.0");
-  assert.equal(result.ffmpeg.ok, true);
-  assert.equal(result.ffmpeg.known, true);
-  assert.equal(result.canContinue, true, "python is non-blocking");
-  assert.equal(result.python.ok, false);
+  assert.equal(result.node.ok, true);
+  assert.equal(result.toolchain.ok, true);
+  assert.equal(result.python.ok, true);
+  assert.equal(result.kicad.ok, false);
+  assert.equal(result.canContinue, true, "kicad-cli is non-blocking");
 });
 
-test("evaluatePrereqCheck blocks when ffmpeg is reported missing", () => {
+test("evaluatePrereqCheck blocks when a required tool is reported missing", () => {
+  const base = {
+    claudeCli: { found: true },
+    node: { found: true },
+    toolchain: { found: true },
+    python: { found: true, healthy: true },
+  };
+  assert.equal(
+    evaluatePrereqCheck({ ...base, node: { found: false } }).canContinue,
+    false,
+  );
+  assert.equal(
+    evaluatePrereqCheck({ ...base, toolchain: { found: false } }).canContinue,
+    false,
+  );
+  assert.equal(
+    evaluatePrereqCheck({ ...base, python: { found: false } }).canContinue,
+    false,
+  );
+});
+
+test("evaluatePrereqCheck blocks a found-but-too-old tool (healthy: false)", () => {
   const result = evaluatePrereqCheck({
     claudeCli: { found: true },
-    ffmpeg: { found: false },
-    python: { found: true, version: "3.12" },
+    node: { found: true, version: "18.0.0", healthy: false },
+    toolchain: { found: true },
+    python: { found: true, healthy: true },
   });
-  assert.equal(result.ffmpeg.ok, false);
+  assert.equal(result.node.ok, false);
   assert.equal(result.canContinue, false);
 });
 
 test("evaluatePrereqCheck blocks when the Claude CLI is missing", () => {
   const result = evaluatePrereqCheck({
     claudeCli: { found: false },
-    ffmpeg: { found: true },
+    node: { found: true },
+    toolchain: { found: true },
+    python: { found: true, healthy: true },
   });
   assert.equal(result.claude.ok, false);
   assert.equal(result.canContinue, false);
 });
 
-test("evaluatePrereqCheck treats an absent ffmpeg field as ok-but-unknown", () => {
-  // A server that predates the ffmpeg field can't be gated on it — onboarding
+test("evaluatePrereqCheck treats an absent tool field as ok-but-unknown", () => {
+  // A server that doesn't report a field can't be gated on it — onboarding
   // must not block forever on a field that will never arrive.
   const result = evaluatePrereqCheck({ claudeCli: { found: true } });
-  assert.equal(result.ffmpeg.ok, true);
-  assert.equal(result.ffmpeg.known, false);
+  assert.equal(result.node.ok, true);
+  assert.equal(result.node.known, false);
+  assert.equal(result.toolchain.ok, true);
+  assert.equal(result.python.ok, true);
+  assert.equal(result.kicad.known, false);
   assert.equal(result.canContinue, true);
 });
 

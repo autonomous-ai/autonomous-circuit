@@ -104,7 +104,7 @@ export default function PlanBlock({ plan, status }) {
         ) : (
           <p data-slot="chat-plan-empty" className="text-[13.5px] leading-relaxed text-muted-foreground">
             {autopilot
-              ? "Building your episode automatically — no separate written plan for this one. Open “Thought for…” above to see the reasoning."
+              ? "Building your board automatically — no separate written plan for this one. Open “Thought for…” above to see the reasoning."
               : "No plan details were written for this turn."}
           </p>
         )}

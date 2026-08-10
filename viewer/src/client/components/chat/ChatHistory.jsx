@@ -205,8 +205,8 @@ export default function ChatHistory({
           className,
         )}
       >
-        <p>Describe the drama you want to make.</p>
-        <p className="opacity-70">Circuit shapes the story, casts it, and renders the shots — right here.</p>
+        <p>Describe the device you want to build.</p>
+        <p className="opacity-70">Circuit specs it, picks the parts, and designs the board — right here.</p>
       </div>
     );
   }
