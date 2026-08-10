@@ -525,6 +525,29 @@ def build_board(
         glb_path = None  # best-effort by contract
 
     # The enclosure brief: the exact facts the printed body needs, taken from
+    # The KiCad project, zipped into the packet. We already convert the board
+    # to `.kicad_sch`/`.kicad_pcb` to run the second-substrate check and were
+    # throwing them away — but they are the only artifact in the packet a
+    # person can open in a real EDA tool to review or edit the design. Gerbers
+    # are for the fab; this is for the engineer.
+    kicad_zip_path: Path | None = None
+    if kicad_pcb is not None:
+        try:
+            kicad_zip_path = fab_dir / "kicad-project.zip"
+            fab_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(kicad_zip_path, "w", zipfile.ZIP_DEFLATED) as bundle:
+                bundle.write(kicad_pcb, f"{stem}.kicad_pcb")
+                project_file = kicad_pcb.with_suffix(".kicad_pro")
+                if project_file.is_file():
+                    bundle.write(project_file, f"{stem}.kicad_pro")
+                if kicad_sch is not None and kicad_sch.is_file():
+                    bundle.write(kicad_sch, f"{stem}.kicad_sch")
+        except (OSError, zipfile.BadZipFile) as exc:
+            kicad_zip_path = None
+            warnings.append(
+                checks.check_failed(f"kicad project not bundled: {exc}")
+            )
+
     # the same geometry that produced the gerbers so the two cannot disagree.
     enclosure_path: Path | None = None
     try:
@@ -593,6 +616,8 @@ def build_board(
         artifacts["glb"] = f"{stem}_fab/{profile.glb_name}"
     if enclosure_path is not None:
         artifacts["enclosure"] = f"{stem}_fab/enclosure.json"
+    if kicad_zip_path is not None:
+        artifacts["kicadProject"] = f"{stem}_fab/kicad-project.zip"
 
     validation: dict[str, object] = {}
     if warnings:

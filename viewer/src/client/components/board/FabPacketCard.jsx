@@ -62,10 +62,35 @@ export default function FabPacketCard({ stem = "board", artifact = null, sidecar
   const blockers = blockingWarnings(sidecar);
   const costUsd = Number(sidecar.bom?.estimatedCostUsd);
 
+  // Two audiences, so two groups. The fab needs gerbers/BOM/CPL to build the
+  // board; an engineer needs the KiCad project to open, review and edit it in
+  // a real tool, the STEP/GLB for mechanical fit, and the enclosure brief for
+  // whoever models the case.
   const downloads = [
     { label: "Gerbers", url: artifact?.gerbersUrl, filename: `${stem}-gerbers.zip` },
     { label: "BOM", url: artifact?.bomUrl, filename: `${stem}-bom.csv` },
     { label: "CPL", url: artifact?.cplUrl, filename: `${stem}-cpl.csv` },
+  ].filter((d) => d.url);
+
+  const engineeringDownloads = [
+    {
+      label: "KiCad project",
+      url: artifact?.kicadProjectUrl,
+      filename: `${stem}-kicad.zip`,
+      hint: "schematic + board + project — opens in KiCad 10",
+    },
+    {
+      label: "3D model",
+      url: artifact?.glbUrl,
+      filename: `${stem}.glb`,
+      hint: "board and parts, for mechanical fit",
+    },
+    {
+      label: "Enclosure brief",
+      url: artifact?.enclosureUrl,
+      filename: `${stem}-enclosure.json`,
+      hint: "outline, holes, connector edges",
+    },
   ].filter((d) => d.url);
 
   return (
@@ -103,6 +128,42 @@ export default function FabPacketCard({ stem = "board", artifact = null, sidecar
             ) : null}
           </div>
         </div>
+
+        {/* Engineering downloads are NOT gated on fab-readiness. Withholding
+            the fab packet stops someone paying for an unverified board;
+            withholding the KiCad project would only stop them looking at it —
+            and a board that is not ready is exactly the one an engineer wants
+            open in a real tool. */}
+        {engineeringDownloads.length ? (
+          <div
+            data-slot="fab-engineering"
+            className="rounded-xl border border-border/60 bg-card/40 p-4"
+          >
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Open in a professional tool
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {engineeringDownloads.map((d) => (
+                <button
+                  key={d.label}
+                  type="button"
+                  title={d.hint}
+                  onClick={() => {
+                    try {
+                      triggerUrlDownload(d.url, { filename: d.filename });
+                    } catch {
+                      /* blocked download — the button stays usable */
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-accent"
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {ready ? (
           <>

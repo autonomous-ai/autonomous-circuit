@@ -137,6 +137,9 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       // The enclosure brief — outline, holes, connector edges — is what Vibe
       // reads to model the printed body, so it belongs beside the packet.
       ["enclosureUrl", path.join(`${stem}_fab`, "enclosure.json")],
+      // The KiCad project is the only packet member a person can open in a
+      // real EDA tool, so it is offered even on a board that is not fab-ready.
+      ["kicadProjectUrl", path.join(`${stem}_fab`, "kicad-project.zip")],
     ];
     const artifact = {};
     for (const [key, absPath] of members) {
