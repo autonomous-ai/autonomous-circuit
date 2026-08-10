@@ -38,7 +38,16 @@ v1 in active development.
   fab packet (the staged gauntlet in `docs/circuit-interfaces.md` §1)
 - `skills/` — Claude Code skills bundled with the app: `circuitcode` (write board
   source, run the generator, fix by severity), `circuit-analysis` (vague ask →
-  engineering brief), `parts-book` (lock the BOM to orderable parts), `board-viewer`
+  engineering brief), `parts-book` (lock the BOM to orderable parts),
+  `design-review` (a seven-lens expert panel that holds the ship bar),
+  `board-viewer`
+- `packages/golden-blocks/` — the validated subcircuits, each with a `BLOCK.md`
+  datasheet and a graded testbench
+- `packages/parts-catalog/` — a local mirror of JLCPCB's stocked Basic/Preferred
+  libraries, so picking a part never waits on a network call
+- `examples/` — real product boards (Hydrate coaster, Harness puck, Terminal
+  keyboard) with their design-review rounds; `scripts/install-examples.sh` puts
+  them in the app
 - `toolchain/` — exact-pinned Node toolchain (tscircuit and friends); the pipeline
   invokes it out-of-process
 - `docs/` — `circuit-interfaces.md` (the frozen contract every track codes against),
