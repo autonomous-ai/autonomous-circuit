@@ -14,4 +14,19 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
-(No entries yet.)
+## 2026-08-10 — Catalog must surface root `parts.json` as an entry
+- **Change:** the client (PartsPanel + BomTable enrichment) reads the parts
+  lock through a catalog entry whose `file` is exactly `parts.json` (any
+  `kind`), fetching `entry.url` verbatim (`?v=` cache-bust). §2's visibility
+  rule "`.json` hidden" gets one more exception alongside the sidecar:
+  root `parts.json` is surfaced.
+- **Why:** §2 requires "PartsPanel replaces CastPanel (reads parts.json)" but
+  names no transport for it; the donor precedent (series.json surfaced despite
+  the .json-hidden rule) is the cheapest path and keeps the ?v= refetch
+  semantics. Decided while building Track E (2026-08-10).
+- **Backward compatible:** yes — if the scanner doesn't surface it, the panel
+  and the BOM badges degrade to their empty states; nothing breaks.
+- **Tracks affected:** server (catalog visibility rule), client (already
+  built to this: `lib/boardModel.js selectPartsEntry`).
+
+(No further entries yet.)
