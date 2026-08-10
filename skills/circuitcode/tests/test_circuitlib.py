@@ -22,7 +22,10 @@ from circuitlib.helpers import (  # noqa: E402
     decoupling_for,
     estimate_cost,
     fab_profile,
+    led_current,
+    led_warnings,
     power_budget,
+    pullup_warnings,
     regulator_thermal,
     regulator_thermal_warnings,
     trace_width_for,
@@ -155,6 +158,51 @@ class RegulatorThermal(unittest.TestCase):
     def test_backwards_rails_raise(self) -> None:
         with self.assertRaises(ValueError):
             regulator_thermal(vin=3.3, vout=5.0, current_a=0.1)
+
+
+class OhmsLaw(unittest.TestCase):
+    """The failure class no structural check can see: right topology, wrong
+    numbers. A board with a 10-ohm LED resistor passes compile, ERC, DRC, DFM
+    and every image review."""
+
+    def test_tiny_series_resistor_is_an_error(self) -> None:
+        result = led_current(rail_v=3.3, resistance_ohms=10)
+        self.assertEqual(result["verdict"], "over-current")
+        warnings = led_warnings(refdes="D1", rail_v=3.3, resistance_ohms=10)
+        self.assertEqual(warnings[0]["severity"], "error")
+
+    def test_sane_resistor_is_silent(self) -> None:
+        self.assertEqual(led_warnings(refdes="D1", rail_v=3.3, resistance_ohms=1000), [])
+
+    def test_huge_resistor_is_too_dim(self) -> None:
+        warnings = led_warnings(refdes="D1", rail_v=3.3, resistance_ohms=1_000_000)
+        self.assertTrue(warnings)
+        self.assertIn("visible", warnings[0]["detail"])
+
+    def test_rail_below_forward_voltage_never_lights(self) -> None:
+        result = led_current(rail_v=1.8, resistance_ohms=330, color="blue")
+        self.assertEqual(result["verdict"], "no-conduction")
+
+    def test_current_falls_as_resistance_rises(self) -> None:
+        currents = [
+            led_current(rail_v=3.3, resistance_ohms=r)["current_ma"]
+            for r in (220, 470, 1000, 4700)
+        ]
+        self.assertEqual(currents, sorted(currents, reverse=True))
+
+    def test_zero_resistance_raises_at_the_spec(self) -> None:
+        with self.assertRaises(ValueError):
+            led_current(rail_v=3.3, resistance_ohms=0)
+
+    def test_the_block_default_pullup_passes(self) -> None:
+        """Regression: the golden blocks must satisfy our own law."""
+        self.assertEqual(
+            pullup_warnings(refdes="R3", resistance_ohms=tables.I2C_PULLUP_OHMS), []
+        )
+
+    def test_pullup_extremes_warn(self) -> None:
+        self.assertTrue(pullup_warnings(refdes="R3", resistance_ohms=100))
+        self.assertTrue(pullup_warnings(refdes="R3", resistance_ohms=100_000))
 
 
 class Planner(unittest.TestCase):

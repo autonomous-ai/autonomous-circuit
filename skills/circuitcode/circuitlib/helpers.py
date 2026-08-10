@@ -232,6 +232,93 @@ def regulator_thermal_warnings(
     }]
 
 
+#: Typical forward voltage by LED colour, at the few-mA currents we run.
+LED_VF = {"red": 1.9, "green": 2.1, "yellow": 2.1, "orange": 2.0,
+          "blue": 3.0, "white": 3.0}
+#: An indicator wants to be seen, not to melt or to hog the rail.
+LED_CURRENT_BAND_MA = (0.5, 20.0)
+#: I2C pull-ups: below this the bus sinks too hard for a weak driver; above
+#: it the rise time misses spec on any real capacitance.
+I2C_PULLUP_BAND_OHMS = (1000, 10000)
+
+
+def led_current(*, rail_v: float, resistance_ohms: float,
+                color: str = "green") -> dict[str, object]:
+    """Ohm's law on an indicator: I = (Vrail - Vf) / R.
+
+    This is the check that catches the mistake no DRC can see. A board with a
+    10-ohm series resistor passes compile, ERC, DRC, DFM and every image
+    review, and then draws 130mA through a part rated for 20 and dies.
+    """
+    if resistance_ohms <= 0:
+        raise ValueError(f"resistance must be positive (got {resistance_ohms})")
+    vf = LED_VF.get(color.lower(), 2.1)
+    if rail_v <= vf:
+        return {"current_ma": 0.0, "verdict": "no-conduction", "vf": vf,
+                "severity": "warning"}
+    current_ma = (rail_v - vf) / resistance_ohms * 1000.0
+    low, high = LED_CURRENT_BAND_MA
+    if current_ma > high:
+        verdict, severity = "over-current", "error"
+    elif current_ma < low:
+        verdict, severity = "too-dim", "warning"
+    else:
+        verdict, severity = "ok", "info"
+    return {"current_ma": round(current_ma, 2), "vf": vf,
+            "verdict": verdict, "severity": severity}
+
+
+def led_warnings(*, refdes: str, rail_v: float, resistance_ohms: float,
+                 color: str = "green") -> list[dict[str, str]]:
+    """The LED verdict as contract-shaped warnings. Never raises."""
+    try:
+        result = led_current(rail_v=rail_v, resistance_ohms=resistance_ohms,
+                             color=color)
+    except ValueError as exc:
+        return [{"part": refdes, "kind": "check_failed", "severity": "warning",
+                 "detail": f"led_current: {exc}"}]
+    if result["verdict"] == "ok":
+        return []
+    detail = {
+        "over-current": (
+            f"{result['current_ma']}mA through {refdes} exceeds the "
+            f"{LED_CURRENT_BAND_MA[1]:g}mA an indicator LED is rated for — "
+            "raise the series resistor"
+        ),
+        "too-dim": (
+            f"{result['current_ma']}mA through {refdes} will barely be "
+            "visible — lower the series resistor"
+        ),
+        "no-conduction": (
+            f"{refdes} will never light: a {result['vf']}V forward drop "
+            f"needs more than a {rail_v}V rail"
+        ),
+    }[str(result["verdict"])]
+    return [{"part": refdes, "kind": "functional",
+             "severity": str(result["severity"]), "detail": detail}]
+
+
+def pullup_warnings(*, refdes: str, resistance_ohms: float,
+                    bus: str = "I2C") -> list[dict[str, str]]:
+    """Pull-up value sanity for a shared bus."""
+    low, high = I2C_PULLUP_BAND_OHMS
+    if low <= resistance_ohms <= high:
+        return []
+    if resistance_ohms < low:
+        detail = (
+            f"{refdes} at {resistance_ohms:g}ohm pulls the {bus} bus too hard "
+            f"(under {low}ohm); a weak open-drain driver may not reach a valid low"
+        )
+    else:
+        detail = (
+            f"{refdes} at {resistance_ohms:g}ohm is a weak {bus} pull-up "
+            f"(over {high}ohm); rise time will miss spec on any real bus "
+            "capacitance"
+        )
+    return [{"part": refdes, "kind": "functional", "severity": "warning",
+             "detail": detail}]
+
+
 def estimate_cost(
     *, unique_parts: int, extended_parts: int, joints: int, assembled: bool = True,
     quantity: int = 5,
