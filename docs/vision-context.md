@@ -1,35 +1,50 @@
-# Vision context (not v1 scope)
+# Vision context — v1 scope guard
 
-Recorded 2026-08-09 from Dee, so build decisions stay compatible. **None of this is in
-v1 scope. v1 = Create, perfected.**
+Recorded 2026-08-10 so build decisions stay compatible with where this is going, and so
+v1 stays small. **v1 = chat → verified fab packet, perfected.**
 
-Autonomous TV ("Video", née Steve) is the **create** layer of a future **social network of short dramas**: anyone
-watches, anyone creates, anyone remixes or extends a series. The short-drama market is
-growing fast but supply-capped — a few studios produce everything. Video removes the cap:
-a stay-at-home mom, a student in Brazil, a small artist team in New York can all make
-dramas. A new form of entertainment.
+## v1 is
 
-The house pattern, third instance:
+One loop: describe a gadget → engineering spec → golden-block board source → the staged
+verification gauntlet → a fab packet (gerbers + BOM + CPL + ORDER.md) the user uploads to
+JLCPCB themselves. One fab profile (`jlcpcb`). The packet and the walkthrough are the
+product; the placement-preview screen at JLCPCB is the last safety net.
 
-| | engine | creator tool ("Claude Code for X") | network |
-|---|---|---|---|
-| Hardware | CadQuery/cadpy | **Vibe** | **Panda** (panda-social-backend, panda-mobile) |
-| Short drama | dramapy + video providers | **Video** (this repo) | *(later — do not build yet)* |
+## v1 is not
 
-Design consequences for Create, today:
+- **No ordering API.** None worth having exists — JLCPCB has no assembly endpoint and
+  gates API access on order history (see `circuit-research-2026-08-10.md`). Roadmap, not v1.
+- **No 3D tab.** `board.glb` is written best-effort as an artifact; a viewer tab for it
+  is post-v1.
+- **No screening loop.** The donor's critic pass is deleted; a design-review skill
+  (kicad-happy-style audits) may return post-v1.
 
-1. **Keep the publish seam.** The donor's `project_publish` → panda-social-backend flow
-   and the cover-by-filename convention (`_review/_poster.png` here) are the attachment
-   points the network will reuse. Don't design them away.
-2. **Series must be portable/remixable objects.** A project dir (series.py + episodes/)
-   is self-contained and copyable — that's the future "remix/extend a series" unit.
-   The render cache and cast assets travel with it. Forklore/Storyforest (branching
-   community episodes) is the adjacent concept for extend-lineage.
-3. **Creator-grade defaults, not studio-grade knobs.** The target creator is a person,
-   not a pipeline team — every decision the beat-law tables can make silently, they make.
-4. **Watch-side artifacts** (episode gates, teaser cards, ad-break tolerance) are already
-   modeled in dramalib tables so network monetization needs no re-authoring later.
+## The Vibe pairing
 
-Reference: the social stack lives in autonomous-ai private repos — panda-social-backend,
-panda-social-cc-agent, panda-social-pi-agent, panda-mobile, panda-website. A contract
-skim is archived in the org repo's project notes.
+Circuit is the electrical layer of the hardware row in the house pattern
+(engine / creator tool / network): circuitpy is the engine, this app is the creator
+tool, and the physical-social network is Panda. Two attachment points exist today and
+must not be designed away:
+
+1. **The enclosure interface travels in the `circuit-brief`** (board outline, mounting
+   holes, connector cutouts) so Vibe's CAD loop can design the printed body around real
+   geometry.
+2. **`board.glb` is the 3D handoff artifact** — best-effort per build, the same
+   board-in-a-body loop the field proves with STEP → CAD (StepUp pattern).
+
+Board projects stay portable, self-contained dirs (`product.json` + `parts.json` +
+`blocks/` + `boards/`), copyable as a unit — the future remix object, same as the donor's
+series dirs.
+
+## What we deliberately do NOT build
+
+- **Our own EDA.** tscircuit authors, kicad-cli verifies and exports. We are a product
+  company using AI EDA, not an AI EDA company.
+- **Novel circuits.** Composition from golden blocks + glue only — never an IC circuit
+  invented from a datasheet. No deterministic check knows Ohm's law; the block is the
+  safety mechanism.
+- **Anything mains.** The safety envelope is contract-level and refuses at spec time: no
+  mains ever (≤24V DC), battery only via the sealed validated block, radio only as
+  certified modules.
+- **Registry publishing.** No `tsci push`, no `@tsci` imports in the loop; blocks live
+  in-repo, pinned and snapshot-tested.
