@@ -1,0 +1,12 @@
+{
+  "name": "hydrate-coaster",
+  "description": "USB-C desk coaster that senses how full the cup on it is, so its agent knows whether you actually drank",
+  "power": "usb-c-5v",
+  "envelopeMm": [
+    82,
+    82
+  ],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

@@ -1,0 +1,6 @@
+# Build cache — never edit, never read, never commit.
+.circuit/
+
+# Everything else here IS committed on purpose, generated or not:
+# boards/main.circuit.json, boards/main.board.json, boards/main_review/*,
+# boards/main_fab/* are the artifacts a human actually looks at.

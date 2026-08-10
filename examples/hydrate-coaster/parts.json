@@ -1,0 +1,404 @@
+{
+  "version": 1,
+  "generator": "parts-book",
+  "updated": "2026-08-10",
+  "summary": {
+    "lines": 19,
+    "basic": 13,
+    "extended": 6,
+    "checked": 19
+  },
+  "parts": [
+    {
+      "id": "ams1117-3.3",
+      "lcsc": "C6186",
+      "mfr": "AMS1117-3.3",
+      "package": "SOT-223",
+      "basic": true,
+      "stock": 2007447,
+      "unit_price_usd": 0.2003,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C6186.html",
+      "refdes": [
+        "U2"
+      ],
+      "blocks": [
+        "ldo-3v3"
+      ],
+      "source": "jlcsearch",
+      "description": "AMS1117-3.3"
+    },
+    {
+      "id": "bme280",
+      "lcsc": "C92489",
+      "mfr": "BME280",
+      "package": "LGA-8(2.5x2.5)",
+      "basic": false,
+      "stock": 10327,
+      "unit_price_usd": 6.6604,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C92489.html",
+      "refdes": [
+        "U5"
+      ],
+      "blocks": [
+        "sensor-bme280"
+      ],
+      "source": "jlcsearch",
+      "description": "BME280"
+    },
+    {
+      "id": "c-100nf-0402",
+      "lcsc": "C1525",
+      "mfr": "CL05B104KO5NNNC",
+      "package": "0402",
+      "basic": true,
+      "stock": 16407331,
+      "unit_price_usd": 0.006,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C1525.html",
+      "refdes": [
+        "C14",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10",
+        "C11",
+        "C13",
+        "C4\u2013C11",
+        "C18",
+        "C19"
+      ],
+      "blocks": [
+        "rp2040-core",
+        "sensor-bme280"
+      ],
+      "source": "jlcsearch",
+      "description": "CL05B104KO5NNNC, 100nF X7R"
+    },
+    {
+      "id": "c-10uf-0805",
+      "lcsc": "C15850",
+      "mfr": "CL21A106KAYNNNE",
+      "package": "0805",
+      "basic": true,
+      "stock": 12668317,
+      "unit_price_usd": 0.009143,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C15850.html",
+      "refdes": [
+        "C17",
+        "C2",
+        "C3",
+        "C1"
+      ],
+      "blocks": [
+        "ldo-3v3",
+        "rp2040-core",
+        "usb-c-data",
+        "usb-c-power"
+      ],
+      "source": "jlcsearch",
+      "description": "CL21A106KAYNNNE, 10uF X5R"
+    },
+    {
+      "id": "c-15pf-0402",
+      "lcsc": "C1548",
+      "mfr": "0402CG150J500NT",
+      "package": "0402",
+      "basic": true,
+      "stock": 358497,
+      "unit_price_usd": 0.0022,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C1548.html",
+      "refdes": [
+        "C15",
+        "C16"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "0402CG150J500NT, 15pF C0G"
+    },
+    {
+      "id": "c-1uf-0402",
+      "lcsc": "C52923",
+      "mfr": "CL05A105KA5NQNC",
+      "package": "0402",
+      "basic": true,
+      "stock": 14528955,
+      "unit_price_usd": 0.002714,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C52923.html",
+      "refdes": [
+        "C12"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "CL05A105KA5NQNC, 1uF"
+    },
+    {
+      "id": "led-green-0805",
+      "lcsc": "C2297",
+      "mfr": "KT-0805G",
+      "package": "0805",
+      "basic": true,
+      "stock": 2802846,
+      "unit_price_usd": 0.0102,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C2297.html",
+      "refdes": [
+        "LED1"
+      ],
+      "blocks": [
+        "status-led"
+      ],
+      "source": "jlcsearch",
+      "description": "KT-0805G, green"
+    },
+    {
+      "id": "r-10k-0402",
+      "lcsc": "C25744",
+      "mfr": "0402WGF1002TCE",
+      "package": "0402",
+      "basic": true,
+      "stock": 1256270,
+      "unit_price_usd": 0.0029,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C25744.html",
+      "refdes": [
+        "R12"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "0402WGF1002TCE, 10k\u03a9"
+    },
+    {
+      "id": "r-1k-0402",
+      "lcsc": "C11702",
+      "mfr": "0402WGF1001TCE",
+      "package": "0402",
+      "basic": true,
+      "stock": 12617545,
+      "unit_price_usd": 0.0005,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C11702.html",
+      "refdes": [
+        "R11",
+        "R13",
+        "R20"
+      ],
+      "blocks": [
+        "rp2040-core",
+        "status-led"
+      ],
+      "source": "jlcsearch",
+      "description": "0402WGF1001TCE, 1k\u03a9"
+    },
+    {
+      "id": "r-1m-0402",
+      "lcsc": "C26083",
+      "mfr": "0402WGF1004TCE",
+      "package": "0402",
+      "basic": true,
+      "stock": 4199214,
+      "unit_price_usd": 0.000529,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C26083.html",
+      "refdes": [
+        "R31"
+      ],
+      "blocks": [],
+      "source": "jlcsearch",
+      "override": true
+    },
+    {
+      "id": "r-27-0402",
+      "lcsc": "C25100",
+      "mfr": "0402WGF270JTCE",
+      "package": "0402",
+      "basic": false,
+      "stock": 1738,
+      "unit_price_usd": 0.001,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C25100.html",
+      "refdes": [
+        "R3",
+        "R4"
+      ],
+      "blocks": [
+        "usb-c-data"
+      ],
+      "source": "jlcsearch",
+      "description": "0402WGF270JTCE, 27\u03a9 \u00b15%"
+    },
+    {
+      "id": "r-4.7k-0402",
+      "lcsc": "C25900",
+      "mfr": "0402WGF4701TCE",
+      "package": "0402",
+      "basic": true,
+      "stock": 9379077,
+      "unit_price_usd": 0.000486,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C25900.html",
+      "refdes": [
+        "R8",
+        "R9"
+      ],
+      "blocks": [
+        "i2c-bus"
+      ],
+      "source": "jlcsearch",
+      "description": "0402WGF4701TCE, 4.7k\u03a9 \u00b11%"
+    },
+    {
+      "id": "r-5.1k-0402",
+      "lcsc": "C25905",
+      "mfr": "0402WGF5101TCE",
+      "package": "0402",
+      "basic": true,
+      "stock": 8446095,
+      "unit_price_usd": 0.000443,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C25905.html",
+      "refdes": [
+        "R1",
+        "R2"
+      ],
+      "blocks": [
+        "usb-c-data",
+        "usb-c-power"
+      ],
+      "source": "jlcsearch",
+      "description": "0402WGF5101TCE, 5.1k\u03a9 \u00b11%"
+    },
+    {
+      "id": "rp2040",
+      "lcsc": "C2040",
+      "mfr": "RP2040",
+      "package": "LQFN-56(7x7)",
+      "basic": false,
+      "stock": 53973,
+      "unit_price_usd": 0.9941,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C2040.html",
+      "refdes": [
+        "U3"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "RP2040"
+    },
+    {
+      "id": "ts-1187a-b-a-b",
+      "lcsc": "C318884",
+      "mfr": "TS-1187A-B-A-B",
+      "package": "SMD-4P,5.1x5.1mm",
+      "basic": true,
+      "stock": 918009,
+      "unit_price_usd": 0.017714,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C318884.html",
+      "refdes": [
+        "SW2",
+        "SW3",
+        "SW1"
+      ],
+      "blocks": [
+        "rp2040-core",
+        "sw-tact"
+      ],
+      "source": "jlcsearch",
+      "description": "TS-1187A-B-A-B"
+    },
+    {
+      "id": "type-c-31-m-12",
+      "lcsc": "C165948",
+      "mfr": "TYPE-C-31-M-12",
+      "package": "SMD",
+      "basic": false,
+      "stock": 336394,
+      "unit_price_usd": 0.161286,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C165948.html",
+      "refdes": [
+        "J1"
+      ],
+      "blocks": [
+        "usb-c-power",
+        "usb-c-data"
+      ],
+      "source": "jlcsearch",
+      "description": "TYPE-C-31-M-12"
+    },
+    {
+      "id": "usblc6-2sc6",
+      "lcsc": "C2687116",
+      "mfr": "USBLC6-2SC6",
+      "package": "SOT-23-6",
+      "basic": false,
+      "stock": 231248,
+      "unit_price_usd": 0.035,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C2687116.html",
+      "refdes": [
+        "U1"
+      ],
+      "blocks": [
+        "usb-c-power",
+        "usb-c-data"
+      ],
+      "source": "jlcsearch",
+      "description": "USBLC6-2SC6"
+    },
+    {
+      "id": "w25q128jvsiq",
+      "lcsc": "C97521",
+      "mfr": "W25Q128JVSIQ",
+      "package": "SOIC-8-208mil",
+      "basic": true,
+      "stock": 94978,
+      "unit_price_usd": 2.4501,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C97521.html",
+      "refdes": [
+        "U4"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "W25Q128JVSIQ, 128Mbit QSPI flash"
+    },
+    {
+      "id": "y-12mhz-crystal",
+      "lcsc": "C20625731",
+      "mfr": "ABM8-272-T3",
+      "package": "SMD3225-4P",
+      "basic": false,
+      "stock": 18110,
+      "unit_price_usd": 0.2938,
+      "stock_checked": "2026-08-10",
+      "datasheet_url": "https://www.lcsc.com/product-detail/C20625731.html",
+      "refdes": [
+        "Y1"
+      ],
+      "blocks": [
+        "rp2040-core"
+      ],
+      "source": "jlcsearch",
+      "description": "ABM8-272-T3, 12MHz"
+    }
+  ]
+}
