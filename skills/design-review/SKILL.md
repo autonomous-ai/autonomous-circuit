@@ -39,6 +39,7 @@ and stops. Each returns a score 1–10 and a list of notes.
 | # | Lens | The question it alone asks |
 |---|---|---|
 | 1 | **Power integrity** | Do the rails hold up? Budget vs source, regulator dropout and heat, decoupling placement and count, bulk capacitance, inrush, brown-out on the MCU. |
+
 | 2 | **Manufacturability** | Will the fab build this right the first time? DFM margins, part availability and Basic/extended mix, rotation-prone packages, assembly side, panelization, silkscreen legibility. |
 | 3 | **Layout & signal** | Is the physical design sound? Placement logic, return paths and ground, trace widths for current, connector access, antenna and mounting keep-outs, thermal spreading. |
 | 4 | **Testability & bring-up** | When it arrives dead, how do we find out why? Test points on every rail, boot/reset access, an LED that proves power, probe-able signals, a written bring-up order. |
@@ -70,6 +71,35 @@ Then `Read` **both** `_review/_schematic.png` and `_review/_pcb.png`, and read
 `<stem>.board.json` (warnings, BOM summary, fab state), `product.json`,
 `parts.json`, and the board source. A reviewer who has not looked at the
 pictures is guessing.
+
+### 1b. Do the arithmetic — do not eyeball it
+
+Three lenses have real maths available. Run it; a number beats an impression,
+and these are exactly the failure classes the gauntlet is blind to:
+
+```python
+from circuitlib.helpers import (
+    regulator_thermal, led_current, pullup_warnings,
+    power_budget, trace_width_for,
+)
+from circuitlib.parts import cheaper_basic_part
+
+# power lens — will the regulator cook?
+regulator_thermal(vin=5.0, vout=3.3, current_a=0.18, package="SOT-223")
+
+# power lens — is every indicator's series resistor sane?
+led_current(rail_v=3.3, resistance_ohms=1000)
+
+# layout lens — is the power trace wide enough for the current it carries?
+trace_width_for(current_a=0.5)
+
+# cost lens — is an extended part costing ~$3/line for nothing?
+cheaper_basic_part("C25100")
+```
+
+A board passes every structural check with a 10-ohm LED resistor or an LDO
+dissipating a watt in a SOT-23. If you score the power lens without running
+these, you have scored a guess.
 
 ### 2. Score each lens
 
