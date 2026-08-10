@@ -71,12 +71,21 @@ echo >> "$REPORT"
 echo "## Candidate (latest)" >> "$REPORT"
 echo >> "$REPORT"
 
-cat > "$SCRATCH/package.json" <<EOF
-{
-  "name": "circuit-toolchain-canary",
-  "private": true,
-  "dependencies": { "tscircuit": "$LATEST" }
-}
+# Mirror the real dependency set and bump ONLY tscircuit. Installing tscircuit
+# alone leaves out tsx (the CLI's TSX runner), @tscircuit/checks, circuit-to-svg
+# and sharp, and every block then fails for want of a runner — a false alarm
+# indistinguishable from a genuine upstream break, which is exactly how a
+# canary stops being believed.
+"$PY" - "$REPO_ROOT/toolchain/package.json" "$SCRATCH/package.json" "$LATEST" <<'EOF'
+import json, sys
+src, dest, latest = sys.argv[1], sys.argv[2], sys.argv[3]
+pkg = json.load(open(src))
+deps = dict(pkg.get("dependencies", {}))
+deps["tscircuit"] = latest
+json.dump(
+    {"name": "circuit-toolchain-canary", "private": True, "dependencies": deps},
+    open(dest, "w"), indent=2,
+)
 EOF
 
 if ! (cd "$SCRATCH" && npm install --no-audit --no-fund --silent > /tmp/canary-install.txt 2>&1); then

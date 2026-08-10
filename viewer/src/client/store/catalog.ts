@@ -1,9 +1,9 @@
-// Catalog store for the Circuit episode workspace.
+// Catalog store for the Circuit board workspace.
 //
 // Replaces the donor's cadjs `cadManifestStore` for the app: one zustand store
 // holding the workspace catalog, refreshed via `transport.catalog_read()` and
 // kept live by the `catalog_changed` SSE event (plus `artifact_changed` chat
-// events, which we track per-file so the episode rail can show a "rendering"
+// events, which we track per-file so the board rail can show a "building"
 // dot while a generation is writing files).
 //
 // The pure state transitions are exported as standalone functions so node:test
@@ -21,7 +21,7 @@ export const EMPTY_CATALOG: Catalog = Object.freeze({
 }) as Catalog;
 
 // Files touched by an `artifact_changed` chat event older than this are pruned
-// — they no longer count as "generation in progress" for the episode rail.
+// — they no longer count as "generation in progress" for the board rail.
 export const ARTIFACT_ACTIVITY_TTL_MS = 45_000;
 
 // ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ let streamUnsubscribe: (() => void) | null = null;
  * Subscribe the store to the transport's live events:
  *   - `catalog_changed {revision}` → refetch when the revision moved forward.
  *   - `chat_event {kind:"artifact_changed", file}` → stamp per-file activity so
- *     the episode rail can mark an episode "rendering" while its files churn.
+ *     the board rail can mark a board "building" while its files churn.
  *
  * Idempotent — only the latest subscription is retained. Returns unsubscribe.
  */

@@ -232,7 +232,7 @@ export default function ChatSidebar({
             <ChatInput
               ref={chatInputRef}
               className="w-full shrink-0"
-              placeholder="Or type your own… e.g. a chef who secretly owns the restaurant"
+              placeholder="Or type your own… e.g. a coaster that knows when my glass is empty"
             />
           </div>
         ) : isHydratingSession ? (

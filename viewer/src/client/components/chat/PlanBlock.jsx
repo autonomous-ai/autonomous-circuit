@@ -116,7 +116,7 @@ export default function PlanBlock({ plan, status }) {
             <Textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="What should change? e.g. open on the betrayal, give the ending a harder cliffhanger…"
+              placeholder="What should change? e.g. move the connector to the short edge, drop the part count…"
               rows={2}
               className="scrollbar-thin border-border bg-foreground/[0.04] text-sm text-foreground placeholder:text-muted-foreground"
               data-slot="chat-plan-feedback"
