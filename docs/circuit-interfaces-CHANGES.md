@@ -14,6 +14,33 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-10 — `scripts/check` runs the full pipeline into a tempdir, not stages 0–2
+- **Change:** §3 specifies `python skills/circuitcode/scripts/check <same>` as
+  "stages 0–2 only, tempdir, paths stripped". circuitpy exposes no
+  stages-limited entry point — `build_board()` is the whole §1 public surface —
+  so `check` calls `build_board()` with `output_path` inside a
+  `circuitcode-check-*` tempdir and presents a stages-0–2-*shaped* result: the
+  tempdir is deleted, the path members (`circuit_json_path`, `metadata_path`,
+  `schematic_png`, `pcb_png`) and the whole `fab` member are stripped, and the
+  two warning kinds that describe only the discarded packet
+  (`kicad_unavailable`, `unverified_gerbers`) are dropped. `ok`, `board`,
+  `bom`, `warnings`, `error` are unchanged. Every other §3 contract for
+  `check` (one JSON line, same arg shape, no workspace writes) holds.
+- **Why:** the alternative was re-implementing stage 0 (mirror-copy,
+  `tscircuit-cli build` argv, the `dist/<entry>/circuit.json` layout) in the
+  skill, duplicating `generation.py`'s private surface and guaranteeing drift
+  the moment the pipeline track changes it. The frozen rule is that the spine
+  owns the stages; the skill is a CLI over it. Decided while building the
+  circuitcode CLI layer (2026-08-10).
+- **Backward compatible:** yes for consumers — the emitted JSON is a subset of
+  what §3 promises. Not free at runtime: `check` costs a full build (KiCad
+  crossing + fab export) instead of a cheap structural pass, so it is slower
+  than the contract implies. Reverting to a true stages-0–2 path is a pure
+  win the day circuitpy exposes one (e.g. `build_board(..., max_stage=2)`).
+- **Mechanism:** `skills/circuitcode/scripts/check/cli.py` (`STRIPPED_KEYS`,
+  `PACKET_ONLY_KINDS`). No pipeline change, no re-vendor.
+- **Tracks affected:** skills / docs (§3 `check` line when the freeze lifts).
+
 ## 2026-08-10 — Fab packet members written on non-ready builds too (ORDER.md stays ready-only)
 - **Change:** `build_board()` writes `gerbers.zip` / `bom.csv` / `cpl.csv` into
   `<stem>_fab/` whenever the exports succeed — including builds with
