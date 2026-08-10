@@ -7,6 +7,7 @@
 // Errors are `IpcError {code, message, detail?}` JSON bodies on 4xx/5xx.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 
@@ -143,8 +144,17 @@ export function toolchainDir(env = process.env) {
   );
 }
 
-/** kicad-cli lives on PATH or inside the macOS app bundle (contract §1). */
-const KICAD_APP_BUNDLE_BIN = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
+/** kicad-cli lives on PATH or inside a macOS app bundle (contract §1).
+ * The user-local bundle is listed because the Homebrew cask needs sudo for a
+ * shared demos folder, so extracting the app into ~/Applications is the
+ * no-sudo install — and a board is only shippable when kicad-cli is found.
+ * Keep this list in step with circuitpy/toolchain.py's KICAD_APP_BUNDLES. */
+const KICAD_APP_BUNDLE_BINS = [
+  "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
+  "/Applications/KiCad.app/Contents/MacOS/kicad-cli",
+  path.join(os.homedir(), "Applications/KiCad.app/Contents/MacOS/kicad-cli"),
+  path.join(os.homedir(), "Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"),
+];
 
 async function prereqCheck(env) {
   const claudePath = resolveClaude(env);
@@ -189,14 +199,20 @@ async function prereqCheck(env) {
 
   // kicad-cli — reported, not required (absent → tscircuit-exported gerbers
   // with a blocking-for-ship unverified_gerbers warning, per contract §1).
-  let kicadPath = findOnAugmentedPath("kicad-cli", env);
+  let kicadPath =
+    (env.CIRCUIT_KICAD_CLI && fs.existsSync(env.CIRCUIT_KICAD_CLI)
+      ? env.CIRCUIT_KICAD_CLI
+      : null) || findOnAugmentedPath("kicad-cli", env);
   if (!kicadPath) {
-    try {
-      if (fs.statSync(KICAD_APP_BUNDLE_BIN).isFile()) {
-        kicadPath = KICAD_APP_BUNDLE_BIN;
+    for (const candidate of KICAD_APP_BUNDLE_BINS) {
+      try {
+        if (fs.statSync(candidate).isFile()) {
+          kicadPath = candidate;
+          break;
+        }
+      } catch {
+        // not at this location; try the next
       }
-    } catch {
-      // not installed
     }
   }
   let kicadVersion;
