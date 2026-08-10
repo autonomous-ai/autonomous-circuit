@@ -1,0 +1,20 @@
+[
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C6521",
+  "mfr": "CD4052BM96",
+  "package": "SOIC-16",
+  "price": 0.262857,
+  "stock": 23942
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C21379",
+  "mfr": "CD4051BM96",
+  "package": "SOIC-16-150mil",
+  "price": 0.145343,
+  "stock": 19499
+ }
+]

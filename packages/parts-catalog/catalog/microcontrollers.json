@@ -1,0 +1,29 @@
+[
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C8734",
+  "mfr": "STM32F103C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.037143,
+  "stock": 214596
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C52717",
+  "mfr": "STM8S003F3P6TR",
+  "package": "TSSOP-20",
+  "price": 0.315714,
+  "stock": 211333
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C23922",
+  "mfr": "STM32F030C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.76,
+  "stock": 36821
+ }
+]

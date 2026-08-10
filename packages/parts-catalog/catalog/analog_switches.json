@@ -1,0 +1,702 @@
+[
+ {
+  "lcsc": "C38663",
+  "mfr": "SN74LVC1G3157DCKR",
+  "package": "SC-70-6(SOT-363)",
+  "price": 0.053714,
+  "stock": 175775
+ },
+ {
+  "lcsc": "C2681224",
+  "mfr": "SN74LVC1G3157DCKR",
+  "package": "SC-70-6",
+  "price": 0.042143,
+  "stock": 138108
+ },
+ {
+  "lcsc": "C394901",
+  "mfr": "UMW3157",
+  "package": "SC-70-6",
+  "price": 0.052,
+  "stock": 95158
+ },
+ {
+  "lcsc": "C133575",
+  "mfr": "TS5A63157DCKR",
+  "package": "SC-70-6",
+  "price": 0.295786,
+  "stock": 61758
+ },
+ {
+  "lcsc": "C10426",
+  "mfr": "SN74LVC1G3157DBVR",
+  "package": "SOT-23-6",
+  "price": 0.049286,
+  "stock": 55226
+ },
+ {
+  "lcsc": "C46388",
+  "mfr": "TS5A3159DCKR",
+  "package": "SC-70-6(SOT-363)",
+  "price": 0.177571,
+  "stock": 53372
+ },
+ {
+  "lcsc": "C5645",
+  "mfr": "74HC4051PW,118",
+  "package": "TSSOP-16",
+  "price": 0.175429,
+  "stock": 24505
+ },
+ {
+  "lcsc": "C6521",
+  "mfr": "CD4052BM96",
+  "package": "SOIC-16",
+  "price": 0.262857,
+  "stock": 23942
+ },
+ {
+  "lcsc": "C3040658",
+  "mfr": "SN74LVC1G3157DBVR(UMW)",
+  "package": "SOT-23-6",
+  "price": 0.042,
+  "stock": 23356
+ },
+ {
+  "lcsc": "C21379",
+  "mfr": "CD4051BM96",
+  "package": "SOIC-16-150mil",
+  "price": 0.145343,
+  "stock": 19499
+ },
+ {
+  "lcsc": "C3007952",
+  "mfr": "CD4052BMT/TR",
+  "package": "TSSOP-16",
+  "price": 0.129429,
+  "stock": 13335
+ },
+ {
+  "lcsc": "C255480",
+  "mfr": "RS2251XTSS16",
+  "package": "TSSOP-16",
+  "price": 0.241571,
+  "stock": 11617
+ },
+ {
+  "lcsc": "C526711",
+  "mfr": "PI3USB14-AZHEX",
+  "package": "VQFN-20-EP(3.5x4.5)",
+  "price": 0.524286,
+  "stock": 11449
+ },
+ {
+  "lcsc": "C9386",
+  "mfr": "74HC4051D,653",
+  "package": "SOIC-16",
+  "price": 0.212286,
+  "stock": 11173
+ },
+ {
+  "lcsc": "C54587",
+  "mfr": "CD4051BPWR",
+  "package": "TSSOP-16",
+  "price": 0.153943,
+  "stock": 10468
+ },
+ {
+  "lcsc": "C130087",
+  "mfr": "TS5A3167DCKR",
+  "package": "SC-70-5",
+  "price": 0.2871,
+  "stock": 10332
+ },
+ {
+  "lcsc": "C11351",
+  "mfr": "HEF4051BT,653",
+  "package": "SOIC-16",
+  "price": 0.315429,
+  "stock": 9547
+ },
+ {
+  "lcsc": "C92485",
+  "mfr": "TS5A3159DBVR",
+  "package": "SOT-23-6",
+  "price": 0.334286,
+  "stock": 9016
+ },
+ {
+  "lcsc": "C113518",
+  "mfr": "SN74LVC1G66DCKR",
+  "package": "SC-70-5",
+  "price": 0.051,
+  "stock": 8497
+ },
+ {
+  "lcsc": "C213161",
+  "mfr": "WAS3157B-6/TR",
+  "package": "SOT-363",
+  "price": 0.060857,
+  "stock": 8449
+ },
+ {
+  "lcsc": "C87239",
+  "mfr": "74HCT4051D,118",
+  "package": "SOIC-16",
+  "price": 0.243429,
+  "stock": 7947
+ },
+ {
+  "lcsc": "C128405",
+  "mfr": "TS5A3159ADBVR",
+  "package": "SOT-23-6",
+  "price": 0.49,
+  "stock": 7900
+ },
+ {
+  "lcsc": "C353035",
+  "mfr": "TS5A3166DBVR",
+  "package": "SOT-23-5",
+  "price": 0.284429,
+  "stock": 7635
+ },
+ {
+  "lcsc": "C512961",
+  "mfr": "FSA2567MPX",
+  "package": "WFQFN-16(3x3)",
+  "price": 0.542857,
+  "stock": 7515
+ },
+ {
+  "lcsc": "C7285",
+  "mfr": "MC14052BDR2G",
+  "package": "SOIC-16",
+  "price": 0.296186,
+  "stock": 7480
+ },
+ {
+  "lcsc": "C11350",
+  "mfr": "74HC4052D,653",
+  "package": "SOIC-16",
+  "price": 0.242143,
+  "stock": 7465
+ },
+ {
+  "lcsc": "C31055",
+  "mfr": "DG408DY-T1-E3",
+  "package": "SOIC-16",
+  "price": 0.887143,
+  "stock": 6270
+ },
+ {
+  "lcsc": "C357761",
+  "mfr": "FSA2567UMX",
+  "package": "UFQFN-16(1.8x2.6)",
+  "price": 0.672857,
+  "stock": 6088
+ },
+ {
+  "lcsc": "C402158",
+  "mfr": "CD74HC4052PWR",
+  "package": "TSSOP-16",
+  "price": 0.183,
+  "stock": 5801
+ },
+ {
+  "lcsc": "C42381445",
+  "mfr": "COS3157ST",
+  "package": "SOT-23-6",
+  "price": 0.047429,
+  "stock": 5549
+ },
+ {
+  "lcsc": "C882807",
+  "mfr": "TS3USB3000RSER",
+  "package": "UQFN-10(1.5x2)",
+  "price": 0.424286,
+  "stock": 5419
+ },
+ {
+  "lcsc": "C73880",
+  "mfr": "TS3USB30ERSWR",
+  "package": "UQFN-10(1.4x1.8)",
+  "price": 0.229714,
+  "stock": 5231
+ },
+ {
+  "lcsc": "C255475",
+  "mfr": "RS2058XN",
+  "package": "MSOP-10",
+  "price": 0.255857,
+  "stock": 4907
+ },
+ {
+  "lcsc": "C128414",
+  "mfr": "SN74LV4051ADR",
+  "package": "SOIC-16",
+  "price": 0.232429,
+  "stock": 4597
+ },
+ {
+  "lcsc": "C146324",
+  "mfr": "74VHC4051AFT",
+  "package": "TSSOP-16-175mil",
+  "price": 0.184714,
+  "stock": 4501
+ },
+ {
+  "lcsc": "C141533",
+  "mfr": "DG470EQ-T1-E3",
+  "package": "MSOP-8",
+  "price": 1.291429,
+  "stock": 4290
+ },
+ {
+  "lcsc": "C2673281",
+  "mfr": "MUX509IPWR",
+  "package": "TSSOP-16",
+  "price": 1.214286,
+  "stock": 4015
+ },
+ {
+  "lcsc": "C783422",
+  "mfr": "RS2266XM",
+  "package": "MSOP-8",
+  "price": 0.241571,
+  "stock": 3938
+ },
+ {
+  "lcsc": "C2869871",
+  "mfr": "TMUXHS4212RKSR",
+  "package": "VQFN-20(2.5x4.5)",
+  "price": 0.945714,
+  "stock": 3886
+ },
+ {
+  "lcsc": "C111869",
+  "mfr": "TS12A12511DCNR",
+  "package": "SOT-23-8",
+  "price": 0.824286,
+  "stock": 3840
+ },
+ {
+  "lcsc": "C16870",
+  "mfr": "MC74HC4051ADR2G",
+  "package": "SOIC-16",
+  "price": 0.324286,
+  "stock": 3757
+ },
+ {
+  "lcsc": "C2673096",
+  "mfr": "DG4157EDL-T1-GE3",
+  "package": "SC-70-6",
+  "price": 0.478571,
+  "stock": 3745
+ },
+ {
+  "lcsc": "C2876797",
+  "mfr": "TMUX1208QRSVRQ1",
+  "package": "UQFN-16(1.8x2.6)",
+  "price": 0.532857,
+  "stock": 3688
+ },
+ {
+  "lcsc": "C157480",
+  "mfr": "TS5A1066DBVR",
+  "package": "SOT-23-5",
+  "price": 0.234286,
+  "stock": 3482
+ },
+ {
+  "lcsc": "C255472",
+  "mfr": "RS2103XH",
+  "package": "SOT-23-6",
+  "price": 0.227429,
+  "stock": 3397
+ },
+ {
+  "lcsc": "C237027",
+  "mfr": "RS2057XC6",
+  "package": "SC-70-6",
+  "price": 0.076,
+  "stock": 3347
+ },
+ {
+  "lcsc": "C237025",
+  "mfr": "RS2105XN",
+  "package": "MSOP-10",
+  "price": 0.27,
+  "stock": 3200
+ },
+ {
+  "lcsc": "C179326",
+  "mfr": "74HC4067PW,118",
+  "package": "TSSOP-24",
+  "price": 0.581429,
+  "stock": 3189
+ },
+ {
+  "lcsc": "C155356",
+  "mfr": "PI3USB102GZLEX",
+  "package": "TQFN-10(1.3x1.6)",
+  "price": 0.286957,
+  "stock": 3159
+ },
+ {
+  "lcsc": "C181584",
+  "mfr": "TS5A21366RSER",
+  "package": "UQFN-8(1.5x1.5)",
+  "price": 0.765714,
+  "stock": 3119
+ },
+ {
+  "lcsc": "C2673327",
+  "mfr": "TMUX1119DCKR",
+  "package": "SC-70-6",
+  "price": 1.2,
+  "stock": 3094
+ },
+ {
+  "lcsc": "C176651",
+  "mfr": "74LVC1G3157DW-7",
+  "package": "SOT-363-6",
+  "price": 0.049429,
+  "stock": 3081
+ },
+ {
+  "lcsc": "C2673425",
+  "mfr": "TS12A4516DBVR",
+  "package": "SOT-23-5",
+  "price": 0.475714,
+  "stock": 3063
+ },
+ {
+  "lcsc": "C205942",
+  "mfr": "TS12A4514DBVR",
+  "package": "SOT-23-5",
+  "price": 0.48,
+  "stock": 3056
+ },
+ {
+  "lcsc": "C2652433",
+  "mfr": "TS3USB30RSWR",
+  "package": "UQFN-10(1.4x1.8)",
+  "price": 0.634286,
+  "stock": 3037
+ },
+ {
+  "lcsc": "C20616363",
+  "mfr": "ET3157-HXY",
+  "package": "SC-70-6",
+  "price": 0.047,
+  "stock": 3010
+ },
+ {
+  "lcsc": "C2673291",
+  "mfr": "TC7WBL3305CFK,L(CT",
+  "package": "US-8",
+  "price": 0.190286,
+  "stock": 3000
+ },
+ {
+  "lcsc": "C2978620",
+  "mfr": "GS3221-CR",
+  "package": "SC-70-6",
+  "price": 0.077286,
+  "stock": 3000
+ },
+ {
+  "lcsc": "C496123",
+  "mfr": "CD74HC4067M96",
+  "package": "SOIC-24-300mil",
+  "price": 0.625714,
+  "stock": 2999
+ },
+ {
+  "lcsc": "C5306799",
+  "mfr": "COS12A12511",
+  "package": "MSOP-8",
+  "price": 0.48,
+  "stock": 2989
+ },
+ {
+  "lcsc": "C2673290",
+  "mfr": "TC7WBL3306CFK,L(CT",
+  "package": "US-8",
+  "price": 0.286914,
+  "stock": 2985
+ },
+ {
+  "lcsc": "C2673436",
+  "mfr": "PI3A223ZMEX",
+  "package": "UQFN-10(1.4x1.8)",
+  "price": 0.126429,
+  "stock": 2985
+ },
+ {
+  "lcsc": "C526712",
+  "mfr": "PI3USB221AZUAEX",
+  "package": "UQFN-10(1.5x2)",
+  "price": 0.512857,
+  "stock": 2961
+ },
+ {
+  "lcsc": "C237026",
+  "mfr": "RS2101XC6",
+  "package": "SC-70-6",
+  "price": 0.196571,
+  "stock": 2942
+ },
+ {
+  "lcsc": "C2869838",
+  "mfr": "TMUX1219DBVR",
+  "package": "SOT-23-6",
+  "price": 0.181571,
+  "stock": 2940
+ },
+ {
+  "lcsc": "C840037",
+  "mfr": "GS3005-MR",
+  "package": "MSOP-10",
+  "price": 0.135857,
+  "stock": 2927
+ },
+ {
+  "lcsc": "C783418",
+  "mfr": "RS2166XF5",
+  "package": "SOT-23-5",
+  "price": 0.15,
+  "stock": 2921
+ },
+ {
+  "lcsc": "C2673087",
+  "mfr": "SN74LVC1G3157DTBR",
+  "package": "X2SON-6(0.8x1)",
+  "price": 0.102857,
+  "stock": 2868
+ },
+ {
+  "lcsc": "C7284",
+  "mfr": "MC14051BDR2G",
+  "package": "SOIC-16",
+  "price": 0.240286,
+  "stock": 2809
+ },
+ {
+  "lcsc": "C273641",
+  "mfr": "SN74LV4052ADR",
+  "package": "SOIC-16",
+  "price": 0.308571,
+  "stock": 2740
+ },
+ {
+  "lcsc": "C478457",
+  "mfr": "FUSB340TMX",
+  "package": "X2-QFN-18",
+  "price": 0.657143,
+  "stock": 2693
+ },
+ {
+  "lcsc": "C97489",
+  "mfr": "74LVC1G66GW,125",
+  "package": "SOT-353",
+  "price": 0.063286,
+  "stock": 2663
+ },
+ {
+  "lcsc": "C47063",
+  "mfr": "MAX4638EUE+T",
+  "package": "TSSOP-16",
+  "price": 4.091429,
+  "stock": 2649
+ },
+ {
+  "lcsc": "C239212",
+  "mfr": "MAX4544EUT+T",
+  "package": "SOT-23-6",
+  "price": 1.285714,
+  "stock": 2591
+ },
+ {
+  "lcsc": "C20616364",
+  "mfr": "SN74LVC1G3157DCKR-HXY",
+  "package": "SC-70-6",
+  "price": 0.059,
+  "stock": 2557
+ },
+ {
+  "lcsc": "C61383",
+  "mfr": "ADG719BRTZ-REEL7",
+  "package": "SOT-23-6",
+  "price": 1.152857,
+  "stock": 2515
+ },
+ {
+  "lcsc": "C508243",
+  "mfr": "PI3C3306UEX",
+  "package": "MSOP-8",
+  "price": 0.42,
+  "stock": 2494
+ },
+ {
+  "lcsc": "C143485",
+  "mfr": "MAX4644EUT+T",
+  "package": "SOT-23-6",
+  "price": 1.401429,
+  "stock": 2484
+ },
+ {
+  "lcsc": "C154899",
+  "mfr": "PI3USB102EZLEX",
+  "package": "TQFN-10(1.3x1.6)",
+  "price": 0.211429,
+  "stock": 2452
+ },
+ {
+  "lcsc": "C7473149",
+  "mfr": "CD4053BM-MS",
+  "package": "SOP-16",
+  "price": 0.140857,
+  "stock": 2445
+ },
+ {
+  "lcsc": "C6548",
+  "mfr": "CD74HC4052M96",
+  "package": "SOIC-16",
+  "price": 0.348571,
+  "stock": 2440
+ },
+ {
+  "lcsc": "C132065",
+  "mfr": "CD74HC4051M96",
+  "package": "SOIC-16",
+  "price": 0.237143,
+  "stock": 2423
+ },
+ {
+  "lcsc": "C128419",
+  "mfr": "TS3A5223RSWR",
+  "package": "QFN-10(1.8x1.4)",
+  "price": 0.407143,
+  "stock": 2418
+ },
+ {
+  "lcsc": "C146311",
+  "mfr": "74VHC4052AFT",
+  "package": "TSSOP-16-175mil",
+  "price": 0.272857,
+  "stock": 2409
+ },
+ {
+  "lcsc": "C6581",
+  "mfr": "DG419DY-T1-E3",
+  "package": "SOIC-8",
+  "price": 0.931429,
+  "stock": 2349
+ },
+ {
+  "lcsc": "C3656915",
+  "mfr": "TMUX1248DCKR",
+  "package": "SC-70-6",
+  "price": 0.491429,
+  "stock": 2326
+ },
+ {
+  "lcsc": "C406862",
+  "mfr": "CD74HCT4051M96",
+  "package": "SOP-16",
+  "price": 0.342857,
+  "stock": 2302
+ },
+ {
+  "lcsc": "C31152",
+  "mfr": "ADG736BRMZ-REEL",
+  "package": "MSOP-10",
+  "price": 1.134286,
+  "stock": 2237
+ },
+ {
+  "lcsc": "C2673206",
+  "mfr": "DG9411EDL-T1-GE3",
+  "package": "SC-70-6",
+  "price": 0.514286,
+  "stock": 2081
+ },
+ {
+  "lcsc": "C12514",
+  "mfr": "74LVC1G66GV,125",
+  "package": "SC-74A",
+  "price": 0.128429,
+  "stock": 1984
+ },
+ {
+  "lcsc": "C970231",
+  "mfr": "TMUX1308PWR",
+  "package": "TSSOP-16-175mil",
+  "price": 0.190286,
+  "stock": 1914
+ },
+ {
+  "lcsc": "C42379164",
+  "mfr": "NX3DV42GU-TP",
+  "package": "QFN-10(1.4x1.8)",
+  "price": 0.264143,
+  "stock": 1898
+ },
+ {
+  "lcsc": "C11352",
+  "mfr": "HEF4052BT,653",
+  "package": "SOIC-16",
+  "price": 0.214429,
+  "stock": 1854
+ },
+ {
+  "lcsc": "C353034",
+  "mfr": "TS5A3157DBVR",
+  "package": "SOT-23-6",
+  "price": 0.223,
+  "stock": 1762
+ },
+ {
+  "lcsc": "C8142",
+  "mfr": "SN74LV4052APWR",
+  "package": "TSSOP-16",
+  "price": 0.224286,
+  "stock": 1736
+ },
+ {
+  "lcsc": "C255473",
+  "mfr": "RS2102XN",
+  "package": "MSOP-10",
+  "price": 0.278571,
+  "stock": 1646
+ },
+ {
+  "lcsc": "C2673354",
+  "mfr": "DG419BDQ-T1-E3",
+  "package": "MSOP-8",
+  "price": 1.112857,
+  "stock": 1642
+ },
+ {
+  "lcsc": "C2651913",
+  "mfr": "SN74LVC2G66DCTR",
+  "package": "MSOP-8",
+  "price": 0.201857,
+  "stock": 1632
+ },
+ {
+  "lcsc": "C42751",
+  "mfr": "TS5A23159DGSR",
+  "package": "VSSOP-10-0.5mm",
+  "price": 0.517143,
+  "stock": 1602
+ },
+ {
+  "lcsc": "C783420",
+  "mfr": "RS2228XN",
+  "package": "MSOP-10",
+  "price": 0.284286,
+  "stock": 1566
+ }
+]

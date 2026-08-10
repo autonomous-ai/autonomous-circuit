@@ -1,0 +1,164 @@
+[
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C8545",
+  "mfr": "2N7002",
+  "package": "SOT-23",
+  "price": 0.012657,
+  "stock": 1842138
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C20917",
+  "mfr": "AO3400A",
+  "package": "SOT-23-3L",
+  "price": 0.067429,
+  "stock": 1345927
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C15127",
+  "mfr": "AO3401A",
+  "package": "SOT-23",
+  "price": 0.052857,
+  "stock": 1194508
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C10487",
+  "mfr": "SI2301CDS-T1-GE3",
+  "package": "SOT-23",
+  "price": 0.051,
+  "stock": 332217
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420348",
+  "mfr": "HL3400A",
+  "package": "SOT-23",
+  "price": 0.026,
+  "stock": 424918
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420321",
+  "mfr": "2N7002",
+  "package": "SOT-23",
+  "price": 0.014571,
+  "stock": 300658
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420338",
+  "mfr": "BSS123",
+  "package": "SOT-23",
+  "price": 0.015571,
+  "stock": 235195
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420349",
+  "mfr": "HL3401A",
+  "package": "SOT-23",
+  "price": 0.031286,
+  "stock": 208204
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C427390",
+  "mfr": "MDD2302",
+  "package": "SOT-23",
+  "price": 0.017714,
+  "stock": 203468
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C8492",
+  "mfr": "LBSS84LT1G",
+  "package": "SOT-23",
+  "price": 0.017571,
+  "stock": 181852
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C22379475",
+  "mfr": "2N7002K",
+  "package": "SOT-23",
+  "price": 0.013529,
+  "stock": 181323
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420344",
+  "mfr": "HL2301A",
+  "package": "SOT-23",
+  "price": 0.028857,
+  "stock": 175543
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C22469448",
+  "mfr": "HL3400",
+  "package": "SOT-23",
+  "price": 0.026571,
+  "stock": 140002
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420340",
+  "mfr": "BSS84",
+  "package": "SOT-23",
+  "price": 0.015857,
+  "stock": 135660
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420322",
+  "mfr": "2N7002W",
+  "package": "SOT-323",
+  "price": 0.016571,
+  "stock": 126499
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420339",
+  "mfr": "BSS138",
+  "package": "SOT-23",
+  "price": 0.015429,
+  "stock": 124853
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C20069149",
+  "mfr": "2SK3018W",
+  "package": "SOT-323",
+  "price": 0.022143,
+  "stock": 111354
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C20069148",
+  "mfr": "2SK3018",
+  "package": "SOT-23",
+  "price": 0.019857,
+  "stock": 93528
+ }
+]

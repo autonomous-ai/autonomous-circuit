@@ -1,0 +1,20 @@
+[
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C318884",
+  "mfr": "TS-1187A-B-A-B",
+  "package": "SMD-4P,5.1x5.1mm",
+  "price": 0.017714,
+  "stock": 918009
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C720477",
+  "mfr": "TS-1088-AR02016",
+  "package": "SMD,4x3mm",
+  "price": 0.040429,
+  "stock": 483753
+ }
+]

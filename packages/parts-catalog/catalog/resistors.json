@@ -1,0 +1,602 @@
+[
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25804",
+  "mfr": "0603WAF1002T5E",
+  "package": "0603",
+  "price": 0.000843,
+  "resistance": 10000,
+  "stock": 37165617
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25744",
+  "mfr": "0402WGF1002TCE",
+  "package": "0402",
+  "price": 0.000486,
+  "resistance": 10000,
+  "stock": 20674699
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17168",
+  "mfr": "0402WGF0000TCE",
+  "package": "0402",
+  "price": 0.000457,
+  "resistance": 0,
+  "stock": 18421967
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C21190",
+  "mfr": "0603WAF1001T5E",
+  "package": "0603",
+  "price": 0.000929,
+  "resistance": 1000,
+  "stock": 15873089
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17414",
+  "mfr": "0805W8F1002T5E",
+  "package": "0805",
+  "price": 0.001643,
+  "resistance": 10000,
+  "stock": 15457503
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25741",
+  "mfr": "0402WGF1003TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 100000,
+  "stock": 15436416
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25803",
+  "mfr": "0603WAF1003T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 100000,
+  "stock": 14797688
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22775",
+  "mfr": "0603WAF1000T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 100,
+  "stock": 14738958
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C11702",
+  "mfr": "0402WGF1001TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 1000,
+  "stock": 12617545
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C21189",
+  "mfr": "0603WAF0000T5E",
+  "package": "0603",
+  "price": 0.000971,
+  "resistance": 0,
+  "stock": 12209047
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25076",
+  "mfr": "0402WGF1000TCE",
+  "package": "0402",
+  "price": 0.000457,
+  "resistance": 100,
+  "stock": 9809745
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25900",
+  "mfr": "0402WGF4701TCE",
+  "package": "0402",
+  "price": 0.000486,
+  "resistance": 4700,
+  "stock": 9379077
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23162",
+  "mfr": "0603WAF4701T5E",
+  "package": "0603",
+  "price": 0.001,
+  "resistance": 4700,
+  "stock": 9126951
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25905",
+  "mfr": "0402WGF5101TCE",
+  "package": "0402",
+  "price": 0.000443,
+  "resistance": 5100,
+  "stock": 8446095
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C4184",
+  "mfr": "0603WAF2002T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 20000,
+  "stock": 8134756
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22935",
+  "mfr": "0603WAF1004T5E",
+  "package": "0603",
+  "price": 0.000957,
+  "resistance": 1000000,
+  "stock": 8062164
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17513",
+  "mfr": "0805W8F1001T5E",
+  "package": "0805",
+  "price": 0.001614,
+  "resistance": 1000,
+  "stock": 7961494
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22859",
+  "mfr": "0603WAF100JT5E",
+  "package": "0603",
+  "price": 0.0009,
+  "resistance": 10,
+  "stock": 7655424
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23186",
+  "mfr": "0603WAF5101T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 5100,
+  "stock": 7571904
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17673",
+  "mfr": "0805W8F4701T5E",
+  "package": "0805",
+  "price": 0.001586,
+  "resistance": 4700,
+  "stock": 7466162
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22975",
+  "mfr": "0603WAF2001T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 2000,
+  "stock": 6070501
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17415",
+  "mfr": "0805W8F100JT5E",
+  "package": "0805",
+  "price": 0.001443,
+  "resistance": 10,
+  "stock": 5954817
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23345",
+  "mfr": "0603WAF220JT5E",
+  "package": "0603",
+  "price": 0.000886,
+  "resistance": 22,
+  "stock": 5310666
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17408",
+  "mfr": "0805W8F1000T5E",
+  "package": "0805",
+  "price": 0.001686,
+  "resistance": 100,
+  "stock": 5280115
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25819",
+  "mfr": "0603WAF4702T5E",
+  "package": "0603",
+  "price": 0.000971,
+  "resistance": 47000,
+  "stock": 5115474
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25105",
+  "mfr": "0402WGF330JTCE",
+  "package": "0402",
+  "price": 0.000543,
+  "resistance": 33,
+  "stock": 4767587
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23193",
+  "mfr": "0603WAF5100T5E",
+  "package": "0603",
+  "price": 0.000943,
+  "resistance": 510,
+  "stock": 4645095
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25077",
+  "mfr": "0402WGF100JTCE",
+  "package": "0402",
+  "price": 0.000471,
+  "resistance": 10,
+  "stock": 4398696
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C26083",
+  "mfr": "0402WGF1004TCE",
+  "package": "0402",
+  "price": 0.000529,
+  "resistance": 1000000,
+  "stock": 4199214
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25092",
+  "mfr": "0402WGF220JTCE",
+  "package": "0402",
+  "price": 0.000557,
+  "resistance": 22,
+  "stock": 4094909
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22978",
+  "mfr": "0603WAF3301T5E",
+  "package": "0603",
+  "price": 0.000929,
+  "resistance": 3300,
+  "stock": 3981168
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C4109",
+  "mfr": "0402WGF2001TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 2000,
+  "stock": 3911912
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23196",
+  "mfr": "0603WAF5102T5E",
+  "package": "0603",
+  "price": 0.000986,
+  "resistance": 51000,
+  "stock": 3860485
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25879",
+  "mfr": "0402WGF2201TCE",
+  "package": "0402",
+  "price": 0.000514,
+  "resistance": 2200,
+  "stock": 3837412
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23138",
+  "mfr": "0603WAF3300T5E",
+  "package": "0603",
+  "price": 0.001,
+  "resistance": 330,
+  "stock": 3787863
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C4211",
+  "mfr": "0603WAF3001T5E",
+  "package": "0603",
+  "price": 0.000986,
+  "resistance": 3000,
+  "stock": 3745756
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25792",
+  "mfr": "0402WGF4702TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 47000,
+  "stock": 3743795
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22962",
+  "mfr": "0603WAF2200T5E",
+  "package": "0603",
+  "price": 0.001,
+  "resistance": 220,
+  "stock": 3413507
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C8218",
+  "mfr": "0603WAF2000T5E",
+  "package": "0603",
+  "price": 0.001,
+  "resistance": 200,
+  "stock": 3374331
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22843",
+  "mfr": "0603WAF1501T5E",
+  "package": "0603",
+  "price": 0.000986,
+  "resistance": 1500,
+  "stock": 3069663
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23179",
+  "mfr": "0603WAF4700T5E",
+  "package": "0603",
+  "price": 0.001014,
+  "resistance": 470,
+  "stock": 2964915
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C4190",
+  "mfr": "0603WAF2201T5E",
+  "package": "0603",
+  "price": 0.000914,
+  "resistance": 2200,
+  "stock": 2960924
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25765",
+  "mfr": "0402WGF2002TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 20000,
+  "stock": 2959262
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23140",
+  "mfr": "0603WAF330JT5E",
+  "package": "0603",
+  "price": 0.001014,
+  "resistance": 33,
+  "stock": 2941223
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17604",
+  "mfr": "0805W8F2001T5E",
+  "package": "0805",
+  "price": 0.001714,
+  "resistance": 2000,
+  "stock": 2780237
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17902",
+  "mfr": "1206W4F1002T5E",
+  "package": "1206",
+  "price": 0.002814,
+  "resistance": 10000,
+  "stock": 2650918
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22809",
+  "mfr": "0603WAF1502T5E",
+  "package": "0603",
+  "price": 0.001,
+  "resistance": 15000,
+  "stock": 2622668
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25117",
+  "mfr": "0402WGF4700TCE",
+  "package": "0402",
+  "price": 0.000543,
+  "resistance": 470,
+  "stock": 2616303
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17514",
+  "mfr": "0805W8F1004T5E",
+  "package": "0805",
+  "price": 0.001757,
+  "resistance": 1000000,
+  "stock": 2610440
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17901",
+  "mfr": "1206W4F1000T5E",
+  "package": "1206",
+  "price": 0.002529,
+  "resistance": 100,
+  "stock": 2494601
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C27834",
+  "mfr": "0805W8F5101T5E",
+  "package": "0805",
+  "price": 0.001686,
+  "resistance": 5100,
+  "stock": 2494497
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17477",
+  "mfr": "0805W8F0000T5E",
+  "package": "0805",
+  "price": 0.001571,
+  "resistance": 0,
+  "stock": 2429720
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25123",
+  "mfr": "0402WGF5100TCE",
+  "package": "0402",
+  "price": 0.000514,
+  "resistance": 510,
+  "stock": 2395900
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22984",
+  "mfr": "0603WAF3002T5E",
+  "package": "0603",
+  "price": 0.000986,
+  "resistance": 30000,
+  "stock": 2275601
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17888",
+  "mfr": "1206W4F0000T5E",
+  "package": "1206",
+  "price": 0.002757,
+  "resistance": 0,
+  "stock": 2212197
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17903",
+  "mfr": "1206W4F100JT5E",
+  "package": "1206",
+  "price": 0.002743,
+  "resistance": 10,
+  "stock": 2185960
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C4328",
+  "mfr": "0805W8F2002T5E",
+  "package": "0805",
+  "price": 0.001757,
+  "resistance": 20000,
+  "stock": 2168270
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C17710",
+  "mfr": "0805W8F4700T5E",
+  "package": "0805",
+  "price": 0.001743,
+  "resistance": 470,
+  "stock": 2130368
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25091",
+  "mfr": "0402WGF2200TCE",
+  "package": "0402",
+  "price": 0.000543,
+  "resistance": 220,
+  "stock": 1957610
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C25890",
+  "mfr": "0402WGF3301TCE",
+  "package": "0402",
+  "price": 0.0005,
+  "resistance": 3300,
+  "stock": 1873182
+ }
+]

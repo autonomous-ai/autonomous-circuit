@@ -1,28 +1,59 @@
 name: CI
 
+# The donor shipped `branches-ignore: [main, develop]`, so pushes straight to
+# main ran nothing at all. Run on every push and every PR instead — the branch
+# most worth testing is the one people ship from.
 on:
   push:
-    branches-ignore: [main, develop]
   pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # No job may reach the network for parts data; the golden blocks pin every
+  # LCSC number, so the toolchain never needs the parts engine.
+  CIRCUIT_PARTS_ENGINE: "off"
+
 jobs:
-  dramapy:
+  circuitpy:
+    name: pipeline
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          check-latest: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install the pinned toolchain
+        run: bash scripts/setup-toolchain.sh
       - name: Install pytest
         run: pip install pytest
-      - name: Run dramapy tests
-        run: cd packages/dramapy && python -m pytest -q
+      - name: Run circuitpy tests
+        run: python -m pytest packages/circuitpy/tests -q
+
+  golden-blocks:
+    name: golden blocks
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          check-latest: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the pinned toolchain
+        run: bash scripts/setup-toolchain.sh
+      - name: Install pytest
+        run: pip install pytest
+      - name: Build every block and check its testbench
+        run: python -m pytest packages/golden-blocks/tests -q
 
   viewer:
     runs-on: ubuntu-22.04
@@ -43,21 +74,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install pytest
         run: pip install pytest
-      - name: Run dramacode skill tests
-        run: cd skills/dramacode && python -m pytest tests/ -q
+      - name: Run skill tests
+        run: python -m pytest skills/circuitcode/tests skills/parts-book/tests -q
 
   evals:
+    name: structural evals
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          check-latest: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Run structural evals (mock provider)
+      - name: Install the pinned toolchain
+        run: bash scripts/setup-toolchain.sh
+      # kicad-cli is what makes a packet shippable; without it the evals still
+      # run and simply assert the honest not-ready path.
+      - name: Install kicad-cli (best effort)
+        continue-on-error: true
+        run: |
+          sudo add-apt-repository --yes ppa:kicad/kicad-dev-nightly || true
+          sudo apt-get update && sudo apt-get install -y kicad-cli || \
+            echo "kicad-cli unavailable; evals will exercise the degraded path"
+      - name: Run structural evals
         run: python evals/run.py

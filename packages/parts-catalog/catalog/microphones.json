@@ -1,0 +1,784 @@
+[
+ {
+  "lcsc": "C42371093",
+  "mfr": "MIC-4013-G-G00",
+  "package": "SMD,D=4mm",
+  "price": 0.0585,
+  "stock": 152067
+ },
+ {
+  "description": "-38dB 1.5V~3.6V 1.85mm 100\u03a9 120uA 1mm 2.75mm 65dB Analog output Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C481302",
+  "mfr": "ZTS6216",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.7224,
+  "stock": 41747
+ },
+ {
+  "description": "-40\u2103~+100\u2103 -42dB 0.9mm 1.6V~3.6V 1.85mm 120uA 2.75mm 300\u03a9 55dB Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C7587901",
+  "mfr": "LMA2718T421-OA5-2",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.1024,
+  "stock": 33076
+ },
+ {
+  "lcsc": "C7587894",
+  "mfr": "LMA2718T381-OAC02",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.174,
+  "stock": 23280
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -30dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233898",
+  "mfr": "GMI6027P-2C30DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3114,
+  "stock": 14362
+ },
+ {
+  "description": "-42dB 0.9mm 1.5V~3.6V 1.85mm 120uA 2.75mm 400\u03a9 59dB Analog output Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C481300",
+  "mfr": "ZTS6117",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.1686,
+  "stock": 10689
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 0.9mm 1.6V~3.6V 1.85mm 120uA 2.75mm 300\u03a9 60dB Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C5373222",
+  "mfr": "LMA2718B381-OA7",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.1237,
+  "stock": 9659
+ },
+ {
+  "lcsc": "C5373237",
+  "mfr": "LMD2718T261-OA1",
+  "package": "SMD-6P,2.8x1.9mm",
+  "price": 0.2965,
+  "stock": 9580
+ },
+ {
+  "description": "-37dB -40\u2103~+85\u2103 0.98mm 1.65V~1.98V 2.65mm 3.5mm 340uA 68dB Omnidirectional Omnidirectional pickup LGA-5(3.5x2.7) MEMS Microphones ROHS",
+  "lcsc": "C6909259",
+  "mfr": "MMICT5837-00-012",
+  "package": "LGA-5(3.5x2.7)",
+  "price": 2.8034,
+  "stock": 9523
+ },
+ {
+  "lcsc": "C5373235",
+  "mfr": "LMA3729T421-OA1",
+  "package": "SMD-4P,3.8x3mm",
+  "price": 0.1658,
+  "stock": 6630
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -42dB 1.4mm 1.5mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=4mm Microphones ROHS",
+  "lcsc": "C233292",
+  "mfr": "GMI4015P-2C-42db",
+  "package": "\u63d2\u4ef6,D=4mm",
+  "price": 0.3314,
+  "stock": 6620
+ },
+ {
+  "lcsc": "C7587899",
+  "mfr": "LMD3526T261-OAC03",
+  "package": "SMD-6P,3.5x2.7mm",
+  "price": 0.4732,
+  "stock": 6574
+ },
+ {
+  "description": "-26dB -40\u2103~+100\u2103 0.98mm 1.8V 2.65mm 3.5mm 390uA~500uA 65dB Omnidirectional Omnidirectional pickup SMD-5P,3.5x2.7mm MEMS Microphones ROHS",
+  "lcsc": "C2895290",
+  "mfr": "SD18OB261-060",
+  "package": "SMD-5P,3.5x2.7mm",
+  "price": 0.9306,
+  "stock": 6556
+ },
+ {
+  "lcsc": "C7587902",
+  "mfr": "LMA2718B381-OA5-2",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.0903,
+  "stock": 6277
+ },
+ {
+  "lcsc": "C5373231",
+  "mfr": "LMA2718T421-OA1",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.125,
+  "stock": 6170
+ },
+ {
+  "description": "-40\u2103~+85\u2103 -42dB 0.9mm 1.6V~3.6V 1.85mm 120uA 2.75mm 300\u03a9 55dB Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C5373232",
+  "mfr": "LMA2718T421-OA5",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.085,
+  "stock": 5273
+ },
+ {
+  "lcsc": "C5373221",
+  "mfr": "LMA2718B381-OA5",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.1333,
+  "stock": 5201
+ },
+ {
+  "lcsc": "C5142170",
+  "mfr": "GSA4030H10-F26-8P",
+  "package": "SMD-8P,4x3mm",
+  "price": 0.8834,
+  "stock": 5089
+ },
+ {
+  "description": "-26dB 1.1mm 1.8V 2mm 4mm 64dB 670uA Omnidirectional LGA-6(2x4) MEMS Microphones ROHS",
+  "lcsc": "C48227730",
+  "mfr": "MSM261DGT003",
+  "package": "LGA-6",
+  "price": 0.6444,
+  "stock": 4956
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 0.9mm 1.6V~3.6V 1.85mm 120uA 2.75mm 300\u03a9 58dB Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C5373230",
+  "mfr": "LMA2718T381-OE1",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.1407,
+  "stock": 4659
+ },
+ {
+  "description": "-40\u2103~+100\u2103 -42dB 0.95mm 1.85mm 2.75mm 400\u03a9 50uA~150uA 58dB Omnidirectional SMD-4P,1.9x2.8mm MEMS Microphones ROHS",
+  "lcsc": "C5160216",
+  "mfr": "S15OT421-001",
+  "package": "SMD-4P,1.9x2.8mm",
+  "price": 0.3338,
+  "stock": 4377
+ },
+ {
+  "description": "-38dB 0.9mm 1.5V~3.6V 1.85mm 2.75mm 200\u03a9 64dB 80uA Analog output Omnidirectional SMD-3P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C481301",
+  "mfr": "ZTS6156",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.1798,
+  "stock": 4326
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 0.9mm 1.85mm 2.75mm 2V 300\u03a9 64.5dB Omnidirectional SMD-4P,2.8x1.7mm MEMS Microphones ROHS",
+  "lcsc": "C47148420",
+  "mfr": "LMA2718B381-OAT03",
+  "package": "SMD-4P,2.8x1.7mm",
+  "price": 0.2707,
+  "stock": 4308
+ },
+ {
+  "lcsc": "C5373233",
+  "mfr": "LMA3722T421-OA5",
+  "package": "SMD-4P,3.8x2.2mm",
+  "price": 0.0858,
+  "stock": 3870
+ },
+ {
+  "lcsc": "C5142168",
+  "mfr": "GSA3526H10-B26-4P",
+  "package": "SMD-5P,3.5x2.7mm",
+  "price": 0.8898,
+  "stock": 3869
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 1.2mm 1.5V~3.63V 375uA 3mm 4mm 70dB 750\u03a9 Differential output Omnidirectional Omnidirectional pickup LGA-4(4x3) MEMS Microphones ROHS",
+  "lcsc": "C3171779",
+  "mfr": "ICS-40720",
+  "package": "LGA-4(4x3)",
+  "price": 2.7146,
+  "stock": 3766
+ },
+ {
+  "lcsc": "C5373223",
+  "mfr": "LMA2718B381-OAK02",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.1265,
+  "stock": 3764
+ },
+ {
+  "lcsc": "C22379479",
+  "mfr": "LMA2718T381-OAC05",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.107,
+  "stock": 3603
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -64dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233915",
+  "mfr": "GMI6027P-2C64DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3796,
+  "stock": 3601
+ },
+ {
+  "lcsc": "C49118138",
+  "mfr": "MIC4013-Y",
+  "package": "SMD,D=4mm",
+  "price": 0.0613,
+  "stock": 3591
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -44dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233905",
+  "mfr": "GMI6027P-2C44DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3114,
+  "stock": 3554
+ },
+ {
+  "description": "-42dB 1.1mm 1.5V~3.6V 2.95mm 200\u03a9 3.76mm 59dB 80uA Analog output Omnidirectional LGA-4(3x3.8) MEMS Microphones ROHS",
+  "lcsc": "C140705",
+  "mfr": "WMM7037AT2-4/TR",
+  "package": "LGA-4(3x3.8)",
+  "price": 0.3607,
+  "stock": 3539
+ },
+ {
+  "description": "-26dB -40\u2103~+85\u2103 0.98mm 1.65V~3.63V 2.65mm 3.5mm 550uA 64dB I2S Omnidirectional Omnidirectional pickup LGA-6(3.5x2.7) MEMS Microphones ROHS",
+  "lcsc": "C5656610",
+  "mfr": "ICS-43434",
+  "package": "LGA-6(3.5x2.7)",
+  "price": 6.7694,
+  "stock": 3332
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -40dB 1.3mm 2V 4mm 500uA 58dB Omnidirectional SMD SMD,D=4mm Microphones ROHS",
+  "lcsc": "C529861",
+  "mfr": "GMI4013S-2C40DB",
+  "package": "SMD,D=4mm",
+  "price": 0.3266,
+  "stock": 2970
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -40dB 1.4mm 1.5mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=4mm Microphones ROHS",
+  "lcsc": "C529899",
+  "mfr": "GMI4015P-40DB",
+  "package": "\u63d2\u4ef6,D=4mm",
+  "price": 0.2333,
+  "stock": 2941
+ },
+ {
+  "lcsc": "C19267420",
+  "mfr": "LMA2718T381-OC3",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.3075,
+  "stock": 2926
+ },
+ {
+  "lcsc": "C5455567",
+  "mfr": "LMA3722T421-OA1",
+  "package": "SMD-4P,3.8x2.2mm",
+  "price": 0.1342,
+  "stock": 2818
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -50dB 2.2k\u03a9 2.2mm 2V 500uA 58dB 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233353",
+  "mfr": "GMI6022-2C50DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3165,
+  "stock": 2797
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -26dB 1.9mm 2.2k\u03a9 2.7mm 2V 500uA 6mm 75dB Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C529945",
+  "mfr": "GMI6027P-2C26DB-RF75",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.5662,
+  "stock": 2450
+ },
+ {
+  "description": "-38dB 1.2mm 170uA 2.75V 3mm 4mm 73dB Differential output Omnidirectional Omnidirectional pickup LLGA-5(4x3) MEMS Microphones ROHS",
+  "lcsc": "C3171831",
+  "mfr": "IM73A135V01XTSA1",
+  "package": "LLGA-5(4x3)",
+  "price": 2.918,
+  "stock": 2310
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -52dB 1.9mm 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233947",
+  "mfr": "GMI6050P-52db",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2154,
+  "stock": 2293
+ },
+ {
+  "description": "-38dB -40\u2103~+100\u2103 1.1mm 250uA 2V 3.76mm 300\u03a9 3mm 62dB Omnidirectional SMD-6P,3.8x3mm MEMS Microphones ROHS",
+  "lcsc": "C2684423",
+  "mfr": "S08OB381-026",
+  "package": "SMD-6P,3.8x3mm",
+  "price": 0.3056,
+  "stock": 2138
+ },
+ {
+  "lcsc": "C5142166",
+  "mfr": "GMA3325H10-B38-3P",
+  "package": "SMD-4P,3.4x2.5mm",
+  "price": 0.2466,
+  "stock": 2098
+ },
+ {
+  "description": "-33dB -40\u2103~+85\u2103 0.9mm 1.6V~3.6V 1.85mm 2.75mm 200uA 300\u03a9 62dB Omnidirectional SMD-3P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C19267416",
+  "mfr": "LMA2718B331-OE1",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.0874,
+  "stock": 2084
+ },
+ {
+  "description": "- MEMS Microphones ROHS",
+  "lcsc": "C3020380",
+  "mfr": "GSA4737H12-B38-5P",
+  "package": "-",
+  "price": 0.956,
+  "stock": 1860
+ },
+ {
+  "description": "-42dB 1.1mm 1.6V~3.6V 160uA 2.24mm 200\u03a9 3.76mm 56dB Omnidirectional SMD-4P,3.8x2.2mm MEMS Microphones ROHS",
+  "lcsc": "C233264",
+  "mfr": "GMA3722H11-F42",
+  "package": "SMD-4P,3.8x2.2mm",
+  "price": 0.2099,
+  "stock": 1753
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -56dB 2.2k\u03a9 4.5V 4.5mm 500uA 58dB 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C233968",
+  "mfr": "GMI9745P-56DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.208,
+  "stock": 1735
+ },
+ {
+  "description": "-37dB -40\u2103~+70\u2103 0.98mm 1.8V 2.65mm 3.5mm 65dB 860uA~1.1mA Omnidirectional SMD-5P,3.5x2.7mm MEMS Microphones ROHS",
+  "lcsc": "C3040249",
+  "mfr": "SD18OB371-041",
+  "package": "SMD-5P,3.5x2.7mm",
+  "price": 0.977,
+  "stock": 1564
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 1.1mm 1.6V~3.6V 160uA 200\u03a9 3.76mm 3mm 62dB Analog output Omnidirectional SMD-6P,3.8x3mm MEMS Microphones ROHS",
+  "lcsc": "C233266",
+  "mfr": "GMA3730H11-B38",
+  "package": "SMD-6P,3.8x3mm",
+  "price": 0.4214,
+  "stock": 1488
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -64dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233953",
+  "mfr": "GMI6050P-64DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.213,
+  "stock": 1457
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -44dB 1.9mm 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C529997",
+  "mfr": "GMI6050P-2C44DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3246,
+  "stock": 1440
+ },
+ {
+  "description": "-40\u2103~+85\u2103 -41dB 0.98mm 1.62V~1.98V 2.65mm 3.5mm 330uA 68dB Omnidirectional Omnidirectional pickup SMD-5P,3.5x2.7mm MEMS Microphones ROHS",
+  "lcsc": "C7230692",
+  "mfr": "MMICT5838-00-012",
+  "package": "SMD-5P,3.5x2.7mm",
+  "price": 2.7937,
+  "stock": 1428
+ },
+ {
+  "description": "-26dB 1.8V 1mm 3mm 4mm 500uA 63dB Omnidirectional SMD-5P,4x3mm MEMS Microphones ROHS",
+  "lcsc": "C3020381",
+  "mfr": "GSA4030H10-B26-5P",
+  "package": "SMD-5P,4x3mm",
+  "price": 0.8963,
+  "stock": 1382
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -62dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529987",
+  "mfr": "GMI6050-62DB",
+  "package": "SMD,D=6mm",
+  "price": 0.1806,
+  "stock": 1380
+ },
+ {
+  "description": "-32dB -40\u2103~+85\u2103 0.98mm 1.65V~3.63V 2.65mm 3.5mm 64dB 650uA Omnidirectional Omnidirectional pickup LGA-5(3.5x2.7) MEMS Microphones ROHS",
+  "lcsc": "C3171752",
+  "mfr": "MMICT390200012",
+  "package": "LGA-5(3.5x2.7)",
+  "price": 1.7634,
+  "stock": 1212
+ },
+ {
+  "description": "-25\u2103~+70\u2103 -42dB@\u00b13dB 2.2k\u03a9 2V 500uA 58dB Omnidirectional \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C20200112",
+  "mfr": "AMB-O60G42-AB1",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.4587,
+  "stock": 1209
+ },
+ {
+  "description": "-38dB 0.9mm 1.85mm 100\u03a9 146uA 2.2V 2.75mm 63dB Analog output Omnidirectional SMD-3P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C2937704",
+  "mfr": "WMM7018ABHD0-3/TR",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.2877,
+  "stock": 1140
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -44dB 1.3mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional SMD SMD,D=4mm Microphones ROHS",
+  "lcsc": "C529863",
+  "mfr": "GMI4013S-2C44DB",
+  "package": "SMD,D=4mm",
+  "price": 0.1704,
+  "stock": 1091
+ },
+ {
+  "description": "-38dB -40\u2103~+85\u2103 0.9mm 1.6V~3.6V 1.85mm 120uA 2.75mm 300\u03a9 64.5dB Omnidirectional SMD-3P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C7496895",
+  "mfr": "LMA2718B381-OAK03",
+  "package": "SMD-3P,2.8x1.9mm",
+  "price": 0.2263,
+  "stock": 1085
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -46dB 10V 5.2mm 500uA 58dB 680\u03a9 9.7mm Unidirectional SMD,D=6mm Microphones ROHS",
+  "lcsc": "C530185",
+  "mfr": "GMI6027U-2C66DB",
+  "package": "SMD,D=6mm",
+  "price": 0.5955,
+  "stock": 1075
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -64dB 2.2k\u03a9 2.7mm 2V 4.5mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=4.5mm Microphones ROHS",
+  "lcsc": "C233341",
+  "mfr": "GMI4527P-2C-64db",
+  "package": "\u63d2\u4ef6,D=4.5mm",
+  "price": 0.3436,
+  "stock": 1068
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -60dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C234027",
+  "mfr": "GMI9767P-60DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.2101,
+  "stock": 1058
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -34dB 2.2V 2.2k\u03a9 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233938",
+  "mfr": "GMI6050P-34db",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2101,
+  "stock": 1045
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -64dB 2.2k\u03a9 4.5V 4.5mm 500uA 58dB 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C490386",
+  "mfr": "GMI9745P-64DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.2101,
+  "stock": 1027
+ },
+ {
+  "description": "-30dB -30\u2103~+70\u2103 1.5mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional SMD SMD,D=4mm Microphones ROHS",
+  "lcsc": "C233267",
+  "mfr": "GMI4015-2C-30db",
+  "package": "SMD,D=4mm",
+  "price": 0.2481,
+  "stock": 1020
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -62dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233914",
+  "mfr": "GMI6027P-2C62DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2979,
+  "stock": 1011
+ },
+ {
+  "description": "-42dB 0.95mm 1.85mm 1.8V 2.75mm 300\u03a9 58dB 92uA~100uA Analog output Omnidirectional SMD-4P,2.8x1.9mm MEMS Microphones ROHS",
+  "lcsc": "C5142165",
+  "mfr": "GMA2718H09-F42-4P",
+  "package": "SMD-4P,2.8x1.9mm",
+  "price": 0.3159,
+  "stock": 1008
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -50dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233908",
+  "mfr": "GMI6027P-2C50DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2979,
+  "stock": 1002
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -40dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C234017",
+  "mfr": "GMI9767P-40DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.2101,
+  "stock": 1001
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -42dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233885",
+  "mfr": "GMI6027-2C42DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3318,
+  "stock": 1000
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -64dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional SMD SMD,D=9.7mm Microphones ROHS",
+  "lcsc": "C234010",
+  "mfr": "GMI9767-64DB",
+  "package": "SMD,D=9.7mm",
+  "price": 0.1958,
+  "stock": 1000
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -52dB 1.3mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional SMD SMD,D=4mm Microphones ROHS",
+  "lcsc": "C529867",
+  "mfr": "GMI4013S-2C52DB",
+  "package": "SMD,D=4mm",
+  "price": 0.2979,
+  "stock": 1000
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -56dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529984",
+  "mfr": "GMI6050-56DB",
+  "package": "SMD,D=6mm",
+  "price": 0.1824,
+  "stock": 1000
+ },
+ {
+  "description": "-52dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233890",
+  "mfr": "GMI6027-2C52DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3218,
+  "stock": 998
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -46dB 1.5mm 1mm 2.2k\u03a9 2V 3mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=3mm Microphones ROHS",
+  "lcsc": "C529826",
+  "mfr": "GMI3015P-2C46DB",
+  "package": "\u63d2\u4ef6,D=3mm",
+  "price": 0.6898,
+  "stock": 998
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -54dB 1.5mm 1mm 2.2k\u03a9 2V 3mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=3mm Microphones ROHS",
+  "lcsc": "C529830",
+  "mfr": "GMI3015P-2C54DB",
+  "package": "\u63d2\u4ef6,D=3mm",
+  "price": 0.6898,
+  "stock": 998
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -34dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233900",
+  "mfr": "GMI6027P-2C34DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3246,
+  "stock": 995
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -48dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529980",
+  "mfr": "GMI6050-48DB",
+  "package": "SMD,D=6mm",
+  "price": 0.1509,
+  "stock": 995
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -64dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional SMD SMD,D=9.7mm Microphones ROHS",
+  "lcsc": "C530064",
+  "mfr": "GMI9767-2C64DB",
+  "package": "SMD,D=9.7mm",
+  "price": 0.2875,
+  "stock": 995
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -38dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233921",
+  "mfr": "GMI6050-2C38DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3246,
+  "stock": 990
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -38dB 2.2k\u03a9 4.5V 4.5mm 500uA 58dB 9.7mm Omnidirectional SMD SMD,D=9.7mm Microphones ROHS",
+  "lcsc": "C530013",
+  "mfr": "GMI9745-2C38DB",
+  "package": "SMD,D=9.7mm",
+  "price": 0.321,
+  "stock": 990
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -50dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C234022",
+  "mfr": "GMI9767P-50DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.2161,
+  "stock": 988
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -36dB 1.3mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional SMD SMD,D=4mm Microphones ROHS",
+  "lcsc": "C529859",
+  "mfr": "GMI4013S-2C36DB",
+  "package": "SMD,D=4mm",
+  "price": 0.3351,
+  "stock": 983
+ },
+ {
+  "lcsc": "C5364367",
+  "mfr": "GMBO3015GSB-45DB",
+  "package": "SMD,D=3mm",
+  "price": 0.5232,
+  "stock": 983
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -46dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233925",
+  "mfr": "GMI6050-2C46DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3246,
+  "stock": 980
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -62dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529939",
+  "mfr": "GMI6027-62DB",
+  "package": "SMD,D=6mm",
+  "price": 0.2174,
+  "stock": 980
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -26dB 2.2k\u03a9 2.7mm 2V 500uA 6mm 75dB Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529916",
+  "mfr": "GMI6027-2C26DB-RF75",
+  "package": "SMD,D=6mm",
+  "price": 0.4962,
+  "stock": 978
+ },
+ {
+  "description": "-40dB 1.5V 500uA 58dB 5mm 680\u03a9 9.7mm Through-hole Unidirectional \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C530221",
+  "mfr": "GMI9750UP-2C40DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.6101,
+  "stock": 977
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -36dB 2.2k\u03a9 2.2mm 2V 4.5mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=4.5mm Microphones ROHS",
+  "lcsc": "C233308",
+  "mfr": "GMI4522P-2C-36db",
+  "package": "\u63d2\u4ef6,D=4.5mm",
+  "price": 0.3155,
+  "stock": 975
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -64dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C233896",
+  "mfr": "GMI6027-2C64DB",
+  "package": "SMD,D=6mm",
+  "price": 0.3321,
+  "stock": 970
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -56dB 1.9mm 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C530003",
+  "mfr": "GMI6050P-2C56DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2979,
+  "stock": 970
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -36dB 1.9mm 2.2k\u03a9 2.7mm 2V 500uA 6mm 75dB Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C529950",
+  "mfr": "GMI6027P-2C36DB-RF75",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.4735,
+  "stock": 967
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -32dB 1.9mm 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C529991",
+  "mfr": "GMI6050P-2C32DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.3246,
+  "stock": 965
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -40dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional SMD SMD,D=9.7mm Microphones ROHS",
+  "lcsc": "C233998",
+  "mfr": "GMI9767-40db",
+  "package": "SMD,D=9.7mm",
+  "price": 0.1795,
+  "stock": 960
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -34dB 2.2k\u03a9 4.5V 500uA 58dB 5mm 6mm Omnidirectional SMD SMD,D=6mm Microphones ROHS",
+  "lcsc": "C529973",
+  "mfr": "GMI6050-34DB",
+  "package": "SMD,D=6mm",
+  "price": 0.1509,
+  "stock": 957
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -30dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional Through-hole \u63d2\u4ef6,D=9.7mm Microphones ROHS",
+  "lcsc": "C234012",
+  "mfr": "GMI9767P-30DB",
+  "package": "\u63d2\u4ef6,D=9.7mm",
+  "price": 0.2101,
+  "stock": 956
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -30dB 2.2k\u03a9 4.5V 500uA 58dB 6.7mm 9.7mm Omnidirectional SMD SMD,D=9.7mm Microphones ROHS",
+  "lcsc": "C530047",
+  "mfr": "GMI9767-2C30DB",
+  "package": "SMD,D=9.7mm",
+  "price": 0.2979,
+  "stock": 955
+ },
+ {
+  "description": "-20\u2103~+70\u2103 -48dB 2.2k\u03a9 2V 500uA 58dB 5mm 6mm SMD Unidirectional SMD,D=6mm Microphones ROHS",
+  "lcsc": "C530195",
+  "mfr": "GMI6050U-48DB",
+  "package": "SMD,D=6mm",
+  "price": 0.4198,
+  "stock": 953
+ },
+ {
+  "description": "-30\u2103~+70\u2103 -60dB 1.4mm 1.5mm 2.2k\u03a9 2V 4mm 500uA 58dB Omnidirectional Through-hole \u63d2\u4ef6,D=4mm Microphones ROHS",
+  "lcsc": "C233301",
+  "mfr": "GMI4015P-2C-60db",
+  "package": "\u63d2\u4ef6,D=4mm",
+  "price": 0.2852,
+  "stock": 950
+ },
+ {
+  "description": "-20\u2103~+60\u2103 -54dB 2.2k\u03a9 2.7mm 2V 500uA 58dB 6mm Omnidirectional Through-hole \u63d2\u4ef6,D=6mm Microphones ROHS",
+  "lcsc": "C233910",
+  "mfr": "GMI6027P-2C54DB",
+  "package": "\u63d2\u4ef6,D=6mm",
+  "price": 0.2979,
+  "stock": 950
+ }
+]

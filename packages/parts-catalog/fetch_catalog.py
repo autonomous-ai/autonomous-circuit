@@ -65,22 +65,34 @@ KEEP = (
 )
 
 
-def fetch(url: str) -> dict | None:
-    """GET JSON via curl. urllib breaks under this sandbox's TLS interception,
-    so the repo convention is to shell out."""
-    try:
-        proc = subprocess.run(
-            ["curl", "-s", "--max-time", str(TIMEOUT_S), url],
-            capture_output=True, text=True, timeout=TIMEOUT_S + 15,
-        )
-    except subprocess.TimeoutExpired:
-        return None
-    if proc.returncode != 0 or not proc.stdout.strip():
-        return None
-    try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return None
+def fetch(url: str, *, attempts: int = 4) -> dict | None:
+    """GET JSON via curl, with backoff.
+
+    Two hard-won details. urllib breaks under this sandbox's TLS interception,
+    so the repo convention is to shell out to curl. And the service rate-limits
+    rapid sequential requests by returning an instant empty body — measured
+    2026-08-10, a whole re-run came back "no rows" in 0s per category right
+    after the same URLs had answered fine by hand. An empty body is therefore
+    treated as a retryable failure, never as an empty category.
+    """
+    delay = 3.0
+    for attempt in range(attempts):
+        try:
+            proc = subprocess.run(
+                ["curl", "-s", "--max-time", str(TIMEOUT_S), url],
+                capture_output=True, text=True, timeout=TIMEOUT_S + 15,
+            )
+        except subprocess.TimeoutExpired:
+            proc = None
+        if proc is not None and proc.returncode == 0 and proc.stdout.strip():
+            try:
+                return json.loads(proc.stdout)
+            except json.JSONDecodeError:
+                pass
+        if attempt < attempts - 1:
+            time.sleep(delay)
+            delay *= 2
+    return None
 
 
 def normalize(row: dict) -> dict:
@@ -112,19 +124,35 @@ def fetch_category(name: str) -> list[dict]:
         if isinstance(value, list):
             rows = [r for r in value if isinstance(r, dict)]
             break
+    if not rows:
+        return []
+
+    # Category endpoints do not share a schema: `ldos` reports is_basic,
+    # `leds` and `capacitors` do not. Filtering on a field the category never
+    # emits silently throws the whole category away (measured: 30 of 41 came
+    # back empty before this check). Where the flag exists, use it — it is the
+    # best available signal. Where it does not, fall back to stock depth,
+    # which is what the endpoint already sorts by and is a fair proxy for
+    # "the part everyone actually uses".
+    has_basic_flag = any("is_basic" in row for row in rows[:5])
+
     kept = []
     for row in rows:
-        # The whole point of the mirror: stocked parts the assembler already
-        # keeps loaded. Everything else is a special order.
-        if not (row.get("is_basic") or row.get("is_preferred")):
-            continue
         if not row.get("stock"):
             continue
+        if has_basic_flag and not (row.get("is_basic") or row.get("is_preferred")):
+            continue
         norm = normalize(row)
-        if norm:
-            kept.append(norm)
+        if not norm:
+            continue
+        if not has_basic_flag:
+            # Say "unknown", never "no" — a wrong extended flag costs a real
+            # $3/line surprise at checkout.
+            norm.pop("is_basic", None)
+            norm.pop("is_preferred", None)
+        kept.append(norm)
     kept.sort(key=lambda r: (not r.get("is_basic"), -(r.get("stock") or 0)))
-    return kept
+    return kept[:PER_CATEGORY_LIMIT]
 
 
 def main(argv: list[str]) -> int:

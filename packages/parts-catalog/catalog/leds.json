@@ -1,0 +1,23 @@
+[
+ {
+  "color": "red",
+  "forward_voltage": 1.6,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C84256",
+  "mfr": "NCD0805R1",
+  "package": "0805",
+  "price": 0.010986,
+  "stock": 7252546
+ },
+ {
+  "color": "emerald",
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C2297",
+  "mfr": "KT-0805G",
+  "package": "0805",
+  "price": 0.0102,
+  "stock": 2802846
+ }
+]

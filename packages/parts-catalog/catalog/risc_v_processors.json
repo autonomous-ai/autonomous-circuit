@@ -1,0 +1,86 @@
+[
+ {
+  "lcsc": "C5142280",
+  "mfr": "CH32V203G6U6",
+  "package": "QFN28X4",
+  "price": 0.628571,
+  "stock": 7403
+ },
+ {
+  "lcsc": "C3001172",
+  "mfr": "CH32V203C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.771429,
+  "stock": 1201
+ },
+ {
+  "lcsc": "C2832145",
+  "mfr": "CH32V103R8T6",
+  "package": "LQFP-64M(10x10)",
+  "price": 1.66,
+  "stock": 756
+ },
+ {
+  "lcsc": "C2764428",
+  "mfr": "CH32V103C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.561429,
+  "stock": 684
+ },
+ {
+  "lcsc": "C2988083",
+  "mfr": "CH32V307RCT6",
+  "package": "LQFP-64M(10x10)",
+  "price": 3.558571,
+  "stock": 418
+ },
+ {
+  "lcsc": "C18723620",
+  "mfr": "D211DBV",
+  "package": "QFN-100(12x12)",
+  "price": 5.674286,
+  "stock": 372
+ },
+ {
+  "lcsc": "C2943979",
+  "mfr": "CH32V307VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 4.352857,
+  "stock": 251
+ },
+ {
+  "lcsc": "C2916908",
+  "mfr": "CSM32RV20",
+  "package": "QFN-32-EP(4x4)",
+  "price": 0.824286,
+  "stock": 245
+ },
+ {
+  "lcsc": "C2857462",
+  "mfr": "CH569W",
+  "package": "QFN-68-EP(8x8)",
+  "price": 6.942857,
+  "stock": 228
+ },
+ {
+  "lcsc": "C2920766",
+  "mfr": "CH582M",
+  "package": "QFN-48-EP(5x5)",
+  "price": 1.214286,
+  "stock": 78
+ },
+ {
+  "lcsc": "C18723619",
+  "mfr": "D211BBV",
+  "package": "QFN-88(10x10)",
+  "price": 5.231429,
+  "stock": 26
+ },
+ {
+  "lcsc": "C2838748",
+  "mfr": "CH565W",
+  "package": "QFN-68(8X8)",
+  "price": 7.365714,
+  "stock": 3
+ }
+]

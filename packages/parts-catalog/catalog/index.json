@@ -1,0 +1,68 @@
+{
+ "categories": {
+  "analog_multiplexers": {
+   "basic": 0,
+   "parts": 2
+  },
+  "analog_switches": {
+   "basic": 0,
+   "parts": 100
+  },
+  "arm_processors": {
+   "basic": 0,
+   "parts": 100
+  },
+  "capacitors": {
+   "basic": 34,
+   "parts": 34
+  },
+  "diodes": {
+   "basic": 13,
+   "parts": 22
+  },
+  "gyroscopes": {
+   "basic": 0,
+   "parts": 1
+  },
+  "leds": {
+   "basic": 2,
+   "parts": 2
+  },
+  "microcontrollers": {
+   "basic": 0,
+   "parts": 3
+  },
+  "microphones": {
+   "basic": 0,
+   "parts": 100
+  },
+  "mosfets": {
+   "basic": 4,
+   "parts": 18
+  },
+  "resistor_arrays": {
+   "basic": 3,
+   "parts": 5
+  },
+  "resistors": {
+   "basic": 60,
+   "parts": 60
+  },
+  "risc_v_processors": {
+   "basic": 0,
+   "parts": 12
+  },
+  "switches": {
+   "basic": 2,
+   "parts": 2
+  },
+  "voltage_regulators": {
+   "basic": 6,
+   "parts": 7
+  }
+ },
+ "fetched": "2026-08-10",
+ "filter": "is_basic or is_preferred, in stock",
+ "source": "https://jlcsearch.tscircuit.com",
+ "total_parts": 468
+}

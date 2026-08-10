@@ -1,0 +1,213 @@
+[
+ {
+  "forward_voltage": 1.25,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C2128",
+  "mfr": "1N4148WS",
+  "package": "SOD-323",
+  "price": 0.007843,
+  "stock": 3837733
+ },
+ {
+  "forward_voltage": 1.1,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C95872",
+  "mfr": "M7",
+  "package": "SMA(DO-214AC)",
+  "price": 0.007343,
+  "stock": 3600582
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C8678",
+  "mfr": "SS34",
+  "package": "SMA(DO-214AC)",
+  "price": 0.026286,
+  "stock": 3282802
+ },
+ {
+  "forward_voltage": 1.1,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C64898",
+  "mfr": "SM4007PL",
+  "package": "SOD-123FL",
+  "price": 0.005886,
+  "stock": 2907283
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C191023",
+  "mfr": "1N5819WS",
+  "package": "SOD-323",
+  "price": 0.009014,
+  "stock": 2277738
+ },
+ {
+  "forward_voltage": 1,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C81598",
+  "mfr": "1N4148W",
+  "package": "SOD-123",
+  "price": 0.009843,
+  "stock": 2004447
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C14996",
+  "mfr": "SS210",
+  "package": "SMA(DO-214AC)",
+  "price": 0.025286,
+  "stock": 1248531
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C8598",
+  "mfr": "B5819W SL",
+  "package": "SOD-123",
+  "price": 0.021286,
+  "stock": 995806
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C2480",
+  "mfr": "SS14",
+  "package": "SMA(DO-214AC)",
+  "price": 0.014157,
+  "stock": 676057
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C22452",
+  "mfr": "SS54",
+  "package": "SMA(DO-214AC)",
+  "price": 0.04,
+  "stock": 541319
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C78395",
+  "mfr": "P6SMB6.8CA/TR13",
+  "package": "SMB(DO-214AA)",
+  "price": 0.046571,
+  "stock": 518034
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C2500",
+  "mfr": "BAV99,215",
+  "package": "SOT-23",
+  "price": 0.035,
+  "stock": 473394
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C68978",
+  "mfr": "BAV70",
+  "package": "SOT-23",
+  "price": 0.013386,
+  "stock": 299878
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420318",
+  "mfr": "1N4148W",
+  "package": "SOD-123",
+  "price": 0.0059,
+  "stock": 1621913
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C437156",
+  "mfr": "1N4148WS",
+  "package": "SOD-323",
+  "price": 0.006757,
+  "stock": 1320768
+ },
+ {
+  "forward_voltage": 0.55,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420365",
+  "mfr": "SS34",
+  "package": "SMA(DO-214AC)",
+  "price": 0.024857,
+  "stock": 1004635
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C64885",
+  "mfr": "B5819W",
+  "package": "SOD-123",
+  "price": 0.014714,
+  "stock": 446616
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420319",
+  "mfr": "1N4148WS",
+  "package": "SOD-323",
+  "price": 0.007171,
+  "stock": 370821
+ },
+ {
+  "forward_voltage": 1.25,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420336",
+  "mfr": "BAV99",
+  "package": "SOT-23",
+  "price": 0.009071,
+  "stock": 358177
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C64886",
+  "mfr": "B5819WS",
+  "package": "SOD-323",
+  "price": 0.019286,
+  "stock": 350597
+ },
+ {
+  "forward_voltage": 1,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C18199101",
+  "mfr": "S2MB",
+  "package": "SMB",
+  "price": 0.017,
+  "stock": 349437
+ },
+ {
+  "forward_voltage": 0.55,
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C7420369",
+  "mfr": "SS54",
+  "package": "SMA(DO-214AC)",
+  "price": 0.038714,
+  "stock": 311271
+ }
+]

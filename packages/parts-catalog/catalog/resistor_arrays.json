@@ -1,0 +1,52 @@
+[
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C29718",
+  "mfr": "4D03WGJ0103T5E",
+  "package": "0603x4",
+  "price": 0.0052,
+  "resistance": 10000,
+  "stock": 849056
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C20197",
+  "mfr": "4D03WGJ0102T5E",
+  "package": "0603x4",
+  "price": 0.005086,
+  "resistance": 1000,
+  "stock": 683284
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1980",
+  "mfr": "4D03WGJ0472T5E",
+  "package": "0603x4",
+  "price": 0.005271,
+  "resistance": 4700,
+  "stock": 468764
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C25725",
+  "mfr": "4D02WGJ0103TCE",
+  "package": "0402x4",
+  "price": 0.003929,
+  "resistance": 10000,
+  "stock": 78939
+ },
+ {
+  "is_basic": false,
+  "is_preferred": true,
+  "lcsc": "C25510",
+  "mfr": "4D03WGJ0471T5E",
+  "package": "0603x4",
+  "price": 0.005157,
+  "resistance": 470,
+  "stock": 60939
+ }
+]

@@ -1,0 +1,702 @@
+[
+ {
+  "lcsc": "C8734",
+  "mfr": "STM32F103C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.037143,
+  "stock": 214596
+ },
+ {
+  "lcsc": "C529355",
+  "mfr": "STM32G431CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 2.852857,
+  "stock": 67156
+ },
+ {
+  "lcsc": "C5292060",
+  "mfr": "PY32F002AL15S6TU",
+  "package": "SOP-8",
+  "price": 0.166571,
+  "stock": 57915
+ },
+ {
+  "lcsc": "C46830",
+  "mfr": "STM32F030K6T6",
+  "package": "LQFP-32(7x7)",
+  "price": 0.684286,
+  "stock": 49738
+ },
+ {
+  "lcsc": "C529329",
+  "mfr": "STM32G030C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.778571,
+  "stock": 49681
+ },
+ {
+  "lcsc": "C89040",
+  "mfr": "STM32F030F4P6TR",
+  "package": "TSSOP-20",
+  "price": 0.58,
+  "stock": 48932
+ },
+ {
+  "lcsc": "C529331",
+  "mfr": "STM32G030K6T6",
+  "package": "LQFP-32(7x7)",
+  "price": 0.804286,
+  "stock": 47813
+ },
+ {
+  "lcsc": "C380535",
+  "mfr": "GD32E230C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.455714,
+  "stock": 38818
+ },
+ {
+  "lcsc": "C23922",
+  "mfr": "STM32F030C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.76,
+  "stock": 36821
+ },
+ {
+  "lcsc": "C431631",
+  "mfr": "STM32G030K8T6",
+  "package": "LQFP-32(7x7)",
+  "price": 0.738571,
+  "stock": 34799
+ },
+ {
+  "lcsc": "C529338",
+  "mfr": "STM32G070CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.991429,
+  "stock": 23395
+ },
+ {
+  "lcsc": "C110878",
+  "mfr": "STM32L051C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.255714,
+  "stock": 23293
+ },
+ {
+  "lcsc": "C28730",
+  "mfr": "STM32F407VET6",
+  "package": "LQFP-100(14x14)",
+  "price": 2.372857,
+  "stock": 22529
+ },
+ {
+  "lcsc": "C486681",
+  "mfr": "STM32L431CCT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.835714,
+  "stock": 22364
+ },
+ {
+  "lcsc": "C2802165",
+  "mfr": "STM32L051C8T6TR",
+  "package": "LQFP-48(7x7)",
+  "price": 1.64,
+  "stock": 21549
+ },
+ {
+  "lcsc": "C62514",
+  "mfr": "STM32F030C6T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.674286,
+  "stock": 21373
+ },
+ {
+  "lcsc": "C74524",
+  "mfr": "STM32F401RCT6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.084286,
+  "stock": 21046
+ },
+ {
+  "lcsc": "C133172",
+  "mfr": "S9KEAZ128AMLH",
+  "package": "LQFP-64(10x10)",
+  "price": 2.255714,
+  "stock": 20811
+ },
+ {
+  "lcsc": "C329283",
+  "mfr": "STM32L011F4U6TR",
+  "package": "UFQFPN-20(3x3)",
+  "price": 1.217143,
+  "stock": 18275
+ },
+ {
+  "lcsc": "C8735",
+  "mfr": "STM32F103RBT6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.007143,
+  "stock": 17983
+ },
+ {
+  "lcsc": "C724040",
+  "mfr": "STM32G030F6P6",
+  "package": "TSSOP-20",
+  "price": 0.688571,
+  "stock": 17933
+ },
+ {
+  "lcsc": "C9863",
+  "mfr": "STM32F051C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.381429,
+  "stock": 17857
+ },
+ {
+  "lcsc": "C5292059",
+  "mfr": "PY32F002AF15P6TU",
+  "package": "TSSOP-20",
+  "price": 0.164857,
+  "stock": 17759
+ },
+ {
+  "lcsc": "C106925",
+  "mfr": "STM32F030C6T6TR",
+  "package": "LQFP-48(7x7)",
+  "price": 0.607143,
+  "stock": 17335
+ },
+ {
+  "lcsc": "C8322",
+  "mfr": "STM32F103RET6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.654286,
+  "stock": 16560
+ },
+ {
+  "lcsc": "C393540",
+  "mfr": "APM32F103C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.845714,
+  "stock": 15649
+ },
+ {
+  "lcsc": "C15742",
+  "mfr": "STM32F405RGT6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.847143,
+  "stock": 13888
+ },
+ {
+  "lcsc": "C529356",
+  "mfr": "STM32G431CBU6",
+  "package": "UFQFPN-48(7x7)",
+  "price": 2.064286,
+  "stock": 13108
+ },
+ {
+  "lcsc": "C2969989",
+  "mfr": "STM32F042F6P6TR",
+  "package": "TSSOP-20(4.4x6.5)",
+  "price": 1.247143,
+  "stock": 12723
+ },
+ {
+  "lcsc": "C94355",
+  "mfr": "STM32F411RET6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.847143,
+  "stock": 12538
+ },
+ {
+  "lcsc": "C2847904",
+  "mfr": "STM32G0B1CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.754286,
+  "stock": 12153
+ },
+ {
+  "lcsc": "C108516",
+  "mfr": "STM32F303CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 2.75,
+  "stock": 12151
+ },
+ {
+  "lcsc": "C131443",
+  "mfr": "GD32F303RCT6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.157143,
+  "stock": 11970
+ },
+ {
+  "lcsc": "C81720",
+  "mfr": "STM32F072CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.238571,
+  "stock": 10563
+ },
+ {
+  "lcsc": "C962264",
+  "mfr": "GD32E230F8V6TR",
+  "package": "LGA-20(3x3)",
+  "price": 0.52,
+  "stock": 10551
+ },
+ {
+  "lcsc": "C5292058",
+  "mfr": "PY32F002AA15M6TU",
+  "package": "ESSOP-10",
+  "price": 0.136714,
+  "stock": 9928
+ },
+ {
+  "lcsc": "C380785",
+  "mfr": "GD32E230F8P6TR",
+  "package": "TSSOP-20",
+  "price": 0.504286,
+  "stock": 9927
+ },
+ {
+  "lcsc": "C94618",
+  "mfr": "NUC029LAN",
+  "package": "LQFP-48(7x7)",
+  "price": 1.487143,
+  "stock": 9836
+ },
+ {
+  "lcsc": "C2917159",
+  "mfr": "STM32L073RBT6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.427143,
+  "stock": 9634
+ },
+ {
+  "lcsc": "C529340",
+  "mfr": "STM32G070RBT6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.017143,
+  "stock": 9484
+ },
+ {
+  "lcsc": "C130453",
+  "mfr": "STM32F303RBT6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.735714,
+  "stock": 9307
+ },
+ {
+  "lcsc": "C77940",
+  "mfr": "GD32F103RET6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.43,
+  "stock": 9252
+ },
+ {
+  "lcsc": "C80687",
+  "mfr": "GD32F103RCT6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.435714,
+  "stock": 8761
+ },
+ {
+  "lcsc": "C19156",
+  "mfr": "STM32F407ZGT6",
+  "package": "LQFP-144(20x20)",
+  "price": 4.11,
+  "stock": 8655
+ },
+ {
+  "lcsc": "C529334",
+  "mfr": "STM32G031F8P6",
+  "package": "TSSOP-20",
+  "price": 1.26,
+  "stock": 8632
+ },
+ {
+  "lcsc": "C39105",
+  "mfr": "STM32F030R8T6",
+  "package": "LQFP-64(10x10)",
+  "price": 0.972857,
+  "stock": 8581
+ },
+ {
+  "lcsc": "C116152",
+  "mfr": "GD32F303RET6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.335714,
+  "stock": 8187
+ },
+ {
+  "lcsc": "C3032170",
+  "mfr": "N32G430C8L7",
+  "package": "LQFP-48(7x7)",
+  "price": 0.851429,
+  "stock": 7777
+ },
+ {
+  "lcsc": "C724043",
+  "mfr": "STM32G030K6T6TR",
+  "package": "LQFP-32(7x7)",
+  "price": 1.044286,
+  "stock": 7731
+ },
+ {
+  "lcsc": "C529343",
+  "mfr": "STM32G071CBU6",
+  "package": "UFQFPN-48(7x7)",
+  "price": 1.185714,
+  "stock": 7710
+ },
+ {
+  "lcsc": "C77979",
+  "mfr": "GD32F103CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.1,
+  "stock": 7003
+ },
+ {
+  "lcsc": "C8315",
+  "mfr": "STM32F107VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 2.941429,
+  "stock": 6928
+ },
+ {
+  "lcsc": "C528755",
+  "mfr": "LPC824M201JHI33Y",
+  "package": "HVQFN-32-EP(5x5)",
+  "price": 1.112857,
+  "stock": 6869
+ },
+ {
+  "lcsc": "C513828",
+  "mfr": "MKL17Z64VFM4",
+  "package": "QFN-32-EP(5x5)",
+  "price": 1.755714,
+  "stock": 6798
+ },
+ {
+  "lcsc": "C691535",
+  "mfr": "LPC1788FBD208K",
+  "package": "LQFP-208(28x28)",
+  "price": 13.59,
+  "stock": 6755
+ },
+ {
+  "lcsc": "C707444",
+  "mfr": "HK32F030MF4P6",
+  "package": "TSSOP-20",
+  "price": 0.341429,
+  "stock": 6542
+ },
+ {
+  "lcsc": "C5291740",
+  "mfr": "PY32F002AW15U6TR",
+  "package": "QFN-16",
+  "price": 0.174286,
+  "stock": 6491
+ },
+ {
+  "lcsc": "C77963",
+  "mfr": "GD32F103RBT6",
+  "package": "LQFP-64(10x10)",
+  "price": 1.455714,
+  "stock": 6438
+ },
+ {
+  "lcsc": "C116151",
+  "mfr": "GD32F303CCT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.068571,
+  "stock": 6401
+ },
+ {
+  "lcsc": "C94784",
+  "mfr": "STM32L432KBU6",
+  "package": "UFQFPN-32(5x5)",
+  "price": 2.925714,
+  "stock": 6259
+ },
+ {
+  "lcsc": "C8314",
+  "mfr": "STM32F103VBT6",
+  "package": "LQFP-100(14x14)",
+  "price": 2.422857,
+  "stock": 6135
+ },
+ {
+  "lcsc": "C8287",
+  "mfr": "STM32F103ZET6",
+  "package": "LQFP-144(20x20)",
+  "price": 3.984286,
+  "stock": 6051
+ },
+ {
+  "lcsc": "C432212",
+  "mfr": "STM32G071CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.945714,
+  "stock": 5953
+ },
+ {
+  "lcsc": "C5182268",
+  "mfr": "LKS32MC037EM6S8",
+  "package": "SSOP-24",
+  "price": 0.372857,
+  "stock": 5932
+ },
+ {
+  "lcsc": "C80215",
+  "mfr": "GD32F103VET6",
+  "package": "LQFP-100(14x14)",
+  "price": 1.667143,
+  "stock": 5907
+ },
+ {
+  "lcsc": "C124713",
+  "mfr": "GD32F303VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 1.425714,
+  "stock": 5869
+ },
+ {
+  "lcsc": "C124721",
+  "mfr": "STM32L151RCT6",
+  "package": "LQFP-64(10x10)",
+  "price": 3.21,
+  "stock": 5621
+ },
+ {
+  "lcsc": "C3013779",
+  "mfr": "GD32F303CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.035714,
+  "stock": 5556
+ },
+ {
+  "lcsc": "C60420",
+  "mfr": "STM32F411CEU6",
+  "package": "UFQFPN-48(7x7)",
+  "price": 2.271429,
+  "stock": 5493
+ },
+ {
+  "lcsc": "C724044",
+  "mfr": "STM32G030K8T6TR",
+  "package": "LQFP-32(7x7)",
+  "price": 0.808571,
+  "stock": 5491
+ },
+ {
+  "lcsc": "C3019113",
+  "mfr": "CW32F030C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.608571,
+  "stock": 5430
+ },
+ {
+  "lcsc": "C503083",
+  "mfr": "STM32L011F4P6TR",
+  "package": "TSSOP-20",
+  "price": 1.102857,
+  "stock": 5410
+ },
+ {
+  "lcsc": "C77789",
+  "mfr": "GD32F103VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 1.66,
+  "stock": 5086
+ },
+ {
+  "lcsc": "C94046",
+  "mfr": "STM32F302CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 2.854286,
+  "stock": 5074
+ },
+ {
+  "lcsc": "C529347",
+  "mfr": "STM32G071GBU6",
+  "package": "UFQFPN-28(4x4)",
+  "price": 1.564286,
+  "stock": 5035
+ },
+ {
+  "lcsc": "C8345",
+  "mfr": "STM32F105RCT6",
+  "package": "LQFP-64(10x10)",
+  "price": 2.264286,
+  "stock": 4956
+ },
+ {
+  "lcsc": "C183214",
+  "mfr": "STM32F303RET6",
+  "package": "LQFP-64(10x10)",
+  "price": 3.297143,
+  "stock": 4902
+ },
+ {
+  "lcsc": "C529344",
+  "mfr": "STM32G071EBY6TR",
+  "package": "WLCSP-25(2.3x2.5)",
+  "price": 2.348571,
+  "stock": 4708
+ },
+ {
+  "lcsc": "C784689",
+  "mfr": "HC32F190FCUA-QFN32TR",
+  "package": "QFN-32-EP(4x4)",
+  "price": 1.511429,
+  "stock": 4664
+ },
+ {
+  "lcsc": "C781542",
+  "mfr": "APM32F030C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.585714,
+  "stock": 4590
+ },
+ {
+  "lcsc": "C95578",
+  "mfr": "STM32L151C8T6A",
+  "package": "LQFP-48(7x7)",
+  "price": 2.361429,
+  "stock": 4457
+ },
+ {
+  "lcsc": "C2761416",
+  "mfr": "APM32F051C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.887143,
+  "stock": 4414
+ },
+ {
+  "lcsc": "C8294",
+  "mfr": "STM32F103VFT6",
+  "package": "LQFP-100(14x14)",
+  "price": 7.121429,
+  "stock": 4383
+ },
+ {
+  "lcsc": "C3446133",
+  "mfr": "APM32F051K8U6",
+  "package": "QFN-32-EP(5x5)",
+  "price": 0.918571,
+  "stock": 4264
+ },
+ {
+  "lcsc": "C724237",
+  "mfr": "STM32G071K8U6",
+  "package": "UFQFPN-32(5x5)",
+  "price": 2.24,
+  "stock": 4257
+ },
+ {
+  "lcsc": "C493491",
+  "mfr": "HC32L110C4UA-SFN20TR",
+  "package": "WQFN-20-EP(3x3)",
+  "price": 0.577143,
+  "stock": 4207
+ },
+ {
+  "lcsc": "C724076",
+  "mfr": "STM32G071CBU3",
+  "package": "UFQFPN-48(7x7)",
+  "price": 1.624286,
+  "stock": 4157
+ },
+ {
+  "lcsc": "C129291",
+  "mfr": "GD32F330C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 0.807143,
+  "stock": 4075
+ },
+ {
+  "lcsc": "C2056847",
+  "mfr": "LPC804M101JHI33Y",
+  "package": "HVQFN-32-EP(5x5)",
+  "price": 0.981429,
+  "stock": 4002
+ },
+ {
+  "lcsc": "C2969777",
+  "mfr": "STM32F103C8T6TR",
+  "package": "LQFP-48(7x7)",
+  "price": 1.292857,
+  "stock": 3976
+ },
+ {
+  "lcsc": "C8313",
+  "mfr": "STM32F103VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 1.68,
+  "stock": 3885
+ },
+ {
+  "lcsc": "C8350",
+  "mfr": "STM32F105VCT6",
+  "package": "LQFP-100(14x14)",
+  "price": 3.68,
+  "stock": 3844
+ },
+ {
+  "lcsc": "C1121900",
+  "mfr": "STM32F103C8T7",
+  "package": "LQFP-48(7x7)",
+  "price": 3.894286,
+  "stock": 3834
+ },
+ {
+  "lcsc": "C724039",
+  "mfr": "STM32G030C8T6TR",
+  "package": "LQFP-48(7x7)",
+  "price": 0.878571,
+  "stock": 3830
+ },
+ {
+  "lcsc": "C122930",
+  "mfr": "S9KEAZ64AMLH",
+  "package": "LQFP-64(10x10)",
+  "price": 2.694286,
+  "stock": 3803
+ },
+ {
+  "lcsc": "C2885643",
+  "mfr": "GD32C103CBT6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.487143,
+  "stock": 3770
+ },
+ {
+  "lcsc": "C917206",
+  "mfr": "LPC1765FBD100K",
+  "package": "LQFP-100(14x14)",
+  "price": 6.001429,
+  "stock": 3632
+ },
+ {
+  "lcsc": "C90795",
+  "mfr": "STM32F302C8T6",
+  "package": "LQFP-48(7x7)",
+  "price": 1.802857,
+  "stock": 3576
+ },
+ {
+  "lcsc": "C6917294",
+  "mfr": "LKS32MC037EM6S8B",
+  "package": "SSOP-24",
+  "price": 0.404286,
+  "stock": 3560
+ },
+ {
+  "lcsc": "C81550",
+  "mfr": "GD32F103ZET6",
+  "package": "LQFP-144(20x20)",
+  "price": 1.73,
+  "stock": 3487
+ }
+]

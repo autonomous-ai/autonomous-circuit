@@ -1,0 +1,308 @@
+[
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C14663",
+  "mfr": "CC0603KRX7R9BB104",
+  "package": "0603",
+  "price": 0.002214,
+  "stock": 81299425
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1525",
+  "mfr": "CL05B104KO5NNNC",
+  "package": "0402",
+  "price": 0.001086,
+  "stock": 54323629
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C19702",
+  "mfr": "CL10A106KP8NNNC",
+  "package": "0603",
+  "price": 0.0053,
+  "stock": 28665125
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C307331",
+  "mfr": "CL05B104KB54PNC",
+  "package": "0402",
+  "price": 0.003257,
+  "stock": 15968470
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C49678",
+  "mfr": "CC0805KRX7R9BB104",
+  "package": "0805",
+  "price": 0.004071,
+  "stock": 15768009
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C52923",
+  "mfr": "CL05A105KA5NQNC",
+  "package": "0402",
+  "price": 0.002714,
+  "stock": 14528955
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C57112",
+  "mfr": "0603B103K500NT",
+  "package": "0603",
+  "price": 0.0023,
+  "stock": 12919093
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C15850",
+  "mfr": "CL21A106KAYNNNE",
+  "package": "0805",
+  "price": 0.009143,
+  "stock": 12668317
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1588",
+  "mfr": "CL10B102KB8NNNC",
+  "package": "0603",
+  "price": 0.002614,
+  "stock": 11602358
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C15849",
+  "mfr": "CL10A105KB8NNNC",
+  "package": "0603",
+  "price": 0.004443,
+  "stock": 11240988
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C59461",
+  "mfr": "CL10A226MQ8NRNC",
+  "package": "0603",
+  "price": 0.008214,
+  "stock": 10358265
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C96446",
+  "mfr": "CL10A106MA8NRNC",
+  "package": "0603",
+  "price": 0.014857,
+  "stock": 8307223
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C15195",
+  "mfr": "CL05B103KB5NNNC",
+  "package": "0402",
+  "price": 0.001243,
+  "stock": 7849775
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C15525",
+  "mfr": "CL05A106MQ5NUNC",
+  "package": "0402",
+  "price": 0.004243,
+  "stock": 6533282
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C19666",
+  "mfr": "CL10A475KO8NNNC",
+  "package": "0603",
+  "price": 0.008743,
+  "stock": 6345637
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C12530",
+  "mfr": "CL05A225MQ5NSNC",
+  "package": "0402",
+  "price": 0.002243,
+  "stock": 6139213
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23630",
+  "mfr": "CL10A225KO8NNNC",
+  "package": "0603",
+  "price": 0.005114,
+  "stock": 5889919
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C45783",
+  "mfr": "CL21A226MAQNNNE",
+  "package": "0805",
+  "price": 0.019714,
+  "stock": 5389915
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C28323",
+  "mfr": "CL21B105KBFNNNE",
+  "package": "0805",
+  "price": 0.008471,
+  "stock": 5331021
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C440198",
+  "mfr": "GRM21BR61H106KE43L",
+  "package": "0805",
+  "price": 0.058143,
+  "stock": 5318712
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1523",
+  "mfr": "0402B102K500NT",
+  "package": "0402",
+  "price": 0.000986,
+  "stock": 5289444
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1779",
+  "mfr": "CL21A475KAQNNNE",
+  "package": "0805",
+  "price": 0.011271,
+  "stock": 5204916
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1546",
+  "mfr": "0402CG101J500NT",
+  "package": "0402",
+  "price": 0.000871,
+  "stock": 4976564
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C23733",
+  "mfr": "CL05A475MP5NRNC",
+  "package": "0402",
+  "price": 0.004471,
+  "stock": 4771988
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C13585",
+  "mfr": "CL31A106KBHNNNE",
+  "package": "1206",
+  "price": 0.027714,
+  "stock": 3941714
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C28233",
+  "mfr": "CL21B104KCFNNNE",
+  "package": "0805",
+  "price": 0.006871,
+  "stock": 3254561
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C12891",
+  "mfr": "CL31A226KAHNNNE",
+  "package": "1206",
+  "price": 0.036571,
+  "stock": 3235438
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C16780",
+  "mfr": "CL21A476MQYNNNE",
+  "package": "0805",
+  "price": 0.024286,
+  "stock": 3048751
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C14858",
+  "mfr": "CL10C101JB8NNNC",
+  "package": "0603",
+  "price": 0.0035,
+  "stock": 2969936
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C9196",
+  "mfr": "1206B102K202NT",
+  "package": "1206",
+  "price": 0.007943,
+  "stock": 2942225
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1710",
+  "mfr": "CL21B103KBANNNC",
+  "package": "0805",
+  "price": 0.005471,
+  "stock": 2886700
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C24497",
+  "mfr": "CL31B104KBCNNNC",
+  "package": "1206",
+  "price": 0.012729,
+  "stock": 2505207
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C7171",
+  "mfr": "TAJA106K016RNJ",
+  "package": "CASE-A-3216-18(mm)",
+  "price": 0.105143,
+  "stock": 1994369
+ },
+ {
+  "is_basic": true,
+  "is_preferred": false,
+  "lcsc": "C1623",
+  "mfr": "CL10B474KA8NNNC",
+  "package": "0603",
+  "price": 0.006586,
+  "stock": 1955518
+ }
+]

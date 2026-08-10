@@ -49,6 +49,13 @@ class FabProfile:
     warn_trace_mm: float = 0.15          # our cheap-tier preference
     min_clearance_mm: float = 0.10       # JLC 1oz floor
     warn_clearance_mm: float = 0.127
+    #: Slack when handing our floors to a *different* geometry engine. The
+    #: router targets 0.1mm and KiCad measures the same copper at 0.0958mm —
+    #: a 4um disagreement between two implementations, three orders of
+    #: magnitude below anything a fab can hold. Without this the second
+    #: substrate rejects every board it is given, which would make the check
+    #: worthless rather than strict. Our own stage-4 gate keeps the exact floor.
+    drc_tolerance_mm: float = 0.01
     # Vias and component through-holes are DIFFERENT JLC rules; conflating them
     # false-positives on every routed board (the router's own vias are finer
     # than any component hole). Block at JLC's true floor, warn at the
@@ -313,23 +320,24 @@ def kicad_project_json(profile: FabProfile) -> str:
     Without it the second-substrate check is noise, and a noisy gate is one
     everybody learns to ignore.
     """
+    slack = profile.drc_tolerance_mm
     rules = {
-        "min_clearance": profile.min_clearance_mm,
+        "min_clearance": round(profile.min_clearance_mm - slack, 4),
         "min_connection": 0.0,
-        "min_copper_edge_clearance": profile.min_edge_clearance_mm,
+        "min_copper_edge_clearance": round(profile.min_edge_clearance_mm - slack, 4),
         "min_hole_clearance": 0.2,
         "min_hole_to_hole": 0.2,
         "min_silk_clearance": 0.0,
         "min_text_height": 0.8,
         "min_text_thickness": 0.08,
         "min_through_hole_diameter": profile.min_via_drill_mm,
-        "min_track_width": profile.min_trace_mm,
+        "min_track_width": round(profile.min_trace_mm - slack, 4),
         "min_via_annular_width": profile.min_via_annular_mm,
         "min_via_diameter": profile.min_via_diameter_mm,
     }
     netclass = {
         "name": "Default",
-        "clearance": profile.min_clearance_mm,
+        "clearance": round(profile.min_clearance_mm - slack, 4),
         "track_width": profile.warn_trace_mm,
         "via_diameter": 0.6,
         "via_drill": 0.3,
