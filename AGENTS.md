@@ -1,8 +1,10 @@
 # AGENTS.md
 
-This repo is a consumer web app: chat → screenplay → shots → stitched vertical episode.
-Bootstrapped from the autonomous-vibe (Panda) donor; once bootstrapped, no runtime
-dependency on the donor's CAD stack.
+> ⚠ v0 scaffold: drama-domain content below is being replaced by the circuit tracks.
+
+This repo is a consumer web app: chat → circuit design → PCB/PCBA fab packet.
+Bootstrapped from the autonomous-tv donor; once bootstrapped, no runtime
+dependency on the donor's drama stack.
 
 ## Repo Rules
 
@@ -11,14 +13,13 @@ dependency on the donor's CAD stack.
   into skill runtimes at build time (`scripts/build/build-skill-runtimes.sh`).
 - `packages/dramapy/` is the source of truth for the Python episode pipeline. The
   vendored copy under `skills/dramacode/scripts/packages/dramapy/` is generated;
-  do not hand-edit.
+  do not hand-edit. (Donor package — the pipeline track forks it.)
 - Edit sources first, then regenerate explicit derived outputs.
 - `docs/video-interfaces.md` is frozen; changes go through
   `docs/video-interfaces-CHANGES.md` (append-only, entry template inside).
+  (Donor contract — the circuit contract lands as its own doc.)
 - The `mock` provider is the default everywhere; tests and CI never touch the network.
-  Hosted providers (`fal`, `dashscope`, `minimax`) are dev/production render paths.
-- Out of scope for v1: the Tauri desktop shell (donor residue in `desktop/` until
-  removed), slicing/printing/social donor paths, LoRA training, the `comfyui` provider.
+- Out of scope for v1: the Tauri desktop shell, slicing/printing/social donor paths.
 
 ## Checks
 

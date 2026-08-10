@@ -6,14 +6,13 @@
 # `packages/` and get copied into per-skill vendor directories by this
 # script. The vendored directories are gitignored / regenerated on build.
 #
-# Currently vendors:
+# Currently vendors (donor drama paths — the pipeline track retargets these):
 #   packages/dramapy/src/dramapy/  →  skills/dramacode/scripts/packages/dramapy/
 #   packages/dramapy/src/dramapy/  →  skills/screening-room/scripts/packages/dramapy/
 #
-# Run automatically by scripts/dev.sh (before `cargo run`) and
-# scripts/build/build-app.sh (before bundling), so the generators always
-# ship a populated runtime. The vendored trees are gitignored; only
-# README.md and .gitignore are tracked.
+# Run automatically by scripts/dev.sh, so live skill runs work from a fresh
+# clone. The vendored trees are gitignored; only README.md and .gitignore
+# are tracked.
 
 set -euo pipefail
 
@@ -55,8 +54,10 @@ DRAMACODE_VENDOR="${REPO_ROOT}/skills/dramacode/scripts/packages/dramapy"
 SCREENING_VENDOR="${REPO_ROOT}/skills/screening-room/scripts/packages/dramapy"
 
 if [ ! -d "${DRAMAPY_SRC}" ]; then
-  echo "error: dramapy source not found at ${DRAMAPY_SRC}" >&2
-  exit 1
+  # Nothing to vendor yet (source package removed or not yet created by the
+  # pipeline track) — not an error for the scaffold.
+  echo "note: no vendorable package at ${DRAMAPY_SRC}; skipping"
+  exit 0
 fi
 vendor_package "${DRAMAPY_SRC}" "${DRAMACODE_VENDOR}"
 echo "vendored dramapy → skills/dramacode/scripts/packages/dramapy"

@@ -2,20 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> ⚠ v0 scaffold: drama-domain content below is being replaced by the circuit tracks.
+
 @AGENTS.md
 
 ## Architecture at a glance
 
-Autonomous TV ("Video") is a web app: chat → screenplay → shots → stitched vertical episode. Three layers,
-wired through one frozen interface document.
+Autonomous Circuit is a web app: chat → circuit design → PCB/PCBA fab packet. Three layers,
+wired through one frozen interface document. (The pipeline/skills below are still the
+drama donor's — the circuit tracks replace them.)
 
-- **`viewer/`** — Vite + React frontend (chat surface + vertical episode player +
-  storyboard strip) **and** the Node server (`viewer/src/server/video/`): HTTP commands
+- **`viewer/`** — Vite + React frontend (chat surface + artifact workspace) **and**
+  the Node server (`viewer/src/server/circuit/`): HTTP commands
   (`POST /api/<command>`), SSE events (`GET /api/events`), the `claude` CLI subprocess
   driver, the artifact mtime snapshotter, the project/catalog/settings stores, and the
   silent post-build review loop. In dev everything mounts as Vite middleware; in prod
   `viewer/src/server/server.mjs` serves the built app and the same API.
-- **`packages/dramapy/`** — Python pipeline that turns an episode project
+- **`packages/dramapy/`** — donor Python pipeline that turns an episode project
   (`series.py` + `episodes/epNNN.py` defining `gen_episode()`) into artifacts:
   stitched `.mp4`, `.srt`, `.episode.json` sidecar, per-shot clips in `<stem>_shots/`,
   poster + contact-sheet board in `<stem>_review/`. Providers: `mock` (ffmpeg-synthesized,
@@ -44,12 +47,12 @@ User message → `POST /api/chat_start_turn` → Node driver spawns `claude` wit
 stream-json → CLI invokes `dramacode` as a tool call → skill runs sandboxed, calls
 `dramapy.generation.generate_episode()`, writes artifacts, prints one JSON line →
 driver's mtime snapshotter diffs the workspace → `artifact_changed` over SSE →
-viewer reloads catalog, player/storyboard update.
+viewer reloads catalog, the workspace updates.
 
 ### Two-phase chat: plan → approve → build (+ silent review)
 
-- **Plan** (`--permission-mode plan`): Video proposes the beat sheet + shot list as a
-  plan block; preference questions arrive as a fenced ` ```video-questions ` JSON block.
+- **Plan** (`--permission-mode plan`): Circuit proposes the plan as a
+  plan block; preference questions arrive as a fenced ` ```circuit-questions ` JSON block.
   Driver intercepts `ExitPlanMode` → emits `plan_proposed`, ends the turn.
 - **Build** (`chat_approve_plan` → `--permission-mode bypassPermissions`): resumes the
   same session (deterministic uuidv5 per project). Autopilot (`autoBuild !== false`)
@@ -64,7 +67,7 @@ viewer reloads catalog, player/storyboard update.
 Three independent gates — run only what your change touches:
 
 ```bash
-# dramapy (Python pipeline)
+# dramapy (donor Python pipeline)
 cd packages/dramapy && /Users/d/miniconda/bin/python3.12 -m pytest -q
 
 # viewer (client + Node server)
@@ -78,7 +81,7 @@ cd skills/dramacode && /Users/d/miniconda/bin/python3.12 -m pytest tests/ -q
 Dev / build:
 
 ```bash
-npm --prefix viewer run dev        # the whole app (Vite + API middleware) on :4178
+npm --prefix viewer run dev        # the whole app (Vite + API middleware) on :4179
 scripts/build/build-skill-runtimes.sh   # re-vendor dramapy into the skill runtime
 ```
 
@@ -87,23 +90,21 @@ scripts/build/build-skill-runtimes.sh   # re-vendor dramapy into the skill runti
 - **Session-dir encoding footgun (inherited, real):** the encoded Claude session dir
   replaces **every** non-alphanumeric char with `-` (matching
   `cwd.replace(/[^a-zA-Z0-9]/g, '-')`). Project workspaces live under
-  `~/.autonomous-video/projects/<uuid>` — a `/`-only encoding mismatches and the driver dies with
+  `~/.autonomous-circuit/projects/<uuid>` — a `/`-only encoding mismatches and the driver dies with
   "Session ID already in use".
 - **Cache-bust or suffer:** every media URL carries `?v=<mtime_nanos>-<size>`.
-  `<video>` caches harder than the donor's STL viewer ever did; a re-rendered episode
-  at the same path WILL replay stale frames without it.
+  Browsers cache hard; a re-rendered artifact at the same path WILL replay stale
+  content without it.
 - **One JSON line, last line wins:** skill runners print exactly one JSON line;
   parents parse `stdout.splitlines()[-1]` so stray prints don't kill a turn.
 - **Errors** from `generate_episode()` subclass `dramapy.generation.GenerationError`
   (`ProjectShapeError` / `GeneratorRuntimeError` / `SpecValidationError` /
   `ProviderError` / `ExportError`); `SyntaxError`/`ImportError` propagate untouched.
-- **Artifact order:** sidecar before final `.mp4` (the snapshotter has 1s granularity;
-  metadata must be readable when the episode event fires).
-- **Mock provider is the default** (`VIDEO_PROVIDER=mock`): the entire loop — including
+- **Artifact order:** sidecar before the final artifact (the snapshotter has 1s
+  granularity; metadata must be readable when the artifact event fires).
+- **Mock provider is the default** (`CIRCUIT_PROVIDER=mock`): the entire loop — including
   CI and the review phases — must work with zero network and zero GPUs.
-- **Domain numbers live in `dramalib/tables.py`** (beat law, shot durations, trope
-  tables, subtitle/audio constants). Docs point at helpers; never transcribe numbers
-  into prompts or references.
-- **Out of scope for v1:** the Tauri desktop shell (`desktop/` is donor residue until
-  deleted), slicing/printing/social donor code paths, real TTS voices (interface exists;
-  mock uses a synthesized bed), LoRA training, the `comfyui` provider.
+- **Domain numbers live in `dramalib/tables.py`** (donor; the circuit skill keeps the
+  same rule — domain numbers live in one lib module, never transcribed into prompts).
+- **Out of scope for v1:** the Tauri desktop shell, slicing/printing/social donor
+  code paths, LoRA training, the `comfyui` provider.

@@ -1,15 +1,8 @@
-Panda
+Autonomous Circuit
 Copyright (c) 2026 dee
 
-This product includes third-party components licensed separately. Each retains
-its own LICENSE file and copyright notice:
+Forked from autonomous-tv (github.com/autonomous-ai/autonomous-tv) at cb13e78,
+which itself descends from the autonomous-vibe (Panda) viewer.
 
-- skills/cad-viewer  — MIT License, Copyright (c) 2026 earthtojake
-- skills/step-parts  — MIT License, Copyright (c) 2026 earthtojake
-- Bambu LAN print protocol in desktop/src-tauri/src/commands/printer.rs, ported
-  from the (removed) bambu-labs skill — MIT License, Copyright (c) 2026 earthtojake
-- G-code inspect/validate logic in desktop/src-tauri/src/commands/slicer.rs, ported
-  from the (removed) gcode skill — MIT License, Copyright (c) 2026 earthtojake
-
-All other code in this repository, including skills/cadcode, is licensed under
-the MIT License, Copyright (c) 2026 dee (see LICENSE).
+All code in this repository is licensed under the MIT License,
+Copyright (c) 2026 dee (see LICENSE).
