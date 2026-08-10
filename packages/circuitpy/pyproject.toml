@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "circuitpy"
+version = "0.1.0"
+description = "Autonomous Circuit build pipeline: board TSX -> verified, fab-ready PCB/PCBA artifacts via the pinned tscircuit toolchain + kicad-cli."
+requires-python = ">=3.10"
+# Zero runtime dependencies by design: all Node/EDA work goes through the
+# repo's pinned toolchain/ binaries via subprocess (docs/circuit-interfaces.md §1).
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+circuitpy = ["py.typed", "_js/*.cjs"]
