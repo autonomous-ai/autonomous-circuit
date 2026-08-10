@@ -149,6 +149,89 @@ def power_budget(*, source: str, current_ma: float) -> list[dict[str, str]]:
     return []
 
 
+#: Junction-to-ambient thermal resistance, °C/W, for the packages our linear
+#: regulators come in. Datasheet figures on a 2-layer board with modest copper —
+#: the number degrades badly with less pour, which is the point of the warning.
+THETA_JA_C_PER_W = {
+    "SOT-223": 62.0,
+    "SOT-23": 250.0,
+    "SOT-89": 140.0,
+    "TO-252": 92.0,   # DPAK
+    "TO-263": 70.0,   # D2PAK
+}
+MAX_JUNCTION_C = 125.0
+AMBIENT_C = 25.0
+
+
+def regulator_thermal(
+    *, vin: float, vout: float, current_a: float, package: str = "SOT-223",
+    ambient_c: float = AMBIENT_C,
+) -> dict[str, object]:
+    """Will the linear regulator cook?
+
+    A dropped volt times a drawn amp is heat, and no DRC on earth mentions it.
+    This is arithmetic, not simulation: P = (Vin - Vout) x I, then
+    Tj = Tambient + P x theta_JA. It catches the single most common
+    power mistake on hobby boards — an AMS1117 asked to do 500mA from 5V.
+    """
+    if vin < vout:
+        raise ValueError(f"vin {vin}V is below vout {vout}V")
+    if current_a < 0:
+        raise ValueError(f"current_a must be non-negative (got {current_a})")
+    theta = THETA_JA_C_PER_W.get(package.upper().replace("_", "-"))
+    if theta is None:
+        raise ValueError(
+            f"no thermal data for package {package!r} "
+            f"(have: {', '.join(sorted(THETA_JA_C_PER_W))})"
+        )
+    watts = (vin - vout) * current_a
+    rise = watts * theta
+    junction = ambient_c + rise
+    headroom = MAX_JUNCTION_C - junction
+    if junction >= MAX_JUNCTION_C:
+        verdict, severity = "over-temperature", "error"
+    elif headroom < 30:
+        verdict, severity = "marginal", "warning"
+    else:
+        verdict, severity = "ok", "info"
+    return {
+        "watts": round(watts, 3),
+        "junction_c": round(junction, 1),
+        "headroom_c": round(headroom, 1),
+        "theta_ja": theta,
+        "verdict": verdict,
+        "severity": severity,
+    }
+
+
+def regulator_thermal_warnings(
+    *, refdes: str = "U2", vin: float = 5.0, vout: float = 3.3,
+    current_a: float, package: str = "SOT-223",
+) -> list[dict[str, str]]:
+    """The thermal verdict as contract-shaped warnings. Never raises."""
+    try:
+        result = regulator_thermal(
+            vin=vin, vout=vout, current_a=current_a, package=package
+        )
+    except ValueError as exc:
+        return [{"part": refdes, "kind": "check_failed", "severity": "warning",
+                 "detail": f"regulator_thermal: {exc}"}]
+    if result["verdict"] == "ok":
+        return []
+    return [{
+        "part": refdes,
+        "kind": "power_budget",
+        "severity": str(result["severity"]),
+        "detail": (
+            f"{package} linear regulator dissipating {result['watts']}W at "
+            f"{current_a * 1000:.0f}mA reaches an estimated "
+            f"{result['junction_c']}degC junction "
+            f"({result['headroom_c']}degC from the 125degC limit) — "
+            "add copper pour on the tab, drop to a lower current, or use a buck"
+        ),
+    }]
+
+
 def estimate_cost(
     *, unique_parts: int, extended_parts: int, joints: int, assembled: bool = True,
     quantity: int = 5,
