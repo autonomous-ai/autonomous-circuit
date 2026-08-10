@@ -158,6 +158,12 @@ export default function PcbCanvas({
     cursor,
   ]);
 
+  // Leaving measure mode clears the dimension — a stale line over a board you
+  // are now editing is worse than no line.
+  useEffect(() => {
+    if (!measuring) setMeasure(null);
+  }, [measuring]);
+
   // --- wheel zoom (native, non-passive so the page never scrolls)
   useEffect(() => {
     const node = stageRef.current;
@@ -203,8 +209,11 @@ export default function PcbCanvas({
       const point = boardPointFromEvent(event);
       event.currentTarget.setPointerCapture?.(event.pointerId);
       if (measuring && point) {
+        // The anchor lives on the drag ref, not in state: a pointermove can
+        // arrive before React has re-rendered with the new state, and reading a
+        // stale `measure` there makes every fast drag measure zero.
         setMeasure({ from: point, to: point });
-        dragRef.current = { mode: "measure", startX: event.clientX, startY: event.clientY };
+        dragRef.current = { mode: "measure", from: point, startX: event.clientX, startY: event.clientY };
         return;
       }
       dragRef.current = {
@@ -225,9 +234,16 @@ export default function PcbCanvas({
       const drag = dragRef.current;
 
       if (drag?.mode === "measure" && point) {
-        const next = { from: measure?.from || point, to: point };
+        const next = { from: drag.from || point, to: point };
         setMeasure(next);
         onMeasureChange?.(next);
+        // Keep the HUD live while measuring — the coordinate readout is half
+        // the reason you reached for the ruler.
+        onHoverChange?.({
+          point,
+          delta: { x: point.x - next.from.x, y: point.y - next.from.y },
+          scale: viewStateRef.current.scale,
+        });
         return;
       }
       if (drag?.mode === "pan") {
@@ -248,7 +264,7 @@ export default function PcbCanvas({
       const delta = { x: point.x - origin.x, y: point.y - origin.y };
       onHoverChange?.({ ...(hit || {}), point, delta, scale: viewStateRef.current.scale });
     },
-    [boardPointFromEvent, index, layerFilter, measure, onHoverChange, onMeasureChange],
+    [boardPointFromEvent, index, layerFilter, onHoverChange, onMeasureChange],
   );
 
   const onPointerUp = useCallback(

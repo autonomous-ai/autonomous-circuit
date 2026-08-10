@@ -11,6 +11,7 @@ import {
 import { boardLabel, boardStatus, boardStem } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
+import Board3DView from "./Board3DView.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
 import PartsPanel from "./PartsPanel.jsx";
@@ -32,6 +33,7 @@ const TABS = Object.freeze([
   { id: "split", label: "Split" },
   { id: "schematic", label: "Schematic" },
   { id: "pcb", label: "PCB" },
+  { id: "3d", label: "3D" },
   { id: "bom", label: "BOM" },
   { id: "fab", label: "Fab" },
 ]);
@@ -321,7 +323,7 @@ export default function BoardWorkspace({
           setActiveTab("pcb");
           break;
         case "3":
-          setActiveTab("pcb");
+          setActiveTab("3d");
           break;
         case "0":
           setActiveTab("split");
@@ -574,6 +576,14 @@ export default function BoardWorkspace({
                   ) : null}
                   {activeTab === "schematic" ? schematicPane : null}
                   {activeTab === "pcb" ? pcbPane : null}
+                  {activeTab === "3d" ? (
+                    <Board3DView
+                      glbUrl={String(artifact.glbUrl || "")}
+                      stem={selectedStem}
+                      scheme={scheme}
+                      className="min-h-0 flex-1"
+                    />
+                  ) : null}
                   {activeTab === "bom" ? (
                     <BomTable
                       bomUrl={String(artifact.bomUrl || "")}
