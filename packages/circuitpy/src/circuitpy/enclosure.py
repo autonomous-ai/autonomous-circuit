@@ -33,6 +33,18 @@ def _num(value: object) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def _xy(element: dict) -> tuple[float | None, float | None]:
+    """Position of an element. Circuit JSON is not uniform here: pads and
+    holes carry flat ``x``/``y``, while ``pcb_component`` nests them under
+    ``center``. Reading only the flat pair silently skips every component."""
+    x, y = _num(element.get("x")), _num(element.get("y"))
+    if x is None or y is None:
+        center = element.get("center")
+        if isinstance(center, dict):
+            x, y = _num(center.get("x")), _num(center.get("y"))
+    return x, y
+
+
 def _board(circuit_json: list) -> dict | None:
     for element in circuit_json:
         if isinstance(element, dict) and element.get("type") == "pcb_board":
@@ -62,17 +74,26 @@ def _refdes_by_pcb_component(circuit_json: list) -> dict[str, str]:
     return out
 
 
-def _edge_of(x: float, y: float, width: float, height: float) -> str | None:
-    """Which board edge a point sits against, if any."""
+def _edge_of(
+    x: float, y: float, width: float, height: float,
+    *, part_w: float = 0.0, part_h: float = 0.0,
+) -> tuple[str | None, float]:
+    """Which board edge a part sits against, and the gap to it in mm.
+
+    Measured from the part's *body*, not its centre: a USB-C receptacle is
+    ~9mm deep, so its centre can sit 6mm inboard while the shell is flush with
+    the edge. Measuring centres reports connectors as interior and the case
+    gets no cutout.
+    """
     half_w, half_h = width / 2.0, height / 2.0
-    distances = {
-        "left": abs(x - -half_w),
-        "right": abs(x - half_w),
-        "bottom": abs(y - -half_h),
-        "top": abs(y - half_h),
+    gaps = {
+        "left": (x - part_w / 2.0) - -half_w,
+        "right": half_w - (x + part_w / 2.0),
+        "bottom": (y - part_h / 2.0) - -half_h,
+        "top": half_h - (y + part_h / 2.0),
     }
-    edge, distance = min(distances.items(), key=lambda kv: kv[1])
-    return edge if distance <= EDGE_BAND_MM else None
+    edge, gap = min(gaps.items(), key=lambda kv: kv[1])
+    return (edge if gap <= EDGE_BAND_MM else None), round(gap, 3)
 
 
 def build_enclosure_spec(circuit_json: list, *, board_name: str) -> dict:
@@ -98,7 +119,7 @@ def build_enclosure_spec(circuit_json: list, *, board_name: str) -> dict:
         # Unplated holes are mounting holes; plated ones carry a net and are
         # part of a footprint, not somewhere a screw goes.
         if etype == "pcb_hole":
-            x, y = _num(element.get("x")), _num(element.get("y"))
+            x, y = _xy(element)
             diameter = _num(element.get("hole_diameter"))
             if x is None or y is None or diameter is None:
                 continue
@@ -106,8 +127,11 @@ def build_enclosure_spec(circuit_json: list, *, board_name: str) -> dict:
             # smallest fastener anyone uses, so anything under 1.8mm is not one.
             if diameter < 1.8:
                 continue
+            # A standalone <hole> has no source component, so there is no
+            # refdes to look up — number them in the order they appear.
+            name = refdes.get(element.get("pcb_component_id", ""))
             holes.append({
-                "name": refdes.get(element.get("pcb_component_id", ""), "H?"),
+                "name": name or f"H{len(holes) + 1}",
                 "xMm": round(x, 3), "yMm": round(y, 3),
                 "diameterMm": round(diameter, 3),
                 "fastener": "M3" if diameter >= 3.0 else "M2",
@@ -115,20 +139,25 @@ def build_enclosure_spec(circuit_json: list, *, board_name: str) -> dict:
 
         elif etype == "pcb_component":
             name = refdes.get(element.get("pcb_component_id", ""), "")
-            x, y = _num(element.get("x")), _num(element.get("y"))
+            x, y = _xy(element)
             if not name or x is None or y is None:
                 continue
             prefix = "".join(c for c in name if c.isalpha()).upper()
             if not prefix.startswith(CONNECTOR_PREFIXES):
                 continue
-            edge = _edge_of(x, y, width, height)
+            part_w = _num(element.get("width")) or 0.0
+            part_h = _num(element.get("height")) or 0.0
+            edge, gap = _edge_of(x, y, width, height, part_w=part_w, part_h=part_h)
             connectors.append({
                 "refdes": name,
                 "xMm": round(x, 3), "yMm": round(y, 3),
+                "bodyMm": [round(part_w, 3), round(part_h, 3)],
                 "edge": edge,
+                "edgeGapMm": gap,
                 "rotationDeg": _num(element.get("rotation")) or 0.0,
                 "note": (
-                    "needs a cutout in the case wall" if edge
+                    f"needs a cutout in the {edge} wall (body sits {gap:g}mm "
+                    "from the board edge)" if edge
                     else "interior — reachable only with the case open"
                 ),
             })

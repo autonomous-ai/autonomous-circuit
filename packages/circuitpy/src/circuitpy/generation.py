@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Callable
 
 from circuitpy import checks
+from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import review as review_mod
@@ -494,6 +495,16 @@ def build_board(
     except (RuntimeError, TimeoutError, OSError):
         glb_path = None  # best-effort by contract
 
+    # The enclosure brief: the exact facts the printed body needs, taken from
+    # the same geometry that produced the gerbers so the two cannot disagree.
+    enclosure_path: Path | None = None
+    try:
+        enclosure_path = enclosure_mod.write_enclosure_spec(
+            circuit_json, fab_dir / "enclosure.json", board_name=stem
+        )
+    except (OSError, ValueError) as exc:
+        warnings.append(checks.check_failed(f"enclosure spec not written: {exc}"))
+
     ready = fab_mod.fab_ready(warnings, gerber_source)
     order_path: Path | None = None
     board_el = next(
@@ -551,6 +562,8 @@ def build_board(
         artifacts["order"] = f"{stem}_fab/{profile.order_name}"
     if glb_path is not None:
         artifacts["glb"] = f"{stem}_fab/{profile.glb_name}"
+    if enclosure_path is not None:
+        artifacts["enclosure"] = f"{stem}_fab/enclosure.json"
 
     validation: dict[str, object] = {}
     if warnings:
