@@ -6,9 +6,8 @@
 # `packages/` and get copied into per-skill vendor directories by this
 # script. The vendored directories are gitignored / regenerated on build.
 #
-# Currently vendors (donor drama paths — the pipeline track retargets these):
-#   packages/dramapy/src/dramapy/  →  skills/dramacode/scripts/packages/dramapy/
-#   packages/dramapy/src/dramapy/  →  skills/screening-room/scripts/packages/dramapy/
+# Currently vendors:
+#   packages/circuitpy/src/circuitpy/  →  skills/circuitcode/scripts/packages/circuitpy/
 #
 # Run automatically by scripts/dev.sh, so live skill runs work from a fresh
 # clone. The vendored trees are gitignored; only README.md and .gitignore
@@ -49,17 +48,13 @@ vendor_package() {
   fi
 }
 
-DRAMAPY_SRC="${REPO_ROOT}/packages/dramapy/src/dramapy"
-DRAMACODE_VENDOR="${REPO_ROOT}/skills/dramacode/scripts/packages/dramapy"
-SCREENING_VENDOR="${REPO_ROOT}/skills/screening-room/scripts/packages/dramapy"
+CIRCUITPY_SRC="${REPO_ROOT}/packages/circuitpy/src/circuitpy"
+CIRCUITCODE_VENDOR="${REPO_ROOT}/skills/circuitcode/scripts/packages/circuitpy"
 
-if [ ! -d "${DRAMAPY_SRC}" ]; then
-  # Nothing to vendor yet (source package removed or not yet created by the
-  # pipeline track) — not an error for the scaffold.
-  echo "note: no vendorable package at ${DRAMAPY_SRC}; skipping"
+if [ ! -d "${CIRCUITPY_SRC}" ]; then
+  # Nothing to vendor (source package missing) — not an error for a scaffold.
+  echo "note: no vendorable package at ${CIRCUITPY_SRC}; skipping"
   exit 0
 fi
-vendor_package "${DRAMAPY_SRC}" "${DRAMACODE_VENDOR}"
-echo "vendored dramapy → skills/dramacode/scripts/packages/dramapy"
-vendor_package "${DRAMAPY_SRC}" "${SCREENING_VENDOR}"
-echo "vendored dramapy → skills/screening-room/scripts/packages/dramapy"
+vendor_package "${CIRCUITPY_SRC}" "${CIRCUITCODE_VENDOR}"
+echo "vendored circuitpy → skills/circuitcode/scripts/packages/circuitpy"
