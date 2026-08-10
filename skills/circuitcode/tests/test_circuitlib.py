@@ -205,6 +205,56 @@ class OhmsLaw(unittest.TestCase):
         self.assertTrue(pullup_warnings(refdes="R3", resistance_ohms=100_000))
 
 
+class Layout(unittest.TestCase):
+    """Placement is where first-pass yield is won or lost: blocks too close
+    overlap courtyards, the router refuses to run, and one nudge shows up as
+    fifty cascading errors."""
+
+    def test_measured_extents_are_plausible(self) -> None:
+        from circuitlib.layout import BLOCK_EXTENT_MM, extent
+
+        for block_id in BLOCK_EXTENT_MM:
+            with self.subTest(block=block_id):
+                width, height = extent(block_id)
+                self.assertGreater(width, 0.5)
+                self.assertGreater(height, 0.5)
+                self.assertLess(width, 200)
+                self.assertLess(height, 200)
+
+    def test_unmeasured_block_raises_rather_than_guessing(self) -> None:
+        from circuitlib.layout import extent
+
+        with self.assertRaises(ValueError):
+            extent("flux-capacitor")
+
+    def test_place_row_does_not_collide_with_itself(self) -> None:
+        from circuitlib.layout import overlap_warnings, place_row
+
+        blocks = ["usb-c-power", "ldo-3v3", "status-led", "sw-tact"]
+        self.assertEqual(overlap_warnings(place_row(blocks)), [])
+
+    def test_overlapping_placement_is_caught(self) -> None:
+        from circuitlib.layout import overlap_warnings
+
+        warnings = overlap_warnings({"usb-c-power": (0, 0), "ldo-3v3": (3, 0)})
+        self.assertTrue(warnings)
+        self.assertIn("courtyards", warnings[0]["detail"])
+
+    def test_min_board_grows_with_content(self) -> None:
+        from circuitlib.layout import min_board_for
+
+        small = min_board_for(["status-led"])
+        large = min_board_for(["rp2040-core", "usb-c-data", "ldo-3v3"])
+        self.assertGreater(large[0] * large[1], small[0] * small[1])
+
+    def test_parametric_block_scales(self) -> None:
+        from circuitlib.layout import extent
+
+        self.assertGreater(
+            extent("ws2812-chain", count=12)[0], extent("ws2812-chain", count=4)[0]
+        )
+
+
 class Planner(unittest.TestCase):
     def test_plan_pulls_in_required_providers(self) -> None:
         plan = board_plan(capabilities=["sensor-environment"])
