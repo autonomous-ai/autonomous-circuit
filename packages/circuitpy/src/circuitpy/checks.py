@@ -548,6 +548,28 @@ def dfm_warnings(
 # ---------------------------------------------------------------------------
 
 
+#: Refdes prefixes and part descriptions for board features that appear on a
+#: BOM but are bare copper — nothing to source, nothing to place.
+_UNSOURCED_PREFIXES = ("TP", "FID", "MH", "H")
+_UNSOURCED_WORDS = ("testpoint", "test point", "fiducial", "mounting hole",
+                    "mountinghole", "hole", "keepout", "logo")
+
+
+def _is_unsourced_by_design(row: dict) -> bool:
+    designator = str(row.get("designator") or "")
+    text = " ".join(
+        str(row.get(key) or "") for key in ("comment", "value", "footprint")
+    ).lower()
+    if any(word in text for word in _UNSOURCED_WORDS):
+        return True
+    prefix = "".join(c for c in designator if c.isalpha()).upper()
+    # `H1` is a hole, `H` alone is not a prefix we should guess from, and a
+    # bare `R`/`C` must never fall through here.
+    return bool(prefix) and prefix in _UNSOURCED_PREFIXES and any(
+        c.isdigit() for c in designator
+    )
+
+
 def bom_gate(rows: list[dict], *, assembly: bool) -> list[Warning]:
     """Orderability + lock agreement. ``part_not_orderable`` blocks assembly
     packets (error) and merely advises bare-PCB ones (info); ``part_drift``
@@ -559,6 +581,12 @@ def bom_gate(rows: list[dict], *, assembly: bool) -> list[Warning]:
             designator = str(row.get("designator") or "part")
             lcsc = str(row.get("lcsc") or "")
             lock = row.get("lock") if isinstance(row.get("lock"), dict) else None
+            if not lcsc and _is_unsourced_by_design(row):
+                # A test point, fiducial or mounting hole is copper, not a
+                # part: there is nothing to buy and nothing to place. Blocking
+                # on it made test points impossible to add — while the review
+                # panel's testability lens asks for them on every rail.
+                continue
             if not lcsc:
                 warnings.append(
                     _warning(

@@ -315,6 +315,27 @@ class BomGate(unittest.TestCase):
         warnings = checks.bom_gate([{"designator": "R1", "lcsc": ""}], assembly=False)
         self.assertEqual(warnings[0]["severity"], "info")
 
+    def test_copper_features_are_not_unorderable_parts(self) -> None:
+        """Test points, fiducials and mounting holes are copper, not parts.
+
+        Regression: blocking on them made test points impossible to add, while
+        the review panel's testability lens asks for one on every rail.
+        """
+        rows = [
+            {"designator": "TP1", "comment": "testpoint", "lcsc": ""},
+            {"designator": "H1", "footprint": "mounting hole", "lcsc": ""},
+            {"designator": "FID1", "comment": "fiducial", "lcsc": ""},
+        ]
+        self.assertEqual(checks.bom_gate(rows, assembly=True), [])
+
+    def test_a_real_part_still_blocks(self) -> None:
+        rows = [
+            {"designator": "TP1", "comment": "testpoint", "lcsc": ""},
+            {"designator": "R5", "comment": "4.7k", "lcsc": ""},
+        ]
+        warnings = checks.bom_gate(rows, assembly=True)
+        self.assertEqual([w["part"] for w in warnings], ["R5"])
+
     def test_part_drift_against_lock(self) -> None:
         rows = [
             {"designator": "R1", "lcsc": "C111", "lock": {"lcsc": "C222", "basic": True}}
