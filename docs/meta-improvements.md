@@ -96,8 +96,13 @@ a mirrored pinout, or predicts heat. Each of these attacks one of those.
 15. **later — netlist diff between substrates.** Our second-substrate check
     currently runs on a converted board, so a same-org converter sits inside
     the trust path. A netlist diff audits the conversion itself.
-16. **later — auto test points** on every rail, so bring-up has somewhere to put
-    a probe. Testability scored 4/10 on the first board that met the panel.
+16. **unblocked 2026-08-10, now worth doing — test points on every rail.**
+    `<testpoint>` used to fail the BOM gate as an unorderable part (it has no
+    LCSC number because it is copper, not a part), so all three example boards
+    shipped without one and every testability lens scored 5–7. The gate now
+    exempts copper features, and a board carrying a test point reaches
+    `fab.ready: true` — verified end to end. Adding them to the blocks and to
+    the skill's defaults is the cheap next step.
 17. **later — panelization.** More boards per order at the same setup fee.
 
 ## 4. The whole job

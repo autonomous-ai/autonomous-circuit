@@ -40,6 +40,16 @@ territory, not yours — hand off rather than editing `parts.json`.
 - `info` — worth mentioning. `extended_part` means a Basic alternative would
   save ~$3 per line.
 
+## Test points are allowed — use them
+
+A `<testpoint>` carries no LCSC number because it is copper rather than a part,
+and the BOM gate used to call that unorderable and block the packet. It no
+longer does (verified 2026-08-10: a board with a test point reaches
+`fab.ready: true`). So when the review panel's testability lens asks where a
+probe goes on a dead board, the answer is a test point on each rail — put them
+in clear space, since one dropped on a pad cascades into overlap and
+courtyard errors.
+
 ## Pitfalls
 
 - **Don't disable checks.** The `--ignore-*-drc` flags exist; using one turns a
