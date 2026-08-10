@@ -14,6 +14,26 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-10 — Fab packet members written on non-ready builds too (ORDER.md stays ready-only)
+- **Change:** `build_board()` writes `gerbers.zip` / `bom.csv` / `cpl.csv` into
+  `<stem>_fab/` whenever the exports succeed — including builds with
+  `error`-severity warnings and kicad-absent builds — not only "when fab-ready"
+  as the §1 artifact table's Always? column reads literally. `ORDER.md` remains
+  strictly fab-ready-only, and export failures on a board that already has
+  error warnings degrade to a `check_failed` warning instead of `ExportError`
+  (an otherwise-clean board still raises `ExportError`).
+- **Why:** the table's literal reading contradicts §1 stage 5's own gate
+  ("kicad absent → tscircuit-exported gerbers plus `unverified_gerbers`" — a
+  by-definition not-ready packet that still writes gerbers) and §2's BOM tab,
+  which needs `bom.csv` for boards mid-repair. Found while building the
+  pipeline track (2026-08-10).
+- **Backward compatible:** yes — consumers gate on `fab.ready` +
+  `validation.warnings` severity, never on file presence; extra files carry no
+  new semantics.
+- **Mechanism:** `packages/circuitpy/src/circuitpy/generation.py` stage 5
+  block. Skill runtime re-vendor required (packages/circuitpy changed).
+- **Tracks affected:** pipeline / docs (table footnote when the freeze lifts).
+
 ## 2026-08-10 — Catalog must surface root `parts.json` as an entry
 - **Change:** the client (PartsPanel + BomTable enrichment) reads the parts
   lock through a catalog entry whose `file` is exactly `parts.json` (any
