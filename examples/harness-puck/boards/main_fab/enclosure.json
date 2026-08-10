@@ -1,0 +1,115 @@
+{
+ "board": {
+  "centerMm": [
+   0.0,
+   0.0
+  ],
+  "heightMm": 70.0,
+  "name": "main",
+  "outline": "rect",
+  "thicknessMm": 1.6,
+  "widthMm": 70.0
+ },
+ "clearance": {
+  "bottomMm": 0.0,
+  "confidence": "modelled",
+  "topMm": 0.8
+ },
+ "connectors": [
+  {
+   "bodyMm": [
+    9.85,
+    6.498
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.326,
+   "note": "needs a cutout in the bottom wall (body sits 2.326mm from the board edge)",
+   "refdes": "J1",
+   "rotationDeg": 0.0,
+   "xMm": 0.0,
+   "yMm": -29.425
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 29.5,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW1",
+   "rotationDeg": 0.0,
+   "xMm": -2.0,
+   "yMm": -3.0
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 25.5,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW2",
+   "rotationDeg": 0.0,
+   "xMm": 6.0,
+   "yMm": -1.0
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 21.5,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW3",
+   "rotationDeg": 0.0,
+   "xMm": -10.0,
+   "yMm": -1.0
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 13.0,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW4",
+   "rotationDeg": 0.0,
+   "xMm": 18.5,
+   "yMm": 2.0
+  }
+ ],
+ "entryKind": "enclosure",
+ "generator": "circuitpy",
+ "mountingHoles": [
+  {
+   "diameterMm": 2.2,
+   "fastener": "M2",
+   "name": "H2",
+   "xMm": -19.75,
+   "yMm": -11.4
+  },
+  {
+   "diameterMm": 2.2,
+   "fastener": "M2",
+   "name": "H1",
+   "xMm": 0.0,
+   "yMm": 22.0
+  },
+  {
+   "diameterMm": 2.2,
+   "fastener": "M2",
+   "name": "H3",
+   "xMm": 19.75,
+   "yMm": -11.4
+  }
+ ],
+ "notes": [
+  "Coordinates are millimetres, board centre at the origin, x right and y up, viewed from the top.",
+  "Mounting holes are unplated drills of 1.8mm or more; anything smaller belongs to a footprint.",
+  "3 mounting holes."
+ ]
+}

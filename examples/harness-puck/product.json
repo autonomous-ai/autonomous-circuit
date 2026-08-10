@@ -1,0 +1,9 @@
+{
+  "name": "harness-puck",
+  "description": "Round desk puck for the Autonomous Harness: press to delegate work to the AI coding agents you already run, and read fleet state off an 8-pixel RGB ring",
+  "power": "usb-c-5v",
+  "envelopeMm": [70, 70],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
