@@ -1,0 +1,14 @@
+{
+  "name": "circuit-toolchain",
+  "private": true,
+  "description": "Pinned Node toolchain for circuitpy. Exact versions only — tscircuit ships ~7 releases/day with no semver; upgrades are deliberate PRs that re-run every golden-block snapshot (see docs/circuit-interfaces.md §1 Toolchain).",
+  "dependencies": {
+    "tscircuit": "0.0.2279",
+    "@tscircuit/cli": "0.1.1876",
+    "@tscircuit/checks": "0.0.152",
+    "circuit-to-svg": "0.0.401",
+    "circuit-json-to-gltf": "0.0.113",
+    "tsx": "4.19.2",
+    "sharp": "0.33.5"
+  }
+}
