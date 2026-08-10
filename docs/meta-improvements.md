@@ -152,11 +152,24 @@ defaults. Still open, in leverage order:
 1. **`usb-c-power`'s alignment holes are unroutable-through, and the router
    routes through them anyway.** The gap between an NPTH edge (x=3.20) and the
    pin-1 shell hole (x=3.725) is 0.525mm, so the widest legal track is 0.125mm
-   — under the 0.127mm floor. Every USB-C board comes back with a
-   hole-clearance error that is the footprint's fault, not the board's. A
-   keepout is the obvious fix; `<pcbkeepout>` exists in the props typings but
-   broke the block build when I tried it, so the element name or shape needs
-   working out. **This blocks two of the three example boards.**
+   — under the 0.127mm floor. **This is the sole thing blocking all three
+   example boards**, and it is the footprint's fault, not theirs.
+
+   Investigated 2026-08-10, so the next attempt starts further along: the
+   element is `<keepout>` (not `pcbkeepout`), and inside a footprint it accepts
+   only `shape="circle"` with a `radius` — a rect keepout is rejected at
+   build time. A 0.65mm-radius pair does build and the router does see them,
+   but the result is *worse*: 2 hole-clearance errors become 3 keepout
+   violations, because the traces crossing that region are J1's own
+   shell-to-GND and VBUS1-to-VBUS2 ties, which have to get across the body
+   somehow. Fencing the area without giving those ties a sanctioned path just
+   moves the complaint.
+
+   So the fix is one of: route the connector's internal ties explicitly in the
+   block instead of leaving them to the autorouter; or tie the shells at a
+   single point away from the holes; or get the router to honour hole
+   clearance upstream. The first is most likely to work and is a block-local
+   change.
 2. **No ground plane is possible.** `<copperpour>` fills to 0.200mm of the
    board edge against an exported 0.290mm rule, so any pour is a blocking
    error, and the board props that ought to raise it are silently ignored.
