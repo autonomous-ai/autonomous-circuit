@@ -105,19 +105,30 @@ export const PLAN_SYSTEM_PROMPT = [
   "",
   "PREFERENCES FIRST. For a NEW board (not a trivial edit), open the turn by",
   "asking 2-4 preference questions (power source, size class, PCBA vs bare",
-  "PCB, must-have I/O) by CALLING the AskUserQuestion tool — do NOT write the",
-  "questions as plain text or a JSON/code block; only the tool call renders",
-  "the multiple-choice UI. Give EVERY question a first option labelled \"Let",
-  "Circuit choose\" (description: \"Recommended — we pick the best for you\");",
-  "when the user picks it, use your best default and proceed without",
-  "re-asking. The tool call ends the turn — do not call ExitPlanMode in the",
-  "same turn. A trivial edit needs no questions.",
+  "PCB, must-have I/O). Emit them as ONE fenced block, exactly:",
+  "```circuit-questions",
+  '{"questions":[{"question":"…","header":"Power","multiSelect":false,',
+  '"options":[{"label":"Let Circuit choose","description":"Recommended — we',
+  ' pick the best for you"},{"label":"USB-C","description":"…"}]}]}',
+  "```",
+  "Give EVERY question a first option labelled \"Let Circuit choose\"",
+  "(description: \"Recommended — we pick the best for you\"); when the user",
+  "picks it, use your best default and proceed without re-asking. Emitting",
+  "the block ends the turn — do not also propose a plan in the same turn.",
+  "A trivial edit needs no questions.",
   "",
-  "After the preferences are settled, write the plan and finish by calling",
-  "the ExitPlanMode tool with the COMPLETE plan markdown in its `plan` field",
-  "— restate the entire plan in that call even if you already wrote it",
-  "earlier in the conversation, and even when resuming a prior session. NEVER",
-  "call ExitPlanMode with an empty or partial `plan`.",
+  "After the preferences are settled, finish the turn by emitting the",
+  "COMPLETE plan inside ONE fenced block:",
+  "```circuit-plan",
+  "…the whole plan in markdown…",
+  "```",
+  "Restate the entire plan inside that fence every time, even if you already",
+  "wrote it earlier in the conversation and even when resuming a prior",
+  "session — the fence is what the app turns into the approve button, so a",
+  "plan that is only prose leaves the user with nothing to approve. Never",
+  "emit an empty or partial fence, and never write the plan to a file",
+  "instead. (If an ExitPlanMode tool happens to be available, calling it with",
+  "the same complete plan works too — but do not go looking for it.)",
 ].join("\n");
 
 export const IMPLEMENT_SYSTEM_PROMPT = [
@@ -484,6 +495,21 @@ export function newStreamState() {
   };
 }
 
+/** A ```circuit-plan fenced block, or null.
+ *
+ * The tool-free path to a proposed plan. `claude -p` subprocesses are not
+ * handed ExitPlanMode, so the fence is what actually carries plans in
+ * production; ExitPlanMode stays supported for hosts that do provide it.
+ * Mirrors the ```circuit-questions fence the client already renders.
+ */
+export function planFromFencedBlock(text) {
+  if (typeof text !== "string" || !text) return null;
+  const match = text.match(/```circuit-plan[ \t]*\r?\n([\s\S]*?)```/);
+  if (!match) return null;
+  const plan = match[1].trim();
+  return plan || null;
+}
+
 /** Extract the plan markdown from an ExitPlanMode tool input: prefer the
  * inline `plan`; else read the `planFilePath` file the model just wrote. */
 export function planFromExitPlanMode(input) {
@@ -576,6 +602,20 @@ function fromAssistant(obj, turnId, state) {
       if (!textAlreadyStreamed && typeof block.text === "string" && block.text) {
         state.anyTextEmitted = true;
         out.push({ kind: "text_delta", turnId, text: block.text });
+      }
+      // A headless `claude -p` subprocess is not given ExitPlanMode, so a plan
+      // that only ever arrives as a tool call never arrives at all — the turn
+      // ends with a good plan in prose, no approve button, and a dead loop.
+      // Verified 2026-08-10: the model searched for the tool, failed to find
+      // it, wrote the plan to a file and said "say go". The fenced block is
+      // the transport that does not depend on tool availability.
+      if (typeof block.text === "string" && block.text) {
+        const fenced = planFromFencedBlock(block.text);
+        if (fenced && !state.planProposed) {
+          state.planProposed = true;
+          state.anyTextEmitted = true;
+          out.push({ kind: "plan_proposed", turnId, plan: fenced });
+        }
       }
       continue;
     }

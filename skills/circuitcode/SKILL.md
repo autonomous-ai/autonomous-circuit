@@ -156,6 +156,10 @@ spec the user can approve or redirect:
 | I2C pull-ups, USB series/CC resistors | `tables.I2C_PULLUP_OHMS`, `tables.USB_*` |
 | Assembly fees, cost bands, lead time | `tables.*_USD`, `helpers.estimate_cost()`, `helpers.fab_profile()` |
 | Which block does X | `blocks.block_for(capability)`, `blocks.CAPABILITY_INDEX` |
+| A real, stocked glue part | `parts.pick("resistors", resistance=4700)` — JLC Basic/Preferred mirror |
+| Is this part costing us a feeder fee | `parts.cheaper_basic_part("C…")` |
+| Will the regulator cook | `helpers.regulator_thermal(vin=…, vout=…, current_a=…)` |
+| Is this LED resistor sane | `helpers.led_current(rail_v=…, resistance_ohms=…)` |
 | What a block needs fed | `blocks.BLOCKS[id].requires` / `.provides` |
 | Iteration cap | `tables.MAX_REPAIR_ITERATIONS` |
 

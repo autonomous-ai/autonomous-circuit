@@ -73,3 +73,18 @@ if [ ! -d "${BLOCKS_SRC}" ]; then
 fi
 vendor_package "${BLOCKS_SRC}" "${BLOCKS_VENDOR}"
 echo "vendored golden blocks → skills/circuitcode/blocks"
+
+# The parts catalog: a snapshot of JLCPCB's stocked Basic/Preferred libraries.
+# Vendored so the skill can answer "what part should I use" instantly and
+# offline — the live service takes 47-90s cold and must never sit in the loop.
+CATALOG_SRC="${REPO_ROOT}/packages/parts-catalog"
+CATALOG_VENDOR="${REPO_ROOT}/skills/circuitcode/parts_catalog"
+
+if [ ! -d "${CATALOG_SRC}/catalog" ]; then
+  echo "note: no parts catalog at ${CATALOG_SRC}/catalog; skipping"
+  exit 0
+fi
+mkdir -p "${CATALOG_VENDOR}"
+vendor_package "${CATALOG_SRC}/catalog" "${CATALOG_VENDOR}/catalog"
+cp "${CATALOG_SRC}/catalog.py" "${CATALOG_VENDOR}/catalog.py"
+echo "vendored parts catalog → skills/circuitcode/parts_catalog"

@@ -71,29 +71,41 @@ echo >> "$REPORT"
 echo "## Candidate (latest)" >> "$REPORT"
 echo >> "$REPORT"
 
-# Mirror the real dependency set and bump ONLY tscircuit. Installing tscircuit
+# Mirror the real dependency set, then move the whole @tscircuit family to
+# latest together.
+#
+# Two lessons, both learned the hard way on 2026-08-10. Installing `tscircuit`
 # alone leaves out tsx (the CLI's TSX runner), @tscircuit/checks, circuit-to-svg
-# and sharp, and every block then fails for want of a runner — a false alarm
-# indistinguishable from a genuine upstream break, which is exactly how a
-# canary stops being believed.
+# and sharp, so every block fails for want of a runner — a false alarm
+# indistinguishable from a real break, which is how a canary stops being
+# believed. And bumping `tscircuit` while pinning `@tscircuit/cli` fails
+# outright: 0.0.2280 wanted a circuit-json the pinned CLI's peer range
+# rejected. These packages are released as a set and have to be tested as one.
 "$PY" - "$REPO_ROOT/toolchain/package.json" "$SCRATCH/package.json" "$LATEST" <<'EOF'
 import json, sys
 src, dest, latest = sys.argv[1], sys.argv[2], sys.argv[3]
-pkg = json.load(open(src))
-deps = dict(pkg.get("dependencies", {}))
+deps = dict(json.load(open(src)).get("dependencies", {}))
 deps["tscircuit"] = latest
+# Everything in the @tscircuit family (and its circuit-* siblings) rides the
+# same release train; pinning one against a bumped other is not a real test.
+for name in list(deps):
+    if name.startswith("@tscircuit/") or name.startswith("circuit-"):
+        deps[name] = "latest"
 json.dump(
     {"name": "circuit-toolchain-canary", "private": True, "dependencies": deps},
     open(dest, "w"), indent=2,
 )
 EOF
 
-if ! (cd "$SCRATCH" && npm install --no-audit --no-fund --silent > /tmp/canary-install.txt 2>&1); then
+rm -f "$SCRATCH/package-lock.json"
+if ! (cd "$SCRATCH" && npm install --no-audit --no-fund > /tmp/canary-install.txt 2>&1); then
   {
-    echo "\`npm install tscircuit@$LATEST\` failed:"
+    echo "Installing the family at \`$LATEST\` failed — that IS the finding:"
+    echo "these packages are released together, and a set that cannot even"
+    echo "resolve is not a set we can upgrade onto."
     echo
     echo '```'
-    tail -15 /tmp/canary-install.txt
+    grep -E "npm error" /tmp/canary-install.txt | head -12
     echo '```'
   } >> "$REPORT"
   echo "canary: candidate install failed — see $REPORT"
