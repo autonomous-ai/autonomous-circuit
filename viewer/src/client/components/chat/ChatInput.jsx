@@ -16,6 +16,7 @@ import { useProjectsStore } from "@/store/projects.ts";
 import { PLACEHOLDER_PROJECT_NAME, PREFILL_CHAT_INPUT_EVENT } from "./chatInputHelpers";
 import { blobToAttachment, imageFilesFromDataTransfer, MAX_ATTACHMENTS } from "./attachments";
 import ModelControl from "./ModelControl";
+import EffortControl from "./EffortControl";
 
 const MAX_TEXTAREA_HEIGHT = 192; // tailwind max-h-48
 
@@ -310,6 +311,7 @@ function ChatInput({ className, placeholder = "Describe a circuit board" }, ref)
               <Plus className="size-4" aria-hidden />
             </Button>
             <ModelControl />
+            <EffortControl />
             {notice ? (
               <span className="truncate pl-1 text-[11px] text-muted-foreground">{notice}</span>
             ) : null}

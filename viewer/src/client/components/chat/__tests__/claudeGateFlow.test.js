@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  __resetEffortForTesting,
   __setTransportForTesting,
   attachChatEventStream,
   detachChatEventStream,
@@ -23,6 +24,10 @@ import {
 } from "../../../store/claudeSetup.js";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// The effort directive is appended to every sent message; pin it to the level
+// that says nothing so this file keeps asserting the gate, not the prompt.
+__resetEffortForTesting("medium");
 
 function makeMockEvents() {
   const handlers = new Map();

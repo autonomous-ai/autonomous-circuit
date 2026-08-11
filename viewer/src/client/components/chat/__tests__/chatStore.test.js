@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  __resetEffortForTesting,
   __setTransportForTesting,
   attachChatEventStream,
   cancelTurn,
@@ -15,11 +16,18 @@ import {
   getChatState,
   hydrateSession,
   resetChatStore,
+  setPendingViewContext,
   setProject,
   startTurn,
 } from "../../../store/chat.js";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// Effort rides every sent message as a model-facing directive, and the default
+// level ("high") is a talkative one. Pin these tests to "medium" — the level
+// that deliberately says nothing — so they keep asserting what they are about.
+// The directive itself has its own test at the bottom of this file.
+__resetEffortForTesting("medium");
 
 function makeMockEvents() {
   const handlers = new Map();
@@ -385,6 +393,81 @@ test("attachChatEventStream is idempotent — second call replaces first", () =>
     assert.equal(events.handlerCount("chat_event"), 1);
   } finally {
     detachChatEventStream();
+    restore();
+    resetChatStore();
+  }
+});
+
+test("the effort directive rides the sent message, never the echoed bubble", async () => {
+  resetChatStore();
+  setProject("proj-1");
+  __resetEffortForTesting("max");
+
+  const calls = [];
+  const restore = __setTransportForTesting({
+    async chat_start_turn(req) {
+      calls.push(req);
+      return { turnId: "turn-effort" };
+    },
+  });
+
+  try {
+    await startTurn("shrink the board");
+    const sent = calls[0].userMessage;
+    assert.ok(sent.startsWith("shrink the board"), "the user's own words come first");
+    assert.match(sent, /\[Effort: max — ultrathink\./);
+    // The bubble is what the user sees; a hidden directive must stay hidden.
+    assert.equal(getChatState().history[0].userText, "shrink the board");
+  } finally {
+    restore();
+    __resetEffortForTesting("medium");
+    resetChatStore();
+  }
+});
+
+test("effort is last, after the view-context note — it modifies the request, it is not the request", async () => {
+  resetChatStore();
+  setProject("proj-1");
+  __resetEffortForTesting("high");
+  setPendingViewContext("[Viewer context: pcb view of board main]");
+
+  const calls = [];
+  const restore = __setTransportForTesting({
+    async chat_start_turn(req) {
+      calls.push(req);
+      return { turnId: "turn-order" };
+    },
+  });
+
+  try {
+    await startTurn("move U3");
+    const sent = calls[0].userMessage;
+    assert.ok(sent.indexOf("Viewer context") < sent.indexOf("[Effort:"), "context precedes effort");
+    assert.ok(sent.startsWith("move U3"));
+  } finally {
+    restore();
+    __resetEffortForTesting("medium");
+    resetChatStore();
+  }
+});
+
+test("medium adds nothing at all to the sent message", async () => {
+  resetChatStore();
+  setProject("proj-1");
+  __resetEffortForTesting("medium");
+
+  const calls = [];
+  const restore = __setTransportForTesting({
+    async chat_start_turn(req) {
+      calls.push(req);
+      return { turnId: "turn-quiet" };
+    },
+  });
+
+  try {
+    await startTurn("add a test point");
+    assert.equal(calls[0].userMessage, "add a test point");
+  } finally {
     restore();
     resetChatStore();
   }

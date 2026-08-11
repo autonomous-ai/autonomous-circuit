@@ -15,6 +15,12 @@ import {
   isClaudeMissingError,
   openClaudeSetup,
 } from "./claudeSetup.js";
+import {
+  effortDirective,
+  normalizeEffort,
+  readStoredEffort,
+  writeStoredEffort,
+} from "../components/chat/effortChoices.js";
 
 /**
  * @typedef {Object} ChatTextBlock
@@ -1061,6 +1067,10 @@ export async function startTurn(userMessage, { attachments = [] } = {}, transpor
     if (text) parts.push(text);
     if (viewContext && !text) parts.push(FRAME_SUGGESTION_DIRECTIVE);
     if (viewContext) parts.push(viewContext);
+    // Reasoning effort rides the same channel: model-facing, never echoed.
+    // Last, so it reads as a modifier on the request rather than the request.
+    const effort = effortDirective(getEffort());
+    if (effort) parts.push(effort);
     const sentMessage = parts.join("\n\n");
     // Keep the request shape identical to the text-only case unless images are
     // actually attached (additive `images` field; see transport + chat.rs).
@@ -1239,6 +1249,32 @@ export function consumePendingAttachments() {
 /** Set the model-facing "where did this frame come from" note for the next turn. */
 export function setPendingViewContext(note) {
   dispatch({ type: "set_pending_view_context", note });
+}
+
+// --- reasoning effort -------------------------------------------------------
+// Not reducer state: nothing renders off it except the composer's own pill, and
+// making it a turn-scoped store field would mean a mid-turn switch silently
+// applying to the turn already running. It lives here rather than in the
+// component so `startTurn` can read the pick without a prop drilled through
+// four layers. See components/chat/effortChoices.js for where it goes.
+
+let activeEffort = null;
+
+/** The level the next turn will run at. */
+export function getEffort() {
+  if (activeEffort === null) activeEffort = readStoredEffort();
+  return activeEffort;
+}
+
+/** Choose the level for subsequent turns; returns the level actually stored. */
+export function setEffort(level) {
+  activeEffort = writeStoredEffort(level);
+  return activeEffort;
+}
+
+/** Test seam — forget the cached pick so a fresh storage read happens. */
+export function __resetEffortForTesting(level = null) {
+  activeEffort = level === null ? null : normalizeEffort(level);
 }
 
 export function resetChatStore() {
