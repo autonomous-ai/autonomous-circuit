@@ -428,6 +428,7 @@ than after.
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="review-packet", help="output directory")
+    ap.add_argument("--no-zip", action="store_true", help="skip the archive")
     args = ap.parse_args()
 
     out = (REPO / args.out).resolve()
@@ -478,10 +479,24 @@ def main() -> int:
     (out / "APPROVAL.md").write_text(approval_doc(boards, block_ids))
 
     n_unready = sum(1 for _, n in boards if n)
+
+    # One file to send. A directory inside a git repo is not something anyone
+    # can forward to an engineer.
+    archive = None
+    if not args.no_zip:
+        archive = Path(shutil.make_archive(str(out), "zip", root_dir=out))
+
     print(f"packet: {out}")
     print(f"  {len(block_ids)} blocks to audit")
     print(f"  {len(boards)} boards, {n_unready} with blocking findings")
-    print(f"  start at {out / 'APPROVAL.md'}")
+    if archive:
+        mb = archive.stat().st_size / 1_000_000
+        print(f"\n  SEND THIS →  {archive}  ({mb:.1f} MB)")
+    if n_unready:
+        print(
+            f"\n  WARNING: {n_unready} board(s) still have blocking findings. "
+            "This packet is not ready to send."
+        )
     return 0
 
 
