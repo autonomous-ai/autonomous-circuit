@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""Generate the README diagrams with measured text.
+
+Run: scripts/make-diagrams
+
+Hand-placed SVG coordinates went wrong the obvious way: labels ran past the
+right edge, captions landed on top of boxes, self-call arcs overlapped their
+own text. All of those are the same bug — guessing how wide a string will be.
+
+So nothing here is guessed. `text_width` estimates from a per-character table,
+every box is sized to its content, every caption reserves its own space, and
+`check_bounds` fails the build if any element ends up outside the canvas. A
+diagram that does not fit is a broken diagram; better to find out here than in
+a screenshot.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OUT = REPO / "docs" / "architecture"
+
+FONT = "Poppins, Avenir Next, Segoe UI, Helvetica, Arial, sans-serif"
+
+# Relative advance widths for a geometric sans at size 1.0. Measured off
+# Poppins; close enough for Avenir Next and Segoe UI that layout stays sane
+# when a reader lacks the first font.
+_NARROW = "iljt.,:;'|![]()/\\ "
+_WIDE = "mwMW@%"
+_CAPS = "ABCDEFGHIJKLMNOPQRSTUVXYZ0123456789"
+
+
+def text_width(s: str, size: float, bold: bool = False) -> float:
+    total = 0.0
+    for ch in s:
+        if ch in _NARROW:
+            f = 0.30
+        elif ch in _WIDE:
+            f = 0.92
+        elif ch in _CAPS:
+            f = 0.66
+        elif ch in "—–↓→≥·":
+            f = 0.80
+        else:
+            f = 0.56
+        total += f * size
+    return total * (1.045 if bold else 1.0)
+
+
+class Canvas:
+    def __init__(self, width: int, height: int, bg: str = "#ffffff"):
+        self.w, self.h = width, height
+        self.parts: list[str] = []
+        self.bg = bg
+        self.violations: list[str] = []
+        self.boxes: list[tuple] = []
+
+    def check(self, x0: float, y0: float, x1: float, y1: float, what: str) -> None:
+        if x0 < 0 or y0 < 0 or x1 > self.w or y1 > self.h:
+            self.violations.append(
+                f"{what}: ({x0:.0f},{y0:.0f})-({x1:.0f},{y1:.0f}) outside 0,0-{self.w},{self.h}"
+            )
+
+    def note_box(self, x, y, w, h, name):
+        """Register a solid box so overlapping ones are caught."""
+        for (bx, by, bw, bh, bn) in self.boxes:
+            if x < bx + bw and bx < x + w and y < by + bh and by < y + h:
+                self.violations.append(f"{name} overlaps {bn}")
+        self.boxes.append((x, y, w, h, name))
+
+    def rect(self, x, y, w, h, fill, rx=0, stroke=None, sw=2):
+        s = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"'
+        if stroke:
+            s += f' stroke="{stroke}" stroke-width="{sw}"'
+        self.parts.append(s + "/>")
+        self.check(x, y, x + w, y + h, "rect")
+
+    def text(self, x, y, s, size, fill, anchor="start", bold=False, what="text"):
+        weight = ' font-weight="700"' if bold else ""
+        esc = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        self.parts.append(
+            f'<text x="{x}" y="{y}" font-size="{size}" fill="{fill}"'
+            f' text-anchor="{anchor}"{weight}>{esc}</text>'
+        )
+        w = text_width(s, size, bold)
+        x0 = x if anchor == "start" else (x - w / 2 if anchor == "middle" else x - w)
+        self.check(x0, y - size, x0 + w, y + size * 0.3, f"{what}: {s[:40]!r}")
+
+    def line(self, x1, y1, x2, y2, stroke="#6f6f6f", sw=2.1, arrow=True, dash=None):
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        a = ' marker-end="url(#arw)"' if arrow else ""
+        self.parts.append(
+            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}"'
+            f' stroke-width="{sw}"{d}{a}/>'
+        )
+
+    def path(self, d, stroke="#6f6f6f", sw=2.1, arrow=True, fill="none", dash=None):
+        da = f' stroke-dasharray="{dash}"' if dash else ""
+        a = ' marker-end="url(#arw)"' if arrow else ""
+        self.parts.append(
+            f'<path d="{d}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{da}{a}/>'
+        )
+
+    def render(self) -> str:
+        body = "\n  ".join(self.parts)
+        return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.w} {self.h}" \
+width="{self.w}" height="{self.h}" font-family="{FONT}">
+  <defs>
+    <marker id="arw" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8"
+            orient="auto-start-reverse">
+      <path d="M 1.5 1.5 L 10 6 L 1.5 10.5" fill="none" stroke="#6f6f6f"
+            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="{self.w}" height="{self.h}" fill="{self.bg}"/>
+  {body}
+</svg>
+"""
+
+
+# --------------------------------------------------------------------------
+# palette
+BG = "#ffffff"
+PANEL = "#eceae3"
+BLUE = "#b8d4ea"
+BLUE_TXT = "#123146"
+CORAL = "#f0c8b4"
+CORAL_TXT = "#7a3418"
+GREY = "#6f6f6f"
+INK = "#1a1a1a"
+CAP = "#3f3f3f"
+
+
+def node(c: Canvas, cx, cy, lines, fill, txt, min_w=0, pad=34, lh=38, size=27):
+    """A box centred on (cx, cy), sized to its widest line."""
+    w = max(min_w, max(text_width(t, size, True) for t, _ in lines) + pad * 2)
+    h = len(lines) * lh + 32
+    c.rect(cx - w / 2, cy - h / 2, w, h, fill, rx=13)
+    c.note_box(cx - w / 2, cy - h / 2, w, h, lines[0][0])
+    top = cy - h / 2 + 30
+    for i, (t, bold) in enumerate(lines):
+        c.text(cx, top + i * lh, t, size if bold else size - 4, txt, "middle", bold)
+    return w, h
+
+
+# ============================== diagram 1 =================================
+def architecture() -> Canvas:
+    c = Canvas(1740, 900, BG)
+
+    c.text(870, 66, "How Autonomous Circuit is put together", 44, INK, "middle", True)
+
+    # left panel — the chat
+    c.rect(40, 110, 430, 690, PANEL, rx=22)
+    c.text(255, 172, "What you type", 30, GREY, "middle", True)
+    for i, ln in enumerate(
+        [
+            "a coaster that reminds me",
+            "to drink water. it should",
+            "light up when my cup is",
+            "empty. usb-c powered.",
+        ]
+    ):
+        c.text(78, 250 + i * 40, ln, 26, "#2f2f2f")
+    for i, ln in enumerate(
+        [
+            "You get a plan back:",
+            "the parts, the pins,",
+            "what it will cost.",
+            "",
+            "You say yes.",
+            "",
+            "The boards arrive",
+            "from JLCPCB about",
+            "two weeks later.",
+        ]
+    ):
+        if ln:
+            c.text(78, 466 + i * 38, ln, 26, "#8a8a8a")
+
+    # right panel — the system
+    c.rect(560, 110, 1140, 690, PANEL, rx=22)
+    c.text(1130, 172, "What happens next", 30, GREY, "middle", True)
+
+    # arrows between panels, captions in their own gap
+    c.line(476, 300, 552, 300)
+    c.text(514, 276, "ask", 24, CAP, "middle")
+    c.line(552, 700, 476, 700)
+    c.text(514, 676, "boards", 24, CAP, "middle")
+
+    # orchestrator
+    node(
+        c,
+        1110,
+        330,
+        [("circuitcode", True), ("writes the board", False), ("runs the others", False)],
+        BLUE,
+        BLUE_TXT,
+        min_w=340,
+    )
+
+    # golden blocks, right
+    node(c, 1562, 330, [("Golden", True), ("blocks", True)], BLUE, BLUE_TXT, min_w=184)
+    c.line(1300, 330, 1466, 330)
+    c.text(1383, 306, "parts it may use", 23, CAP, "middle")
+
+    # the gauntlet, left — deliberately not blue
+    node(
+        c,
+        712,
+        336,
+        [("The checks", True), ("no AI here", False)],
+        CORAL,
+        CORAL_TXT,
+        min_w=240,
+    )
+    c.line(958, 300, 832, 300)
+    c.text(895, 276, "the board", 23, CAP, "middle")
+    c.line(832, 372, 958, 372)
+    c.text(895, 404, "what is wrong with it", 23, CAP, "middle")
+
+    # workers — widths measured first, then packed with even gaps and centred
+    ws = [
+        ("circuit-analysis", "what you meant"),
+        ("parts-book", "parts you can buy"),
+        ("design-review", "seven experts"),
+    ]
+    widths = [
+        max(text_width(a, 27, True), text_width(b, 23)) + 68 for a, b in ws
+    ]
+    gap = 46
+    total = sum(widths) + gap * (len(ws) - 1)
+    x = 1130 - total / 2
+    centres = []
+    for w in widths:
+        centres.append(x + w / 2)
+        x += w + gap
+
+    for cx, w, (name, sub) in zip(centres, widths, ws):
+        node(c, cx, 720, [(name, True), (sub, False)], BLUE, BLUE_TXT, min_w=w)
+        c.path(f"M {cx:.0f} 666 L {1130 + (cx - 1130) * 0.22:.0f} 414")
+
+    return c
+
+
+# ============================== diagram 2 =================================
+def process() -> Canvas:
+    """The sequence. Height is derived from the content, never guessed."""
+    lanes = [
+        ("You", "#e6f4ec", "#265f45", 130),
+        ("The app", "#cfe9dc", "#265f45", 350),
+        ("circuitcode", "#8ed2b3", "#123d2a", 610),
+        ("The checks", CORAL, CORAL_TXT, 920),
+        ("design-review", "#35a97c", "#ffffff", 1240),
+        ("Golden blocks", "#17875e", "#ffffff", 1560),
+    ]
+    X = {n: x for n, _, _, x in lanes}
+    HDR, STEP, SELF = 60, 66, 116
+
+    # --- pass 1: script the run, so the canvas can be sized to it ---
+    script: list[tuple] = []
+    y = 0
+
+    def m(a, b, label, bold=False):
+        nonlocal y
+        script.append(("msg", a, b, y, label, bold))
+        y += STEP
+
+    def sc(a, label):
+        nonlocal y
+        script.append(("self", a, y, label))
+        y += SELF
+
+    m("You", "The app", "describe the gadget")
+    m("The app", "circuitcode", "start a session")
+    m("circuitcode", "Golden blocks", "what could build this?")
+    m("Golden blocks", "circuitcode", "these blocks — or: nothing in the catalog fits")
+    m("circuitcode", "You", "the plan: parts, pins, rough cost")
+    m("You", "circuitcode", "you approve", True)
+
+    y += 34
+    loop_top = y
+    y += 56
+    sc("circuitcode", "write the board")
+    m("circuitcode", "The checks", "build it")
+    sc("The checks", "compile it, then check it two ways")
+    m("The checks", "circuitcode", "everything wrong with it")
+    sc("circuitcode", "fix what blocks it")
+    caption_y = y + 8
+    y += 54
+    loop_bottom = y
+
+    y += 56
+    m("circuitcode", "design-review", "nothing blocks it — review it")
+    sc("design-review", "seven experts, each scoring alone")
+    m("design-review", "circuitcode", "what to fix — round again, up to 4 times")
+    m("circuitcode", "The app", "every score 7 or better")
+
+    # --- pass 2: draw, with everything offset below the header ---
+    top = 150
+    off = top + HDR + 46
+    bot_y = off + y + 10
+    c = Canvas(1740, int(bot_y + HDR + 40), BG)
+    c.text(870, 66, "One run, from a sentence to a fab packet", 44, INK, "middle", True)
+
+    for _, _, _, x in lanes:
+        c.line(x, top + HDR, x, bot_y, stroke="#dadada", sw=2, arrow=False)
+
+    def headers(yy):
+        for name, fill, txt, x in lanes:
+            w = text_width(name, 25, True) + 52
+            c.rect(x - w / 2, yy, w, HDR, fill, rx=12)
+            c.text(x, yy + 38, name, 25, txt, "middle", True)
+
+    headers(top)
+    headers(int(bot_y))
+
+    # the loop, drawn first so messages sit on top of it
+    lx0, lx1 = 548, 1680
+    c.rect(lx0, off + loop_top, lx1 - lx0, loop_bottom - loop_top,
+           "#eaf7f0", rx=18, stroke="#4cb389", sw=2.5)
+    lw = text_width("Until nothing is wrong", 25, True) + 56
+    c.rect(1114 - lw / 2, off + loop_top - 26, lw, 52, "#cfe9dc", rx=12,
+           stroke="#a7d9c0", sw=2)
+    c.text(1114, off + loop_top + 8, "Until nothing is wrong", 25, "#265f45",
+           "middle", True)
+    c.text(1114, off + caption_y, "at most 2 tries, then 3, then 2", 24,
+           "#2f7a58", "middle", True)
+
+    for item in script:
+        if item[0] == "msg":
+            _, a, b, yy, label, bold = item
+            x1, x2 = X[a], X[b]
+            d = 1 if x2 > x1 else -1
+            c.line(x1 + 6 * d, off + yy, x2 - 8 * d, off + yy)
+            c.text(min(x1, x2) + 18, off + yy - 16, label, 24, CAP, "start", bold)
+        else:
+            _, a, yy, label = item
+            x = X[a]
+            c.path(f"M {x} {off + yy} a 38 29 0 1 1 -6 54")
+            c.text(x + 56, off + yy + 34, label, 24, CAP, "start")
+
+    return c
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    bad = 0
+    for name, fn in (
+        ("multi-agent-architecture", architecture),
+        ("multi-agent-process", process),
+    ):
+        c = fn()
+        (OUT / f"{name}.svg").write_text(c.render())
+        if c.violations:
+            bad += 1
+            print(f"{name}: {len(c.violations)} element(s) outside the canvas")
+            for v in c.violations[:8]:
+                print(f"   {v}")
+        else:
+            print(f"{name}: ok ({c.w}x{c.h})")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
