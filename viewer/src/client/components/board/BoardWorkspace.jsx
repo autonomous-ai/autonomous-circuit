@@ -93,6 +93,10 @@ export default function BoardWorkspace({
   catalogHydrated = false,
   catalogRefreshing = false,
   catalogError = "",
+  // True only while something is genuinely on its way to this pane. Owned by
+  // main.jsx because it needs the projects store; see stageState.js for the
+  // fresh-install spinner it exists to stop.
+  stagePending = false,
   onModelsSidebarChange,
   onToolsSheetChange,
   closeLeftSidebarSignal = 0,
@@ -1052,7 +1056,7 @@ export default function BoardWorkspace({
               </div>
             </>
           ) : (
-            catalogHydrated || catalogError ? (
+            !stagePending ? (
               <StartHere
               status={buildStatus}
               building={building || turnInProgress}

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { useChatStore } from "@/store/chat";
-import { STARTERS, buildStarterPrompt } from "./starters";
+import { CANT_BUILD_YET, STARTERS, buildStarterPrompt } from "./starters";
 import { startFromBrief } from "./createActions";
 
 // The zero-friction front door: instead of a blank prompt box, a short shelf
@@ -20,6 +20,7 @@ export default function CreateStarters({ className }) {
   const turnInProgress = useChatStore((state) => state.turnInProgress);
   const [busyId, setBusyId] = useState("");
   const [notice, setNotice] = useState("");
+  const [limitsOpen, setLimitsOpen] = useState(false);
 
   const busy = turnInProgress || Boolean(busyId);
 
@@ -71,9 +72,9 @@ export default function CreateStarters({ className }) {
           >
             <div className="flex items-baseline gap-2">
               <span className="text-[13px] font-semibold leading-tight tracking-tight">{s.title}</span>
-              {s.popular ? (
+              {s.tag ? (
                 <span className="rounded border border-border/60 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Popular
+                  {s.tag}
                 </span>
               ) : null}
               <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary">
@@ -92,6 +93,40 @@ export default function CreateStarters({ className }) {
       <p className="pt-0.5 text-[11px] leading-4 text-muted-foreground/70">
         Or describe your own below — plain words are enough.
       </p>
+
+      {/* The boundary, before the tap rather than after the wait. Everything
+          here used to be discoverable only by asking for it and being turned
+          down five minutes later, which is a dead end; said up front it is
+          just information, and every row ends somewhere the reader can go. */}
+      <div data-slot="starter-limits" className="mt-1 border-t border-border/50 pt-3">
+        <button
+          type="button"
+          aria-expanded={limitsOpen}
+          onClick={() => setLimitsOpen((open) => !open)}
+          className="flex w-full items-center gap-1.5 text-left text-[11px] leading-4 text-muted-foreground/80 hover:text-foreground"
+        >
+          <ChevronDown
+            className={cn("size-3 shrink-0 transition-transform", limitsOpen ? "" : "-rotate-90")}
+            aria-hidden
+          />
+          <span>
+            Not yet: {CANT_BUILD_YET.map((row) => row.ask.toLowerCase()).join(", ")}
+          </span>
+        </button>
+        {limitsOpen ? (
+          <ul className="mt-2 flex flex-col gap-2.5 pl-[18px]">
+            {CANT_BUILD_YET.map((row) => (
+              <li key={row.id} className="flex flex-col gap-0.5">
+                <span className="text-[11px] font-medium leading-4">{row.ask}</span>
+                <span className="text-[11px] leading-4 text-muted-foreground/80">{row.why}</span>
+                <span className="text-[11px] leading-4 text-muted-foreground">
+                  What you can have instead: {row.instead}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }

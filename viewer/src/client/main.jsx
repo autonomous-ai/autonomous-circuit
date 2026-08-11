@@ -13,6 +13,7 @@ import "./styles/globals.css";
 import { isWindowsPlatform, transport } from "./lib/transport.ts";
 import { attachCatalogStream, useCatalogStore } from "./store/catalog.ts";
 import { selectBoardEntries, selectPartsEntry } from "./lib/boardModel.js";
+import { isStagePending } from "./components/board/stageState.js";
 import { setProject as setChatProject } from "./store/chat.js";
 import { useProjectsStore } from "./store/projects.ts";
 
@@ -248,6 +249,18 @@ function AppRoot() {
       .catch((err) => console.warn("Failed to refresh catalog after project change", err));
   }, [currentProjectId]);
 
+  // Whether the stage should show a spinner at all. Computed here because it
+  // needs the projects store, which the workspace does not read: with zero
+  // projects nothing will ever hydrate the catalog, and gating the pitch on
+  // hydration left a fresh install spinning forever. See stageState.js.
+  const stagePending = isStagePending({
+    projectsStatus,
+    projectCount: projects.length,
+    currentProjectId,
+    catalogHydrated,
+    catalogError,
+  });
+
   // Board entries (boards/<stem>.tsx / .circuit.json, sorted) and the parts
   // lock artifact — the two catalog views the workspace renders.
   const boardEntries = useMemo(() => selectBoardEntries(catalog), [catalog]);
@@ -291,6 +304,7 @@ function AppRoot() {
               catalogHydrated={catalogHydrated}
               catalogRefreshing={catalogRefreshing}
               catalogError={catalogError}
+              stagePending={stagePending}
               onModelsSidebarChange={handleModelsSidebarChange}
               onToolsSheetChange={handleToolsSheetChange}
               closeLeftSidebarSignal={closeLeftSidebarSignal}
