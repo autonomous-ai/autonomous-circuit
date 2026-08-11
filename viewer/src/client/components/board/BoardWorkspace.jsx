@@ -213,8 +213,18 @@ export default function BoardWorkspace({
     };
   }, [circuitJsonUrl, manifestRevision]);
 
-  // parts.json enrichment for Properties and BOM — best effort.
-  const partsUrl = String(partsEntry?.url || "");
+  // parts.json enrichment for Properties, BOM and the cost line — best effort.
+  //
+  // The catalog deliberately does not list parts.json (catalog.mjs: it is
+  // served, not catalogued), so `partsEntry` is null for every project and the
+  // whole supply column — Basic/Extended, stock, unit price, the per-board
+  // total — was rendering as dashes. The asset route serves anything under the
+  // project root with an allowed extension, so we address the file directly and
+  // hang the cache-bust off `manifestRevision`, which ticks whenever the
+  // project's files change.
+  const partsUrl =
+    String(partsEntry?.url || "") ||
+    (currentProjectId ? `/projects/${currentProjectId}/parts.json?v=${manifestRevision}` : "");
   useEffect(() => {
     if (!partsUrl) {
       setParts([]);

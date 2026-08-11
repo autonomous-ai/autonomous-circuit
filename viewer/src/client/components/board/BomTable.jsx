@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
+import { partPlainName } from "@/lib/plainLanguage.js";
 import { lcscNumber, lcscUrl, normalizeParts, parseBomCsv, partsByLcsc } from "./boardData.js";
 
 /**
@@ -77,6 +78,27 @@ export default function BomTable({ bomUrl = "", partsUrl = "", index = null, hig
 
   const byLcsc = useMemo(() => partsByLcsc(parts), [parts]);
 
+  // What one board's worth of parts costs, summed off the same rows the table
+  // renders. Null when nothing is priced — a total that silently skips half
+  // the BOM is worse than no total.
+  const total = useMemo(() => {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    let usd = 0;
+    let priced = 0;
+    let unpriced = 0;
+    for (const row of rows) {
+      const part = byLcsc.get(lcscNumber(row.lcsc));
+      const quantity = row.designator.split(/[,;]/).filter((value) => value.trim()).length || 1;
+      if (part?.unitPriceUsd != null) {
+        usd += part.unitPriceUsd * quantity;
+        priced += 1;
+      } else {
+        unpriced += 1;
+      }
+    }
+    return priced ? { usd, priced, unpriced } : null;
+  }, [rows, byLcsc]);
+
   if (!bomUrl) {
     return (
       <div className={cn("grid min-h-0 flex-1 place-items-center", className)}>
@@ -108,7 +130,10 @@ export default function BomTable({ bomUrl = "", partsUrl = "", index = null, hig
       <table data-slot="bom-table" className="w-full min-w-max border-collapse text-left text-[13px]">
         <thead className="sticky top-0 border-b border-border/60 bg-background">
           <tr>
-            {["Designator", "Comment", "Footprint", "LCSC", "Type", "Stock", "Unit price", "Extended"].map((label) => (
+            {/* "What it is" is first after the designator on purpose: every
+                other column in a BOM is an identifier, and an identifier is
+                not an answer to "what am I buying". */}
+            {["Designator", "What it is", "Comment", "Footprint", "LCSC", "Type", "Stock", "Unit price", "Extended"].map((label) => (
               <th
                 key={label}
                 className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
@@ -148,6 +173,9 @@ export default function BomTable({ bomUrl = "", partsUrl = "", index = null, hig
                 )}
               >
                 <td className="px-4 py-2.5 font-mono text-foreground">{row.designator}</td>
+                <td className="px-4 py-2.5 text-foreground">
+                  {component ? partPlainName(component) : <span className="text-muted-foreground/50">—</span>}
+                </td>
                 <td className="px-4 py-2.5 text-muted-foreground">{row.comment}</td>
                 <td className="px-4 py-2.5 font-mono text-[12px] text-muted-foreground">{row.footprint}</td>
                 <td className="px-4 py-2.5 font-mono text-[12px]">
@@ -195,12 +223,30 @@ export default function BomTable({ bomUrl = "", partsUrl = "", index = null, hig
           })}
           {!rows.length ? (
             <tr>
-              <td colSpan={8} className="px-4 py-6 text-center text-sm text-muted-foreground">
+              <td colSpan={9} className="px-4 py-6 text-center text-sm text-muted-foreground">
                 bom.csv is empty.
               </td>
             </tr>
           ) : null}
         </tbody>
+        {total ? (
+          <tfoot className="sticky bottom-0 border-t border-border/60 bg-background">
+            <tr data-slot="bom-total">
+              <td className="px-4 py-2.5 text-[12px] font-medium text-foreground" colSpan={7}>
+                Parts per board
+                {total.unpriced ? (
+                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                    ({total.unpriced} of {rows.length} lines have no checked price, so the real total is higher)
+                  </span>
+                ) : null}
+              </td>
+              <td />
+              <td className="px-4 py-2.5 font-mono text-[12px] font-medium tabular-nums text-foreground">
+                ${total.usd.toFixed(2)}
+              </td>
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );
