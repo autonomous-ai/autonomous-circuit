@@ -45,7 +45,7 @@ export default function QuestionsFallback() {
       <Button
         type="button"
         size="sm"
-        onClick={() => startTurn(DELEGATE_ANSWER)}
+        onClick={() => startTurn(DELEGATE_ANSWER, { echoAs: "You decide — pick the best of each." })}
         data-slot="chat-questions-delegate"
         className="mt-3 h-9 rounded-lg px-4"
       >

@@ -472,3 +472,30 @@ test("medium adds nothing at all to the sent message", async () => {
     resetChatStore();
   }
 });
+
+// The question card's delegate button sends a paragraph written for the model
+// ("Build the best version — you decide every preference above…"). Echoed
+// verbatim it reads as the user having typed a strange formal instruction.
+test("startTurn can echo a different sentence than it sends", async () => {
+  resetChatStore();
+  setProject("proj-1");
+
+  const calls = [];
+  const restore = __setTransportForTesting({
+    async chat_start_turn(req) {
+      calls.push(req);
+      return { turnId: "turn-echo" };
+    },
+  });
+
+  try {
+    await startTurn("Build the best version — you decide every preference above.", {
+      echoAs: "You decide — pick the best of each.",
+    });
+    assert.match(calls[0].userMessage, /Build the best version/);
+    assert.equal(getChatState().history[0].userText, "You decide — pick the best of each.");
+  } finally {
+    restore();
+    resetChatStore();
+  }
+});

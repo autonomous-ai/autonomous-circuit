@@ -56,7 +56,7 @@ export default function QuestionCard({ questions, dropped = 0 }) {
   // One-click delegate: skip every preference and let Circuit pick the best.
   const handleDelegate = async () => {
     if (turnInProgress || submitted) return;
-    const res = await startTurn(DELEGATE_ANSWER);
+    const res = await startTurn(DELEGATE_ANSWER, { echoAs: "You decide — pick the best of each." });
     if (res) setSubmitted(true);
   };
 
@@ -135,7 +135,12 @@ export default function QuestionCard({ questions, dropped = 0 }) {
           // used to leave a "Send a…"/"Sent" ghost). Sent reads as a quiet,
           // deliberate green confirmation rather than a half-disabled button.
           className={cn(
-            "min-w-20 rounded-lg bg-emerald-600 px-4 font-medium text-white hover:bg-emerald-500 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
+            // The disabled state used to have no border and no fill, so the
+            // card's primary action read as a caption sitting next to the
+            // outlined "Build the best" pill — a first-timer looking at an
+            // unanswered card could not see there was a Send button at all.
+            // It is a button waiting for an answer, so it looks like one.
+            "min-w-20 rounded-lg bg-emerald-600 px-4 font-medium text-white hover:bg-emerald-500 disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
             submitted &&
               "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/30 hover:bg-emerald-500/15 disabled:bg-emerald-500/15 disabled:text-emerald-700 dark:text-emerald-300 dark:disabled:text-emerald-300",
           )}

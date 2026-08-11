@@ -1040,8 +1040,17 @@ export function detachChatEventStream() {
 // Action helpers used by components (components never hit transport directly).
 // ---------------------------------------------------------------------------
 
-export async function startTurn(userMessage, { attachments = [] } = {}, transport = getTransport()) {
+/**
+ * @param {string} userMessage what the model receives
+ * @param {{attachments?: Array, echoAs?: string}} options
+ *   `echoAs` shows a different sentence in the user's own bubble. Used by the
+ *   question card's delegate button, whose real instruction ("Build the best
+ *   version — you decide every preference above…") is written for the model
+ *   and read as the user having typed a strange formal paragraph.
+ */
+export async function startTurn(userMessage, { attachments = [], echoAs = "" } = {}, transport = getTransport()) {
   const text = String(userMessage || "").trim();
+  const echo = String(echoAs || "").trim() || text;
   const images = Array.isArray(attachments) ? attachments : [];
   // A turn needs either text or at least one attached image.
   if (!text && !images.length) return null;
@@ -1090,7 +1099,7 @@ export async function startTurn(userMessage, { attachments = [] } = {}, transpor
     dispatch({
       type: "queue_user_message",
       turnId: response.turnId,
-      text,
+      text: echo,
       at: Date.now(),
       // Thumbnails for the echoed bubble use the local object URLs — no backend
       // round-trip. Reloaded history shows text only (see parse_session_history).
