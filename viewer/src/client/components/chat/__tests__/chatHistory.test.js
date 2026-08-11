@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { groupTurns, userVisibleText } from "../chatHistoryModel.js";
+import { groupTurns, turnStoppedWithoutAnswering, userVisibleText } from "../chatHistoryModel.js";
 
 test("groupTurns groups assistant turns under the preceding user prompt", () => {
   const history = [
@@ -57,4 +57,67 @@ test("userVisibleText leaves the user's own words alone, brackets and all", () =
   );
   assert.equal(userVisibleText(""), "");
   assert.equal(userVisibleText(null), "");
+});
+
+// The worst outcome watched in a real session: forty minutes in, the last
+// thing in the chat was the model's own sentence "Now the cheap structural
+// check before paying for a full build:", three tool rows, and then nothing.
+// The turn had ended; the board pane said "No build to judge yet"; there was
+// no board, no error, no reply, and nothing suggesting what to do.
+test("a turn whose last word is a tool call stopped mid-flow", () => {
+  assert.equal(
+    turnStoppedWithoutAnswering({
+      role: "assistant",
+      status: "complete",
+      blocks: [
+        { kind: "text", text: "Now the cheap structural check before paying for a full build:" },
+        { kind: "tool_use", tool: "Bash" },
+        { kind: "tool_use", tool: "Bash" },
+      ],
+    }),
+    true,
+  );
+});
+
+test("a turn that closed with words, a plan or an error has said its piece", () => {
+  const base = { role: "assistant", status: "complete" };
+  assert.equal(
+    turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "tool_use" }, { kind: "text", text: "Done." }] }),
+    false,
+  );
+  assert.equal(turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "tool_use" }, { kind: "plan" }] }), false);
+  assert.equal(turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "tool_use" }, { kind: "error" }] }), false);
+  assert.equal(
+    turnStoppedWithoutAnswering({ role: "assistant", status: "cancelled", blocks: [{ kind: "tool_use" }] }),
+    false,
+  );
+  assert.equal(
+    turnStoppedWithoutAnswering({ role: "assistant", status: "running", blocks: [{ kind: "tool_use" }] }),
+    false,
+  );
+});
+
+test("an empty trailing text block is what a stopped stream leaves — not an answer", () => {
+  const base = { role: "assistant", status: "complete" };
+  assert.equal(
+    turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "tool_use" }, { kind: "text", text: "  " }] }),
+    true,
+  );
+  // Artifacts are recorded but never rendered, so they are not the last word.
+  assert.equal(
+    turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "tool_use" }, { kind: "artifact", file: "main.tsx" }] }),
+    true,
+  );
+  assert.equal(
+    turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "text", text: "ok" }, { kind: "artifact" }] }),
+    false,
+  );
+});
+
+test("nothing to carry on from is not a stop", () => {
+  const base = { role: "assistant", status: "complete" };
+  assert.equal(turnStoppedWithoutAnswering({ ...base, blocks: [] }), false);
+  assert.equal(turnStoppedWithoutAnswering({ ...base, blocks: [{ kind: "thinking", text: "hm" }] }), false);
+  assert.equal(turnStoppedWithoutAnswering({ role: "user", status: "complete", blocks: [{ kind: "tool_use" }] }), false);
+  assert.equal(turnStoppedWithoutAnswering(null), false);
 });

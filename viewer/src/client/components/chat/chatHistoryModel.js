@@ -56,3 +56,41 @@ export function userVisibleText(content) {
   // and an empty bubble is more honest than replaying our own instructions.
   return kept;
 }
+
+/**
+ * Did this assistant turn end without saying anything?
+ *
+ * Watched on a real run and it is the worst outcome in the product. Someone
+ * asked for a ceiling dimmer; forty minutes later the last thing in the chat
+ * was the model's own sentence "Now the cheap structural check before paying
+ * for a full build:", followed by three tool rows, and then nothing. The turn
+ * had ended. The board pane said "No build to judge yet". There was no board,
+ * no error, no reply, and nothing on screen suggesting what to do next — the
+ * conversation just stopped mid-promise.
+ *
+ * The client cannot make the model finish. It can refuse to leave a stopped
+ * turn looking like a running one, and it can hand back a next step.
+ *
+ * The test is what the turn's **last word** was. A turn whose final piece of
+ * content is a tool call ended mid-flow — it ran something and never came
+ * back to say what happened. A turn that closes with text, a plan or an error
+ * has said its piece, whatever else it did along the way; a cancelled or
+ * still-running turn already reads as one.
+ *
+ * @param {{role?: string, status?: string, blocks?: Array<{kind?: string, text?: string}>}} turn
+ */
+export function turnStoppedWithoutAnswering(turn) {
+  if (!turn || turn.role !== "assistant" || turn.status !== "complete") return false;
+  const blocks = Array.isArray(turn.blocks) ? turn.blocks : [];
+  // Scan back to the last block that carries content. Artifacts are recorded
+  // but never rendered, and an empty text block is what a stopped stream
+  // leaves behind, so neither counts as the turn's last word.
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const block = blocks[i];
+    const kind = block?.kind;
+    if (kind === "artifact") continue;
+    if (kind === "text" && !String(block.text || "").trim()) continue;
+    return kind === "tool_use";
+  }
+  return false;
+}

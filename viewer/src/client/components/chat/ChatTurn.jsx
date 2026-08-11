@@ -10,7 +10,8 @@ import TurnReasoning from "./TurnReasoning";
 import TurnActivity from "./TurnActivity";
 import { LiveDuration } from "./liveDuration";
 import { phaseLabel } from "./activityLabels";
-import { segmentTurnBlocks, segmentSpans } from "@/store/chat";
+import { turnStoppedWithoutAnswering } from "./chatHistoryModel";
+import { segmentTurnBlocks, segmentSpans, startTurn } from "@/store/chat";
 
 function TextBlock({ text, streaming }) {
   if (streaming) {
@@ -104,6 +105,31 @@ function turnShowsCopyButton(turn) {
   );
 }
 
+/**
+ * The turn finished and never said anything. Names it, and gives back the one
+ * move the reader has — asking it to carry on — so the conversation does not
+ * simply stop mid-sentence with a tool row as its last word.
+ */
+function StoppedWithoutAnswering() {
+  return (
+    <div
+      data-slot="chat-stopped-silently"
+      className="mt-1 flex flex-col items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/[0.06] px-3 py-2.5"
+    >
+      <p className="text-[13px] leading-5 text-foreground">
+        It stopped here without replying. Nothing is broken — it just did not finish the thought.
+      </p>
+      <button
+        type="button"
+        onClick={() => startTurn("Carry on from where you stopped, and tell me where the board stands.")}
+        className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+      >
+        Ask it to carry on
+      </button>
+    </div>
+  );
+}
+
 function StatusLine({ turn }) {
   if (turn.role !== "assistant") return null;
   // "running" is conveyed by the live pulse inside PhaseBadge — no separate
@@ -159,6 +185,10 @@ export default memo(function ChatTurn({ turn }) {
   // Before any block has streamed, a running turn still needs a heartbeat so it
   // never looks stuck — a bare "Thinking… Ns" stands in until the first segment.
   const showStartupHeartbeat = running && segments.length === 0;
+  // A finished turn that did work and then said nothing leaves the reader
+  // staring at a tool row with no idea whether to wait or type. See
+  // turnStoppedWithoutAnswering.
+  const stoppedSilently = turnStoppedWithoutAnswering(turn);
   return (
     <article
       data-slot="chat-turn"
@@ -255,6 +285,7 @@ export default memo(function ChatTurn({ turn }) {
               return null;
           }
         })}
+        {stoppedSilently ? <StoppedWithoutAnswering /> : null}
         {showModifyHint ? (
           <p
             data-slot="chat-modify-hint"
