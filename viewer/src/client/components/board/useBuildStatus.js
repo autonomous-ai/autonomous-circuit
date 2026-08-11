@@ -67,7 +67,11 @@ export default function useBuildStatus(projectId, active) {
         } else {
           setStatus(null);
         }
-        if (next && isTerminal(next)) {
+        // `stale` is terminal only when nothing is running. While a turn is in
+        // flight it means "no news", and a long compile produces it routinely —
+        // stopping the poll there freezes the elapsed figure and we never see
+        // the build come back, which it does.
+        if (next && isTerminal(next) && !(active && next.state === "stale")) {
           settledRef.current = true;
           return; // no reschedule — nothing more is coming
         }
