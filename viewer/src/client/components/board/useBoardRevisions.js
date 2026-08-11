@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { svgTwin } from "@/lib/boardRender.js";
 import { listRevisions, loadRevision, saveRevision } from "@/lib/revisionStore.js";
-import { mergeRevision, REVISION_LIMIT, revisionToken, summarizeRevision } from "./boardRevisions.js";
+import {
+  mergeRevision,
+  REVISION_LIMIT,
+  revisionToken,
+  summarizeRevision,
+  urlBelongsToProject,
+} from "./boardRevisions.js";
 
 /**
  * The revision ring for the board currently on screen.
@@ -59,6 +65,10 @@ export default function useBoardRevisions({
   const token = revisionToken(circuitJsonUrl);
   useEffect(() => {
     if (!projectId || !file || !token || !circuit || !sidecar || !index) return undefined;
+    // A project switch flips `projectId` a render before the new artifacts
+    // land. Recording during that frame would file the outgoing board's build
+    // under the incoming project. The URL is the authority on whose it is.
+    if (!urlBelongsToProject(circuitJsonUrl, projectId)) return undefined;
     let cancelled = false;
     const summary = summarizeRevision({ sidecar, index });
 
@@ -99,7 +109,7 @@ export default function useBoardRevisions({
     return () => {
       cancelled = true;
     };
-  }, [projectId, file, token, circuit, sidecar, index, schematicUrl]);
+  }, [projectId, file, token, circuitJsonUrl, circuit, sidecar, index, schematicUrl]);
 
   const select = useCallback(
     (next) => {

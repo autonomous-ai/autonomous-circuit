@@ -11,6 +11,7 @@ import {
   revisionToken,
   stepIndex,
   summarizeRevision,
+  urlBelongsToProject,
   worstSeverity,
 } from "../boardRevisions.js";
 
@@ -169,4 +170,16 @@ test("describeRevision reads as a story against the previous build", () => {
   assert.equal(describeRevision(clean, newer, now), "now — fab-ready · −2 vs previous");
   // A regression reads as a regression.
   assert.equal(describeRevision(older, clean, now).endsWith("+6 vs previous"), true);
+});
+
+test("urlBelongsToProject stops a project switch filing one board's build under another", () => {
+  const A = "1f3ecd83-1a1b-4b0b-9add-5e65bf3bcfbc";
+  const B = "b6a59eab-5089-4af5-9221-567d3f41819d";
+  const urlA = `/projects/${A}/boards/main.circuit.json?v=1-2`;
+  assert.equal(urlBelongsToProject(urlA, A), true);
+  // The frame where projectId has flipped but the artifacts have not.
+  assert.equal(urlBelongsToProject(urlA, B), false);
+  assert.equal(urlBelongsToProject(urlA, ""), false);
+  assert.equal(urlBelongsToProject("", A), false);
+  assert.equal(urlBelongsToProject(null, null), false);
 });

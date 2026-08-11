@@ -30,6 +30,22 @@ export function revisionToken(url) {
 }
 
 /**
+ * True when an artifact URL really belongs to `projectId`.
+ *
+ * Needed because a project switch changes `projectId` a render before the new
+ * project's artifacts arrive: for that one frame the workspace is holding the
+ * OUTGOING board's circuit.json under the INCOMING project's id, and recording
+ * it would file one board's history under another's name. Asset URLs are
+ * rooted at `/projects/<id>/` (http.mjs `assetPathForRequest`), so the URL
+ * itself settles the question.
+ */
+export function urlBelongsToProject(url, projectId) {
+  const id = String(projectId || "");
+  if (!id) return false;
+  return String(url || "").includes(`/projects/${id}/`);
+}
+
+/**
  * The one-line summary a revision is remembered by. Everything here comes from
  * artifacts we already parse, so recording a revision costs no extra work.
  *
