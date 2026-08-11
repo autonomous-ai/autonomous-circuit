@@ -30,6 +30,15 @@ export default function ChatHistory({
   const [showBackToBottom, setShowBackToBottom] = useState(false);
 
   const groups = useMemo(() => groupTurns(history), [history]);
+  // The recovery card on a turn that stopped without replying is only true
+  // while that turn is the last thing in the conversation. The driver resumes
+  // a silent turn on its own ("Continue from where you left off"), so the card
+  // was still sitting there saying "it stopped without replying" three turns
+  // later, next to the answer it had gone on to give.
+  const lastTurnId = useMemo(() => {
+    const list = Array.isArray(history) ? history : [];
+    return list.length ? list[list.length - 1]?.id : null;
+  }, [history]);
 
   const virtualizer = useVirtualizer({
     count: groups.length,
@@ -238,6 +247,7 @@ export default function ChatHistory({
                   <ChatTurn
                     key={turn.id}
                     turn={turn}
+                    isLastTurn={turn.id === lastTurnId}
                     onOpenArtifact={onOpenArtifact}
                   />
                 ))}

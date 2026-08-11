@@ -268,6 +268,15 @@ test("a failed or stopped build offers the retry rather than describing it", () 
   }
 });
 
+test("nothing offers to start a build while a turn is running", () => {
+  // The pipeline writes its first status record a minute into a build turn,
+  // so `building` is false for the whole opening stretch — long enough that
+  // "Build it" appeared under a board that was being built as you read it.
+  const verdict = boardVerdict({ sidecar: null, turnActive: true, boardName: "main" });
+  assert.equal(verdict.action, null);
+  assert.match(verdict.line, /The chat is working/);
+});
+
 test("a finished build that left nothing here offers to build it here", () => {
   const verdict = boardVerdict({ sidecar: null, buildLine: { tone: "done" }, boardName: "main" });
   assert.equal(verdict.action.label, "Build it here");

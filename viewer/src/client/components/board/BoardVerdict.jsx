@@ -60,13 +60,14 @@ export default function BoardVerdict({
   building = false,
   buildLine = null,
   boardName = "",
+  turnActive = false,
   onOpenTab,
   onFix,
   className,
 }) {
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building, buildLine, boardName }),
-    [sidecar, groups, building, buildLine, boardName],
+    () => boardVerdict({ sidecar, groups, building, buildLine, boardName, turnActive }),
+    [sidecar, groups, building, buildLine, boardName, turnActive],
   );
   const tone = TONE[verdict.tone] || TONE.unknown;
   const Icon = tone.icon;

@@ -79,6 +79,19 @@ test("a turn whose last word is a tool call stopped mid-flow", () => {
   );
 });
 
+// The driver resumes a silent turn by itself ("Continue from where you left
+// off"). Watched on a real run: the card was still saying "it stopped without
+// replying" three turns above the answer it had gone on to give.
+test("a stopped turn with anything after it is history, not a dead end", () => {
+  const stopped = {
+    role: "assistant",
+    status: "complete",
+    blocks: [{ kind: "text", text: "Checking:" }, { kind: "tool_use", tool: "Bash" }],
+  };
+  assert.equal(turnStoppedWithoutAnswering(stopped, { isLastTurn: true }), true);
+  assert.equal(turnStoppedWithoutAnswering(stopped, { isLastTurn: false }), false);
+});
+
 test("a turn that closed with words, a plan or an error has said its piece", () => {
   const base = { role: "assistant", status: "complete" };
   assert.equal(

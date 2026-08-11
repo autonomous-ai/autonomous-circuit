@@ -600,10 +600,15 @@ export function boardVerdict({
   building = false,
   buildLine = null,
   boardName = "",
+  turnActive = false,
 } = {}) {
   const blockingGroups = (Array.isArray(groups) ? groups : []).filter((g) => g.blocking);
   const blockingCount = blockingGroups.reduce((sum, g) => sum + g.count, 0);
-  const buildAction = (label) => ({ label, request: buildRequest(boardName) });
+  // Never offer to start what is already running. The pipeline writes its
+  // first status record a minute into a build turn, so `building` is false
+  // for the whole opening stretch — long enough that the button appeared
+  // under a board that was being built as you read it.
+  const buildAction = (label) => (turnActive ? null : { label, request: buildRequest(boardName) });
 
   if (building) {
     return {
@@ -652,7 +657,9 @@ export function boardVerdict({
     return {
       tone: "unknown",
       headline: "No build to judge yet",
-      line: "The board program is written but has never been built, so there is nothing to check or order.",
+      line: turnActive
+        ? "Nothing has been built yet. The chat is working — the board appears here the moment it is made."
+        : "The board program is written but has never been built, so there is nothing to check or order.",
       blockingGroups,
       blockingCount,
       action: buildAction("Build it"),

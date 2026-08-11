@@ -199,6 +199,7 @@ export default function OverviewTab({
   parts = [],
   building = false,
   buildLine = null,
+  turnActive = false,
   historyLine = null,
   boardName = "",
   product = null,
@@ -210,8 +211,8 @@ export default function OverviewTab({
   className,
 }) {
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building, buildLine, boardName }),
-    [sidecar, groups, building, buildLine, boardName],
+    () => boardVerdict({ sidecar, groups, building, buildLine, boardName, turnActive }),
+    [sidecar, groups, building, buildLine, boardName, turnActive],
   );
   const counts = useMemo(() => impactCounts(groups), [groups]);
   const roles = useMemo(() => plainParts(index), [index]);

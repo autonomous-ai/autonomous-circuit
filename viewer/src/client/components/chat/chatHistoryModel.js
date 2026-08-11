@@ -71,6 +71,12 @@ export function userVisibleText(content) {
  * The client cannot make the model finish. It can refuse to leave a stopped
  * turn looking like a running one, and it can hand back a next step.
  *
+ * **Only while it is still the last word.** The driver resumes a silent turn
+ * by itself ("Continue from where you left off"), so on a watched run the card
+ * was still saying "it stopped without replying" three turns above the answer
+ * it had gone on to give — an alarm about something that had already been
+ * handled. A turn with anything after it is history, not a dead end.
+ *
  * The test is what the turn's **last word** was. A turn whose final piece of
  * content is a tool call ended mid-flow — it ran something and never came
  * back to say what happened. A turn that closes with text, a plan or an error
@@ -78,8 +84,10 @@ export function userVisibleText(content) {
  * still-running turn already reads as one.
  *
  * @param {{role?: string, status?: string, blocks?: Array<{kind?: string, text?: string}>}} turn
+ * @param {{isLastTurn?: boolean}} [where] false once anything follows the turn
  */
-export function turnStoppedWithoutAnswering(turn) {
+export function turnStoppedWithoutAnswering(turn, { isLastTurn = true } = {}) {
+  if (!isLastTurn) return false;
   if (!turn || turn.role !== "assistant" || turn.status !== "complete") return false;
   const blocks = Array.isArray(turn.blocks) ? turn.blocks : [];
   // Scan back to the last block that carries content. Artifacts are recorded
