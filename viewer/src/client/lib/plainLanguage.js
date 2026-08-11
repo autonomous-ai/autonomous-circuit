@@ -107,6 +107,150 @@ const ISSUES = Object.freeze({
     impact: IMPACT.QUALITY,
   },
 
+  // --- tscircuit's own errors ----------------------------------------------
+  //
+  // Watched on a real first build: six issues were listed as what was left to
+  // fix, and four of them read `pcb trace missing error ×37 — we do not have
+  // plain words for this check yet`. Honest, and a dead end: the person has
+  // nothing to act on. These are the codes the generator emits most often, and
+  // the order they cascade in is the repo's own (`skills/circuitcode/
+  // references/patterns/fix-a-drc.md`) — placement first, routing second,
+  // because the routing errors are usually consequences of the placement ones.
+  pcb_footprint_overlap_error: {
+    title: "Two parts are sitting on top of each other",
+    meaning: "They overlap on the board, so they cannot both be soldered where they are. One has to move.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_courtyard_overlap_error: {
+    title: "Two parts are packed too tightly to assemble",
+    meaning:
+      "Each part needs a margin of clear space around it for the machine that places it. These two are inside each other's margin.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_pad_pad_clearance_error: {
+    title: "Two solder pads are too close together",
+    meaning: "Solder would bridge across the gap and short them. Moving one of the parts fixes it.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_component_outside_board_error: {
+    title: "A part hangs off the edge of the board",
+    meaning: "Some of it sits outside the outline, so it would be cut off. The board has to grow or the part has to move in.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_placement_error: {
+    title: "A part could not be placed",
+    meaning: "The layout step could not find a spot for this part on the board as drawn.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_autorouting_error: {
+    title: "The wiring could not be drawn",
+    meaning:
+      "The step that draws the copper gave up. It usually gives up because two parts overlap — fix those first and this normally goes with them.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_trace_missing_error: {
+    title: "A connection was never drawn on the board",
+    meaning:
+      "The wiring diagram asks for this link and no copper was laid down for it. Usually the same cause as the wiring that could not be drawn.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_trace_not_connected_error: {
+    title: "A copper track stops short of what it should reach",
+    meaning: "The track was drawn but does not arrive at the pad at its far end.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_port_not_connected_error: {
+    title: "A part's pin has nothing attached to it",
+    meaning:
+      "This pin is supposed to be wired to something and no copper reaches it. Usually a knock-on from wiring that could not be drawn.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_port_not_matched_error: {
+    title: "A pin in the diagram has no matching pad on the board",
+    meaning: "The drawing and the part's physical pads disagree about which pins exist.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_missing_footprint_error: {
+    title: "A part has no pads to solder to",
+    meaning: "This part is in the design but nothing says what its metal contacts look like, so the board has nowhere to put it.",
+    impact: IMPACT.BLOCKS,
+  },
+  source_trace_not_connected_error: {
+    title: "A wire points at a pin that does not exist",
+    meaning: "Almost always a mis-typed pin name in the design. The part's own list of pin names is the reference.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_trace_clearance_error: {
+    title: "Two copper tracks run too close together",
+    meaning: "The gap is smaller than the factory can etch reliably, so the two could end up touching.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_pad_trace_clearance_error: {
+    title: "A track runs too close to a solder pad",
+    meaning: "Solder could bridge from the pad onto the track. Route the track further away.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_via_clearance_error: {
+    title: "A through-hole sits too close to other copper",
+    meaning: "The hole that carries a signal between layers does not have enough clear space around it.",
+    impact: IMPACT.BLOCKS,
+  },
+  pcb_via_trace_clearance_error: {
+    title: "A through-hole sits too close to a track",
+    meaning: "The hole that carries a signal between layers is nearly touching a nearby track.",
+    impact: IMPACT.BLOCKS,
+  },
+
+  // --- the factory's own limits (dfm_*) -------------------------------------
+  // Everything here is measured against JLCPCB's published minimums
+  // (`circuitpy/fab.py`), so each one is "smaller/closer than they will build",
+  // never an opinion.
+  dfm_trace_width: {
+    title: "A copper track is thinner than the factory will make",
+    meaning: "Below their minimum width the track may come out broken or missing.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_trace_clearance: {
+    title: "Two pieces of copper are closer than the factory will etch",
+    meaning: "Below their minimum gap the two can end up joined.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_edge_clearance: {
+    title: "Copper runs too close to the board edge",
+    meaning: "The tool that cuts the board out could nick the copper.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_hole_clearance: {
+    title: "A hole sits too close to copper",
+    meaning: "The drill could break into a nearby track.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_drill_size: {
+    title: "A hole is smaller than the factory can drill",
+    meaning: "Their smallest drill is bigger than this hole, so it cannot be made as drawn.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_via_diameter: {
+    title: "A layer-to-layer hole is smaller than the factory can make",
+    meaning: "The hole that carries a signal between layers is below their minimum size.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_annular_ring: {
+    title: "A pad ring is too thin around its hole",
+    meaning: "Not enough copper is left around the drill, so the pad can tear off.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_board_size: {
+    title: "The board is outside the sizes this factory makes",
+    meaning: "It is either smaller or larger than their range for this service.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfm_thickness: {
+    title: "The board thickness is not one the factory offers",
+    meaning: "Pick one of their standard thicknesses instead.",
+    impact: IMPACT.BLOCKS,
+  },
+
   // --- parts on the board ---------------------------------------------------
   missing_footprint: {
     title: "A part in the schematic has nothing to solder to",

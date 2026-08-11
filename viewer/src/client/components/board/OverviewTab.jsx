@@ -87,9 +87,15 @@ function IssueRow({ group, boardName, onFix, onLocate, defaultOpen = false }) {
           {group.meaning ? (
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{group.meaning}</p>
           ) : null}
+          {/* Honest, but it used to end there — and a row that says "we have
+              no words for this" and stops is a dead end for the one reader who
+              needed the words. The way out is the Fix button beside it, which
+              hands the exact finding to the chat, so the sentence points at
+              it rather than trailing off. */}
           {!group.known ? (
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground/70">
-              We do not have plain words for this check yet — the raw finding is below.
+              We have not written a plain description of this check yet. The checker's own wording is below, and Fix
+              sends it to the chat, which can explain it and repair it.
             </p>
           ) : null}
           {group.parts.length ? (

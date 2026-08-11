@@ -239,3 +239,68 @@ test("a finished build with no board file says which fact is which", () => {
   assert.equal(verdict.tone, "unknown");
   assert.match(verdict.line, /no board file has landed in this project/);
 });
+
+// Watched on a real first build: six issues were listed as what was left to
+// fix and four of them read "pcb trace missing error ×37 — we do not have
+// plain words for this check yet". These are the codes the generator emits
+// most often; every one of them has to arrive as a sentence.
+test("the generator's most common errors all have plain words", () => {
+  const seen = [
+    "pcb_footprint_overlap_error",
+    "pcb_courtyard_overlap_error",
+    "pcb_pad_pad_clearance_error",
+    "pcb_component_outside_board_error",
+    "pcb_placement_error",
+    "pcb_autorouting_error",
+    "pcb_trace_missing_error",
+    "pcb_trace_not_connected_error",
+    "pcb_port_not_connected_error",
+    "pcb_port_not_matched_error",
+    "pcb_missing_footprint_error",
+    "source_trace_not_connected_error",
+    "pcb_trace_clearance_error",
+    "pcb_pad_trace_clearance_error",
+    "pcb_via_clearance_error",
+    "pcb_via_trace_clearance_error",
+  ];
+  for (const code of seen) {
+    const issue = plainIssue(code);
+    assert.equal(issue.known, true, `${code} has no plain entry`);
+    assert.ok(issue.meaning.length > 20, `${code} has no explanation`);
+    assert.equal(issue.impact, IMPACT.BLOCKS, `${code} should block the order`);
+  }
+});
+
+// The fab limits are the other half of what stops a board being orderable.
+test("every factory-limit check has plain words", () => {
+  const dfm = [
+    "dfm_trace_width",
+    "dfm_trace_clearance",
+    "dfm_edge_clearance",
+    "dfm_hole_clearance",
+    "dfm_drill_size",
+    "dfm_via_diameter",
+    "dfm_annular_ring",
+    "dfm_board_size",
+    "dfm_thickness",
+  ];
+  for (const code of dfm) {
+    const issue = plainIssue(code);
+    assert.equal(issue.known, true, `${code} has no plain entry`);
+    assert.ok(issue.title.length > 10, `${code} has no title`);
+  }
+});
+
+test("plain words stay plain — no code, no term of art in a title", () => {
+  const jargon = /gerber|netlist|refdes|DRC|ERC|footprint\b|courtyard|annular|via\b|_/;
+  for (const code of ["pcb_autorouting_error", "pcb_trace_missing_error", "dfm_trace_width", "dfm_via_diameter"]) {
+    assert.doesNotMatch(plainIssue(code).title, jargon, code);
+  }
+});
+
+test("an unknown code still fails safe — named, not invented", () => {
+  const issue = plainIssue("pcb_something_new_error");
+  assert.equal(issue.known, false);
+  assert.equal(issue.meaning, "", "an unknown code must not be given a made-up meaning");
+  assert.equal(issue.title, "pcb something new error");
+});
