@@ -160,6 +160,12 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         r"footprint-iou-graded-through-a-rotation",
     ),
     (
+        28,
+        "the skeleton ships the effort that measured best, not the highest one",
+        "skills/circuitcode/templates/project_skeleton/boards/main.tsx",
+        r'autorouterEffortLevel="5x"',
+    ),
+    (
         26,
         "the corpus harness actually runs the IoU bander",
         "packages/circuitpy/tests/test_failure_corpus.py",

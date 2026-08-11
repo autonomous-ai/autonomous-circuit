@@ -46,7 +46,7 @@ SKELETON = REPO_ROOT / "skills" / "circuitcode" / "templates" / "project_skeleto
 #: block would be blamed for the harness's omission.
 BOARD_PROPS = (
     'thickness={1.6} autorouterEffortLevel="5x" minTraceWidth="0.2mm" '
-    'minViaPadDiameter="0.5mm" minViaHoleDiameter="0.3mm"'
+    'minViaPadDiameter="0.6mm" minViaHoleDiameter="0.3mm"'
 )
 
 

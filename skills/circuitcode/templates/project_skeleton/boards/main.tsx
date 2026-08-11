@@ -35,16 +35,7 @@ export default () => (
        cross-check runs. So every board declares the effort it needs. */
     autorouterEffortLevel="5x"
     minTraceWidth="0.2mm"
-    /* Via pad 0.50mm on a 0.30mm drill, not 0.60mm. Measured 2026-08-11: the
-       router's remaining clearance misses were all via-to-pad and all within
-       0.02mm of the floor — 0.0803mm from a USB-C signal pad, 0.0940mm from a
-       decoupling cap, against JLC's 0.10mm. A 0.10mm smaller pad buys 0.05mm
-       on every side of every via, which clears both with room. The cost is
-       the annular ring: 0.10mm instead of 0.15mm, which is exactly the figure
-       our own fab profile calls the recommended via ring (warn_via_annular_mm)
-       and well above the 0.075mm it blocks at. Half a ring for a whole
-       clearance is the right trade on a 2-layer board this dense. */
-    minViaPadDiameter="0.5mm"
+    minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
   >
     {/* power entry: USB-C -> V5 */}
