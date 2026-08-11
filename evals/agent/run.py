@@ -462,6 +462,8 @@ def scorecard(results: list[dict]) -> dict:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--briefs", default=None, help="comma-separated brief ids")
+    # Each brief spawns an agent that spawns builds, so the real CPU cost is
+    # several times this. The machine is shared with other agents; 3 is polite.
     parser.add_argument("--jobs", type=int, default=3)
     parser.add_argument("--model", default=None)
     parser.add_argument("--timeout-s", type=float, default=2700.0)

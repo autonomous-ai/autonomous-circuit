@@ -34,6 +34,12 @@ weeks from JLCPCB."* So the matrix is **exhaustive in compute and fast in
 wall-clock** — cover every cell, and run them all at once. Sampling is a last
 resort, and a sampled report says so on its face (`"sampled": true`).
 
+**But the parallelism budget is shared.** Several agents build boards on the
+same machine. At `cpu_count - 1` this run drove load to 79 on 16 cores and
+starved an example board into two build timeouts, which is a worse outcome
+than a slower matrix. `--jobs` defaults to 4 for that reason; raise it when
+you own the box.
+
 A failing cell is **never** fixed by teaching the agent a repair. It is fixed in
 the block, in ``circuitlib.layout``, or in the planner's defaults — so that no
 user ever meets the failure. Shift left or it is not fixed.
@@ -41,7 +47,7 @@ user ever meets the failure. Shift left or it is not fixed.
 Usage:
     python evals/composition.py                      # pairs + spine, all cells
     python evals/composition.py --tier pairs
-    python evals/composition.py --jobs 6
+    python evals/composition.py --jobs 12          # when you own the machine
     python evals/composition.py --only usb-c-power,ldo-3v3      # one cell
     python evals/composition.py --sample 12          # random subset, seeded
 
@@ -380,8 +386,16 @@ def main(argv: list[str]) -> int:
         default="default",
         choices=["singles", "pairs", "triples", "spine", "all", "default"],
     )
-    parser.add_argument("--jobs", type=int, default=None,
-                        help="workers (default: cpu_count-1, CIRCUIT_BATCH_WORKERS)")
+    parser.add_argument(
+        "--jobs", type=int, default=4,
+        help=(
+            "workers (default 4). The parallelism budget is shared across "
+            "every agent on this machine, not owned by this run: at "
+            "cpu_count-1 on 2026-08-11 the matrix drove load to 79 on 16 "
+            "cores and starved an example board into two build timeouts. "
+            "Raise it when you own the box."
+        ),
+    )
     parser.add_argument("--keep", action="store_true",
                         help="keep the built projects for inspection")
     parser.add_argument("--sample", type=int, default=None)
