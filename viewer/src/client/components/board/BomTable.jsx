@@ -133,9 +133,25 @@ export default function BomTable({ bomUrl = "", partsUrl = "", index = null, hig
             {/* "What it is" is first after the designator on purpose: every
                 other column in a BOM is an identifier, and an identifier is
                 not an answer to "what am I buying". */}
-            {["Designator", "What it is", "Comment", "Footprint", "LCSC", "Type", "Stock", "Unit price", "Extended"].map((label) => (
+            {/* Column names a first-timer can read, with the trade term in the
+                tooltip for anyone who came looking for it. Two of these were
+                actively misleading: the table had a "Type" column whose value
+                is "Extended", next to a different column also called
+                "Extended" holding a price. */}
+            {[
+              ["Label", "The code printed next to the part on the board — its designator"],
+              ["What it is", ""],
+              ["Comment", "What the design calls it — usually a value or a part number"],
+              ["Package", "The part's physical shape and pad pattern — its footprint"],
+              ["Part number", "The LCSC catalogue number you order it by"],
+              ["Stocked?", "Basic parts are always in the machine; extended ones cost a one-off setup fee"],
+              ["In stock", "How many the supplier had when this was last checked"],
+              ["Each", "Price for one"],
+              ["Line total", "Price for every one of these on the board"],
+            ].map(([label, hint]) => (
               <th
                 key={label}
+                title={hint || undefined}
                 className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
               >
                 {label}

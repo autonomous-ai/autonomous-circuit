@@ -312,7 +312,7 @@ export default function FunctionTab({
 
         {/* --- the areas ---------------------------------------------------- */}
         {rows.length ? (
-          <Section title="Every area of the board" hint="click a part or a net to find it in the drawings">
+          <Section title="Every area of the board" hint="click a part or a connection to find it in the drawings">
             <div className="flex flex-col gap-1.5">
               {rows.map((row) => (
                 <AreaRow key={row.id} row={row} onSelect={onSelect} index={index} />
@@ -475,7 +475,7 @@ export default function FunctionTab({
                 <p data-slot="function-unconnected">
                   <span className="text-foreground">
                     {plural(ends.unconnected.length, "part")}{" "}
-                    {ends.unconnected.length === 1 ? "has pins but sits" : "have pins but sit"} on no net
+                    {ends.unconnected.length === 1 ? "is" : "are"} not wired to anything
                   </span>{" "}
                   —{" "}
                   <span className="font-mono">
@@ -487,13 +487,13 @@ export default function FunctionTab({
               {ends.dangling.length ? (
                 <p data-slot="function-dangling">
                   <span className="text-foreground">
-                    {plural(ends.dangling.length, "named net")}{" "}
-                    {ends.dangling.length === 1 ? "touches" : "touch"} only one part
+                    {plural(ends.dangling.length, "connection")}{" "}
+                    {ends.dangling.length === 1 ? "reaches" : "reach"} only one part
                   </span>{" "}
                   —{" "}
-                  <span className="font-mono">{ends.dangling.slice(0, 12).map((net) => net.net).join(", ")}</span>. A
-                  net with one end was named and never joined to anything else. Sometimes that is deliberate — a
-                  debug pad, the last link in a chain — and sometimes it is the connection you asked for.
+                  <span className="font-mono">{ends.dangling.slice(0, 12).map((net) => net.net).join(", ")}</span>. Each
+                  of these was given a name and then joined to nothing else. Sometimes that is deliberate — a test
+                  pad, or the last link in a chain — and sometimes it is the connection you asked for.
                 </p>
               ) : null}
               <p className="text-muted-foreground/80">
