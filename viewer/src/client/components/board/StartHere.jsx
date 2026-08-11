@@ -48,6 +48,10 @@ export default function StartHere({
   // the pipeline reports only between stages and a compile can outlast the
   // server's two-minute staleness window.
   buildLine = null,
+  // The live turn's workflow phase. Only an `implement` turn is going to
+  // produce a board; a plan turn may end in questions, a refusal, or an
+  // answer. See the planning branch below.
+  phase = "",
   className,
 }) {
   const quiet = buildLine?.tone === "quiet";
@@ -69,6 +73,18 @@ export default function StartHere({
   const ticking = useElapsedS(clockFrom, running);
 
   if (!running && !failed && !stale) return <Pitch className={className} />;
+
+  // A seven-stage build checklist is a claim that a board is being made.
+  // Watched on a real run: someone typed "make it smaller" into an empty
+  // project and got "Building your board · Choosing parts and writing the
+  // board" with all seven steps listed, while the model was reading a
+  // directory to find out there was no board at all. Nothing was ever going to
+  // build. The checklist waits until either the pipeline has actually reported
+  // a stage, or the turn is the kind that ends in one.
+  const pipelineSpeaking = Boolean(status?.stage) || Boolean(status?.state);
+  if (running && !failed && !stale && !pipelineSpeaking && phase !== "implement") {
+    return <Thinking className={className} seconds={ticking} />;
+  }
 
   const stages = buildStageChecklist(status);
   const pct = Math.round(buildProgress(status) * 100);
@@ -156,6 +172,35 @@ export default function StartHere({
             the layout appear here the moment they are drawn.
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The turn is running but nothing is being built yet — it may be reading the
+ * project, asking a question, or explaining why it cannot do what was asked.
+ * Says only that, plus the clock, because that is all we know.
+ */
+function Thinking({ className, seconds = 0 }) {
+  return (
+    <div
+      data-slot="board-thinking"
+      className={cn("grid min-h-0 flex-1 place-items-center", className)}
+      style={{ backgroundColor: "var(--ui-viewer-bg)" }}
+    >
+      <div className="flex w-full max-w-md flex-col gap-2 px-6">
+        <div className="flex items-baseline gap-2">
+          <Loader2 className="size-3.5 animate-spin text-white/70" aria-hidden />
+          <span className="text-sm font-semibold tracking-tight text-white">Reading your request</span>
+          <span className="ml-auto font-mono text-[11px] tabular-nums text-white/40">
+            {seconds > 0 ? formatElapsed(seconds) : ""}
+          </span>
+        </div>
+        <p className="text-xs leading-5 text-white/40">
+          Nothing is being built yet. Circuit works out what you need first — it may come back with a couple of
+          questions, or tell you this is something it cannot make. The answer appears in the chat on the right.
+        </p>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Loader2, Check, XCircle, Ban, Wrench, ChevronRight, ChevronDown } from "lucide-react";
+import { AlertTriangle, Loader2, Check, XCircle, Ban, Wrench, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/ui/utils";
-import { toolLabel, toolDetail, aggregateActivityStatus, activityDefaultsOpen } from "./activityLabels";
+import { toolLabel, toolDetail, headerActivityStatus, activityDefaultsOpen } from "./activityLabels";
 import { SpanDuration } from "./liveDuration";
 
 // Status glyph for the disclosure header / a tool row. Mirrors the status
@@ -9,6 +9,9 @@ import { SpanDuration } from "./liveDuration";
 function StatusGlyph({ status, className }) {
   if (status === "ok") return <Check className={cn("size-3.5 text-emerald-500", className)} aria-hidden />;
   if (status === "error") return <XCircle className={cn("size-3.5 text-destructive", className)} aria-hidden />;
+  // Some step failed, the turn did not. See headerActivityStatus.
+  if (status === "partial")
+    return <AlertTriangle className={cn("size-3.5 text-amber-500", className)} aria-hidden />;
   if (status === "cancelled") return <Ban className={cn("size-3.5 text-muted-foreground", className)} aria-hidden />;
   return <Loader2 className={cn("size-3.5 animate-spin text-muted-foreground", className)} aria-hidden />;
 }
@@ -59,7 +62,7 @@ export default function TurnActivity({ segment, span, active = false }) {
   if (activity.length === 0) return null;
 
   const open = override ?? activityDefaultsOpen(activity, active);
-  const status = aggregateActivityStatus(activity);
+  const status = headerActivityStatus(activity);
   const runningStep = active ? activity.find((b) => b.status === "running") : null;
   const steps = `${activity.length} step${activity.length === 1 ? "" : "s"}`;
 

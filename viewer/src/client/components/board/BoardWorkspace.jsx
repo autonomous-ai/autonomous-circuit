@@ -412,6 +412,14 @@ export default function BoardWorkspace({
   // one recorded round is not a trend.
   const historyLine = useMemo(() => buildHistoryLine(buildHistory), [buildHistory]);
   const building = buildLine?.tone === "running" || buildLine?.tone === "quiet";
+  // The live turn's phase. Only an `implement` turn ends in a board, so it is
+  // the only one the stage checklist may claim to be watching.
+  const activePhase = useMemo(() => {
+    for (let i = chatHistory.length - 1; i >= 0; i -= 1) {
+      if (chatHistory[i]?.role === "assistant") return String(chatHistory[i].phase || "");
+    }
+    return "";
+  }, [chatHistory]);
 
   const layers = useMemo(() => {
     const list = index?.layers || ["top", "bottom"];
@@ -1075,6 +1083,7 @@ export default function BoardWorkspace({
               status={buildStatus}
               building={building || turnInProgress}
               buildLine={buildLine}
+              phase={activePhase}
               startedAt={runningTurnStartedAt}
               className="min-h-0 flex-1"
             />

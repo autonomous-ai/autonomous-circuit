@@ -7,6 +7,7 @@ import {
   toolDetail,
   aggregateActivityStatus,
   activityDefaultsOpen,
+  headerActivityStatus,
   formatDuration,
 } from "../activityLabels.js";
 
@@ -126,4 +127,24 @@ test("activityDefaultsOpen opens the active group and any finished group with an
   assert.equal(activityDefaultsOpen([{ status: "cancelled" }], false), false);
   // Defensive: missing activity list.
   assert.equal(activityDefaultsOpen(undefined, false), false);
+});
+
+// Watched on a real run: "make it smaller" in an empty project. The model ran
+// `ls` on a boards/ directory that did not exist, got the expected non-zero,
+// and answered perfectly. The header above that answer was a red ✗ — a
+// first-timer reads red as broken, then reads a helpful paragraph.
+test("a finished group with a failed step is amber, not a failure", () => {
+  const activity = [{ status: "error" }, { status: "ok" }];
+  assert.equal(aggregateActivityStatus(activity), "error", "the row-level roll-up is unchanged");
+  assert.equal(headerActivityStatus(activity), "partial");
+  // Nothing is hidden: the group still opens itself.
+  assert.equal(activityDefaultsOpen(activity, false), true);
+});
+
+test("headerActivityStatus passes through every other state", () => {
+  assert.equal(headerActivityStatus([{ status: "running" }, { status: "error" }]), "running");
+  assert.equal(headerActivityStatus([{ status: "cancelled" }]), "cancelled");
+  assert.equal(headerActivityStatus([{ status: "ok" }]), "ok");
+  assert.equal(headerActivityStatus([]), "ok");
+  assert.equal(headerActivityStatus(undefined), "ok");
 });

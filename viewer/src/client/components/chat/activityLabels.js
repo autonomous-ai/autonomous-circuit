@@ -164,6 +164,30 @@ export function phaseLabel(phase) {
  * @returns {"running"|"error"|"cancelled"|"ok"}
  */
 export function aggregateActivityStatus(activity) {
+  return rollUpActivity(activity);
+}
+
+/**
+ * The same roll-up, phrased for the disclosure *header* rather than for a row.
+ *
+ * A tool step exiting non-zero is how an agent finds things out. Watched on a
+ * real run: the user typed "make it smaller" with no board yet, the model ran
+ * `ls` on a `boards/` directory that did not exist, got the expected non-zero,
+ * and answered perfectly — "this project is empty, tell me what you want and
+ * I'll spec it small from the start". The header above that answer was a red
+ * ✗. A first-timer reads red as "it broke", then reads a helpful paragraph,
+ * and the two do not agree.
+ *
+ * So a finished group with a failed step is `partial`, not `error`: amber, and
+ * still auto-expanded, so nothing is hidden — only the claim changes. A turn
+ * that genuinely failed renders its own error block; that is not this.
+ */
+export function headerActivityStatus(activity) {
+  const status = rollUpActivity(activity);
+  return status === "error" ? "partial" : status;
+}
+
+function rollUpActivity(activity) {
   const list = Array.isArray(activity) ? activity : [];
   let seenError = false;
   let seenCancelled = false;
