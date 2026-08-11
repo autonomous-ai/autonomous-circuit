@@ -353,7 +353,64 @@ colleague. The second one is a good fit for us and is on the next-three list.
 
 ---
 
-## 10. Open items — things nobody publishes
+## 10. Where Altium stops being the reference
+
+Everything above makes the workspace credible to an engineer. None of it
+answers the question a non-engineer actually arrives with — **can I get this
+made, and if not, what is wrong?** Altium has no opinion on that question
+because Altium's user already knows how to answer it. Ours does not, and the
+product's promise is that every generated board reaches `fab.ready: true`, so
+the state of that boolean is the headline of a board rather than a field on a
+status page.
+
+The translation layer is `lib/plainLanguage.js`, and it is pure and tested:
+
+- **An issue dictionary.** ~35 KiCad DRC/ERC codes (`hole_clearance`,
+  `endpoint_off_grid`, `lib_symbol_issues`, …) mapped to a plain title and one
+  sentence of meaning. Unknown codes get an honest fallback — the code, spaced
+  out, and *no* invented meaning.
+- **A second axis, `impact`.** Severity comes from the sidecar and is never
+  rewritten here; `impact` is a separate question — does this stop an order
+  (`blocks`), is it a real risk (`quality`), is it only how the board looks
+  (`cosmetic`), or is it about the checker's own setup and not the board at all
+  (`tooling`)? On harness-puck that splits 694 findings into 2 / 147 / 545, and
+  that sentence is the single most useful thing on the screen.
+- **`groupFindings`.** One row per *kind* of problem, not per instance, sorted
+  blocking-first. Grouped is the Messages panel's default mode; "Every" restores
+  the flat Altium-shaped list in one click.
+- **`boardVerdict`.** The sentence at the top of the workspace.
+  `sidecar.fab.ready` is the only gate — no count, no heuristic and no severity
+  arithmetic can make a board read as orderable when the pipeline says it is
+  not, and the ready copy names the outstanding non-blocking findings rather
+  than claiming a clean sheet the user can see is not clean.
+- **`partRole` / `plainParts`.** "The brain", "power in", "the lights" — read
+  off the source file's own `ftype` and the manufacturer part number, in that
+  order of trust, falling back to the reference-designator letter and then to
+  an honest "other". Feeds the Overview part list, the Properties header, the
+  BOM's "What it is" column and the HUD line under the cursor.
+
+Surfaces built on it: **`BoardVerdict`** (a strip under the tab row, on every
+tab), **`OverviewTab`** (first and default), the grouped **Messages** mode, and
+**`StartHere`** — the empty stage, which is a three-step explanation when idle
+and an eight-row build checklist when running. That checklist has one row the
+pipeline does not report: the model choosing parts and writing the board
+program, which is where most of the wall clock goes and which left the list
+entirely grey until it was added.
+
+Two rules the layer must keep, both learned the hard way:
+
+1. **Never state a number we were not given.** No estimated fab price, no
+   guessed part cost. `partsCostUsd` returns `null` rather than a total when
+   parts.json has no prices, and says how many lines it could not price when it
+   has some.
+2. **Plain does not mean vague.** Every plain title sits next to the real code,
+   every group expands to the raw DRC prose, and the Properties panel keeps
+   every field it had. The plain line is added above the engineering, never
+   instead of it.
+
+---
+
+## 11. Open items — things nobody publishes
 
 - Default numeric values for the Dimmed / Masked / Highlighted sliders, HUD opacity,
   hover delay, Insight Lens size and zoom. All unpublished. Parity would mean reading a

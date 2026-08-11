@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { buildMessages, messageCounts } from "@/lib/boardViolations.js";
-import { IMPACT, groupFindings, groupFixRequest } from "@/lib/plainLanguage.js";
+import { IMPACT, groupFindings, groupFixRequest, impactCounts } from "@/lib/plainLanguage.js";
 import { normalizeWarnings, warningNoteText } from "./boardData.js";
 
 const SEVERITY_ICON = { error: CircleAlert, warning: TriangleAlert, info: Info };
@@ -84,6 +84,7 @@ export default function MessagesPanel({
   const rows = rowsProp || built || [];
   const counts = useMemo(() => messageCounts(rows), [rows]);
   const groups = useMemo(() => groupsProp || groupFindings(rows), [groupsProp, rows]);
+  const impact = useMemo(() => impactCounts(groups), [groups]);
   const shown = useMemo(
     () => (filter === "all" ? rows : rows.filter((row) => row.severity === filter)),
     [rows, filter],
@@ -104,20 +105,37 @@ export default function MessagesPanel({
         {open ? <ChevronDown className="size-3" aria-hidden /> : <ChevronUp className="size-3" aria-hidden />}
         Messages
       </button>
-      <div className="flex items-center gap-2 font-mono text-[11px] tabular-nums">
-        <span className={cn("flex items-center gap-1", counts.error ? SEVERITY_TEXT.error : "text-muted-foreground/40")}>
-          <span className={cn("size-1.5 rounded-full", counts.error ? SEVERITY_DOT.error : "bg-muted-foreground/30")} />
-          {counts.error}
-        </span>
-        <span className={cn("flex items-center gap-1", counts.warning ? SEVERITY_TEXT.warning : "text-muted-foreground/40")}>
-          <span className={cn("size-1.5 rounded-full", counts.warning ? SEVERITY_DOT.warning : "bg-muted-foreground/30")} />
-          {counts.warning}
-        </span>
-        <span className="flex items-center gap-1 text-muted-foreground/60">
-          <span className="size-1.5 rounded-full bg-muted-foreground/40" />
-          {counts.info}
-        </span>
-      </div>
+      {/* Grouped mode counts by what a finding DOES; Every mode counts by
+          severity, which is what someone reading individual rows is sorting
+          on. The two never disagree — they are two cuts of the same list. */}
+      {mode === "grouped" ? (
+        <div data-slot="messages-impact" className="flex items-center gap-2.5 text-[11px] tabular-nums">
+          <span className={cn(impact.blocks ? "text-[#d75b6b]" : "text-muted-foreground/40")}>
+            <span className="font-mono">{impact.blocks}</span> stop the order
+          </span>
+          <span className={cn(impact.quality ? "text-[#ffd042]" : "text-muted-foreground/40")}>
+            <span className="font-mono">{impact.quality}</span> worth fixing
+          </span>
+          <span className="text-muted-foreground/50">
+            <span className="font-mono">{impact.cosmetic + impact.tooling}</span> cosmetic or checker noise
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 font-mono text-[11px] tabular-nums">
+          <span className={cn("flex items-center gap-1", counts.error ? SEVERITY_TEXT.error : "text-muted-foreground/40")}>
+            <span className={cn("size-1.5 rounded-full", counts.error ? SEVERITY_DOT.error : "bg-muted-foreground/30")} />
+            {counts.error}
+          </span>
+          <span className={cn("flex items-center gap-1", counts.warning ? SEVERITY_TEXT.warning : "text-muted-foreground/40")}>
+            <span className={cn("size-1.5 rounded-full", counts.warning ? SEVERITY_DOT.warning : "bg-muted-foreground/30")} />
+            {counts.warning}
+          </span>
+          <span className="flex items-center gap-1 text-muted-foreground/60">
+            <span className="size-1.5 rounded-full bg-muted-foreground/40" />
+            {counts.info}
+          </span>
+        </div>
+      )}
       {open ? (
         <div className="ml-auto flex items-center gap-0.5">
           <div className="mr-1.5 flex items-center gap-0.5 rounded border border-border/60 p-0.5">

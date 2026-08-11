@@ -303,6 +303,29 @@ export default function OverviewTab({
             </div>
           </div>
 
+          {/* The one line that makes 694 findings readable: almost none of
+              them are about whether you can order the board. Stated up here
+              so nobody scrolls a wall of amber thinking it is all bad news. */}
+          {counts.total ? (
+            <p data-slot="overview-impact" className="mt-3 text-xs leading-5 text-muted-foreground">
+              The checks produced <span className="font-mono tabular-nums text-foreground">{counts.total}</span>{" "}
+              findings.{" "}
+              <span className="text-foreground">
+                {counts.blocks
+                  ? `${counts.blocks} ${counts.blocks === 1 ? "stops" : "stop"}`
+                  : "None stop"}
+              </span>{" "}
+              the order
+              {counts.quality ? (
+                <>
+                  , <span className="font-mono tabular-nums">{counts.quality}</span> are worth fixing
+                </>
+              ) : null}
+              , and the other <span className="font-mono tabular-nums">{counts.cosmetic + counts.tooling}</span> are
+              cosmetic or about the checker's own setup.
+            </p>
+          ) : null}
+
           {/* What's left — the blocking groups as a checklist. */}
           {verdict.blockingGroups.length ? (
             <div className="mt-4 flex flex-col gap-2" data-slot="overview-blockers">
