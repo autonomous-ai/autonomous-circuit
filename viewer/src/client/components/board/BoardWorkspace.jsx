@@ -405,8 +405,8 @@ export default function BoardWorkspace({
   // only between stages, so a long compile looks stale while the agent is
   // plainly still working.
   const buildLine = useMemo(
-    () => buildStatusLine(buildStatus, { turnActive: turnInProgress }),
-    [buildStatus, turnInProgress],
+    () => buildStatusLine(buildStatus, { turnActive: turnInProgress, hasBoard: Boolean(metadataUrl) }),
+    [buildStatus, turnInProgress, metadataUrl],
   );
   // Where the board came from. Null unless there is something honest to say —
   // one recorded round is not a trend.

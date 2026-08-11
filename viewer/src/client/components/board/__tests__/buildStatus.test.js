@@ -241,6 +241,22 @@ test("a build that finished carrying blocking findings does not read as success"
   assert.doesNotMatch(line.detail, /blocking/);
 });
 
+// Watched on a real run of the nightlight ask: the tree said "Built, not
+// orderable · 85 to fix" three inches from a pane that said "no board file has
+// landed in this project". Both were true. The tree's version invites a click
+// that leads to an empty tab.
+test("a build that left nothing in the project does not count its problems", () => {
+  const status = { state: "done", elapsedS: 713, detail: "85 blocking", updatedAt: Date.now() / 1000 };
+  const landed = buildStatusLine(status, { hasBoard: true });
+  assert.equal(landed.text, "Built, not orderable");
+  assert.match(landed.detail, /85 to fix/);
+
+  const missing = buildStatusLine(status, { hasBoard: false });
+  assert.equal(missing.tone, "done-blocked", "amber — it is not a success");
+  assert.equal(missing.text, "Built, nothing landed here");
+  assert.doesNotMatch(missing.detail, /85|to fix/);
+});
+
 test("a clean build stays green and drops the pipeline's own zero", () => {
   const line = buildStatusLine({
     state: "done",

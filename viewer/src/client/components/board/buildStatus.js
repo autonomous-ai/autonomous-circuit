@@ -233,7 +233,10 @@ export function buildHistoryLine(history) {
  *
  * @returns {{tone: "running"|"quiet"|"done"|"failed"|"stale", text: string, detail: string, progress: number}|null}
  */
-export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_000, turnActive = false } = {}) {
+export function buildStatusLine(
+  status,
+  { now = Date.now(), doneWindowMs = 20_000, turnActive = false, hasBoard = true } = {},
+) {
   if (!status || !status.state) return null;
   const progress = buildProgress(status);
   const stage = stageLabelFor(status);
@@ -298,6 +301,21 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
     const updatedMs = normalizeEpochMs(status.updatedAt);
     if (updatedMs && now - updatedMs > doneWindowMs) return null;
     const elapsed = Number.isFinite(Number(status.elapsedS)) ? formatElapsed(status.elapsedS) : "";
+    // A build can finish without leaving a board in the project — the agent's
+    // own check runs in a scratch copy. Watched on a real run: the tree said
+    // "Built, not orderable · 85 to fix" three inches from a pane that said
+    // "no board file has landed in this project". Both were true; together
+    // they are a contradiction, and the tree's version invites a click that
+    // leads to an empty tab. Counting problems on a board nobody can open is
+    // the wrong fact to lead with.
+    if (!hasBoard) {
+      return {
+        tone: "done-blocked",
+        text: "Built, nothing landed here",
+        detail: elapsed,
+        progress: 1,
+      };
+    }
     // A finished build is not the same thing as a good one. The pipeline's own
     // detail string is "<N> blocking", and rendering it beside a green "Built"
     // put `Built  9m 16s · 20 blocking` in the tree while the pane beside it
