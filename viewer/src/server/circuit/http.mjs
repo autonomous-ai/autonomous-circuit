@@ -14,6 +14,7 @@ import { execFile } from "node:child_process";
 import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
+import { readRevisions, revisionTrend } from "./revisions.mjs";
 import {
   PHASE,
   approvedPlanMessage,
@@ -378,6 +379,22 @@ export function createCircuitServices({ env = process.env } = {}) {
         return null; // no build has run, or the file is mid-write
       }
     },
+    // Build history — what the board looked like on previous rounds.
+    // `build_status` says where this build is now; this says where the board
+    // came from, which is the more convincing sentence: "6 blockers three
+    // builds ago, 1 now" is visible convergence rather than a bare complaint.
+    // Written by the review loop to `<project>/.circuit/revisions.jsonl`,
+    // inside the same `.circuit/` the snapshotter skips, so history never
+    // masquerades as a changed artifact.
+    build_revisions: async ({ id, limit }) => {
+      const projectId = requireProject(id);
+      const dir = projects.projectDir(projectId);
+      const revisions = readRevisions(dir, {
+        limit: Number.isFinite(limit) ? Number(limit) : undefined,
+      });
+      return { revisions, trend: revisionTrend(revisions) };
+    },
+
     app_settings_read: async () => settings.readWire(),
     app_settings_write: async ({ settings: next }) => {
       settings.write(next && typeof next === "object" ? next : {});

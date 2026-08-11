@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import readline from "node:readline";
 import { spawn } from "node:child_process";
 
+import { countWarnings, recordRevision } from "./revisions.mjs";
 import {
   circuitHome,
   claudeConfigDir,
@@ -1242,6 +1243,21 @@ export async function runReviewFixLoop({
 }) {
   let changed = false;
   const aborted = () => Boolean(signal?.aborted);
+
+  // Keep the warning count each round already computes. Without this the loop
+  // converges silently and the app can only ever describe the board's current
+  // state, never the fact that it started at six blockers and is now at one.
+  // `fabReady` stays null: the fab gate has not re-run mid-loop, and writing
+  // false here would draw failures that never happened.
+  const snapshot = (phase, roundNo, warnings) =>
+    recordRevision(workspace, {
+      turnId,
+      phase,
+      round: roundNo,
+      counts: countWarnings(warnings, { isBlocking, isElectrical }),
+      fabReady: null,
+    });
+
   const round = (prompt) =>
     runReviewRound({
       claudePath,
@@ -1258,15 +1274,19 @@ export async function runReviewFixLoop({
   // Phase 1 — structure (blocking = severity "error").
   for (let i = 0; i < MAX_STRUCTURE_ROUNDS; i += 1) {
     if (aborted()) return changed;
-    const blocking = collectBoardWarnings(workspace).filter(isBlocking);
+    const all = collectBoardWarnings(workspace);
+    const blocking = all.filter(isBlocking);
     const prompt = buildStructurePrompt(blocking);
     if (!prompt) break;
+    snapshot("structure", i + 1, all);
     log(`review structure round ${i + 1}: ${blocking.length} blocking warning(s)`);
     changed = (await round(prompt)) || changed;
   }
   if (aborted()) return changed;
-  const structureRemaining = collectBoardWarnings(workspace).filter(isBlocking);
+  const afterStructure = collectBoardWarnings(workspace);
+  const structureRemaining = afterStructure.filter(isBlocking);
   if (structureRemaining.length) {
+    snapshot("structure-unresolved", 0, afterStructure);
     emitUnresolvedNote(turnId, "structure", structureRemaining, onEvent);
     return changed;
   }
@@ -1274,15 +1294,19 @@ export async function runReviewFixLoop({
   // Phase 2 — electrical function (contract kind set).
   for (let i = 0; i < MAX_ELECTRICAL_ROUNDS; i += 1) {
     if (aborted()) return changed;
-    const electrical = collectBoardWarnings(workspace).filter(isElectrical);
+    const all = collectBoardWarnings(workspace);
+    const electrical = all.filter(isElectrical);
     const prompt = buildElectricalPrompt(electrical);
     if (!prompt) break;
+    snapshot("electrical", i + 1, all);
     log(`review electrical round ${i + 1}: ${electrical.length} electrical warning(s)`);
     changed = (await round(prompt)) || changed;
   }
   if (aborted()) return changed;
-  const electricalRemaining = collectBoardWarnings(workspace).filter(isElectrical);
+  const afterElectrical = collectBoardWarnings(workspace);
+  const electricalRemaining = afterElectrical.filter(isElectrical);
   if (electricalRemaining.length) {
+    snapshot("electrical-unresolved", 0, afterElectrical);
     emitUnresolvedNote(turnId, "electrical-function", electricalRemaining, onEvent);
     return changed;
   }
@@ -1294,6 +1318,7 @@ export async function runReviewFixLoop({
   );
   for (let i = 0; i < MAX_CRAFT_ROUNDS; i += 1) {
     if (aborted()) return changed;
+    snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
     const roundChanged = await round(buildCraftPrompt(hints));
     changed = roundChanged || changed;
@@ -1306,6 +1331,7 @@ export async function runReviewFixLoop({
       );
     }
   }
+  snapshot("final", 0, collectBoardWarnings(workspace));
   return changed;
 }
 
