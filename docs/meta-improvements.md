@@ -37,12 +37,24 @@ This file is the running list. Status: **done** · **building** · **next** ·
 3. **done — golden set with sentinels.** Known-good asks must pass, deliberately
    broken asks must be refused *for the right reason*. If the sentinel ever
    passes, the eval has gone blind — and a blind eval is worse than none.
-4. **next — the failure corpus.** Every real defect we hit becomes a permanent
+4. **done 2026-08-11 — the failure corpus.**
+   `packages/circuitpy/tests/test_failure_corpus.py`. Every real defect is a
+   permanent fixture **paired with the legal geometry just the other side of
+   the line**, which must stay clean. One-sided tests invite the fix of
+   tightening a rule until everything is caught, and a gate set to a
+   preference is noise. Eight defects locked from both directions so far.
+   (Original entry:) Every real defect we hit becomes a permanent
    fixture and a test. Tonight alone produced four worth keeping: the PTH
    annular rule misapplied to vias, KiCad grading boards against its own stock
    defaults, the router's 0.05mm annular rings, the unpositioned group that
    stacks its children. The gauntlet should get monotonically harder to fool.
-5. **next — agent-level eval.** Everything above measures the *pipeline*. The
+5. **built 2026-08-11 — agent-level eval.** `evals/agent/run.py`. Eight cold
+   briefs, an empty directory each, no human turn, scored on **first-build
+   fab-ready rate** (the target) and **final fab-ready rate** (the fallback),
+   plus two failure modes a yield number hides: an agent that called a board
+   done while `fab.ready` was false, and an agent that invented a circuit for
+   an out-of-catalog ask. A watcher records every sidecar version, so build #1
+   is a measurement and not a claim. (Original entry:) Everything above measures the *pipeline*. The
    product metric is the *agent*: hand it N briefs cold, let it design, and
    score first-pass yield — how many boards reach the ship bar with no human
    turn. That number is the honest answer to "does this work", and we do not
@@ -80,7 +92,19 @@ This file is the running list. Status: **done** · **building** · **next** ·
 The honest gap list says no deterministic check we own knows Ohm's law, catches
 a mirrored pinout, or predicts heat. Each of these attacks one of those.
 
-12. **next — a SPICE smoke test.** `circuit-json-to-spice` exists; ngspice is
+12. **rejected 2026-08-11, with the measurement — a SPICE smoke test.**
+    The toolchain's own path was tried: `tscircuit-cli simulate analog` on
+    harness-puck ran for **3 minutes 24 seconds** and ended in
+    `run simulation(s) aborted` — singular matrix at node `n3`, transient
+    timestep collapse at the LED instance, and *nodes still anonymised to
+    n1/n3*, exactly the blocker that shelved `spice_smoke.mjs`. It cannot name
+    a rail, so it cannot tell you a rail is at the wrong voltage. Wiring it in
+    would add a check that always finds nothing while implying coverage of the
+    one class we are blind to. **Not wired in.** The Ohm's-law gap stays with
+    the direct circuitlib checks, and the honest next attempt is a rail-graph
+    check over circuit.json connectivity (identify declared rails, verify one
+    source each, check divider ratios) — arithmetic we own, not a simulator we
+    do not. (Original entry:) `circuit-json-to-spice` exists; ngspice is
     free. Even a crude pass — rails are not shorted, the LED current is sane,
     the divider lands where it should — attacks the single biggest blind spot
     directly. A board passes every gate today with a 10Ω resistor where 10kΩ
@@ -191,6 +215,48 @@ defaults. Still open, in leverage order:
    rather than 1+2/3+4, every switch on every board is a short. That one is
    worth checking before anything is ordered.
 
+## What 2026-08-11 added
+
+28. **done — closure under composition.** `evals/composition.py` builds every
+    legal combination of registry blocks as a real board through the real
+    pipeline. Each block already passed its own gauntlet; no *pair* had ever
+    been built. The first run: **6 of 42 clean (14%)**. After the placement
+    fix below: **23 of 41 (56%)**. The rule that follows — anything the
+    planner can legally emit must be inside the tested space — is now in the
+    contract.
+29. **done — a block is a box, not a size.** `circuitlib.layout` stored width
+    and height and assumed the geometry was centred on the block's origin. It
+    is not: `usb-c-power` sits 3.29mm above its origin, `usb-c-data` 6.04mm,
+    `rp2040-core` 5.51mm below, and `rp2040-core`'s stored height was 2.6mm
+    short of the truth. So the placement advice the skill gives every agent
+    produced boards with parts hanging off the edge. Measured boxes now, from
+    `evals/measure_block_boxes.py`, plus `place_board()` (connectors on the
+    edge, holes in a reserved strip) and `board_fits()` — which answers before
+    a build what `pcb_component_outside_board_error` answers after one.
+30. **done — the router had an effort dial nobody turned.**
+    `autorouterEffortLevel` is a `<board>` prop with no CLI flag, so every
+    board ever built routed at the default. Measured: terminal-keyboard 46
+    blocking errors to 18 at `"5x"`; harness-puck **5 to 1**, in 1240s. The
+    pipeline now escalates once, only on routing-class errors, and keeps the
+    cheaper result unless the harder one is strictly better. **The wall clock
+    had to go 300s to 2700s** or the escalation could never finish — the
+    budget had been silently cancelling the biggest lever we have.
+31. **done — the examples are ratcheted.** `evals/examples_lock.py`: a board
+    may get better, never worse. Baseline as of today: harness-puck 5
+    blocking, hydrate-coaster 4, terminal-keyboard 1.
+32. **next — the remaining composition holes.** After the placement fix the
+    survivors cluster: `dfm_hole_clearance` on every `usb-c-data` pairing (the
+    footprint defect, block-owned), and `pcb_trace_error` "trace too close to
+    board edge" on `rp2040-core` pairings — the router runs tracks to the
+    outline because nothing tells it not to. The second is the next real
+    lever and it is not a placement fix: growing the board does not help when
+    the router prefers the outside path.
+33. **next — Monte-Carlo over component tolerances.** Every resistor is +/-1%,
+    every capacitor +/-10%. Nothing we own asks whether a design still works
+    at the corners rather than at nominal. A divider that is fine at nominal
+    and out of spec at 3-sigma survives every check we have and then shows up
+    as two boards out of five behaving differently.
+
 ## Standing principles this list keeps rediscovering
 
 - **A gate set to a preference instead of a floor is noise, and noise trains
@@ -201,5 +267,13 @@ defaults. Still open, in leverage order:
   an artifact of the conversion.
 - **Absence of screening is not safety.** A gate that answers "fine" when it did
   not look is worse than no gate.
+- **A helper that gives advice must be able to check its own advice.**
+  `place_board()` returns its warnings alongside its plan, and the composition
+  matrix refuses to build a plan the helper does not believe in. The layout
+  bug survived because nothing ever asked the placement code whether its own
+  output fitted.
+- **Measure the dial before assuming the default is right.** The autorouter
+  effort level had five settings and we never touched it. The default cost
+  us 28 blocking errors on one board.
 - **The pictures are part of the contract.** Anything an agent must judge by eye
   needs a rendered artifact it is required to look at.
