@@ -170,6 +170,23 @@ export default function BoardWorkspace({
     return 0;
   }, [chatHistory]);
 
+  // The plan the user approved, verbatim. Quoting it is not a derivation and
+  // is not presented as one — it is the other half of the comparison this tab
+  // exists for: here is what you agreed to, here is what the netlist says got
+  // built. The plan is never written to a file, so the chat history is the
+  // only place it survives.
+  const approvedPlan = useMemo(() => {
+    const list = Array.isArray(chatHistory) ? chatHistory : [];
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      for (const block of list[i]?.blocks || []) {
+        if (block.kind === "plan" && block.status === "approved" && String(block.plan || "").trim()) {
+          return String(block.plan).trim();
+        }
+      }
+    }
+    return "";
+  }, [chatHistory]);
+
   const requestText = useMemo(() => {
     const first = (Array.isArray(chatHistory) ? chatHistory : []).find(
       (turn) => turn.role === "user" && String(turn.userText || "").trim(),
@@ -919,6 +936,7 @@ export default function BoardWorkspace({
                       product={product}
                       regions={regions}
                       requestText={requestText}
+                      planText={approvedPlan}
                       boardName={selectedStem}
                       onSelect={handleSelect}
                       onOpenTab={setActiveTab}

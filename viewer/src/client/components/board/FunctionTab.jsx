@@ -184,6 +184,7 @@ export default function FunctionTab({
   product = null,
   regions = [],
   requestText = "",
+  planText = "",
   boardName = "",
   onSelect,
   onOpenTab,
@@ -196,6 +197,7 @@ export default function FunctionTab({
   const rails = useMemo(() => railRows(index, brain), [index, brain]);
   const ends = useMemo(() => looseEnds(index), [index]);
   const [showInternal, setShowInternal] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
 
   const isolated = rows.filter((row) => row.status === FUNCTION_STATUS.ISOLATED);
   const SummaryIcon =
@@ -246,7 +248,7 @@ export default function FunctionTab({
         </div>
 
         {/* --- what was asked for ------------------------------------------ */}
-        {product?.description || requestText ? (
+        {product?.description || requestText || planText ? (
           <Section title="What you asked for">
             <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card/30 p-4">
               {requestText ? (
@@ -265,6 +267,32 @@ export default function FunctionTab({
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     <span className="text-foreground">{product.name || boardName}</span> — {product.description}
                   </p>
+                </div>
+              ) : null}
+              {planText ? (
+                <div className="border-t border-border/40 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPlan((value) => !value)}
+                    aria-expanded={showPlan}
+                    data-slot="function-plan-toggle"
+                    className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground/70 transition-colors hover:text-foreground"
+                  >
+                    {showPlan ? (
+                      <ChevronDown className="size-3" aria-hidden />
+                    ) : (
+                      <ChevronRight className="size-3" aria-hidden />
+                    )}
+                    The plan you approved
+                  </button>
+                  {showPlan ? (
+                    <pre
+                      data-slot="function-plan"
+                      className="scrollbar-thin mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-background/50 p-3 text-[11px] leading-5 text-muted-foreground"
+                    >
+                      {planText}
+                    </pre>
+                  ) : null}
                 </div>
               ) : null}
               <p className="text-xs leading-5 text-muted-foreground/80">
