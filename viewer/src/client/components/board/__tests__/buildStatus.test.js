@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   BUILD_STAGES,
   ROUTER_RETRY_STAGE,
+  blockingFromDetail,
   buildHistoryLine,
   buildProgress,
   buildStageChecklist,
@@ -221,4 +222,51 @@ test("a quiet stage that is the router retry says which slow thing it is", () =>
   assert.equal(line.tone, "quiet");
   assert.equal(line.text, ROUTER_RETRY_STAGE.label);
   assert.match(line.detail, /5× router effort · quiet for 5m/);
+});
+
+// Watched on a real run: the tree read a green `Built  9m 16s · 20 blocking`
+// while the pane beside it said the board could not be ordered. Green plus a
+// count nobody can read is worse than either alone.
+test("a build that finished carrying blocking findings does not read as success", () => {
+  const line = buildStatusLine({
+    state: "done",
+    elapsedS: 556,
+    detail: "20 blocking",
+    updatedAt: Date.now() / 1000,
+  });
+  assert.equal(line.tone, "done-blocked");
+  assert.equal(line.text, "Built, not orderable");
+  assert.match(line.detail, /20 to fix/);
+  assert.doesNotMatch(line.detail, /blocking/);
+});
+
+test("a clean build stays green and drops the pipeline's own zero", () => {
+  const line = buildStatusLine({
+    state: "done",
+    elapsedS: 92,
+    detail: "0 blocking",
+    updatedAt: Date.now() / 1000,
+  });
+  assert.equal(line.tone, "done");
+  assert.equal(line.text, "Built");
+  assert.equal(line.detail, "1m 32s");
+});
+
+test("an unrecognised detail is passed through rather than dropped", () => {
+  const line = buildStatusLine({
+    state: "done",
+    elapsedS: 10,
+    detail: "router retry kept",
+    updatedAt: Date.now() / 1000,
+  });
+  assert.equal(line.tone, "done");
+  assert.match(line.detail, /router retry kept/);
+});
+
+test("blockingFromDetail reads the pipeline's string and nothing else", () => {
+  assert.equal(blockingFromDetail("20 blocking"), 20);
+  assert.equal(blockingFromDetail("0 blocking"), 0);
+  assert.equal(blockingFromDetail("blocking"), null);
+  assert.equal(blockingFromDetail(""), null);
+  assert.equal(blockingFromDetail(undefined), null);
 });

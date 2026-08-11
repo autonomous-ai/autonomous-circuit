@@ -281,12 +281,38 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
     const updatedMs = normalizeEpochMs(status.updatedAt);
     if (updatedMs && now - updatedMs > doneWindowMs) return null;
     const elapsed = Number.isFinite(Number(status.elapsedS)) ? formatElapsed(status.elapsedS) : "";
+    // A finished build is not the same thing as a good one. The pipeline's own
+    // detail string is "<N> blocking", and rendering it beside a green "Built"
+    // put `Built  9m 16s · 20 blocking` in the tree while the pane beside it
+    // said the board could not be ordered. Green plus a number nobody can read
+    // is worse than either alone.
+    const blocking = blockingFromDetail(status.detail);
+    if (blocking > 0) {
+      return {
+        tone: "done-blocked",
+        text: "Built, not orderable",
+        detail: [`${blocking} to fix`, elapsed].filter(Boolean).join(" · "),
+        progress: 1,
+      };
+    }
     return {
       tone: "done",
       text: "Built",
-      detail: [elapsed, String(status.detail || "").trim()].filter(Boolean).join(" · "),
+      // "0 blocking" is the pipeline talking to itself. Nothing to fix needs
+      // no words at all.
+      detail: [elapsed, blocking === null ? String(status.detail || "").trim() : ""].filter(Boolean).join(" · "),
       progress: 1,
     };
   }
   return null;
+}
+
+/**
+ * The blocking count out of the pipeline's `detail` string ("20 blocking"), or
+ * null when the detail says something else. Owned here because the tree line
+ * and its colour both depend on it.
+ */
+export function blockingFromDetail(detail) {
+  const match = /^(\d+)\s+blocking$/i.exec(String(detail || "").trim());
+  return match ? Number(match[1]) : null;
 }

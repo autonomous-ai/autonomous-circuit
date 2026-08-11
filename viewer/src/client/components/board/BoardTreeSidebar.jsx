@@ -40,6 +40,9 @@ const TONE_TEXT = Object.freeze({
   running: "text-amber-500",
   quiet: "text-amber-500/70",
   done: "text-emerald-500",
+  // Built, but nothing can be ordered from it — the one outcome that must not
+  // read as success.
+  "done-blocked": "text-amber-500",
   failed: "text-[#d75b6b]",
   stale: "text-[#ffd042]",
 });
@@ -48,6 +51,7 @@ const TONE_BAR = Object.freeze({
   running: "bg-amber-400",
   quiet: "bg-amber-400/60",
   done: "bg-emerald-500",
+  "done-blocked": "bg-amber-400",
   failed: "bg-[#d75b6b]",
   stale: "bg-[#ffd042]",
 });

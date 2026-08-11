@@ -447,7 +447,9 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
     // is nothing to judge. Saying "no build yet" beside a line that reads
     // "Built · 6m 49s" is the kind of small contradiction that costs trust, so
     // when a build has just finished the sentence says which fact is which.
-    if (buildTone === "done") {
+    // `done-blocked` is the same fact with a worse outcome — a build that
+    // finished carrying problems. Both mean "a build happened".
+    if (buildTone === "done" || buildTone === "done-blocked") {
       return {
         tone: "unknown",
         headline: "Nothing to judge yet",

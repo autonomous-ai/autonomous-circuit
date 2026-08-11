@@ -58,7 +58,7 @@ export default function FabPacketCard({
           <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
         ) : (
           <p className="max-w-xs px-6 text-center text-sm leading-6 text-muted-foreground">
-            The fab packet lands once the board builds clean.
+            The files a factory needs appear here once the board builds without errors.
           </p>
         )}
       </div>
@@ -123,7 +123,10 @@ export default function FabPacketCard({
           />
           <div className="flex min-w-0 flex-col">
             <span className="text-sm font-medium text-foreground">
-              {ready ? "Fab-ready" : "Not fab-ready yet"}
+              {/* Same words as the verdict strip on every other tab. Two
+                  names for one state ("Fab-ready" here, "Ready to order"
+                  there) reads as two different facts. */}
+              {ready ? "Ready to order" : "Not ready to order yet"}
               {fab.profile ? (
                 <span className="ml-2 font-mono text-[11px] uppercase text-muted-foreground">
                   {fab.profile}{fab.assembly ? " · assembly" : " · bare PCB"}
@@ -233,7 +236,7 @@ export default function FabPacketCard({
             ) : null}
 
             <p className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
-              The raw findings behind that
+              The exact wording the checks used
             </p>
             {blockers.length ? (
               blockers.map((warning, index) => (
@@ -255,8 +258,11 @@ export default function FabPacketCard({
               ))
             ) : (
               <p className="text-xs text-muted-foreground">
-                No blocking findings recorded — rebuild the board to refresh the
-                packet{fab.gerberSource === "tscircuit" ? " (gerbers need kicad-cli to verify)" : ""}.
+                Nothing was recorded as stopping the order, but the files still are not signed off. Ask the chat to
+                build the board again.
+                {fab.gerberSource === "tscircuit"
+                  ? " (Only one program has looked at these files. KiCad has to check them too before we call them ready — install it and rebuild.)"
+                  : ""}
               </p>
             )}
           </div>
