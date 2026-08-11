@@ -16,13 +16,18 @@ needs no patching because it asserts on how a genuine failure comes back.
 from __future__ import annotations
 
 import os
+import sys
 import time
 from pathlib import Path
 
 import pytest
 
-from circuitpy import batch as batch_mod
-from circuitpy.batch import BatchReport, BuildJob, BuildOutcome, build_many
+# Every module in this directory carries this bootstrap; without it the suite
+# is red whenever this file is collected first, which alphabetically it is.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from circuitpy import batch as batch_mod  # noqa: E402
+from circuitpy.batch import BatchReport, BuildJob, BuildOutcome, build_many  # noqa: E402
 
 
 def _job(tmp_path: Path, name: str, **kw) -> BuildJob:
