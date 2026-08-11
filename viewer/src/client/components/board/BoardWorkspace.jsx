@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Loader2, Ruler, SendHorizontal } from "lucide-react";
+import { Loader2, SendHorizontal } from "lucide-react";
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
@@ -14,8 +14,11 @@ import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "
 import { transport } from "@/lib/transport.ts";
 import { useProjectsStore } from "@/store/projects.ts";
 import { useChatStore } from "@/store/chat.js";
+import { triggerBlobDownload } from "@/ui/download.js";
 import Board3DView from "./Board3DView.jsx";
+import BoardOrientationCube from "./BoardOrientationCube.jsx";
 import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
+import ViewportToolRail from "./ViewportToolRail.jsx";
 import useBuildStatus from "./useBuildStatus.js";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
@@ -92,6 +95,7 @@ export default function BoardWorkspace({
   const [units, setUnits] = useState("mm");
   const [measuring, setMeasuring] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
   const [messagesOpen, setMessagesOpen] = useState(true);
   const [hover, setHover] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -329,6 +333,81 @@ export default function BoardWorkspace({
     schematicRef.current?.fitToSheet?.();
   }, []);
 
+  /**
+   * Export the live PCB drawing. SVG rather than a PNG screenshot on purpose:
+   * the canvas *is* vector, every pad and trace is already a node, and an SVG
+   * drops into a datasheet, an issue, or Illustrator at any zoom. A raster of
+   * a vector drawing throws away the thing that made it worth having.
+   */
+  const handleExportView = useCallback(() => {
+    const svg = pcbRef.current?.exportSvg?.();
+    if (!svg) return;
+    try {
+      triggerBlobDownload(new Blob([svg], { type: "image/svg+xml" }), {
+        filename: `${selectedStem || "board"}-view.svg`,
+      });
+    } catch {
+      /* a blocked download leaves the button usable */
+    }
+  }, [selectedStem]);
+
+  /** Everything the floating rail dispatches into — see viewportTools.js. */
+  const pcbToolContext = useMemo(
+    () => ({
+      // A getter, not a snapshot: the canvas publishes its imperative handle
+      // after mount and republishes it on every zoom, and a ref change does not
+      // re-run this memo. Reading it lazily is what keeps +/- alive.
+      get view() {
+        return pcbRef.current;
+      },
+      measuring,
+      hudVisible,
+      showGrid,
+      singleLayerMode,
+      highlightMethod,
+      maskLevel,
+      units,
+      onFit: fitAll,
+      onToggleMeasure: () => setMeasuring((value) => !value),
+      onToggleHud: () => setHudVisible((value) => !value),
+      onToggleGrid: () => setShowGrid((value) => !value),
+      onCycleSingleLayer: () => setSingleLayerMode(nextSingleLayerMode(singleLayerMode)),
+      onCycleHighlightMethod: () => setHighlightMethod(nextHighlightMethod(highlightMethod)),
+      onToggleUnits: () => setUnits((value) => (value === "mm" ? "mil" : "mm")),
+      onExport: handleExportView,
+      onReset: () => {
+        setSelection(null);
+        setSingleLayerMode("off");
+        setHiddenLayers(new Set());
+        setMeasuring(false);
+        fitAll();
+      },
+    }),
+    [measuring, hudVisible, showGrid, singleLayerMode, highlightMethod, maskLevel, units, fitAll, handleExportView],
+  );
+
+  const schematicToolContext = useMemo(
+    () => ({
+      get view() {
+        return schematicRef.current;
+      },
+      hudVisible,
+      onFit: () => schematicRef.current?.fitToSheet?.(),
+      onToggleHud: () => setHudVisible((value) => !value),
+      onExport: handleExportView,
+      onReset: () => {
+        setSelection(null);
+        schematicRef.current?.fitToSheet?.();
+      },
+    }),
+    [hudVisible, handleExportView],
+  );
+
+  const handleBoardSide = useCallback((change) => {
+    setActiveLayer(change.activeLayer);
+    setSingleLayerMode(change.singleLayerMode);
+  }, []);
+
   // --- keyboard, honouring Altium's bindings where a browser lets us
   useEffect(() => {
     const onKey = (event) => {
@@ -405,17 +484,20 @@ export default function BoardWorkspace({
   }, [hover, index]);
 
   const schematicPane = (
-    <SchematicCanvas
-      index={index}
-      src={String(artifact.schematicUrl || "")}
-      scheme={scheme}
-      highlight={highlight}
-      highlightMethod={highlightMethod}
-      maskLevel={maskLevel}
-      onSelect={handleSelect}
-      onHoverChange={setHover}
-      viewRef={schematicRef}
-    />
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <SchematicCanvas
+        index={index}
+        src={String(artifact.schematicUrl || "")}
+        scheme={scheme}
+        highlight={highlight}
+        highlightMethod={highlightMethod}
+        maskLevel={maskLevel}
+        onSelect={handleSelect}
+        onHoverChange={setHover}
+        viewRef={schematicRef}
+      />
+      <ViewportToolRail surface="schematic" context={schematicToolContext} />
+    </div>
   );
 
   const pcbPane = (
@@ -433,12 +515,26 @@ export default function BoardWorkspace({
         maskLevel={maskLevel}
         units={units}
         measuring={measuring}
+        showGrid={showGrid}
         flash={flash}
         fallbackSrc={String(artifact.pcbUrl || "")}
         onSelect={handleSelect}
         onHoverChange={setHover}
         onViewChange={setPcbView}
         viewRef={pcbRef}
+      />
+      <ViewportToolRail surface="pcb" context={pcbToolContext} />
+      {/* Lifted clear of the rail rather than parked beside it — the same call
+          drei's viewcube makes with `margin={[60, 120]}`. In Split the PCB pane
+          is half-width, and a rail centred in that half already reaches the
+          right edge. */}
+      <BoardOrientationCube
+        scheme={scheme}
+        activeLayer={activeLayer}
+        singleLayerMode={singleLayerMode}
+        hasBottom={layers.includes("bottom")}
+        onChange={handleBoardSide}
+        bottomInset={48}
       />
       <BoardInsightHud
         hover={hover}
@@ -527,32 +623,12 @@ export default function BoardWorkspace({
                 ))}
                 <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
 
+                {/* Measure and Fit used to live here; they are viewport tools,
+                    so they moved into the floating rail on the canvas itself
+                    (see ViewportToolRail). What stays is the selection chip —
+                    it is state, not a tool. */}
                 {CANVAS_TABS.has(activeTab) ? (
                   <div className="ml-3 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setMeasuring((value) => !value)}
-                      data-slot="measure-toggle"
-                      aria-pressed={measuring}
-                      title="Measure (Ctrl+M)"
-                      className={cn(
-                        "flex items-center gap-1 rounded px-1.5 py-1 text-[11px] transition-colors",
-                        measuring ? "bg-primary/20 text-foreground" : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Ruler className="size-3" aria-hidden />
-                      Measure
-                    </button>
-                    <button
-                      type="button"
-                      onClick={fitAll}
-                      title="Zoom to fit (F)"
-                      data-slot="fit-button"
-                      className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <Crosshair className="size-3" aria-hidden />
-                      Fit
-                    </button>
                     {selection ? (
                       <span
                         data-slot="selection-chip"

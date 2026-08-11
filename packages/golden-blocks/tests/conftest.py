@@ -28,6 +28,21 @@ SNAPSHOT_DIR = TESTS_DIR / "snapshots"
 
 BUILD_TIMEOUT_S = 300.0
 
+#: Blocks the full-gauntlet suite covers (test_gauntlet.py). Same list as
+#: test_blocks.BLOCK_IDS, kept here so the gauntlet does not import the other
+#: test module.
+BLOCK_IDS_FOR_GAUNTLET = [
+    "usb-c-power",
+    "ldo-3v3",
+    "status-led",
+    "sw-tact",
+    "i2c-bus",
+    "rp2040-core",
+    "usb-c-data",
+    "sensor-bme280",
+    "ws2812-chain",
+]
+
 
 def _toolchain_bin_dir() -> Path:
     """env CIRCUIT_TOOLCHAIN > repo default (contract §1 Toolchain)."""

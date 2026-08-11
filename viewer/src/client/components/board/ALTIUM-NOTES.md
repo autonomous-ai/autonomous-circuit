@@ -145,12 +145,19 @@ X/Y size in pixels. **Defaults: unverified.**
 **Grayscale Other Layers** → **Monochrome Other Layers** → full. In single-layer mode,
 `Ctrl+Shift`+wheel steps through layers.
 
-> **What we built.** A translucent HUD pinned bottom-left of the PCB canvas: live X/Y in
+> **What we built.** A translucent HUD pinned to a corner of the PCB canvas: live X/Y in
 > mm, dX/dY from the delta origin, the net under the cursor, the object under the
 > cursor, and the active layer. `Shift+H` toggles it. A measure tool on `Ctrl+M` (see §7)
 > drag-measures with a live readout. We took KiCad's decision to keep the readout in a
 > fixed corner rather than have it chase the cursor — on a small web pane a floating HUD
 > covers the thing you are looking at.
+>
+> *Amended when the viewport tool rail landed (VIBE-NOTES §3):* the corner is now
+> **top**-left, not bottom-left. The bottom edge belongs to the rail and the board-side
+> widget, and in Split view — where the PCB pane is half-width — a bottom-left HUD and a
+> bottom-centre rail overlap outright. The permanent shortcut legend under the readout is
+> gone with it: every binding it listed is now a tooltip on the tool that owns it, which
+> is where someone actually looks for it.
 
 ---
 

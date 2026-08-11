@@ -150,7 +150,26 @@ export default function SchematicCanvas({
     [sheet, size.width, size.height],
   );
 
-  useImperativeHandle(externalViewRef, () => ({ zoomToBox, fitToSheet }), [zoomToBox, fitToSheet]);
+  /** Zoom about the middle of the pane (the toolbar's +/-, not the wheel). */
+  const zoomBy = useCallback(
+    (factor) => {
+      if (!size.width || !size.height) return;
+      const px = size.width / 2;
+      const py = size.height / 2;
+      setView((prev) => {
+        const scale = Math.min(40, Math.max(0.08, prev.scale * factor));
+        const applied = scale / prev.scale;
+        return { scale, tx: px - (px - prev.tx) * applied, ty: py - (py - prev.ty) * applied };
+      });
+    },
+    [size.width, size.height],
+  );
+
+  useImperativeHandle(
+    externalViewRef,
+    () => ({ zoomToBox, fitToSheet, zoomBy, fitToBoard: fitToSheet }),
+    [zoomToBox, fitToSheet, zoomBy],
+  );
 
   // --- wheel zoom
   useEffect(() => {

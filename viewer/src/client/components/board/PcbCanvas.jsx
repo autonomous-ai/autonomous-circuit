@@ -87,6 +87,7 @@ export default function PcbCanvas({
 }) {
   const colors = palette(scheme);
   const stageRef = useRef(null);
+  const svgRef = useRef(null);
   const gradientId = useId().replace(/:/g, "");
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState({ scale: 8, tx: 0, ty: 0 });
@@ -152,11 +153,45 @@ export default function PcbCanvas({
     [size.width, size.height],
   );
 
-  useImperativeHandle(externalViewRef, () => ({ zoomToBox, fitToBoard, resetDelta: () => setDeltaOrigin(cursor || { x: 0, y: 0 }) }), [
-    zoomToBox,
-    fitToBoard,
-    cursor,
-  ]);
+  /** Zoom about the middle of the pane — what a toolbar +/- means, as opposed
+   *  to the wheel, which zooms about the cursor. */
+  const zoomBy = useCallback(
+    (factor) => {
+      if (!size.width || !size.height) return;
+      setView((prev) => zoomAt(prev, size.width / 2, size.height / 2, factor));
+    },
+    [size.width, size.height],
+  );
+
+  /** The live board drawing as standalone SVG text, or "" before it renders. */
+  const exportSvg = useCallback(() => {
+    const node = svgRef.current;
+    if (!node) return "";
+    const clone = node.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", String(size.width || 1));
+    clone.setAttribute("height", String(size.height || 1));
+    // The pane's background lives on the parent div, so paint it in or the
+    // exported file opens as dark copper on a white page.
+    const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    background.setAttribute("width", "100%");
+    background.setAttribute("height", "100%");
+    background.setAttribute("fill", colors.background);
+    clone.insertBefore(background, clone.firstChild);
+    return new XMLSerializer().serializeToString(clone);
+  }, [size.width, size.height, colors.background]);
+
+  useImperativeHandle(
+    externalViewRef,
+    () => ({
+      zoomToBox,
+      fitToBoard,
+      zoomBy,
+      exportSvg,
+      resetDelta: () => setDeltaOrigin(cursor || { x: 0, y: 0 }),
+    }),
+    [zoomToBox, fitToBoard, zoomBy, exportSvg, cursor],
+  );
 
   // Leaving measure mode clears the dimension — a stale line over a board you
   // are now editing is worse than no line.
@@ -609,6 +644,7 @@ export default function PcbCanvas({
 
       {hasGeometry ? (
         <svg
+          ref={svgRef}
           className="absolute inset-0 h-full w-full"
           width={size.width || 1}
           height={size.height || 1}

@@ -12,6 +12,12 @@ const NUM = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(va
  * Shows cursor X/Y, the delta from the last origin reset, the object and net
  * under the cursor, and the active layer. `Shift+H` toggles it; `Space` or
  * `Insert` zeroes the delta origin.
+ *
+ * Parked **top**-left, not bottom-left: the bottom edge now belongs to the
+ * floating tool rail and the board-side widget, and two overlapping glass
+ * panels in one corner is worse than either. The permanent shortcut legend
+ * that used to sit under it is gone too — the rail's tooltips carry those
+ * bindings now, and a legend nobody reads twice is furniture.
  */
 export default function BoardInsightHud({
   hover = null,
@@ -32,7 +38,7 @@ export default function BoardInsightHud({
     <div
       data-slot="board-insight-hud"
       className={cn(
-        "pointer-events-none absolute bottom-2 left-2 rounded border border-white/10 bg-black/72 px-2 py-1.5 font-mono text-[11px] leading-[1.35] text-white/75 backdrop-blur-sm",
+        "pointer-events-none absolute left-2 top-2 rounded border border-white/10 bg-black/72 px-2 py-1.5 font-mono text-[11px] leading-[1.35] text-white/75 backdrop-blur-sm",
         className,
       )}
     >
@@ -61,11 +67,9 @@ export default function BoardInsightHud({
         </span>
         {scale ? <span className="text-white/35">{Math.round(NUM(scale) * 10) / 10} px/mm</span> : null}
       </div>
-      <div className="mt-0.5 text-[10px] text-white/30">
-        {measuring
-          ? "measure — drag to measure · Ctrl+M off"
-          : "click select · ⇧ net · ⌘ jump · space zero Δ · shift+H hud"}
-      </div>
+      {measuring ? (
+        <div className="mt-0.5 text-[10px] text-amber-300/70">measure — drag across the board · ⌘M off</div>
+      ) : null}
     </div>
   );
 }
