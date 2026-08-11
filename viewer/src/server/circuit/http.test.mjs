@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createCircuitServices } from "./http.mjs";
+import { createCircuitServices, quietLimitMs } from "./http.mjs";
 import { sessionIdForProject } from "./driver.mjs";
 import { sessionJsonlPath } from "./projects.mjs";
 import { MockEventSource, waitFor } from "./fixtures/sse.mjs";
@@ -390,4 +390,47 @@ test("SSE projectId filter: a scoped connection only sees its project's chat eve
   } finally {
     s.close();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Stage quiet limits
+//
+// A real 35-minute run showed the app announcing "Build stopped responding"
+// over a healthy build: the flat 120s limit was shorter than an ordinary
+// compile, and the router escalation retry sits in `compile` for ~15 minutes,
+// so this would have fired on every escalated build.
+// ---------------------------------------------------------------------------
+
+test("a compile may go quiet far longer than the old flat 120s limit", () => {
+  // The specific case that broke: 5x router effort on a large board.
+  assert.ok(
+    quietLimitMs("compile") > 20 * 60_000,
+    "a 20-minute route must not read as stalled",
+  );
+});
+
+test("every known stage gets more than the old 120s", () => {
+  for (const stage of ["compile", "scan", "dfm", "substrate", "export", "render"]) {
+    assert.ok(
+      quietLimitMs(stage) > 120_000,
+      `${stage} still has a limit that a real build can cross`,
+    );
+  }
+});
+
+test("file-shuffling stages are held tighter than routing ones", () => {
+  // Silence during a render really does mean something died; silence during a
+  // route usually means it is routing.
+  assert.ok(quietLimitMs("render") < quietLimitMs("compile"));
+  assert.ok(quietLimitMs("export") < quietLimitMs("compile"));
+});
+
+test("an unknown stage gets the most generous limit, not the tightest", () => {
+  // A stage we do not recognise is one whose cost we cannot predict, and a
+  // false "stalled" is worse than a late one.
+  const known = ["compile", "scan", "dfm", "substrate", "export", "render"]
+    .map(quietLimitMs);
+  assert.ok(quietLimitMs("some-future-stage") >= Math.max(...known));
+  assert.ok(quietLimitMs(undefined) >= Math.max(...known));
+  assert.ok(quietLimitMs(null) >= Math.max(...known));
 });

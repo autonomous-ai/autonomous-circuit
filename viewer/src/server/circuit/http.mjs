@@ -129,6 +129,43 @@ function findOnAugmentedPath(name, env) {
   return null;
 }
 
+/**
+ * How long a build stage may go quiet before we call it stalled.
+ *
+ * The pipeline writes `build-status.json` on stage transitions only — no
+ * heartbeat — so "time since the last write" is really "how long this stage
+ * has been running". A single flat limit therefore has to be longer than the
+ * slowest legitimate stage, and the old one was 120 seconds.
+ *
+ * That was shorter than an ordinary compile. Worse, the router escalation
+ * retry (stage 0b, `autorouterEffortLevel="5x"`) spends ~15 minutes inside
+ * `compile` on a large board, so the app announced **"Build stopped
+ * responding" over a perfectly healthy build** — and would have done it on
+ * every escalated build. Caught by watching a real 35-minute run, which is the
+ * only way this kind of thing gets caught.
+ *
+ * So the limit is per stage, sized to what that stage actually does. Generous
+ * on the two that route and convert; tight on the ones that only move files,
+ * where silence really does mean something died.
+ */
+const STAGE_QUIET_LIMIT_MS = {
+  compile: 45 * 60_000,   // routes the board; 5x effort on 400+ traces is ~20 min
+  substrate: 15 * 60_000, // KiCad conversion + ERC/DRC on a dense board
+  export: 10 * 60_000,    // gerbers, drill, BOM, CPL, 3D
+  scan: 5 * 60_000,
+  dfm: 5 * 60_000,
+  render: 5 * 60_000,
+};
+
+/** Unknown stages get the most generous limit — a stage we do not recognise is
+ * one we cannot predict the cost of, and a false "stalled" is worse than a
+ * late one. */
+const DEFAULT_QUIET_LIMIT_MS = 45 * 60_000;
+
+export function quietLimitMs(stage) {
+  return STAGE_QUIET_LIMIT_MS[String(stage ?? "")] ?? DEFAULT_QUIET_LIMIT_MS;
+}
+
 /** The repo's pinned Node toolchain dir: env CIRCUIT_TOOLCHAIN > repo default
  * (`<repo>/toolchain`, four levels above this file). */
 export function toolchainDir(env = process.env) {
@@ -346,6 +383,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     }),
     app_prereq_check: async () => prereqCheck(env),
 
+
     // Live build progress. The pipeline writes its current stage to
     // `<project>/.circuit/build-status.json`, and `.circuit/` is skipped by
     // both the catalog scanner and the artifact snapshotter — deliberately,
@@ -363,14 +401,11 @@ export function createCircuitServices({ env = process.env } = {}) {
       try {
         const raw = fs.readFileSync(file, "utf8");
         const status = JSON.parse(raw);
-        // A "running" record left behind by a killed build would spin
-        // forever; anything unheard from for two minutes is stale, and
-        // saying so is better than lying about progress.
         const updatedAt = Number(status?.updatedAt) * 1000;
         if (
           status?.state === "running" &&
           Number.isFinite(updatedAt) &&
-          Date.now() - updatedAt > 120_000
+          Date.now() - updatedAt > quietLimitMs(status?.stage)
         ) {
           return { ...status, state: "stale" };
         }
