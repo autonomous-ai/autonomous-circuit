@@ -72,8 +72,26 @@ fi
 
 # kicad-cli is optional (reported, not required): without it boards build but
 # fab packets are never fab-ready (unverified_gerbers blocks shipping).
-if ! command -v kicad-cli >/dev/null 2>&1 \
-   && [ ! -x "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli" ]; then
+#
+# Probe the SAME places the pipeline does (circuitpy/toolchain.py:
+# CIRCUIT_KICAD_CLI, then PATH, then KICAD_APP_BUNDLES). This warning used to
+# check two of the five, so a KiCad extracted into ~/Applications — the no-sudo
+# install, and a first-class location to the pipeline — printed "kicad-cli not
+# found" on every start while the app found it fine and reported 10.0.5 on the
+# setup screen. A startup warning that contradicts the app is worse than no
+# warning: it teaches the reader to ignore the ones that are true.
+KICAD_CLI=""
+for cand in "${CIRCUIT_KICAD_CLI:-}" "$(command -v kicad-cli || true)" \
+            "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli" \
+            "/Applications/KiCad.app/Contents/MacOS/kicad-cli" \
+            "$HOME/Applications/KiCad.app/Contents/MacOS/kicad-cli" \
+            "$HOME/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"; do
+  if [ -n "$cand" ] && [ -x "$cand" ]; then
+    KICAD_CLI="$cand"
+    break
+  fi
+done
+if [ -z "$KICAD_CLI" ]; then
   echo "[dev] WARNING: kicad-cli not found — ERC/DRC + verified gerbers unavailable (brew install --cask kicad)." >&2
 fi
 

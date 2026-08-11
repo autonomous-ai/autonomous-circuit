@@ -4,6 +4,7 @@ import {
   IMPACT,
   boardShapeLine,
   boardVerdict,
+  buildRequest,
   groupFindings,
   groupFixRequest,
   impactCounts,
@@ -239,6 +240,49 @@ test("a finished build with no board file says which fact is which", () => {
   const verdict = boardVerdict({ sidecar: null, buildLine: { tone: "done", text: "Built" } });
   assert.equal(verdict.tone, "unknown");
   assert.match(verdict.line, /no board file has landed in this project/);
+});
+
+// --- every dead end has an exit --------------------------------------------
+//
+// Watched on a real run: a project holding boards/main.tsx with no build
+// behind it. The strip said "No build to judge yet", every tab was empty, no
+// turn was running, and nothing on the screen said what would make a build
+// happen. True, and a dead end.
+
+test("a board with no build offers the build, in words ready for the chat", () => {
+  const verdict = boardVerdict({ sidecar: null, boardName: "main" });
+  assert.equal(verdict.tone, "unknown");
+  assert.equal(verdict.action.label, "Build it");
+  assert.match(verdict.action.request, /^Build boards\/main\.tsx and run the checks\./);
+  // A turn that already stopped once has to be asked for the reason, or it
+  // stops silently again.
+  assert.match(verdict.action.request, /say what stopped it/);
+});
+
+test("a failed or stopped build offers the retry rather than describing it", () => {
+  for (const tone of ["failed", "stale"]) {
+    const verdict = boardVerdict({ sidecar: null, buildLine: { tone }, boardName: "main" });
+    assert.equal(verdict.action.label, "Build it again");
+    // The instruction moved from the prose into the button.
+    assert.doesNotMatch(verdict.line, /Ask the chat/);
+  }
+});
+
+test("a finished build that left nothing here offers to build it here", () => {
+  const verdict = boardVerdict({ sidecar: null, buildLine: { tone: "done" }, boardName: "main" });
+  assert.equal(verdict.action.label, "Build it here");
+});
+
+test("a built board offers no build button — ready and blocked have their own", () => {
+  assert.equal(boardVerdict({ sidecar: { fab: { ready: true } } }).action, null);
+  assert.equal(boardVerdict({ sidecar: { fab: { ready: false } } }).action, null);
+  assert.equal(boardVerdict({ building: true }).action, null);
+});
+
+test("the build request names the board, and falls back to main", () => {
+  assert.match(buildRequest("blinky"), /boards\/blinky\.tsx/);
+  assert.match(buildRequest(""), /boards\/main\.tsx/);
+  assert.match(buildRequest(null), /boards\/main\.tsx/);
 });
 
 // Watched on a real first build: six issues were listed as what was left to

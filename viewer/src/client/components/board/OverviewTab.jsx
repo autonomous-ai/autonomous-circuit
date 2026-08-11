@@ -210,8 +210,8 @@ export default function OverviewTab({
   className,
 }) {
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building, buildLine }),
-    [sidecar, groups, building, buildLine],
+    () => boardVerdict({ sidecar, groups, building, buildLine, boardName }),
+    [sidecar, groups, building, buildLine, boardName],
   );
   const counts = useMemo(() => impactCounts(groups), [groups]);
   const roles = useMemo(() => plainParts(index), [index]);
@@ -303,6 +303,25 @@ export default function OverviewTab({
                   </button>
                   <span className="text-xs text-muted-foreground">
                     Five boards is the usual first run. The Fab tab has the exact clicks.
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Nothing built, nothing running, nothing to do — until now.
+                  The button writes the request into the chat box; pressing
+                  send is the whole next step. */}
+              {verdict.action ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onFix?.(verdict.action.request)}
+                    data-slot="overview-build"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground/[0.04] px-3 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.09]"
+                  >
+                    {verdict.action.label}
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    Puts the request in the chat box — press send and it runs.
                   </span>
                 </div>
               ) : null}

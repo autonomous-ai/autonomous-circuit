@@ -573,19 +573,37 @@ export function plural(count, one, many = `${one}s`) {
  * worse still on a project whose earlier build succeeded, where a stale sidecar
  * would have kept saying "Ready to order" after a crash.
  *
+ * **Every dead end carries an `action`.** A board source can sit in a project
+ * with no build behind it — the turn wrote `boards/main.tsx` and then stopped,
+ * or built in a scratch copy and left nothing here. Watched on a real run: the
+ * strip said "No build to judge yet. Once the board builds, this line says
+ * whether it can be ordered", every tab was empty, no turn was running, and
+ * nothing on the screen said what would make a build happen. True, and a dead
+ * end. The three tones that describe an absent board now carry the sentence
+ * that ends it, ready for the chat box.
+ *
  * @param {{sidecar?: object|null, groups?: Array<object>, building?: boolean,
- *          buildLine?: {tone: string, text: string, detail: string}|null}} input
+ *          buildLine?: {tone: string, text: string, detail: string}|null,
+ *          boardName?: string}} input
  * @returns {{
  *   tone: "ready"|"blocked"|"building"|"failed"|"unknown",
  *   headline: string,
  *   line: string,
  *   blockingGroups: Array<object>,
  *   blockingCount: number,
+ *   action: {label: string, request: string}|null,
  * }}
  */
-export function boardVerdict({ sidecar = null, groups = [], building = false, buildLine = null } = {}) {
+export function boardVerdict({
+  sidecar = null,
+  groups = [],
+  building = false,
+  buildLine = null,
+  boardName = "",
+} = {}) {
   const blockingGroups = (Array.isArray(groups) ? groups : []).filter((g) => g.blocking);
   const blockingCount = blockingGroups.reduce((sum, g) => sum + g.count, 0);
+  const buildAction = (label) => ({ label, request: buildRequest(boardName) });
 
   if (building) {
     return {
@@ -594,6 +612,7 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
       line: "The board is being designed and checked. This takes about a minute and a half.",
       blockingGroups,
       blockingCount,
+      action: null,
     };
   }
 
@@ -604,10 +623,11 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
       tone: "failed",
       headline: buildTone === "failed" ? "The last build failed" : "The last build stopped",
       line: sidecar
-        ? `Nothing new was produced, so this is the build before it.${why ? ` ${why}.` : ""} Ask the chat to build it again.`
-        : `No board came out of it.${why ? ` ${why}.` : ""} Ask the chat to build it again.`,
+        ? `Nothing new was produced, so this is the build before it.${why ? ` ${why}.` : ""}`
+        : `No board came out of it.${why ? ` ${why}.` : ""}`,
       blockingGroups,
       blockingCount,
+      action: buildAction("Build it again"),
     };
   }
 
@@ -626,14 +646,16 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
         line: "A build finished, but no board file has landed in this project. Until one does there is nothing to check or order.",
         blockingGroups,
         blockingCount,
+        action: buildAction("Build it here"),
       };
     }
     return {
       tone: "unknown",
       headline: "No build to judge yet",
-      line: "Once the board builds, this line says whether it can be ordered.",
+      line: "The board program is written but has never been built, so there is nothing to check or order.",
       blockingGroups,
       blockingCount,
+      action: buildAction("Build it"),
     };
   }
 
@@ -651,6 +673,7 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
       line: `The factory files are made and verified — send this to JLCPCB as it is.${tail}`,
       blockingGroups,
       blockingCount,
+      action: null,
     };
   }
 
@@ -663,7 +686,22 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
     ? `${first.title}${first.count > 1 ? `, in ${first.count} places` : ""}. ${first.meaning}`
     : "The build did not produce a verified factory packet. Rebuild the board to try again.";
 
-  return { tone: "blocked", headline, line, blockingGroups, blockingCount };
+  return { tone: "blocked", headline, line, blockingGroups, blockingCount, action: null };
+}
+
+/**
+ * The words that make a build happen, ready for the chat box.
+ *
+ * Written for the person who has never used this app: it names the file, asks
+ * for the checks, and — the part that matters most on a turn that already died
+ * once — asks for the reason rather than another silent stop.
+ */
+export function buildRequest(boardName = "") {
+  const stem = String(boardName || "").trim() || "main";
+  return (
+    `Build boards/${stem}.tsx and run the checks. ` +
+    "If it will not build, say what stopped it in plain words."
+  );
 }
 
 /**

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CircleAlert, CircleCheck, CircleDashed, Loader2, TriangleAlert, Wrench } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
 
@@ -65,8 +65,8 @@ export default function BoardVerdict({
   className,
 }) {
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building, buildLine }),
-    [sidecar, groups, building, buildLine],
+    () => boardVerdict({ sidecar, groups, building, buildLine, boardName }),
+    [sidecar, groups, building, buildLine, boardName],
   );
   const tone = TONE[verdict.tone] || TONE.unknown;
   const Icon = tone.icon;
@@ -121,6 +121,23 @@ export default function BoardVerdict({
         >
           <Wrench className="size-3.5" aria-hidden />
           {verdict.blockingGroups.length === 1 ? "Fix it" : `Fix all ${verdict.blockingGroups.length}`}
+        </button>
+      ) : null}
+
+      {/* The exit from a dead end. A project can hold a board program with no
+          build behind it — the turn wrote the source and stopped — and the
+          strip used to describe that state and offer nothing. This puts the
+          words in the chat box; the person only has to press send. */}
+      {verdict.action ? (
+        <button
+          type="button"
+          onClick={() => onFix?.(verdict.action.request)}
+          data-slot="verdict-build"
+          title={verdict.action.request}
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-foreground/[0.04] px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-foreground/[0.09]"
+        >
+          <Hammer className="size-3.5" aria-hidden />
+          {verdict.action.label}
         </button>
       ) : null}
 
