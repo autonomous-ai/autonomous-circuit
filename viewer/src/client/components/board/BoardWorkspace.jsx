@@ -930,6 +930,7 @@ export default function BoardWorkspace({
                 groups={findingGroups}
                 building={building}
                 buildLine={buildLine}
+                buildStatus={buildStatus}
                 turnActive={turnInProgress}
                 boardName={selectedStem}
                 onOpenTab={setActiveTab}
@@ -946,6 +947,7 @@ export default function BoardWorkspace({
                       parts={parts}
                       building={building}
                       buildLine={buildLine}
+                      buildStatus={buildStatus}
                       turnActive={turnInProgress}
                       historyLine={historyLine}
                       boardName={selectedStem}

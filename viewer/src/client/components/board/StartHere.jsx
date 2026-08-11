@@ -1,26 +1,20 @@
-import { useEffect, useState } from "react";
 import { Check, CircleAlert, Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { buildProgress, buildStageChecklist, formatElapsed } from "./buildStatus.js";
+import { useLiveElapsed } from "./useLiveElapsed.js";
 
 /**
- * Seconds since the turn started, ticking.
+ * Seconds since the turn started, ticking. Same hook the verdict strip uses
+ * (`useLiveElapsed` takes a status record; here the start time can be the
+ * turn's, from before the pipeline existed to report one).
  *
- * The pipeline's own `elapsedS` only exists once the pipeline exists, and the
- * slow part is everything *before* that: watching a real build, the checklist
- * sat on "Choosing parts and writing the board" for three minutes with no
- * number anywhere on the pane. The chat sidebar had a live counter the whole
- * time; the pane that is meant to be watchable had none.
+ * The slow part is everything *before* the pipeline: watching a real build,
+ * the checklist sat on "Choosing parts and writing the board" for three
+ * minutes with no number anywhere on the pane. The chat sidebar had a live
+ * counter the whole time; the pane that is meant to be watchable had none.
  */
 function useElapsedS(startedAt, running) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running || !startedAt) return undefined;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [running, startedAt]);
-  if (!startedAt) return 0;
-  return Math.max(0, (now - startedAt) / 1000);
+  return useLiveElapsed({ startedAt }, running);
 }
 
 /**

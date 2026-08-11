@@ -5,6 +5,7 @@ import {
   boardShapeLine,
   boardVerdict,
   buildRequest,
+  buildWaitNote,
   groupFindings,
   groupFixRequest,
   impactCounts,
@@ -286,6 +287,25 @@ test("a built board offers no build button — ready and blocked have their own"
   assert.equal(boardVerdict({ sidecar: { fab: { ready: true } } }).action, null);
   assert.equal(boardVerdict({ sidecar: { fab: { ready: false } } }).action, null);
   assert.equal(boardVerdict({ building: true }).action, null);
+});
+
+// Nine minutes into a real build the board pane read "Compiling the board ·
+// 1/7" — the same words it showed at second one. `compile` routes the board
+// and its quiet limit is 45 minutes, so nothing else was ever going to change.
+test("only the stage measured going long earns a reassuring sentence", () => {
+  assert.match(buildWaitNote({ stage: "compile", elapsedS: 600 }), /fifteen minutes/);
+  // Under two minutes the clock alone is enough.
+  assert.equal(buildWaitNote({ stage: "compile", elapsedS: 30 }), "");
+  // Every other stage stays silent rather than reassuring without evidence.
+  for (const stage of ["scan", "checks", "substrate", "dfm", "export", "render", ""]) {
+    assert.equal(buildWaitNote({ stage, elapsedS: 900 }), "", `${stage} says nothing`);
+  }
+  assert.equal(buildWaitNote(), "");
+});
+
+test("a build in flight no longer promises a minute and a half", () => {
+  const verdict = boardVerdict({ building: true });
+  assert.doesNotMatch(verdict.line, /minute and a half/);
 });
 
 test("the build request names the board, and falls back to main", () => {

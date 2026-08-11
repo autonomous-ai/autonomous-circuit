@@ -10,10 +10,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { cn } from "@/ui/utils";
+import { formatElapsed } from "./buildStatus.js";
+import { useLiveElapsed } from "./useLiveElapsed.js";
 import {
   IMPACT,
   boardShapeLine,
   boardVerdict,
+  buildWaitNote,
   groupFixRequest,
   impactCounts,
   partsCostUsd,
@@ -199,6 +202,7 @@ export default function OverviewTab({
   parts = [],
   building = false,
   buildLine = null,
+  buildStatus = null,
   turnActive = false,
   historyLine = null,
   boardName = "",
@@ -214,6 +218,10 @@ export default function OverviewTab({
     () => boardVerdict({ sidecar, groups, building, buildLine, boardName, turnActive }),
     [sidecar, groups, building, buildLine, boardName, turnActive],
   );
+  // `compile` can hold one stage for fifteen minutes at 5x router effort, and
+  // this card said "Compiling the board — step 1/7." for nine of them, with no
+  // number anywhere on the pane.
+  const elapsed = useLiveElapsed(buildStatus, verdict.tone === "building");
   const counts = useMemo(() => impactCounts(groups), [groups]);
   const roles = useMemo(() => plainParts(index), [index]);
   const cost = useMemo(() => partsCostUsd(parts, index), [parts, index]);
@@ -284,7 +292,7 @@ export default function OverviewTab({
                           ? ` — step ${buildLine.detail}`
                           : ` — ${buildLine.detail}`
                         : ""
-                    }.`
+                    }${elapsed > 0 ? `, ${formatElapsed(elapsed)} in` : ""}.`
                   : verdict.blockingGroups.length
                     ? // The strip above already carries the one-line version.
                       // Here the list is right below, so the sentence's job is
@@ -292,6 +300,15 @@ export default function OverviewTab({
                       "The factory packet ships once these are clear. Each one goes straight to the chat as a repair request."
                     : verdict.line}
               </p>
+
+              {/* Only `compile` earns this, and only after two minutes. Every
+                  other stage stays silent: a reassuring sentence we cannot
+                  support is worse than the clock on its own. */}
+              {verdict.tone === "building" && buildWaitNote({ stage: buildStatus?.stage, elapsedS: elapsed }) ? (
+                <p data-slot="overview-wait-note" className="mt-2 text-xs leading-5 text-muted-foreground/80">
+                  {buildWaitNote({ stage: buildStatus?.stage, elapsedS: elapsed })}
+                </p>
+              ) : null}
 
               {verdict.tone === "ready" ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">

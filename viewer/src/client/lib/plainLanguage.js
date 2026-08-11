@@ -613,8 +613,13 @@ export function boardVerdict({
   if (building) {
     return {
       tone: "building",
+      // Not "about a minute and a half". That was true of a three-block board
+      // and wrong by a factor of ten on anything with a microcontroller on it,
+      // and the sentence was still on screen nine minutes into a compile.
+      // The stage name and the clock replace it wherever a build line exists;
+      // this is the fallback, and it promises nothing it cannot keep.
       headline: "Working on it",
-      line: "The board is being designed and checked. This takes about a minute and a half.",
+      line: "The board is being designed and checked.",
       blockingGroups,
       blockingCount,
       action: null,
@@ -694,6 +699,26 @@ export function boardVerdict({
     : "The build did not produce a verified factory packet. Rebuild the board to try again.";
 
   return { tone: "blocked", headline, line, blockingGroups, blockingCount, action: null };
+}
+
+/**
+ * The sentence a long wait earns, or "".
+ *
+ * Only `compile` gets one, because it is the only stage we have measured going
+ * long: it routes the board, and at 5× router effort the defect ledger records
+ * 1240s on harness-puck against ~90s at the default. Its quiet limit is 45
+ * minutes for that reason, so nothing else on screen changes for a quarter of
+ * an hour. Every other stage stays silent — a reassuring sentence we cannot
+ * support is worse than none, and the clock beside it already says the wait is
+ * real.
+ */
+export function buildWaitNote({ stage = "", elapsedS = 0 } = {}) {
+  if (String(stage) !== "compile" || !(Number(elapsedS) > 120)) return "";
+  return (
+    "Laying out the copper is the slow part. A board with a microcontroller " +
+    "on it can spend fifteen minutes here, and the router's harder second " +
+    "attempt longer still. Nothing has failed — the chat is still working."
+  );
 }
 
 /**

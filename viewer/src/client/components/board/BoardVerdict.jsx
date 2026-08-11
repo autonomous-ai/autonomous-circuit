@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { CircleAlert, CircleCheck, CircleDashed, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
+import { formatElapsed } from "./buildStatus.js";
+import { useLiveElapsed } from "./useLiveElapsed.js";
 
 const TONE = {
   ready: {
@@ -59,6 +61,7 @@ export default function BoardVerdict({
   groups = [],
   building = false,
   buildLine = null,
+  buildStatus = null,
   boardName = "",
   turnActive = false,
   onOpenTab,
@@ -73,11 +76,22 @@ export default function BoardVerdict({
   const Icon = tone.icon;
   const shape = boardShapeLine({ sidecar, index });
 
+  // The clock. `compile` can hold one stage for fifteen minutes at 5x router
+  // effort, and its quiet limit is 45 minutes, so without a number the strip
+  // says the same six words for a quarter of an hour.
+  const elapsed = useLiveElapsed(buildStatus, verdict.tone === "building");
+
   // While a build runs, the stage line is more informative than the verdict of
   // the build it is replacing — the numbers on screen are about to change.
   const line =
     verdict.tone === "building" && buildLine?.text
-      ? `${buildLine.text}${buildLine.detail ? ` · ${buildLine.detail}` : ""}`
+      ? [
+          buildLine.text,
+          buildLine.detail ? (/^\d+\/\d+$/.test(buildLine.detail) ? `step ${buildLine.detail}` : buildLine.detail) : "",
+          elapsed > 0 ? formatElapsed(elapsed) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")
       : verdict.line;
 
   const fixAll = () => {
