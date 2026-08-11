@@ -32,6 +32,15 @@
  * `{"code":1001,"message":"Insufficient prepaid balance"}`, which for an
  * ordering integration is the worst possible bug. `request()` treats the body
  * as authoritative and throws `JlcError` on any non-success.
+ *
+ * ## No retries, ever
+ *
+ * Nothing in this module retries. A create-order call that times out after the
+ * server accepted it would, on retry, buy the boards twice — and the timeout
+ * looks identical either way. Callers that want a retry must decide that per
+ * endpoint, with knowledge of whether it spends money; the transport will not
+ * decide it for them. `jlcpcb-order-journal.mjs` records the intent before the
+ * call so an ambiguous timeout is visible rather than silently repeated.
  */
 
 import crypto from "node:crypto";
@@ -167,42 +176,42 @@ export function createJlcClient({
 } = {}) {
   const base = String(endpoint || DEFAULT_ENDPOINT).replace(/\/+$/, "");
 
-  async function request(reqPath, body = {}, { method = "POST" } = {}) {
-    if (!appId || !accessKey || !secretKey) {
-      const { missing } = credentialStatus({
-        JLCPCB_APP_ID: appId,
-        JLCPCB_ACCESS_KEY: accessKey,
-        JLCPCB_SECRET_KEY: secretKey,
-      });
-      throw new JlcError(
-        `JLCPCB credentials incomplete: ${missing.join(", ")} not set`,
-        { code: 0 },
-      );
-    }
+  function assertCredentials() {
+    if (appId && accessKey && secretKey) return;
+    const { missing } = credentialStatus({
+      JLCPCB_APP_ID: appId,
+      JLCPCB_ACCESS_KEY: accessKey,
+      JLCPCB_SECRET_KEY: secretKey,
+    });
+    throw new JlcError(
+      `JLCPCB credentials incomplete: ${missing.join(", ")} not set`,
+      { code: 0 },
+    );
+  }
 
-    // Serialize exactly once. The bytes signed are the bytes sent.
-    const payload = method === "GET" ? "" : JSON.stringify(body ?? {});
+  /** The Authorization header for one request, over `signedBody`. */
+  function authorize(method, reqPath, signedBody) {
     const timestamp = String(now());
     const nonce = nonceFn();
     const signature = sign(
-      buildStringToSign({ method, path: reqPath, timestamp, nonce, body: payload }),
+      buildStringToSign({ method, path: reqPath, timestamp, nonce, body: signedBody }),
       secretKey,
     );
+    return buildAuthHeader({ appId, accessKey, nonce, timestamp, signature });
+  }
+
+  async function request(reqPath, body = {}, { method = "POST" } = {}) {
+    assertCredentials();
+
+    // Serialize exactly once. The bytes signed are the bytes sent.
+    const payload = method === "GET" ? "" : JSON.stringify(body ?? {});
+    const authorization = authorize(method, reqPath, payload);
 
     let response;
     try {
       response = await fetchImpl(`${base}${reqPath}`, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: buildAuthHeader({
-            appId,
-            accessKey,
-            nonce,
-            timestamp,
-            signature,
-          }),
-        },
+        headers: { "Content-Type": "application/json", Authorization: authorization },
         ...(method === "GET" ? {} : { body: payload }),
       });
     } catch (cause) {
@@ -211,6 +220,74 @@ export function createJlcClient({
       });
     }
 
+    return readResponse(response);
+  }
+
+  /**
+   * A multipart upload — the one place where the bytes signed are *not* the
+   * bytes sent.
+   *
+   * JLC's rule (docs → API Request Signature, step 5): "For file uploads: Use
+   * the meta JSON." So the signature covers the JSON description of the
+   * upload, while the wire body is `multipart/form-data` carrying the file.
+   *
+   * The form layout is one `meta` part holding that exact JSON, plus one
+   * `file` part — taken from JLC's Java SDK by way of the reverse-engineered
+   * client at github.com/i2cjak/jlcpcb_api, not from the prose docs, which do
+   * not describe it. `metaMode: "fields"` spreads the meta over one form field
+   * per key instead, kept only as an escape hatch; the signature is identical
+   * either way, so only the form layout changes.
+   *
+   * Content-Type is left to the runtime: it must include the multipart
+   * boundary, and only `FormData` knows what that is.
+   */
+  async function requestUpload(
+    reqPath,
+    meta = {},
+    {
+      file,
+      fileName = "upload.bin",
+      fileField = "file",
+      metaField = "meta",
+      metaMode = "json",
+      contentType = "application/octet-stream",
+    } = {},
+  ) {
+    assertCredentials();
+    if (!file) throw new JlcError("upload requires a file", { code: 0 });
+
+    const signedBody = JSON.stringify(meta ?? {});
+    const authorization = authorize("POST", reqPath, signedBody);
+
+    const form = new FormData();
+    const bytes = file instanceof Uint8Array ? file : new Uint8Array(file);
+    form.append(fileField, new Blob([bytes], { type: contentType }), fileName);
+    if (metaMode === "json") {
+      form.append(metaField, signedBody);
+    } else {
+      for (const [key, value] of Object.entries(meta ?? {})) {
+        if (value === undefined || value === null) continue;
+        form.append(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+      }
+    }
+
+    let response;
+    try {
+      response = await fetchImpl(`${base}${reqPath}`, {
+        method: "POST",
+        headers: { Authorization: authorization },
+        body: form,
+      });
+    } catch (cause) {
+      throw new JlcError(`could not reach JLCPCB: ${cause?.message || cause}`, {
+        code: 0,
+      });
+    }
+
+    return readResponse(response);
+  }
+
+  async function readResponse(response) {
     const traceId = response.headers?.get?.("J-Trace-ID") || "";
     const text = await response.text();
     let parsed;
@@ -243,7 +320,7 @@ export function createJlcClient({
     return { data: parsed?.data ?? parsed, raw: parsed, traceId };
   }
 
-  return { request, endpoint: base };
+  return { request, requestUpload, endpoint: base };
 }
 
 /** Build a client from the on-disk credentials. */
