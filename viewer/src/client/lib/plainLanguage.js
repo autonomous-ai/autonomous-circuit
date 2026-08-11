@@ -442,6 +442,20 @@ export function boardVerdict({ sidecar = null, groups = [], building = false, bu
   }
 
   if (!sidecar) {
+    // A build can finish without leaving a board here: the agent's own check
+    // runs in a scratch copy, and until it writes one into the project there
+    // is nothing to judge. Saying "no build yet" beside a line that reads
+    // "Built · 6m 49s" is the kind of small contradiction that costs trust, so
+    // when a build has just finished the sentence says which fact is which.
+    if (buildTone === "done") {
+      return {
+        tone: "unknown",
+        headline: "Nothing to judge yet",
+        line: "A build finished, but no board file has landed in this project. Until one does there is nothing to check or order.",
+        blockingGroups,
+        blockingCount,
+      };
+    }
     return {
       tone: "unknown",
       headline: "No build to judge yet",

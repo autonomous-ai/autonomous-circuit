@@ -230,3 +230,12 @@ test("with no build line the verdict is unchanged", () => {
   assert.equal(boardVerdict({ sidecar: { fab: { ready: true } } }).tone, "ready");
   assert.equal(boardVerdict({ sidecar: null }).tone, "unknown");
 });
+
+test("a finished build with no board file says which fact is which", () => {
+  // Seen in a real run: "Built · 6m 49s · 1 blocking" in the tree next to "No
+  // build to judge yet" in the strip. Both were true — the agent's check runs
+  // in a scratch copy — and together they read as a contradiction.
+  const verdict = boardVerdict({ sidecar: null, buildLine: { tone: "done", text: "Built" } });
+  assert.equal(verdict.tone, "unknown");
+  assert.match(verdict.line, /no board file has landed in this project/);
+});
