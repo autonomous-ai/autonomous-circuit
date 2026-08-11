@@ -145,8 +145,8 @@ cannot send it to a fab, so it is not a board yet.
 
 **Aim to earn it on build #1.** Every repair round is a defect that should have
 been prevented before the first build: read the BLOCK.md files, use
-`circuitlib.layout.place_row()` for placement instead of guessing coordinates,
-`layout.min_board_for()` for the outline, and `helpers.board_plan()` for the
+`circuitlib.layout.place_board()` for the outline, placement and mounting
+holes instead of guessing coordinates, and `helpers.board_plan()` for the
 block set. If you find yourself fixing the same class of thing twice, the real
 bug is upstream — say so, because that fix belongs in the block or the library,
 not in this board.
@@ -190,7 +190,8 @@ spec the user can approve or redirect:
 | What a block needs fed | `blocks.BLOCKS[id].requires` / `.provides` |
 | Iteration cap | `tables.MAX_REPAIR_ITERATIONS` |
 | How big a block is, and where it sits | `layout.box(block_id)` -> `(min_x, min_y, max_x, max_y)` around its origin |
-| Where to put a row of blocks | `layout.place_row([...])` -> `{block: (pcbX, pcbY)}` |
+| **The whole board plan** | `layout.place_board([...])` -> outline + placements + holes + its own warnings |
+| Where to put a row of blocks | `layout.place_row([...])` -> `{block: (pcbX, pcbY)}` (the primitive) |
 | How big the board must be | `layout.min_board_for([...], columns=n)` |
 | Will anything hang off the edge | `layout.board_fits(placements, w, h)` — run it *before* building |
 
@@ -273,14 +274,21 @@ end up over the outline:
 ```python
 from circuitlib import layout
 
-blocks = ["usb-c-power", "ldo-3v3", "status-led"]
-w, h  = layout.min_board_for(blocks, columns=len(blocks))   # the outline
-place = layout.place_row(blocks)                            # pcbX/pcbY each
-layout.board_fits(place, w, h)    # must be [] before you build anything
+plan = layout.place_board(["usb-c-power", "ldo-3v3", "status-led"])
+plan["width_mm"], plan["height_mm"]   # the outline
+plan["placements"]                    # {block: (pcbX, pcbY)}
+plan["holes"]                         # two M3 holes, clear of every footprint
+plan["warnings"]                      # MUST be [] — the plan checking itself
 ```
 
-`board_fits()` answers in milliseconds what `pcb_component_outside_board_error`
-answers after a ninety-second build. Run it every time you move something.
+`place_board()` already knows the rules a one-shot board needs: the connector
+goes on the bottom edge facing out (a USB socket in the middle of the board is
+not a product), the mounting holes go in a reserved strip so a drill never
+lands on a footprint, and the outline is sized to hold all of it. Deviate from
+it when the product needs you to — a round puck, a connector on the top edge —
+but then re-check with `layout.board_fits()` and `layout.overlap_warnings()`,
+which answer in milliseconds what `pcb_component_outside_board_error` answers
+after a ninety-second build.
 
 ### 4. Edit `boards/main.tsx`
 

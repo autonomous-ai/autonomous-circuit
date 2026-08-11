@@ -272,6 +272,45 @@ class Layout(unittest.TestCase):
         large = min_board_for(["rp2040-core", "usb-c-data", "ldo-3v3"])
         self.assertGreater(large[0] * large[1], small[0] * small[1])
 
+    def test_place_board_puts_the_connector_on_the_edge(self) -> None:
+        """A USB socket in the middle of the board is not a product. The
+        composition matrix flagged it as
+        pcb_connector_not_in_accessible_orientation on every board where
+        place_row put the connector inline."""
+        from circuitlib.layout import box, place_board
+
+        plan = place_board(["usb-c-power", "ldo-3v3", "status-led"])
+        x, y = plan["placements"]["usb-c-power"]
+        _, min_y, _, _ = box("usb-c-power")
+        bottom = y + min_y
+        # Its lowest copper sits within a millimetre of the margin, not
+        # somewhere in the middle of the board.
+        self.assertLess(bottom, -plan["height_mm"] / 2 + 2.6)
+        self.assertGreater(bottom, -plan["height_mm"] / 2)
+
+    def test_place_board_keeps_holes_off_the_footprints(self) -> None:
+        """Corner holes on a board sized only for its parts land on a
+        footprint. The strip is why the board grows sideways."""
+        from circuitlib.layout import place_board
+
+        for blocks in (
+            ["usb-c-power", "ldo-3v3", "status-led"],
+            ["usb-c-data", "rp2040-core", "ldo-3v3", "sw-tact"],
+            ["sensor-bme280", "i2c-bus"],
+            ["status-led"],
+        ):
+            with self.subTest(blocks=blocks):
+                plan = place_board(blocks)
+                self.assertEqual(plan["warnings"], [])
+                self.assertEqual(len(plan["holes"]), 2)
+
+    def test_place_board_without_holes_is_smaller(self) -> None:
+        from circuitlib.layout import place_board
+
+        with_holes = place_board(["status-led"])["width_mm"]
+        without = place_board(["status-led"], mounting_holes=False)["width_mm"]
+        self.assertLess(without, with_holes)
+
     def test_parametric_block_scales(self) -> None:
         from circuitlib.layout import extent
 
