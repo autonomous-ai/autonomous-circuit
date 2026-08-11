@@ -181,12 +181,20 @@ export default function WelcomeScreen({ onComplete }) {
             ok={Boolean(prereqs?.kicad.ok)}
             version={prereqs?.kicad.version}
             checking={checking}
-            optional
+            badge="Needed to order"
             testId="prereq-kicad"
           >
+            {/* This row used to say "optional — you can continue without it",
+                which is true and materially misleading. Without KiCad nothing
+                ever independently checks the factory files, so `fab.ready`
+                can never be true and no board this app makes will reach
+                "ready to order". Someone can absolutely skip it to look
+                around; they cannot skip it and buy boards, and the difference
+                belongs on the first screen rather than an hour later. */}
             <p className="flex flex-wrap items-center gap-1.5">
-              Verifies boards and exports the fab gerbers. You can continue
-              without it — install later with{" "}
+              A second program that checks the finished files. You can carry on
+              without it and design boards, but nothing will ever pass the last
+              check, so nothing will become orderable. Install it with{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                 {KICAD_INSTALL_COMMAND}
               </code>
@@ -256,8 +264,11 @@ function CopyCommand({ text }) {
   );
 }
 
-/** One prereq row: status glyph + name + version, instructions when missing. */
-function PrereqRow({ label, ok, version, checking, optional = false, testId, children }) {
+/** One prereq row: status glyph + name + version, instructions when missing.
+ *  `badge` marks a tool that does not block Start building; its text says what
+ *  is actually lost by skipping it. */
+function PrereqRow({ label, ok, version, checking, badge = "", testId, children }) {
+  const optional = Boolean(badge);
   return (
     <div
       className="rounded-md border border-border bg-card/60 p-3"
@@ -278,7 +289,7 @@ function PrereqRow({ label, ok, version, checking, optional = false, testId, chi
         <span className="text-sm font-medium">{label}</span>
         {optional ? (
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            optional
+            {badge}
           </span>
         ) : null}
         {ok && version ? (
