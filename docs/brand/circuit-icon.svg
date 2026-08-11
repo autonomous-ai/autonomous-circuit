@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="512" height="512">
+  <rect width="24" height="24" rx="5.4" fill="#d2643a"/>
+  <!-- A copper trace between two vias, turning at 45 degrees. Boards are
+       routed at 45, never 90, so the diagonal is the tell that this is a PCB
+       and not a generic network glyph. -->
+  <g fill="none" stroke="#ffffff" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 5.6 18.4 L 11.3 18.4 L 18.4 11.3 L 18.4 5.6"/>
+  </g>
+  <!-- vias: white annulus, orange drill -->
+  <circle cx="5.6" cy="18.4" r="3.15" fill="#ffffff"/>
+  <circle cx="5.6" cy="18.4" r="1.25" fill="#d2643a"/>
+  <circle cx="18.4" cy="5.6" r="3.15" fill="#ffffff"/>
+  <circle cx="18.4" cy="5.6" r="1.25" fill="#d2643a"/>
+</svg>
