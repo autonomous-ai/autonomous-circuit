@@ -57,13 +57,17 @@ const TABS = Object.freeze([
   // Second, because "can I get it made?" and "does it do what I asked?" are
   // the two questions a non-engineer has, in that order, and until now only
   // the first one had an answer anywhere in this app.
-  { id: "function", label: "What it does" },
-  { id: "split", label: "Split" },
-  { id: "schematic", label: "Schematic" },
-  { id: "pcb", label: "PCB" },
-  { id: "3d", label: "3D" },
-  { id: "bom", label: "BOM" },
-  { id: "fab", label: "Fab" },
+  { id: "function", label: "What it does", hint: "Each part, and what it is there for" },
+  { id: "split", label: "Side by side", hint: "The wiring diagram and the board, together" },
+  { id: "schematic", label: "Schematic", hint: "The wiring diagram — what connects to what" },
+  { id: "pcb", label: "PCB", hint: "The board itself, seen from above" },
+  { id: "3d", label: "3D", hint: "What the finished board will look like" },
+  // "BOM" and "Fab" are the words an engineer uses and the two words a
+  // first-timer is most likely to skip past without knowing they matter. The
+  // plain label is the tab; the trade term is in the tooltip for anyone who
+  // came here from Altium or KiCad looking for it.
+  { id: "bom", label: "Parts", hint: "Every part on the board, with what it costs (the BOM)" },
+  { id: "fab", label: "Files", hint: "The files a factory needs to build it (the fab packet)" },
 ]);
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
@@ -850,6 +854,7 @@ export default function BoardWorkspace({
                     onClick={() => setActiveTab(tab.id)}
                     data-slot="board-tab"
                     data-tab={tab.id}
+                    title={tab.hint || undefined}
                     aria-current={activeTab === tab.id ? "true" : undefined}
                     className={cn(
                       "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors",

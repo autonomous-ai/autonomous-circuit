@@ -29,40 +29,44 @@ export const JLCPCB_QUOTE_URL = "https://cart.jlcpcb.com/quote";
 export function packetDownloads(stem, artifact) {
   const name = String(stem || "board");
   return [
+    // Plain word first, trade term in brackets. Someone who has never ordered
+    // a board does not know what a gerber or a CPL is, and someone who arrived
+    // from Altium is scanning for exactly those words — leading with the plain
+    // name costs the second reader nothing and rescues the first.
     {
       id: "gerbers",
-      label: "Gerbers",
+      label: "Board files (gerbers)",
       url: String(artifact?.gerbersUrl || ""),
       filename: `${name}-gerbers.zip`,
-      hint: "copper, mask, silkscreen and drill — what the fab loads",
+      hint: "the picture of every layer — this is what a factory loads",
     },
     {
       id: "bom",
-      label: "BOM",
+      label: "Parts list (BOM)",
       url: String(artifact?.bomUrl || ""),
       filename: `${name}-bom.csv`,
-      hint: "Comment, Designator, Footprint, LCSC Part #",
+      hint: "every part, with the catalogue number to order it by",
     },
     {
       id: "cpl",
-      label: "CPL",
+      label: "Placement file (CPL)",
       url: String(artifact?.cplUrl || ""),
       filename: `${name}-cpl.csv`,
-      hint: "placement centroids — assembly only",
+      hint: "where each part sits — only needed if the factory solders them on",
     },
     {
       id: "kicad",
       label: "KiCad project",
       url: String(artifact?.kicadProjectUrl || ""),
       filename: `${name}-kicad.zip`,
-      hint: "schematic + board + project",
+      hint: "the whole design, to open in KiCad and edit by hand",
     },
     {
       id: "glb",
       label: "3D model",
       url: String(artifact?.glbUrl || ""),
       filename: `${name}.glb`,
-      hint: "board and parts, for mechanical fit",
+      hint: "the board and its parts, for checking it fits in a case",
     },
   ].filter((entry) => entry.url);
 }
@@ -95,16 +99,19 @@ export function boardActions({ stem = "board", artifact = null, sidecar = null }
       // project would only stop them looking at it — and a board that is not
       // ready is exactly the one an engineer wants open in a real tool.
       enabled: Boolean(kicadUrl),
-      reason: kicadUrl ? "" : "No kicad-project.zip in the packet yet — rebuild the board to export one",
+      // Every `reason` is read by someone who has just found a grey button and
+      // wants to know what to do about it, so each one names the state and the
+      // way out of it in words that need no electronics background.
+      reason: kicadUrl ? "" : "The KiCad files appear once the board has finished building.",
       note: `Unzip and open ${stem || "board"}.kicad_pro`,
     },
     {
       id: "packet",
       kind: "menu",
-      label: "Packet",
+      label: "Download",
       items: packet,
       enabled: packet.length > 0,
-      reason: packet.length ? "" : "No build artifacts yet",
+      reason: packet.length ? "" : "Nothing to download until the board has been built.",
     },
     {
       id: "order",
@@ -113,10 +120,12 @@ export function boardActions({ stem = "board", artifact = null, sidecar = null }
       label: "Order at JLCPCB",
       enabled: fabReady && hasOrder,
       reason: !hasOrder
-        ? "ORDER.md is written once the packet is fab-ready"
+        ? fabReady
+          ? "The step-by-step ordering guide has not been written yet. Ask the chat to rebuild the board."
+          : "Not ready to order yet — some checks still fail. The Overview tab lists what is left."
         : fabReady
           ? ""
-          : "Fix the blocking findings first — the packet is not fab-ready",
+          : "Not ready to order yet — some checks still fail. The Overview tab lists what is left.",
       href: JLCPCB_QUOTE_URL,
     },
   ];

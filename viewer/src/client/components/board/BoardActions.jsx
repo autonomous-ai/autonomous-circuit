@@ -15,6 +15,23 @@ const BUTTON =
   "inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-card/60 px-2 text-xs font-medium transition-colors";
 
 /**
+ * A hover explanation that survives `disabled`.
+ *
+ * `title` on a disabled `<button>` never fires — the browser suppresses
+ * pointer events on it — so the "why is this grey?" sentence was unreachable
+ * in exactly the state it was written for. Two greyed buttons sat in the top
+ * bar of a first-time user's first board with no way to find out what they
+ * were waiting on. The wrapper is not disabled, so it gets the hover.
+ */
+function Reason({ text, children }) {
+  return (
+    <span data-slot="board-action-reason" title={text || undefined} className="inline-flex">
+      {children}
+    </span>
+  );
+}
+
+/**
  * The board's top-bar actions — the analogue of Vibe's Slice plate / Publish /
  * Open in OrcaSlicer cluster, pointed at what a PCB is actually for.
  *
@@ -51,26 +68,26 @@ export default function BoardActions({ stem = "board", artifact = null, sidecar 
       {actions.map((action) => {
         if (action.kind === "download") {
           return (
-            <button
-              key={action.id}
-              type="button"
-              disabled={!action.enabled}
-              onClick={() => {
-                if (download(action.url, action.filename) && action.note) setNote(action.note);
-              }}
-              data-slot="board-action"
-              data-action={action.id}
-              title={action.enabled ? action.note || action.label : action.reason}
-              className={cn(
-                BUTTON,
-                action.enabled
-                  ? "text-foreground hover:border-primary/60 hover:bg-accent"
-                  : "cursor-not-allowed text-muted-foreground/50",
-              )}
-            >
-              <CircuitBoard className="size-3.5" aria-hidden />
-              {action.label}
-            </button>
+            <Reason key={action.id} text={action.enabled ? action.note || action.label : action.reason}>
+              <button
+                type="button"
+                disabled={!action.enabled}
+                onClick={() => {
+                  if (download(action.url, action.filename) && action.note) setNote(action.note);
+                }}
+                data-slot="board-action"
+                data-action={action.id}
+                className={cn(
+                  BUTTON,
+                  action.enabled
+                    ? "text-foreground hover:border-primary/60 hover:bg-accent"
+                    : "cursor-not-allowed text-muted-foreground/50",
+                )}
+              >
+                <CircuitBoard className="size-3.5" aria-hidden />
+                {action.label}
+              </button>
+            </Reason>
           );
         }
 
@@ -114,24 +131,27 @@ export default function BoardActions({ stem = "board", artifact = null, sidecar 
         }
 
         return (
-          <button
+          <Reason
             key={action.id}
-            type="button"
-            disabled={!action.enabled}
-            onClick={() => onOpenTab?.(action.target)}
-            data-slot="board-action"
-            data-action={action.id}
-            title={action.enabled ? "Open the exact-clicks ordering walkthrough" : action.reason}
-            className={cn(
-              BUTTON,
-              action.enabled
-                ? "border-emerald-500/50 bg-emerald-500/10 text-foreground hover:bg-emerald-500/20"
-                : "cursor-not-allowed text-muted-foreground/50",
-            )}
+            text={action.enabled ? "Step-by-step: exactly what to click to get these made" : action.reason}
           >
-            <ExternalLink className="size-3.5" aria-hidden />
-            {action.label}
-          </button>
+            <button
+              type="button"
+              disabled={!action.enabled}
+              onClick={() => onOpenTab?.(action.target)}
+              data-slot="board-action"
+              data-action={action.id}
+              className={cn(
+                BUTTON,
+                action.enabled
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-foreground hover:bg-emerald-500/20"
+                  : "cursor-not-allowed text-muted-foreground/50",
+              )}
+            >
+              <ExternalLink className="size-3.5" aria-hidden />
+              {action.label}
+            </button>
+          </Reason>
         );
       })}
 

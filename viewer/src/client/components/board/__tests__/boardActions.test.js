@@ -65,7 +65,7 @@ test("Order at JLCPCB needs both fab-readiness and an ORDER.md", () => {
     "order",
   );
   assert.equal(notReady.enabled, false);
-  assert.match(notReady.reason, /not fab-ready/);
+  assert.match(notReady.reason, /some checks still fail/);
 
   // Fab says ready but the walkthrough never landed — a different problem, a
   // different sentence.
@@ -74,7 +74,22 @@ test("Order at JLCPCB needs both fab-readiness and an ORDER.md", () => {
     "order",
   );
   assert.equal(noOrderMd.enabled, false);
-  assert.match(noOrderMd.reason, /ORDER\.md/);
+  assert.match(noOrderMd.reason, /ordering guide/);
+});
+
+// The reasons are read by someone who just found a grey button, so they may
+// not lean on a filename or a term of art to explain themselves.
+test("no disabled reason needs electronics or filesystem knowledge to read", () => {
+  const jargon = /gerber|fab-ready|fab packet|ORDER\.md|kicad-project\.zip|artifact|netlist|DRC|blocking finding/i;
+  for (const sidecar of [null, { fab: { ready: false } }, { fab: { ready: true } }]) {
+    for (const artifact of [null, {}, FULL_ARTIFACT]) {
+      for (const action of boardActions({ artifact, sidecar })) {
+        if (action.enabled) continue;
+        assert.doesNotMatch(action.reason, jargon, `${action.id}: "${action.reason}"`);
+        assert.match(action.reason, /\.$/, `${action.id} reason is a sentence`);
+      }
+    }
+  }
 });
 
 test("every disabled action carries a reason and every enabled one does not", () => {

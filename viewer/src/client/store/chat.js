@@ -21,6 +21,7 @@ import {
   readStoredEffort,
   writeStoredEffort,
 } from "../components/chat/effortChoices.js";
+import { userVisibleText } from "../components/chat/chatHistoryModel.js";
 
 /**
  * @typedef {Object} ChatTextBlock
@@ -652,6 +653,9 @@ export function chatReducer(state, action, now = Date.now()) {
     }
     case "hydrate_session": {
       const history = action.session.history.map((item, index) => {
+        // The transcript only ever saw the combined string, so a reload used
+        // to show the model-facing directives inside the user's own bubble.
+        const content = item.role === "user" ? userVisibleText(item.content) : item.content;
         // A rehydrated assistant turn carries structured `blocks` (reasoning +
         // tool calls with timings) so the inline trace rebuilds exactly as it
         // streamed live; user and text-only turns fall back to a single text
@@ -659,7 +663,7 @@ export function chatReducer(state, action, now = Date.now()) {
         const blocks =
           Array.isArray(item.blocks) && item.blocks.length > 0
             ? item.blocks
-            : [{ kind: "text", text: item.content }];
+            : [{ kind: "text", text: content }];
         // startedAt/endedAt from the block timings drive per-segment durations;
         // flat turns (no timestamps) fall back to the entry's own timestamp.
         const times = [];
@@ -684,7 +688,7 @@ export function chatReducer(state, action, now = Date.now()) {
           status: "complete",
           startedAt,
           endedAt,
-          userText: item.role === "user" ? item.content : undefined,
+          userText: item.role === "user" ? content : undefined,
         };
       });
       return {
