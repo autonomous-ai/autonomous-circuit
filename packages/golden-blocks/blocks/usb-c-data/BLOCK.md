@@ -68,8 +68,9 @@ block edit (same 0402 footprint, so layout survives).
 - The receptacle carries a routing keepout over its own belly (it comes with
   the shared `UsbCConnector` footprint, so it moves and rotates with J1). See
   `usb-c-power/BLOCK.md` — that keepout is what keeps GND off the alignment
-  drills, and the same note explains why a board with a copper pour must set
-  `cutoutMargin="0.25mm"`.
+  drills, and the same note explains why a board with a copper pour must go
+  through `GndPour`/`POUR_CUTOUT_MARGIN_MM` from `blocks/glue` instead of a
+  copied margin.
 
 ## Provenance
 

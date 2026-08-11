@@ -93,9 +93,14 @@ class BoardPlan:
     * ``regulator`` — a linear regulator asked to drop 1.7V at 600mA cooks.
       That is arithmetic on numbers the plan already contains, so a plan that
       would cook a part is not buildable rather than merely warned about.
-    * ``must_expose`` — an MCU whose SWD pins reach nothing cannot be
-      programmed after assembly. Every block is individually fine; only the
-      plan can see it.
+    * ``must_expose`` — an MCU whose SWD pins reach nothing cannot be halted
+      or recovered after assembly. Every block is individually fine; only the
+      plan can see it. **Land the nets it names with ``DebugPort`` from
+      ``blocks/glue``** — three pads, 2.54mm apart, SWCLK/SWD/GND. It is not
+      inside the MCU block on measurement: three pads inside `rp2040-core`'s
+      own box send the router through the crystal cluster and it comes back
+      with a via shorted into the QFN pad field. Put it in open board space,
+      the way a mounting hole goes in open board space.
     """
 
     block_ids: tuple[str, ...]

@@ -135,9 +135,40 @@ def iou_warnings(
 ) -> list[Warning]:
     """``supplier_footprint_mismatch_warning`` banded by copper IoU:
     < {error_below} error / < {warning_below} warning / < {info_below} info /
-    else dropped (correct 0402 parts score ~0.73-0.77)."""
+    else dropped (correct 0402 parts score ~0.73-0.77).
+
+    **Only orthogonally-placed parts are graded** (measured 2026-08-11).
+    Harness-puck flagged eight 0402 capacitors at 0.4739-0.4916, under the 0.5
+    error floor, while thirteen more — same part number C1525, same
+    `footprint="0402"` — scored 0.7249. The only difference was rotation: the
+    eight sit tangentially around an LED ring at multiples of 22.5 degrees. A
+    dedicated bench settles what the boards could only suggest; one part, six
+    rotations:
+
+        rot   0   90  180  270  |  45      22.5
+        IoU  0.7249 (all four)  |  0.4215  0.4739
+
+    So the metric survives a quarter turn and collapses off-axis: the supplier
+    footprint is compared axis-by-axis, not turned with the part. Below 0.5 at
+    45 degrees says nothing about the land pattern, and blocking on it would
+    make any circular layout, angled connector or diagonal-edge part
+    permanently un-orderable. Off-axis parts therefore keep their measurement
+    and are reported at `info` with the reason attached rather than dropped —
+    the north star's "a check that might be wrong is still worth running,
+    provided its output is labelled honestly". Orthogonal parts are still
+    graded in full, which is nearly every part on nearly every board.
+    """
     try:
         names = _component_names(circuit_json)
+        rotations: dict[str, float] = {}
+        for element in circuit_json:
+            if isinstance(element, dict) and element.get("type") == "pcb_component":
+                angle = element.get("rotation")
+                if isinstance(angle, (int, float)):
+                    for key in ("source_component_id", "pcb_component_id"):
+                        cid = element.get(key)
+                        if isinstance(cid, str):
+                            rotations[cid] = float(angle)
         warnings: list[Warning] = []
         for element in circuit_json:
             if not isinstance(element, dict):
@@ -162,6 +193,22 @@ def iou_warnings(
             detail = element.get("message")
             if not isinstance(detail, str) or not detail.strip():
                 detail = f"supplier footprint IoU {iou}"
+            angle = next(
+                (rotations[cid] for cid in
+                 (element.get("source_component_id"), element.get("pcb_component_id"))
+                 if isinstance(cid, str) and cid in rotations),
+                0.0,
+            )
+            if abs(((angle + 45.0) % 90.0) - 45.0) > 0.5 and severity != "info":
+                severity = "info"
+                detail += (
+                    f" — reported, not graded: the part sits at {angle:g} "
+                    f"degrees, off the orthogonal grid, and this IoU is "
+                    f"measured axis-by-axis against the supplier footprint. "
+                    f"Measured on one 0402 at six angles: 0.7249 at 0/90/180/"
+                    f"270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the "
+                    f"angle, not the land pattern."
+                )
             warnings.append(
                 _warning(
                     _localize(element, names),
@@ -322,97 +369,307 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
 # ---------------------------------------------------------------------------
 
 
+def _point_segment_distance(
+    px: float, py: float, ax: float, ay: float, bx: float, by: float
+) -> float:
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else max(
+        0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq)
+    )
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def _segments_cross(
+    ax: float, ay: float, bx: float, by: float,
+    cx: float, cy: float, dx: float, dy: float,
+) -> bool:
+    def side(x1, y1, x2, y2, x3, y3) -> float:
+        return (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+
+    d1 = side(cx, cy, dx, dy, ax, ay)
+    d2 = side(cx, cy, dx, dy, bx, by)
+    d3 = side(ax, ay, bx, by, cx, cy)
+    d4 = side(ax, ay, bx, by, dx, dy)
+    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0))
+
+
+def _segment_gap(
+    ax: float, ay: float, bx: float, by: float,
+    cx: float, cy: float, dx: float, dy: float,
+) -> float:
+    """Shortest distance between two 2-D segments. Exact, and zero if they
+    cross — the hole spine and a track can genuinely overlap."""
+    if _segments_cross(ax, ay, bx, by, cx, cy, dx, dy):
+        return 0.0
+    return min(
+        _point_segment_distance(ax, ay, cx, cy, dx, dy),
+        _point_segment_distance(bx, by, cx, cy, dx, dy),
+        _point_segment_distance(cx, cy, ax, ay, bx, by),
+        _point_segment_distance(dx, dy, ax, ay, bx, by),
+    )
+
+
+def _stadium(x: float, y: float, width: float, height: float
+             ) -> tuple[float, float, float, float, float]:
+    """A drill or its pad as ``(ax, ay, bx, by, radius)`` — the segment the
+    hole's centre sweeps, plus a radius. A round hole is the degenerate case
+    where the segment is a point.
+
+    Modelling a slot as a circle (what this check used to do) understates the
+    long axis by half the slot's length: the USB-C shell drills are 0.8 x
+    1.6mm pills, so copper 0.3mm off the end of one measured as 0.7mm clear.
+    That was a false *negative*, and it is the reason this is a segment.
+    """
+    radius = min(width, height) / 2.0
+    if height >= width:
+        half = (height - width) / 2.0
+        return (x, y - half, x, y + half, radius)
+    half = (width - height) / 2.0
+    return (x - half, y, x + half, y, radius)
+
+
+def _connectivity_index(circuit_json: Sequence[dict]) -> tuple[dict, dict]:
+    """``(pcb_port_id -> net key, source_net_id -> net key)``.
+
+    The net key is tscircuit's ``subcircuit_connectivity_map_key``: two things
+    carrying the same key are the same electrical net.
+    """
+    source_port_net: dict[str, str] = {}
+    source_net_net: dict[str, str] = {}
+    for element in circuit_json:
+        if not isinstance(element, dict):
+            continue
+        key = element.get("subcircuit_connectivity_map_key")
+        if not isinstance(key, str) or not key:
+            continue
+        if element.get("type") == "source_port":
+            sid = element.get("source_port_id")
+            if isinstance(sid, str):
+                source_port_net[sid] = key
+        elif element.get("type") == "source_net":
+            nid = element.get("source_net_id")
+            if isinstance(nid, str):
+                source_net_net[nid] = key
+    port_net: dict[str, str] = {}
+    for element in circuit_json:
+        if not isinstance(element, dict) or element.get("type") != "pcb_port":
+            continue
+        key = source_port_net.get(str(element.get("source_port_id") or ""))
+        pid = element.get("pcb_port_id")
+        if key and isinstance(pid, str):
+            port_net[pid] = key
+    return port_net, source_net_net
+
+
 def _hole_to_copper_warnings(
     circuit_json: Sequence[dict], names: dict, profile: FabProfile
 ) -> list[Warning]:
-    """Tracks passing too near a drill.
+    """Copper too near a drill.
 
     Two rules, not one (jlcpcb.com/capabilities, read 2026-08-11): a
-    non-plated mounting hole needs 0.20mm to copper, a plated hole needs
-    0.28mm. This is the check that caught the defect blocking every example
-    board — the router threads a ground track through the 0.525mm channel
-    beside a USB-C connector's alignment holes because it is the shortest
-    path, leaving 0.115mm where 0.2mm is required. A drill lands within its
-    own positional tolerance of that, so the track can simply be cut: some
-    boards in the batch work and some do not, which is the worst way to fail.
+    non-plated mounting hole needs **0.20mm** to a track, a plated hole needs
+    **0.28mm** (0.35mm recommended). This is the check that caught the defect
+    blocking every example board — the router threads a ground track through
+    the 0.525mm channel beside a USB-C connector's alignment holes because it
+    is the shortest path, leaving 0.115mm where 0.20mm is required. A drill
+    lands within its own positional tolerance of that, so the track can simply
+    be cut: some boards in a batch work and some do not.
 
-    A track *terminating* at a hole is the connection to it, not a violation.
+    **The rule does not apply to the hole's own net (settled 2026-08-11).**
+    The same capabilities page that publishes "PTH to Track 0.28mm" also
+    publishes "PTH annular ring >= 0.20mm" — copper the fab *requires* at
+    0.20mm from the drill. Both can be true only if the hole-to-track figure
+    measures copper approaching from outside, not the pad the barrel is
+    plated into. The measurement settles it: every legitimate connection to a
+    plated hole leaves its pad, and at the moment it crosses the pad boundary
+    its edge is exactly one annular ring — 0.200mm — from the drill. Fifteen
+    such segments across the three example boards measured 0.2000mm each, to
+    four decimals, because that is not geometry, it is the pad boundary. A
+    net-blind 0.28mm rule therefore makes every plated hole unconnectable,
+    and KiCad's own hole-clearance DRC (enabled here at 0.2mm, and firing on
+    NPTH holes) agrees: it reports nothing at these pads.
+
+    So same-net copper is exempt, and copper inside a plated hole's own pad
+    outline is exempt when no net is known either side. Everything else is
+    measured — from the drill's real shape, a slot as a slot.
     """
     warnings: list[Warning] = []
-    holes: list[tuple[float, float, float, bool]] = []
+    port_net, net_by_source_net = _connectivity_index(circuit_json)
+
+    holes: list[dict] = []
     for element in circuit_json:
+        if not isinstance(element, dict):
+            continue
         etype = element.get("type")
-        if etype not in ("pcb_hole", "pcb_plated_hole"):
+        if etype not in ("pcb_hole", "pcb_plated_hole", "pcb_via"):
             continue
         x, y = element.get("x"), element.get("y")
-        diameter = (
-            element.get("hole_diameter")
-            or element.get("hole_width")
-            or element.get("outer_diameter")
-        )
-        if not all(isinstance(v, (int, float)) for v in (x, y, diameter)):
+        hole_w = element.get("hole_width") or element.get("hole_diameter")
+        hole_h = element.get("hole_height") or element.get("hole_diameter") or hole_w
+        if not all(isinstance(v, (int, float)) for v in (x, y, hole_w, hole_h)):
             continue
-        holes.append((float(x), float(y), float(diameter) / 2.0,
-                      etype == "pcb_plated_hole"))
+        plated = etype in ("pcb_plated_hole", "pcb_via")
+        annular = 0.0
+        if plated:
+            pad_w = element.get("outer_width") or element.get("outer_diameter")
+            pad_h = (
+                element.get("outer_height")
+                or element.get("outer_diameter")
+                or pad_w
+            )
+            if isinstance(pad_w, (int, float)) and isinstance(pad_h, (int, float)):
+                annular = max(
+                    0.0,
+                    min((float(pad_w) - float(hole_w)) / 2.0,
+                        (float(pad_h) - float(hole_h)) / 2.0),
+                )
+        is_via = etype == "pcb_via"
+        holes.append({
+            "spine": _stadium(float(x), float(y), float(hole_w), float(hole_h)),
+            "x": float(x), "y": float(y),
+            "plated": plated,
+            "via": is_via,
+            "annular": annular,
+            "net": (
+                element.get("subcircuit_connectivity_map_key") if is_via
+                else port_net.get(str(element.get("pcb_port_id") or ""))
+            ),
+            "id": str(element.get("pcb_plated_hole_id")
+                      or element.get("pcb_hole_id")
+                      or element.get("pcb_via_id") or ""),
+        })
     if not holes:
         return warnings
 
-    seen: set[tuple[str, str]] = set()
+    #: (element, element id, net key, geometry) for every piece of copper the
+    #: router places or a footprint lands. Traces and vias are the router's;
+    #: SMD pads are the footprint's, and a pad beside a mounting hole is the
+    #: same defect from the other direction.
+    items: list[tuple[dict, str, str | None, str, tuple]] = []
     for element in circuit_json:
-        if element.get("type") != "pcb_trace":
+        if not isinstance(element, dict):
             continue
-        route = [
-            p for p in (element.get("route") or [])
-            if isinstance(p, dict) and isinstance(p.get("x"), (int, float))
-        ]
-        for first, second in zip(route, route[1:]):
-            x1, y1 = float(first["x"]), float(first["y"])
-            x2, y2 = float(second["x"]), float(second["y"])
-            half = float(first.get("width") or 0.2) / 2.0
-            dx, dy = x2 - x1, y2 - y1
-            length_sq = dx * dx + dy * dy
-            for hx, hy, radius, plated in holes:
-                # The segment that lands on a hole is its connection.
-                if min(math.hypot(x1 - hx, y1 - hy),
-                       math.hypot(x2 - hx, y2 - hy)) <= radius + 0.05:
-                    continue
-                t = 0.0 if length_sq == 0 else max(
-                    0.0, min(1.0, ((hx - x1) * dx + (hy - y1) * dy) / length_sq)
-                )
-                gap = math.hypot(x1 + t * dx - hx, y1 + t * dy - hy) - radius - half
-                floor = (
-                    profile.min_pth_to_copper_mm if plated
-                    else profile.min_npth_to_copper_mm
-                )
-                kind = "plated hole" if plated else "mounting hole"
-                key = (f"{hx:.2f},{hy:.2f}", element.get("pcb_trace_id", ""))
-                if gap < floor - 1e-9 and key not in seen:
-                    seen.add(key)
-                    warnings.append(_warning(
-                        _localize(element, names),
-                        "dfm_hole_clearance",
-                        f"a track passes {gap:.3f}mm from a {kind} at "
-                        f"({hx:.2f}, {hy:.2f}); the fab needs {floor:g}mm — "
-                        "route around it, the drill's own tolerance can cut "
-                        "a track this close",
-                        "error",
-                    ))
-                elif (
-                    plated
-                    and gap < profile.warn_pth_to_copper_mm - 1e-9
-                    and key not in seen
-                ):
-                    seen.add(key)
-                    warnings.append(_warning(
-                        _localize(element, names),
-                        "dfm_hole_clearance",
-                        f"a track passes {gap:.3f}mm from a plated hole at "
-                        f"({hx:.2f}, {hy:.2f}) — legal, but "
-                        f"{profile.warn_pth_to_copper_mm:g}mm is the "
-                        "recommended margin",
-                        "warning",
-                    ))
+        etype = element.get("type")
+        if etype == "pcb_trace":
+            net = net_by_source_net.get(str(element.get("connection_name") or ""))
+            if net is None:
+                for pid in element.get("connectsTo") or []:
+                    net = port_net.get(str(pid))
+                    if net:
+                        break
+            route = [
+                p for p in (element.get("route") or [])
+                if isinstance(p, dict) and isinstance(p.get("x"), (int, float))
+                and isinstance(p.get("y"), (int, float))
+            ]
+            tid = str(element.get("pcb_trace_id") or "")
+            for first, second in zip(route, route[1:]):
+                items.append((
+                    element, tid, net, "a track",
+                    (float(first["x"]), float(first["y"]),
+                     float(second["x"]), float(second["y"]),
+                     float(first.get("width") or 0.2) / 2.0),
+                ))
+        elif etype == "pcb_via":
+            x, y = element.get("x"), element.get("y")
+            outer = element.get("outer_diameter")
+            if not all(isinstance(v, (int, float)) for v in (x, y, outer)):
+                continue
+            items.append((
+                element, str(element.get("pcb_via_id") or ""),
+                element.get("subcircuit_connectivity_map_key"), "a via",
+                (float(x), float(y), float(x), float(y), float(outer) / 2.0),
+            ))
+        elif etype == "pcb_smtpad":
+            x, y = element.get("x"), element.get("y")
+            pad_w = element.get("width") or element.get("radius")
+            pad_h = element.get("height") or element.get("radius") or pad_w
+            if not all(isinstance(v, (int, float)) for v in (x, y, pad_w, pad_h)):
+                continue
+            # A rect pad is modelled as the stadium inscribed in it, which
+            # rounds its corners *inward*. That errs toward saying a pad is
+            # further from the drill than it is — a missed finding, never an
+            # invented one. Worth knowing before someone reads a number here
+            # as exact.
+            items.append((
+                element, str(element.get("pcb_smtpad_id") or ""),
+                port_net.get(str(element.get("pcb_port_id") or "")), "a pad",
+                _stadium(float(x), float(y), float(pad_w), float(pad_h)),
+            ))
+
+    # Worst gap per (hole, copper item), so a trace is judged on its closest
+    # segment rather than on whichever segment the loop reached first.
+    worst: dict[tuple[str, str], tuple[float, dict, dict, str]] = {}
+    for hole in holes:
+        ax, ay, bx, by, drill_r = hole["spine"]
+        plated = hole["plated"]
+        limit = _hole_floor(hole, profile)
+        if plated and not hole["via"]:
+            limit = max(limit, profile.warn_pth_to_copper_mm)
+        for element, item_id, net, what, geom in items:
+            if item_id == hole["id"]:
+                continue    # a via measured against its own drill
+            cx, cy, dx, dy, half = geom
+            gap = _segment_gap(cx, cy, dx, dy, ax, ay, bx, by) - drill_r - half
+            if gap >= limit - 1e-9:
+                continue
+            # The hole's own net. Its pad is copper the fab *requires* at one
+            # annular ring from this drill, and same-net copper merges with
+            # that pad — it adds nothing the ring did not already put there,
+            # and a drill that wanders into it can neither short nor open a
+            # net that is already this one.
+            if plated and hole["net"] and net and hole["net"] == net:
+                continue
+            # No net known either side: fall back to geometry. Inside the
+            # pad's own outline is the annular ring, which is not a
+            # hole-to-track distance.
+            if plated and (hole["net"] is None or net is None) \
+                    and gap <= hole["annular"] + 1e-9:
+                continue
+            key = (hole["id"], item_id)
+            if key not in worst or gap < worst[key][0]:
+                worst[key] = (gap, hole, element, what)
+
+    for gap, hole, element, what in worst.values():
+        plated = hole["plated"]
+        floor = _hole_floor(hole, profile)
+        kind = (
+            "via" if hole["via"]
+            else "plated hole" if plated
+            else "mounting hole"
+        )
+        if gap < floor - 1e-9:
+            warnings.append(_warning(
+                _localize(element, names),
+                "dfm_hole_clearance",
+                f"{what} passes {gap:.3f}mm from a {kind} at "
+                f"({hole['x']:.2f}, {hole['y']:.2f}); the fab needs "
+                f"{floor:g}mm — route around it, the drill's own "
+                "tolerance can cut a track this close",
+                "error",
+            ))
+        elif plated:
+            warnings.append(_warning(
+                _localize(element, names),
+                "dfm_hole_clearance",
+                f"{what} passes {gap:.3f}mm from a plated hole at "
+                f"({hole['x']:.2f}, {hole['y']:.2f}) — legal, but "
+                f"{profile.warn_pth_to_copper_mm:g}mm is the "
+                "recommended margin",
+                "warning",
+            ))
     return warnings
+
+
+def _hole_floor(hole: dict, profile: FabProfile) -> float:
+    """JLC publishes three drill-to-track figures, not one: 0.20mm for a via
+    hole, 0.28mm for a component plated hole, 0.20mm for a non-plated one."""
+    if hole["via"]:
+        return profile.min_via_to_copper_mm
+    if hole["plated"]:
+        return profile.min_pth_to_copper_mm
+    return profile.min_npth_to_copper_mm
 
 
 def dfm_warnings(

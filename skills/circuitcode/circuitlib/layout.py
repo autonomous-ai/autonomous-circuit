@@ -68,6 +68,15 @@ EDGE_MARGIN_MM = 1.5
 #: errors both times). The same class of board with 4mm per side came back
 #: clean. This is the number that makes a dense block routable, and it is why
 #: `place_board` sizes the outline off this rather than off EDGE_MARGIN_MM.
+#:
+#: **The halo does not apply to the face of a connector** (2026-08-11). Applied
+#: to every side, it put `usb-c-power`'s lowest copper 4.00mm inside the
+#: outline — a receptacle you cannot plug a cable into, which is a functional
+#: defect and not a tidiness one. The halo's evidence is about *interior*
+#: blocks: `rp2040-core`'s router escaped the outline because it had nowhere to
+#: route. There is nothing to route in front of a connector — it is the
+#: southernmost thing on the board — so that side keeps EDGE_MARGIN_MM and the
+#: other three sides keep the halo. See `place_board`.
 ROUTER_HALO_MM = 4.0
 
 
@@ -224,17 +233,23 @@ def place_board(
     content_h = edge_h + inner_h + (gap if edge and inner else 0.0)
     strip = HOLE_STRIP_MM if mounting_holes else 0.0
 
+    # The bottom edge is the connector's face, not a routing channel: a plug
+    # goes in there, and 4mm of board in front of a USB-C mouth is a socket
+    # nobody can reach. The other three sides keep the router halo.
+    face = EDGE_MARGIN_MM if edge else margin
+
     def _up(value: float) -> float:
         return math.ceil(round(value, 6) * 10) / 10.0
 
     width = max(_up(content_w + 2 * margin + 2 * strip), tables.MIN_BOARD_EDGE_MM)
-    height = max(_up(content_h + 2 * margin), tables.MIN_BOARD_EDGE_MM)
+    height = max(_up(content_h + face + margin), tables.MIN_BOARD_EDGE_MM)
 
     placements: dict[str, tuple[float, float]] = {}
     if edge:
-        # Bottom band: the connector's own geometry sits against the margin.
+        # Bottom band: the connector's own geometry sits against the face
+        # margin, close enough to the outline that a cable reaches it.
         placements.update(
-            place_row(edge, y=-height / 2.0 + margin + edge_h / 2.0, gap=gap)
+            place_row(edge, y=-height / 2.0 + face + edge_h / 2.0, gap=gap)
         )
     if inner:
         placements.update(
@@ -253,7 +268,16 @@ def place_board(
              "pcbY": round(height / 2 - inset, 2)},
         ]
 
-    warnings = board_fits(placements, width, height, margin=margin)
+    # Two margins, so two checks: an edge block is allowed inside the halo on
+    # its face, everything else is not.
+    warnings = board_fits(
+        {k: v for k, v in placements.items() if k in EDGE_BLOCKS},
+        width, height, margin=face,
+    )
+    warnings += board_fits(
+        {k: v for k, v in placements.items() if k not in EDGE_BLOCKS},
+        width, height, margin=margin,
+    )
     warnings += overlap_warnings(placements, gap=gap)
     warnings += _hole_clearance_warnings(holes, placements)
     return {

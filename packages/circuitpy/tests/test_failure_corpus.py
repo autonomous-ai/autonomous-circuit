@@ -59,12 +59,17 @@ def board(width: float = 40.0, height: float = 30.0) -> dict:
     }
 
 
-def hole(x: float, y: float, diameter: float, *, plated: bool = False) -> dict:
+def hole(x: float, y: float, diameter: float, *, plated: bool = False,
+         annular: float = 0.3) -> dict:
+    """A drill. ``annular`` is the plated pad's ring width — the copper the
+    fab *requires* around the barrel. It matters to every hole-clearance
+    fixture: copper closer to the drill than the ring is copper *under the
+    pad*, which is a short or a connection, never a drill-clearance defect."""
     if plated:
         return {
             "type": "pcb_plated_hole", "pcb_plated_hole_id": f"ph_{x}_{y}",
             "x": x, "y": y, "hole_diameter": diameter,
-            "outer_diameter": diameter + 0.6,
+            "outer_diameter": diameter + 2 * annular,
         }
     return {
         "type": "pcb_hole", "pcb_hole_id": f"h_{x}_{y}",
@@ -72,15 +77,50 @@ def hole(x: float, y: float, diameter: float, *, plated: bool = False) -> dict:
     }
 
 
-def track(points: list[tuple[float, float]], *, width: float = 0.2,
-          trace_id: str = "t1") -> dict:
+def net(net_id: str, *, name: str = "GND") -> dict:
     return {
+        "type": "source_net", "source_net_id": net_id, "name": name,
+        "subcircuit_connectivity_map_key": f"conn_{net_id}",
+    }
+
+
+def hole_on_net(x: float, y: float, diameter: float, net_id: str, *,
+                annular: float = 0.2, hole_h: float | None = None) -> list[dict]:
+    """A plated hole wired to a net, with the three elements that carry the
+    connection: ``pcb_plated_hole`` -> ``pcb_port`` -> ``source_port``."""
+    tag = f"{x}_{y}"
+    return [
+        {
+            "type": "pcb_plated_hole", "pcb_plated_hole_id": f"ph_{tag}",
+            "pcb_port_id": f"pp_{tag}", "x": x, "y": y,
+            "shape": "pill" if hole_h else "circle",
+            "hole_width": diameter, "hole_height": hole_h or diameter,
+            "outer_width": diameter + 2 * annular,
+            "outer_height": (hole_h or diameter) + 2 * annular,
+        },
+        {
+            "type": "pcb_port", "pcb_port_id": f"pp_{tag}",
+            "source_port_id": f"sp_{tag}", "x": x, "y": y,
+        },
+        {
+            "type": "source_port", "source_port_id": f"sp_{tag}", "name": "EH1",
+            "subcircuit_connectivity_map_key": f"conn_{net_id}",
+        },
+    ]
+
+
+def track(points: list[tuple[float, float]], *, width: float = 0.2,
+          trace_id: str = "t1", net_id: str | None = None) -> dict:
+    out = {
         "type": "pcb_trace", "pcb_trace_id": trace_id,
         "route": [
             {"route_type": "wire", "x": x, "y": y, "width": width, "layer": "top"}
             for x, y in points
         ],
     }
+    if net_id:
+        out["connection_name"] = net_id
+    return out
 
 
 def via(*, hole_d: float, outer_d: float, x: float = 0.0, y: float = 0.0) -> dict:
@@ -172,23 +212,171 @@ CORPUS: tuple[Defect, ...] = (
             "needs 0.28mm, not 0.20mm — so a track 0.25mm from a plated hole "
             "passed a check that should have blocked it. One rule for two "
             "processes is a check that is wrong in one direction or the other, "
-            "and this one was wrong in the dangerous direction."
+            "and this one was wrong in the dangerous direction. "
+            "(Fixture corrected 2026-08-11: it originally gave the hole a "
+            "0.3mm annular ring, which put the 0.25mm 'violating' track "
+            "*underneath the pad*. Copper under a pad is a short or a "
+            "connection, not a drill clearance, so the fixture was asserting "
+            "the wrong defect. The ring is now JLC's 0.2mm minimum and the "
+            "track is genuinely outside the pad.)"
         ),
         elements=[
             board(),
-            hole(0.0, 0.0, 0.9, plated=True),
+            hole(0.0, 0.0, 0.9, plated=True, annular=0.2),
             # 0.25mm of clearance: 0.80mm distance - 0.45mm radius - 0.1mm
-            # half-width. Legal beside an NPTH, illegal beside a plated one.
+            # half-width. Outside the 0.65mm pad. Legal beside an NPTH,
+            # illegal beside a plated one.
             track([(-5.0, 0.80), (5.0, 0.80)]),
         ],
         expect_kind="dfm_hole_clearance",
         near_miss=[
             board(),
-            hole(0.0, 0.0, 0.9, plated=True),
+            hole(0.0, 0.0, 0.9, plated=True, annular=0.2),
             # 0.40mm — clear of both the 0.28mm floor and the warn threshold.
             track([(-5.0, 0.95), (5.0, 0.95)]),
         ],
         near_miss_why="0.40mm from a plated hole is comfortably legal.",
+    ),
+    Defect(
+        id="hole-rule-applied-to-the-hole-s-own-pad",
+        found="2026-08-11 — harness-puck and hydrate-coaster, the last "
+              "blocking finding on both",
+        story=(
+            "The check measured every piece of copper against every drill and "
+            "knew nothing about nets or pads, so it flagged J1's own "
+            "shell-to-GND tie as 0.006mm from J1's own GND drill. That number "
+            "is the annular ring. JLCPCB's capabilities page publishes 'PTH "
+            "annular ring >= 0.20mm' beside 'PTH to Track 0.28mm', and both "
+            "can be true only if the track figure measures copper arriving "
+            "from outside rather than the pad the barrel is plated into. The "
+            "measurement settles it: 28 segments across the three example "
+            "boards came within 0.28mm of a shell drill from outside its pad, "
+            "and 25 of them measured 0.2000mm to four decimals — that is not "
+            "geometry, it is where a connection crosses its own pad boundary, "
+            "counted 25 times. A net-blind rule makes every plated hole "
+            "unconnectable, and KiCad's hole-clearance DRC (on at 0.2mm, and "
+            "firing on NPTH holes on the same board) reported nothing here."
+        ),
+        elements=[
+            board(),
+            net("n_sig", name="SIG"),
+            # A *different* net at the same distance is still a defect: 0.05mm
+            # of copper beside a plated drill that has nothing to do with it.
+            *hole_on_net(0.0, 0.0, 0.8, "n_gnd", hole_h=1.6),
+            track([(-5.0, 0.45), (5.0, 0.45)], width=0.15, net_id="n_sig"),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            net("n_gnd", name="GND"),
+            # The identical geometry on the hole's *own* net: the connection,
+            # not a violation.
+            *hole_on_net(0.0, 0.0, 0.8, "n_gnd", hole_h=1.6),
+            track([(-5.0, 0.45), (5.0, 0.45)], width=0.15, net_id="n_gnd"),
+        ],
+        near_miss_why=(
+            "same-net copper merges with the pad the fab already requires at "
+            "0.20mm from this drill; it adds no copper the annular ring did "
+            "not, and a drill that wanders into it can neither short nor open "
+            "a net that is already this one."
+        ),
+    ),
+    Defect(
+        id="footprint-iou-graded-through-a-rotation",
+        found="2026-08-11 — harness-puck, eight blocking findings on eight "
+              "identical capacitors",
+        story=(
+            "The supplier-footprint IoU band called eight 0402 capacitors a "
+            "footprint mismatch at 0.4739 and 0.4916, under the 0.5 error "
+            "floor. Thirteen more capacitors on the same board — same part "
+            "number C1525, same `footprint=\"0402\"` — scored 0.7249. The "
+            "only difference was rotation: the eight sit tangentially around "
+            "an LED ring at multiples of 22.5 degrees. A bench of one part at "
+            "six angles settles it — 0.7249 at 0, 90, 180 and 270; 0.4739 at "
+            "22.5; 0.4215 at 45. The metric survives a quarter turn and "
+            "collapses off-axis, so below 0.5 at 22.5 degrees says nothing "
+            "about the land pattern. Blocking on it would have made any "
+            "circular layout, angled connector or diagonal-edge part "
+            "permanently un-orderable. Orthogonal parts are still graded in "
+            "full; off-axis ones keep the measurement at info."
+        ),
+        elements=[
+            board(),
+            # Both orthogonal placements still block at the same number: a
+            # quarter turn does not buy a part an exemption.
+            {"type": "source_component", "source_component_id": "sc1", "name": "C1"},
+            {"type": "pcb_component", "pcb_component_id": "pc1",
+             "source_component_id": "sc1", "rotation": 0},
+            {"type": "supplier_footprint_mismatch_warning",
+             "source_component_id": "sc1",
+             "message": "C1 footprint \"0402\" does not match supplier "
+                        "footprint jlcpcb:C1525 (copper IoU 0.4739).",
+             "footprint_copper_intersection_over_union": 0.4739},
+            {"type": "source_component", "source_component_id": "sc3", "name": "C3"},
+            {"type": "pcb_component", "pcb_component_id": "pc3",
+             "source_component_id": "sc3", "rotation": 90},
+            {"type": "supplier_footprint_mismatch_warning",
+             "source_component_id": "sc3",
+             "message": "C3 footprint \"0402\" does not match supplier "
+                        "footprint jlcpcb:C1525 (copper IoU 0.4739).",
+             "footprint_copper_intersection_over_union": 0.4739},
+        ],
+        expect_kind="supplier_footprint_mismatch_warning",
+        near_miss=[
+            board(),
+            {"type": "source_component", "source_component_id": "sc2", "name": "C2"},
+            # The identical number on a part turned 22.5 degrees.
+            {"type": "pcb_component", "pcb_component_id": "pc2",
+             "source_component_id": "sc2", "rotation": 22.5},
+            {"type": "supplier_footprint_mismatch_warning",
+             "source_component_id": "sc2",
+             "message": "C2 footprint \"0402\" does not match supplier "
+                        "footprint jlcpcb:C1525 (copper IoU 0.4739).",
+             "footprint_copper_intersection_over_union": 0.4739},
+        ],
+        near_miss_why=(
+            "at 22.5 degrees the IoU is the angle, not the land pattern — "
+            "measured 0.4739 for a part that scores 0.7249 at 0, 90, 180 and "
+            "270. Same number, same part, and the orthogonal ones above still "
+            "block."
+        ),
+    ),
+    Defect(
+        id="slot-drill-measured-as-a-circle",
+        found="2026-08-11 — reading the hole rule against the USB-C footprint",
+        story=(
+            "Every hole was modelled as a circle of radius hole_width/2. The "
+            "USB-C shell drills are 0.8 x 1.6mm pills, so copper sitting off "
+            "the *end* of one measured against a 0.4mm circle instead of a "
+            "1.6mm slot — a false negative of up to half the slot's length. "
+            "The check was strict where it was easy and blind where the "
+            "geometry was interesting, which is the worst combination: it "
+            "spent its credibility on the pad it should have ignored and said "
+            "nothing about the 0.4mm of slot it could not see."
+        ),
+        elements=[
+            board(),
+            net("n_sig", name="SIG"),
+            # 0.9mm above the hole centre. A circle model calls that
+            # 0.9 - 0.4 - 0.075 = 0.425mm and passes it; the real slot ends at
+            # y = 0.4, so the true gap is 0.9 - 0.4 - 0.4 - 0.075 = 0.025mm.
+            *hole_on_net(0.0, 0.0, 0.8, "n_gnd", hole_h=1.6),
+            track([(-5.0, 0.9), (5.0, 0.9)], width=0.15, net_id="n_sig"),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            net("n_sig", name="SIG"),
+            # 1.3mm above centre: 1.3 - 0.4 - 0.4 - 0.075 = 0.425mm clear of
+            # the real slot. Must stay clean, or the slot model has simply
+            # become a bigger circle.
+            *hole_on_net(0.0, 0.0, 0.8, "n_gnd", hole_h=1.6),
+            track([(-5.0, 1.3), (5.0, 1.3)], width=0.15, net_id="n_sig"),
+        ],
+        near_miss_why=(
+            "0.425mm from the end of the slot is legal — modelling the slot "
+            "must not turn into inflating it."
+        ),
     ),
     Defect(
         id="track-terminating-at-a-hole",
@@ -306,7 +494,17 @@ CORPUS: tuple[Defect, ...] = (
 
 
 def _kinds(elements: list[dict], *, envelope=(60.0, 40.0)) -> list[dict]:
-    return checks.dfm_warnings(elements, _product(envelope), PROFILE)
+    """Every stage-4a verdict on this geometry.
+
+    The IoU bander was outside this harness until 2026-08-11, so the corpus
+    could not hold a footprint finding at all — which is how eight identical
+    capacitors came to block a board over their rotation with no fixture
+    standing in the way.
+    """
+    return (
+        checks.dfm_warnings(elements, _product(envelope), PROFILE)
+        + checks.iou_warnings(elements, PROFILE)
+    )
 
 
 class FailureCorpus(unittest.TestCase):
@@ -404,6 +602,42 @@ class RoutingEscalation(unittest.TestCase):
         self.assertEqual(
             sorted(b["kind"] for b in blockers),
             ["dfm_hole_clearance", "pcb_autorouting_error"],
+        )
+
+    def test_the_second_substrate_can_also_ask_for_a_retry(self) -> None:
+        """KiCad's verdict is one kind carrying every DRC type in its text.
+
+        Measured 2026-08-11: an rp2040-core board came back with five blocking
+        findings, *all five* of them `drc_violation`, and the escalation never
+        fired — the kind was not in the routing set, and the type tag that
+        would have said "route it differently" was inside the message. A
+        routing failure was being reported and nothing was listening.
+        """
+        from circuitpy import generation
+
+        blockers = generation._routing_blockers([
+            {"severity": "error", "kind": "drc_violation",
+             "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; "
+                       "actual 0.0778 mm)"},
+            {"severity": "error", "kind": "drc_violation",
+             "detail": "[shorting_items] Items shorting two nets"},
+            {"severity": "error", "kind": "drc_violation",
+             "detail": "[hole_clearance] Hole clearance violation"},
+            # A via the router dropped in a pad is routing; a part off the
+            # board is not, even though both arrive as pcb_placement_error.
+            {"severity": "error", "kind": "pcb_placement_error",
+             "detail": "Via at (-26.55mm, -28.14mm) is inside SMD pad C8.pin2"},
+            {"severity": "error", "kind": "pcb_placement_error",
+             "detail": "U3 is outside the board outline"},
+            # KiCad findings a harder route cannot touch.
+            {"severity": "error", "kind": "drc_violation",
+             "detail": "[lib_footprint_mismatch] Footprint differs from library"},
+            {"severity": "error", "kind": "drc_violation",
+             "detail": "[duplicate_footprints] Duplicate footprint"},
+        ])
+        self.assertEqual(
+            [b["detail"].split(" ")[0] for b in blockers],
+            ["[clearance]", "[shorting_items]", "[hole_clearance]", "Via"],
         )
 
     def test_effort_is_injected_once_and_never_over_the_author(self) -> None:

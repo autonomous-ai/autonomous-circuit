@@ -92,4 +92,91 @@ export const GndPour = (props: {
   />
 )
 
+/**
+ * The debug interface, landed on copper a probe can reach.
+ *
+ * An MCU block brings SWCLK and SWD out as nets. If nothing terminates them
+ * the board is assembled, powered, and **cannot be programmed or halted** —
+ * every block on it is individually correct and the finished device is a
+ * paperweight. That was true of all three example boards on 2026-08-11
+ * (`review_debug_unreachable`), which is the signature of a defect that has to
+ * be closed by construction rather than by a note in a README.
+ *
+ * Three pads, not two: a probe needs a ground reference, so GND ships with the
+ * pair. 2.54mm pitch means a 3-pin header solders straight on when somebody
+ * wants one, and 1mm circular pads take a pogo or a clip when nobody does.
+ * Pads, not plated holes — no drills, no keepouts, no assembly line cost.
+ *
+ * **Put it in open board space, not inside the MCU block.** Measured both ways
+ * on 2026-08-11: three pads inside `rp2040-core`'s own box send the debug pair
+ * through the crystal cluster and the router comes back with a via shorted
+ * into the QFN pad field; outboard of the flash, the same design is
+ * `fab.ready`. A debug port is board furniture, which is why it lives here
+ * beside `MountingHole` rather than inside a block.
+ *
+ * Default refdes `TP1`-`TP3`, reserved for this in the global v1 allocation.
+ */
+export const DebugPort = (props: {
+  /** Refdes for the first pad; the rest count up. */
+  prefix?: string
+  /** Nets to land, in order. Defaults to the SWD trio. */
+  nets?: string[]
+  /**
+   * Silkscreen beside each pad. Short on purpose: the fab floor is a 1.0mm
+   * character height and a 5-character label at that size is wider than the
+   * 2.54mm pitch, so full net names would print over each other.
+   */
+  labels?: string[]
+  /** Pad spacing in mm. 2.54 takes a 0.1" header. */
+  pitch?: number
+  padDiameter?: number
+  pcbX?: number
+  pcbY?: number
+  /** 90 lays the pads up the board instead of across it. */
+  pcbRotation?: number
+  schX?: number
+  schY?: number
+}) => {
+  const prefix = props.prefix ?? "TP"
+  const nets = props.nets ?? ["SWCLK", "SWD", "GND"]
+  const labels = props.labels ?? ["CLK", "DIO", "GND"]
+  const pitch = props.pitch ?? 2.54
+  const diameter = props.padDiameter ?? 1.0
+  const first = -((nets.length - 1) * pitch) / 2
+  return (
+    <group
+      pcbX={props.pcbX ?? 0}
+      pcbY={props.pcbY ?? 0}
+      pcbRotation={props.pcbRotation ?? 0}
+      schX={props.schX ?? 0}
+      schY={props.schY ?? 0}
+    >
+      {nets.flatMap((net, i) => {
+        const name = `${prefix}${i + 1}`
+        return [
+          <testpoint
+            key={name}
+            name={name}
+            footprintVariant="pad"
+            padShape="circle"
+            padDiameter={`${diameter}mm`}
+            pcbX={first + i * pitch}
+            pcbY={0}
+            schX={i * 2}
+            schY={0}
+          />,
+          <trace key={`${name}_t`} name={`TR_${name}`} from={`.${name} > .pin1`} to={`net.${net}`} />,
+          <silkscreentext
+            key={`${name}_s`}
+            text={labels[i] ?? net}
+            pcbX={first + i * pitch}
+            pcbY={-1.7}
+            fontSize={1}
+          />,
+        ]
+      })}
+    </group>
+  )
+}
+
 export { NPTH_TO_COPPER_MM }

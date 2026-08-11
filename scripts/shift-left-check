@@ -111,6 +111,72 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/golden-blocks/blocks/rp2040-core/rp2040-core.tsx",
         r"(?i)crystal|Y1",
     ),
+    (
+        8,
+        "there is a helper that lands SWCLK/SWD on copper a probe can reach",
+        "packages/golden-blocks/blocks/glue.tsx",
+        r"export const DebugPort",
+    ),
+    (
+        21,
+        "a new project's first board declares the router effort it needs",
+        "skills/circuitcode/templates/project_skeleton/boards/main.tsx",
+        r'autorouterEffortLevel="5x"',
+    ),
+    (
+        21,
+        "every golden block is judged at that same effort",
+        "packages/golden-blocks/tests/test_gauntlet.py",
+        r"autorouterEffortLevel=.5x.",
+    ),
+    (
+        22,
+        "a via's drill is measured against copper, at JLC's via figure",
+        "packages/circuitpy/src/circuitpy/fab.py",
+        r"min_via_to_copper_mm",
+    ),
+    (
+        23,
+        "a slot drill is measured as a slot, not as a circle",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def _stadium",
+    ),
+    (
+        24,
+        "the hole rule exempts the hole's own net, and the corpus pins it both ways",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r"hole-rule-applied-to-the-hole-s-own-pad",
+    ),
+    (
+        25,
+        "the router halo does not push a connector away from the board edge",
+        "skills/circuitcode/circuitlib/layout.py",
+        r"face = EDGE_MARGIN_MM if edge else margin",
+    ),
+    (
+        26,
+        "footprint IoU is not graded through a rotation the metric cannot see",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r"footprint-iou-graded-through-a-rotation",
+    ),
+    (
+        26,
+        "the corpus harness actually runs the IoU bander",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r"checks\.iou_warnings\(elements, PROFILE\)",
+    ),
+]
+
+#: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)
+#: The other half of a landed fix: a constant only has one owner while nobody
+#: writes the number down again. #15 was three copies of 0.25mm.
+BANNED_LITERALS: list[tuple[int, str, str, str]] = [
+    (
+        15,
+        "the pour margin is never a copied literal — one owner, POUR_CUTOUT_MARGIN_MM",
+        "**/*.tsx",
+        r'cutoutMargin="0\.\d+mm"',
+    ),
 ]
 
 
@@ -148,6 +214,20 @@ def main() -> int:
         else:
             print(f"  MISSING  #{num}  {what}\n           {rel} no longer matches /{pattern}/")
             missing += 1
+
+    for num, what, glob, pattern in BANNED_LITERALS:
+        hits = [
+            path for path in sorted(REPO.glob(glob))
+            if "node_modules" not in path.parts and ".circuit" not in path.parts
+            and re.search(pattern, path.read_text(errors="replace"))
+        ]
+        if hits:
+            print(f"  BACK     #{num}  {what}")
+            for path in hits:
+                print(f"           {path.relative_to(REPO)} matches /{pattern}/")
+            missing += 1
+        else:
+            print(f"  ok       #{num}  {what}")
 
     rows = open_entries()
     if rows:

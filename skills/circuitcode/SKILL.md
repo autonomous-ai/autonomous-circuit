@@ -39,6 +39,22 @@ Four habits, applied without being asked:
 4. **Leave the enclosure something to hold.** At least two mounting holes on a
    pitch you state, connectors on one edge, and a board outline inside the
    declared envelope. This board is going inside a 3D-printed body.
+5. **Land the debug interface.** An MCU block brings SWCLK/SWD out as nets and
+   terminates neither. If nothing does, the assembled board cannot be halted,
+   single-stepped or recovered from a bad image — every part on it correct and
+   the product useless. `board_plan().must_expose` names the nets; `DebugPort`
+   from `blocks/glue` lands them on three 2.54mm pads. Put it in open board
+   space, not inside the MCU block: three pads inside `rp2040-core`'s own box
+   route the debug pair through the crystal cluster and the router comes back
+   with a via shorted into the QFN pad field (measured 2026-08-11).
+6. **Say what routing effort the board needs.** `autorouterEffortLevel="5x"` is
+   the floor on every board; go to `"10x"` while the router is still missing
+   its own clearances. The same rp2040-core board is `fab.ready: false` with
+   five blocking KiCad findings at the default effort and `fab.ready: true`
+   with zero at `"5x"` — same design, only this prop changed. The pipeline's
+   own escalation cannot rescue it: that gate reads circuit.json, and
+   clearance and shorting verdicts only exist after the KiCad cross-check has
+   run, so the effort has to be declared rather than discovered.
 
 ## Treat the device as a project
 
@@ -143,6 +159,30 @@ with unverified gerbers (`gerberSource: "tscircuit"`, kicad-cli absent) is
 `fab.ready: false` and therefore unfinished, even with zero warnings — a user
 cannot send it to a fab, so it is not a board yet.
 
+### `fab.ready: true` is a floor. Never trade it for a tidier verdict.
+
+**Once a build reports `fab.ready: true`, no later change may lose it.** If a
+fix for a non-blocking finding costs readiness, **revert the fix** and report
+the finding as accepted, with its measurement, in the final response.
+
+This is not hypothetical. On the 2026-08-11 agent eval, `macropad-6` was
+`fab.ready: true` on its **first** build and `false` after five repair rounds:
+the loop chased findings that were never blocking anything and gave away the
+board the user had already got. `usb-blinky` on the same run went ready →
+ready over three rounds, so it is not inevitable — but once is enough, because
+it is the worst failure available to this skill.
+
+The router has had the right instinct all along: stage 0b keeps an escalated
+route **only when it has strictly fewer blocking warnings**. Apply the same
+rule one level up.
+
+- After every build, compare `fab.ready` with the previous build's.
+- `true` → `false` is a **regression, not progress**. Undo the change that
+  caused it before doing anything else, and say what you reverted and why.
+- A warning or an info finding is never worth an orderable board. "Zero
+  findings" is not the goal; **orderable** is the goal, and the finding count
+  is only ever evidence about it.
+
 **Aim to earn it on build #1.** Every repair round is a defect that should have
 been prevented before the first build: read the BLOCK.md files, use
 `circuitlib.layout.place_board()` for the outline, placement and mounting
@@ -167,7 +207,7 @@ spec the user can approve or redirect:
    the mounting holes go, and whether it fits `product.json`'s envelope.
 6. **Cost band** — `circuitlib.helpers.estimate_cost()` plus the parts total
    from the lock. Quote the assembled-5x band, not a fantasy unit price.
-7. **Safety verdict** — run `circuitlib.safety.safety_gate()` on the ask. If it
+8. **Safety verdict** — run `circuitlib.safety.safety_gate()` on the ask. If it
    refuses, the plan is the refusal and the reason. Don't design around it.
 
 ### Where the numbers come from — the tables own them
@@ -347,6 +387,13 @@ Soft cap: `tables.MAX_REPAIR_ITERATIONS` (4). Past that you are guessing at
 taste rather than fixing a fault — go back to the user with what is wrong and
 what you would trade to fix it.
 
+**And a hard floor underneath the cap: a round may leave the board no worse
+than it found it.** Once any build has reported `fab.ready: true`, the moment
+a later build reports `false` you have made the board worse — stop, revert
+that change, and report the finding you were chasing as accepted. `macropad-6`
+went ready → not-ready over five rounds on the 2026-08-11 eval doing exactly
+this. Polishing is not free; it is paid for with the thing the user wanted.
+
 ### 9. Hand it to the panel — always
 
 The moment `fab.ready` is `true`, run the **design-review** skill. It is the
@@ -370,17 +417,20 @@ defect in your turn, not a shortcut.
    exactly the same as `fab.ready: false` from a DRC error: the user cannot
    send it to JLCPCB, so it is not a board yet. Report it as unfinished and say
    the one thing that is missing. (See *Done means orderable* below.)
-6. **Never declare done without having Read both review images.**
-7. **Never call a packet orderable when `fab.ready` is false.** No kicad-cli
+6. **Never lose a `fab.ready: true` you already had.** It is a floor, not a
+   score to improve on. A change that turns orderable into not-orderable gets
+   reverted, and the finding it was chasing gets reported as accepted.
+7. **Never declare done without having Read both review images.**
+8. **Never call a packet orderable when `fab.ready` is false.** No kicad-cli
    means unverified gerbers — say that plainly instead of implying shippable.
-8. **Never edit generated artifacts or `parts.json`.**
-9. **Never add an `@tsci/…` registry import**, and never a `footprint="jlcpcb:…"`
+9. **Never edit generated artifacts or `parts.json`.**
+10. **Never add an `@tsci/…` registry import**, and never a `footprint="jlcpcb:…"`
    or `"kicad:…"` string — both fetch over the network at build time, which
    makes the same source produce different boards on different days.
-10. **Absolute paths in every tool call.** Your cwd is not the workspace.
-11. **Report estimates as estimates.** Cost, current draw, and lead time are
+11. **Absolute paths in every tool call.** Your cwd is not the workspace.
+12. **Report estimates as estimates.** Cost, current draw, and lead time are
     modelled, not measured.
-12. **Run the generator before you say anything is finished.** A board you have
+13. **Run the generator before you say anything is finished.** A board you have
     not built is a board you have not designed.
 
 ## Helper library (`circuitlib`)

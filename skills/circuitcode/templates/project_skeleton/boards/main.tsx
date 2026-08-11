@@ -26,8 +26,25 @@ import { MountingHole } from "../blocks/glue"
 export default () => (
   <board
     width="56mm" height="40mm" thickness={1.6}
+    /* Measured 2026-08-11: the same rp2040-core board is fab.ready=false with
+       five blocking KiCad findings at the router's default effort and
+       fab.ready=true with zero at "5x" — same design, same day, only this
+       prop changed. The default effort is not good enough to order a board
+       from, and the pipeline's own escalation cannot rescue it: that gate
+       reads circuit.json, and these findings only exist after the KiCad
+       cross-check runs. So every board declares the effort it needs. */
+    autorouterEffortLevel="5x"
     minTraceWidth="0.2mm"
-    minViaPadDiameter="0.6mm"
+    /* Via pad 0.50mm on a 0.30mm drill, not 0.60mm. Measured 2026-08-11: the
+       router's remaining clearance misses were all via-to-pad and all within
+       0.02mm of the floor — 0.0803mm from a USB-C signal pad, 0.0940mm from a
+       decoupling cap, against JLC's 0.10mm. A 0.10mm smaller pad buys 0.05mm
+       on every side of every via, which clears both with room. The cost is
+       the annular ring: 0.10mm instead of 0.15mm, which is exactly the figure
+       our own fab profile calls the recommended via ring (warn_via_annular_mm)
+       and well above the 0.075mm it blocks at. Half a ring for a whole
+       clearance is the right trade on a 2-layer board this dense. */
+    minViaPadDiameter="0.5mm"
     minViaHoleDiameter="0.3mm"
   >
     {/* power entry: USB-C -> V5 */}
@@ -47,5 +64,12 @@ export default () => (
         GndPour for the same reason on the pour side. */}
     <MountingHole name="H1" diameter={3.2} pcbX={-25} pcbY={-17} />
     <MountingHole name="H2" diameter={3.2} pcbX={25} pcbY={17} />
+
+    {/* This board has no MCU, so it has no debug interface to land. Add an
+        MCU block and it will: `board_plan().must_expose` names the nets, and
+        `DebugPort` from blocks/glue is what lands them. An MCU whose SWCLK
+        and SWD reach no pad is a board that cannot be halted or recovered
+        once it is in a case — every block on it correct, the product
+        useless. */}
   </board>
 )

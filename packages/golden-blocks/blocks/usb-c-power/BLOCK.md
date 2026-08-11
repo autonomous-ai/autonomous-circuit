@@ -47,12 +47,15 @@ for logic rails. VBUS bulk capacitance kept at 10uF (USB 2.0 inrush limit).
   worst measured track-to-drill distance goes 0.115mm -> 0.894mm. It lives in
   the footprint so it travels with `pcbX`/`pcbY`/`pcbRotation` — placement
   cannot get it wrong, and there is nothing a composer has to remember.
-- **If your board pours copper, set `cutoutMargin` on the pour.** A pour cuts a
+- **If your board pours copper, use `GndPour` from `blocks/glue`.** A pour cuts a
   32-sided polygon around every hole, so the default 0.2mm margin measures
-  0.1976mm at the chord midpoints and the fab's DRC calls it a violation. Use
-  `<copperpour layer="bottom" connectsTo="net.GND" cutoutMargin="0.25mm" />`.
-  This is true of any board with any NPTH, not just this block — an M2.5
-  mounting hole under the 0.2mm default measures 0.193mm.
+  0.1976mm at the chord midpoints and the fab's DRC calls it a violation.
+  `GndPour` applies `POUR_CUTOUT_MARGIN_MM`, which is derived from the solver's
+  own segment count; a pour that needs its own outline should pass the same
+  constant rather than a copied number. This is true of any board with any
+  NPTH, not just this block — an M2.5 mounting hole under the 0.2mm default
+  measures 0.193mm. **The number lives in one place on purpose.** It was
+  written down in three, which is how two of them go stale.
 
 ## Provenance
 

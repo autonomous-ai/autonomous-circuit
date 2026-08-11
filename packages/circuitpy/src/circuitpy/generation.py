@@ -147,6 +147,14 @@ ROUTING_ERROR_KINDS = frozenset(
         "pcb_port_not_matched_error",
         "pcb_trace_not_connected_error",
         "pcb_trace_clearance_error",
+        # The router squeezing past a pad or a via it placed itself. Measured
+        # 2026-08-11: these were three of terminal-keyboard's six blocking
+        # errors and none of them escalated, because the set below listed the
+        # trace-to-trace kind and not the pad and via ones. A harder pass is
+        # exactly the remedy for all three.
+        "pcb_pad_trace_clearance_error",
+        "pcb_via_trace_clearance_error",
+        "pcb_via_clearance_error",
         # A track threaded 0.115mm past a drill is a routing choice: the router
         # does not model holes and takes the shortest path through the gap.
         # This is the finding that blocked all three example boards.
@@ -155,6 +163,48 @@ ROUTING_ERROR_KINDS = frozenset(
         "dfm_trace_clearance",
     }
 )
+
+#: KiCad's own verdict on the same class of defect. `drc_violation` is one
+#: kind carrying every DRC type in its text, so the kind alone cannot say
+#: whether a harder router would help — the type tag can. Measured
+#: 2026-08-11: an rp2040-core board came back with five blocking findings,
+#: *all five* of them `drc_violation`, and the escalation never fired because
+#: the kind was not in the set above. The second substrate was reporting a
+#: routing failure and nothing was listening.
+ROUTING_DRC_TYPES = frozenset(
+    {
+        "clearance",
+        "shorting_items",
+        "hole_clearance",
+        "hole_near_hole",
+        "track_dangling",
+        "via_dangling",
+        "unconnected_items",
+        "solder_mask_bridge",
+        "copper_edge_clearance",
+        "starved_thermal",
+    }
+)
+
+_DRC_TYPE_RE = re.compile(r"^\[(\w+)\]")
+
+
+def _is_routing_class(warning: dict) -> bool:
+    kind = warning.get("kind")
+    if kind in ROUTING_ERROR_KINDS:
+        return True
+    detail = str(warning.get("detail") or "")
+    # `pcb_placement_error` covers two unrelated things. A part hanging off
+    # the board is placement and a harder route cannot help; **a via the
+    # router dropped inside an SMD pad is routing** and it can. hydrate-coaster
+    # shipped one of these (`C8.pin2`, 2026-08-11) and never retried, because
+    # the kind alone said "placement".
+    if kind == "pcb_placement_error":
+        return detail.lower().startswith("via ")
+    if kind != "drc_violation":
+        return False
+    match = _DRC_TYPE_RE.match(detail)
+    return bool(match and match.group(1) in ROUTING_DRC_TYPES)
 
 _BOARD_TAG = re.compile(r"<board\b")
 
@@ -171,10 +221,21 @@ def _routing_escalation_off() -> bool:
 def _routing_blockers(warnings: Sequence[dict]) -> list[dict]:
     """The blocking warnings a harder routing pass could plausibly clear."""
     return [
-        w
-        for w in warnings
-        if w.get("severity") == "error" and w.get("kind") in ROUTING_ERROR_KINDS
+        w for w in warnings
+        if w.get("severity") == "error" and _is_routing_class(w)
     ]
+
+
+_EFFORT_RE = re.compile(r'autorouterEffortLevel\s*=\s*"([^"]+)"')
+
+
+def _declared_effort(board_source: Path) -> str | None:
+    """The effort the board's own source asks for, if it asks."""
+    try:
+        match = _EFFORT_RE.search(board_source.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return match.group(1) if match else None
 
 
 def _set_autorouter_effort(board_source: Path, effort: str) -> bool:
@@ -463,7 +524,11 @@ def build_board(
     # See the ROUTING_ESCALATION notes at the top of this module. One rung, one
     # rebuild, and the cheaper result stands unless the harder one is strictly
     # better — escalation may never make a board worse.
-    routing_effort = "default"
+    # What the *author* asked for, if anything. Reporting "default" for a
+    # board whose source says `autorouterEffortLevel="5x"` is a sidecar that
+    # disagrees with the board it describes, and it is how the same effort
+    # question got re-litigated twice.
+    routing_effort = _declared_effort(work / rel_entry) or "default"
     blocking_by_attempt = [
         sum(1 for w in warnings if w.get("severity") == "error")
     ]

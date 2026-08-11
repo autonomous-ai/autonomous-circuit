@@ -288,6 +288,40 @@ class Layout(unittest.TestCase):
         self.assertLess(bottom, -plan["height_mm"] / 2 + 2.6)
         self.assertGreater(bottom, -plan["height_mm"] / 2)
 
+    def test_the_router_halo_does_not_apply_to_a_connector_face(self) -> None:
+        """The halo and the connector answer different questions.
+
+        `ROUTER_HALO_MM` exists because `rp2040-core` alone, on a board sized
+        with a 1.5mm margin, put five vias outside the outline — the router
+        had nowhere to go. Applied to all four sides it also pushed
+        `usb-c-power`'s lowest copper 4.00mm inside the edge, which is a
+        socket no cable reaches. There is nothing to route in front of a
+        connector, so that side keeps the courtyard margin and the other
+        three keep the halo. Both halves are asserted here, together, because
+        fixing either one alone is what broke the other.
+        """
+        from circuitlib.layout import (
+            EDGE_MARGIN_MM, ROUTER_HALO_MM, box, place_board,
+        )
+
+        plan = place_board(["usb-c-power", "ldo-3v3", "status-led"])
+        x, y = plan["placements"]["usb-c-power"]
+        bottom = y + box("usb-c-power")[1]
+        self.assertAlmostEqual(
+            bottom - (-plan["height_mm"] / 2), EDGE_MARGIN_MM, places=1,
+            msg="the connector's face should sit on the courtyard margin",
+        )
+
+        # No connector on the board: every side keeps the full halo.
+        inner = place_board(["rp2040-core"])
+        ix, iy = inner["placements"]["rp2040-core"]
+        self.assertGreaterEqual(
+            round(iy + box("rp2040-core")[1] + inner["height_mm"] / 2, 2),
+            ROUTER_HALO_MM,
+        )
+        self.assertEqual(plan["warnings"], [])
+        self.assertEqual(inner["warnings"], [])
+
     def test_place_board_keeps_holes_off_the_footprints(self) -> None:
         """Corner holes on a board sized only for its parts land on a
         footprint. The strip is why the board grows sideways."""

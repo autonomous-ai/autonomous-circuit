@@ -77,6 +77,13 @@ class FabProfile:
     min_npth_to_copper_mm: float = 0.20
     min_pth_to_copper_mm: float = 0.28
     warn_pth_to_copper_mm: float = 0.35
+    # A via is a hole too, and JLC lists it separately: "Via hole to Track
+    # 0.2mm". Added 2026-08-11 after KiCad reported two hole-clearance
+    # violations at 0.132mm and 0.148mm on an rp2040-core board that our own
+    # stage-4 gate called clean — it only looked at component holes. That
+    # blindness has a second cost: the router escalation reads circuit.json,
+    # so a defect only KiCad can see arrives too late to retry the route.
+    min_via_to_copper_mm: float = 0.20
     # JLC holds 0.2mm copper-to-outline on a routed edge; 0.3mm is the
     # conservative figure for V-cut and bevelled edges. Blocking at 0.3 made a
     # ground pour impossible — the pour fills to exactly 0.2mm and cannot be
