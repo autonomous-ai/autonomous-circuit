@@ -38,6 +38,7 @@ const NET_CLASS_DOT = Object.freeze({
 
 const TONE_TEXT = Object.freeze({
   running: "text-amber-500",
+  quiet: "text-amber-500/70",
   done: "text-emerald-500",
   failed: "text-[#d75b6b]",
   stale: "text-[#ffd042]",
@@ -45,6 +46,7 @@ const TONE_TEXT = Object.freeze({
 
 const TONE_BAR = Object.freeze({
   running: "bg-amber-400",
+  quiet: "bg-amber-400/60",
   done: "bg-emerald-500",
   failed: "bg-[#d75b6b]",
   stale: "bg-[#ffd042]",
@@ -99,6 +101,9 @@ export default function BoardTreeSidebar({
   index = null,
   selection = null,
   buildStatus = null,
+  // Precomputed by the workspace, which knows whether a chat turn is live —
+  // the one fact that separates "quiet" from "stopped responding".
+  buildLine = null,
   boardStatusOf,
   boardLabelOf,
   onSelectBoard,
@@ -247,7 +252,10 @@ export default function BoardTreeSidebar({
     [currentProjectId, onOpenProject, onSelectBoard, onSelect, toggle],
   );
 
-  const statusLine = useMemo(() => buildStatusLine(buildStatus), [buildStatus]);
+  const statusLine = useMemo(
+    () => buildLine || buildStatusLine(buildStatus),
+    [buildLine, buildStatus],
+  );
 
   if (!open) {
     return (

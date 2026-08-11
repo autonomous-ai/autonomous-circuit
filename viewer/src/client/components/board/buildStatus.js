@@ -115,6 +115,14 @@ export function buildProgress(status) {
   return Math.min(1, index / count);
 }
 
+/** The pipeline writes epoch seconds; the browser thinks in ms. Anything big
+ *  enough to already be ms is left alone. */
+export function normalizeEpochMs(value) {
+  const n = Number(value) || 0;
+  if (!n) return 0;
+  return n > 1e11 ? n : n * 1000;
+}
+
 /** "3m 05s" / "48s" — compact enough for a one-line strip. */
 export function formatElapsed(seconds) {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
@@ -197,9 +205,18 @@ export function buildHistoryLine(history) {
  * passes `now`; `doneWindowMs` is how long it lingers). `failed` and `stale`
  * never expire — an unexplained stop is exactly the thing a user needs to see.
  *
- * @returns {{tone: "running"|"done"|"failed"|"stale", text: string, detail: string, progress: number}|null}
+ * **Stale, with the turn still running, is not a hang.** The server calls a
+ * record stale after two minutes without a stage transition, and the pipeline
+ * writes one only *between* stages — so a compile that legitimately runs longer
+ * than two minutes (an RP2040 board does; the 5× router retry runs for fifteen)
+ * is reported as "stopped responding" while it is working perfectly. Watching a
+ * real build produced exactly that false alarm. When a chat turn is still in
+ * flight the honest line is "still on this stage, nothing reported for N" —
+ * quiet, not dead. With no turn running, a stale record means what it says.
+ *
+ * @returns {{tone: "running"|"quiet"|"done"|"failed"|"stale", text: string, detail: string, progress: number}|null}
  */
-export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_000 } = {}) {
+export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_000, turnActive = false } = {}) {
   if (!status || !status.state) return null;
   const progress = buildProgress(status);
   const stage = String(status.stageLabel || status.stage || "").trim();
@@ -232,6 +249,15 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
     };
   }
   if (status.state === "stale") {
+    if (turnActive) {
+      const quietMs = Math.max(0, now - normalizeEpochMs(status.updatedAt));
+      return {
+        tone: "quiet",
+        text: stage || "Building",
+        detail: quietMs ? `quiet for ${formatElapsed(quietMs / 1000)}` : "no progress reported",
+        progress,
+      };
+    }
     return {
       tone: "stale",
       text: "Build stopped responding",
@@ -240,9 +266,7 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
     };
   }
   if (status.state === "done") {
-    const updatedAt = Number(status.updatedAt) || 0;
-    // updatedAt is epoch ms if it is large enough to be one, else seconds.
-    const updatedMs = updatedAt > 1e11 ? updatedAt : updatedAt * 1000;
+    const updatedMs = normalizeEpochMs(status.updatedAt);
     if (updatedMs && now - updatedMs > doneWindowMs) return null;
     const elapsed = Number.isFinite(Number(status.elapsedS)) ? formatElapsed(status.elapsedS) : "";
     return {

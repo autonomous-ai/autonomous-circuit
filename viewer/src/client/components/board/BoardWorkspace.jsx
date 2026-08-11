@@ -367,11 +367,17 @@ export default function BoardWorkspace({
   // listed on the What-it-does tab, from the same derivation.
   const regions = useMemo(() => boardRegions(index), [index]);
 
-  const buildLine = useMemo(() => buildStatusLine(buildStatus), [buildStatus]);
+  // `turnActive` is what separates "quiet" from "dead": the pipeline reports
+  // only between stages, so a long compile looks stale while the agent is
+  // plainly still working.
+  const buildLine = useMemo(
+    () => buildStatusLine(buildStatus, { turnActive: turnInProgress }),
+    [buildStatus, turnInProgress],
+  );
   // Where the board came from. Null unless there is something honest to say —
   // one recorded round is not a trend.
   const historyLine = useMemo(() => buildHistoryLine(buildHistory), [buildHistory]);
-  const building = buildLine?.tone === "running";
+  const building = buildLine?.tone === "running" || buildLine?.tone === "quiet";
 
   const layers = useMemo(() => {
     const list = index?.layers || ["top", "bottom"];
@@ -790,6 +796,7 @@ export default function BoardWorkspace({
           index={index}
           selection={selection}
           buildStatus={buildStatus}
+          buildLine={buildLine}
           boardStatusOf={boardStatusOf}
           boardLabelOf={boardLabelOf}
           onSelectBoard={setSelectedFile}
@@ -1031,6 +1038,7 @@ export default function BoardWorkspace({
               <StartHere
               status={buildStatus}
               building={building || turnInProgress}
+              buildLine={buildLine}
               startedAt={runningTurnStartedAt}
               className="min-h-0 flex-1"
             />

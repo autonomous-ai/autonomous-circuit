@@ -196,3 +196,37 @@ test("partsCostUsd multiplies by placements and reports what it could not price"
   assert.equal(cost.complete, false);
   assert.equal(partsCostUsd([], null), null, "no parts.json means no invented number");
 });
+
+// --- a build that failed outranks the sidecar -------------------------------
+//
+// Seen in a real run: the tree said "Build stopped responding" while the
+// verdict strip three inches away said "No build to judge yet". Worse on a
+// project whose earlier build succeeded — a stale sidecar would have kept
+// saying "Ready to order" after a crash.
+
+test("a failed build is the verdict, even when an older sidecar says ready", () => {
+  const verdict = boardVerdict({
+    sidecar: { fab: { ready: true } },
+    groups: [],
+    buildLine: { tone: "failed", text: "Build failed", detail: "compile error" },
+  });
+  assert.equal(verdict.tone, "failed");
+  assert.match(verdict.headline, /last build failed/);
+  assert.match(verdict.line, /this is the build before it/);
+});
+
+test("a stopped build with no sidecar says nothing came out of it", () => {
+  const verdict = boardVerdict({ sidecar: null, buildLine: { tone: "stale", text: "", detail: "" } });
+  assert.equal(verdict.tone, "failed");
+  assert.match(verdict.line, /No board came out of it/);
+});
+
+test("a running build still outranks a failure line from the build before", () => {
+  const verdict = boardVerdict({ building: true, buildLine: { tone: "failed" } });
+  assert.equal(verdict.tone, "building");
+});
+
+test("with no build line the verdict is unchanged", () => {
+  assert.equal(boardVerdict({ sidecar: { fab: { ready: true } } }).tone, "ready");
+  assert.equal(boardVerdict({ sidecar: null }).tone, "unknown");
+});

@@ -39,10 +39,21 @@ function useElapsedS(startedAt, running) {
  * stages it is on, so the wait is a checklist that fills in — you can watch it
  * work, and if it stops you can see exactly where.
  */
-export default function StartHere({ status = null, building = false, startedAt = 0, className }) {
-  const running = building || String(status?.state || "") === "running";
+export default function StartHere({
+  status = null,
+  building = false,
+  startedAt = 0,
+  // The workspace's line, which already knows whether a chat turn is live. A
+  // stale record with a turn still running is a quiet stage, not a dead build —
+  // the pipeline reports only between stages and a compile can outlast the
+  // server's two-minute staleness window.
+  buildLine = null,
+  className,
+}) {
+  const quiet = buildLine?.tone === "quiet";
+  const running = building || quiet || String(status?.state || "") === "running";
   const failed = String(status?.state || "") === "failed";
-  const stale = String(status?.state || "") === "stale";
+  const stale = !quiet && String(status?.state || "") === "stale";
 
   // The pipeline's own start time once it has one; the turn's before that.
   // (`startedAt` is epoch ms if it is large enough to be one, else seconds —
@@ -130,6 +141,13 @@ export default function StartHere({ status = null, building = false, startedAt =
           <p className="text-xs leading-5 text-white/50">
             {String(status?.detail || "").trim() ||
               "No reason was recorded. Ask the chat to build it again — it will pick up from the source file."}
+          </p>
+        ) : quiet ? (
+          <p data-slot="build-quiet" className="text-xs leading-5 text-white/40">
+            Nothing has been reported for {buildLine?.detail?.replace(/^quiet for /, "") || "a while"}. Long stages
+            run silently — compiling a board with a microcontroller on it, and the router's harder second attempt,
+            both go quiet for many minutes. The chat on the right is still working; if it stops there too, ask it
+            what happened.
           </p>
         ) : (
           <p className="text-xs leading-5 text-white/40">

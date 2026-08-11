@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CircleCheck, CircleDashed, Loader2, TriangleAlert, Wrench } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
 
@@ -20,6 +20,12 @@ const TONE = {
     icon: Loader2,
     bar: "border-border/60 bg-card/40",
     dot: "text-muted-foreground animate-spin",
+    headline: "text-foreground",
+  },
+  failed: {
+    icon: CircleAlert,
+    bar: "border-destructive/40 bg-destructive/[0.07]",
+    dot: "text-destructive",
     headline: "text-foreground",
   },
   unknown: {
@@ -59,8 +65,8 @@ export default function BoardVerdict({
   className,
 }) {
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building }),
-    [sidecar, groups, building],
+    () => boardVerdict({ sidecar, groups, building, buildLine }),
+    [sidecar, groups, building, buildLine],
   );
   const tone = TONE[verdict.tone] || TONE.unknown;
   const Icon = tone.icon;
@@ -70,7 +76,7 @@ export default function BoardVerdict({
   // the build it is replacing — the numbers on screen are about to change.
   const line =
     verdict.tone === "building" && buildLine?.text
-      ? `${buildLine.text}${buildLine.detail ? ` · step ${buildLine.detail}` : ""}`
+      ? `${buildLine.text}${buildLine.detail ? ` · ${buildLine.detail}` : ""}`
       : verdict.line;
 
   const fixAll = () => {
@@ -129,7 +135,7 @@ export default function BoardVerdict({
         </button>
       ) : null}
 
-      {verdict.tone !== "building" ? (
+      {verdict.tone !== "building" && verdict.tone !== "failed" ? (
         <button
           type="button"
           onClick={() => onOpenTab?.("overview")}

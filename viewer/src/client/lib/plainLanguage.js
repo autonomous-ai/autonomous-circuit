@@ -397,16 +397,23 @@ export function plural(count, one, many = `${one}s`) {
  * The gate is `fab.ready` and nothing else. When the sidecar has not been read
  * yet we say so; we never fill the gap with an optimistic guess.
  *
- * @param {{sidecar?: object|null, groups?: Array<object>, building?: boolean}} input
+ * A build that *failed* is its own answer and outranks everything below it.
+ * Without this case the strip fell back to "No build to judge yet" while the
+ * tree three inches away said the build had stopped — seen in a real run, and
+ * worse still on a project whose earlier build succeeded, where a stale sidecar
+ * would have kept saying "Ready to order" after a crash.
+ *
+ * @param {{sidecar?: object|null, groups?: Array<object>, building?: boolean,
+ *          buildLine?: {tone: string, text: string, detail: string}|null}} input
  * @returns {{
- *   tone: "ready"|"blocked"|"building"|"unknown",
+ *   tone: "ready"|"blocked"|"building"|"failed"|"unknown",
  *   headline: string,
  *   line: string,
  *   blockingGroups: Array<object>,
  *   blockingCount: number,
  * }}
  */
-export function boardVerdict({ sidecar = null, groups = [], building = false } = {}) {
+export function boardVerdict({ sidecar = null, groups = [], building = false, buildLine = null } = {}) {
   const blockingGroups = (Array.isArray(groups) ? groups : []).filter((g) => g.blocking);
   const blockingCount = blockingGroups.reduce((sum, g) => sum + g.count, 0);
 
@@ -415,6 +422,20 @@ export function boardVerdict({ sidecar = null, groups = [], building = false } =
       tone: "building",
       headline: "Working on it",
       line: "The board is being designed and checked. This takes about a minute and a half.",
+      blockingGroups,
+      blockingCount,
+    };
+  }
+
+  const buildTone = String(buildLine?.tone || "");
+  if (buildTone === "failed" || buildTone === "stale") {
+    const why = String(buildLine?.detail || "").trim();
+    return {
+      tone: "failed",
+      headline: buildTone === "failed" ? "The last build failed" : "The last build stopped",
+      line: sidecar
+        ? `Nothing new was produced, so this is the build before it.${why ? ` ${why}.` : ""} Ask the chat to build it again.`
+        : `No board came out of it.${why ? ` ${why}.` : ""} Ask the chat to build it again.`,
       blockingGroups,
       blockingCount,
     };

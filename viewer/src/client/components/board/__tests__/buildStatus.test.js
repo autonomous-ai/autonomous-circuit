@@ -10,6 +10,7 @@ import {
   formatElapsed,
   isRunning,
   isTerminal,
+  normalizeEpochMs,
 } from "../buildStatus.js";
 
 test("the stage list is our design prelude plus the pipeline's seven, in order", () => {
@@ -173,4 +174,41 @@ test("no movement is reported as no movement", () => {
   });
   assert.equal(line.tone, "flat");
   assert.match(line.text, /unchanged across 2 builds/);
+});
+
+// --- quiet vs dead ----------------------------------------------------------
+//
+// The server calls a record stale after two minutes without a stage
+// transition, and the pipeline writes one only between stages. Watching a real
+// build, an ordinary RP2040 compile crossed that line and the app announced
+// "Build stopped responding" over a build that was working perfectly. The 5x
+// router retry runs fifteen minutes in one stage, so this is not an edge case.
+
+const STALE = {
+  state: "stale",
+  stage: "compile",
+  stageLabel: "Compiling the board",
+  stageIndex: 1,
+  stageCount: 7,
+  updatedAt: 1_700_000_000, // epoch SECONDS, the way the pipeline writes it
+};
+
+test("a stale record with a turn still running is quiet, not dead", () => {
+  const line = buildStatusLine(STALE, { now: 1_700_000_300_000, turnActive: true });
+  assert.equal(line.tone, "quiet");
+  assert.equal(line.text, "Compiling the board");
+  assert.match(line.detail, /quiet for 5m/);
+});
+
+test("a stale record with no turn running still means what it says", () => {
+  const line = buildStatusLine(STALE, { now: 1_700_000_300_000, turnActive: false });
+  assert.equal(line.tone, "stale");
+  assert.match(line.text, /stopped responding/);
+});
+
+test("epoch seconds and epoch milliseconds both normalise", () => {
+  assert.equal(normalizeEpochMs(1_700_000_000), 1_700_000_000_000);
+  assert.equal(normalizeEpochMs(1_700_000_000_000), 1_700_000_000_000);
+  assert.equal(normalizeEpochMs(0), 0);
+  assert.equal(normalizeEpochMs("nope"), 0);
 });

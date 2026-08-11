@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  CircleAlert,
   CircleCheck,
   CircleDashed,
   Loader2,
@@ -202,7 +203,10 @@ export default function OverviewTab({
   onOpenTab,
   className,
 }) {
-  const verdict = useMemo(() => boardVerdict({ sidecar, groups, building }), [sidecar, groups, building]);
+  const verdict = useMemo(
+    () => boardVerdict({ sidecar, groups, building, buildLine }),
+    [sidecar, groups, building, buildLine],
+  );
   const counts = useMemo(() => impactCounts(groups), [groups]);
   const roles = useMemo(() => plainParts(index), [index]);
   const cost = useMemo(() => partsCostUsd(parts, index), [parts, index]);
@@ -218,9 +222,11 @@ export default function OverviewTab({
       ? CircleCheck
       : verdict.tone === "blocked"
         ? TriangleAlert
-        : verdict.tone === "building"
-          ? Loader2
-          : CircleDashed;
+        : verdict.tone === "failed"
+          ? CircleAlert
+          : verdict.tone === "building"
+            ? Loader2
+            : CircleDashed;
 
   return (
     <div
@@ -238,7 +244,9 @@ export default function OverviewTab({
               ? "border-emerald-500/40 bg-emerald-500/[0.06]"
               : verdict.tone === "blocked"
                 ? "border-amber-500/40 bg-amber-500/[0.05]"
-                : "border-border/60 bg-card/30",
+                : verdict.tone === "failed"
+                  ? "border-destructive/40 bg-destructive/[0.06]"
+                  : "border-border/60 bg-card/30",
           )}
         >
           <div className="flex items-start gap-3">
@@ -249,7 +257,9 @@ export default function OverviewTab({
                   ? "text-emerald-500"
                   : verdict.tone === "blocked"
                     ? "text-amber-500"
-                    : "text-muted-foreground",
+                    : verdict.tone === "failed"
+                      ? "text-destructive"
+                      : "text-muted-foreground",
                 verdict.tone === "building" ? "animate-spin" : "",
               )}
               aria-hidden
