@@ -157,6 +157,19 @@ export default function BoardWorkspace({
   // record of the request in their own words, and quoting it is honest in a
   // way that paraphrasing it would not be. Absent for a project that was
   // imported rather than chatted into existence — the tab copes.
+  // When the live turn started. The pipeline reports its own elapsed time only
+  // once it exists, and the minutes before that are the ones that look hung.
+  const runningTurnStartedAt = useMemo(() => {
+    const list = Array.isArray(chatHistory) ? chatHistory : [];
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const turn = list[i];
+      if (turn.role === "assistant" && turn.status === "running" && Number(turn.startedAt)) {
+        return Number(turn.startedAt);
+      }
+    }
+    return 0;
+  }, [chatHistory]);
+
   const requestText = useMemo(() => {
     const first = (Array.isArray(chatHistory) ? chatHistory : []).find(
       (turn) => turn.role === "user" && String(turn.userText || "").trim(),
@@ -1015,7 +1028,12 @@ export default function BoardWorkspace({
             </>
           ) : (
             catalogHydrated || catalogError ? (
-              <StartHere status={buildStatus} building={building || turnInProgress} className="min-h-0 flex-1" />
+              <StartHere
+              status={buildStatus}
+              building={building || turnInProgress}
+              startedAt={runningTurnStartedAt}
+              className="min-h-0 flex-1"
+            />
             ) : (
               <div
                 data-slot="board-empty-state"

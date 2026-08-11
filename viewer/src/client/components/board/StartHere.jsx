@@ -1,6 +1,27 @@
+import { useEffect, useState } from "react";
 import { Check, CircleAlert, Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { buildProgress, buildStageChecklist, formatElapsed } from "./buildStatus.js";
+
+/**
+ * Seconds since the turn started, ticking.
+ *
+ * The pipeline's own `elapsedS` only exists once the pipeline exists, and the
+ * slow part is everything *before* that: watching a real build, the checklist
+ * sat on "Choosing parts and writing the board" for three minutes with no
+ * number anywhere on the pane. The chat sidebar had a live counter the whole
+ * time; the pane that is meant to be watchable had none.
+ */
+function useElapsedS(startedAt, running) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running || !startedAt) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running, startedAt]);
+  if (!startedAt) return 0;
+  return Math.max(0, (now - startedAt) / 1000);
+}
 
 /**
  * The stage before there is a board: the first sixty seconds.
@@ -18,16 +39,31 @@ import { buildProgress, buildStageChecklist, formatElapsed } from "./buildStatus
  * stages it is on, so the wait is a checklist that fills in — you can watch it
  * work, and if it stops you can see exactly where.
  */
-export default function StartHere({ status = null, building = false, className }) {
+export default function StartHere({ status = null, building = false, startedAt = 0, className }) {
   const running = building || String(status?.state || "") === "running";
   const failed = String(status?.state || "") === "failed";
   const stale = String(status?.state || "") === "stale";
+
+  // The pipeline's own start time once it has one; the turn's before that.
+  // (`startedAt` is epoch ms if it is large enough to be one, else seconds —
+  // the same normalisation buildStatusLine does for `updatedAt`.)
+  const pipelineStart = Number(status?.startedAt) || 0;
+  const clockFrom = pipelineStart
+    ? pipelineStart > 1e11
+      ? pipelineStart
+      : pipelineStart * 1000
+    : Number(startedAt) || 0;
+  // Above the early return: this component swaps between the pitch and the
+  // checklist, and a hook that only runs on one branch is a hook order change.
+  const ticking = useElapsedS(clockFrom, running);
 
   if (!running && !failed && !stale) return <Pitch className={className} />;
 
   const stages = buildStageChecklist(status);
   const pct = Math.round(buildProgress(status) * 100);
-  const elapsed = Number(status?.elapsedS);
+  // The pipeline's number once it has one, the turn's own clock before that.
+  const reported = Number(status?.elapsedS);
+  const elapsed = Number.isFinite(reported) && reported > 0 ? reported : ticking;
 
   return (
     <div
@@ -97,8 +133,9 @@ export default function StartHere({ status = null, building = false, className }
           </p>
         ) : (
           <p className="text-xs leading-5 text-white/40">
-            Choosing parts and writing the board is the slow part — a few minutes on a new design. The seven checks
-            after it take about ninety seconds. The schematic and the layout appear here the moment they are drawn.
+            Choosing parts and writing the board is the slow part — a few minutes on a new design, sometimes longer
+            if the router has to try harder. The seven checks after it take about ninety seconds. The schematic and
+            the layout appear here the moment they are drawn.
           </p>
         )}
       </div>
