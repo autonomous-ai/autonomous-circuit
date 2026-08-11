@@ -313,11 +313,15 @@ def fab_limits_doc() -> str:
         from circuitpy import fab as fab_mod  # type: ignore
 
         profile = fab_mod.get_profile("jlcpcb")
+        # Numbers only. Output filenames live on the same profile object and
+        # are not rules — asking an EE to check `bom.csv` wastes the attention
+        # we want on `min_pth_to_copper_mm`.
         fields = [
             (name, getattr(profile, name))
             for name in sorted(dir(profile))
             if not name.startswith("_")
-            and isinstance(getattr(profile, name, None), (int, float, str))
+            and isinstance(getattr(profile, name, None), (int, float))
+            and not isinstance(getattr(profile, name, None), bool)
         ]
         rows = "\n".join(f"| `{n}` | {v} |" for n, v in fields)
         source = "Read live from `circuitpy.fab.get_profile('jlcpcb')`."
