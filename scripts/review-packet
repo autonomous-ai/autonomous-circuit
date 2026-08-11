@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
-"""Build the packet a human electrical engineer signs before we launch.
+"""Build the packet our experts audit before we release the app.
 
 Run: scripts/review-packet [--out review-packet]
 
-## What this is for
+## What this is, and what it is not
 
-The tool's safety argument has one human-shaped hole in it. No deterministic
-check catches a wrong resistor value, a mirrored pinout, or swapped SDA/SCL,
-because every representation — schematic, PCB, 3D, gerbers, DRC — inherits the
-same wrong source and they all agree with each other. The design answer is that
-those values live inside golden blocks that **a human verified once**.
+**It is not a step in the product.** Autonomous Circuit produces fab-ready
+boards with no human in the loop: a user describes a gadget and orders the
+result, and no engineer signs anything along the way. That is the point of the
+tool, and this packet does not change it.
 
-As of writing, all nine blocks are `compile-verified`. Nobody has done the
-once. This packet is how that gets done, and it is why the blocks matter more
-than the boards: a board is one artifact, but a block is in every board anyone
-generates from now on.
+This is a one-time **audit of our engineering before launch** — our experts read
+what we built and say whether it is fit to put in front of strangers. It is the
+same shape as reviewing a compiler before shipping it: you audit the standard
+library once, at build time. You do not station a human beside every compile.
+
+## The question the reviewers are answering
+
+One question, in the end: *would you let a non-engineer use this unsupervised
+and order the boards it produces?*
+
+Everything here is evidence for or against that. The golden blocks carry the
+most weight, for two reasons. They are the foundation every generated board
+inherits — and they hold the one class of error our automated checking provably
+cannot see, because a wrong value or a mirrored pinout looks identical to a
+correct one in every render, export and DRC report, all of which derive from the
+same source. Auditing them once is how that foundation earns its trust. After
+that they are frozen, and no user ever touches them.
 
 ## The shape of the ask
 
-An EE asked "does this look right?" writes back "looks good", which is worth
-nothing and is nobody's fault — the question had no failure mode. So every
-sheet here asks questions that can come back **no**, each naming the specific
-thing to check against the specific authority (a datasheet, the fab's published
-capability table, a measurement).
+A reviewer asked "does this look right?" writes back "looks good", which is
+worth nothing and is the question's fault. So every sheet asks questions that
+can come back **no**, each naming a specific thing to check against a specific
+authority: a datasheet, the fab's published capability table, a measurement.
 """
 
 from __future__ import annotations
@@ -66,10 +77,12 @@ def block_sheet(block_id: str, block_md: str) -> str:
     """The per-block sign-off. This is the important one."""
     return f"""# Block sign-off — `{block_id}`
 
-**This block is in every board anyone generates that needs it.** An error here
-is not one bad board, it is a bad board every time, and it is the specific class
-of error our automated checks provably cannot catch. That is why your signature
-matters more here than on any individual board.
+**This block goes into every board a user generates that needs it**, unchanged —
+the AI composes blocks, it never edits them. So an error here is not one bad
+board, it is a bad board every time. It is also the specific class of error our
+automated checks provably cannot catch, which is why this sheet matters more
+than any individual board in the packet. Anything you find gets fixed once and
+is then right forever.
 
 Source: [`{block_id}.tsx`](./{block_id}.tsx) · Datasheet: [`BLOCK.md`](./BLOCK.md)
 
@@ -101,8 +114,8 @@ it as a default, because a user will never know to ask for it.
 ## Verdict
 
 - [ ] **Approved** — safe to compose into user boards as-is
-- [ ] **Approved with changes** — listed above, must land before launch
-- [ ] **Rejected** — do not ship this block
+- [ ] **Approved with changes** — listed above, must land before release
+- [ ] **Rejected** — do not release with this block in the catalog
 
 Reviewer: ______________________  Date: ____________
 
@@ -128,10 +141,10 @@ def board_sheet(name: str, sidecar: dict, errors: list[dict]) -> str:
                 f"- `{e.get('kind')}` — {e.get('part') or 'board'}: {e.get('detail')}"
                 for e in errors
             )
-            + "\n\nWe are not asking you to approve this board for manufacture "
-            "while these stand. Review it for everything else, and tell us "
-            "whether the blocking list is complete — a finding we are missing "
-            "is worth more to us than a finding we already have."
+            + "\n\nWe already know about these, so there is nothing to approve "
+            "here yet. What we want from you is whether the blocking list is "
+            "**complete** — a defect we are missing is worth far more to us "
+            "than one we have already found."
         )
     else:
         status = (
@@ -175,7 +188,7 @@ if any of it looks like a real defect we have talked ourselves out of.
 
 | # | Question | Verdict |
 |---|---|---|
-| 1 | Would you **send this to a fab** with your name on it? | yes / **no** |
+| 1 | Would you let a **non-engineer** order this unsupervised? | yes / **no** |
 | 2 | When it arrives, will it **power up**? Rails, sequencing, brown-out, boot straps. | yes / **no** |
 | 3 | Can it be **brought up and debugged** — test points, reset access, an LED that proves power? | yes / **no** |
 | 4 | Will the **assembly house** build it right first time — rotations, polarity marks, part availability? | yes / **no** |
@@ -203,44 +216,52 @@ def approval_doc(boards: list[tuple[str, int]], block_ids: list[str]) -> str:
         for name, n in boards
     )
     block_rows = "\n".join(
-        f"| [`{b}`](blocks/{b}/REVIEW.md) | compile-verified — **never checked by a human** |"
+        f"| [`{b}`](blocks/{b}/REVIEW.md) | frozen · composed into user boards unchanged |"
         for b in block_ids
     )
 
-    return f"""# Autonomous Circuit — engineering approval before launch
+    return f"""# Autonomous Circuit — expert review before we release the app
 
-We are about to ship a tool that lets people who are not electrical engineers
-design circuit boards by describing them, and order those boards. Before it goes
-out, we want an EE signature on it.
+We built a tool that lets people who are not electrical engineers design a
+circuit board by describing it, and order the result. **It runs with no engineer
+in the loop** — that is the product, not a gap in it. A user types what they
+want, approves a plan, and receives a fab packet.
 
-**The most important thing in this packet is not the three boards — it is the
-nine blocks.** A board is one artifact. A block is in every board any user
-generates from now on, and blocks are where the errors live that our automated
-checking provably cannot see.
+We are asking you to audit that work before we put it in front of strangers.
 
-## Why the blocks carry the risk
+## The question
 
-No deterministic check catches a wrong resistor value, a mirrored pinout, or
-swapped SDA/SCL. Every representation we produce — schematic, PCB render, 3D,
-gerbers, DRC report — is derived from the same source, so when that source is
-wrong they all agree with each other, confidently, and the board is beautiful
-and does not work. You find out in two weeks when the boards arrive.
+> **Would you let a non-engineer use this unsupervised and order the boards it
+> produces?**
 
-Our answer is that these values are not generated per board. They live in nine
-frozen blocks that the AI composes and never edits. That answer is only as good
-as the one-time human check behind it — **and that check has not happened yet.**
-Every block below says `compile-verified`, which means it builds, not that it is
-correct.
+Everything below is evidence for or against that one question. A "no" with a
+reason is the most useful thing you can send back.
 
-That is the hole this packet exists to close.
+To be explicit about what this review is *not*: it is not a step in the product,
+and nobody is proposing an engineer sign off on user boards. This is the same
+shape as reviewing a compiler before shipping it — you audit the standard
+library once, at build time; you do not station a human beside every compile.
 
-## Four things to approve, in order of how much they matter
+## Five things to look at, in order of how much they matter
 
-### 1. The nine golden blocks ← the important one
+### 1. The nine golden blocks ← the foundation
 
-| Block | Current status |
+| Block | Role |
 |---|---|
 {block_rows}
+
+**Why these carry the most weight.** No deterministic check catches a wrong
+resistor value, a mirrored pinout, or swapped SDA/SCL — every representation we
+produce (schematic, PCB render, 3D, gerbers, DRC report) derives from the same
+source, so when the source is wrong they all agree with each other, confidently.
+The board looks perfect and does not work, and you find out in two weeks.
+
+Our answer to that class of error is that these values are never generated. They
+live in nine frozen blocks the AI composes and never edits, so the risk
+concentrates here instead of spreading across every board. **That design is only
+as good as this audit** — which is why the blocks come before the boards.
+Whatever you find gets fixed once and is then correct in every board the tool
+ever produces.
 
 Each folder has the source, the block's datasheet, and a sign-off sheet asking
 specific questions against the manufacturer's datasheet. Please check against
@@ -257,17 +278,39 @@ Please check them against JLCPCB's published capabilities.
 [`rules/safety-envelope.md`](rules/safety-envelope.md) is what the tool refuses
 to design, at planning time, before anything is built.
 
-### 3. The three example boards
+### 3. Three boards the tool produced
 
 | Board | State |
 |---|---|
 {board_rows}
 
-Each folder has gerbers, BOM, CPL, a KiCad project you can open and run your own
-DRC on, and the full finding list. **Please run your own DRC** — where your tool
-and ours disagree is the most valuable thing this review can produce.
+These are evidence, not deliverables — nobody is asking you to approve three
+boards. They are here because they are the only way to see what the tool
+actually emits, end to end, on real products we intend to build.
 
-### 4. The claim we make to users
+Each folder has gerbers, BOM, CPL, a KiCad project you can open and run your own
+DRC on, and the full finding list. **Please run your own DRC.** Where your tool
+disagrees with ours is the single most valuable thing this review can produce,
+because it means one of us has a bug and we currently think it is not us.
+
+### 4. Whether it holds for boards nobody has designed
+
+Three good boards prove the tool works three times. Releasing it as an app is a
+claim about the boards a stranger will ask for next week, and that claim rests
+on two measured numbers rather than on these examples:
+
+- **Composition closure** — the share of legal block combinations that build
+  clean, each as a real board through the real pipeline. Every block passes
+  alone; this asks whether they pass *together*.
+- **First-build fab-ready rate** — the tool given briefs it has never seen, an
+  empty directory each, no human turn.
+
+Current values are in `docs/night-log-2026-08-11.md` and move daily. The
+question for you: **what would those numbers have to be before you would
+release this?** We would rather have your threshold now than argue about ours
+later.
+
+### 5. The claim we make to users
 
 The tool tells a user a board is "ready to order" when it has zero
 error-severity findings and gerbers independently produced by `kicad-cli` from
@@ -278,11 +321,13 @@ cannot evaluate a board themselves? If not, what is missing from it?
 
 - Not asking you to design anything, or to fix what you find. Finding it is the
   work; we will fix it.
-- Not asking you to review the software. The pipeline, the agents and the tests
-  are our problem.
+- Not asking you to read our code. Judge the engineering, not the
+  implementation — the pipeline, the agents and the tests are our problem.
 - Not asking for a rubber stamp. **A block you reject is a better outcome for us
   than a block you wave through**, because the first costs a week and the second
   ships in every board a stranger orders.
+- Not asking you to be in the loop afterwards. Once this is fixed and released,
+  the tool runs without an engineer, which is the entire point.
 
 ## How to record a verdict
 
@@ -434,7 +479,7 @@ def main() -> int:
 
     n_unready = sum(1 for _, n in boards if n)
     print(f"packet: {out}")
-    print(f"  {len(block_ids)} blocks, none human-verified yet")
+    print(f"  {len(block_ids)} blocks to audit")
     print(f"  {len(boards)} boards, {n_unready} with blocking findings")
     print(f"  start at {out / 'APPROVAL.md'}")
     return 0
