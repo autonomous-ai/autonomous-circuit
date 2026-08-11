@@ -127,11 +127,16 @@ function labelFor(role, count) {
 export function boardRegions(index) {
   const groups = Array.isArray(index?.groups) ? index.groups : [];
   const byKey = index?.componentBySourceId;
-  if (!groups.length || !byKey) return [];
+  if (!byKey) return [];
 
   // Only groups that own parts are areas. A bare `<group>` used to rotate a
   // child owns nothing and would draw an empty box over its child's box.
   const owning = groups.filter((group) => group.componentKeys.length > 0);
+  // A board whose compiler emitted no grouping at all still has parts, and
+  // "we found no areas" would read as "we found no board". One area covering
+  // everything is the honest degradation: the brain and its signals still
+  // trace, only the map is missing.
+  if (!owning.length) return wholeBoardRegion(index);
 
   // Merge identical siblings, but only past the threshold — see the header.
   const buckets = new Map();
@@ -187,6 +192,34 @@ export function boardRegions(index) {
   return regions.sort(
     (a, b) => rankOf(a.role) - rankOf(b.role) || boxArea(b.box) - boxArea(a.box),
   );
+}
+
+/** The fallback area: everything on the board, as one region. */
+function wholeBoardRegion(index) {
+  const components = Array.isArray(index?.components) ? index.components : [];
+  if (!components.length) return [];
+  let box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const component of components) box = unionBox(box, component.pcbBox);
+  const lead = leadComponent(components);
+  const role = lead ? partRole(lead).role : "other";
+  return [
+    {
+      id: "whole-board",
+      groupIds: [],
+      role,
+      label: "The whole board",
+      detail: describe({ lead, components, instances: 1 }),
+      instances: 1,
+      componentKeys: components.map((component) => component.key),
+      refdes: components
+        .map((component) => String(component.refdes || ""))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })),
+      box,
+      fromBoardFile: false,
+      lead: lead || null,
+    },
+  ];
 }
 
 function describe({ lead, components, instances }) {

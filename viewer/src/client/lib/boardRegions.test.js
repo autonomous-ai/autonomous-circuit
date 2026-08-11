@@ -85,6 +85,24 @@ test("an empty or absent index yields no regions rather than throwing", () => {
   assert.deepEqual(boardRegions(buildBoardIndex([])), []);
 });
 
+test("a board with no grouping at all still reads as one area, not as no board", () => {
+  // Strip every source_group. The parts are still there, so "we found no
+  // areas" would read as "we found no board" — the brain and its signals must
+  // still trace, only the map is missing.
+  const elements = fixtureBoard()
+    .filter((element) => element.type !== "source_group" && element.type !== "pcb_group")
+    .map((element) => {
+      if (element.type !== "source_component") return element;
+      const { source_group_id: _drop, ...rest } = element;
+      return rest;
+    });
+  const regions = boardRegions(buildBoardIndex(elements));
+  assert.equal(regions.length, 1);
+  assert.equal(regions[0].label, "The whole board");
+  assert.equal(regions[0].fromBoardFile, false);
+  assert.ok(regions[0].refdes.includes("U3"));
+});
+
 test("leadComponent prefers the loudest role, then the part with a real MPN", () => {
   const idx = index();
   const brain = idx.componentBySourceId.get("sc_u3");

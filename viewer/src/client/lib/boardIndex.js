@@ -549,6 +549,11 @@ export function buildBoardIndex(input) {
     group = {
       id,
       parentId: "",
+      // True only for a group the file actually declared. A group id that
+      // appears on a component but nowhere else tells us nothing about the
+      // tree, and guessing "root" from that would badge every block's parts as
+      // written-on-the-board.
+      declared: false,
       isRoot: false,
       pcbGroup: null,
       anchor: null,
@@ -564,12 +569,13 @@ export function buildBoardIndex(input) {
     const id = String(element.source_group_id || "");
     if (!id) continue;
     const group = ensureGroup(id);
+    group.declared = true;
     group.parentId = String(element.parent_source_group_id || "");
     // The board's own group is the one nothing else contains. Board-level
     // glue — the passives a composer wrote directly in the board file rather
     // than getting from a block — lands there, which is exactly what makes it
     // worth distinguishing from a block's group.
-    group.isRoot = !group.parentId;
+    group.isRoot = group.declared && !group.parentId;
   }
   for (const group of groups) {
     if (group.parentId && groupById.has(group.parentId)) {
