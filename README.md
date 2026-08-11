@@ -1,3 +1,5 @@
+<img width="2551" height="1319" alt="Autonomous Circuit" src="https://github.com/user-attachments/assets/1b7bd739-b3b3-4219-9b2f-73c6888a806f" />
+
 # Autonomous Circuit: chat with AI → a board you can order and build
 
 With Autonomous Circuit, designing a PCB is a conversation: describe the gadget, approve
