@@ -140,7 +140,7 @@ function StatusLine({ turn }) {
   return null;
 }
 
-export default memo(function ChatTurn({ turn, isLastTurn = false }) {
+export default memo(function ChatTurn({ turn, isLastTurn = false, turnActive = false }) {
   // A revert marker is its own kind of turn: a single centered, self-explaining
   // line ("↩ Reverted to <label>"), not an assistant message bubble. Render it
   // before the normal turn chrome so it stays visually distinct in the thread.
@@ -188,7 +188,7 @@ export default memo(function ChatTurn({ turn, isLastTurn = false }) {
   // A finished turn that did work and then said nothing leaves the reader
   // staring at a tool row with no idea whether to wait or type. See
   // turnStoppedWithoutAnswering.
-  const stoppedSilently = turnStoppedWithoutAnswering(turn, { isLastTurn });
+  const stoppedSilently = turnStoppedWithoutAnswering(turn, { isLastTurn, turnActive });
   return (
     <article
       data-slot="chat-turn"

@@ -4,6 +4,7 @@ import { ArrowDown } from "lucide-react";
 import { cn } from "@/ui/utils";
 import ChatTurn from "./ChatTurn";
 import { groupTurns } from "./chatHistoryModel";
+import { useChatStore } from "@/store/chat";
 
 const GROUP_GAP = 12;
 const GROUP_ESTIMATE_HEIGHT = 220;
@@ -30,6 +31,9 @@ export default function ChatHistory({
   const [showBackToBottom, setShowBackToBottom] = useState(false);
 
   const groups = useMemo(() => groupTurns(history), [history]);
+  // Work in flight means the conversation has not stopped, whatever the last
+  // hydrated turn looks like.
+  const turnActive = useChatStore((state) => state.turnInProgress);
   // The recovery card on a turn that stopped without replying is only true
   // while that turn is the last thing in the conversation. The driver resumes
   // a silent turn on its own ("Continue from where you left off"), so the card
@@ -248,6 +252,7 @@ export default function ChatHistory({
                     key={turn.id}
                     turn={turn}
                     isLastTurn={turn.id === lastTurnId}
+                    turnActive={turnActive}
                     onOpenArtifact={onOpenArtifact}
                   />
                 ))}

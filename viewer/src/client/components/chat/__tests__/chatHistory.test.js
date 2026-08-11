@@ -90,6 +90,11 @@ test("a stopped turn with anything after it is history, not a dead end", () => {
   };
   assert.equal(turnStoppedWithoutAnswering(stopped, { isLastTurn: true }), true);
   assert.equal(turnStoppedWithoutAnswering(stopped, { isLastTurn: false }), false);
+  // Reloading mid-build showed the other half: the resumed turn had not been
+  // written back to the session file yet, so the silent turn WAS the last one
+  // in the hydrated history while a board compiled on the other half of the
+  // screen. Work in flight means the conversation has not stopped.
+  assert.equal(turnStoppedWithoutAnswering(stopped, { isLastTurn: true, turnActive: true }), false);
 });
 
 test("a turn that closed with words, a plan or an error has said its piece", () => {

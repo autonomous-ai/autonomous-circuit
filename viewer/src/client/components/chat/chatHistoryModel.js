@@ -71,11 +71,14 @@ export function userVisibleText(content) {
  * The client cannot make the model finish. It can refuse to leave a stopped
  * turn looking like a running one, and it can hand back a next step.
  *
- * **Only while it is still the last word.** The driver resumes a silent turn
- * by itself ("Continue from where you left off"), so on a watched run the card
- * was still saying "it stopped without replying" three turns above the answer
- * it had gone on to give — an alarm about something that had already been
- * handled. A turn with anything after it is history, not a dead end.
+ * **Only while it is still the last word, and only when nothing is running.**
+ * The driver resumes a silent turn by itself ("Continue from where you left
+ * off"), so on a watched run the card was still saying "it stopped without
+ * replying" three turns above the answer it had gone on to give. Reloading
+ * mid-build showed the other half of the same bug: the resumed turn had not
+ * been written back to the session file yet, so the silent turn was the last
+ * one in the hydrated history while a board was compiling on the other half
+ * of the screen. A conversation with work in flight has not stopped.
  *
  * The test is what the turn's **last word** was. A turn whose final piece of
  * content is a tool call ended mid-flow — it ran something and never came
@@ -84,10 +87,12 @@ export function userVisibleText(content) {
  * still-running turn already reads as one.
  *
  * @param {{role?: string, status?: string, blocks?: Array<{kind?: string, text?: string}>}} turn
- * @param {{isLastTurn?: boolean}} [where] false once anything follows the turn
+ * @param {{isLastTurn?: boolean, turnActive?: boolean}} [where] `isLastTurn` is
+ *   false once anything follows the turn; `turnActive` is true while any turn
+ *   is still running
  */
-export function turnStoppedWithoutAnswering(turn, { isLastTurn = true } = {}) {
-  if (!isLastTurn) return false;
+export function turnStoppedWithoutAnswering(turn, { isLastTurn = true, turnActive = false } = {}) {
+  if (!isLastTurn || turnActive) return false;
   if (!turn || turn.role !== "assistant" || turn.status !== "complete") return false;
   const blocks = Array.isArray(turn.blocks) ? turn.blocks : [];
   // Scan back to the last block that carries content. Artifacts are recorded
