@@ -26,6 +26,13 @@ Three tiers, cheapest first:
 | `singles` | 9 | each block alone (duplicates `packages/golden-blocks/tests/test_gauntlet.py`; off by default) |
 | `pairs` | 36 | no two blocks break each other — the missing half |
 | `spine` | 9 | the realistic minimum board: USB-C in, 3V3 rail, one block |
+| `triples` | 84 | every three-block combination the planner can reach |
+
+Dee's budget rule, 2026-08-11: *"even if you send 1-day, 2-day or even 3-day to
+get the build right and verify everything, that's still better than waiting 2
+weeks from JLCPCB."* So the matrix is **exhaustive in compute and fast in
+wall-clock** — cover every cell, and run them all at once. Sampling is a last
+resort, and a sampled report says so on its face (`"sampled": true`).
 
 A failing cell is **never** fixed by teaching the agent a repair. It is fixed in
 the block, in ``circuitlib.layout``, or in the planner's defaults — so that no
@@ -126,6 +133,8 @@ def cells(tier: str) -> list[tuple[str, ...]]:
         out += [(b,) for b in ids]
     if tier in ("pairs", "all", "default"):
         out += [tuple(sorted(p)) for p in itertools.combinations(ids, 2)]
+    if tier in ("triples", "all"):
+        out += [tuple(sorted(c)) for c in itertools.combinations(ids, 3)]
     if tier in ("spine", "all", "default"):
         out += [
             tuple(sorted(set(SPINE) | {b})) for b in ids if b not in SPINE
@@ -135,6 +144,10 @@ def cells(tier: str) -> list[tuple[str, ...]]:
     unique = []
     for cell in out:
         if cell in seen or cell in KNOWN_UNSUPPORTED:
+            continue
+        # A superset of an illegal composition is illegal too: two USB-C
+        # entries stay two USB-C entries however many blocks join them.
+        if any(set(bad) <= set(cell) for bad in KNOWN_UNSUPPORTED):
             continue
         seen.add(cell)
         unique.append(cell)
@@ -158,6 +171,17 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
     ids = list(cell)
     width, height = layout.min_board_for(ids, columns=len(ids))
     centres = layout.place_row(ids)
+
+    # The placement helper must agree with itself before we pay for a build:
+    # a cell that fails here would fail as pcb_component_outside_board_error
+    # after 90 seconds of compute, and the bug would be in this file, not in
+    # the composition under test.
+    misfits = layout.board_fits(centres, width, height)
+    if misfits:
+        raise AssertionError(
+            "circuitlib.layout placed a block outside the board it sized: "
+            + "; ".join(m["detail"] for m in misfits)
+        )
 
     imports = "\n".join(
         f'import {{ {INSTANTIATION[b][0]} }} from "../blocks/{b}/{b}"'
@@ -229,6 +253,12 @@ def build_cell(cell: tuple[str, ...], keep: bool = False) -> dict:
             {
                 "status": "clean" if not blocking else "blocked",
                 "fabReady": bool(sidecar.get("fab", {}).get("ready")),
+                "autorouterEffort": sidecar.get("build", {}).get(
+                    "autorouterEffort", "default"
+                ),
+                "blockingByAttempt": sidecar.get("build", {}).get(
+                    "blockingByAttempt"
+                ),
                 "boardMm": [width, height],
                 "bomLines": sidecar.get("bom", {}).get("lines"),
                 "blocking": [
@@ -329,7 +359,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--tier",
         default="default",
-        choices=["singles", "pairs", "spine", "all", "default"],
+        choices=["singles", "pairs", "triples", "spine", "all", "default"],
     )
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--sample", type=int, default=None)

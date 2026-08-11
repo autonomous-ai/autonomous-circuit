@@ -25,10 +25,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import zipfile
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from circuitpy import checks
 from circuitpy import enclosure as enclosure_mod
@@ -94,6 +95,110 @@ def _parts_engine_off() -> bool:
         "false",
         "no",
     }
+
+
+# ---------------------------------------------------------------------------
+# Autorouter effort escalation.
+# ---------------------------------------------------------------------------
+#
+# The router has an effort dial — ``<board autorouterEffortLevel>``, one of
+# "1x" | "2x" | "5x" | "10x" | "100x" — and until 2026-08-11 we never set it,
+# so every board ever built routed at the default. Measured on
+# terminal-keyboard that day: "5x" took the same board, with no design change
+# at all, from **46 errors to 18**. Build time went 4:45 to about 17 minutes.
+#
+# The wrong fix is a higher fixed default: it would tax every simple
+# three-block board with twelve wasted minutes for a routing problem it does
+# not have. The right one is a ladder — build at the normal effort, and only
+# when the verdict comes back with *routing-class* errors, rebuild once at a
+# higher effort before admitting defeat. The user gets one shot; the pipeline
+# is allowed to try harder internally first.
+#
+# Two things this must not become:
+#
+# * **Silent.** A seventeen-minute build with no explanation is its own kind of
+#   bad, so the attempt is reported in the sidecar (``build.autorouterEffort``,
+#   ``build.blockingByAttempt``) and in the stdout result.
+# * **Unbounded.** Exactly one escalation, one level, one timeout. If it does
+#   not help, the cheaper result stands.
+#
+# Related measurement from the same board, recorded so nobody retries it:
+# raising ``minTraceWidth``/clearance props as a routing lever made things
+# *worse* (7 errors to 125). Those props gate the checker, not the router.
+
+ROUTING_ESCALATION_ENV = "CIRCUIT_ROUTING_ESCALATION"
+#: One rung. 10x/100x exist but the measured 5x gain is where the curve bends,
+#: and the time cost past it is not something a chat loop can absorb.
+ROUTING_ESCALATION_EFFORT = "5x"
+#: Bounded: 5x on the largest board we have takes ~17 minutes.
+ROUTING_ESCALATION_TIMEOUT_S = 1500.0
+
+#: Errors whose fix is "route it differently" — the only class a harder router
+#: pass can address. A placement overlap or a missing footprint is not here:
+#: escalating on those would burn twelve minutes to reproduce the same verdict.
+ROUTING_ERROR_KINDS = frozenset(
+    {
+        "pcb_autorouting_error",
+        "pcb_trace_error",
+        "pcb_trace_missing_error",
+        "pcb_port_not_connected_error",
+        "pcb_port_not_matched_error",
+        "pcb_trace_not_connected_error",
+        "pcb_trace_clearance_error",
+        # A track threaded 0.115mm past a drill is a routing choice: the router
+        # does not model holes and takes the shortest path through the gap.
+        # This is the finding that blocked all three example boards.
+        "dfm_hole_clearance",
+        "dfm_trace_width",
+        "dfm_trace_clearance",
+    }
+)
+
+_BOARD_TAG = re.compile(r"<board\b")
+
+
+def _routing_escalation_off() -> bool:
+    return (os.environ.get(ROUTING_ESCALATION_ENV) or "").strip().lower() in {
+        "off",
+        "0",
+        "false",
+        "no",
+    }
+
+
+def _routing_blockers(warnings: Sequence[dict]) -> list[dict]:
+    """The blocking warnings a harder routing pass could plausibly clear."""
+    return [
+        w
+        for w in warnings
+        if w.get("severity") == "error" and w.get("kind") in ROUTING_ERROR_KINDS
+    ]
+
+
+def _set_autorouter_effort(board_source: Path, effort: str) -> bool:
+    """Add ``autorouterEffortLevel`` to the mirrored board source.
+
+    Only ever touches the copy inside ``.circuit/build/`` — the user's file is
+    never rewritten, so "generated files are never hand-edited, nothing is
+    overwritten" still holds. Returns False when the author already set the
+    prop (their choice wins) or when the file has no ``<board>`` tag.
+    """
+    try:
+        text = board_source.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if "autorouterEffortLevel" in text or "routingDisabled" in text:
+        return False
+    patched, count = _BOARD_TAG.subn(
+        f'<board autorouterEffortLevel="{effort}"', text, count=1
+    )
+    if not count:
+        return False
+    try:
+        board_source.write_text(patched, encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -292,60 +397,135 @@ def build_board(
     build_args = ["build", rel_entry.as_posix(), "--schematic-png", "--pcb-png"]
     if _parts_engine_off():
         build_args.append("--disable-parts-engine")
-    try:
-        build_result = toolchain.run_cli(
-            build_args,
-            cwd=work,
-            timeout=max_build_s if max_build_s is not None else DEFAULT_BUILD_TIMEOUT_S,
-            check=False,
-        )
-    except TimeoutError as exc:
-        raise ToolchainError(str(exc)) from exc
-    except RuntimeError as exc:
-        raise ToolchainError(str(exc)) from exc
-
     built_dir = work / "dist" / rel_entry.parent / rel_entry.stem
     built_circuit_json = built_dir / "circuit.json"
-    if not built_circuit_json.is_file():
-        tail = build_result.output.strip()[-800:]
-        # A build that logged success but left nothing here means the CLI
-        # resolved `dist/` somewhere else — it walks up to the nearest
-        # package.json, so without an anchor it can escape the work dir
-        # entirely and we would report a compile failure for a board that
-        # compiled fine. Say which of the two actually happened.
-        if "✓" in build_result.output or "Done" in build_result.output:
-            raise CompileError(
-                f"tscircuit reported success for {rel_entry.as_posix()} but wrote "
-                f"no circuit.json under {built_dir} — the CLI resolved its output "
-                f"directory outside the work dir (it walks up to the nearest "
-                f"package.json). Output tail: {tail or 'none'}"
+
+    def _compile_once(timeout_s: float) -> list:
+        try:
+            build_result = toolchain.run_cli(
+                build_args, cwd=work, timeout=timeout_s, check=False
             )
-        raise CompileError(
-            f"tscircuit eval failed for {rel_entry.as_posix()} "
-            f"(exit {build_result.returncode}): {tail or 'no output'}"
-        )
-    try:
-        circuit_json = json.loads(built_circuit_json.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise CompileError(f"built circuit.json unreadable: {exc}") from exc
-    if not isinstance(circuit_json, list):
-        raise CompileError(
-            f"built circuit.json is not an element array "
-            f"(got {type(circuit_json).__name__})"
-        )
+        except TimeoutError as exc:
+            raise ToolchainError(str(exc)) from exc
+        except RuntimeError as exc:
+            raise ToolchainError(str(exc)) from exc
+
+        if not built_circuit_json.is_file():
+            tail = build_result.output.strip()[-800:]
+            # A build that logged success but left nothing here means the CLI
+            # resolved `dist/` somewhere else — it walks up to the nearest
+            # package.json, so without an anchor it can escape the work dir
+            # entirely and we would report a compile failure for a board that
+            # compiled fine. Say which of the two actually happened.
+            if "✓" in build_result.output or "Done" in build_result.output:
+                raise CompileError(
+                    f"tscircuit reported success for {rel_entry.as_posix()} but "
+                    f"wrote no circuit.json under {built_dir} — the CLI resolved "
+                    f"its output directory outside the work dir (it walks up to "
+                    f"the nearest package.json). Output tail: {tail or 'none'}"
+                )
+            raise CompileError(
+                f"tscircuit eval failed for {rel_entry.as_posix()} "
+                f"(exit {build_result.returncode}): {tail or 'no output'}"
+            )
+        try:
+            elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CompileError(f"built circuit.json unreadable: {exc}") from exc
+        if not isinstance(elements, list):
+            raise CompileError(
+                f"built circuit.json is not an element array "
+                f"(got {type(elements).__name__})"
+            )
+        return elements
+
+    def _scan(elements: list) -> list[dict]:
+        """Stages 1, 2 and 4a — everything judgeable straight off the geometry,
+        and therefore everything the escalation decision can be based on."""
+        found: list[dict] = []
+        found.extend(checks.harvest_circuit_json(elements))
+        found.extend(checks.run_tscircuit_checks(built_circuit_json))
+        found.extend(checks.iou_warnings(elements, profile))
+        found.extend(checks.dfm_warnings(elements, product, profile))
+        return found
+
+    first_timeout = (
+        max_build_s if max_build_s is not None else DEFAULT_BUILD_TIMEOUT_S
+    )
+    circuit_json = _compile_once(first_timeout)
 
     progress.stage("scan")
+    warnings: list[dict] = _scan(circuit_json)
 
-    # -- Stages 1-2: element scan + independent re-check. --------------------
-    warnings: list[dict] = []
-    warnings.extend(checks.harvest_circuit_json(circuit_json))
-    warnings.extend(checks.run_tscircuit_checks(built_circuit_json))
-    warnings.extend(checks.iou_warnings(circuit_json, profile))
+    # -- Stage 0b: escalate the router once, if routing is what is wrong. ----
+    # See the ROUTING_ESCALATION notes at the top of this module. One rung, one
+    # rebuild, and the cheaper result stands unless the harder one is strictly
+    # better — escalation may never make a board worse.
+    routing_effort = "default"
+    blocking_by_attempt = [
+        sum(1 for w in warnings if w.get("severity") == "error")
+    ]
+    escalation_note: dict | None = None
+    if _routing_blockers(warnings) and not _routing_escalation_off():
+        entry_copy = work / rel_entry
+        if _set_autorouter_effort(entry_copy, ROUTING_ESCALATION_EFFORT):
+            # Keep attempt 1's whole output directory — circuit.json *and* the
+            # review PNGs. Every downstream stage reads from built_dir, so
+            # "keep the better attempt" has to mean the files too, not just
+            # the parsed elements. Copying beats rebuilding: a third compile
+            # to undo a retry would cost more than the retry did.
+            kept = built_dir.with_name(built_dir.name + "__attempt1")
+            shutil.rmtree(kept, ignore_errors=True)
+            shutil.copytree(built_dir, kept)
+
+            progress.stage("compile")
+            budget = max(
+                ROUTING_ESCALATION_TIMEOUT_S,
+                max_build_s if max_build_s is not None else 0.0,
+            )
+            retry_json: list | None = None
+            retry_warnings: list[dict] = []
+            try:
+                retry_json = _compile_once(budget)
+                progress.stage("scan")
+                retry_warnings = _scan(retry_json)
+            except (ToolchainError, CompileError) as exc:
+                # Escalation is best-effort by construction: attempt 1 is
+                # already a real answer, so a failed retry is information,
+                # never a build failure.
+                escalation_note = checks.check_failed(
+                    f"the {ROUTING_ESCALATION_EFFORT} routing retry did not "
+                    f"finish ({exc}); reporting the default-effort build"
+                )
+
+            keep_retry = False
+            if retry_json is not None:
+                retry_blocking = sum(
+                    1 for w in retry_warnings if w.get("severity") == "error"
+                )
+                blocking_by_attempt.append(retry_blocking)
+                keep_retry = retry_blocking < blocking_by_attempt[0]
+
+            if keep_retry:
+                circuit_json = retry_json  # type: ignore[assignment]
+                warnings = retry_warnings
+                routing_effort = ROUTING_ESCALATION_EFFORT
+                shutil.rmtree(kept, ignore_errors=True)
+            else:
+                # Escalation may never make a board worse: put attempt 1's
+                # artifacts back and report its verdict.
+                shutil.rmtree(built_dir, ignore_errors=True)
+                shutil.move(str(kept), str(built_dir))
 
     progress.stage("dfm")
+    if escalation_note is not None:
+        warnings.append(escalation_note)
 
-    # -- Stage 4a: DFM + envelope over the geometry. -------------------------
-    warnings.extend(checks.dfm_warnings(circuit_json, product, profile))
+    build_block: dict[str, object] = {
+        "autorouterEffort": routing_effort,
+        "attempts": len(blocking_by_attempt),
+        "blockingByAttempt": blocking_by_attempt,
+    }
 
     tool_versions = toolchain.versions()
     circuit_json_sha = export_cache.sha256_file(built_circuit_json)
@@ -653,6 +833,11 @@ def build_board(
             "layers": layers,
         },
         "toolchain": _current_toolchain_block(),
+        # How the board was routed. Present on every build so a 17-minute
+        # escalated build is visible rather than mysterious, and so a reader
+        # can tell "clean at the default effort" from "clean only at 5x" —
+        # the second is a board one upstream change away from failing.
+        "build": build_block,
         "bom": bom_block,
         "fab": {
             "profile": profile.id,
@@ -693,6 +878,11 @@ def build_board(
         "board": {"width_mm": width_mm, "height_mm": height_mm, "layers": layers},
         "bom": _bom_result_block(bom_block),
         "fab": {"profile": profile.id, "ready": ready, "packet_dir": str(fab_dir)},
+        "build": {
+            "autorouter_effort": build_block["autorouterEffort"],
+            "attempts": build_block["attempts"],
+            "blocking_by_attempt": build_block["blockingByAttempt"],
+        },
         "warnings": warnings,
     }
     progress.finish(

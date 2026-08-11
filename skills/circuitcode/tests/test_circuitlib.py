@@ -211,15 +211,40 @@ class Layout(unittest.TestCase):
     fifty cascading errors."""
 
     def test_measured_extents_are_plausible(self) -> None:
-        from circuitlib.layout import BLOCK_EXTENT_MM, extent
+        from circuitlib.layout import BLOCK_BOX_MM, extent
 
-        for block_id in BLOCK_EXTENT_MM:
+        for block_id in BLOCK_BOX_MM:
             with self.subTest(block=block_id):
                 width, height = extent(block_id)
                 self.assertGreater(width, 0.5)
                 self.assertGreater(height, 0.5)
                 self.assertLess(width, 200)
                 self.assertLess(height, 200)
+
+    def test_placed_blocks_land_where_the_arithmetic_says(self) -> None:
+        """The 2026-08-11 defect: `place_row` assumed a block's geometry was
+        centred on its origin, so blocks with an offset box (usb-c-power by
+        3.29mm, usb-c-data by 6.04mm) landed off by that much and hung over
+        the outline. 36 of 42 compositions failed on it."""
+        from circuitlib.layout import box, place_row
+
+        blocks = ["usb-c-power", "ldo-3v3", "status-led"]
+        placed = place_row(blocks)
+        for block_id in blocks:
+            x, y = placed[block_id]
+            min_x, min_y, max_x, max_y = box(block_id)
+            with self.subTest(block=block_id):
+                # A placed row is centred on y=0 in *board* coordinates.
+                self.assertAlmostEqual((y + min_y + y + max_y) / 2, 0.0, places=1)
+
+    def test_board_fits_catches_a_part_over_the_edge(self) -> None:
+        from circuitlib.layout import board_fits, min_board_for, place_row
+
+        blocks = ["usb-c-power", "rp2040-core", "ldo-3v3"]
+        width, height = min_board_for(blocks, columns=len(blocks))
+        self.assertEqual(board_fits(place_row(blocks), width, height), [])
+        # The same placement on a board too small must be caught before a build.
+        self.assertTrue(board_fits(place_row(blocks), 20.0, 20.0))
 
     def test_unmeasured_block_raises_rather_than_guessing(self) -> None:
         from circuitlib.layout import extent
