@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { cn } from "@/ui/utils";
 import { boxIsReal, hitTestPcb, inflateBox, pcbElementBox } from "@/lib/boardIndex.js";
-import { roomOverlay } from "@/lib/boardRegions.js";
+import { LABEL_CHAR_PX, LABEL_PAD_PX, roomOverlay } from "@/lib/boardRegions.js";
 import {
   copperColor,
   elementColor,
@@ -715,8 +715,8 @@ export default function PcbCanvas({
                     <>
                       <rect
                         x={room.rect.x}
-                        y={Math.max(0, room.rect.y - 14)}
-                        width={room.label.length * 6.1 + 9}
+                        y={Math.max(0, room.labelY)}
+                        width={room.label.length * LABEL_CHAR_PX + LABEL_PAD_PX}
                         height={13}
                         fill={colors.background}
                         fillOpacity={0.82}
@@ -724,7 +724,7 @@ export default function PcbCanvas({
                       />
                       <text
                         x={room.rect.x + 4}
-                        y={Math.max(0, room.rect.y - 14) + 9.5}
+                        y={Math.max(0, room.labelY) + 9.5}
                         fill={colors.roomText}
                         fontSize={10}
                         fontFamily="ui-sans-serif, system-ui, -apple-system, sans-serif"

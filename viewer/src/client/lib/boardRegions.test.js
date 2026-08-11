@@ -167,3 +167,21 @@ test("no regions, no view, no boxes — nothing to draw and nothing thrown", () 
   assert.deepEqual(roomOverlay(boardRegions(index()), {}), []);
   assert.deepEqual(drawableRegions([{ box: null }]), []);
 });
+
+test("two rooms over the same patch of board do not stack their labels on one pixel", () => {
+  // A key matrix and the diode matrix under it cover the same area. Both
+  // labels landing on the same y is two unreadable labels.
+  const a = { id: "a", label: "Buttons ×50", instances: 1, box: { minX: 0, minY: 0, maxX: 40, maxY: 20 } };
+  const b = { id: "b", label: "Supporting parts", instances: 1, box: { minX: 0.5, minY: 0.5, maxX: 39, maxY: 19 } };
+  const [big, small] = roomOverlay([a, b], { view: VIEW, boardBox: null });
+  assert.equal(big.showLabel && small.showLabel, true);
+  assert.notEqual(big.labelY, small.labelY);
+  assert.ok(Math.abs(big.labelY - small.labelY) >= 14);
+});
+
+test("rooms that do not overlap keep their labels on their own top edge", () => {
+  const a = { id: "a", label: "Power in", instances: 1, box: { minX: -30, minY: 0, maxX: -10, maxY: 10 } };
+  const b = { id: "b", label: "The brain", instances: 1, box: { minX: 10, minY: 0, maxX: 30, maxY: 10 } };
+  const rooms = roomOverlay([a, b], { view: VIEW, boardBox: null });
+  for (const room of rooms) assert.equal(room.labelY, room.rect.y - 14);
+});

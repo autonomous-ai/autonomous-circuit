@@ -287,7 +287,38 @@ export function roomOverlay(regions, { view, boardBox = null, margin = 0.6 } = {
       rect,
       area,
       showLabel: rect.width >= ROOM_MIN_LABEL_PX.width && rect.height >= ROOM_MIN_LABEL_PX.height,
+      labelY: 0,
     });
   }
-  return out.sort((a, b) => b.area - a.area);
+  out.sort((a, b) => b.area - a.area);
+
+  // Two rooms over the same patch of board — a key matrix and the diode matrix
+  // under it — put their labels on the same pixel and neither is readable.
+  // Step a colliding label down a row at a time, largest room first, so the
+  // stack reads top-down in the same order the rooms are painted.
+  const placed = [];
+  for (const room of out) {
+    if (!room.showLabel) continue;
+    const width = room.label.length * LABEL_CHAR_PX + LABEL_PAD_PX;
+    let y = room.rect.y - LABEL_ROW_PX;
+    for (let guard = 0; guard < 8; guard += 1) {
+      const clash = placed.some(
+        (other) =>
+          Math.abs(other.y - y) < LABEL_ROW_PX &&
+          room.rect.x < other.x + other.width &&
+          other.x < room.rect.x + width,
+      );
+      if (!clash) break;
+      y += LABEL_ROW_PX;
+    }
+    room.labelY = y;
+    placed.push({ x: room.rect.x, y, width });
+  }
+  return out;
 }
+
+/** Label metrics, shared with the canvas so the collision test and the drawn
+ *  chip agree on how wide a label is. */
+export const LABEL_CHAR_PX = 6.1;
+export const LABEL_PAD_PX = 9;
+export const LABEL_ROW_PX = 14;
