@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, CircuitBoard, Download, ExternalLink, Package } from "lucide-react";
+import { ChevronDown, CircuitBoard, Download, ExternalLink, Lock, Package } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,18 +111,33 @@ export default function BoardActions({ stem = "board", artifact = null, sidecar 
                 <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
                   Fab packet
                 </DropdownMenuLabel>
+                {/* The three a factory builds from are locked until the
+                    board is orderable — same gate the Fab tab has always
+                    used. Locked, not hidden: the row says what it is and
+                    what unlocks it. */}
                 {action.items.map((item) => (
                   <DropdownMenuItem
                     key={item.id}
                     data-testid={`packet-${item.id}`}
-                    onSelect={() => download(item.url, item.filename)}
+                    data-locked={item.enabled === false ? "true" : undefined}
+                    disabled={item.enabled === false}
+                    onSelect={() => {
+                      if (item.enabled === false) return;
+                      download(item.url, item.filename);
+                    }}
                     className="flex-col items-start gap-0"
                   >
                     <span className="flex w-full items-center gap-2">
-                      <Download className="size-3.5 shrink-0" aria-hidden />
+                      {item.enabled === false ? (
+                        <Lock className="size-3.5 shrink-0" aria-hidden />
+                      ) : (
+                        <Download className="size-3.5 shrink-0" aria-hidden />
+                      )}
                       {item.label}
                     </span>
-                    <span className="pl-[22px] text-[11px] leading-4 text-muted-foreground">{item.hint}</span>
+                    <span className="pl-[22px] text-[11px] leading-4 text-muted-foreground">
+                      {item.enabled === false ? item.reason : item.hint}
+                    </span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

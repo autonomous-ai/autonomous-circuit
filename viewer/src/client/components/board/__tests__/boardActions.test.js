@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { boardActions, JLCPCB_QUOTE_URL, packetDownloads, visibleBoardActions } from "../boardActions.js";
+import {
+  boardActions,
+  JLCPCB_QUOTE_URL,
+  PACKET_LOCKED_REASON,
+  packetDownloads,
+  visibleBoardActions,
+} from "../boardActions.js";
 
 const FULL_ARTIFACT = {
   gerbersUrl: "/p/main_fab/gerbers.zip?v=1-2",
@@ -30,6 +36,34 @@ test("packet filenames carry the board stem so three boards do not collide in ~/
   const [gerbers] = packetDownloads("harness-puck", FULL_ARTIFACT);
   assert.equal(gerbers.filename, "harness-puck-gerbers.zip");
   assert.equal(packetDownloads("", FULL_ARTIFACT)[0].filename, "board-gerbers.zip");
+});
+
+// The Fab tab has always withheld the three a factory builds from on an
+// unready board — "never hand the user gerbers the pipeline wouldn't ship".
+// The header menu handed the same file over anyway, under the words "this is
+// what a factory loads", on a board with 89 findings stopping the order.
+test("the three files a factory builds from are locked until the board is orderable", () => {
+  const locked = packetDownloads("main", FULL_ARTIFACT, { fabReady: false });
+  const state = Object.fromEntries(locked.map((entry) => [entry.id, entry.enabled]));
+  assert.deepEqual(state, { gerbers: false, bom: false, cpl: false, kicad: true, glb: true });
+  for (const entry of locked) {
+    if (entry.enabled) assert.equal(entry.reason, "", `${entry.id} is open and needs no reason`);
+    else assert.equal(entry.reason, PACKET_LOCKED_REASON, `${entry.id} says what unlocks it`);
+  }
+  // The gate has one direction only: ready means ready.
+  const ready = packetDownloads("main", FULL_ARTIFACT, { fabReady: true });
+  assert.ok(ready.every((entry) => entry.enabled && !entry.reason));
+  // …and it is the sidecar that decides, through boardActions.
+  const fromSidecar = (sidecar) =>
+    boardActions({ stem: "main", artifact: FULL_ARTIFACT, sidecar }).find((a) => a.id === "packet");
+  assert.equal(fromSidecar({ fab: { ready: true } }).items.every((i) => i.enabled), true);
+  assert.equal(fromSidecar({ fab: { ready: false } }).items.some((i) => !i.enabled), true);
+  assert.equal(fromSidecar(null).items.some((i) => !i.enabled), true);
+});
+
+test("the locked reason reads without electronics knowledge", () => {
+  assert.doesNotMatch(PACKET_LOCKED_REASON, /gerber|fab-ready|DRC|netlist/i);
+  assert.match(PACKET_LOCKED_REASON, /\.$/);
 });
 
 test("Open in KiCad is NOT gated on fab-readiness — a broken board is the one you want in a real tool", () => {

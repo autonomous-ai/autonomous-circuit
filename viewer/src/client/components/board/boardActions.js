@@ -23,10 +23,38 @@
 export const JLCPCB_QUOTE_URL = "https://cart.jlcpcb.com/quote";
 
 /**
- * The packet members present on this board, in the order a fab consumes them.
- * @returns {Array<{id: string, label: string, url: string, filename: string, hint: string}>}
+ * The three members a factory builds from. Gated on `fab.ready` — see below.
  */
-export function packetDownloads(stem, artifact) {
+const FAB_PACKET_IDS = new Set(["gerbers", "bom", "cpl"]);
+
+/**
+ * The one sentence a locked packet member shows instead of its hint.
+ * Named here so the menu and its test read the same words.
+ */
+export const PACKET_LOCKED_REASON =
+  "Locked until every check passes — the Overview tab lists what is left.";
+
+/**
+ * The packet members present on this board, in the order a fab consumes them.
+ *
+ * **The three a factory builds from are gated on `fab.ready`.** The Fab tab
+ * has always withheld them on an unready board — "never hand the user gerbers
+ * the pipeline wouldn't ship" — but this menu handed the same file over from
+ * the top bar, under the words "this is what a factory loads", on a board with
+ * 89 findings stopping the order. Two surfaces, one gate, opposite answers;
+ * the header won because it is the one you reach first.
+ *
+ * The KiCad project and the 3D model stay open for the same reason "Open in
+ * KiCad" does: they are for looking at the board, not for paying to have it
+ * made, and a board that is not ready is exactly the one worth opening.
+ *
+ * @param {string} stem
+ * @param {object|null} artifact
+ * @param {{fabReady?: boolean}} [gate]
+ * @returns {Array<{id: string, label: string, url: string, filename: string,
+ *   hint: string, enabled: boolean, reason: string}>}
+ */
+export function packetDownloads(stem, artifact, { fabReady = false } = {}) {
   const name = String(stem || "board");
   return [
     // Plain word first, trade term in brackets. Someone who has never ordered
@@ -68,7 +96,12 @@ export function packetDownloads(stem, artifact) {
       filename: `${name}.glb`,
       hint: "the board and its parts, for checking it fits in a case",
     },
-  ].filter((entry) => entry.url);
+  ]
+    .filter((entry) => entry.url)
+    .map((entry) => {
+      const locked = FAB_PACKET_IDS.has(entry.id) && !fabReady;
+      return { ...entry, enabled: !locked, reason: locked ? PACKET_LOCKED_REASON : "" };
+    });
 }
 
 /**
@@ -83,8 +116,8 @@ export function packetDownloads(stem, artifact) {
  */
 export function boardActions({ stem = "board", artifact = null, sidecar = null } = {}) {
   const kicadUrl = String(artifact?.kicadProjectUrl || "");
-  const packet = packetDownloads(stem, artifact);
   const fabReady = sidecar?.fab?.ready === true;
+  const packet = packetDownloads(stem, artifact, { fabReady });
   const hasOrder = Boolean(artifact?.orderUrl);
 
   return [
