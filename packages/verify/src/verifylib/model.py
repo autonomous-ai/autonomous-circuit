@@ -380,6 +380,20 @@ class Hole:
     diameter: float
     plated: bool
     component_id: str | None = None
+    #: Overall drilled extent. Equal to ``diameter`` on a round hole; on a pill
+    #: (a USB-C receptacle's through-hole legs, for one) the long axis is
+    #: larger and the fab routes it as a slot.
+    width: float | None = None
+    height: float | None = None
+
+    @property
+    def size(self) -> tuple[float, float]:
+        return (self.width or self.diameter, self.height or self.diameter)
+
+    @property
+    def is_slot(self) -> bool:
+        w, h = self.size
+        return abs(w - h) > 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -688,30 +702,28 @@ class Board:
             d = e.get("hole_diameter")
             if all(isinstance(v, (int, float)) for v in (x, y, d)):
                 self.vias.append(Hole(float(x), float(y), float(d), plated=True))
-        for e in self.of_type("pcb_hole"):
-            x, y = e.get("x"), e.get("y")
-            d = e.get("hole_diameter") or e.get("hole_width")
-            if all(isinstance(v, (int, float)) for v in (x, y, d)):
+        for type_name, plated in (("pcb_hole", False), ("pcb_plated_hole", True)):
+            for e in self.of_type(type_name):
+                x, y = e.get("x"), e.get("y")
+                hole_w = e.get("hole_width")
+                hole_h = e.get("hole_height")
+                d = e.get("hole_diameter")
+                if not isinstance(d, (int, float)):
+                    d = hole_w if isinstance(hole_w, (int, float)) else None
+                if not all(isinstance(v, (int, float)) for v in (x, y, d)):
+                    continue
+                width = float(hole_w) if isinstance(hole_w, (int, float)) else float(d)
+                height = float(hole_h) if isinstance(hole_h, (int, float)) else float(d)
                 self.holes.append(
                     Hole(
                         float(x),
                         float(y),
-                        float(d),
-                        plated=False,
+                        # The drill tool is the *narrow* axis of a slot.
+                        min(float(d), width, height),
+                        plated=plated,
                         component_id=str(e.get("pcb_component_id") or "") or None,
-                    )
-                )
-        for e in self.of_type("pcb_plated_hole"):
-            x, y = e.get("x"), e.get("y")
-            d = e.get("hole_diameter") or e.get("hole_width")
-            if all(isinstance(v, (int, float)) for v in (x, y, d)):
-                self.holes.append(
-                    Hole(
-                        float(x),
-                        float(y),
-                        float(d),
-                        plated=True,
-                        component_id=str(e.get("pcb_component_id") or "") or None,
+                        width=width,
+                        height=height,
                     )
                 )
 
