@@ -124,6 +124,7 @@ sidecar and every artifact is on disk → zero writes, `"unchanged": True`.
 | # | Stage | Mechanism | Gate |
 |---|---|---|---|
 | 0 | compile | `tscircuit-cli build` → circuit.json (+ `--schematic-png --pcb-png` review images) | circuit.json exists; fatal eval error → `COMPILE_ERROR` |
+| 0b | routing escalation (2026-08-11) | if stages 1/2/4a return a routing-class blocking warning, rewrite the **mirrored** source with `autorouterEffortLevel="5x"` and compile once more | keep the retry only when it has strictly fewer blocking warnings; report it in `build` |
 | 1 | error scan | parse circuit.json elements: `type` ending `_error` / `_warning` | harvested into warnings; kind = the element type string verbatim |
 | 2 | independent re-check | `@tscircuit/checks` `runAllChecks` over the same JSON | findings → warnings, kind = check name |
 | 3 | second substrate | export `kicad_sch`/`kicad_pcb` → `kicad-cli sch erc` + `pcb drc --schematic-parity --exit-code-violations --format json`; parse the JSON report | violations → `erc_violation` / `drc_violation`; kicad absent → one `kicad_unavailable` info |
@@ -181,6 +182,8 @@ moved.
   "board":      { "path": "main.circuit.json", "name": "desk-air-monitor",
                   "widthMm": 58.4, "heightMm": 38.0, "layers": 2 },
   "toolchain":  { "tscircuit": "0.0.2279", "checks": "0.0.152", "kicadCli": "10.0.5" },  // kicadCli omitted when absent
+  "build":      { "autorouterEffort": "default",   // or "5x" when stage 0b's retry won
+                  "attempts": 1, "blockingByAttempt": [0] },
   "bom":        { "lines": 14, "orderable": 14, "basicParts": 9,
                   "estimatedCostUsd": 11.20 },
   "fab":        { "profile": "jlcpcb", "ready": true, "assembly": true,
@@ -304,7 +307,8 @@ python skills/circuitcode/scripts/check  <same>     # stages 0–2 only, tempdir
 python skills/circuitcode/scripts/review <project>  # re-surface warnings + regenerate _review pngs
 ```
 
-Runner: subprocess + wall clock (default 300s; `CIRCUIT_WALL_CLOCK_S` override; parent
+Runner: subprocess + wall clock (default **1800s** since 2026-08-11, was 300s —
+see the -CHANGES entry; `CIRCUIT_WALL_CLOCK_S` override; parent
 `subprocess.run(timeout=…)`, always returns a dict, never raises), rlimit ceilings kept as
 a runaway backstop. The elaborate user-code import sandbox is GONE — the board source is
 TSX executed inside the toolchain's own process, not in ours. The generation loop never

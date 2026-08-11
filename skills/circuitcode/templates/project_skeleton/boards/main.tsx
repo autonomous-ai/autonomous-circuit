@@ -7,9 +7,12 @@
  * Rails: V5 (USB VBUS) -> V3_3 (ldo-3v3)
  * Envelope: 56 x 40 mm, 2 layers, 1.6mm — inside product.json's 60 x 40
  *
- * Placement comes from circuitlib.layout.extent() — measured block footprints,
- * not eyeballed. USB-C sits on the bottom edge because that block already
- * faces y-; putting it on a side edge trips the accessibility check.
+ * Placement comes from circuitlib.layout — measured block *boxes*, not
+ * eyeballed sizes. A block's copper is not centred on its pcbX/pcbY (usb-c-power
+ * sits 3.29mm above its origin), so use place_row() / min_board_for() and check
+ * the result with board_fits() before building. USB-C sits on the bottom edge
+ * because that block already faces y-; putting it on a side edge trips the
+ * accessibility check.
  *
  * Every part below either comes from a golden block or is glue (a passive,
  * an LED, a connector). Nothing here was invented from a datasheet.

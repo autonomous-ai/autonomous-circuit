@@ -189,6 +189,10 @@ spec the user can approve or redirect:
 | Is this LED resistor sane | `helpers.led_current(rail_v=…, resistance_ohms=…)` |
 | What a block needs fed | `blocks.BLOCKS[id].requires` / `.provides` |
 | Iteration cap | `tables.MAX_REPAIR_ITERATIONS` |
+| How big a block is, and where it sits | `layout.box(block_id)` -> `(min_x, min_y, max_x, max_y)` around its origin |
+| Where to put a row of blocks | `layout.place_row([...])` -> `{block: (pcbX, pcbY)}` |
+| How big the board must be | `layout.min_board_for([...], columns=n)` |
+| Will anything hang off the edge | `layout.board_fits(placements, w, h)` — run it *before* building |
 
 If a number is not in a table and not in a block, it is an **estimate** — say
 so out loud rather than presenting it as measured.
@@ -255,10 +259,28 @@ mains, bare RF, and loose battery charging are refusals, not challenges.
 if present, the current `boards/main.tsx`, and the `BLOCK.md` of every block you
 plan to use — the pin contract and rail budget are in there.
 
-### 3. Block plan
+### 3. Block plan, then place by measurement
 
 `board_plan(capabilities=[...])`. Check `unmet` (a net nothing provides) and
 `unavailable` (a capability with no block). Resolve both *before* writing code.
+
+Then size and place the board with `circuitlib.layout` rather than by eye. **A
+block's copper is not centred on its `pcbX`/`pcbY`** — `usb-c-power` sits
+3.29mm above its origin, `usb-c-data` 6.04mm, `rp2040-core` 5.51mm below — so
+coordinates guessed from a size are wrong by millimetres, which is how parts
+end up over the outline:
+
+```python
+from circuitlib import layout
+
+blocks = ["usb-c-power", "ldo-3v3", "status-led"]
+w, h  = layout.min_board_for(blocks, columns=len(blocks))   # the outline
+place = layout.place_row(blocks)                            # pcbX/pcbY each
+layout.board_fits(place, w, h)    # must be [] before you build anything
+```
+
+`board_fits()` answers in milliseconds what `pcb_component_outside_board_error`
+answers after a ninety-second build. Run it every time you move something.
 
 ### 4. Edit `boards/main.tsx`
 

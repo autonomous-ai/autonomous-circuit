@@ -80,8 +80,19 @@ def _default_wall_clock_s() -> float:
 
     A full build compiles TSX, runs @tscircuit/checks, converts to KiCad,
     runs ERC/DRC, exports gerbers and renders two images — minutes, not
-    seconds, on a cold toolchain cache. 300s is the contract §3 default;
-    ``CIRCUIT_WALL_CLOCK_S`` overrides it explicitly.
+    seconds, on a cold toolchain cache. ``CIRCUIT_WALL_CLOCK_S`` overrides
+    this explicitly.
+
+    **Raised from 300s to 1800s on 2026-08-11.** Two measurements forced it.
+    The pipeline now escalates the autorouter to 5x when the first pass comes
+    back with routing errors, and a 5x pass on a 58-line board took over ten
+    minutes; the largest example board takes about seventeen. At 300s the
+    escalation could never finish, so the budget was silently cancelling the
+    single biggest lever we have on first-build fab-ready rate. Dee, the same
+    day: *"even if you send 1-day, 2-day or even 3-day to get the build right
+    and verify everything, that's still better than waiting 2 weeks from
+    JLCPCB."* A build that takes twenty minutes and comes back orderable beats
+    one that takes four and comes back with eighteen errors.
     """
     override = os.environ.get("CIRCUIT_WALL_CLOCK_S", "").strip()
     if override:
@@ -89,11 +100,14 @@ def _default_wall_clock_s() -> float:
             return max(10.0, float(override))
         except ValueError:
             pass
-    return 300.0
+    return 1800.0
 
 
 WALL_CLOCK_TIMEOUT_S = _default_wall_clock_s()
-CPU_TIMEOUT_S = 300
+#: CPU-seconds, not wall-seconds: the ceiling is a runaway backstop, and a
+#: build spends most of its wall time waiting on node and kicad-cli
+#: subprocesses rather than burning CPU in this process.
+CPU_TIMEOUT_S = 1800
 # Gerber zips and review PNGs are kilobytes; a .glb is low single-digit MiB.
 # 512 MiB only ever catches a runaway writer.
 OUTPUT_FILE_LIMIT_BYTES = 512 * 1024 * 1024

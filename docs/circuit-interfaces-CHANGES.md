@@ -14,6 +14,46 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-11 — Autorouter effort escalation (stage 0b), a `build` sidecar member, 1800s wall clock
+- **Change:** three coupled edits. (1) §1 gains **stage 0b**: after stages 1, 2
+  and 4a run on the first compile, if any blocking warning is routing-class
+  (`pcb_autorouting_error`, `pcb_trace_missing_error`,
+  `pcb_port_not_connected_error`, `pcb_trace_clearance_error`,
+  `dfm_hole_clearance`, `dfm_trace_width`, `dfm_trace_clearance`) the pipeline
+  rewrites the **mirrored** board source with `autorouterEffortLevel="5x"` and
+  compiles once more. Exactly one escalation; the cheaper result stands unless
+  the harder one has strictly fewer blocking warnings. `CIRCUIT_ROUTING_ESCALATION=off`
+  disables it. (2) The sidecar gains a `build` member —
+  `{autorouterEffort, attempts, blockingByAttempt}` — and `CircuitcodeResult`
+  gains the snake_case equivalent. (3) The skill runner's wall clock rises from
+  300s to **1800s**, and `CPU_TIMEOUT_S` with it.
+- **Why:** `autorouterEffortLevel` is a `<board>` prop with no CLI flag, and
+  nothing in the skeleton, `circuitlib` or the skill ever set it — so every
+  board ever built routed at the default. Measured on terminal-keyboard
+  (2026-08-11): `"5x"` took the same board from **46 blocking errors to 18**
+  with no design change, at a build-time cost of 4:45 to about 17 minutes.
+  A higher fixed default would charge every simple three-block board twelve
+  wasted minutes, so the ladder is conditional. The wall clock had to rise or
+  the escalation could never finish: a 5x pass on harness-buck-sized boards
+  exceeded the old 600s pipeline timeout outright. Dee, same day: *"even if you
+  send 1-day, 2-day or even 3-day to get the build right and verify everything,
+  that's still better than waiting 2 weeks from JLCPCB."*
+  Measured and **rejected** on the same board, recorded so nobody retries it:
+  raising `minTraceWidth`/clearance props as a routing lever made things worse
+  (7 errors to 125) — those props gate the checker, not the router.
+- **Backward compatible:** yes for consumers. `build` is an added member;
+  severity routing, warning kinds and artifact names are untouched. A board
+  that was clean at the default effort still builds identically and never
+  escalates. Cache behaviour is unchanged (the fingerprint covers the user's
+  source, and escalation is a deterministic function of the verdict).
+- **Mechanism:** `packages/circuitpy/src/circuitpy/generation.py`
+  (`ROUTING_ESCALATION_*`, `_set_autorouter_effort`, `_routing_blockers`,
+  `build_block`), `skills/circuitcode/scripts/common/runner.py`
+  (`_default_wall_clock_s`, `CPU_TIMEOUT_S`). **Skill runtime re-vendor
+  required** (packages/circuitpy changed).
+- **Tracks affected:** pipeline / skills / docs (§1 stage table, §1 sidecar
+  schema, §3 runner line).
+
 ## 2026-08-11 — `fab.ready: true` is the definition of done, on the first build
 - **Change:** §1 gains a *Definition of done* rule and §3 tightens the
   circuitcode done-gate. A board is **complete only when its sidecar carries
