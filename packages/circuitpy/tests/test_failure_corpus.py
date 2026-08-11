@@ -375,3 +375,57 @@ class FailureCorpus(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RoutingEscalation(unittest.TestCase):
+    """Stage 0b's decision logic, without paying for a twenty-minute build.
+
+    The escalation itself is measured end to end elsewhere (harness-puck: 5
+    blocking errors to 1 at ``"5x"``, 1240s). What has to be pinned here is
+    *when* it fires and *what it refuses to touch* — an escalation that runs on
+    a placement overlap burns twelve minutes to reproduce the same verdict, and
+    one that overwrites an author's own effort setting silently disagrees with
+    the source.
+    """
+
+    def test_only_routing_class_errors_escalate(self) -> None:
+        from circuitpy import generation
+
+        blockers = generation._routing_blockers([
+            {"severity": "error", "kind": "dfm_hole_clearance"},
+            {"severity": "error", "kind": "pcb_autorouting_error"},
+            # Placement and footprint problems: a harder router cannot help.
+            {"severity": "error", "kind": "pcb_footprint_overlap_error"},
+            {"severity": "error", "kind": "pcb_component_outside_board_error"},
+            {"severity": "error", "kind": "board_exceeds_envelope"},
+            # Not blocking at all.
+            {"severity": "warning", "kind": "pcb_autorouting_error"},
+        ])
+        self.assertEqual(
+            sorted(b["kind"] for b in blockers),
+            ["dfm_hole_clearance", "pcb_autorouting_error"],
+        )
+
+    def test_effort_is_injected_once_and_never_over_the_author(self) -> None:
+        import tempfile
+
+        from circuitpy import generation
+
+        tmp = Path(tempfile.mkdtemp(prefix="escalation-"))
+        board = tmp / "main.tsx"
+        board.write_text(
+            'export default () => (\n  <board width="20mm" height="20mm" '
+            "thickness={1.6}>\n  </board>\n)\n",
+            encoding="utf-8",
+        )
+        self.assertTrue(generation._set_autorouter_effort(board, "5x"))
+        self.assertIn('autorouterEffortLevel="5x"', board.read_text())
+        # Idempotent: a second pass must not stack a second prop.
+        self.assertFalse(generation._set_autorouter_effort(board, "5x"))
+        self.assertEqual(board.read_text().count("autorouterEffortLevel"), 1)
+
+        # An author who turned routing off meant it.
+        off = tmp / "off.tsx"
+        off.write_text('<board routingDisabled={true}>', encoding="utf-8")
+        self.assertFalse(generation._set_autorouter_effort(off, "5x"))
+        self.assertNotIn("autorouterEffortLevel", off.read_text())
