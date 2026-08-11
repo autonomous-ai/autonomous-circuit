@@ -71,46 +71,12 @@ export const STARTERS = Object.freeze([
  * The boundary, said out loud on the front door instead of discovered five
  * minutes into a build.
  *
- * A refusal that arrives after the wait is a dead end; the same sentence
- * before the tap is useful information. Every row names what we cannot do,
- * why not, and the nearest thing we can — so someone who wanted a motor still
- * has a next move. Each `why` is checkable against the repo, not reassurance:
- * no motor-driver or display block exists in `packages/golden-blocks/blocks/`,
- * the battery charge/protect slot is deliberately empty, the radio block is
- * unreleased, and mains is refused by the safety envelope outright.
+ * One owner: the rows live in `lib/catalogBoundary.js` because the question
+ * card needs the same list — an option offering Wi-Fi is the same promise as a
+ * starter card offering Wi-Fi, and two copies of the boundary would disagree
+ * within a week. Re-exported here so the front door keeps its own import.
  */
-export const CANT_BUILD_YET = Object.freeze([
-  {
-    id: "motors",
-    ask: "Anything that moves",
-    why: "No motor, pump or servo driver has been proven yet, so we would be guessing at the parts.",
-    instead: "A board that switches a ready-made motor module on and off.",
-  },
-  {
-    id: "mains",
-    ask: "Wall power",
-    why: "Mains voltage is outside what these checks can verify, and getting it wrong is dangerous.",
-    instead: "A USB-C wall adapter feeding the board 5 volts.",
-  },
-  {
-    id: "battery",
-    ask: "Batteries",
-    why: "Charging and protecting a battery safely needs a circuit we have not finished.",
-    instead: "USB-C power, or a ready-made battery pack with a USB socket.",
-  },
-  {
-    id: "radio",
-    ask: "Wi-Fi and Bluetooth",
-    why: "The radio module has to be a certified part, and that one is not released yet.",
-    instead: "Plug it into a computer over USB.",
-  },
-  {
-    id: "display",
-    ask: "Screens",
-    why: "No display has been proven yet.",
-    instead: "Lights — one indicator, or a strip of colour-changing LEDs.",
-  },
-]);
+export { CANT_BUILD_YET } from "../../lib/catalogBoundary.js";
 
 export function starterById(id) {
   return STARTERS.find((s) => s.id === id) || null;

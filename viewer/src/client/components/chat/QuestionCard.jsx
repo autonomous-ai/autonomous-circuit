@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/ui/utils";
 import { startTurn, useChatStore } from "@/store/chat";
+import { screenOptions } from "@/lib/catalogBoundary.js";
 import { DELEGATE_ANSWER } from "./questionFence.js";
 
 /**
@@ -20,7 +21,19 @@ export default function QuestionCard({ questions, dropped = 0 }) {
   const [selected, setSelected] = useState(() => ({}));
   const [submitted, setSubmitted] = useState(false);
 
-  const list = Array.isArray(questions) ? questions : [];
+  // Every option the model wrote, screened against what the library can
+  // actually build. The questions are a model's prose, so an option naming a
+  // radio, a battery or a light sensor is a normal event — and picking one is
+  // a promise the build breaks minutes later. Screened here, once, before
+  // anything is clickable.
+  const list = useMemo(
+    () =>
+      (Array.isArray(questions) ? questions : []).map((q) => ({
+        ...q,
+        ...screenOptions(q?.options),
+      })),
+    [questions],
+  );
 
   const toggle = (qi, label, multi) => {
     setSelected((cur) => {
@@ -77,28 +90,52 @@ export default function QuestionCard({ questions, dropped = 0 }) {
               <div className="flex flex-wrap gap-2">
                 {(q.options || []).map((opt) => {
                   const active = picks.includes(opt.label);
+                  const blocked = opt.blockedBy || null;
                   return (
                     <button
                       key={opt.label}
                       type="button"
-                      disabled={submitted}
+                      disabled={submitted || !!blocked}
                       onClick={() => toggle(qi, opt.label, multi)}
-                      title={opt.description || ""}
+                      title={blocked ? blocked.why : opt.description || ""}
                       data-slot="chat-question-option"
                       data-active={active ? "true" : "false"}
+                      data-blocked={blocked ? blocked.id : undefined}
                       className={cn(
-                        "inline-flex items-center rounded-full border px-3 py-2 text-[13px] font-medium transition-colors",
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[13px] font-medium transition-colors",
                         active
                           ? "border-emerald-500/55 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                           : "border-border bg-foreground/[0.04] text-muted-foreground hover:border-foreground/20 hover:bg-foreground/[0.08] hover:text-foreground",
                         submitted && !active && "opacity-55",
+                        blocked &&
+                          "cursor-not-allowed border-dashed bg-transparent text-muted-foreground/60 hover:border-border hover:bg-transparent hover:text-muted-foreground/60",
                       )}
                     >
-                      {opt.label}
+                      <span className={cn(blocked && "line-through decoration-1")}>{opt.label}</span>
+                      {/* The reason is one line below, named per option. The
+                          chip only has to say it is off the menu. */}
+                      {blocked ? (
+                        <span className="text-[11px] font-normal text-muted-foreground/70">
+                          not yet
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
+              {/* An option we cannot build is crossed off, not hidden: the
+                  reader sees their idea was understood, why it is not on the
+                  menu, and the nearest thing that is. A dead end is a defect;
+                  every line here ends somewhere. */}
+              {q.notes?.length ? (
+                <div data-slot="chat-question-blocked" className="flex flex-col gap-1">
+                  {q.notes.map((note) => (
+                    <p key={note.id} className="text-[11px] leading-4 text-muted-foreground">
+                      {note.text}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -113,7 +150,12 @@ export default function QuestionCard({ questions, dropped = 0 }) {
         </p>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-between gap-2">
+      {/* Wraps. At the chat panel's default width the two buttons need 330px
+          inside a 237px card, and `justify-between` has no wrap: the primary
+          action — "Send answers" — was clipped 93px off the right edge, so an
+          answered card looked like it had no way to send. `ml-auto` keeps the
+          two-on-one-line layout wherever it fits. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
@@ -140,7 +182,7 @@ export default function QuestionCard({ questions, dropped = 0 }) {
             // outlined "Build the best" pill — a first-timer looking at an
             // unanswered card could not see there was a Send button at all.
             // It is a button waiting for an answer, so it looks like one.
-            "min-w-20 rounded-lg bg-emerald-600 px-4 font-medium text-white hover:bg-emerald-500 disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
+            "ml-auto min-w-20 rounded-lg bg-emerald-600 px-4 font-medium text-white hover:bg-emerald-500 disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
             submitted &&
               "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/30 hover:bg-emerald-500/15 disabled:bg-emerald-500/15 disabled:text-emerald-700 dark:text-emerald-300 dark:disabled:text-emerald-300",
           )}
