@@ -119,6 +119,8 @@ def board_plan(*, capabilities: list[str]) -> BoardPlan:
         if not grew:
             break
 
+    chosen = _collapse_supersets(chosen)
+
     current = sum(BLOCKS[b].current_draw_ma for b in chosen)
     cost = sum(len(BLOCKS[b].parts) for b in chosen) * 0.6  # rough, marked estimate
     return BoardPlan(
@@ -128,6 +130,27 @@ def board_plan(*, capabilities: list[str]) -> BoardPlan:
         current_ma=current,
         est_parts_cost_usd=round(cost, 2),
     )
+
+
+#: block id -> the block that subsumes it. When both land in a plan, only the
+#: superset survives: they place the same refdes block (J1/R1/R2/U1/C1), so a
+#: board carrying both is two USB-C entries wired to the same designators.
+#: Found 2026-08-11 — `board_plan(["mcu", "button", "power-usb"])` returned
+#: usb-c-power *and* usb-c-data, which is the one composition the matrix marks
+#: illegal. The planner was able to emit a board outside the tested space,
+#: which is exactly the thing closure-under-composition forbids.
+BLOCK_SUPERSETS: dict[str, str] = {
+    "usb-c-power": "usb-c-data",
+}
+
+
+def _collapse_supersets(chosen: list[str]) -> list[str]:
+    """Drop any block a chosen superset already provides."""
+    present = set(chosen)
+    return [
+        bid for bid in chosen
+        if BLOCK_SUPERSETS.get(bid) not in present
+    ]
 
 
 def power_budget(*, source: str, current_ma: float) -> list[dict[str, str]]:

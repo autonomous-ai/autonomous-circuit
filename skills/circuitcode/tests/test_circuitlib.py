@@ -320,6 +320,33 @@ class Layout(unittest.TestCase):
 
 
 class Planner(unittest.TestCase):
+    def test_planner_never_emits_two_usb_c_entries(self) -> None:
+        """An MCU needs USB data and a board needs USB power, and until
+        2026-08-11 asking for both got you usb-c-power *and* usb-c-data — the
+        one composition the matrix marks illegal, because they place the same
+        refdes block. The planner could emit a board outside the tested space,
+        which is the thing closure-under-composition exists to prevent."""
+        for caps in (
+            ["mcu", "button", "power-usb"],
+            ["usb-data", "power-usb"],
+            ["mcu", "power-usb", "indicator", "sensor-environment"],
+        ):
+            with self.subTest(caps=caps):
+                ids = set(board_plan(capabilities=caps).block_ids)
+                self.assertFalse(
+                    {"usb-c-power", "usb-c-data"} <= ids,
+                    f"planner emitted both USB-C blocks for {caps}: {sorted(ids)}",
+                )
+
+    def test_plain_power_ask_still_gets_the_cheaper_block(self) -> None:
+        """Collapsing supersets must not upgrade every board to the data
+        connector — usb-c-data carries two more resistors and no benefit to a
+        board with nothing to talk to."""
+        ids = board_plan(capabilities=["indicator", "power-usb"]).block_ids
+        self.assertIn("usb-c-power", ids)
+        self.assertNotIn("usb-c-data", ids)
+
+
     def test_plan_pulls_in_required_providers(self) -> None:
         plan = board_plan(capabilities=["sensor-environment"])
         self.assertIn("sensor-bme280", plan.block_ids)
