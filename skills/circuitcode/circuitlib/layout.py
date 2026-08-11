@@ -59,6 +59,17 @@ BLOCK_GAP_MM = 2.0
 #: bring a track around the outside of a part.
 EDGE_MARGIN_MM = 1.5
 
+#: How much clear board the **router** needs outside the block content, which
+#: is a different question from how much clearance a *courtyard* needs.
+#: Measured 2026-08-11: `rp2040-core` alone, on a 43.4 x 27.5mm board sized
+#: with a 1.5mm margin, came back with five vias *outside the board boundary*
+#: and tracks at 0.000mm from the edge — the router escapes the outline when
+#: there is no halo to route in, and a 5x pass does not help (38 blocking
+#: errors both times). The same class of board with 4mm per side came back
+#: clean. This is the number that makes a dense block routable, and it is why
+#: `place_board` sizes the outline off this rather than off EDGE_MARGIN_MM.
+ROUTER_HALO_MM = 4.0
+
 
 def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` relative to the block's origin.
@@ -178,7 +189,7 @@ def place_board(
     block_ids: list[str],
     *,
     gap: float = BLOCK_GAP_MM,
-    margin: float = EDGE_MARGIN_MM,
+    margin: float = ROUTER_HALO_MM,
     mounting_holes: bool = True,
 ) -> dict[str, object]:
     """A whole board plan: outline, placements, mounting holes.
