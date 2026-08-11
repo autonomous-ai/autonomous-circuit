@@ -49,15 +49,15 @@ export const UsbCData = (props: {
     <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <UsbCConnector name={j} pcbX={0} pcbY={0} schX={0} schY={0}
         ncPins={["SBU1", "SBU2"]} />
-      <resistor name={r1} resistance="5.1k" footprint="0402" pcbX={-4} pcbY={7} schX={3} schY={-2.5}
+      <resistor name={r1} resistance="5.1k" footprint="0402" pcbX={-5} pcbY={7} schX={3} schY={-2.5}
         supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
-      <resistor name={r2} resistance="5.1k" footprint="0402" pcbX={-1.5} pcbY={7} schX={3} schY={-3.5}
+      <resistor name={r2} resistance="5.1k" footprint="0402" pcbX={5} pcbY={7} schX={3} schY={-3.5}
         supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
-      <resistor name={rDp} resistance="27" footprint="0402" pcbX={1.5} pcbY={7} schX={3} schY={-4.5}
+      <resistor name={rDp} resistance="27" footprint="0402" pcbX={-2.2} pcbY={10.5} schX={3} schY={-4.5}
         supplierPartNumbers={{ jlcpcb: ["C25100"] }} />
-      <resistor name={rDm} resistance="27" footprint="0402" pcbX={4} pcbY={7} schX={3} schY={-5.5}
+      <resistor name={rDm} resistance="27" footprint="0402" pcbX={2.2} pcbY={10.5} schX={3} schY={-5.5}
         supplierPartNumbers={{ jlcpcb: ["C25100"] }} />
-      <Usblc6 name={u} pcbX={0} pcbY={10} schX={7} schY={-1} />
+      <Usblc6 name={u} pcbX={0} pcbY={14.5} schX={7} schY={-1} />
       <capacitor name={c} capacitance="10uF" footprint="0805" pcbX={8} pcbY={7} schX={7} schY={2}
         supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
 

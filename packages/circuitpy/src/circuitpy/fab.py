@@ -68,6 +68,15 @@ class FabProfile:
     warn_via_annular_mm: float = 0.1
     min_pth_drill_mm: float = 0.3        # component through-hole
     min_pth_annular_mm: float = 0.2      # PTH annular ring (JLC spec)
+    # Copper-to-hole is TWO rules, and reading jlcpcb.com/capabilities
+    # (2026-08-11) they differ by 40%: a non-plated mounting hole needs 0.20mm
+    # to a track, a plated hole needs 0.28mm (0.35mm recommended). We had one
+    # 0.20mm number standing in for both, which is exactly right for the
+    # mounting holes and too permissive for every plated one — a board could
+    # clear our gate and still be marginal at the fab.
+    min_npth_to_copper_mm: float = 0.20
+    min_pth_to_copper_mm: float = 0.28
+    warn_pth_to_copper_mm: float = 0.35
     # JLC holds 0.2mm copper-to-outline on a routed edge; 0.3mm is the
     # conservative figure for V-cut and bevelled edges. Blocking at 0.3 made a
     # ground pour impossible — the pour fills to exactly 0.2mm and cannot be

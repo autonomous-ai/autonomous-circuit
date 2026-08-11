@@ -23,6 +23,7 @@ Kind sources (contract §1):
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Sequence
@@ -321,6 +322,99 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
 # ---------------------------------------------------------------------------
 
 
+def _hole_to_copper_warnings(
+    circuit_json: Sequence[dict], names: dict, profile: FabProfile
+) -> list[Warning]:
+    """Tracks passing too near a drill.
+
+    Two rules, not one (jlcpcb.com/capabilities, read 2026-08-11): a
+    non-plated mounting hole needs 0.20mm to copper, a plated hole needs
+    0.28mm. This is the check that caught the defect blocking every example
+    board — the router threads a ground track through the 0.525mm channel
+    beside a USB-C connector's alignment holes because it is the shortest
+    path, leaving 0.115mm where 0.2mm is required. A drill lands within its
+    own positional tolerance of that, so the track can simply be cut: some
+    boards in the batch work and some do not, which is the worst way to fail.
+
+    A track *terminating* at a hole is the connection to it, not a violation.
+    """
+    warnings: list[Warning] = []
+    holes: list[tuple[float, float, float, bool]] = []
+    for element in circuit_json:
+        etype = element.get("type")
+        if etype not in ("pcb_hole", "pcb_plated_hole"):
+            continue
+        x, y = element.get("x"), element.get("y")
+        diameter = (
+            element.get("hole_diameter")
+            or element.get("hole_width")
+            or element.get("outer_diameter")
+        )
+        if not all(isinstance(v, (int, float)) for v in (x, y, diameter)):
+            continue
+        holes.append((float(x), float(y), float(diameter) / 2.0,
+                      etype == "pcb_plated_hole"))
+    if not holes:
+        return warnings
+
+    seen: set[tuple[str, str]] = set()
+    for element in circuit_json:
+        if element.get("type") != "pcb_trace":
+            continue
+        route = [
+            p for p in (element.get("route") or [])
+            if isinstance(p, dict) and isinstance(p.get("x"), (int, float))
+        ]
+        for first, second in zip(route, route[1:]):
+            x1, y1 = float(first["x"]), float(first["y"])
+            x2, y2 = float(second["x"]), float(second["y"])
+            half = float(first.get("width") or 0.2) / 2.0
+            dx, dy = x2 - x1, y2 - y1
+            length_sq = dx * dx + dy * dy
+            for hx, hy, radius, plated in holes:
+                # The segment that lands on a hole is its connection.
+                if min(math.hypot(x1 - hx, y1 - hy),
+                       math.hypot(x2 - hx, y2 - hy)) <= radius + 0.05:
+                    continue
+                t = 0.0 if length_sq == 0 else max(
+                    0.0, min(1.0, ((hx - x1) * dx + (hy - y1) * dy) / length_sq)
+                )
+                gap = math.hypot(x1 + t * dx - hx, y1 + t * dy - hy) - radius - half
+                floor = (
+                    profile.min_pth_to_copper_mm if plated
+                    else profile.min_npth_to_copper_mm
+                )
+                kind = "plated hole" if plated else "mounting hole"
+                key = (f"{hx:.2f},{hy:.2f}", element.get("pcb_trace_id", ""))
+                if gap < floor - 1e-9 and key not in seen:
+                    seen.add(key)
+                    warnings.append(_warning(
+                        _localize(element, names),
+                        "dfm_hole_clearance",
+                        f"a track passes {gap:.3f}mm from a {kind} at "
+                        f"({hx:.2f}, {hy:.2f}); the fab needs {floor:g}mm — "
+                        "route around it, the drill's own tolerance can cut "
+                        "a track this close",
+                        "error",
+                    ))
+                elif (
+                    plated
+                    and gap < profile.warn_pth_to_copper_mm - 1e-9
+                    and key not in seen
+                ):
+                    seen.add(key)
+                    warnings.append(_warning(
+                        _localize(element, names),
+                        "dfm_hole_clearance",
+                        f"a track passes {gap:.3f}mm from a plated hole at "
+                        f"({hx:.2f}, {hy:.2f}) — legal, but "
+                        f"{profile.warn_pth_to_copper_mm:g}mm is the "
+                        "recommended margin",
+                        "warning",
+                    ))
+    return warnings
+
+
 def dfm_warnings(
     circuit_json: Sequence[dict],
     product: ResolvedProduct,
@@ -330,6 +424,7 @@ def dfm_warnings(
     try:
         names = _component_names(circuit_json)
         warnings: list[Warning] = []
+        warnings.extend(_hole_to_copper_warnings(circuit_json, names, profile))
         board = next(
             (
                 e
