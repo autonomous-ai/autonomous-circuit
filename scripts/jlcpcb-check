@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+/**
+ * Is the JLCPCB connection working? One command, spends nothing.
+ *
+ *   scripts/jlcpcb-check
+ *
+ * Every failure mode returns a different message from the platform, and they
+ * are easy to confuse — "not exists" appears in two of them meaning completely
+ * different things. This turns each into a sentence that says what to do next,
+ * because the difference between "your signature is wrong" and "your account
+ * lacks a permission" is an hour of looking in the wrong place.
+ *
+ * It calls the stencil price-config endpoint: a read, no order, no money.
+ */
+
+import { readCredentials, credentialStatus, JlcError } from
+  "../viewer/src/server/circuit/jlcpcb.mjs";
+import { createJlcPcb } from "../viewer/src/server/circuit/jlcpcb-pcb.mjs";
+
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
+const YELLOW = "\x1b[33m";
+const DIM = "\x1b[2m";
+const OFF = "\x1b[0m";
+
+function say(colour, label, text) {
+  console.log(`${colour}${label}${OFF} ${text}`);
+}
+
+const creds = readCredentials();
+const status = credentialStatus(creds);
+
+console.log(`\nendpoint  ${status.endpoint}`);
+console.log(`appId     ${creds.JLCPCB_APP_ID ? "set" : "MISSING"}`);
+console.log(`accessKey ${creds.JLCPCB_ACCESS_KEY ? "set" : "MISSING"}`);
+console.log(`secretKey ${creds.JLCPCB_SECRET_KEY ? "set" : "MISSING"}\n`);
+
+if (!status.configured) {
+  say(RED, "not configured —", `${status.missing.join(", ")} missing.`);
+  console.log(`${DIM}Add them to ~/.config/autonomous-circuit/jlcpcb.env${OFF}\n`);
+  process.exit(1);
+}
+
+try {
+  const result = await createJlcPcb().smokeTest();
+  say(GREEN, "working —", "the platform answered.");
+  console.log(
+    `${DIM}Signature, credentials and permissions are all good. ` +
+      `pcbPreReview can now run JLC's own parser over our gerbers.${OFF}`,
+  );
+  if (result?.traceId) console.log(`${DIM}trace ${result.traceId}${OFF}`);
+  console.log();
+  process.exit(0);
+} catch (error) {
+  const message = String(error?.message || error);
+  const code = error instanceof JlcError ? error.httpStatus || error.code : 0;
+
+  // The three failures that look alike and are not.
+  if (/insufficient permissions|access denied/i.test(message)) {
+    say(YELLOW, "almost —", "credentials and signature are correct.");
+    console.log(
+      "\nThe application does not have the business types enabled. This is a\n" +
+        "console setting, not a code problem — nothing here needs changing.\n\n" +
+        "  In the JLCPCB API Platform console, on this application,\n" +
+        "  apply for the open business types: PCB and Components.\n" +
+        "  It may need JLCPCB's approval before it takes effect.\n",
+    );
+  } else if (/application not exists/i.test(message)) {
+    say(RED, "wrong appId —", "the platform does not recognise it.");
+    console.log(
+      `${DIM}Check JLCPCB_APP_ID against the console. The signature is fine, ` +
+        `or you would not have got this far.${OFF}\n`,
+    );
+  } else if (/API not exists/i.test(message)) {
+    say(RED, "wrong path —", "credentials are good, the endpoint is not.");
+    console.log(
+      `${DIM}Our endpoint table is out of date; see jlcpcb-endpoints.mjs.${OFF}\n`,
+    );
+  } else if (/signature|401/i.test(message) || code === 401) {
+    say(RED, "signature rejected —", message);
+    console.log(
+      `${DIM}Usually the five-line string: every line ends with a newline, ` +
+        `including the last.${OFF}\n`,
+    );
+  } else {
+    say(RED, "failed —", message);
+    if (error?.traceId) {
+      console.log(`${DIM}Give JLCPCB this trace id: ${error.traceId}${OFF}`);
+    }
+    console.log();
+  }
+  process.exit(1);
+}
