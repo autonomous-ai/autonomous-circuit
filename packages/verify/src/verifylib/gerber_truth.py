@@ -584,6 +584,11 @@ def check(
     coverage.examined = len(packet.layers) + len(packet.drills)
     for message in packet.ignored:
         coverage.skip(message)
+    if packet.not_fab_input:
+        coverage.skip(
+            f"{len(packet.not_fab_input)} documentation plot(s) the fab does "
+            f"not consume ({', '.join(sorted(packet.not_fab_input)[:3])}, ...)"
+        )
 
     transform = solve_transform(board, packet)
     if transform is None:

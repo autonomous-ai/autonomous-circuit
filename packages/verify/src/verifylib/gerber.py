@@ -556,8 +556,24 @@ _ROLE_BY_STEM = (
 )
 
 
+#: Layers KiCad plots that the fab does not consume. Listing them as "unknown
+#: role" made the coverage report twelve lines long and said nothing; they are
+#: not gaps, they are documentation the fab ignores.
+_NOT_FAB_INPUT = (
+    "adhesive", "courtyard", "_fab.", "margin", "user_comments",
+    "user_drawings", "user_eco", ".gbrjob", "readme",
+)
+
+
+def is_fab_input(name: str) -> bool:
+    lower = name.lower()
+    return not any(needle in lower for needle in _NOT_FAB_INPUT)
+
+
 def role_of(name: str) -> str | None:
     lower = name.lower()
+    if not is_fab_input(lower):
+        return None
     for needle, role in _ROLE_BY_STEM:
         if needle in lower:
             return role
@@ -573,6 +589,8 @@ class Packet:
     drills: list[DrillFile] = field(default_factory=list)
     #: Members present in the zip that we did not read, and why.
     ignored: list[str] = field(default_factory=list)
+    #: Members the fab does not consume at all (documentation plots).
+    not_fab_input: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -598,7 +616,10 @@ def read_packet(zip_path: str | Path) -> Packet:
                 continue
             role = role_of(name)
             if role is None:
-                packet.ignored.append(f"{name}: no known fab role for this name")
+                if not is_fab_input(name):
+                    packet.not_fab_input.append(name)
+                else:
+                    packet.ignored.append(f"{name}: no known fab role for this name")
                 continue
             try:
                 text = archive.read(name).decode("utf-8", errors="replace")

@@ -28,7 +28,9 @@ as clean and a fab cycle then reveals.
 
 from __future__ import annotations
 
+import os
 import random
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
 from verifylib import dc
@@ -113,7 +115,11 @@ def _perturb(network: dc.Network, factor_for) -> dc.Network:
 
 
 def sweep(
-    board: Board, *, trials: int = DEFAULT_TRIALS, scenario: str = "resting"
+    board: Board,
+    *,
+    trials: int = DEFAULT_TRIALS,
+    scenario: str = "resting",
+    workers: int | None = None,
 ) -> Sweep:
     """Solve the board at nominal, at every deterministic tolerance corner,
     and at ``trials`` random ones."""
@@ -164,19 +170,47 @@ def sweep(
 
         record(dc.solve(_perturb(network, factor_for)), label)
 
-    rng = random.Random(SEED)
-    for trial in range(trials):
-        draws: dict[tuple[str, str], float] = {}
-
-        def factor_for(kind: str, name: str, draws=draws, rng=rng) -> float:
-            key = (kind, name)
-            if key not in draws:
-                spread = TOLERANCE.get(kind, 0.0)
-                draws[key] = 1.0 + rng.uniform(-spread, spread)
-            return draws[key]
-
-        record(dc.solve(_perturb(network, factor_for)), f"random corner #{trial + 1}")
+    for solution, label in _random_corners(network, trials, workers=workers):
+        record(solution, label)
     return result
+
+
+def _one_random_corner(args: tuple[dc.Network, int]) -> tuple[dc.Solution, str]:
+    network, trial = args
+    # Seeded per trial, not per run, so a worker pool returns the same answers
+    # as a serial loop and a corner finding stays reproducible.
+    rng = random.Random(SEED + trial)
+    draws: dict[tuple[str, str], float] = {}
+
+    def factor_for(kind: str, name: str) -> float:
+        key = (kind, name)
+        if key not in draws:
+            spread = TOLERANCE.get(kind, 0.0)
+            draws[key] = 1.0 + rng.uniform(-spread, spread)
+        return draws[key]
+
+    return dc.solve(_perturb(network, factor_for)), f"random corner #{trial + 1}"
+
+
+def _random_corners(network: dc.Network, trials: int, *, workers: int | None):
+    """The Monte-Carlo half, fanned out across processes.
+
+    Wall-clock is the expensive axis, not compute. A 500-corner sweep of a
+    90-net board is about a minute in one process and a few seconds across
+    eight, and every corner is independent of every other.
+    """
+    if trials <= 0:
+        return []
+    if workers is None:
+        workers = min(os.cpu_count() or 1, 8)
+    payload = [(network, trial) for trial in range(trials)]
+    if workers <= 1 or trials < 16:
+        return [_one_random_corner(item) for item in payload]
+    try:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(_one_random_corner, payload, chunksize=8))
+    except Exception:  # noqa: BLE001 - a pool that will not start is not a defect
+        return [_one_random_corner(item) for item in payload]
 
 
 @never_raises
@@ -238,9 +272,13 @@ def _rail_corner_findings(board: Board, result: Sweep) -> list[Finding]:
 
 
 def check(
-    board: Board, *, trials: int = DEFAULT_TRIALS, scenario: str = "resting"
+    board: Board,
+    *,
+    trials: int = DEFAULT_TRIALS,
+    scenario: str = "resting",
+    workers: int | None = None,
 ) -> CheckResult:
-    result = sweep(board, trials=trials, scenario=scenario)
+    result = sweep(board, trials=trials, scenario=scenario, workers=workers)
     solves = trials + 2 ** len(TOLERANCE)
     coverage = Coverage(unit="corner solves", examined=solves, total=solves)
     coverage.skip(
