@@ -21,6 +21,7 @@
 import { UsbCPower } from "../blocks/usb-c-power/usb-c-power"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { StatusLed } from "../blocks/status-led/status-led"
+import { MountingHole } from "../blocks/glue"
 
 export default () => (
   <board
@@ -38,8 +39,13 @@ export default () => (
     {/* proof of life */}
     <StatusLed rail="V3_3" pcbX={20} pcbY={13} schX={6} schY={0} />
 
-    {/* the enclosure needs something to hold: two holes on a known pitch */}
-    <hole name="H1" diameter="3.2mm" pcbX={-25} pcbY={-17} />
-    <hole name="H2" diameter="3.2mm" pcbX={25} pcbY={17} />
+    {/* The enclosure needs something to hold: two holes on a known pitch.
+        MountingHole, never a bare <hole> — the autorouter has no model of
+        hole-to-copper clearance, so it will lay a track 0.1mm from a 3.2mm
+        drill and the drill's own tolerance can cut it. The keepout that ships
+        with MountingHole is the only thing the router reads. Same file has
+        GndPour for the same reason on the pour side. */}
+    <MountingHole name="H1" diameter={3.2} pcbX={-25} pcbY={-17} />
+    <MountingHole name="H2" diameter={3.2} pcbX={25} pcbY={17} />
   </board>
 )

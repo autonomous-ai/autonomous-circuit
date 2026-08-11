@@ -75,6 +75,35 @@ export const UsbCConnector = (props: {
       <footprint>
         <hole pcbX="-2.899918mm" pcbY="0.9055672mm" diameter="0.5999988mm" />
         <hole pcbX="2.899918mm" pcbY="0.9055672mm" diameter="0.5999988mm" />
+        {/* The receptacle's belly is a routing keepout, and it is part of the
+            footprint on purpose — it rotates and moves with J1, so a composer
+            cannot place this connector wrongly.
+
+            Why it has to exist: the two NPTH alignment holes above sit in the
+            middle of an otherwise empty 7.3 x 1.2mm pocket, and the autorouter
+            has no model of hole-to-copper clearance at all. Left alone it runs
+            the shortest GND path straight through the pocket — measured
+            0.115mm and 0.123mm from a 0.6mm drill where JLC needs 0.20mm
+            (jlcpcb.com/capabilities). A drill lands inside its own positional
+            tolerance of that gap, so some boards in a batch come back with the
+            track cut and some do not. This one defect blocked all three
+            example boards.
+
+            The numbers. Hole centres (+/-2.899918, 0.9055672), r = 0.30.
+            * Top edge 1.515 — 0.009mm under the pad row at y = 1.5240, so the
+              keepout touches no pad, and a track that rides the edge still
+              clears the drill by 1.515 + 0.10 - 0.9056 - 0.40 = 0.31mm.
+            * Bottom edge 0.285 — same clearance on the south side.
+            * Half-width 3.65 — the outer edge stops 0.075mm short of the pin-1
+              shell pad at x = 3.725, which closes the 0.525mm channel between
+              drill and shell that the router used to thread. Nothing legal
+              fits there: a track would need x >= 3.50 for the drill and
+              x <= 3.525 for the shell pad's own 0.28mm PTH rule.
+            A keepout is the right tool only at this size. Sized to the holes
+            instead (r = 0.65 circles) it swallows the GND pads' own corners at
+            0.6186mm and every J1 tie becomes a violation; that is the trap the
+            first two attempts fell into. */}
+        <keepout shape="rect" pcbX="0mm" pcbY="0.90mm" width="7.30mm" height="1.23mm" layers={["top", "bottom"]} />
         <platedhole portHints={["pin2"]} pcbX="4.325112mm" pcbY="-2.7741308mm" holeWidth="0.7999984mm" holeHeight="1.3999972mm" outerWidth="1.1999976mm" outerHeight="1.7999964mm" shape="pill" />
         <platedhole portHints={["pin1"]} pcbX="4.325112mm" pcbY="1.4056932mm" holeWidth="0.7999984mm" holeHeight="1.5999968mm" outerWidth="1.1999976mm" outerHeight="1.999996mm" shape="pill" />
         <platedhole portHints={["pin4"]} pcbX="-4.325112mm" pcbY="1.4056932mm" holeWidth="0.7999984mm" holeHeight="1.5999968mm" outerWidth="1.1999976mm" outerHeight="1.999996mm" shape="pill" />

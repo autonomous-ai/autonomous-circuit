@@ -41,6 +41,7 @@ import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
 import { StatusLed } from "../blocks/status-led/status-led"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
+import { MountingHole } from "../blocks/glue"
 
 export default () => (
   <board
@@ -110,6 +111,7 @@ export default () => (
       connectsTo="net.CAP_A"
       coveredWithSolderMask
       boardEdgeMargin="1mm"
+      cutoutMargin="0.25mm"
       outline={[
         { x: -29, y: -2 },
         { x: -4, y: -2 },
@@ -125,6 +127,7 @@ export default () => (
       connectsTo="net.CAP_B"
       coveredWithSolderMask
       boardEdgeMargin="1mm"
+      cutoutMargin="0.25mm"
       outline={[
         { x: 4, y: -2 },
         { x: 29, y: -2 },
@@ -149,10 +152,10 @@ export default () => (
     <trace name="TR_BTN_MUTE" from=".U3 > .GPIO1" to="net.BTN_MUTE" />
 
     {/* ---- mechanics: M3 on a 64 x 64 square, one at each corner ---------- */}
-    <hole name="H1" diameter="3.2mm" pcbX={-32} pcbY={-32} />
-    <hole name="H2" diameter="3.2mm" pcbX={32} pcbY={-32} />
-    <hole name="H3" diameter="3.2mm" pcbX={-32} pcbY={32} />
-    <hole name="H4" diameter="3.2mm" pcbX={32} pcbY={32} />
+    <MountingHole name="H1" diameter={3.2} pcbX={-32} pcbY={-32} />
+    <MountingHole name="H2" diameter={3.2} pcbX={32} pcbY={-32} />
+    <MountingHole name="H3" diameter={3.2} pcbX={-32} pcbY={32} />
+    <MountingHole name="H4" diameter={3.2} pcbX={32} pcbY={32} />
 
     {/* ---- silkscreen ------------------------------------------------------ */}
     <silkscreentext text="AUTONOMOUS HYDRATE" pcbX={0} pcbY={35} fontSize={2} />

@@ -40,6 +40,7 @@ import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
 import { Ws2812Pixel } from "../blocks/ws2812-chain/ws2812-chain"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
 import { StatusLed } from "../blocks/status-led/status-led"
+import { MountingHole } from "../blocks/glue"
 
 /* ---- ring geometry ------------------------------------------------------ */
 const PIXELS = 8
@@ -219,9 +220,9 @@ export default () => (
     <trace name="TR_U3_btnmode" from=".U3 > .GPIO15" to="net.BTN_MODE" />
 
     {/* three M2 holes at 120 degrees on a 22.8mm radius — the printed body's standoffs */}
-    <hole name="H1" diameter="2.2mm" pcbX={0} pcbY={22} />
-    <hole name="H2" diameter="2.2mm" pcbX={-19.75} pcbY={-11.4} />
-    <hole name="H3" diameter="2.2mm" pcbX={19.75} pcbY={-11.4} />
+    <MountingHole name="H1" diameter={2.2} pcbX={0} pcbY={22} />
+    <MountingHole name="H2" diameter={2.2} pcbX={-19.75} pcbY={-11.4} />
+    <MountingHole name="H3" diameter={2.2} pcbX={19.75} pcbY={-11.4} />
 
     {/* silkscreen: the name, and where to put a probe */}
     <silkscreentext text="AUTONOMOUS HARNESS" pcbX={0} pcbY={19.2} fontSize={1} />

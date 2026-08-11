@@ -29,6 +29,7 @@ import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { StatusLed } from "../blocks/status-led/status-led"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
+import { MountingHole } from "../blocks/glue"
 
 /** Key pitch, millimetres. 10mm is the tightest the TS-1187A land pattern
  *  (dfn4_p3.6998mm_w7mm_pw0.75mm, 7.9mm across the pads) allows while still
@@ -211,12 +212,12 @@ export default () => (
     {/* ---- the printed body needs something to hold: 6x M2.5 on a 105mm x
             38mm rectangle plus mid-span pairs (a 112mm board flexes under
             thumbs; the mid holes are what stop it) ---- */}
-    <hole name="H1" diameter="2.7mm" pcbX={-52.5} pcbY={41} />
-    <hole name="H2" diameter="2.7mm" pcbX={52.5} pcbY={41} />
-    <hole name="H3" diameter="2.7mm" pcbX={-52.5} pcbY={0} />
-    <hole name="H4" diameter="2.7mm" pcbX={52.5} pcbY={0} />
-    <hole name="H5" diameter="2.7mm" pcbX={-52.5} pcbY={-41} />
-    <hole name="H6" diameter="2.7mm" pcbX={52.5} pcbY={-41} />
+    <MountingHole name="H1" diameter={2.7} pcbX={-52.5} pcbY={41} />
+    <MountingHole name="H2" diameter={2.7} pcbX={52.5} pcbY={41} />
+    <MountingHole name="H3" diameter={2.7} pcbX={-52.5} pcbY={0} />
+    <MountingHole name="H4" diameter={2.7} pcbX={52.5} pcbY={0} />
+    <MountingHole name="H5" diameter={2.7} pcbX={-52.5} pcbY={-41} />
+    <MountingHole name="H6" diameter={2.7} pcbX={52.5} pcbY={-41} />
 
     <silkscreentext
       text="AUTONOMOUS TERMINAL KEYBOARD"
