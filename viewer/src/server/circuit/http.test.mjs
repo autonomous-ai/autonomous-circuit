@@ -126,9 +126,11 @@ test("app_info, app_prereq_check shape, settings round-trip and app_set_model", 
     assert.equal(written.body.hasOnboarded, true);
     assert.equal(written.body.autoBuild, false);
     assert.equal(written.body.model, "opus");
-    // The file persists exactly the circuit trio.
+    // The file persists exactly the circuit settings — model and effort
+    // included, because both are product decisions the app must pin rather
+    // than leave to whatever the CLI defaults to.
     const onDisk = JSON.parse(fs.readFileSync(path.join(s.home, "settings.json"), "utf8"));
-    assert.deepEqual(Object.keys(onDisk).sort(), ["autoBuild", "hasOnboarded", "model"]);
+    assert.deepEqual(Object.keys(onDisk).sort(), ["autoBuild", "effort", "hasOnboarded", "model"]);
 
     const setModel = await s.post("app_set_model", { model: "sonnet" });
     assert.equal(setModel.body.model, "sonnet");

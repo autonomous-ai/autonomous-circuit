@@ -286,6 +286,7 @@ export function buildCommandArgs({
   phase,
   sessionId,
   model = "",
+  effort = "",
   env = process.env,
 }) {
   const args = [
@@ -315,6 +316,13 @@ export function buildCommandArgs({
   }
   if (model) {
     args.push("--model", String(model));
+  }
+  // Reasoning effort is a product decision here, not a preference. Designing a
+  // board means composing it, reading two rendered images and judging what is
+  // wrong with them — under-thinking that produces a board that needs a repair
+  // round, which costs far more than the tokens saved.
+  if (effort) {
+    args.push("--effort", String(effort));
   }
   return args;
 }
@@ -962,6 +970,7 @@ export async function spawnTurn({
   turnId,
   phase,
   model = "",
+  effort = "",
   onEvent,
   signal,
   env = process.env,
@@ -987,7 +996,7 @@ export async function spawnTurn({
   }
 
   const preSnapshot = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase, sessionId, model, env });
+  const args = buildCommandArgs({ workspace, phase, sessionId, model, effort, env });
   const resume = args.includes("--resume");
   log(
     `turn ${phase} start session=${shortId(sessionId)} (${resume ? "resume" : "new"})` +
@@ -1150,13 +1159,14 @@ async function runReviewRound({
   sessionId,
   turnId,
   model,
+  effort = "",
   prompt,
   onEvent,
   signal,
   env,
 }) {
   const pre = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, env });
+  const args = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
     child = spawnClaude(claudePath, args, { workspace, env });
@@ -1573,6 +1583,14 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     }
   }
 
+  function activeEffort() {
+    try {
+      return settings.read().effort || "";
+    } catch {
+      return "";
+    }
+  }
+
   function runTurn({ projectId, message, imagePaths, phase, turnId }) {
     const controller = new AbortController();
     turns.set(turnId, { projectId, controller });
@@ -1588,6 +1606,7 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       turnId,
       phase,
       model: activeModel(),
+      effort: activeEffort(),
       onEvent,
       signal: controller.signal,
       env,

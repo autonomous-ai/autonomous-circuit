@@ -993,3 +993,30 @@ test("cancelTurn aborts an in-flight turn via the registry; unknown ids are a sa
   assert.equal(chat.turnInProgress("proj-4"), false);
   chat.close();
 });
+
+// A board must be orderable on the first build, so the model and the
+// reasoning effort behind it are pinned product decisions — not whatever the
+// CLI happens to default to. Before this, the app passed no --model at all.
+test("buildCommandArgs passes model and effort through to the CLI", () => {
+  const args = buildCommandArgs({
+    workspace: "/tmp/ws",
+    phase: PHASE.IMPLEMENT,
+    sessionId: "11111111-2222-3333-4444-555555555555",
+    model: "claude-opus-5",
+    effort: "high",
+    env: { HOME: "/tmp" },
+  });
+  assert.equal(args[args.indexOf("--model") + 1], "claude-opus-5");
+  assert.equal(args[args.indexOf("--effort") + 1], "high");
+});
+
+test("buildCommandArgs omits both flags when unset rather than sending empties", () => {
+  const args = buildCommandArgs({
+    workspace: "/tmp/ws",
+    phase: PHASE.PLAN,
+    sessionId: "11111111-2222-3333-4444-555555555555",
+    env: { HOME: "/tmp" },
+  });
+  assert.equal(args.includes("--model"), false);
+  assert.equal(args.includes("--effort"), false);
+});

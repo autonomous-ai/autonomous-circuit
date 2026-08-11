@@ -14,10 +14,23 @@ export function settingsFilePath(env = process.env) {
   return path.join(circuitHome(env), "settings.json");
 }
 
+// A board that reaches a user has to be orderable on the first build, so the
+// model and the reasoning effort behind it are product decisions, not whatever
+// the CLI happens to default to. Pinned here; a user can still override both.
+//
+// Opus for design work: composing a board, reading two rendered images and
+// judging what is wrong with them is exactly the kind of task where the
+// stronger model earns its cost — a repair round costs far more than the
+// tokens saved, and a wrong board costs $85 and two weeks.
+export const DEFAULT_MODEL = "claude-opus-5";
+export const DEFAULT_EFFORT = "high";
+export const EFFORT_LEVELS = Object.freeze(["low", "medium", "high", "xhigh", "max"]);
+
 const DEFAULTS = Object.freeze({
   hasOnboarded: false,
   autoBuild: true,
-  model: undefined,
+  model: DEFAULT_MODEL,
+  effort: DEFAULT_EFFORT,
 });
 
 function normalize(raw) {
@@ -27,6 +40,8 @@ function normalize(raw) {
     // Missing → autopilot on (matches the donor's serde default).
     autoBuild: typeof obj.autoBuild === "boolean" ? obj.autoBuild : DEFAULTS.autoBuild,
   };
+  const effort = typeof obj.effort === "string" ? obj.effort.trim() : "";
+  out.effort = EFFORT_LEVELS.includes(effort) ? effort : DEFAULTS.effort;
   const model = typeof obj.model === "string" ? obj.model.trim() : "";
   if (model) {
     out.model = model;
