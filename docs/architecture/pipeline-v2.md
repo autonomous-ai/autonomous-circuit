@@ -156,14 +156,47 @@ Three properties this buys that v1 does not have:
 - **Not tuning effort or switching routers as a strategy.** Both are measured
   non-monotonic. They stay available per board, recorded beside the score.
 
+## Step 1 was tested and it does not work
+
+**Measured 2026-08-11, after this document was written.** hydrate-coaster, with
+a bottom GND plane added and 73 vias placed into it — each one clearance-checked
+against all 176 pads and holes on the placed board:
+
+| | control | + plane + 73 vias |
+|---|---|---|
+| traces | 115 | **115** |
+| vias | 99 | 154 |
+| blocking | **1** | **17** |
+
+**The trace count did not change by one.** The router routed the identical 115
+connections and never used the plane. The vias became 73 obstacles rather than
+73 ground access points, which is why blocking went up: tracks crossing, ten
+unconnected items, clearances down to 0.0354mm.
+
+The reason is the router's connectivity model. It connects **pins to pins**. A
+via on `net.GND` is one more GND point it must reach, not a shortcut to a
+plane, and a pour it never sees cannot satisfy anything. So adding a plane
+*increases* its work.
+
+**This is not a tuning failure. The router has no concept of a plane**, and a
+two-layer design without plane awareness is a router that cannot do the job
+professionals do. Combined with what else we measured today — no drill
+clearance model, all-or-nothing on placement errors, non-monotonic effort — the
+honest conclusion is that **the routing step may have to leave tscircuit**.
+
+That reframes v2. Stages 1–4 (brief, schematic, floorplan, stackup) stand: they
+are about decisions made before routing and they are still the right decisions,
+made in the right order. Stage 5 needs a different engine. We already convert
+every board to KiCad for the DRC cross-check, so the artifact a real router
+needs already exists in the pipeline.
+
 ## How to land it without stopping
 
 v1 works end to end and produces boards that are close. v2 is an insertion, not
 a rewrite:
 
-1. **Let the router see the plane.** Pour before route, or declare the plane so
-   GND connects by via. Highest value, smallest change, and it is the one that
-   makes 2-layer boards tractable.
+1. ~~**Let the router see the plane.**~~ **Tested and dead** — see above. The
+   router has no plane concept; adding one made the board worse.
 2. **Add the floorplan gate** in front of routing, using the congestion measure
    the composition matrix already implies.
 3. **Route in classes**, power and ground first.
