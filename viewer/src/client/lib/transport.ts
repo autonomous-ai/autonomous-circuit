@@ -274,6 +274,31 @@ export interface CatalogChangedEvent {
   revision: number;
 }
 
+// Build progress -------------------------------------------------------------
+
+/**
+ * Live stage of the running build, read from the pipeline's
+ * `.circuit/build-status.json` (written once per stage transition — 7 per
+ * build, no heartbeat). `stale` is the server's own verdict on a record it has
+ * not seen touched for two minutes: a killed build would otherwise report
+ * `running` forever, and saying "stale" beats lying about progress.
+ * `null` means nothing has ever built in this project.
+ */
+export interface BuildStatus {
+  state: "running" | "done" | "failed" | "stale";
+  stage: string;
+  stageLabel: string;
+  stageIndex: number;
+  stageCount: number;
+  board: string;
+  startedAt: number;
+  updatedAt: number;
+  /** Present on a finished build. */
+  elapsedS?: number;
+  /** Present on a finished build, e.g. "0 blocking". */
+  detail?: string;
+}
+
 export interface IpcError {
   code: string;
   message: string;
@@ -524,6 +549,7 @@ const transportBase = {
   project_catalog_read: (id: string) =>
     invoke<Catalog>("project_catalog_read", { id }),
   generation_status_read: () => invoke<GenerationStatus>("generation_status_read"),
+  build_status: (id: string) => invoke<BuildStatus | null>("build_status", { id }),
 
   // files
   file_read_bytes: (file: string, asset: AssetKind) =>

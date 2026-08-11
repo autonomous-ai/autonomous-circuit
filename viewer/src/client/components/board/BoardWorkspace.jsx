@@ -3,15 +3,20 @@ import { Crosshair, Loader2, Ruler, SendHorizontal } from "lucide-react";
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
-import { setPendingViewContext } from "@/store/chat.js";
+import { setPendingViewContext, setProject as setChatProject } from "@/store/chat.js";
 import {
   FOCUS_CHAT_INPUT_EVENT,
   prefillChatInput,
 } from "@/components/chat/chatInputHelpers.js";
-import { boardLabel, boardStatus, boardStem } from "@/lib/boardModel.js";
+import { boardStatus, boardStem, selectBoardEntries } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
+import { transport } from "@/lib/transport.ts";
+import { useProjectsStore } from "@/store/projects.ts";
+import { useChatStore } from "@/store/chat.js";
 import Board3DView from "./Board3DView.jsx";
+import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
+import useBuildStatus from "./useBuildStatus.js";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
 import PartsPanel from "./PartsPanel.jsx";
@@ -22,12 +27,6 @@ import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
 import PropertiesPanel from "./PropertiesPanel.jsx";
 import { buildViewContextNote, normalizeParts, partsByLcsc } from "./boardData.js";
-
-const STATUS_DOT = Object.freeze({
-  ready: "bg-emerald-500",
-  building: "bg-amber-400 animate-pulse",
-  pending: "bg-muted-foreground/40",
-});
 
 const TABS = Object.freeze([
   { id: "split", label: "Split" },
@@ -73,6 +72,7 @@ export default function BoardWorkspace({
   onOpenAccountScreen,
 }) {
   const [selectedFile, setSelectedFile] = useState("");
+  const [treeOpen, setTreeOpen] = useState(true);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sidecar, setSidecar] = useState(null);
   const [circuit, setCircuit] = useState(null);
@@ -110,8 +110,16 @@ export default function BoardWorkspace({
     if (closeLeftSidebarSignal !== lastCloseSignal) {
       setLastCloseSignal(closeLeftSidebarSignal);
       setPartsOpen(false);
+      setTreeOpen(false);
     }
   }, [closeLeftSidebarSignal, lastCloseSignal]);
+
+  // --- the navigator's world: every project, not just the open one.
+  const projects = useProjectsStore((state) => state.projects);
+  const currentProjectId = useProjectsStore((state) => state.currentProjectId);
+  const openProject = useProjectsStore((state) => state.open);
+  const turnInProgress = useChatStore((state) => state.turnInProgress);
+  const buildStatus = useBuildStatus(currentProjectId || "", turnInProgress);
 
   const selectedEntry = useMemo(
     () => boardEntries.find((entry) => entry.file === selectedFile) || null,
@@ -275,6 +283,39 @@ export default function BoardWorkspace({
     prefillChatInput(text);
   }, []);
 
+  // --- navigator callbacks
+  const boardStatusOf = useCallback(
+    (entry) => boardStatus(entry, { activity: artifactActivity }),
+    [artifactActivity],
+  );
+  const boardLabelOf = useCallback((entry) => boardStem(entry.file), []);
+
+  /**
+   * Open another project, optionally landing on one of its boards. The
+   * catalog is scoped to the open project on the backend, so main.jsx re-reads
+   * it on the id change; setting `selectedFile` up front means the board is
+   * already chosen by the time those entries arrive.
+   */
+  const handleOpenProject = useCallback(
+    (projectId, boardFile = "") => {
+      if (!projectId || projectId === currentProjectId) {
+        if (boardFile) setSelectedFile(boardFile);
+        return;
+      }
+      if (boardFile) setSelectedFile(boardFile);
+      openProject(projectId)
+        .then(() => setChatProject(projectId))
+        .catch((err) => console.warn("Failed to open project", err));
+    },
+    [currentProjectId, openProject],
+  );
+
+  /** Boards of a project we do NOT have open — read lazily when it is expanded. */
+  const readProjectCatalog = useCallback(async (projectId) => {
+    const catalog = await transport.project_catalog_read(projectId);
+    return selectBoardEntries(catalog);
+  }, []);
+
   const handleSendToAI = useCallback(() => {
     if (!selectedStem) return;
     setPendingViewContext(buildViewContextNote({ board: selectedStem, tab: activeTab, selection, index }));
@@ -358,7 +399,6 @@ export default function BoardWorkspace({
     return () => window.removeEventListener("keydown", onKey);
   }, [fitAll, singleLayerMode]);
 
-  const hasBoards = boardEntries.length > 0;
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";
     return index.netByKey.get(hover.netKey)?.name || "";
@@ -445,43 +485,23 @@ export default function BoardWorkspace({
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <nav
-          data-slot="board-rail"
-          aria-label="Boards"
-          className="scrollbar-thin flex w-20 shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border/60 py-3"
-        >
-          {boardEntries.map((entry) => {
-            const stem = boardStem(entry.file);
-            const status = boardStatus(entry, { activity: artifactActivity });
-            const active = entry.file === selectedEntry?.file;
-            return (
-              <button
-                key={entry.file}
-                type="button"
-                onClick={() => setSelectedFile(entry.file)}
-                title={`${stem} — ${status}`}
-                data-slot="board-chip"
-                data-status={status}
-                aria-current={active ? "true" : undefined}
-                className={cn(
-                  "relative flex h-9 w-16 shrink-0 items-center justify-center rounded-lg border px-1 font-mono text-[11px] transition-colors",
-                  active
-                    ? "border-primary/60 bg-primary/10 text-foreground"
-                    : "border-border/60 bg-card/60 text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-              >
-                <span className="truncate">{boardLabel(stem)}</span>
-                <span
-                  aria-hidden
-                  className={cn("absolute right-1 top-1 size-1.5 rounded-full", STATUS_DOT[status] || STATUS_DOT.pending)}
-                />
-              </button>
-            );
-          })}
-          {!hasBoards && catalogHydrated ? (
-            <span className="px-1 text-center text-[10px] leading-4 text-muted-foreground/70">No boards yet</span>
-          ) : null}
-        </nav>
+        <BoardTreeSidebar
+          projects={projects}
+          currentProjectId={currentProjectId || ""}
+          boardEntries={boardEntries}
+          selectedFile={selectedEntry?.file || ""}
+          index={index}
+          selection={selection}
+          buildStatus={buildStatus}
+          boardStatusOf={boardStatusOf}
+          boardLabelOf={boardLabelOf}
+          onSelectBoard={setSelectedFile}
+          onOpenProject={handleOpenProject}
+          onSelect={handleSelect}
+          onReadProjectCatalog={readProjectCatalog}
+          open={treeOpen}
+          onToggleOpen={() => setTreeOpen((value) => !value)}
+        />
 
         <PartsPanel partsEntry={partsEntry} open={partsOpen} onToggle={() => setPartsOpen((value) => !value)} />
 
