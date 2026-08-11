@@ -119,6 +119,8 @@ system prompt and a narrow job, orchestrated by a Node driver that spawns them a
 shape is the one Anthropic calls
 [orchestrator-workers](https://www.anthropic.com/engineering/building-effective-agents).
 
+![circuitcode orchestrates the other agents; the gauntlet is the one box where no model runs](docs/architecture/multi-agent-architecture.svg)
+
 | Agent | Job | Why it is separate |
 |---|---|---|
 | **`circuit-analysis`** | vague ask → engineering brief | Interrogating a request and designing a board are different skills. Merged, the model starts designing before it knows what it is designing. |
@@ -152,6 +154,8 @@ take the disagreement to a human with options.
 ---
 
 ## Four loops, closing over four different things
+
+![A full run, from the ask through the build-and-repair loop to the review panel](docs/architecture/multi-agent-process.svg)
 
 Feedback is the whole architecture. There are four loops, and they are worth telling apart because
 each closes over a different object on a different timescale.
