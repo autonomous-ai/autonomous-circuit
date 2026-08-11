@@ -82,16 +82,15 @@ implies mains, ask the one question.
    `circuitlib.tables.RAILS`; the decoupling rule
    (`DECOUPLE_PER_POWER_PIN`, `BULK_PER_RAIL`) is the table's, not yours.
 
-3. **Pick the brain.** **Connectivity decides it:**
-   - needs Wi-Fi / BLE / talks to a phone or cloud → **ESP32-S3**
-     (certified module; `esp32-s3-core`).
-   - USB-attached only — HID, serial, a device a computer drives →
-     **RP2040** (`rp2040-core`; cheaper, deterministic PIO, no radio,
-     no certification burden).
-   - neither, and the job is "read a sensor and blink" → still pick one;
-     an MCU-less board is almost never what the user wants.
-   If the block for the chosen brain is not in the registry yet, say so
-   in `gaps` and pick the released one that still does the job.
+3. **Pick the brain.** There is exactly one released MCU block:
+   **`rp2040-core`** (RP2040 + QSPI flash + crystal + BOOTSEL/RESET).
+   USB-attached work — HID, serial, anything a computer drives — is what
+   it is for.
+   - **Wi-Fi / BLE / phone / cloud is a `gaps` entry, not a choice.** No
+     radio block exists. Say so plainly and do not offer wireless as an
+     option the user can pick, because we cannot build what they would
+     be picking. An earlier version of this file named `esp32-s3-core`;
+     that block has never existed and the brief must not name it.
 
 4. **Pick the sensor/actuator blocks — from the registry only.** The
    registry is `circuitlib.blocks` (mirrored by
@@ -109,9 +108,14 @@ implies mains, ask the one question.
    | `sensor-bme280` | temperature / humidity / pressure on I2C |
    | `status-led` | one indicator LED + series resistor |
    | `sw-tact` | one tactile button (instantiate per key) |
+   | `ws2812-chain` | addressable RGB pixels on one GPIO, parametric in `count` |
 
    **Never invent a circuit from a datasheet, and never put a block in a
-   brief that isn't in the registry.** A need with no block is a `gaps`
+   brief that isn't in the registry.** This applies to the *options you
+   offer* as much as to the blocks you choose. Offering "Wi-Fi control"
+   or "ambient light sensing" as a preference the user can select is the
+   same error as designing it: they pick it, and we cannot deliver.
+   Every option in a question must be buildable from the table above. A need with no block is a `gaps`
    entry naming the part class and what authoring it would take — that
    is an honest, actionable brief; a fictional block is a board that
    cannot be built.
@@ -165,13 +169,12 @@ spec as JSON, followed by a 2–3 sentence plain-language summary.
     "story": "usb-c-5v",
     "rails": ["V5", "V3_3"],
     "blocks": ["usb-c-power", "ldo-3v3"],
-    "budget_ma": { "value": 320, "basis": "estimate — ESP32-S3 Wi-Fi TX peak plus sensor idle" }
+    "budget_ma": { "value": 120, "basis": "estimate — RP2040 active plus sensor idle" }
   },
   "brain": {
-    "block": "esp32-s3-core",
-    "why": "reports to a phone over Wi-Fi",
-    "released": false,
-    "fallback": "rp2040-core (USB-attached only) until the ESP32-S3 block lands"
+    "block": "rp2040-core",
+    "why": "USB-attached; the wireless ask is a gap, not a choice",
+    "released": true
   },
   "blocks": [
     { "id": "usb-c-power", "role": "5V in" },
@@ -199,12 +202,12 @@ spec as JSON, followed by a 2–3 sentence plain-language summary.
   "cost_band": {
     "qty": 5,
     "usd": [75, 110],
-    "basis": "estimate — assembled ESP32-class reference band (contract §1); extended BOM lines add ~$3 each",
+    "basis": "estimate — assembled RP2040-class reference band (contract §1); extended BOM lines add ~$3 each",
     "lead_time_days": [7, 14]
   },
   "gaps": [
-    { "need": "ESP32-S3 core", "status": "block not authored yet",
-      "unblocks": "author esp32-s3-core (module C2913206, EN RC, strap pins)" }
+    { "need": "wireless (Wi-Fi/BLE)", "status": "no radio block exists",
+      "unblocks": "author a certified-module block; until then do not offer wireless as an option" }
   ],
   "assumptions": [
     "desk device, always plugged in — no battery",
