@@ -88,6 +88,7 @@ export function createSettingsStore({ filePath = settingsFilePath() } = {}) {
       autoUpdate: false,
       autoBuild: s.autoBuild,
       ...(s.model ? { model: s.model } : {}),
+      ...(s.effort ? { effort: s.effort } : {}),
     };
   }
 

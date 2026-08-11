@@ -388,6 +388,16 @@ export function createCircuitServices({ env = process.env } = {}) {
       return settings.readWire();
     },
 
+    // Reasoning effort, the sibling of app_set_model. The UI grew an effort
+    // selector before there was anywhere to put the value, so it was a
+    // prompt directive pretending to be a setting; this persists it and the
+    // driver sends it as --effort. An unknown level falls back to the pinned
+    // default rather than being passed through to the CLI.
+    app_set_effort: async ({ effort }) => {
+      settings.write({ effort: typeof effort === "string" ? effort : "" });
+      return settings.readWire();
+    },
+
     // projects
     project_list: async () => projects.list(),
     project_create: async ({ req }) => projects.create(req?.name),
