@@ -344,6 +344,40 @@ export function createCircuitServices({ env = process.env } = {}) {
       pid: process.pid,
     }),
     app_prereq_check: async () => prereqCheck(env),
+
+    // Live build progress. The pipeline writes its current stage to
+    // `<project>/.circuit/build-status.json`, and `.circuit/` is skipped by
+    // both the catalog scanner and the artifact snapshotter — deliberately,
+    // so progress never masquerades as a new artifact — which means no SSE
+    // event carries it. The client polls this while a turn is running so a
+    // 90-second build reads as "Cross-checking with KiCad" rather than a
+    // spinner that might be a hang.
+    build_status: async ({ id }) => {
+      const projectId = requireProject(id);
+      const file = path.join(
+        projects.projectDir(projectId),
+        ".circuit",
+        "build-status.json",
+      );
+      try {
+        const raw = fs.readFileSync(file, "utf8");
+        const status = JSON.parse(raw);
+        // A "running" record left behind by a killed build would spin
+        // forever; anything unheard from for two minutes is stale, and
+        // saying so is better than lying about progress.
+        const updatedAt = Number(status?.updatedAt) * 1000;
+        if (
+          status?.state === "running" &&
+          Number.isFinite(updatedAt) &&
+          Date.now() - updatedAt > 120_000
+        ) {
+          return { ...status, state: "stale" };
+        }
+        return status;
+      } catch {
+        return null; // no build has run, or the file is mid-write
+      }
+    },
     app_settings_read: async () => settings.readWire(),
     app_settings_write: async ({ settings: next }) => {
       settings.write(next && typeof next === "object" ? next : {});
