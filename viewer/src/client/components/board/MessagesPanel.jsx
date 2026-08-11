@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, CircleAlert, Crosshair, Info, MessageSquarePlus, TriangleAlert } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  CircleAlert,
+  Crosshair,
+  Info,
+  MessageSquarePlus,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/ui/utils";
 import { buildMessages, messageCounts } from "@/lib/boardViolations.js";
+import { IMPACT, groupFindings, groupFixRequest } from "@/lib/plainLanguage.js";
 import { normalizeWarnings, warningNoteText } from "./boardData.js";
 
 const SEVERITY_ICON = { error: CircleAlert, warning: TriangleAlert, info: Info };
@@ -26,6 +36,15 @@ const FILTERS = [
   { id: "info", label: "Info" },
 ];
 
+// What each impact bucket is called in the grouped view. The label answers
+// "does this stop me getting boards?" before it answers "what rule fired?".
+const IMPACT_LABEL = {
+  [IMPACT.BLOCKS]: "stops the order",
+  [IMPACT.QUALITY]: "worth fixing",
+  [IMPACT.COSMETIC]: "looks only",
+  [IMPACT.TOOLING]: "checker setup",
+};
+
 /**
  * Messages — the DRC panel. Rows come from the sidecar's `validation.warnings`
  * (the contract's severity authority); locations come from joining them against
@@ -39,6 +58,9 @@ const FILTERS = [
  * in the row, where the eye lands after reading the message.
  */
 export default function MessagesPanel({
+  rows: rowsProp = null,
+  groups: groupsProp = null,
+  boardName = "",
   index = null,
   sidecar = null,
   selection = null,
@@ -50,11 +72,25 @@ export default function MessagesPanel({
   className,
 }) {
   const [filter, setFilter] = useState("all");
-  const rows = useMemo(() => buildMessages(index, normalizeWarnings(sidecar)), [index, sidecar]);
+  // Grouped is the default. A DRC panel that opens on 694 individual rows is
+  // a wall; the same findings as nine named issues is a to-do list. "Every"
+  // is one click away and is what an engineer reaching for a specific
+  // violation wants.
+  const [mode, setMode] = useState("grouped");
+  const built = useMemo(
+    () => (rowsProp ? null : buildMessages(index, normalizeWarnings(sidecar))),
+    [rowsProp, index, sidecar],
+  );
+  const rows = rowsProp || built || [];
   const counts = useMemo(() => messageCounts(rows), [rows]);
+  const groups = useMemo(() => groupsProp || groupFindings(rows), [groupsProp, rows]);
   const shown = useMemo(
     () => (filter === "all" ? rows : rows.filter((row) => row.severity === filter)),
     [rows, filter],
+  );
+  const shownGroups = useMemo(
+    () => (filter === "all" ? groups : groups.filter((group) => group.rows.some((row) => row.severity === filter))),
+    [groups, filter],
   );
 
   const header = (
@@ -84,6 +120,32 @@ export default function MessagesPanel({
       </div>
       {open ? (
         <div className="ml-auto flex items-center gap-0.5">
+          <div className="mr-1.5 flex items-center gap-0.5 rounded border border-border/60 p-0.5">
+            {[
+              { id: "grouped", label: "Grouped" },
+              { id: "every", label: "Every" },
+            ].map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setMode(entry.id)}
+                data-slot="messages-mode"
+                data-mode={entry.id}
+                aria-current={mode === entry.id ? "true" : undefined}
+                title={
+                  entry.id === "grouped"
+                    ? "One row per kind of problem, in plain words"
+                    : "One row per individual violation"
+                }
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[11px] transition-colors",
+                  mode === entry.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
           {FILTERS.map((entry) => (
             <button
               key={entry.id}
@@ -120,7 +182,21 @@ export default function MessagesPanel({
             {sidecar ? "No findings at this severity — the board checks out." : "Findings appear here once the board builds."}
           </p>
         ) : null}
-        {shown.map((row) => {
+
+        {mode === "grouped"
+          ? shownGroups.map((group) => (
+              <MessageGroupRow
+                key={group.code}
+                group={group}
+                boardName={boardName}
+                onSelect={onSelect}
+                onLocate={onLocate}
+                onPrefillNote={onPrefillNote}
+              />
+            ))
+          : null}
+
+        {mode === "grouped" ? null : shown.map((row) => {
           const Icon = SEVERITY_ICON[row.severity] || TriangleAlert;
           const active =
             selection && row.target.kind === selection.kind && row.target.key && row.target.key === selection.key;
@@ -187,6 +263,104 @@ export default function MessagesPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * One kind of problem, not one instance of it. The plain title carries the
+ * meaning; the code stays on the row in mono so an engineer can still search
+ * for `hole_clearance`. Expanding shows the individual violations, which
+ * cross-probe exactly as they do in the flat list.
+ */
+function MessageGroupRow({ group, boardName, onSelect, onLocate, onPrefillNote }) {
+  const [open, setOpen] = useState(false);
+  const Chevron = open ? ChevronDown : ChevronRight;
+  const Icon = SEVERITY_ICON[group.severity] || TriangleAlert;
+  return (
+    <div data-slot="message-group" data-code={group.code} data-blocking={group.blocking ? "true" : "false"}>
+      <div
+        className={cn(
+          "flex cursor-default items-center gap-2 border-b border-border/30 px-3 py-1.5 text-[12px] transition-colors hover:bg-accent/40",
+          group.blocking ? "bg-amber-500/[0.06]" : "",
+        )}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Chevron className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+        <Icon className={cn("size-3 shrink-0", SEVERITY_TEXT[group.severity])} aria-hidden />
+        <span className="w-8 shrink-0 text-right font-mono text-[11px] tabular-nums text-foreground">
+          {group.count}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-foreground" title={group.meaning || group.title}>
+          {group.title}
+        </span>
+        <span className="hidden w-32 shrink-0 truncate text-right text-[11px] text-muted-foreground/70 lg:inline">
+          {IMPACT_LABEL[group.blocking ? IMPACT.BLOCKS : group.impact]}
+        </span>
+        <span className="w-44 shrink-0 truncate font-mono text-[11px] text-muted-foreground/60" title={group.code}>
+          {group.code}
+        </span>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onPrefillNote?.(groupFixRequest(group, { board: boardName }));
+          }}
+          title={`Ask the chat to fix all ${group.count}`}
+          data-slot="message-group-fix"
+          className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground/60 transition-colors hover:bg-primary/15 hover:text-foreground"
+        >
+          <MessageSquarePlus className="size-3" aria-hidden />
+          Fix all
+        </button>
+      </div>
+      {open
+        ? group.rows.slice(0, 60).map((row) => (
+            <div
+              key={row.id}
+              data-slot="message-row"
+              data-severity={row.severity}
+              data-locatable={row.locatable ? "true" : "false"}
+              onClick={() => {
+                if (row.target.kind === "component" || row.target.kind === "net") {
+                  onSelect?.({ kind: row.target.kind, key: row.target.key });
+                }
+              }}
+              onDoubleClick={() => onLocate?.(row)}
+              className="flex cursor-default items-start gap-2 border-b border-border/20 bg-background/40 py-1 pl-9 pr-3 text-[11px] transition-colors hover:bg-accent/40"
+            >
+              <span className="w-28 shrink-0 truncate font-mono text-muted-foreground" title={row.part}>
+                {row.part || "board"}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-muted-foreground/80" title={row.detail}>
+                {row.detail}
+              </span>
+              <button
+                type="button"
+                disabled={!row.locatable}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onLocate?.(row);
+                }}
+                title={row.locatable ? "Zoom to this violation" : "This finding has no location on the board"}
+                data-slot="message-locate"
+                className={cn(
+                  "shrink-0 rounded p-0.5 transition-colors",
+                  row.locatable
+                    ? "text-muted-foreground/60 hover:bg-accent hover:text-foreground"
+                    : "cursor-not-allowed text-muted-foreground/20",
+                )}
+              >
+                <Crosshair className="size-3" aria-hidden />
+              </button>
+            </div>
+          ))
+        : null}
+      {open && group.rows.length > 60 ? (
+        <p className="border-b border-border/20 bg-background/40 py-1 pl-9 text-[11px] text-muted-foreground/60">
+          +{group.rows.length - 60} more — switch to Every to page through them all.
+        </p>
+      ) : null}
     </div>
   );
 }

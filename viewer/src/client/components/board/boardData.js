@@ -117,6 +117,10 @@ export function normalizeParts(data) {
         unitPriceUsd: Number.isFinite(price) && price > 0 ? price : null,
         checked: String(part?.stockChecked ?? part?.stock_checked ?? part?.checked ?? "").trim(),
         datasheet: String(part?.datasheet ?? part?.datasheetUrl ?? part?.datasheet_url ?? "").trim(),
+        // How many places this part is used. parts-book writes the refdes list
+        // per part; without it a BOM cost is a sum of unit prices, which is a
+        // different (and wrong) number.
+        refdes: Array.isArray(part?.refdes) ? part.refdes.map((value) => String(value)).filter(Boolean) : [],
       };
     })
     .filter((part) => part.id);

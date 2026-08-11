@@ -10,6 +10,8 @@ import {
 } from "@/components/chat/chatInputHelpers.js";
 import { boardStatus, boardStem, selectBoardEntries } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
+import { buildMessages } from "@/lib/boardViolations.js";
+import { groupFindings } from "@/lib/plainLanguage.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
 import { transport } from "@/lib/transport.ts";
 import { useProjectsStore } from "@/store/projects.ts";
@@ -23,8 +25,10 @@ import RevisionPager from "./RevisionPager.jsx";
 import ViewportToolRail from "./ViewportToolRail.jsx";
 import useBoardRevisions from "./useBoardRevisions.js";
 import useBuildStatus from "./useBuildStatus.js";
+import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
+import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
 import SchematicCanvas from "./SchematicCanvas.jsx";
@@ -32,9 +36,14 @@ import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
 import PropertiesPanel from "./PropertiesPanel.jsx";
-import { buildViewContextNote, normalizeParts, partsByLcsc } from "./boardData.js";
+import { buildStatusLine } from "./buildStatus.js";
+import { buildViewContextNote, normalizeParts, normalizeWarnings, partsByLcsc } from "./boardData.js";
 
 const TABS = Object.freeze([
+  // Overview is first and default on purpose: someone who has never opened an
+  // EDA tool lands on Split otherwise and sees two drawings with no way in.
+  // An engineer is one click (or `0`) from the split view they want.
+  { id: "overview", label: "Overview" },
   { id: "split", label: "Split" },
   { id: "schematic", label: "Schematic" },
   { id: "pcb", label: "PCB" },
@@ -84,7 +93,7 @@ export default function BoardWorkspace({
   const [circuit, setCircuit] = useState(null);
   const [circuitState, setCircuitState] = useState("idle"); // idle | loading | ready | failed
   const [parts, setParts] = useState([]);
-  const [activeTab, setActiveTab] = useState("split");
+  const [activeTab, setActiveTab] = useState("overview");
 
   // --- editor state (all Altium analogues; see ALTIUM-NOTES.md)
   const [selection, setSelection] = useState(null);
@@ -271,6 +280,17 @@ export default function BoardWorkspace({
 
   const partsMap = useMemo(() => partsByLcsc(parts), [parts]);
   const highlight = useMemo(() => (index ? resolveSelection(index, selection) : null), [index, selection]);
+
+  // Findings, twice: once as rows (Messages, cross-probing) and once collapsed
+  // into plain-language issues (Overview, the verdict strip). Both read the
+  // same sidecar list, so the two panels can never disagree about a count.
+  const messageRows = useMemo(
+    () => buildMessages(index, normalizeWarnings(effectiveSidecar)),
+    [index, effectiveSidecar],
+  );
+  const findingGroups = useMemo(() => groupFindings(messageRows), [messageRows]);
+  const buildLine = useMemo(() => buildStatusLine(buildStatus), [buildStatus]);
+  const building = buildLine?.tone === "running";
 
   const layers = useMemo(() => {
     const list = index?.layers || ["top", "bottom"];
@@ -731,8 +751,41 @@ export default function BoardWorkspace({
                 </button>
               </div>
 
+              {/* The verdict lives above the panes and outside the tab switch:
+                  "can I get this made?" does not stop mattering when you look
+                  at the BOM. It is the only place in the workspace that
+                  answers it in a sentence. */}
+              <BoardVerdict
+                sidecar={effectiveSidecar}
+                index={index}
+                groups={findingGroups}
+                building={building}
+                buildLine={buildLine}
+                boardName={selectedStem}
+                onOpenTab={setActiveTab}
+                onFix={handlePrefillNote}
+              />
+
               <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
+                  {activeTab === "overview" ? (
+                    <OverviewTab
+                      sidecar={effectiveSidecar}
+                      index={index}
+                      groups={findingGroups}
+                      parts={parts}
+                      building={building}
+                      buildLine={buildLine}
+                      boardName={selectedStem}
+                      productUrl={currentProjectId ? `/projects/${currentProjectId}/product.json` : ""}
+                      artifact={artifact}
+                      onFix={handlePrefillNote}
+                      onLocate={handleLocate}
+                      onSelect={handleSelect}
+                      onOpenTab={setActiveTab}
+                      className="min-h-0 flex-1"
+                    />
+                  ) : null}
                   {activeTab === "split" ? (
                     <div className="flex min-h-0 flex-1">
                       <div className="flex min-w-0 flex-1 flex-col border-r border-border/60">{schematicPane}</div>
@@ -798,7 +851,14 @@ export default function BoardWorkspace({
                     />
                   ) : null}
 
+                  {/* Overview carries the same findings, already grouped and
+                      in plain words — two lists of the same thing on one
+                      screen is how a panel becomes furniture. */}
+                  {activeTab === "overview" ? null : (
                   <MessagesPanel
+                    rows={messageRows}
+                    groups={findingGroups}
+                    boardName={selectedStem}
                     index={index}
                     sidecar={effectiveSidecar}
                     selection={selection}
@@ -808,16 +868,23 @@ export default function BoardWorkspace({
                     open={messagesOpen}
                     onToggleOpen={() => setMessagesOpen((value) => !value)}
                   />
+                  )}
                 </div>
 
-                <PropertiesPanel
-                  index={index}
-                  sidecar={effectiveSidecar}
-                  selection={selection}
-                  partsByLcscMap={partsMap}
-                  units={units}
-                  onSelect={handleSelect}
-                />
+                {/* Properties is an inspector for the drawing panes. On
+                    Overview it duplicates the same numbers in EDA words and
+                    steals a third of the width from the thing that is trying
+                    to explain them. */}
+                {activeTab === "overview" ? null : (
+                  <PropertiesPanel
+                    index={index}
+                    sidecar={effectiveSidecar}
+                    selection={selection}
+                    partsByLcscMap={partsMap}
+                    units={units}
+                    onSelect={handleSelect}
+                  />
+                )}
               </div>
             </>
           ) : (
