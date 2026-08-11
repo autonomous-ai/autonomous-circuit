@@ -489,9 +489,36 @@ def main(argv: list[str]) -> int:
     payloads = [
         (b, args.model, args.timeout_s, args.keep, args.budget_usd) for b in briefs
     ]
+
+    def _flush() -> None:
+        """Write the report after every finished brief.
+
+        A run is hours long and each brief costs real money. Losing eight of
+        them because the parent was killed at brief seven is not an acceptable
+        failure mode — it happened on 2026-08-11 and cost the whole first
+        measurement.
+        """
+        card = scorecard(results)
+        Path(args.report).write_text(
+            json.dumps({
+                "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "model": args.model or "default",
+                "complete": len(results) == len(briefs),
+                "wallSeconds": round(time.time() - started),
+                "scorecard": card,
+                "runs": sorted(results, key=lambda r: r["brief"]),
+            }, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     with futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for record in pool.map(_worker, payloads):
+        # as_completed, not map: map yields in submission order, so one slow
+        # brief hides every result behind it.
+        pending = [pool.submit(_worker, payload) for payload in payloads]
+        for future in futures.as_completed(pending):
+            record = future.result()
             results.append(record)
+            _flush()
             mark = "ok  " if record["passed"] else "FAIL"
             detail = (
                 f"builds={record['builds']} "
@@ -508,15 +535,8 @@ def main(argv: list[str]) -> int:
             )
 
     results.sort(key=lambda r: r["brief"])
+    _flush()
     card = scorecard(results)
-    report = {
-        "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "model": args.model or "default",
-        "wallSeconds": round(time.time() - started),
-        "scorecard": card,
-        "runs": results,
-    }
-    Path(args.report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     print("\n--- scorecard ---")
     print(
