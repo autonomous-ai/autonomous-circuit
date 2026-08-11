@@ -51,18 +51,35 @@ BOARD_PROPS = (
 
 
 def _bench_board_source(bench_id: str) -> str:
-    """The testbench, re-wrapped with production board props."""
+    """The testbench, re-wrapped as a board a user would actually get.
+
+    Two deliberate overrides of whatever the bench declares:
+
+    * **`routingDisabled` is stripped.** Three benches carried it —
+      `usb-c-power`, `usb-c-data`, `rp2040-core`, precisely the three blocks
+      that went on to break every example board. With routing off a block
+      cannot fail a routing check, so its tests stayed green while boards
+      built from it did not route. A block that cannot be routed cannot be
+      used; this gate says so.
+    * **Production board props are added** (1.6mm, 0.2mm tracks, real via
+      geometry), because a block judged under different rules than the boards
+      that will use it is not really being judged.
+    """
     source = (GB_ROOT / "testbench" / f"{bench_id}.tsx").read_text(encoding="utf-8")
-    marker = "<board"
-    start = source.index(marker)
+    start = source.index("<board")
     end = source.index(">", start)
     head, tail = source[:start], source[end + 1:]
-    existing = source[start:end]
-    # Keep the bench's own width/height; add the production props.
+    props = source[start:end]
+    props = props.replace("routingDisabled={true}", "").replace("routingDisabled", "")
     for prop in ("thickness", "minTraceWidth", "minViaPadDiameter", "minViaHoleDiameter"):
-        if prop in existing:
-            existing = existing  # bench already opted in; leave it
-    return f"{head}{existing} {BOARD_PROPS}>{tail}"
+        if prop in props:
+            # The bench pinned this one itself; do not fight it.
+            return f"{head}{props.rstrip()} {BOARD_PROPS_MINUS(prop)}>{tail}"
+    return f"{head}{props.rstrip()} {BOARD_PROPS}>{tail}"
+
+
+def BOARD_PROPS_MINUS(skip: str) -> str:
+    return " ".join(p for p in BOARD_PROPS.split() if not p.startswith(skip))
 
 
 @pytest.fixture(scope="session")
