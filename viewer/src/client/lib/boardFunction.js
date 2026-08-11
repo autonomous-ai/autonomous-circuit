@@ -376,7 +376,9 @@ export function functionSummary(rows, { brain = null } = {}) {
       tone: "gap",
       headline: `${plural(isolated, "area")} we could not tie back to the brain`,
       line: `${confirmed} of ${total} areas reach the brain on a named pin${
-        powerOnly ? `, ${powerOnly} carry power and ground only` : ""
+        powerOnly
+          ? `, ${powerOnly} ${powerOnly === 1 ? "carries" : "carry"} power and ground only`
+          : ""
       }. The rest are below, with what we could and could not confirm.`,
       total,
       confirmed,
@@ -391,7 +393,11 @@ export function functionSummary(rows, { brain = null } = {}) {
     tone: "traced",
     headline: "Every area is joined to the rest of the board",
     line: `${confirmed} of ${total} reach the brain on a named pin${
-      powerOnly ? `; the other ${powerOnly} carry power and ground, which is all they need` : ""
+      powerOnly
+        ? powerOnly === 1
+          ? "; the other one carries power and ground, which is all it needs"
+          : `; the other ${powerOnly} carry power and ground, which is all they need`
+        : ""
     }.`,
     total,
     confirmed,

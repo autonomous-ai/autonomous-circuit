@@ -36,12 +36,14 @@ export default function useBuildStatus(projectId, active) {
   const settledRef = useRef(false);
   const highWaterRef = useRef(-1);
   const retryRef = useRef(false);
+  const runIdRef = useRef("");
 
   // A new project, or a new turn, is a new build to follow.
   useEffect(() => {
     settledRef.current = false;
     highWaterRef.current = -1;
     retryRef.current = false;
+    runIdRef.current = "";
     if (active) setStatus(null);
   }, [projectId, active]);
 
@@ -55,11 +57,22 @@ export default function useBuildStatus(projectId, active) {
         const next = await transport.build_status(projectId);
         if (cancelled) return;
         if (next) {
+          // A whole new build — the agent running the generator a second time
+          // in the same turn — also rewinds the stage index, and calling that a
+          // router retry would put a 5x-effort row on an ordinary rebuild. The
+          // pipeline stamps each invocation with its own `runId`; stage 0b's
+          // retry happens inside one, so only a rewind under an unchanged runId
+          // is the retry.
+          const runId = String(next.runId || "");
+          if (runId !== runIdRef.current) {
+            runIdRef.current = runId;
+            highWaterRef.current = -1;
+            retryRef.current = false;
+          }
           const index = Number(next.stageIndex);
           if (Number.isFinite(index)) {
-            // A stage index that goes backwards after the first pass is the
-            // retry. It never un-sets for this build: the retry has happened,
-            // and the stages after it are still the retry's stages.
+            // Backwards within one run is the retry, and it stays set: the
+            // stages after it are still the retry's stages.
             if (index < highWaterRef.current) retryRef.current = true;
             else highWaterRef.current = Math.max(highWaterRef.current, index);
           }

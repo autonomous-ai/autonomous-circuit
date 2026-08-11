@@ -286,6 +286,9 @@ export interface CatalogChangedEvent {
  */
 export interface BuildStatus {
   state: "running" | "done" | "failed" | "stale";
+  /** One id per `build_board()` invocation. A rewind of `stageIndex` under an
+   *  unchanged runId is the router retry; under a new one it is a new build. */
+  runId?: string;
   stage: string;
   stageLabel: string;
   stageIndex: number;

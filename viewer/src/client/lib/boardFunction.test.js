@@ -186,3 +186,13 @@ test("joined to something that is not the brain is not the same as joined to not
   assert.match(sensor.sentence, /Joined to R3/);
   assert.match(sensor.sentence, /nothing carries a signal from here to the brain/);
 });
+
+test("one power-only area is one, not '1 carry'", () => {
+  const rows = [
+    { status: FUNCTION_STATUS.BRAIN, confirmed: true },
+    { status: FUNCTION_STATUS.SIGNAL, confirmed: true },
+    { status: FUNCTION_STATUS.POWER, confirmed: false },
+  ];
+  const summary = functionSummary(rows, { brain: { refdes: "U3" } });
+  assert.match(summary.line, /the other one carries power and ground/);
+});
