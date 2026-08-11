@@ -431,10 +431,17 @@ export function boardVerdict({ sidecar = null, groups = [], building = false } =
   }
 
   if (sidecar?.fab?.ready === true) {
+    // A ready board can still carry cosmetic and checker-setup notes. Saying
+    // "every check passed" when 60 findings are on screen would read as a lie
+    // the moment anyone scrolled, so the count goes in the sentence.
+    const rest = (Array.isArray(groups) ? groups : []).reduce((sum, g) => sum + g.count, 0);
+    const tail = rest
+      ? ` ${plural(rest, "note")} left in the checks, none of which stop the order.`
+      : " Nothing outstanding.";
     return {
       tone: "ready",
       headline: "Ready to order",
-      line: "Every check passed. The factory files are made and verified — you can send this to JLCPCB as it is.",
+      line: `The factory files are made and verified — send this to JLCPCB as it is.${tail}`,
       blockingGroups,
       blockingCount,
     };

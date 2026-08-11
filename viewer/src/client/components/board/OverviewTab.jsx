@@ -388,6 +388,17 @@ export default function OverviewTab({
                     : `${plural(cost.unpriced, "part")} on the list has no checked price yet, so the real total is higher.`}
                 </p>
               </>
+            ) : Number.isFinite(Number(sidecar?.bom?.estimatedCostUsd)) &&
+              Number(sidecar.bom.estimatedCostUsd) > 0 ? (
+              <>
+                <p className="text-foreground">
+                  <span className="font-mono tabular-nums">
+                    ${Number(sidecar.bom.estimatedCostUsd).toFixed(2)}
+                  </span>{" "}
+                  of parts per board
+                </p>
+                <p className="text-xs">The build's own estimate, from the BOM it exported.</p>
+              </>
             ) : (
               <p className="text-xs">
                 No checked prices on file yet. Ask the chat to price the parts and it will pin each one to a real

@@ -294,10 +294,13 @@ function MessageGroupRow({ group, boardName, onSelect, onLocate, onPrefillNote }
         <span className="min-w-0 flex-1 truncate text-foreground" title={group.meaning || group.title}>
           {group.title}
         </span>
-        <span className="hidden w-32 shrink-0 truncate text-right text-[11px] text-muted-foreground/70 lg:inline">
+        <span className="hidden w-24 shrink-0 truncate text-right text-[11px] text-muted-foreground/70 lg:inline">
           {IMPACT_LABEL[group.blocking ? IMPACT.BLOCKS : group.impact]}
         </span>
-        <span className="w-44 shrink-0 truncate font-mono text-[11px] text-muted-foreground/60" title={group.code}>
+        <span
+          className="hidden w-36 shrink-0 truncate font-mono text-[11px] text-muted-foreground/60 xl:inline"
+          title={group.code}
+        >
           {group.code}
         </span>
         <button

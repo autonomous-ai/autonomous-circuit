@@ -813,7 +813,14 @@ export default function BoardWorkspace({
                     />
                   ) : null}
                   {activeTab === "fab" ? (
-                    <FabPacketCard stem={selectedStem} artifact={artifact} sidecar={effectiveSidecar} className="min-h-0 flex-1" />
+                    <FabPacketCard
+                      stem={selectedStem}
+                      artifact={artifact}
+                      sidecar={effectiveSidecar}
+                      groups={findingGroups}
+                      onOpenTab={setActiveTab}
+                      className="min-h-0 flex-1"
+                    />
                   ) : null}
 
                   {CANVAS_TABS.has(activeTab) && activeTab !== "schematic" ? (

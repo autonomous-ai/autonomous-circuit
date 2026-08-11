@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { CircleAlert, Download, Loader2 } from "lucide-react";
+import { ArrowRight, CircleAlert, Download, ExternalLink, Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { triggerUrlDownload } from "@/ui/download.js";
 import Markdown from "@/components/chat/Markdown.jsx";
+import { JLCPCB_QUOTE_URL } from "./boardActions.js";
 import { blockingWarnings } from "./boardData.js";
 
 /**
@@ -20,7 +21,14 @@ import { blockingWarnings } from "./boardData.js";
  *   className?: string,
  * }} props
  */
-export default function FabPacketCard({ stem = "board", artifact = null, sidecar = null, className }) {
+export default function FabPacketCard({
+  stem = "board",
+  artifact = null,
+  sidecar = null,
+  groups = [],
+  onOpenTab,
+  className,
+}) {
   const orderUrl = String(artifact?.orderUrl || "");
   const [orderMd, setOrderMd] = useState("");
 
@@ -60,6 +68,7 @@ export default function FabPacketCard({ stem = "board", artifact = null, sidecar
   const fab = sidecar.fab || {};
   const ready = fab.ready === true;
   const blockers = blockingWarnings(sidecar);
+  const blockingGroups = (Array.isArray(groups) ? groups : []).filter((group) => group.blocking);
   const costUsd = Number(sidecar.bom?.estimatedCostUsd);
 
   // Two audiences, so two groups. The fab needs gerbers/BOM/CPL to build the
@@ -129,6 +138,130 @@ export default function FabPacketCard({ stem = "board", artifact = null, sidecar
           </div>
         </div>
 
+        {ready ? (
+          <>
+            {/* The order moment, in the order it happens: get the three files,
+                open the quote page, follow the walkthrough. Anything that is
+                not one of those three steps is below them. */}
+            <div
+              data-slot="fab-order-steps"
+              className="rounded-xl border border-emerald-500/40 bg-emerald-500/[0.06] p-4"
+            >
+              <p className="text-sm font-medium text-foreground">Three steps to boards in your hand</p>
+              <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-xs leading-5 text-muted-foreground">
+                <li>
+                  Download the packet below — <span className="font-mono">gerbers.zip</span> is the board,{" "}
+                  <span className="font-mono">bom.csv</span> is the shopping list,{" "}
+                  <span className="font-mono">cpl.csv</span> says where each part goes.
+                </li>
+                <li>Upload the gerbers at JLCPCB. The quote appears before you pay anything.</li>
+                <li>Follow the walkthrough at the bottom of this page for the exact settings.</li>
+              </ol>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <a
+                  href={JLCPCB_QUOTE_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  data-slot="fab-open-quote"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 text-sm font-medium text-foreground transition-colors hover:bg-emerald-500/20"
+                >
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  Open the JLCPCB quote page
+                </a>
+                <span className="text-xs text-muted-foreground">
+                  Nothing is ordered until you check out. You can price it and walk away.
+                </span>
+              </div>
+            </div>
+
+            {/* Packet downloads — the asset route serves them; ?v= verbatim. */}
+            <div className="flex flex-wrap gap-2" data-slot="fab-downloads">
+              {downloads.map((d) => (
+                <button
+                  key={d.label}
+                  type="button"
+                  onClick={() => {
+                    try {
+                      triggerUrlDownload(d.url, { filename: d.filename });
+                    } catch {
+                      /* blocked download — the button stays usable */
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-accent"
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  {d.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ORDER.md — the exact-clicks walkthrough, rendered. */}
+            {orderMd ? (
+              <div data-slot="fab-order" className="rounded-xl border border-border/60 bg-card/40 p-4">
+                <Markdown source={orderMd} />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div data-slot="fab-blockers" className="flex flex-col gap-2">
+            {/* The plain-language version of what is left. The raw findings
+                stay below it, because an engineer standing over the shoulder
+                of a first-timer needs the exact DRC prose to act on. */}
+            {blockingGroups.length ? (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.05] p-4">
+                <p className="text-sm font-medium text-foreground">
+                  {blockingGroups.length === 1 ? "One thing" : `${blockingGroups.length} things`} left before you can
+                  order
+                </p>
+                <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-xs leading-5 text-muted-foreground">
+                  {blockingGroups.map((group) => (
+                    <li key={group.code}>
+                      <span className="text-foreground">{group.title}</span>
+                      {group.count > 1 ? `, in ${group.count} places` : ""}. {group.meaning}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => onOpenTab?.("overview")}
+                  className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border/60 bg-card/60 px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-accent"
+                >
+                  Take me to the fix
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+
+            <p className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+              The raw findings behind that
+            </p>
+            {blockers.length ? (
+              blockers.map((warning, index) => (
+                <div
+                  key={`${warning.part}-${index}`}
+                  className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2"
+                >
+                  <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="font-mono text-[12px] text-foreground">
+                      {warning.part || "board"}{" "}
+                      <span className="text-muted-foreground">({warning.kind})</span>
+                    </p>
+                    {warning.detail ? (
+                      <p className="text-xs leading-5 text-muted-foreground">{warning.detail}</p>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No blocking findings recorded — rebuild the board to refresh the
+                packet{fab.gerberSource === "tscircuit" ? " (gerbers need kicad-cli to verify)" : ""}.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Engineering downloads are NOT gated on fab-readiness. Withholding
             the fab packet stops someone paying for an unverified board;
             withholding the KiCad project would only stop them looking at it —
@@ -164,69 +297,6 @@ export default function FabPacketCard({ stem = "board", artifact = null, sidecar
             </div>
           </div>
         ) : null}
-
-        {ready ? (
-          <>
-            {/* Packet downloads — the asset route serves them; ?v= verbatim. */}
-            <div className="flex flex-wrap gap-2" data-slot="fab-downloads">
-              {downloads.map((d) => (
-                <button
-                  key={d.label}
-                  type="button"
-                  onClick={() => {
-                    try {
-                      triggerUrlDownload(d.url, { filename: d.filename });
-                    } catch {
-                      /* blocked download — the button stays usable */
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-accent"
-                >
-                  <Download className="size-3.5" aria-hidden />
-                  {d.label}
-                </button>
-              ))}
-            </div>
-
-            {/* ORDER.md — the exact-clicks walkthrough, rendered. */}
-            {orderMd ? (
-              <div data-slot="fab-order" className="rounded-xl border border-border/60 bg-card/40 p-4">
-                <Markdown source={orderMd} />
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <div data-slot="fab-blockers" className="flex flex-col gap-2">
-            <p className="text-sm text-muted-foreground">
-              These findings block the packet — fix them in chat (click a chip
-              below the board, or just describe the fix):
-            </p>
-            {blockers.length ? (
-              blockers.map((warning, index) => (
-                <div
-                  key={`${warning.part}-${index}`}
-                  className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2"
-                >
-                  <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" aria-hidden />
-                  <div className="min-w-0">
-                    <p className="font-mono text-[12px] text-foreground">
-                      {warning.part || "board"}{" "}
-                      <span className="text-muted-foreground">({warning.kind})</span>
-                    </p>
-                    {warning.detail ? (
-                      <p className="text-xs leading-5 text-muted-foreground">{warning.detail}</p>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                No blocking findings recorded — rebuild the board to refresh the
-                packet{fab.gerberSource === "tscircuit" ? " (gerbers need kicad-cli to verify)" : ""}.
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

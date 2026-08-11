@@ -85,6 +85,15 @@ test("boardVerdict gates on fab.ready and nothing else", () => {
   const ready = boardVerdict({ sidecar: { fab: { ready: true } }, groups: [] });
   assert.equal(ready.tone, "ready");
   assert.match(ready.headline, /Ready to order/);
+  assert.match(ready.line, /Nothing outstanding/);
+
+  // A ready board that still carries cosmetic notes says so rather than
+  // claiming a clean sheet the user can see is not clean.
+  const readyWithNotes = boardVerdict({
+    sidecar: { fab: { ready: true } },
+    groups: groupFindings([row({ severity: "info", detail: "[silk_overlap] x" })]),
+  });
+  assert.match(readyWithNotes.line, /1 note left in the checks/);
 
   const blocked = boardVerdict({ sidecar: { fab: { ready: false } }, groups });
   assert.equal(blocked.tone, "blocked");
