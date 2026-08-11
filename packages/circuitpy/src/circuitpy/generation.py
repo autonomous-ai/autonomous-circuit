@@ -36,6 +36,7 @@ from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import review as review_mod
 from circuitpy import spec as spec_mod
+from circuitpy import status as status_mod
 from circuitpy import toolchain
 from circuitpy.errors import (
     BuildError,
@@ -262,6 +263,9 @@ def build_board(
         if prior is not None:
             return prior
 
+    progress = status_mod.BuildStatus(project_root, stem=stem)
+    progress.stage("compile")
+
     # -- Stage 0: compile in the mirror work dir. ----------------------------
     work = project_root / ".circuit" / "build" / f"{stem}-{os.getpid()}"
     shutil.rmtree(work, ignore_errors=True)
@@ -330,11 +334,15 @@ def build_board(
             f"(got {type(circuit_json).__name__})"
         )
 
+    progress.stage("scan")
+
     # -- Stages 1-2: element scan + independent re-check. --------------------
     warnings: list[dict] = []
     warnings.extend(checks.harvest_circuit_json(circuit_json))
     warnings.extend(checks.run_tscircuit_checks(built_circuit_json))
     warnings.extend(checks.iou_warnings(circuit_json, profile))
+
+    progress.stage("dfm")
 
     # -- Stage 4a: DFM + envelope over the geometry. -------------------------
     warnings.extend(checks.dfm_warnings(circuit_json, product, profile))
@@ -388,6 +396,8 @@ def build_board(
         warnings.append(
             checks.check_failed("assembly requested but no BOM rows were produced")
         )
+
+    progress.stage("substrate")
 
     # -- Stage 3 + 5: second substrate + shipping gerbers. -------------------
     gerber_source = "tscircuit"
@@ -494,6 +504,8 @@ def build_board(
 
     warnings = checks.dedupe(warnings)
 
+    progress.stage("export")
+
     # -- Stage 5: write the fab packet. --------------------------------------
     shutil.rmtree(fab_dir, ignore_errors=True)
     glb_path: Path | None = None
@@ -585,6 +597,8 @@ def build_board(
             )
         except OSError as exc:
             raise ExportError(f"failed to write ORDER.md: {exc}") from exc
+
+    progress.stage("render")
 
     # -- Stage 6: review images. ---------------------------------------------
     shutil.rmtree(review_dir, ignore_errors=True)
@@ -681,6 +695,10 @@ def build_board(
         "fab": {"profile": profile.id, "ready": ready, "packet_dir": str(fab_dir)},
         "warnings": warnings,
     }
+    progress.finish(
+        ok=True,
+        detail=f"{sum(1 for w in warnings if w.get('severity') == 'error')} blocking",
+    )
     return result
 
 
