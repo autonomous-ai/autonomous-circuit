@@ -427,3 +427,38 @@ def test_an_unreadable_member_is_an_error_not_a_silent_skip(tmp_path):
 def test_a_missing_zip_is_a_finding_not_a_crash(tmp_path):
     result = gerber_truth.check(_design(), str(tmp_path / "nope.zip"))
     assert "gerber_unreadable" in kinds(result, "error")
+
+
+def _design_without_holes() -> Board:
+    """An all-SMD board: no vias, no mounting holes, nothing to drill."""
+    elements = [fixtures.board(BOARD_W, BOARD_H)]
+    elements += fixtures.component(
+        "R1", index=1, x=0, y=0,
+        pads=[(dx, dy, 0.6, 0.6) for dx, dy in PADS],
+        courtyard=(11.0, 1.6),
+    )
+    return Board(elements)
+
+
+def test_an_all_smd_board_with_an_empty_drill_file_is_fine(tmp_path):
+    """A board with nothing to drill should ship an empty drill file.
+
+    The check used to fire its own message back at itself — "the drill file has
+    no hits, but the design has 0 holes" — and because the kind blocks, a
+    hole-less board could never be fab-ready. Any all-SMD single-layer design
+    hit it.
+    """
+    design = _design_without_holes()
+    assert not design.vias and not design.holes, "fixture must have nothing to drill"
+    members = _members(**{"board.drl": excellon_text({}, [])})
+    result = gerber_truth.check(design, _zip(tmp_path, members))
+    assert "gerber_drill_empty" not in kinds(result, "error")
+
+
+def test_a_board_that_does_have_holes_still_needs_them_drilled(tmp_path):
+    """The other side of the line: the exemption must not swallow the real bug."""
+    members = _members(**{"board.drl": excellon_text({1: (0.3, True)}, [])})
+    result = gerber_truth.check(_design(), _zip(tmp_path, members))
+    assert "gerber_drill_empty" in kinds(result, "error") or "gerber_drill_missing" in kinds(
+        result, "error"
+    )

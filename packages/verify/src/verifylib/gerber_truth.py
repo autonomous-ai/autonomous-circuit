@@ -257,6 +257,14 @@ def _drills_match(board: Board, packet: gbr.Packet, transform: Transform | None)
         for h in drill.hits
     ]
     if not hits:
+        # A board with no vias and no holes has nothing to drill, so an empty
+        # drill file is the correct output rather than a defect. Without this,
+        # the check fired its own message back at itself — "the drill file has
+        # no hits, but the design has 0 holes" — and because the kind is
+        # blocking, a hole-less board could never be fab-ready. Any all-SMD
+        # single-layer design hit it.
+        if not board.vias and not board.holes:
+            return []
         return [
             finding(
                 "packet",
