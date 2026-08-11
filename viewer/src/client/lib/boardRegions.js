@@ -26,7 +26,8 @@
 // regulators has two rails, and saying "Power supply ×2" over one box spanning
 // both would hide that.
 
-import { boxIsReal, unionBox } from "./boardIndex.js";
+import { boxIsReal, inflateBox, unionBox } from "./boardIndex.js";
+import { boxToScreenRect } from "./boardRender.js";
 import { partPlainName, partRole } from "./plainLanguage.js";
 
 /** Which role wins when a group holds several kinds of part. Lower is louder. */
@@ -210,4 +211,50 @@ export function boxArea(box) {
 /** Regions that have somewhere to be drawn. */
 export function drawableRegions(regions) {
   return (Array.isArray(regions) ? regions : []).filter((region) => boxIsReal(region.box));
+}
+
+/** A room whose box covers this much of the board is a frame around everything. */
+export const ROOM_MAX_BOARD_FRACTION = 0.92;
+/** Below this many screen pixels the label would sit over its own room's copper. */
+export const ROOM_MIN_LABEL_PX = { width: 44, height: 14 };
+
+/**
+ * The rooms to paint, in screen coordinates, largest first.
+ *
+ * Screen space rather than board space so the outline stays one pixel and the
+ * label stays legible at any zoom — the same trick the selection and flash
+ * outlines already use. Three rules stop the overlay becoming clutter rather
+ * than a map, and each is a case a real board hits:
+ *
+ *   · a room covering essentially the whole board (harness-puck's LED ring is
+ *     60mm across on a 70mm board) is a frame around everything and is dropped
+ *   · a room too small to hold its own label keeps the outline and loses the
+ *     text rather than printing it over the pads it is naming
+ *   · largest first, so a small room's label is never painted underneath a
+ *     bigger room's outline
+ *
+ * @param {Array<object>} regions boardRegions() output
+ * @param {{view: object, boardBox: object|null, margin?: number}} options
+ */
+export function roomOverlay(regions, { view, boardBox = null, margin = 0.6 } = {}) {
+  const list = Array.isArray(regions) ? regions : [];
+  if (!list.length || !view) return [];
+  const boardSize = boxIsReal(boardBox)
+    ? (boardBox.maxX - boardBox.minX) * (boardBox.maxY - boardBox.minY)
+    : 0;
+  const out = [];
+  for (const region of list) {
+    if (!boxIsReal(region.box)) continue;
+    const area = boxArea(region.box);
+    if (boardSize > 0 && area > boardSize * ROOM_MAX_BOARD_FRACTION) continue;
+    const rect = boxToScreenRect(view, inflateBox(region.box, margin));
+    out.push({
+      id: region.id,
+      label: region.instances > 1 ? `${region.label} ×${region.instances}` : region.label,
+      rect,
+      area,
+      showLabel: rect.width >= ROOM_MIN_LABEL_PX.width && rect.height >= ROOM_MIN_LABEL_PX.height,
+    });
+  }
+  return out.sort((a, b) => b.area - a.area);
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { cn } from "@/ui/utils";
 import { boxIsReal, hitTestPcb, inflateBox, pcbElementBox } from "@/lib/boardIndex.js";
+import { roomOverlay } from "@/lib/boardRegions.js";
 import {
   copperColor,
   elementColor,
@@ -618,42 +619,15 @@ export default function PcbCanvas({
 
   const hasGeometry = Boolean(index && index.pcbDrawables.length);
 
-  /**
-   * Rooms — a named rectangle per area of the board (see boardRegions.js).
-   * Altium draws exactly this and calls it a room; without it the layout is
-   * two hundred pads and no way to tell the power supply from the radio.
-   *
-   * Screen space, like the other overlays, so the outline stays one pixel and
-   * the label stays legible at any zoom. Three rules keep it from becoming
-   * clutter rather than a map:
-   *   · a room that covers essentially the whole board is a frame around
-   *     everything and says nothing, so it is dropped
-   *   · below about 44 px the label would sit over its own room's copper, so
-   *     the outline stays and the label goes
-   *   · largest first, so a small room's label is never painted under a big
-   *     room's outline
-   */
-  const roomRects = useMemo(() => {
-    if (!showRegions || !Array.isArray(regions) || !regions.length) return [];
-    const boardArea =
-      boxIsReal(boardBox) ? (boardBox.maxX - boardBox.minX) * (boardBox.maxY - boardBox.minY) : 0;
-    const out = [];
-    for (const region of regions) {
-      if (!boxIsReal(region.box)) continue;
-      const w = region.box.maxX - region.box.minX;
-      const h = region.box.maxY - region.box.minY;
-      if (boardArea > 0 && w * h > boardArea * 0.92) continue;
-      const rect = boxToScreenRect(view, inflateBox(region.box, 0.6));
-      out.push({
-        id: region.id,
-        label: region.instances > 1 ? `${region.label} ×${region.instances}` : region.label,
-        rect,
-        area: w * h,
-        showLabel: rect.width >= 44 && rect.height >= 14,
-      });
-    }
-    return out.sort((a, b) => b.area - a.area);
-  }, [showRegions, regions, view, boardBox]);
+  // Rooms — a named rectangle per area of the board. Altium draws exactly this
+  // and calls it a room; without it the layout is two hundred pads and no way
+  // to tell the power supply from the radio. The rules that keep it a map
+  // rather than clutter live in boardRegions.roomOverlay, where node:test can
+  // reach them.
+  const roomRects = useMemo(
+    () => (showRegions ? roomOverlay(regions, { view, boardBox }) : []),
+    [showRegions, regions, view, boardBox],
+  );
 
   return (
     <div

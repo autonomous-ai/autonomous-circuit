@@ -643,6 +643,14 @@ export default function BoardWorkspace({
     return index.componentBySourceId?.get(hover.componentKey) || null;
   }, [hover, index]);
 
+  // The named area the hovered part lives in — same derivation the rooms are
+  // drawn from, so the HUD and the overlay can never disagree.
+  const hoverArea = useMemo(() => {
+    if (!hoverPart) return "";
+    const region = regions.find((entry) => entry.componentKeys.includes(hoverPart.key));
+    return region ? region.label : "";
+  }, [hoverPart, regions]);
+
   const schematicPane = (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <SchematicCanvas
@@ -707,6 +715,7 @@ export default function BoardWorkspace({
         netName={hoverNetName}
         partName={hoverPart ? partPlainName(hoverPart) : ""}
         partRefdes={hoverPart?.refdes || ""}
+        partArea={hoverArea}
         visible={hudVisible}
         measuring={measuring}
       />

@@ -27,6 +27,7 @@ export default function BoardInsightHud({
   netName = "",
   partName = "",
   partRefdes = "",
+  partArea = "",
   visible = true,
   measuring = false,
   className,
@@ -76,6 +77,10 @@ export default function BoardInsightHud({
         <div data-slot="hud-part" className="mt-0.5 truncate text-[11px] text-white/90">
           <span className="text-white/35">{partRefdes || "Part"} </span>
           {partName}
+          {/* Which named area of the board it belongs to. On a layout you have
+              never seen, "in The brain" is the difference between a refdes and
+              knowing where you are. */}
+          {partArea ? <span className="text-white/45"> · in {partArea}</span> : null}
         </div>
       ) : null}
       {measuring ? (
