@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""Build the packet a human electrical engineer signs before we launch.
+
+Run: scripts/review-packet [--out review-packet]
+
+## What this is for
+
+The tool's safety argument has one human-shaped hole in it. No deterministic
+check catches a wrong resistor value, a mirrored pinout, or swapped SDA/SCL,
+because every representation — schematic, PCB, 3D, gerbers, DRC — inherits the
+same wrong source and they all agree with each other. The design answer is that
+those values live inside golden blocks that **a human verified once**.
+
+As of writing, all nine blocks are `compile-verified`. Nobody has done the
+once. This packet is how that gets done, and it is why the blocks matter more
+than the boards: a board is one artifact, but a block is in every board anyone
+generates from now on.
+
+## The shape of the ask
+
+An EE asked "does this look right?" writes back "looks good", which is worth
+nothing and is nobody's fault — the question had no failure mode. So every
+sheet here asks questions that can come back **no**, each naming the specific
+thing to check against the specific authority (a datasheet, the fab's published
+capability table, a measurement).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+from collections import Counter
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+BLOCKS_DIR = REPO / "packages" / "golden-blocks" / "blocks"
+EXAMPLES_DIR = REPO / "examples"
+
+# Per-board artifacts copied into the packet, and why an EE needs each one.
+BOARD_ARTIFACTS = {
+    "main_fab/gerbers.zip": "what the fab actually builds",
+    "main_fab/bom.csv": "every line, with LCSC part numbers",
+    "main_fab/cpl.csv": "placement and rotation for assembly",
+    "main_fab/kicad-project.zip": "open it in KiCad and run your own DRC",
+    "main_fab/board.glb": "3D, for enclosure fit",
+    "main_review/_schematic.png": "the schematic",
+    "main_review/_pcb.png": "the layout",
+}
+
+
+def load_sidecar(board_dir: Path) -> dict:
+    try:
+        return json.loads((board_dir / "main.board.json").read_text())
+    except Exception:
+        return {}
+
+
+def blocking(sidecar: dict) -> list[dict]:
+    warnings = sidecar.get("validation", {}).get("warnings", [])
+    return [w for w in warnings if w.get("severity") == "error"]
+
+
+def block_sheet(block_id: str, block_md: str) -> str:
+    """The per-block sign-off. This is the important one."""
+    return f"""# Block sign-off — `{block_id}`
+
+**This block is in every board anyone generates that needs it.** An error here
+is not one bad board, it is a bad board every time, and it is the specific class
+of error our automated checks provably cannot catch. That is why your signature
+matters more here than on any individual board.
+
+Source: [`{block_id}.tsx`](./{block_id}.tsx) · Datasheet: [`BLOCK.md`](./BLOCK.md)
+
+## Check these against the part datasheets, not against our documentation
+
+Our `BLOCK.md` and our source can be wrong in the same way at the same time —
+they were written together. Please check against the manufacturer's datasheet
+and the LCSC listing.
+
+| # | Question | Verdict |
+|---|---|---|
+| 1 | Is **every component value** correct for this circuit — not merely plausible? | pass / **fail** |
+| 2 | Is **every polarity** right? Diodes, electrolytics, ICs. | pass / **fail** |
+| 3 | Does **every pin number** match the datasheet's pinout, in the datasheet's own numbering? | pass / **fail** |
+| 4 | Is the **land pattern** right for the package actually ordered (IPC density, thermal pad, paste)? | pass / **fail** |
+| 5 | Is each **LCSC part** the right part — and a sane choice for cost, stock and lifecycle? | pass / **fail** |
+| 6 | Is the **decoupling** adequate in value, count and placement? | pass / **fail** |
+| 7 | Does the block behave at its **stated limits** — the rail budget and current draw in `BLOCK.md`? | pass / **fail** |
+| 8 | What does this block do that is **wrong at the edges** — brown-out, inrush, hot-plug, ESD, thermal? | notes |
+
+## Anything you would have done differently
+
+Not a defect, but worth recording — if it is a real preference we should encode
+it as a default, because a user will never know to ask for it.
+
+```
+```
+
+## Verdict
+
+- [ ] **Approved** — safe to compose into user boards as-is
+- [ ] **Approved with changes** — listed above, must land before launch
+- [ ] **Rejected** — do not ship this block
+
+Reviewer: ______________________  Date: ____________
+
+---
+
+## The block's own datasheet, for reference
+
+{block_md}
+"""
+
+
+def board_sheet(name: str, sidecar: dict, errors: list[dict]) -> str:
+    fab = sidecar.get("fab", {})
+    ready = fab.get("ready")
+    warnings = sidecar.get("validation", {}).get("warnings", [])
+    kinds = Counter(w.get("kind", "?") for w in warnings)
+
+    if errors:
+        status = (
+            f"**Not orderable — {len(errors)} blocking finding"
+            f"{'s' if len(errors) != 1 else ''}.**\n\n"
+            + "\n".join(
+                f"- `{e.get('kind')}` — {e.get('part') or 'board'}: {e.get('detail')}"
+                for e in errors
+            )
+            + "\n\nWe are not asking you to approve this board for manufacture "
+            "while these stand. Review it for everything else, and tell us "
+            "whether the blocking list is complete — a finding we are missing "
+            "is worth more to us than a finding we already have."
+        )
+    else:
+        status = (
+            "**The tool says this board is orderable:** zero error-severity "
+            "findings, and gerbers independently produced by `kicad-cli` from "
+            "the same file KiCad ran DRC against.\n\nThat is our claim. This "
+            "review is where it gets tested by someone who did not build it."
+        )
+
+    top = "\n".join(
+        f"| `{kind}` | {count} |" for kind, count in kinds.most_common(8)
+    ) or "| (none) | 0 |"
+
+    return f"""# Board sign-off — {name}
+
+{status}
+
+## What is in this folder
+
+| File | What it is |
+|---|---|
+{chr(10).join(f'| `{Path(rel).name}` | {why} |' for rel, why in BOARD_ARTIFACTS.items())}
+
+**Start with `kicad-project.zip`.** Open it in KiCad, run DRC with your own
+rules, and look at the board in a tool we did not write. If our checks and
+yours disagree, that disagreement is the most valuable output of this review.
+
+## All findings by kind
+
+`fab.ready = {ready}` · {len(warnings)} findings total, {len(errors)} blocking.
+
+| Kind | Count |
+|---|---|
+{top}
+
+Non-blocking findings are in `findings.json` here, in full. Some are noise from
+our own converter and are labelled as such — **please challenge that labelling**
+if any of it looks like a real defect we have talked ourselves out of.
+
+## Questions
+
+| # | Question | Verdict |
+|---|---|---|
+| 1 | Would you **send this to a fab** with your name on it? | yes / **no** |
+| 2 | When it arrives, will it **power up**? Rails, sequencing, brown-out, boot straps. | yes / **no** |
+| 3 | Can it be **brought up and debugged** — test points, reset access, an LED that proves power? | yes / **no** |
+| 4 | Will the **assembly house** build it right first time — rotations, polarity marks, part availability? | yes / **no** |
+| 5 | Does the **layout** hold up — return paths, decoupling placement, trace widths, thermals? | yes / **no** |
+| 6 | Does it **fit the product** — connector positions, mounting, enclosure interface? | yes / **no** |
+| 7 | What did our checks **miss**? | notes |
+
+Question 7 is the one we most want answered.
+
+## Verdict
+
+- [ ] **Approved to manufacture**
+- [ ] **Approved after listed changes**
+- [ ] **Rejected**
+
+Reviewer: ______________________  Date: ____________
+"""
+
+
+def approval_doc(boards: list[tuple[str, int]], block_ids: list[str]) -> str:
+    board_rows = "\n".join(
+        f"| [{name}](boards/{name}/REVIEW.md) | "
+        + (f"{n} blocking" if n else "clean")
+        + " |"
+        for name, n in boards
+    )
+    block_rows = "\n".join(
+        f"| [`{b}`](blocks/{b}/REVIEW.md) | compile-verified — **never checked by a human** |"
+        for b in block_ids
+    )
+
+    return f"""# Autonomous Circuit — engineering approval before launch
+
+We are about to ship a tool that lets people who are not electrical engineers
+design circuit boards by describing them, and order those boards. Before it goes
+out, we want an EE signature on it.
+
+**The most important thing in this packet is not the three boards — it is the
+nine blocks.** A board is one artifact. A block is in every board any user
+generates from now on, and blocks are where the errors live that our automated
+checking provably cannot see.
+
+## Why the blocks carry the risk
+
+No deterministic check catches a wrong resistor value, a mirrored pinout, or
+swapped SDA/SCL. Every representation we produce — schematic, PCB render, 3D,
+gerbers, DRC report — is derived from the same source, so when that source is
+wrong they all agree with each other, confidently, and the board is beautiful
+and does not work. You find out in two weeks when the boards arrive.
+
+Our answer is that these values are not generated per board. They live in nine
+frozen blocks that the AI composes and never edits. That answer is only as good
+as the one-time human check behind it — **and that check has not happened yet.**
+Every block below says `compile-verified`, which means it builds, not that it is
+correct.
+
+That is the hole this packet exists to close.
+
+## Four things to approve, in order of how much they matter
+
+### 1. The nine golden blocks ← the important one
+
+| Block | Current status |
+|---|---|
+{block_rows}
+
+Each folder has the source, the block's datasheet, and a sign-off sheet asking
+specific questions against the manufacturer's datasheet. Please check against
+the datasheet rather than our documentation — our docs and our source were
+written together and can be wrong together.
+
+### 2. The rules the tool enforces
+
+[`rules/fab-limits.md`](rules/fab-limits.md) is every number our DFM gate
+checks, with the value and what it is checked against. If one of these numbers
+is wrong, every board the tool ever produces is graded against a wrong rule.
+Please check them against JLCPCB's published capabilities.
+
+[`rules/safety-envelope.md`](rules/safety-envelope.md) is what the tool refuses
+to design, at planning time, before anything is built.
+
+### 3. The three example boards
+
+| Board | State |
+|---|---|
+{board_rows}
+
+Each folder has gerbers, BOM, CPL, a KiCad project you can open and run your own
+DRC on, and the full finding list. **Please run your own DRC** — where your tool
+and ours disagree is the most valuable thing this review can produce.
+
+### 4. The claim we make to users
+
+The tool tells a user a board is "ready to order" when it has zero
+error-severity findings and gerbers independently produced by `kicad-cli` from
+the file KiCad checked. Is that bar high enough to put in front of someone who
+cannot evaluate a board themselves? If not, what is missing from it?
+
+## What we are not asking
+
+- Not asking you to design anything, or to fix what you find. Finding it is the
+  work; we will fix it.
+- Not asking you to review the software. The pipeline, the agents and the tests
+  are our problem.
+- Not asking for a rubber stamp. **A block you reject is a better outcome for us
+  than a block you wave through**, because the first costs a week and the second
+  ships in every board a stranger orders.
+
+## How to record a verdict
+
+Fill in the sheets in place — each has a verdict block at the bottom — or reply
+with the block or board id and your notes, whichever is faster. Findings routed
+back to us as "must fix before launch" versus "should fix later" is the
+distinction we most need.
+
+## What we do with it
+
+Everything you find becomes structural, not advice. A wrong value gets fixed in
+the block and pinned with your name and the date. A rule you correct gets fixed
+in the fab profile, which is the single place every board is graded against. A
+defect class you point out that we cannot currently catch becomes a new check
+plus a permanent entry in the failure corpus, paired with the legal geometry
+just the other side of the line, so it cannot regress quietly.
+
+If you would have done something differently but it is not a defect, say so
+anyway. A preference an expert holds and a user will never know to ask for is
+exactly what should become a default.
+"""
+
+
+def fab_limits_doc() -> str:
+    """Read the limits out of the fab profile so the doc cannot drift from code."""
+    sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
+    try:
+        from circuitpy import fab as fab_mod  # type: ignore
+
+        profile = fab_mod.get_profile("jlcpcb")
+        fields = [
+            (name, getattr(profile, name))
+            for name in sorted(dir(profile))
+            if not name.startswith("_")
+            and isinstance(getattr(profile, name, None), (int, float, str))
+        ]
+        rows = "\n".join(f"| `{n}` | {v} |" for n, v in fields)
+        source = "Read live from `circuitpy.fab.get_profile('jlcpcb')`."
+    except Exception as exc:  # pragma: no cover - packet must still build
+        rows = "| (could not load the profile) | |"
+        source = f"Could not import the fab profile: {exc}"
+
+    return f"""# The rules the tool enforces
+
+{source} These are the numbers every board is graded against — if one is wrong,
+every board the tool produces is graded against a wrong rule, including boards
+nobody has designed yet.
+
+**Please check these against JLCPCB's published capability table**, not against
+our documentation.
+
+| Rule | Value |
+|---|---|
+{rows}
+
+Two-band by design: `min_*` blocks a board from being called orderable, `warn_*`
+is a preference we surface but do not enforce. If you think something currently
+in the warn band should block — or the reverse — that is exactly the kind of
+call we want from you.
+
+One we already know is subtle: a copper pour cuts a 32-sided polygon around each
+hole, so a nominal 0.2mm margin measures 0.1976mm at the chord midpoints and the
+fab's own DRC calls it a violation. The tool now derives a safe default from the
+segment count. Please sanity-check that reasoning.
+"""
+
+
+SAFETY_DOC = """# The safety envelope
+
+Refused at planning time — in the plan, before any toolchain process runs, so a
+refused design never becomes files on disk.
+
+- **No mains voltage, ever.** Low-voltage DC, 24V or less, only.
+- **Battery power only through a sealed, validated charge/protect block.** No
+  such block exists yet, so the tool currently refuses battery designs outright.
+  The slot is deliberately empty rather than filled with something plausible —
+  lithium charging is a fire risk and we would rather refuse than guess.
+- **Radio only as pre-certified modules.** No discrete RF design.
+
+## Questions
+
+| # | Question | Verdict |
+|---|---|---|
+| 1 | Is this envelope **tight enough** to put in front of a non-engineer? | yes / **no** |
+| 2 | What should be **added** to it? | notes |
+| 3 | Is anything here **too strict** — refusing work we could do safely? | notes |
+| 4 | When a battery block does exist, what must it prove before it ships? | notes |
+
+Question 4 is the one we would like answered before we build that block, rather
+than after.
+"""
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--out", default="review-packet", help="output directory")
+    args = ap.parse_args()
+
+    out = (REPO / args.out).resolve()
+    if out.exists():
+        shutil.rmtree(out)
+    (out / "rules").mkdir(parents=True)
+
+    # --- blocks (the important half) ---
+    block_ids = sorted(d.name for d in BLOCKS_DIR.iterdir() if d.is_dir())
+    for bid in block_ids:
+        src = BLOCKS_DIR / bid
+        dst = out / "blocks" / bid
+        dst.mkdir(parents=True)
+        md = ""
+        for f in src.iterdir():
+            if f.is_file():
+                shutil.copy2(f, dst / f.name)
+                if f.name == "BLOCK.md":
+                    md = f.read_text()
+        (dst / "REVIEW.md").write_text(block_sheet(bid, md))
+
+    # --- boards ---
+    boards: list[tuple[str, int]] = []
+    for ex in sorted(p for p in EXAMPLES_DIR.iterdir() if p.is_dir()):
+        board_dir = ex / "boards"
+        if not (board_dir / "main.board.json").exists():
+            continue
+        sidecar = load_sidecar(board_dir)
+        errors = blocking(sidecar)
+        boards.append((ex.name, len(errors)))
+
+        dst = out / "boards" / ex.name
+        dst.mkdir(parents=True)
+        for rel in BOARD_ARTIFACTS:
+            src = board_dir / rel
+            if src.exists():
+                shutil.copy2(src, dst / Path(rel).name)
+        for extra in ("main.tsx", "main.board.json"):
+            if (board_dir / extra).exists():
+                shutil.copy2(board_dir / extra, dst / extra)
+        (dst / "findings.json").write_text(
+            json.dumps(sidecar.get("validation", {}).get("warnings", []), indent=2)
+        )
+        (dst / "REVIEW.md").write_text(board_sheet(ex.name, sidecar, errors))
+
+    (out / "rules" / "fab-limits.md").write_text(fab_limits_doc())
+    (out / "rules" / "safety-envelope.md").write_text(SAFETY_DOC)
+    (out / "APPROVAL.md").write_text(approval_doc(boards, block_ids))
+
+    n_unready = sum(1 for _, n in boards if n)
+    print(f"packet: {out}")
+    print(f"  {len(block_ids)} blocks, none human-verified yet")
+    print(f"  {len(boards)} boards, {n_unready} with blocking findings")
+    print(f"  start at {out / 'APPROVAL.md'}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
