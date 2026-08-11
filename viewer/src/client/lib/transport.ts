@@ -299,6 +299,38 @@ export interface BuildStatus {
   detail?: string;
 }
 
+/**
+ * One recorded build round, appended by the review loop to
+ * `<project>/.circuit/revisions.jsonl`.
+ *
+ * `fabReady` is deliberately tri-state: `null` means a mid-loop round that had
+ * not re-run the fab gate. Collapsing it to `false` would draw a history of
+ * failures that never happened.
+ */
+export interface BuildRevision {
+  at: string;
+  turnId: string;
+  phase: string;
+  round: number;
+  counts: { total: number; blocking: number; electrical: number; other: number };
+  fabReady: boolean | null;
+}
+
+/** Null below two revisions — one data point is not a trend. */
+export interface BuildTrend {
+  builds: number;
+  from: number;
+  to: number;
+  fixed: number;
+  worse: boolean;
+  fabReady: boolean;
+}
+
+export interface BuildHistory {
+  revisions: BuildRevision[];
+  trend: BuildTrend | null;
+}
+
 export interface IpcError {
   code: string;
   message: string;
@@ -550,6 +582,8 @@ const transportBase = {
     invoke<Catalog>("project_catalog_read", { id }),
   generation_status_read: () => invoke<GenerationStatus>("generation_status_read"),
   build_status: (id: string) => invoke<BuildStatus | null>("build_status", { id }),
+  build_revisions: (id: string, limit?: number) =>
+    invoke<BuildHistory>("build_revisions", { id, ...(limit === undefined ? {} : { limit }) }),
 
   // files
   file_read_bytes: (file: string, asset: AssetKind) =>

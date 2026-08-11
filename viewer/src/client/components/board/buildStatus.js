@@ -38,6 +38,24 @@ export const BUILD_STAGES = Object.freeze([
 ]);
 
 /**
+ * The router-retry row, inserted only when a retry is actually happening.
+ *
+ * Stage 0b of the pipeline re-runs the compile at `autorouterEffortLevel="5x"`
+ * when the first attempt left routing errors. It reports itself by going back
+ * to `compile`, and it can run for twenty minutes — harness-puck took 1240s at
+ * 5x against about 90s at the default. Without a row of its own the checklist
+ * silently rewinds two steps and then sits there, which is the exact "reads as
+ * hung" failure the checklist exists to prevent.
+ */
+export const ROUTER_RETRY_STAGE = Object.freeze({
+  key: "reroute",
+  label: "Trying harder to route the board",
+  plain:
+    "The first attempt left tracks the factory would reject, so the router is running again at five times the effort. This one can take fifteen minutes or more.",
+  retry: true,
+});
+
+/**
  * The stage list with each entry marked `done` / `active` / `pending` against
  * a live status record. Position comes from the stage KEY when we recognise
  * it and from `stageIndex` otherwise, so an unknown stage still advances the
@@ -45,14 +63,26 @@ export const BUILD_STAGES = Object.freeze([
  */
 export function buildStageChecklist(status) {
   const key = String(status?.stage || "");
-  const known = BUILD_STAGES.findIndex((stage) => stage.key === key);
+  // A router retry replays `compile` and `scan`. Showing the checklist walk
+  // backwards would read as a bug, so once a retry is detected the replayed
+  // stages belong to the retry row, not to the originals.
+  const retrying = Boolean(status?.routerRetry);
+  const stages = retrying
+    ? [...BUILD_STAGES.slice(0, 3), ROUTER_RETRY_STAGE, ...BUILD_STAGES.slice(3)]
+    : BUILD_STAGES;
+  const known = stages.findIndex((stage) => stage.key === key);
   const reported = Number(status?.stageIndex);
   // The prelude occupies index 0, so a pipeline stage reported as index N sits
   // at N in this list rather than N-1.
-  const current =
-    known >= 0 ? known : Number.isFinite(reported) && reported > 0 ? Math.min(reported, BUILD_STAGES.length - 1) : 0;
+  let current =
+    known >= 0 ? known : Number.isFinite(reported) && reported > 0 ? Math.min(reported, stages.length - 1) : 0;
+  // While the retry runs the pipeline reports `compile` or `scan` again; the
+  // honest position is the retry row itself.
+  if (retrying && (key === "compile" || key === "scan")) {
+    current = stages.findIndex((stage) => stage.key === ROUTER_RETRY_STAGE.key);
+  }
   const finished = String(status?.state || "") === "done";
-  return BUILD_STAGES.map((stage, i) => ({
+  return stages.map((stage, i) => ({
     ...stage,
     state: finished || i < current ? "done" : i === current ? "active" : "pending",
   }));
@@ -94,6 +124,71 @@ export function formatElapsed(seconds) {
 }
 
 /**
+ * Where the board came from — one sentence, or null.
+ *
+ * "Not orderable yet, 1 thing to fix" is a complaint. "Six things stopped the
+ * order three builds ago; one does now" is a tool visibly converging, and it is
+ * the more convincing sentence by a distance. The server keeps the history the
+ * review loop used to throw away (`build_revisions`); this turns it into words.
+ *
+ * Three honesty rules, all of which the data is shaped to support:
+ *   · **one data point is not a trend.** The server returns `trend: null` below
+ *     two revisions and we render nothing rather than "no change yet".
+ *   · **getting worse is a real outcome.** A fix that moves a part can break
+ *     clearance somewhere else. Hiding that would make the line dishonest in
+ *     exactly the case the user most needs it.
+ *   · **`fabReady` is tri-state.** `null` is a mid-loop round that never re-ran
+ *     the fab gate; only an explicit `true` earns the first-try sentence.
+ *
+ * @param {{revisions?: Array<object>, trend?: object|null}|null} history
+ * @returns {{tone: "first-try"|"better"|"worse"|"flat", text: string}|null}
+ */
+export function buildHistoryLine(history) {
+  const revisions = Array.isArray(history?.revisions) ? history.revisions : [];
+  if (!revisions.length) return null;
+  const trend = history?.trend || null;
+
+  if (!trend) {
+    // A board that built clean the first time leaves exactly one entry and no
+    // trend. That is the outcome the whole pipeline is aiming at, so it reads
+    // as a win rather than as an absence of history.
+    const only = revisions[revisions.length - 1];
+    if (only?.fabReady === true && Number(only?.counts?.blocking || 0) === 0) {
+      return { tone: "first-try", text: "Clean on the first build — no repair rounds." };
+    }
+    return null;
+  }
+
+  const { builds, from, to, worse } = trend;
+  // "findings", not "things": the verdict above counts grouped *issues* and
+  // this counts individual findings, and two different nouns is the only way
+  // the two numbers do not read as a contradiction.
+  const found = (n) => `${n} ${n === 1 ? "finding" : "findings"}`;
+  if (worse) {
+    return {
+      tone: "worse",
+      text: `${found(from)} stopped the order ${builds} builds ago; ${to} do now — the last changes made it worse.`,
+    };
+  }
+  if (to < from) {
+    return {
+      tone: "better",
+      text:
+        to === 0
+          ? `${found(from)} stopped the order ${builds} builds ago. Now none do.`
+          : `${found(from)} stopped the order ${builds} builds ago; ${to} still ${to === 1 ? "does" : "do"}.`,
+    };
+  }
+  return {
+    tone: "flat",
+    text:
+      to === 0
+        ? `Nothing has stopped the order for ${builds} builds.`
+        : `Still ${found(to)} stopping the order, unchanged across ${builds} builds.`,
+  };
+}
+
+/**
  * The single line the tree renders under the active board, or null when there
  * is nothing worth saying.
  *
@@ -113,6 +208,14 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
   const steps = Number.isFinite(index) && Number.isFinite(count) && count > 0 ? `${index}/${count}` : "";
 
   if (status.state === "running") {
+    if (status.routerRetry) {
+      return {
+        tone: "running",
+        text: ROUTER_RETRY_STAGE.label,
+        detail: "5× router effort — this one is slow",
+        progress,
+      };
+    }
     return {
       tone: "running",
       text: stage || "Building",

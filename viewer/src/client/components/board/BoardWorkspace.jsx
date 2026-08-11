@@ -25,6 +25,7 @@ import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
 import RevisionPager from "./RevisionPager.jsx";
 import ViewportToolRail from "./ViewportToolRail.jsx";
 import useBoardRevisions from "./useBoardRevisions.js";
+import useBuildHistory from "./useBuildHistory.js";
 import useBuildStatus from "./useBuildStatus.js";
 import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
@@ -39,7 +40,7 @@ import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
 import PropertiesPanel from "./PropertiesPanel.jsx";
-import { buildStatusLine } from "./buildStatus.js";
+import { buildHistoryLine, buildStatusLine } from "./buildStatus.js";
 import { buildViewContextNote, normalizeParts, normalizeWarnings, partsByLcsc } from "./boardData.js";
 
 const TABS = Object.freeze([
@@ -150,6 +151,7 @@ export default function BoardWorkspace({
   const turnInProgress = useChatStore((state) => state.turnInProgress);
   const chatHistory = useChatStore((state) => state.history);
   const buildStatus = useBuildStatus(currentProjectId || "", turnInProgress);
+  const buildHistory = useBuildHistory(currentProjectId || "", turnInProgress);
 
   // The first thing the user typed for this project, verbatim. It is the only
   // record of the request in their own words, and quoting it is honest in a
@@ -353,6 +355,9 @@ export default function BoardWorkspace({
   const regions = useMemo(() => boardRegions(index), [index]);
 
   const buildLine = useMemo(() => buildStatusLine(buildStatus), [buildStatus]);
+  // Where the board came from. Null unless there is something honest to say —
+  // one recorded round is not a trend.
+  const historyLine = useMemo(() => buildHistoryLine(buildHistory), [buildHistory]);
   const building = buildLine?.tone === "running";
 
   const layers = useMemo(() => {
@@ -868,6 +873,7 @@ export default function BoardWorkspace({
                       parts={parts}
                       building={building}
                       buildLine={buildLine}
+                      historyLine={historyLine}
                       boardName={selectedStem}
                       product={product}
                       artifact={artifact}

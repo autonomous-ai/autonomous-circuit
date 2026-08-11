@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BUILD_STAGES,
+  ROUTER_RETRY_STAGE,
+  buildHistoryLine,
   buildProgress,
   buildStageChecklist,
   buildStatusLine,
@@ -58,4 +60,117 @@ test("progress, elapsed and state helpers behave", () => {
   assert.equal(isRunning({ state: "running" }), true);
   assert.equal(isTerminal({ state: "stale" }), true);
   assert.equal(buildStatusLine({ state: "failed", detail: "boom" }).text, "Build failed");
+});
+
+// --- the router retry -------------------------------------------------------
+//
+// Stage 0b re-runs the compile at 5x effort and can take twenty minutes. It
+// reports itself only by replaying `compile`, so without a row of its own the
+// checklist walks backwards and then sits still — the "reads as hung" failure
+// the checklist exists to prevent.
+
+test("a router retry gets its own row instead of rewinding the checklist", () => {
+  const plain = buildStageChecklist({ state: "running", stage: "dfm", stageIndex: 4, stageCount: 7 });
+  const retry = buildStageChecklist({
+    state: "running",
+    stage: "compile",
+    stageIndex: 0,
+    stageCount: 7,
+    routerRetry: true,
+  });
+  assert.equal(retry.length, plain.length + 1, "the retry adds a row rather than replacing one");
+  const active = retry.find((stage) => stage.state === "active");
+  assert.equal(active.key, ROUTER_RETRY_STAGE.key);
+  // Everything before it stays done — the earlier stages really did finish.
+  assert.ok(retry.slice(0, 3).every((stage) => stage.state === "done"));
+});
+
+test("the retry row keeps advancing once the pipeline moves past it", () => {
+  const list = buildStageChecklist({
+    state: "running",
+    stage: "dfm",
+    stageIndex: 4,
+    stageCount: 7,
+    routerRetry: true,
+  });
+  const active = list.find((stage) => stage.state === "active");
+  assert.equal(active.key, "dfm");
+  assert.equal(list.find((stage) => stage.key === ROUTER_RETRY_STAGE.key).state, "done");
+});
+
+test("the status line names the retry, because a silent twenty minutes is a bug", () => {
+  const line = buildStatusLine({
+    state: "running",
+    stage: "compile",
+    stageLabel: "Compiling the board",
+    stageIndex: 0,
+    stageCount: 7,
+    routerRetry: true,
+  });
+  assert.equal(line.text, ROUTER_RETRY_STAGE.label);
+  assert.match(line.detail, /5×/);
+});
+
+// --- build history ----------------------------------------------------------
+
+const revision = (blocking, extra = {}) => ({
+  at: "2026-08-11T00:00:00Z",
+  turnId: "t1",
+  phase: "structure",
+  round: 1,
+  counts: { total: blocking + 3, blocking, electrical: 0, other: 3 },
+  fabReady: null,
+  ...extra,
+});
+
+test("one recorded round is not a trend, and is not written up as one", () => {
+  assert.equal(buildHistoryLine(null), null);
+  assert.equal(buildHistoryLine({ revisions: [], trend: null }), null);
+  assert.equal(buildHistoryLine({ revisions: [revision(4)], trend: null }), null);
+});
+
+test("clean on the first build reads as the win it is", () => {
+  const line = buildHistoryLine({
+    revisions: [revision(0, { fabReady: true, counts: { total: 0, blocking: 0, electrical: 0, other: 0 } })],
+    trend: null,
+  });
+  assert.equal(line.tone, "first-try");
+  assert.match(line.text, /Clean on the first build/);
+});
+
+test("a mid-loop round that never re-ran the fab gate is not read as ready", () => {
+  // fabReady: null is "we did not check", and collapsing it to a claim either
+  // way would invent history.
+  const line = buildHistoryLine({
+    revisions: [revision(0, { fabReady: null, counts: { total: 0, blocking: 0, electrical: 0, other: 0 } })],
+    trend: null,
+  });
+  assert.equal(line, null);
+});
+
+test("converging is stated with both numbers", () => {
+  const line = buildHistoryLine({
+    revisions: [revision(6), revision(3), revision(1)],
+    trend: { builds: 3, from: 6, to: 1, fixed: 5, worse: false, fabReady: false },
+  });
+  assert.equal(line.tone, "better");
+  assert.match(line.text, /6 findings stopped the order 3 builds ago; 1 still does/);
+});
+
+test("getting worse is said out loud", () => {
+  const line = buildHistoryLine({
+    revisions: [revision(2), revision(5)],
+    trend: { builds: 2, from: 2, to: 5, fixed: 0, worse: true, fabReady: false },
+  });
+  assert.equal(line.tone, "worse");
+  assert.match(line.text, /made it worse/);
+});
+
+test("no movement is reported as no movement", () => {
+  const line = buildHistoryLine({
+    revisions: [revision(2), revision(2)],
+    trend: { builds: 2, from: 2, to: 2, fixed: 0, worse: false, fabReady: false },
+  });
+  assert.equal(line.tone, "flat");
+  assert.match(line.text, /unchanged across 2 builds/);
 });

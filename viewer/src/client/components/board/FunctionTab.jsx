@@ -412,14 +412,25 @@ export default function FunctionTab({
           </Section>
         ) : null}
 
-        {/* --- what we could not confirm ------------------------------------ */}
+        {/* --- what we could not confirm ------------------------------------
+            Amber only when something is actually adrift. A deliberate debug pad
+            is worth listing and is not worth a warning colour — colouring every
+            loose end alarming is how a panel gets ignored. */}
         {isolated.length || ends.unconnected.length || ends.dangling.length ? (
           <Section title="What we could not confirm">
-            <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-4 text-xs leading-5 text-muted-foreground">
+            <div
+              className={cn(
+                "flex flex-col gap-2 rounded-xl border p-4 text-xs leading-5 text-muted-foreground",
+                isolated.length || ends.unconnected.length
+                  ? "border-amber-500/30 bg-amber-500/[0.03]"
+                  : "border-border/60 bg-card/30",
+              )}
+            >
               {isolated.length ? (
                 <p data-slot="function-isolated">
                   <span className="text-foreground">
-                    {plural(isolated.length, "area")} connects to nothing else on the board
+                    {plural(isolated.length, "area")}{" "}
+                    {isolated.length === 1 ? "connects" : "connect"} to nothing else on the board
                   </span>{" "}
                   — {isolated.map((row) => row.label).join(", ")}. Parts that are placed but not joined to the circuit
                   get built and soldered and then do nothing.
@@ -428,7 +439,8 @@ export default function FunctionTab({
               {ends.unconnected.length ? (
                 <p data-slot="function-unconnected">
                   <span className="text-foreground">
-                    {plural(ends.unconnected.length, "part")} has pins but sits on no net
+                    {plural(ends.unconnected.length, "part")}{" "}
+                    {ends.unconnected.length === 1 ? "has pins but sits" : "have pins but sit"} on no net
                   </span>{" "}
                   —{" "}
                   <span className="font-mono">
@@ -440,11 +452,13 @@ export default function FunctionTab({
               {ends.dangling.length ? (
                 <p data-slot="function-dangling">
                   <span className="text-foreground">
-                    {plural(ends.dangling.length, "named net")} touches only one part
+                    {plural(ends.dangling.length, "named net")}{" "}
+                    {ends.dangling.length === 1 ? "touches" : "touch"} only one part
                   </span>{" "}
                   —{" "}
                   <span className="font-mono">{ends.dangling.slice(0, 12).map((net) => net.net).join(", ")}</span>. A
-                  net with one end is a connection that was named and never made.
+                  net with one end was named and never joined to anything else. Sometimes that is deliberate — a
+                  debug pad, the last link in a chain — and sometimes it is the connection you asked for.
                 </p>
               ) : null}
               <p className="text-muted-foreground/80">

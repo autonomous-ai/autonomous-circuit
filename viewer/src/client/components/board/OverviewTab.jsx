@@ -39,12 +39,13 @@ const IMPACT_COPY = {
   },
 };
 
-function Section({ title, hint, children, className }) {
+function Section({ title, hint, action = null, children, className }) {
   return (
     <section className={cn("flex flex-col gap-2", className)}>
       <div className="flex items-baseline gap-2">
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
         {hint ? <span className="truncate text-[11px] text-muted-foreground/70">{hint}</span> : null}
+        {action ? <span className="ml-auto">{action}</span> : null}
       </div>
       {children}
     </section>
@@ -191,6 +192,7 @@ export default function OverviewTab({
   parts = [],
   building = false,
   buildLine = null,
+  historyLine = null,
   boardName = "",
   product = null,
   artifact = null,
@@ -305,6 +307,23 @@ export default function OverviewTab({
             </p>
           ) : null}
 
+          {/* Where the board came from. A count on its own is a complaint; a
+              count with a direction is a tool converging — or, when it went the
+              other way, the one thing the user most needs told. Absent below
+              two recorded rounds, because one point is not a trend. */}
+          {historyLine ? (
+            <p
+              data-slot="overview-history"
+              data-tone={historyLine.tone}
+              className={cn(
+                "mt-3 text-xs leading-5",
+                historyLine.tone === "worse" ? "text-amber-500" : "text-muted-foreground",
+              )}
+            >
+              {historyLine.text}
+            </p>
+          ) : null}
+
           {/* What's left — the blocking groups as a checklist. */}
           {verdict.blockingGroups.length ? (
             <div className="mt-4 flex flex-col gap-2" data-slot="overview-blockers">
@@ -336,7 +355,19 @@ export default function OverviewTab({
 
         {/* --- what's on it ------------------------------------------------ */}
         {roles.length ? (
-          <Section title="What's on it" hint="click a part to find it on the board">
+          <Section
+            title="What's on it"
+            hint="click a part to find it on the board"
+            action={
+              <button
+                type="button"
+                onClick={() => onOpenTab?.("function")}
+                className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              >
+                Does it do what you asked?
+              </button>
+            }
+          >
             <div className="flex flex-col divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-card/30">
               {roles.map((role) => (
                 <div key={role.role} data-slot="overview-role" data-role={role.role} className="flex gap-3 p-3">

@@ -17,19 +17,31 @@ export const BUILD_POLL_MS = 1500;
  * still say "Built · 62s · 0 blocking" for a moment — `buildStatusLine` is what
  * decides when that expires.
  *
+ * **The router retry is inferred here, not reported.** Stage 0b re-runs the
+ * compile at 5× effort and announces itself by setting the stage back to
+ * `compile`. That replay is the only signal we get, and it matters: the retry
+ * can run for twenty minutes, so a checklist that quietly walks backwards and
+ * then stops moving reads as a hang. Watching the high-water mark of
+ * `stageIndex` across polls is what turns the replay into a fact the pure
+ * presentation layer can render — see buildStatus.ROUTER_RETRY_STAGE.
+ *
  * @param {string} projectId
  * @param {boolean} active  true while a turn is running
- * @returns {import("@/lib/transport.ts").BuildStatus|null}
+ * @returns {(import("@/lib/transport.ts").BuildStatus & {routerRetry?: boolean})|null}
  */
 export default function useBuildStatus(projectId, active) {
   const [status, setStatus] = useState(null);
   // Held in a ref so reaching a terminal state stops the loop without making
   // the effect re-subscribe on every poll.
   const settledRef = useRef(false);
+  const highWaterRef = useRef(-1);
+  const retryRef = useRef(false);
 
   // A new project, or a new turn, is a new build to follow.
   useEffect(() => {
     settledRef.current = false;
+    highWaterRef.current = -1;
+    retryRef.current = false;
     if (active) setStatus(null);
   }, [projectId, active]);
 
@@ -42,7 +54,19 @@ export default function useBuildStatus(projectId, active) {
       try {
         const next = await transport.build_status(projectId);
         if (cancelled) return;
-        setStatus(next || null);
+        if (next) {
+          const index = Number(next.stageIndex);
+          if (Number.isFinite(index)) {
+            // A stage index that goes backwards after the first pass is the
+            // retry. It never un-sets for this build: the retry has happened,
+            // and the stages after it are still the retry's stages.
+            if (index < highWaterRef.current) retryRef.current = true;
+            else highWaterRef.current = Math.max(highWaterRef.current, index);
+          }
+          setStatus(retryRef.current ? { ...next, routerRetry: true } : next);
+        } else {
+          setStatus(null);
+        }
         if (next && isTerminal(next)) {
           settledRef.current = true;
           return; // no reschedule — nothing more is coming
