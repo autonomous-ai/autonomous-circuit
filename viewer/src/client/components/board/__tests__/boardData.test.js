@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   blockingWarnings,
   buildViewContextNote,
+  isPlaceholderText,
   lcscNumber,
   lcscUrl,
   normalizeParts,
@@ -10,6 +11,7 @@ import {
   parseBomCsv,
   parseCsv,
   partsByLcsc,
+  sanitizeProduct,
   warningNoteText,
 } from "../boardData.js";
 
@@ -139,4 +141,42 @@ test("buildViewContextNote names the tab and board; empty without a board", () =
     "[Viewer context: board view of board main]",
   );
   assert.equal(buildViewContextNote({}), "");
+});
+
+// The template talking, not the board. Watched on a first real build: the
+// Overview's "What this is" panel showed the skeleton's note to the model
+// ("one sentence: what this device does for its owner") as if it were the
+// answer to what the user's board does.
+test("sanitizeProduct drops the skeleton's unfilled fields", () => {
+  const skeleton = {
+    name: "new-board",
+    description: "one sentence: what this device does for its owner",
+    power: "usb-c-5v",
+    layers: 2,
+  };
+  const clean = sanitizeProduct(skeleton);
+  assert.equal(clean.name, undefined);
+  assert.equal(clean.description, undefined);
+  assert.equal(clean.power, "usb-c-5v", "real fields survive");
+  assert.equal(clean.layers, 2);
+});
+
+test("sanitizeProduct keeps a real name and description", () => {
+  const clean = sanitizeProduct({ name: "nightlight", description: "Comes on when the room goes dark." });
+  assert.equal(clean.name, "nightlight");
+  assert.equal(clean.description, "Comes on when the room goes dark.");
+});
+
+test("sanitizeProduct catches instruction-shaped text after the skeleton reworks", () => {
+  for (const text of ["TODO", "tbd", "<what it does>", "Describe the device here", "one sentence about it", "…", "   "]) {
+    assert.equal(isPlaceholderText(text), true, `"${text}" reads as a placeholder`);
+  }
+  for (const text of ["A nightlight.", "Tells you when your plant is thirsty", "One button, mapped to mute."]) {
+    assert.equal(isPlaceholderText(text), false, `"${text}" is real copy`);
+  }
+});
+
+test("sanitizeProduct handles a missing or malformed file", () => {
+  assert.equal(sanitizeProduct(null), null);
+  assert.equal(sanitizeProduct("not an object"), null);
 });

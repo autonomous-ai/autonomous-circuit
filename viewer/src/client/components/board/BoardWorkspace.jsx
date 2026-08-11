@@ -41,7 +41,13 @@ import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
 import PropertiesPanel from "./PropertiesPanel.jsx";
 import { buildHistoryLine, buildStatusLine } from "./buildStatus.js";
-import { buildViewContextNote, normalizeParts, normalizeWarnings, partsByLcsc } from "./boardData.js";
+import {
+  buildViewContextNote,
+  normalizeParts,
+  normalizeWarnings,
+  partsByLcsc,
+  sanitizeProduct,
+} from "./boardData.js";
 
 const TABS = Object.freeze([
   // Overview is first and default on purpose: someone who has never opened an
@@ -316,7 +322,10 @@ export default function BoardWorkspace({
     fetch(productUrl)
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!cancelled) setProduct(data && typeof data === "object" ? data : null);
+        // Sanitized here, once, rather than in each tab that reads it: a fresh
+        // project ships the skeleton's instructions-to-the-model in these
+        // fields, and rendering those as the answer is worse than silence.
+        if (!cancelled) setProduct(sanitizeProduct(data));
       })
       .catch(() => {
         if (!cancelled) setProduct(null);

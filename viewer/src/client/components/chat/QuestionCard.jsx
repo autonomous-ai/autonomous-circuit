@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/ui/utils";
 import { startTurn, useChatStore } from "@/store/chat";
+import { DELEGATE_ANSWER } from "./questionFence.js";
 
 /**
  * Renders a set of preference questions the model asked during planning
@@ -13,7 +14,7 @@ import { startTurn, useChatStore } from "@/store/chat";
  * @param {{ questions: Array<{question:string, header?:string, multiSelect?:boolean,
  *   options: Array<{label:string, description?:string}>}> }} props
  */
-export default function QuestionCard({ questions }) {
+export default function QuestionCard({ questions, dropped = 0 }) {
   const turnInProgress = useChatStore((s) => s.turnInProgress);
   // selected: Map question-index -> Set(labels)
   const [selected, setSelected] = useState(() => ({}));
@@ -52,13 +53,10 @@ export default function QuestionCard({ questions }) {
     if (res) setSubmitted(true);
   };
 
-  // One-click delegate: skip every preference and let Panda pick the best.
+  // One-click delegate: skip every preference and let Circuit pick the best.
   const handleDelegate = async () => {
     if (turnInProgress || submitted) return;
-    const res = await startTurn(
-      "Build the best version — you decide every preference above. Pick the best " +
-        "option for each and proceed without asking again.",
-    );
+    const res = await startTurn(DELEGATE_ANSWER);
     if (res) setSubmitted(true);
   };
 
@@ -105,6 +103,16 @@ export default function QuestionCard({ questions }) {
           );
         })}
       </div>
+      {/* Some of what the model asked did not arrive intact. Say so: a
+          silently shortened list looks like the whole question set, and the
+          user has no way to know an answer they cared about was dropped. */}
+      {dropped > 0 ? (
+        <p data-slot="chat-questions-dropped" className="mt-3 text-[11px] leading-4 text-muted-foreground">
+          {dropped === 1 ? "One more question" : `${dropped} more questions`} came through broken and{" "}
+          {dropped === 1 ? "is" : "are"} not shown. Answer what you can, or let Circuit choose.
+        </p>
+      ) : null}
+
       <div className="mt-4 flex items-center justify-between gap-2">
         <Button
           type="button"

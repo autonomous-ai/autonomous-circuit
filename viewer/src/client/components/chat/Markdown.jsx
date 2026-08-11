@@ -3,6 +3,8 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/ui/utils";
 import ChatCodeBlock from "./ChatCodeBlock";
 import QuestionCard from "./QuestionCard";
+import QuestionsFallback from "./QuestionsFallback";
+import { parseQuestionFence } from "./questionFence.js";
 import remarkCallouts from "./remarkCallouts";
 import "./prose.css";
 
@@ -114,14 +116,14 @@ const COMPONENTS = {
       // children may be a string or an array of nodes; flatten to text so
       // commas aren't injected (which would break JSON.parse).
       const raw = flattenText(children).trim();
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.questions)) {
-          return <QuestionCard questions={parsed.questions} />;
-        }
-      } catch {
-        /* not parseable yet — fall through to code rendering */
+      const parsed = parseQuestionFence(raw);
+      if (parsed) {
+        return <QuestionCard questions={parsed.questions} dropped={parsed.dropped} />;
       }
+      // Nothing answerable survived. Never a raw JSON block: that is what a
+      // beginner was shown last time, under the words "Waiting for your
+      // answer", with no way to read it and no way out.
+      return <QuestionsFallback />;
     }
     if (lang || flattenText(children).includes("\n")) {
       return <ChatCodeBlock lang={lang} code={flattenText(children)} />;

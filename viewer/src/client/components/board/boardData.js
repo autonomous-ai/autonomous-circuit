@@ -218,3 +218,53 @@ export function describeSelection(selection, index) {
   }
   return "";
 }
+
+// ---------------------------------------------------------------------------
+// product.json
+// ---------------------------------------------------------------------------
+
+/**
+ * The project skeleton's unfilled fields, verbatim from
+ * `skills/circuitcode/templates/project_skeleton/product.json`. They are
+ * instructions addressed to the model, and a new project carries them until
+ * the model overwrites them.
+ */
+const SKELETON_NAME = "new-board";
+const SKELETON_DESCRIPTION = "one sentence: what this device does for its owner";
+
+/**
+ * Instruction-shaped text, for the same field after the skeleton's wording
+ * changes. Deliberately narrow: a real one-line product description does not
+ * open with "one sentence", carry a TODO, or sit inside angle brackets.
+ */
+const PLACEHOLDER_SHAPE = /^(todo\b|tbd\b|one sentence\b|describe |<.*>$|\.{3}$|…$)/i;
+
+/** True when this value is the template talking, not the board. */
+export function isPlaceholderText(value, skeleton = "") {
+  const text = String(value ?? "").trim();
+  if (!text) return true;
+  if (skeleton && text.toLowerCase() === String(skeleton).toLowerCase()) return true;
+  return PLACEHOLDER_SHAPE.test(text);
+}
+
+/**
+ * product.json with the skeleton's unfilled fields removed.
+ *
+ * Watching a first build: the Overview's "What this is" panel read
+ * **"new-board — one sentence: what this device does for its owner"** for the
+ * whole run. That is the template's note to the model, rendered to a person as
+ * if it were the answer to what their board does — the exact shape of
+ * manufactured confidence, and unreadable as anything but a bug. Dropping the
+ * field lets the panel fall back to the board's real name and say nothing it
+ * cannot support.
+ *
+ * @param {object|null} product
+ * @returns {object|null} null when nothing usable survives
+ */
+export function sanitizeProduct(product) {
+  if (!product || typeof product !== "object") return null;
+  const next = { ...product };
+  if (isPlaceholderText(next.name, SKELETON_NAME)) delete next.name;
+  if (isPlaceholderText(next.description, SKELETON_DESCRIPTION)) delete next.description;
+  return next;
+}
