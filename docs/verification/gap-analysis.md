@@ -330,7 +330,7 @@ outside its threshold at the corner. Nothing asks. Once a DC solver exists,
 Monte-Carlo over tolerances is nearly free and answers the question directly.
 
 ### G6 · Solder mask, paste and silkscreen are unchecked
-**Risk: medium · Wall-clock: seconds · Status: PARTIAL (gerber-side mask/silk checks in `gerber_truth.py`)**
+**Risk: medium · Wall-clock: seconds · Status: BUILT (mask/silk checks in `gerber_truth.py`)**
 
 KiCad's `soldermask_bridge`, `silk_over_copper` and `text_height` findings are
 all pinned to `info` in our noise floor — correctly, because the converted
@@ -340,14 +340,15 @@ pad ends up as ink on a solderable surface; text under 1.0 mm is unreadable and
 JLC may drop it.
 
 ### G7 · Thermal only covers a declared LDO
-**Risk: medium · Wall-clock: seconds · Status: NEXT**
+**Risk: medium · Wall-clock: seconds · Status: BUILT (`thermal.py`)**
 
 `regulator_thermal()` is good arithmetic and is only ever called with values the
 board source hands it. Any part with a thermal pad — a motor driver, a buck, a
-hot LED — has copper-area-versus-dissipation requirements nothing measures.
+hot LED — has copper-area-versus-dissipation requirements nothing measures. And
+nothing at all asks it of a *resistor*: a 0402 is rated for ~62.5 mW.
 
 ### G8 · Design-review checklist items are asked, never measured
-**Risk: medium · Wall-clock: seconds · Status: NEXT**
+**Risk: medium · Wall-clock: seconds · Status: BUILT (`review.py`)**
 
 Decoupling per IC power pin, bulk per rail, floating strap pins, unused pins,
 ESD on off-board connectors, a test point per rail, a reachable programming
@@ -415,3 +416,52 @@ Three structural notes, independent of any single check:
 3. **A check that cannot see something must say so.** `coverage` belongs in
    every check's output next to `findings`. Silence must never read as a pass —
    that is the exact reason the SPICE leg stays out.
+
+---
+
+## 5. What was built, and what it caught
+
+`packages/verify` — seven checks, 129 tests, no dependency on `circuitpy` or on
+any skill runtime. `packages/verify/README.md` says how each should be wired.
+
+Run over the three example boards, these are the findings **no existing check
+can produce**:
+
+| Finding | Board | Which gap |
+|---|---|---|
+| silkscreen plotted at **0.033 mm** strokes against JLCPCB's 0.15 mm floor — the reference designators may print broken or be dropped | all three | G2 |
+| five pairs of solder-mask openings **0.114 mm** apart against a 0.2 mm sliver minimum; a web that thin burns off and the pads bridge | all three | G2 / G6 |
+| eight silkscreen strokes landing **inside mask openings** | harness-puck | G6 |
+| USB pair skew of **18.88 mm** against a 3.8 mm budget | terminal-keyboard | G3 |
+| every routed segment is one width; V5 must carry 649 mA on copper good for 604 mA | harness-puck | G3 |
+| SW2 and SW3 sit **1.80 mm** from the board edge where assembly asks for 2.5 mm | terminal-keyboard | G1 |
+| the second LDO reaches **~96 °C** junction at the WS2812 chain's datasheet peak | harness-puck | G7 |
+| the debug interface reaches no connector or test point — the board cannot be programmed once built | all three | G8 |
+
+And four **false positives measured and removed before shipping**, each now a
+regression test — the "measure the noise floor" principle applied four more
+times:
+
+| Looked like a defect | Actually was |
+|---|---|
+| nine courtyard overlaps | footprints rotated 22.5°, compared as bounding boxes |
+| four missing drills on every board | `G85` routed slots read as round holes at one endpoint |
+| a poured board reading as empty | `G36` region contours skipped by the reader |
+| a 120 mA indicator LED, then an 8.7 GA one | a diode model that never converged, then a Newton step trusted while the limiter held it down |
+
+### The next three gaps by expected value
+
+1. **G8 continued — the datasheet half of the review.** The connectivity half
+   is done. What is left needs a per-part rule table: which pins must be tied,
+   which strap levels boot which way, what a reset circuit has to look like.
+   That table is the same kind of asset as the golden-block library, and it is
+   the last big class of "arrives, assembles, misbehaves".
+2. **Copper area behind the thermal numbers.** `thermal.py` computes junction
+   temperatures from a package's datasheet θJA, which assumes a copper area
+   nothing measures. The gerbers carry the pour as region contours — resolving
+   their area would turn an assumed number into a measured one, and would also
+   close pour-to-edge clearance and thermal-relief checking.
+3. **Wire it in, then measure the yield change.** Everything here is
+   standalone. The number that matters is first-build fab-ready rate, and none
+   of these checks moves it until the pipeline calls them and the agent eval
+   re-runs. Wiring is a call per check; the measurement is the point.

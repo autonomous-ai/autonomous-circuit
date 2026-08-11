@@ -25,7 +25,16 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from verifylib import assembly, corners, dc, gerber_truth, model, netclass, review
+from verifylib import (
+    assembly,
+    corners,
+    dc,
+    gerber_truth,
+    model,
+    netclass,
+    review,
+    thermal,
+)
 from verifylib.findings import CheckResult, finding
 
 #: name -> (needs the gerber packet, description)
@@ -35,6 +44,7 @@ CHECKS = {
     "dc": (False, "DC operating point over the real netlist"),
     "corners": (False, "the same solve at every tolerance corner"),
     "review": (False, "the electrical half of an EE design review"),
+    "thermal": (False, "dissipation against package ratings, at peak load"),
     "gerber": (True, "the shipped packet, reconciled against the design"),
 }
 
@@ -70,6 +80,8 @@ def run_one(name: str, circuit_json: str, gerbers: str | None, trials: int) -> d
             result = corners.check(board, trials=trials)
         elif name == "review":
             result = review.check(board)
+        elif name == "thermal":
+            result = thermal.check(board)
         elif name == "gerber":
             if gerbers is None:
                 result = CheckResult(

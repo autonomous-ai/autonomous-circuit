@@ -40,7 +40,9 @@ def test_a_fab_packet_beside_the_board_is_found(project):
 def test_every_check_runs_and_reports_its_own_time(project):
     report = cli.verify(project, trials=0, parallel=False)
     names = {c["name"].split("[")[0] for c in report["checks"]}
-    assert names == {"assembly", "netclass", "dc", "corners", "review", "gerber_truth"}
+    assert names == {
+        "assembly", "netclass", "dc", "corners", "review", "thermal", "gerber_truth"
+    }
     assert all("seconds" in c for c in report["checks"])
 
 

@@ -1,6 +1,6 @@
 # `packages/verify` — the checks the pipeline did not have
 
-Six standalone checks that see things our four existing detection sources
+Seven standalone checks that see things our four existing detection sources
 cannot. Built 2026-08-11 against the gap analysis in
 `docs/verification/gap-analysis.md`.
 
@@ -19,6 +19,7 @@ cd packages/verify && python3.12 -m pytest                                      
 | `dc` | no check knew Ohm's law on a *built* board — a nodal solve with the rails still called by their names | `circuit.json` |
 | `corners` | every number in the pipeline is nominal; this re-solves at every tolerance corner | `circuit.json` |
 | `review` | the electrical half of an EE design review — decoupling, bulk, crystal load caps, floating pins, ESD, test points, debug access | `circuit.json` |
+| `thermal` | dissipation against package ratings at *peak* load — the LDO helper, but reading the built board, plus every chip resistor | `circuit.json` |
 | `gerber` | **the packet we actually ship, which nothing had ever opened** | `gerbers.zip` |
 
 ## Three rules the package holds itself to
@@ -50,13 +51,16 @@ Nothing here is wired into the pipeline — that is deliberate, since
 pipeline's warning shape, so wiring is a call, not a translation:
 
 ```python
-from verifylib import assembly, corners, dc, gerber_truth, model, netclass, review
+from verifylib import (
+    assembly, corners, dc, gerber_truth, model, netclass, review, thermal
+)
 
 board = model.load(circuit_json_path)
 warnings.extend(assembly.check(board, assembly=product.assembly).findings)
 warnings.extend(netclass.check(board).findings)
 warnings.extend(dc.check(board).findings)
 warnings.extend(review.check(board).findings)
+warnings.extend(thermal.check(board).findings)
 warnings.extend(gerber_truth.check(board, str(gerbers_zip)).findings)   # after stage 5
 warnings.extend(corners.check(board).findings)                          # off the critical path
 ```
@@ -64,8 +68,9 @@ warnings.extend(corners.check(board).findings)                          # off th
 Suggested placement in the seven-stage gauntlet (`docs/circuit-interfaces.md`
 §1):
 
-- **stage 4** (DFM + BOM) gains `assembly`, `netclass`, `dc` and `review` —
-  all four read `circuit.json` and together add well under a second.
+- **stage 4** (DFM + BOM) gains `assembly`, `netclass`, `dc`, `review` and
+  `thermal` — all five read `circuit.json` and together add well under two
+  seconds.
 - **a new stage 5b**, after the fab export, gains `gerber` — it cannot run
   earlier because the artifact does not exist yet, and it is the only check
   that inspects what the fab receives.
@@ -91,11 +96,11 @@ Two contract notes for whoever wires it:
 
 ```
 0 error, 6 warning, 10 info — 7.7s wall, 9.1s compute
-  assembly 0.28s   netclass 0.36s   dc 0.32s
-  corners  7.11s   review   0.22s   gerber 0.86s
+  assembly 0.28s   netclass 0.36s   dc      0.32s   thermal 0.42s
+  corners  7.11s   review   0.22s   gerber  0.86s
 ```
 
-The five fast checks disappear behind the slow one because the CLI fans them
+The six fast checks disappear behind the slow one because the CLI fans them
 out across processes, and the corner sweep fans out again inside itself
 (18.7s → 7.2s at 200 trials). Compute is free against a two-week fab queue;
 wall-clock is not. Anything slower than this belongs beside the build rather

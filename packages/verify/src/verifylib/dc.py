@@ -166,8 +166,16 @@ def _port_nets(board: Board, component: Component) -> list[tuple[str, Net]]:
     return out
 
 
-def build_network(board: Board, *, scenario: str = "resting") -> Network:
-    """Turn the board into a solvable DC network."""
+def build_network(
+    board: Board, *, scenario: str = "resting", load_mode: str = "typical"
+) -> Network:
+    """Turn the board into a solvable DC network.
+
+    ``load_mode`` picks which datasheet number a black box draws: ``typical``
+    for the operating point, ``peak`` for the worst case a rail and a regulator
+    have to survive. They differ by a factor of six on a WS2812 chain, so
+    grading heat at typical alone is grading the easy case.
+    """
     network = Network(nets=list(board.nets))
     network.total = len(board.components)
     ground = board.ground
@@ -244,8 +252,9 @@ def build_network(board: Board, *, scenario: str = "resting") -> Network:
                 network.unmodelled.append(component.name)
             continue
         network.modelled += 1
-        if load.typical_ma > 0 and power_nets and ground is not None:
-            share = load.typical_ma / 1000.0 / len(power_nets)
+        amps_ma = load.peak_ma if load_mode == "peak" else load.typical_ma
+        if amps_ma > 0 and power_nets and ground is not None:
+            share = amps_ma / 1000.0 / len(power_nets)
             for net in power_nets:
                 network.sinks.append(
                     Sink(component.name, net.key, share, load.source)
