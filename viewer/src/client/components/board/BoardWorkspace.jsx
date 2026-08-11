@@ -829,7 +829,7 @@ export default function BoardWorkspace({
         <div className="flex min-w-0 flex-1 flex-col">
           {selectedEntry ? (
             <>
-              <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 px-2">
+              <div className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
@@ -839,7 +839,7 @@ export default function BoardWorkspace({
                     data-tab={tab.id}
                     aria-current={activeTab === tab.id ? "true" : undefined}
                     className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                      "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                       activeTab === tab.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
                   >

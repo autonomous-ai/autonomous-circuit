@@ -251,10 +251,22 @@ export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_00
   if (status.state === "stale") {
     if (turnActive) {
       const quietMs = Math.max(0, now - normalizeEpochMs(status.updatedAt));
+      const quietFor = quietMs ? `quiet for ${formatElapsed(quietMs / 1000)}` : "no progress reported";
+      // The retry is the single likeliest reason a stage goes quiet for this
+      // long, and when we have actually observed it starting we say so rather
+      // than leaving the user to guess which slow thing this is.
+      if (status.routerRetry) {
+        return {
+          tone: "quiet",
+          text: ROUTER_RETRY_STAGE.label,
+          detail: `5× router effort · ${quietFor}`,
+          progress,
+        };
+      }
       return {
         tone: "quiet",
         text: stage || "Building",
-        detail: quietMs ? `quiet for ${formatElapsed(quietMs / 1000)}` : "no progress reported",
+        detail: quietFor,
         progress,
       };
     }

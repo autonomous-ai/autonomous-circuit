@@ -425,6 +425,17 @@
     width: 100% !important;
   }
 
+  /* A row that may overflow horizontally but must not grow a scrollbar — the
+     tab strip, where a visible bar under the tabs reads as a second border. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .scrollbar-thin {
     scrollbar-color: color-mix(in srgb, var(--muted-foreground) 26%, transparent) transparent;
     scrollbar-width: thin;

@@ -268,7 +268,16 @@ export default function OverviewTab({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">{verdict.headline}</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {verdict.tone === "building" && buildLine?.text
-                  ? `${buildLine.text}${buildLine.detail ? ` — step ${buildLine.detail}` : ""}.`
+                  ? // "4/7" is a step number and reads as one only with the word
+                    // in front of it; "quiet for 2m 53s" is already a sentence
+                    // fragment and "step quiet for 2m 53s" is nonsense.
+                    `${buildLine.text}${
+                      buildLine.detail
+                        ? /^\d+\/\d+$/.test(buildLine.detail)
+                          ? ` — step ${buildLine.detail}`
+                          : ` — ${buildLine.detail}`
+                        : ""
+                    }.`
                   : verdict.blockingGroups.length
                     ? // The strip above already carries the one-line version.
                       // Here the list is right below, so the sentence's job is

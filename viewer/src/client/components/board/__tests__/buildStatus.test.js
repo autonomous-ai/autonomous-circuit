@@ -212,3 +212,13 @@ test("epoch seconds and epoch milliseconds both normalise", () => {
   assert.equal(normalizeEpochMs(0), 0);
   assert.equal(normalizeEpochMs("nope"), 0);
 });
+
+test("a quiet stage that is the router retry says which slow thing it is", () => {
+  const line = buildStatusLine(
+    { ...STALE, routerRetry: true },
+    { now: 1_700_000_300_000, turnActive: true },
+  );
+  assert.equal(line.tone, "quiet");
+  assert.equal(line.text, ROUTER_RETRY_STAGE.label);
+  assert.match(line.detail, /5× router effort · quiet for 5m/);
+});
