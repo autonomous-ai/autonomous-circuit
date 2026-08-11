@@ -14,6 +14,62 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-11 — `fab.ready: true` is the definition of done, on the first build
+- **Change:** §1 gains a *Definition of done* rule and §3 tightens the
+  circuitcode done-gate. A board is **complete only when its sidecar carries
+  `fab": {"ready": true}`**. `fab.ready: false` is an **unfinished board**, not
+  a finished board with caveats — whatever the cause (blocking warnings,
+  kicad-cli absent, `gerberSource: "tscircuit"`). The skill's done-gate changes
+  from "never declare done with an `error`-severity warning outstanding" to
+  literally `fab.ready == true`, and the required final response leads with it.
+  The measured target is **first-build fab-ready**: `ready: true` on build #1
+  of a cold brief, with zero repair rounds. Nothing about *how* `fab.ready` is
+  earned changes — §1 stage 5's rule is untouched (zero `error`-severity
+  warnings AND gerbers from kicad-cli). The bar did not move; only what we call
+  finished did.
+- **Why:** Dee, 2026-08-11: *"All designs generated must be ready to be sent to
+  JLCPCB. Perfect, no issue, board generated one shot, printed."* and *"make
+  sure our software is good enough to make everything fab ready. users just
+  chat with our software, and we generate fab-ready boards."* The old gate let
+  an agent finish a turn on a board that no fab would accept, because the
+  blocking condition (`error` severity) is narrower than the shipping condition
+  (`fab.ready`). Both example-board sets on 2026-08-10 ended with `ready:
+  false` and an agent that considered itself done.
+- **Backward compatible:** yes for consumers — no field, name, severity or
+  artifact changes. It is a behaviour tightening on the agent side and a
+  documentation change on the pipeline side. Existing sidecars stay valid;
+  boards that were "done" under the old gate are now correctly reported as
+  unfinished.
+- **Mechanism:** `docs/circuit-interfaces.md` §1 (new *Definition of done*
+  paragraph after the artifact table) and §3 (done-gate sentence);
+  `skills/circuitcode/SKILL.md` (non-negotiable 5, *Required final response*);
+  `skills/design-review/SKILL.md` (panel non-optional in the flow). No
+  packages/circuitpy change, so no re-vendor.
+- **Tracks affected:** skills / docs.
+
+## 2026-08-11 — Composition closure: the tested space bounds what the planner may emit
+- **Change:** §1's board-source rules gain a closure rule. It is not enough for
+  every golden block to pass its own gauntlet; **every composition the planner
+  can legally emit must itself have been built through the real pipeline**.
+  `evals/composition.py` builds the pair matrix (every unordered pair of
+  registry blocks, plus every single) as a real board through `build_board()`
+  and records the blocking result per cell; `evals/composition-matrix.json` is
+  the record. A composition the planner can produce but the matrix has never
+  built is an **untested claim**, and the fix for a failing cell belongs in the
+  block, `circuitlib.layout`, or the planner defaults — never in a repair the
+  agent performs afterwards.
+- **Why:** Dee, 2026-08-11: *"just not these 3, they are just the first 3."*
+  Getting three known boards to pass is a demo; the guarantee has to be
+  structural. All three example boards failed in composition, not in a block
+  alone — the block gauntlet was green while every board built from it was
+  blocked.
+- **Backward compatible:** yes — a new eval and a documented rule; no schema,
+  field or behaviour change in the pipeline.
+- **Mechanism:** `evals/composition.py` (matrix runner + report),
+  `skills/circuitcode/circuitlib/layout.py` (constraints encoded as
+  composition rules), `docs/circuit-interfaces.md` §1 board-source rules.
+- **Tracks affected:** skills / docs / evals.
+
 ## 2026-08-10 — `scripts/check` runs the full pipeline into a tempdir, not stages 0–2
 - **Change:** §3 specifies `python skills/circuitcode/scripts/check <same>` as
   "stages 0–2 only, tempdir, paths stripped". circuitpy exposes no

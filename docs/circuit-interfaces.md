@@ -81,6 +81,14 @@ Editing the bible or the parts lock invalidates every board.
 - Generated source carries a pinned-dialect header comment naming the exact tscircuit
   version it targets (in-source pinning, cribbed from Zener's `pcb-version` idiom).
 - Board `thickness` is set explicitly (JLC standard 1.6mm; toolchain default is 1.4).
+- **Closure under composition (2026-08-11).** A block passing its own gauntlet is
+  necessary and not sufficient: every composition the planner can legally emit must
+  itself have been built through the real pipeline. `evals/composition.py` builds the
+  pair matrix (every single block, every unordered pair) and records each cell in
+  `evals/composition-matrix.json`. A composition the planner can produce but the matrix
+  has never built is an **untested claim**. When a cell fails, the fix goes in the block,
+  in `circuitlib.layout`, or in the planner's defaults — never in a repair the agent
+  performs afterwards.
 
 ### Toolchain (the ffmpeg posture)
 
@@ -144,6 +152,24 @@ LCSC parts). `CIRCUIT_PARTS_ENGINE=off` disables it (CI/offline: parts resolve o
 | `<stem>_fab/board.glb` | best-effort | 3D body for Vibe enclosure pairing |
 
 "Fab-ready" = zero `error`-severity warnings AND gerbers came from kicad-cli.
+
+### Definition of done (2026-08-11)
+
+**A board is complete only when `fab.ready` is `true`.** Anything else is an
+*unfinished board*, not a finished board with caveats — and that holds whatever
+the cause: a blocking warning, kicad-cli absent, `gerberSource: "tscircuit"`.
+There is no "done, but not orderable" state; a packet a user cannot send to
+JLCPCB is work in progress.
+
+The measured target is stronger: **first-build fab-ready** — `ready: true` on
+build #1 from a cold brief, with zero repair rounds. `evals/agent/run.py` scores
+it. A repair round is not a success story; it is a defect that should have been
+prevented upstream, in a block, in `circuitlib`, in the project skeleton or in
+the planner's defaults.
+
+What "fab-ready" *means* is deliberately unchanged by this rule and must stay
+hard to earn. The number moves because boards get better, never because the bar
+moved.
 
 ### `.board.json` sidecar schema (camelCase, canonical JSON: `sort_keys`, `(",",":")`)
 
@@ -313,8 +339,11 @@ interface CircuitcodeResult {
 
 The SKILL.md carries the error-code → fix-target routing table and the loop:
 edit TSX → run generator → read verdict → `Read` BOTH pngs → smallest responsible fix →
-soft cap 4 iterations. Done-gate: never done with an `error`-severity warning, a
-non-fab-ready packet the user asked to order, or without having Read both images.
+soft cap 4 iterations. **Done-gate (tightened 2026-08-11): `fab.ready == true`, full
+stop** — plus both review images Read. The old gate ("no `error`-severity warning
+outstanding") is strictly weaker: it passes a board whose gerbers are unverified. A turn
+that ends with `fab.ready: false` reports an unfinished board and says exactly what is
+missing; it never presents the board as done.
 
 ### `circuit-analysis` output contract (read-only, no artifacts)
 

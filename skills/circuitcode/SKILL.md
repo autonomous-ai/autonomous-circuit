@@ -124,6 +124,33 @@ understand ask → inspect project → block plan → edit main.tsx
 
 `ok: true` says the pipeline ran. Only your eyes say the board is right.
 
+## Done means orderable
+
+**A board is finished when `fab.ready` is `true`, and at no other time.**
+Dee, 2026-08-11: *"All designs generated must be ready to be sent to JLCPCB.
+Perfect, no issue, board generated one shot, printed."*
+
+That is one gate, not a scale:
+
+| Sidecar says | What you say |
+|---|---|
+| `fab.ready: true` | **Done.** Here is the packet, here is what it costs, here is how to order it. |
+| `fab.ready: false` | **Not done.** One line on the single thing missing, then keep working or hand back a clear blocker. |
+
+`ok: true`, "zero blocking warnings", "the pictures look right" and "the build
+is clean" are all *inputs* to that gate. None of them is the gate. A packet
+with unverified gerbers (`gerberSource: "tscircuit"`, kicad-cli absent) is
+`fab.ready: false` and therefore unfinished, even with zero warnings — a user
+cannot send it to a fab, so it is not a board yet.
+
+**Aim to earn it on build #1.** Every repair round is a defect that should have
+been prevented before the first build: read the BLOCK.md files, use
+`circuitlib.layout.place_row()` for placement instead of guessing coordinates,
+`layout.min_board_for()` for the outline, and `helpers.board_plan()` for the
+block set. If you find yourself fixing the same class of thing twice, the real
+bug is upstream — say so, because that fix belongs in the block or the library,
+not in this board.
+
 ## Plan-phase design discipline
 
 When the app runs you in Plan mode, **write no files.** Produce an engineering
@@ -290,6 +317,13 @@ Soft cap: `tables.MAX_REPAIR_ITERATIONS` (4). Past that you are guessing at
 taste rather than fixing a fault — go back to the user with what is wrong and
 what you would trade to fix it.
 
+### 9. Hand it to the panel — always
+
+The moment `fab.ready` is `true`, run the **design-review** skill. It is the
+last stage of every board, not an optional extra: seven lenses, a ship bar, and
+must-fix notes routed back here. Finishing a board without a panel verdict is a
+defect in your turn, not a shortcut.
+
 ## Non-negotiables
 
 1. **Never invent a circuit from a datasheet.** Compose blocks. No deterministic
@@ -300,7 +334,12 @@ what you would trade to fix it.
    yet, so battery asks get the USB variant plus an honest explanation.
 4. **Radio only as a certified module.** Never bare-die RF, never a hand-drawn
    antenna or matching network.
-5. **Never declare done with an `error`-severity warning outstanding.**
+5. **Done means `fab.ready == true`. There is no other done.** Not "clean
+   build", not "no blocking warnings" — the sidecar's `fab.ready` is `true` or
+   the board is unfinished. `fab.ready: false` from unverified gerbers counts
+   exactly the same as `fab.ready: false` from a DRC error: the user cannot
+   send it to JLCPCB, so it is not a board yet. Report it as unfinished and say
+   the one thing that is missing. (See *Done means orderable* below.)
 6. **Never declare done without having Read both review images.**
 7. **Never call a packet orderable when `fab.ready` is false.** No kicad-cli
    means unverified gerbers — say that plainly instead of implying shippable.
@@ -357,13 +396,18 @@ Load the pattern file when the trigger matches — they are short and specific.
 
 ## Required final response
 
-Every time you finish, tell the user:
+Every time you finish, **lead with the gate**:
 
-1. **One sentence on what the board does** — in their words, not net names.
-2. **Paths** — the board source and the fab packet directory.
-3. **The numbers** — board size, part count, estimated cost band, and the
+1. **Orderable or not, first line.** `Fab-ready: yes — the packet is ready to
+   upload to JLCPCB.` or `Not fab-ready: <the one thing missing>.` Nothing goes
+   above this line. If it is `false`, the word "done" does not appear anywhere
+   in your reply.
+2. **One sentence on what the board does** — in their words, not net names.
+3. **Paths** — the board source and the fab packet directory.
+4. **The numbers** — board size, part count, estimated cost band, and the
    warning state (`0 blocking, 2 advisory` — not "looks good").
-4. **Whether it is orderable** — `fab.ready` true/false, and if false, exactly
-   what is missing.
-5. **What you decided for them and what you'd tweak next** — the craft calls you
+5. **How many builds it took.** One is the target. If it took more, name the
+   thing that went wrong on build #1 — that is the signal that fixes the next
+   hundred boards.
+6. **What you decided for them and what you'd tweak next** — the craft calls you
    made silently, and the one or two things worth changing if they care.

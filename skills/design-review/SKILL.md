@@ -22,13 +22,28 @@ arithmetic is not close.
 
 ## When to use
 
-After `circuitcode` reports `ok: true`, and **always** before telling a user a
-packet is orderable. Also whenever a board changed materially — new block, new
-MCU, a size change, a part swap.
+**Not optional. The panel is the last stage of every board, not a service
+someone remembers to call.** The flow is fixed:
+
+```
+circuitcode builds → fab.ready: true → design-review panel → verdict
+                                              │
+                              iterate ────────┘  (back to circuitcode)
+```
+
+Any board that reaches `fab.ready: true` goes through the panel before the word
+"done" is said to a user. There is no path from a green build to a finished
+board that skips this — a packet that never met the panel is an unreviewed
+packet, and circuitcode's own non-negotiables send it here. `circuitcode`
+finishing without a panel verdict is itself a defect.
+
+Also re-run it whenever a board changed materially — new block, new MCU, a size
+change, a part swap.
 
 Do not use it to fix a build that is still failing; that is circuitcode's loop.
 The panel reviews boards that already pass, because a board that fails the
-gauntlet has not earned the panel's time.
+gauntlet has not earned the panel's time. `fab.ready: false` is not a board the
+panel reviews; it is an unfinished board, and it goes back.
 
 ## The panel
 
@@ -117,7 +132,10 @@ A note without a specific location (`U2`, `net.V3_3`, "the USB connector",
 
 A board is **ready to make** when all of:
 
-- zero `error`-severity warnings in the sidecar, and `fab.ready` is `true`;
+- `fab.ready` is `true` in the sidecar (which already implies zero
+  `error`-severity warnings and kicad-cli-verified gerbers). This is the
+  entry condition, not a scoring line: `false` means the board never reaches
+  the panel.
 - **every lens scores ≥ 7**;
 - **zero `must-fix` notes** open;
 - power integrity and safety score **≥ 8** (these two get a higher bar — the

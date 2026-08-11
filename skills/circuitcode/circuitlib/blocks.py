@@ -150,6 +150,28 @@ BLOCKS: dict[str, Block] = {
         current_draw_ma=0.7,
         notes="Needs an i2c-bus block for pull-ups. Address strap on SDO.",
     ),
+    "ws2812-chain": Block(
+        id="ws2812-chain",
+        symbol="Ws2812Chain",
+        function="Chain of WS2812B addressable RGB pixels on one GPIO",
+        provides=("LED_DATA",),
+        requires=("V3_3", "GND"),
+        props=("count", "dinNet", "rail", "startIndex", "pitch", "r",
+               "pcbX", "pcbY", "schX", "schY"),
+        parts=(
+            Part("D10+", "C2761795", "WS2812B-B/T 5050 pixel"),
+            Part("C40+", "C1525", "100nF 0402, one per pixel", basic=True),
+        ),
+        # Idle. Worst case is ~60mA/pixel at full white — budget
+        # count x 60mA with helpers.power_budget(), see BLOCK.md.
+        current_draw_ma=4.0,
+        notes=(
+            "Parametric in `count` (default 4). Worst-case draw is "
+            "count x 60mA at full white, which is what the power budget must "
+            "carry — the figure here is idle. The last pixel's DOUT is "
+            "deliberately unconnected so the chain can be extended."
+        ),
+    ),
 }
 
 #: Blocks that may not be composed without an explicit human hardware sign-off.
@@ -169,6 +191,7 @@ CAPABILITY_INDEX: dict[str, tuple[str, ...]] = {
     "sensor-environment": ("sensor-bme280",),
     "button": ("sw-tact",),
     "indicator": ("status-led",),
+    "rgb-pixels": ("ws2812-chain",),
 }
 
 
