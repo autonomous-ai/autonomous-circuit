@@ -32,6 +32,10 @@ const CLICK_SLOP_PX = 4;
 export default function SchematicCanvas({
   index,
   src = "",
+  /** Overrides the sheet derived from `src`. Used to render a stored revision
+   *  from a blob: URL, since the on-disk `_schematic.svg` was overwritten by
+   *  the build that came after it. */
+  svgSrc = "",
   scheme = "studio",
   highlight = null,
   highlightMethod = "dim",
@@ -53,7 +57,7 @@ export default function SchematicCanvas({
   const viewStateRef = useRef(view);
   viewStateRef.current = view;
 
-  const svgUrl = useMemo(() => svgTwin(src), [src]);
+  const svgUrl = useMemo(() => String(svgSrc || "") || svgTwin(src), [svgSrc, src]);
 
   // --- fetch the sheet, read its world→pixel matrix
   useEffect(() => {

@@ -18,7 +18,9 @@ import { triggerBlobDownload } from "@/ui/download.js";
 import Board3DView from "./Board3DView.jsx";
 import BoardOrientationCube from "./BoardOrientationCube.jsx";
 import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
+import RevisionPager from "./RevisionPager.jsx";
 import ViewportToolRail from "./ViewportToolRail.jsx";
+import useBoardRevisions from "./useBoardRevisions.js";
 import useBuildStatus from "./useBuildStatus.js";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
@@ -221,7 +223,51 @@ export default function BoardWorkspace({
     };
   }, [partsUrl]);
 
-  const index = useMemo(() => (circuit ? buildBoardIndex(circuit) : null), [circuit]);
+  const liveIndex = useMemo(() => (circuit ? buildBoardIndex(circuit) : null), [circuit]);
+
+  // --- build history. Recording is a side effect of looking; `viewing` is
+  // non-null only while an OLDER build is on screen, and everything downstream
+  // (index, sidecar, schematic sheet) is switched at this one seam so no pane
+  // can end up half in the past.
+  const revisionsApi = useBoardRevisions({
+    projectId: currentProjectId || "",
+    file: selectedEntry?.file || "",
+    circuitJsonUrl,
+    schematicUrl: String(selectedEntry?.artifact?.schematicUrl || ""),
+    circuit,
+    sidecar,
+    index: liveIndex,
+  });
+  const viewing = revisionsApi.viewing;
+
+  const historicIndex = useMemo(
+    () => (viewing?.circuit ? buildBoardIndex(viewing.circuit) : null),
+    [viewing],
+  );
+  const index = historicIndex || (viewing ? null : liveIndex);
+  const effectiveSidecar = viewing ? viewing.sidecar : sidecar;
+
+  // Element ids are per-build, so a selection cannot survive a step through
+  // history — it would resolve to nothing, or worse, to the wrong pad.
+  const viewingToken = viewing?.token || "";
+  useEffect(() => {
+    setSelection(null);
+  }, [viewingToken]);
+
+  // The on-disk `_schematic.svg` was overwritten by the build that followed
+  // this one, so a historic sheet is served from its stored copy.
+  const [historicSheetUrl, setHistoricSheetUrl] = useState("");
+  useEffect(() => {
+    const svg = viewing?.schematicSvg || "";
+    if (!svg || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+      setHistoricSheetUrl("");
+      return undefined;
+    }
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    setHistoricSheetUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [viewing]);
+
   const partsMap = useMemo(() => partsByLcsc(parts), [parts]);
   const highlight = useMemo(() => (index ? resolveSelection(index, selection) : null), [index, selection]);
 
@@ -243,7 +289,7 @@ export default function BoardWorkspace({
   }, [layers, activeLayer]);
 
   const selectedStem = boardStem(selectedEntry?.file);
-  const boardName = String(sidecar?.board?.name || "").trim() || selectedStem;
+  const boardName = String(effectiveSidecar?.board?.name || "").trim() || selectedStem;
   const artifact = selectedEntry?.artifact || {};
 
   // --- selection + cross-probe
@@ -488,6 +534,7 @@ export default function BoardWorkspace({
       <SchematicCanvas
         index={index}
         src={String(artifact.schematicUrl || "")}
+        svgSrc={historicSheetUrl}
         scheme={scheme}
         highlight={highlight}
         highlightMethod={highlightMethod}
@@ -623,6 +670,13 @@ export default function BoardWorkspace({
                 ))}
                 <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
 
+                <RevisionPager
+                  className="ml-2"
+                  revisions={revisionsApi.revisions}
+                  activeIndex={revisionsApi.activeIndex}
+                  onSelect={revisionsApi.select}
+                />
+
                 {/* Measure and Fit used to live here; they are viewport tools,
                     so they moved into the floating rail on the canvas itself
                     (see ViewportToolRail). What stays is the selection chip —
@@ -691,7 +745,7 @@ export default function BoardWorkspace({
                     />
                   ) : null}
                   {activeTab === "fab" ? (
-                    <FabPacketCard stem={selectedStem} artifact={artifact} sidecar={sidecar} className="min-h-0 flex-1" />
+                    <FabPacketCard stem={selectedStem} artifact={artifact} sidecar={effectiveSidecar} className="min-h-0 flex-1" />
                   ) : null}
 
                   {CANVAS_TABS.has(activeTab) && activeTab !== "schematic" ? (
@@ -731,7 +785,7 @@ export default function BoardWorkspace({
 
                   <MessagesPanel
                     index={index}
-                    sidecar={sidecar}
+                    sidecar={effectiveSidecar}
                     selection={selection}
                     onSelect={handleSelect}
                     onLocate={handleLocate}
@@ -743,7 +797,7 @@ export default function BoardWorkspace({
 
                 <PropertiesPanel
                   index={index}
-                  sidecar={sidecar}
+                  sidecar={effectiveSidecar}
                   selection={selection}
                   partsByLcscMap={partsMap}
                   units={units}
