@@ -32,4 +32,4 @@ tmp/
 
 # Generated EE review packet (scripts/review-packet) — artifacts, not source
 review-packet/
-review-packet.zip
+!review-packet.zip

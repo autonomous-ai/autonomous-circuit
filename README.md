@@ -299,6 +299,7 @@ Run the tests before opening a PR:
 PYTHONPATH=packages/circuitpy/src python -m pytest packages/circuitpy/tests -q
 cd skills/circuitcode && PYTHONPATH=. python -m pytest tests -q
 npm --prefix viewer test
+scripts/shift-left-check     # every fix the defect ledger claims is still in the tree
 ```
 
 Two conventions that are not negotiable, both above: no gate may trust an exit code, and no fix may

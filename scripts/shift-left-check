@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Verify every fix the defect ledger claims is actually in the tree.
+
+Run: scripts/shift-left-check   (exit 1 if a claimed fix is missing)
+
+`docs/lessons.md` records every blocking defect we have hit and where the fix
+landed. A ledger nobody checks rots: a fix gets reverted during a refactor, or
+was never really landed, and the entry keeps claiming otherwise. This asserts
+each one against the source.
+
+It also prints the open defects — the ones that are currently *detected* but
+not yet impossible. Detection is a smoke alarm, not a fix: a defect we only
+find afterwards is one every user pays a build cycle for, forever. The count of
+open entries is the honest measure of how much of what these three boards
+taught us has actually reached the platform.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+
+#: (ledger #, what it prevents, file, regex that must match)
+#: The regex is the *proof* the fix is present. Keep it specific enough that a
+#: revert breaks it and loose enough that a rename does not.
+CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
+    (
+        1,
+        "USB-C alignment drills are inside a keepout the router must respect",
+        "packages/golden-blocks/blocks/usb-c-power/usb-c-power.tsx",
+        r"<keepout",
+    ),
+    (
+        2,
+        "pour hole-margin is derived from the 32-gon chord, not guessed",
+        "packages/golden-blocks/blocks/glue.tsx",
+        r"POUR_CUTOUT_MARGIN_MM",
+    ),
+    (
+        7,
+        "a new project's first board uses MountingHole, which carries a keepout",
+        "skills/circuitcode/templates/project_skeleton/boards/main.tsx",
+        r"<MountingHole",
+    ),
+    (
+        3,
+        "placement plans from measured block boxes, not assumed-centred sizes",
+        "skills/circuitcode/circuitlib/layout.py",
+        r"def place_board",
+    ),
+    (
+        4,
+        "a routing-class failure retries at higher router effort",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"autorouterEffortLevel",
+    ),
+    (
+        5,
+        "the planner cannot put two USB-C entries on one board",
+        "skills/circuitcode/circuitlib/blocks.py",
+        r"Never place alongside usb-c-data",
+    ),
+    (
+        6,
+        "the RP2040 crystal sits inside the 10mm XIN limit",
+        "packages/golden-blocks/blocks/rp2040-core/rp2040-core.tsx",
+        r"(?i)crystal|Y1",
+    ),
+]
+
+
+def open_entries() -> list[tuple[str, str]]:
+    """Parse the Open table out of the ledger, so the two cannot drift."""
+    text = (REPO / "docs" / "lessons.md").read_text()
+    try:
+        section = text.split("## Open —", 1)[1].split("## The rule", 1)[0]
+    except IndexError:
+        return []
+    rows = []
+    for line in section.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or line.startswith("|---") or "Defect" in line:
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) >= 4 and cells[0].isdigit():
+            defect = re.sub(r"\*\*", "", cells[1])
+            where = cells[3].split(".")[0].replace("**", "")
+            rows.append((defect[:96], where))
+    return rows
+
+
+def main() -> int:
+    print("Claimed fixes — is each one still in the tree?\n")
+    missing = 0
+    for num, what, rel, pattern in sorted(CLAIMED_FIXES):
+        path = REPO / rel
+        if not path.exists():
+            print(f"  MISSING  #{num}  {what}\n           file is gone: {rel}")
+            missing += 1
+            continue
+        if re.search(pattern, path.read_text()):
+            print(f"  ok       #{num}  {what}")
+        else:
+            print(f"  MISSING  #{num}  {what}\n           {rel} no longer matches /{pattern}/")
+            missing += 1
+
+    rows = open_entries()
+    if rows:
+        print(f"\nOpen — detected but a user can still hit these ({len(rows)}):\n")
+        for defect, where in rows:
+            print(f"  open     {defect}")
+            print(f"           belongs in: {where}")
+
+    print()
+    if missing:
+        print(f"FAIL — {missing} claimed fix(es) are not in the tree.")
+        print("Either restore the fix or move its ledger entry back to Open.")
+        return 1
+    print(f"PASS — {len(CLAIMED_FIXES)} fixes verified, {len(rows)} defects still open.")
+    if rows:
+        print("Open defects are not failures. They are the backlog that decides")
+        print("whether the next user's board hits what these three boards taught us.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
