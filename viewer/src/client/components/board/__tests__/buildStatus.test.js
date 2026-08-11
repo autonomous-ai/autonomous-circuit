@@ -11,6 +11,7 @@ import {
   formatElapsed,
   isRunning,
   isTerminal,
+  stageLabelFor,
   normalizeEpochMs,
 } from "../buildStatus.js";
 
@@ -269,4 +270,29 @@ test("blockingFromDetail reads the pipeline's string and nothing else", () => {
   assert.equal(blockingFromDetail("blocking"), null);
   assert.equal(blockingFromDetail(""), null);
   assert.equal(blockingFromDetail(undefined), null);
+});
+
+// One stage, one name. The tree line used the pipeline's `stageLabel` while
+// the checklist beside it used ours, so the same step could be called two
+// different things on one screen.
+test("the tree line and the checklist call a stage the same thing", () => {
+  const status = { state: "running", stage: "export", stageLabel: "Writing the fab packet", stageIndex: 6, stageCount: 7 };
+  assert.equal(stageLabelFor(status), "Writing the files for the factory");
+  assert.equal(buildStatusLine(status).text, "Writing the files for the factory");
+  const checklist = buildStageChecklist(status);
+  assert.equal(checklist.find((s) => s.key === "export").label, "Writing the files for the factory");
+});
+
+test("an unknown stage keeps whatever the pipeline called it", () => {
+  assert.equal(stageLabelFor({ stage: "new-thing", stageLabel: "Doing a new thing" }), "Doing a new thing");
+  assert.equal(stageLabelFor({ stage: "new-thing" }), "new-thing");
+  assert.equal(stageLabelFor(null), "");
+});
+
+test("no build stage label needs a vocabulary the reader does not have", () => {
+  const jargon = /gerber|netlist|fab packet|DRC|ERC|BOM|CPL|refdes/i;
+  for (const stage of BUILD_STAGES) {
+    assert.doesNotMatch(stage.label, jargon, stage.key);
+    assert.doesNotMatch(stage.plain, jargon, `${stage.key} (plain)`);
+  }
 });

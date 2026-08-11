@@ -28,12 +28,14 @@ export const BUILD_STAGES = Object.freeze([
     plain: "Picking real, orderable parts and turning your description into a board program.",
     prelude: true,
   },
-  { key: "compile", label: "Compiling the board", plain: "Turning the description into a real netlist and layout." },
-  { key: "scan", label: "Reading the compiler's findings", plain: "Collecting everything the compiler complained about." },
-  { key: "checks", label: "Running the independent checks", plain: "A second opinion on the copper, separate from the compiler." },
-  { key: "substrate", label: "Cross-checking with KiCad", plain: "The industry tool re-runs the electrical and spacing rules." },
+  { key: "compile", label: "Compiling the board", plain: "Turning the description into real wiring and a real layout." },
+  { key: "scan", label: "Reading what the build reported", plain: "Collecting everything it complained about." },
+  { key: "checks", label: "Running the independent checks", plain: "A second opinion on the copper, from code that did not build it." },
+  { key: "substrate", label: "Cross-checking with KiCad", plain: "A different program re-runs the wiring and spacing rules." },
   { key: "dfm", label: "Checking it can be manufactured", plain: "Against the factory's own limits — track widths, holes, edges." },
-  { key: "export", label: "Writing the fab packet", plain: "Gerbers, the parts list and the placement file." },
+  // "Fab packet" is the term of art and it is on the box the user is about to
+  // pay for, so this is the one stage label worth spelling out.
+  { key: "export", label: "Writing the files for the factory", plain: "The layer pictures, the parts list and where each part goes." },
   { key: "render", label: "Drawing the schematic and board", plain: "The pictures you are about to look at." },
 ]);
 
@@ -86,6 +88,21 @@ export function buildStageChecklist(status) {
     ...stage,
     state: finished || i < current ? "done" : i === current ? "active" : "pending",
   }));
+}
+
+/**
+ * The label for the stage a record is on, ours where we have one.
+ *
+ * The pipeline sends its own `stageLabel`, and the one-line tree status used
+ * it directly while the checklist beside it used the list above — so the same
+ * stage could be "Writing the fab packet" in one place and "Writing the files
+ * for the factory" in the other. Keying off `stage` keeps one name per stage,
+ * and an unknown key still falls back to whatever the pipeline called it.
+ */
+export function stageLabelFor(status) {
+  const key = String(status?.stage || "");
+  const known = BUILD_STAGES.find((stage) => stage.key === key);
+  return known ? known.label : String(status?.stageLabel || key || "").trim();
 }
 
 /** States that mean nothing more is coming; polling stops on any of them. */
@@ -219,7 +236,7 @@ export function buildHistoryLine(history) {
 export function buildStatusLine(status, { now = Date.now(), doneWindowMs = 20_000, turnActive = false } = {}) {
   if (!status || !status.state) return null;
   const progress = buildProgress(status);
-  const stage = String(status.stageLabel || status.stage || "").trim();
+  const stage = stageLabelFor(status);
   const index = Number(status.stageIndex);
   const count = Number(status.stageCount);
   const steps = Number.isFinite(index) && Number.isFinite(count) && count > 0 ? `${index}/${count}` : "";
