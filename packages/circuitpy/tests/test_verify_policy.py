@@ -45,9 +45,19 @@ def test_a_blocking_kind_is_not_promoted_when_it_only_warned():
 
 
 def test_an_escalated_kind_is_raised_from_warning_to_error():
-    for kind in ("gerber_silk_line_width", "gerber_mask_sliver", "review_debug_unreachable"):
+    for kind in ("gerber_silk_line_width", "review_debug_unreachable"):
         out = apply_verify_policy([_finding(kind, "warning")], PROFILE)
         assert out[0]["severity"] == "error", kind
+
+
+def test_a_mask_web_inside_one_footprint_never_blocks():
+    """Retracted on measurement: all ten sub-0.2mm webs on harness-puck sit
+    inside a single part's own land pattern, and a 0402's pad gap is 0.1985mm.
+    Escalating that would have made every board permanently un-orderable over
+    a standard passive."""
+    for kind in ("gerber_mask_sliver", "gerber_mask_sliver_in_footprint"):
+        out = apply_verify_policy([_finding(kind, "warning")], PROFILE)
+        assert out[0]["severity"] == "warning", kind
 
 
 def test_an_unclassified_kind_can_never_block():
@@ -78,7 +88,9 @@ def test_the_policy_does_not_mutate_its_input():
 def test_an_escalated_finding_actually_stops_fab_ready():
     """The whole point: the policy has to reach `fab.ready`, not just the
     report."""
-    graded = apply_verify_policy([_finding("gerber_mask_sliver", "warning")], PROFILE)
+    graded = apply_verify_policy(
+        [_finding("review_debug_unreachable", "warning")], PROFILE
+    )
     assert fab_ready(graded, "kicad-cli") is False
 
 

@@ -35,6 +35,7 @@ from circuitpy import checks
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
 from circuitpy import fab as fab_mod
+from circuitpy import kicad_normalize
 from circuitpy import review as review_mod
 from circuitpy import spec as spec_mod
 from circuitpy import status as status_mod
@@ -605,6 +606,30 @@ def build_board(
             kicad_pcb = _cached("kicad_pcb", "board.kicad_pcb", ".kicad_pcb")
         except (RuntimeError, TimeoutError) as exc:
             warnings.append(checks.check_failed(f"kicad conversion failed: {exc}"))
+        if kicad_pcb is not None:
+            # Stage 3a: hold the converted board to the fab's floors before
+            # anything reads it. `circuit-json-to-kicad` emits silkscreen text
+            # at 0.2-0.67mm against JLCPCB's 1.0mm minimum and leaves the
+            # stroke implicit, so KiCad plots it at 0.033mm — on every board it
+            # has ever produced. This is the one place every board passes
+            # through between the converter we do not own and the plotter, so
+            # one change here fixes the whole catalogue. Idempotent.
+            normalization = kicad_normalize.normalize_for_fab(kicad_pcb, profile)
+            if normalization.changed:
+                warnings.append(
+                    {
+                        "part": "board",
+                        "kind": "kicad_normalized",
+                        "detail": (
+                            "the converted board was held to the fab's "
+                            f"silkscreen floors before plotting: "
+                            f"{normalization.summary()}"
+                        ),
+                        "severity": "info",
+                    }
+                )
+            for note in normalization.notes:
+                warnings.append(checks.check_failed(note))
         if kicad_sch is not None:
             erc_json = built_dir / "erc.json"
             try:

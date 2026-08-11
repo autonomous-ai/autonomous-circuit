@@ -173,25 +173,44 @@ _COORD_RE = re.compile(
 _DCODE_RE = re.compile(r"^(?:G\d+)?D(\d+)\*$")
 
 
-def _macro_size(body: str) -> tuple[float, float]:
-    """Bounding size of an aperture-macro definition.
+def _macro_size(body: str, params: tuple[float, ...] = ()) -> tuple[float, float]:
+    """Bounding size of an aperture macro, evaluated with its parameters.
 
     Handles the primitives KiCad emits: 1 (circle), 4 (outline), 20 (vector
-    line), 21 (centre line). Parameters that are still ``$n`` placeholders are
-    treated as zero, which understates a parameterised macro — reported by the
-    caller as an unsupported feature rather than assumed correct.
+    line), 21 (centre line).
+
+    **The parameters are not optional.** KiCad defines `RotRect` and
+    `RoundRect` once, parameterised, and supplies the real numbers at each
+    `%ADD%`. An earlier version read only the definition, could not resolve a
+    single `$n`, and returned a zero size — so **56 of 230 mask openings on
+    harness-puck, a quarter of the layer and every fine-pitch QFN pad, were
+    dropped before the sliver check ever saw them**. A check that silently
+    skips the geometry most likely to be wrong is worse than no check.
+
+    Rotation is applied, because a rotated pad's bounding box is not its
+    unrotated one. The box still overstates a rotated shape, which understates
+    the gap to its neighbour — the conservative direction.
     """
     xs: list[float] = []
     ys: list[float] = []
 
-    def number(token: str) -> float | None:
+    def substitute(token: str) -> str:
         token = token.strip()
+        for index in range(len(params), 0, -1):
+            token = token.replace(f"${index}", repr(params[index - 1]))
+        return token
+
+    def number(token: str) -> float | None:
+        token = substitute(token)
         if not token or "$" in token:
             return None
         try:
             return float(token)
         except ValueError:
-            return None
+            try:  # simple arithmetic appears in macro bodies ($1+$1)
+                return float(eval(token, {"__builtins__": {}}, {}))  # noqa: S307
+            except Exception:  # noqa: BLE001
+                return None
 
     for raw in body.split("*"):
         line = raw.strip()
@@ -207,8 +226,11 @@ def _macro_size(body: str) -> tuple[float, float]:
                 cx, cy = number(fields[3]) or 0.0, number(fields[4]) or 0.0
                 xs += [cx - d / 2, cx + d / 2]
                 ys += [cy - d / 2, cy + d / 2]
-            elif code == 4 and len(fields) >= 5:  # exposure, n, x0, y0, ...
+            elif code == 4 and len(fields) >= 5:  # exposure, n, x0, y0, ..., rot
+                count = number(fields[2])
                 coords = fields[3:]
+                if count is not None:
+                    coords = coords[: int(count) * 2 + 2]
                 for i in range(0, len(coords) - 1, 2):
                     px, py = number(coords[i]), number(coords[i + 1])
                     if px is not None and py is not None:
@@ -221,17 +243,31 @@ def _macro_size(body: str) -> tuple[float, float]:
                     if px is not None and py is not None:
                         xs += [px - w / 2, px + w / 2]
                         ys += [py - w / 2, py + w / 2]
-            elif code == 21 and len(fields) >= 6:  # exposure, w, h, cx, cy
+            elif code == 21 and len(fields) >= 6:  # exposure, w, h, cx, cy, rot
                 w = number(fields[2]) or 0.0
                 h = number(fields[3]) or 0.0
                 cx, cy = number(fields[4]) or 0.0, number(fields[5]) or 0.0
-                xs += [cx - w / 2, cx + w / 2]
-                ys += [cy - h / 2, cy + h / 2]
+                rotation = number(fields[6]) if len(fields) >= 7 else 0.0
+                corners = [
+                    (cx - w / 2, cy - h / 2), (cx + w / 2, cy - h / 2),
+                    (cx + w / 2, cy + h / 2), (cx - w / 2, cy + h / 2),
+                ]
+                for px, py in _rotate(corners, rotation or 0.0):
+                    xs.append(px)
+                    ys.append(py)
         except (IndexError, TypeError):
             continue
     if not xs or not ys:
         return (0.0, 0.0)
     return (max(xs) - min(xs), max(ys) - min(ys))
+
+
+def _rotate(points, degrees: float):
+    if not degrees:
+        return points
+    theta = math.radians(degrees)
+    cos, sin = math.cos(theta), math.sin(theta)
+    return [(x * cos - y * sin, x * sin + y * cos) for x, y in points]
 
 
 def _standard_size(shape: str, params: tuple[float, ...]) -> tuple[float, float]:
@@ -248,7 +284,7 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
     """Parse one RS-274X layer. Raises :class:`GerberError` on a dialect we do
     not fully support, so unread geometry can never look like clean geometry."""
     layer = GerberLayer(path=path)
-    macros: dict[str, tuple[float, float]] = {}
+    macro_bodies: dict[str, str] = {}
     scale = 10.0**-layer.dec_digits
     current: Aperture | None = None
     x = y = 0.0
@@ -264,8 +300,9 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
         if pending_macro is not None:
             pending_macro.append(line)
             if line.endswith("%"):
-                body = "\n".join(pending_macro).rstrip("%")
-                macros[pending_macro_name or ""] = _macro_size(body)
+                macro_bodies[pending_macro_name or ""] = "\n".join(
+                    pending_macro
+                ).rstrip("%")
                 pending_macro = None
                 pending_macro_name = None
             continue
@@ -274,7 +311,7 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
             pending_macro_name = line[3:].rstrip("*")
             pending_macro = []
             if line.endswith("%"):
-                macros[pending_macro_name.rstrip("*%")] = (0.0, 0.0)
+                macro_bodies[pending_macro_name.rstrip("*%")] = ""
                 pending_macro = None
                 pending_macro_name = None
             continue
@@ -309,8 +346,9 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
             if shape in ("C", "R", "O", "P"):
                 aperture = Aperture(code, shape, params, _standard_size(shape, params))
             else:
+                body = macro_bodies.get(shape, "")
                 aperture = Aperture(
-                    code, shape, params, macros.get(shape, (0.0, 0.0)), macro=True
+                    code, shape, params, _macro_size(body, params), macro=True
                 )
             layer.apertures[code] = aperture
             continue

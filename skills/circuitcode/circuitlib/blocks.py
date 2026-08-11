@@ -43,8 +43,26 @@ class Block:
     props: tuple[str, ...] = ()         # the props a composer may set
     parts: tuple[Part, ...] = ()
     current_draw_ma: float = 0.0        # typical, for the power budget
+    #: Worst case the rail and the regulator must survive. Sizing copper and
+    #: heat against the *typical* number is sizing for the easy case: a WS2812
+    #: idles at 4mA and pulls 60mA at full white, fifteen times more.
+    peak_draw_ma: float = 0.0
+    #: For a parametric block, the peak each unit adds. ``unit_prop`` names the
+    #: prop that sets the count, so the planner can ask for it instead of a
+    #: BLOCK.md telling a human to remember to multiply.
+    peak_per_unit_ma: float = 0.0
+    unit_prop: str = ""
+    #: Nets this block owns that are useless unless they reach a connector or
+    #: a test point. An MCU whose SWD pins go nowhere cannot be programmed
+    #: after assembly, and every block on that board is individually fine.
+    exposes: tuple[str, ...] = ()
     status: str = "compile-verified"    # never claim hardware-verified here
     notes: str = ""
+
+    def peak_ma(self, units: int = 0) -> float:
+        """Worst-case draw, including any per-unit scaling."""
+        base = self.peak_draw_ma or self.current_draw_ma
+        return base + self.peak_per_unit_ma * max(units, 0)
 
     @property
     def import_path(self) -> str:
@@ -92,6 +110,8 @@ BLOCKS: dict[str, Block] = {
             Part("U2", "C6186", "AMS1117-3.3 SOT-223", basic=True),
             Part("C2/C3", "C15850", "10uF 0805", basic=True),
         ),
+        current_draw_ma=5.0,
+        peak_draw_ma=11.0,    # AMS1117 quiescent; its load is counted on V3_3
         notes="Linear: dropout heat = (Vin-3.3) * I. Above ~500mA prefer a buck (not yet a block).",
     ),
     "i2c-bus": Block(
@@ -138,6 +158,8 @@ BLOCKS: dict[str, Block] = {
             Part("Y1", "C20625731", "ABM8-272-T3 12MHz crystal"),
         ),
         current_draw_ma=40.0,
+        peak_draw_ma=100.0,   # RP2040 datasheet 5.2, core + IO at 133MHz
+        exposes=("SWCLK", "SWD"),
         notes="Ported from seveibar/rp2040-module, itself following the RPi hardware design guide.",
     ),
     "sensor-bme280": Block(
@@ -148,6 +170,7 @@ BLOCKS: dict[str, Block] = {
         props=("u", "cVdd", "cVddio", "sdaNet", "sclNet", "rail", "pcbX", "pcbY", "schX", "schY"),
         parts=(Part("U5", "C92489", "BME280 LGA-8"),),
         current_draw_ma=0.7,
+        peak_draw_ma=0.7,
         notes="Needs an i2c-bus block for pull-ups. Address strap on SDO.",
     ),
     "ws2812-chain": Block(
@@ -162,9 +185,14 @@ BLOCKS: dict[str, Block] = {
             Part("D10+", "C2761795", "WS2812B-B/T 5050 pixel"),
             Part("C40+", "C1525", "100nF 0402, one per pixel", basic=True),
         ),
-        # Idle. Worst case is ~60mA/pixel at full white — budget
-        # count x 60mA with helpers.power_budget(), see BLOCK.md.
+        # Idle. The worst case is 60mA per pixel at full white, and it used to
+        # live in a BLOCK.md sentence telling a human to remember to multiply
+        # — which is advice, not a mechanism. `peak_per_unit_ma` makes the
+        # planner do it: see helpers.board_plan.
         current_draw_ma=4.0,
+        peak_draw_ma=4.0,
+        peak_per_unit_ma=60.0,   # WS2812B datasheet: 3 x 20mA channels
+        unit_prop="count",
         notes=(
             "Parametric in `count` (default 4). Worst-case draw is "
             "count x 60mA at full white, which is what the power budget must "
@@ -220,3 +248,40 @@ def missing_requirements(block_ids: list[str]) -> list[str]:
 
 def total_current_ma(block_ids: list[str]) -> float:
     return sum(BLOCKS[b].current_draw_ma for b in block_ids if b in BLOCKS)
+
+
+def total_peak_ma(block_ids: list[str], counts: dict[str, int] | None = None) -> float:
+    """Worst-case rail current for a block set.
+
+    ``counts`` gives the unit count for parametric blocks (``{"ws2812-chain":
+    8}``). A block with a ``unit_prop`` and no count is assumed to be one unit,
+    which understates it — the planner reports that rather than hiding it.
+    """
+    counts = counts or {}
+    total = 0.0
+    for block_id in block_ids:
+        block = BLOCKS.get(block_id)
+        if block is None:
+            continue
+        units = counts.get(block_id, 1 if block.unit_prop else 0)
+        total += block.peak_ma(units)
+    return total
+
+
+def unexposed_nets(block_ids: list[str], exposed: list[str] | None = None) -> list[str]:
+    """Nets a chosen block owns that nothing brings out to a probe.
+
+    This is the planner-level form of "the board cannot be programmed once it
+    is assembled": every block is individually correct and the board is still
+    useless, which no per-block check can see.
+    """
+    brought_out = {n.upper() for n in (exposed or [])}
+    missing: list[str] = []
+    for block_id in block_ids:
+        block = BLOCKS.get(block_id)
+        if block is None:
+            continue
+        for net in block.exposes:
+            if net.upper() not in brought_out and net not in missing:
+                missing.append(net)
+    return missing

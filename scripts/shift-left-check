@@ -64,6 +64,48 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         r"Never place alongside usb-c-data",
     ),
     (
+        9,
+        "the converted board is held to the fab's silkscreen floors before plotting",
+        "packages/circuitpy/src/circuitpy/kicad_normalize.py",
+        r"def normalize_for_fab",
+    ),
+    (
+        9,
+        "stage 3a actually calls the normaliser",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"kicad_normalize\.normalize_for_fab",
+    ),
+    (
+        8,
+        "the planner refuses a board whose debug pins reach nothing",
+        "skills/circuitcode/circuitlib/helpers.py",
+        r"debug_unreachable",
+    ),
+    (
+        13,
+        "the plan states the copper its own peak current needs",
+        "skills/circuitcode/circuitlib/helpers.py",
+        r"power_trace_width",
+    ),
+    (
+        13,
+        "a parametric block carries a per-unit peak, not a BLOCK.md sentence",
+        "skills/circuitcode/circuitlib/blocks.py",
+        r"peak_per_unit_ma",
+    ),
+    (
+        14,
+        "a plan that would cook the regulator is not buildable",
+        "skills/circuitcode/circuitlib/helpers.py",
+        r"def overheats",
+    ),
+    (
+        10,
+        "mask slivers are judged between different parts, not inside one footprint",
+        "packages/verify/src/verifylib/gerber_truth.py",
+        r"gerber_mask_sliver_in_footprint",
+    ),
+    (
         6,
         "the RP2040 crystal sits inside the 10mm XIN limit",
         "packages/golden-blocks/blocks/rp2040-core/rp2040-core.tsx",

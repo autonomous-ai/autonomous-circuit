@@ -86,6 +86,15 @@ class FabProfile:
     warn_edge_clearance_mm: float = 0.3  # what we would rather see
     min_board_mm: float = 3.0            # min board dimension
     standard_thickness_mm: float = 1.6   # JLC standard (toolchain default is 1.4)
+    # Silkscreen and solder mask (jlcpcb.com/capabilities, read 2026-08-11).
+    # These are not advice: below them JLC prints broken ink, or drops the
+    # layer, or lets a mask web burn off and bridge two pads. They are applied
+    # to the converted board by `kicad_normalize.normalize_for_fab` before the
+    # gerbers are plotted, because `circuit-json-to-kicad` emits silkscreen
+    # text at 0.2-0.67mm — under the floor on every board it has ever made.
+    min_silk_line_mm: float = 0.15       # thinnest ink JLC will print
+    min_silk_text_mm: float = 1.0        # shortest legible character height
+    min_mask_sliver_mm: float = 0.20     # thinnest mask web that survives reflow
     # Footprint-IoU bands (supplier_footprint_mismatch_warning): correct 0402
     # parts score ~0.73-0.77, so the blocking band sits well below that.
     iou_error_below: float = 0.5
@@ -163,11 +172,6 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
     # reviewed, reworked or debugged. It is also a single-place fix in the
     # exporter, which is the definition of a shift-left bug.
     "gerber_silk_line_width",
-    # A mask web under the fab's minimum burns off in the reflow oven and the
-    # two pads it separated become one joint. Measured at 0.114mm between
-    # USB-C pads on every example board, against a 0.2mm rule. A bridged USB
-    # connector is a dead board, and it is not visible until it is built.
-    "gerber_mask_sliver",
     # A debug interface that reaches no connector or test point cannot be used
     # once the board is assembled, so the board can never run the firmware it
     # was designed for. "Arrives and is useless" is exactly the bar.
@@ -177,6 +181,16 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
 #: does not have to re-derive it:
 #:
+#: * `gerber_mask_sliver` — escalated on 2026-08-11 and **retracted the same
+#:   day on measurement**. All ten sub-0.2mm mask webs on harness-puck sit
+#:   inside a single part's own land pattern: 0.114mm and 0.157mm within the
+#:   USB-C receptacle's footprint, and 0.1985mm within each of eight 0402
+#:   capacitors — which is simply what a 0402 land pattern is. Those dams are
+#:   specified by the package, JLCPCB builds them daily, and blocking on them
+#:   would have made every board this tool will ever produce permanently
+#:   un-orderable. The check is now scoped to webs between *different* parts,
+#:   where nobody qualified the geometry; that version fires on none of the
+#:   three boards, so there is nothing to escalate yet.
 #: * `thermal_regulator` at 96 degC junction — hot, and inside the part's own
 #:   125 degC rating with 29 degC to spare. Blocking a part operating within
 #:   spec would be a gate set to a preference.

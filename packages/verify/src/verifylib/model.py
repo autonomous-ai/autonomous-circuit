@@ -117,6 +117,9 @@ class Poly:
     only ever over-report proximity — never miss a real collision.
     """
 
+    #: The outline exactly as given. Kept raw because a solder-mask region is
+    #: not convex and its hull is not it: replacing a mask opening by its hull
+    #: hides the very gaps the sliver check exists to measure.
     points: tuple[tuple[float, float], ...]
 
     def __init__(self, points: Sequence[tuple[float, float]]):
@@ -127,7 +130,11 @@ class Poly:
                 cleaned.append(pt)
         if len(cleaned) > 1 and cleaned[0] == cleaned[-1]:
             cleaned.pop()
-        object.__setattr__(self, "points", tuple(_convex_hull(cleaned)))
+        object.__setattr__(self, "points", tuple(cleaned))
+
+    @property
+    def hull(self) -> tuple[tuple[float, float], ...]:
+        return tuple(_convex_hull(list(self.points)))
 
     @property
     def bounds(self) -> Rect:
@@ -136,12 +143,12 @@ class Poly:
             raise ValueError("empty polygon")
         return rect
 
-    def _axes(self) -> list[tuple[float, float]]:
+    def _axes(self, points: tuple[tuple[float, float], ...]) -> list[tuple[float, float]]:
         axes: list[tuple[float, float]] = []
-        n = len(self.points)
+        n = len(points)
         for i in range(n):
-            x0, y0 = self.points[i]
-            x1, y1 = self.points[(i + 1) % n]
+            x0, y0 = points[i]
+            x1, y1 = points[(i + 1) % n]
             dx, dy = x1 - x0, y1 - y0
             length = math.hypot(dx, dy)
             if length < 1e-12:
@@ -149,9 +156,40 @@ class Poly:
             axes.append((-dy / length, dx / length))
         return axes
 
-    def _project(self, axis: tuple[float, float]) -> tuple[float, float]:
-        values = [axis[0] * x + axis[1] * y for x, y in self.points]
+    def _project(
+        self, axis: tuple[float, float], points: tuple[tuple[float, float], ...]
+    ) -> tuple[float, float]:
+        values = [axis[0] * x + axis[1] * y for x, y in points]
         return min(values), max(values)
+
+    def min_distance_to(self, other: "Poly") -> float:
+        """Exact edge-to-edge distance between two arbitrary polygons.
+
+        Unlike :meth:`gap_to` this makes no convexity assumption, so it is the
+        right tool for a solder-mask region — which is whatever shape KiCad
+        merged the openings into. Returns 0.0 when they touch or overlap.
+        """
+        if not self.points or not other.points:
+            return 0.0
+        if self._intersects(other):
+            return 0.0
+        best = math.inf
+        for a0, a1 in self._edges():
+            for b0, b1 in other._edges():
+                best = min(best, _segment_distance(a0, a1, b0, b1))
+                if best == 0.0:
+                    return 0.0
+        return best if best < math.inf else 0.0
+
+    def _edges(self):
+        n = len(self.points)
+        for i in range(n):
+            yield self.points[i], self.points[(i + 1) % n]
+
+    def _intersects(self, other: "Poly") -> bool:
+        if any(other.contains(x, y) for x, y in self.points):
+            return True
+        return any(self.contains(x, y) for x, y in other.points)
 
     def gap_to(self, other: "Poly") -> float:
         """Separation between two convex polygons.
@@ -161,13 +199,14 @@ class Poly:
         Negative: the smallest penetration depth, i.e. how far one would have
         to move to stop overlapping.
         """
-        if len(self.points) < 2 or len(other.points) < 2:
+        mine, theirs = self.hull, other.hull
+        if len(mine) < 2 or len(theirs) < 2:
             return 0.0
         best_gap = -math.inf
         least_overlap = math.inf
-        for axis in self._axes() + other._axes():
-            a0, a1 = self._project(axis)
-            b0, b1 = other._project(axis)
+        for axis in self._axes(mine) + other._axes(theirs):
+            a0, a1 = self._project(axis, mine)
+            b0, b1 = other._project(axis, theirs)
             gap = max(b0 - a1, a0 - b1)
             if gap > 0:
                 best_gap = max(best_gap, gap)
@@ -203,6 +242,33 @@ class Poly:
             )
             best = min(best, math.hypot(x - (x0 + t * dx), y - (y0 + t * dy)))
         return -best if self.contains(x, y) else best
+
+
+def _segment_distance(a0, a1, b0, b1) -> float:
+    """Minimum distance between two line segments."""
+    def point_to_segment(px, py, x0, y0, x1, y1) -> float:
+        dx, dy = x1 - x0, y1 - y0
+        length_sq = dx * dx + dy * dy
+        t = 0.0 if length_sq == 0 else max(
+            0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / length_sq)
+        )
+        return math.hypot(px - (x0 + t * dx), py - (y0 + t * dy))
+
+    (ax0, ay0), (ax1, ay1) = a0, a1
+    (bx0, by0), (bx1, by1) = b0, b1
+    # Proper crossing means zero distance.
+    d1 = (bx1 - bx0) * (ay0 - by0) - (by1 - by0) * (ax0 - bx0)
+    d2 = (bx1 - bx0) * (ay1 - by0) - (by1 - by0) * (ax1 - bx0)
+    d3 = (ax1 - ax0) * (by0 - ay0) - (ay1 - ay0) * (bx0 - ax0)
+    d4 = (ax1 - ax0) * (by1 - ay0) - (ay1 - ay0) * (bx1 - ax0)
+    if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)):
+        return 0.0
+    return min(
+        point_to_segment(ax0, ay0, bx0, by0, bx1, by1),
+        point_to_segment(ax1, ay1, bx0, by0, bx1, by1),
+        point_to_segment(bx0, by0, ax0, ay0, ax1, ay1),
+        point_to_segment(bx1, by1, ax0, ay0, ax1, ay1),
+    )
 
 
 def _convex_hull(points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:

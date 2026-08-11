@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 from verifylib import gerber as gbr
 from verifylib.findings import CheckResult, Coverage, Finding, finding, never_raises
-from verifylib.model import Board, Rect
+from verifylib.model import Board, Poly, Rect
 from verifylib.rules import JLCPCB_2LAYER, FabRules
 
 #: Layers the fab needs on a 2-layer board. Anything missing is an error, not
@@ -361,27 +361,56 @@ def _pad_index(layer: gbr.GerberLayer | None) -> _Grid | None:
     return _Grid([(f.x, f.y, f) for f in layer.flashes])
 
 
+def _openings(layer: gbr.GerberLayer | None) -> list[Poly]:
+    """Every opening on a mask/paste layer, however KiCad chose to plot it.
+
+    A layer is flashes *or* regions and the choice is not ours: the moment
+    `solder_mask_min_width` is set, KiCad has to merge and reshape openings, so
+    it stops flashing apertures and emits filled contours instead. Measured on
+    harness-puck: 174 flashes became 223 regions.
+
+    That matters more than it sounds. The fix for the sliver defect changes the
+    plot's *representation*, and a check that only understood flashes would
+    have gone silent on every board — reporting a clean mask because it could
+    no longer see one. A fix that blinds its own smoke alarm is not a fix.
+    """
+    if layer is None:
+        return []
+    if layer.regions:
+        return [Poly(r.points) for r in layer.regions if len(r.points) >= 3]
+    return [f.rect.as_poly() for f in layer.flashes if f.aperture.size[0] > 0]
+
+
+def _covers(openings: list[Poly], grid: _Grid | None, x: float, y: float,
+            tolerance: float) -> bool:
+    """Is there an opening at this point, flashed or filled?"""
+    if grid is not None:
+        for _ in grid.near(x, y, tolerance):
+            return True
+    for poly in openings:
+        if poly.contains(x, y):
+            return True
+    return False
+
+
 @never_raises
 def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                 *, assembly: bool) -> list[Finding]:
     if transform is None:
         return []
     out: list[Finding] = []
-    indexes = {
-        "copper_top": _pad_index(packet.layers.get("copper_top")),
-        "copper_bottom": _pad_index(packet.layers.get("copper_bottom")),
-        "mask_top": _pad_index(packet.layers.get("mask_top")),
-        "mask_bottom": _pad_index(packet.layers.get("mask_bottom")),
-        "paste_top": _pad_index(packet.layers.get("paste_top")),
-        "paste_bottom": _pad_index(packet.layers.get("paste_bottom")),
-    }
+    roles = ("copper_top", "copper_bottom", "mask_top", "mask_bottom",
+             "paste_top", "paste_bottom")
+    indexes = {role: _pad_index(packet.layers.get(role)) for role in roles}
+    filled = {role: _openings(packet.layers.get(role)) for role in roles}
     for component in board.components:
         for pad in component.pads:
             side = "bottom" if pad.layer == "bottom" else "top"
             gx, gy = transform.apply(pad.x, pad.y)
-            copper = indexes.get(f"copper_{side}")
-            if copper is not None and not any(
-                True for _ in copper.near(gx, gy, POSITION_TOLERANCE_MM)
+            copper_role = f"copper_{side}"
+            copper = indexes.get(copper_role)
+            if (copper is not None or filled.get(copper_role)) and not _covers(
+                filled.get(copper_role, []), copper, gx, gy, POSITION_TOLERANCE_MM
             ):
                 out.append(
                     finding(
@@ -394,9 +423,10 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                     )
                 )
                 continue
-            mask = indexes.get(f"mask_{side}")
-            if mask is not None and not any(
-                True for _ in mask.near(gx, gy, POSITION_TOLERANCE_MM)
+            mask_role = f"mask_{side}"
+            mask = indexes.get(mask_role)
+            if (mask is not None or filled.get(mask_role)) and not _covers(
+                filled.get(mask_role, []), mask, gx, gy, POSITION_TOLERANCE_MM
             ):
                 out.append(
                     finding(
@@ -409,9 +439,10 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                     )
                 )
             if assembly and not pad.plated_hole:
-                paste = indexes.get(f"paste_{side}")
-                if paste is not None and not any(
-                    True for _ in paste.near(gx, gy, POSITION_TOLERANCE_MM)
+                paste_role = f"paste_{side}"
+                paste = indexes.get(paste_role)
+                if (paste is not None or filled.get(paste_role)) and not _covers(
+                    filled.get(paste_role, []), paste, gx, gy, POSITION_TOLERANCE_MM
                 ):
                     out.append(
                         finding(
@@ -464,49 +495,126 @@ def _aperture_floors(packet: gbr.Packet, rules: FabRules) -> list[Finding]:
     return out
 
 
+def _pad_owners(board: Board, transform: Transform | None) -> _Grid | None:
+    """Every pad's plot position, tagged with the component it belongs to."""
+    if transform is None:
+        return None
+    points = []
+    for component in board.components:
+        for pad in component.pads:
+            gx, gy = transform.apply(pad.x, pad.y)
+            points.append((gx, gy, component.name))
+    return _Grid(points, cell=2.0) if points else None
+
+
+def _owner_of(grid: _Grid | None, x: float, y: float) -> str | None:
+    if grid is None:
+        return None
+    best: tuple[float, str] | None = None
+    for px, py, name in grid.near(x, y, 1.5):
+        distance = math.hypot(px - x, py - y)
+        if best is None or distance < best[0]:
+            best = (distance, str(name))
+    return best[1] if best else None
+
+
 @never_raises
-def _mask_slivers(packet: gbr.Packet, rules: FabRules) -> list[Finding]:
+def _mask_slivers(
+    packet: gbr.Packet,
+    rules: FabRules,
+    board: Board | None = None,
+    transform: Transform | None = None,
+) -> list[Finding]:
     """A web of solder mask narrower than the fab can hold burns off in the
     oven, and the two pads it separated become one joint. Nothing upstream of
-    the export can see this: it is a property of the mask apertures, which only
-    exist in the gerbers."""
+    the export can see this: it is a property of the mask apertures, which
+    only exist in the gerbers.
+
+    **Scoped to webs between two different components, and that scoping is
+    the whole check.** Measured on harness-puck: all ten sub-0.2mm webs sit
+    between two pads of one part's own land pattern — 0.1141mm and 0.1571mm
+    inside the USB-C receptacle's footprint, and 0.1985mm inside each of eight
+    0402 capacitors, which is simply what a 0402 land pattern is. JLCPCB builds
+    those every day; the dam inside a qualified footprint is a property of the
+    package, specified by IPC-7351 and the part vendor, not a placement anyone
+    chose. Blocking on it would have made every board this tool will ever
+    produce permanently un-orderable over a standard 0402.
+
+    A web between two *different* parts is the opposite: nobody qualified it,
+    and it is exactly what the fab's rule is written about.
+
+    Works on either plot representation, flashed apertures or filled regions.
+    """
     out: list[Finding] = []
+    owners = _pad_owners(board, transform) if board is not None else None
     for role in ("mask_top", "mask_bottom"):
         layer = packet.layers.get(role)
-        if layer is None or not layer.flashes:
+        if layer is None:
             continue
-        rects = [(f.rect, f) for f in layer.flashes if f.aperture.size[0] > 0]
-        grid = _Grid([(f.x, f.y, (rect, f)) for rect, f in rects], cell=2.0)
+        openings = _openings(layer)
+        if len(openings) < 2:
+            continue
+        boxed = [
+            (poly, poly.bounds, _owner_of(owners, *poly.bounds.center))
+            for poly in openings
+        ]
+        grid = _Grid(
+            [
+                (rect.center[0], rect.center[1], (poly, rect, owner))
+                for poly, rect, owner in boxed
+            ],
+            cell=2.0,
+        )
         seen: set[tuple[int, int]] = set()
         worst: tuple[float, float, float] | None = None
         count = 0
-        for rect, flash in rects:
+        same_part = 0
+        for poly, rect, owner in boxed:
             reach = max(rect.width, rect.height) + rules.min_mask_sliver_mm + 1.0
-            for _, _, payload in grid.near(flash.x, flash.y, reach):
-                other_rect, other = payload
-                if other is flash:
+            cx, cy = rect.center
+            for _, _, payload in grid.near(cx, cy, reach):
+                other, other_rect, other_owner = payload
+                if other is poly:
                     continue
-                key = tuple(sorted((id(flash), id(other))))  # type: ignore[arg-type]
+                key = (min(id(poly), id(other)), max(id(poly), id(other)))
                 if key in seen:
                     continue
-                seen.add(key)  # type: ignore[arg-type]
-                gap = rect.gap_to(other_rect)
-                # A hair under the floor is arithmetic, not a defect. Three of
-                # the five "slivers" on every example board measured 0.1999mm
-                # against a 0.2mm rule — a float tie in the aperture maths, not
-                # something the fab could tell apart. The two that survive this
-                # epsilon (0.114 and 0.157mm) are real.
-                if 0 <= gap < rules.min_mask_sliver_mm - MEASUREMENT_EPSILON_MM:
-                    count += 1
-                    if worst is None or gap < worst[0]:
-                        worst = (gap, flash.x, flash.y)
+                seen.add(key)
+                # Bounding boxes first: exact polygon distance is O(n*m) in
+                # the edges and a mask region can have hundreds.
+                if rect.gap_to(other_rect) >= rules.min_mask_sliver_mm:
+                    continue
+                gap = poly.min_distance_to(other)
+                if not (0 < gap < rules.min_mask_sliver_mm - MEASUREMENT_EPSILON_MM):
+                    continue
+                if owner is not None and owner == other_owner:
+                    same_part += 1
+                    continue
+                count += 1
+                if worst is None or gap < worst[0]:
+                    worst = (gap, cx, cy)
+        if same_part:
+            out.append(
+                finding(
+                    layer.path,
+                    "gerber_mask_sliver_in_footprint",
+                    f"{same_part} thin mask web(s) on "
+                    f"{role.replace('_', ' ')} sit inside a single part's own "
+                    "land pattern (a 0402's pad gap is 0.1985mm, just under the "
+                    f"{rules.min_mask_sliver_mm:g}mm rule). That is a property "
+                    "of the qualified footprint, which the fab builds every "
+                    "day — recorded, not blocked",
+                    "info",
+                )
+            )
         if count and worst is not None:
             out.append(
                 finding(
                     layer.path,
                     "gerber_mask_sliver",
-                    f"{count} pair(s) of mask openings on {role.replace('_', ' ')} "
-                    f"are separated by less than {rules.min_mask_sliver_mm:g}mm; "
+                    f"{count} pair(s) of mask openings belonging to *different* "
+                    f"parts on {role.replace('_', ' ')} are separated by less "
+                    f"than {rules.min_mask_sliver_mm:g}mm; "
                     f"the narrowest is {worst[0]:.3f}mm near "
                     f"({worst[1]:.2f}, {worst[2]:.2f}) in plot coordinates. A "
                     "web that thin burns off and the two pads bridge",
@@ -526,10 +634,14 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
     for silk_role, mask_role in (("silk_top", "mask_top"), ("silk_bottom", "mask_bottom")):
         silk = packet.layers.get(silk_role)
         mask = packet.layers.get(mask_role)
-        if silk is None or mask is None or not silk.draws or not mask.flashes:
+        if silk is None or mask is None or not silk.draws:
             continue
-        openings = [(f.rect, f) for f in mask.flashes if f.aperture.size[0] > 0]
-        grid = _Grid([(f.x, f.y, rect) for rect, f in openings], cell=2.0)
+        openings = [poly.bounds for poly in _openings(mask)]
+        if not openings:
+            continue
+        grid = _Grid(
+            [(rect.center[0], rect.center[1], rect) for rect in openings], cell=2.0
+        )
         hits = 0
         worst: tuple[float, float] | None = None
         for draw in silk.draws:
@@ -613,7 +725,7 @@ def check(
         findings += _drills_match(board, packet, transform)
         findings += _pads_match(board, packet, transform, assembly=assembly)
     findings += _aperture_floors(packet, rules)
-    findings += _mask_slivers(packet, rules)
+    findings += _mask_slivers(packet, rules, board, transform)
     findings += _silk_over_pads(packet)
 
     notes = [

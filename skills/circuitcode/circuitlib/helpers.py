@@ -10,7 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from circuitlib import tables
-from circuitlib.blocks import BLOCKS, CAPABILITY_INDEX, block_for, missing_requirements
+from circuitlib.blocks import (
+    BLOCKS,
+    CAPABILITY_INDEX,
+    block_for,
+    missing_requirements,
+    total_peak_ma,
+    unexposed_nets,
+)
 
 MM_PER_MIL = 0.0254
 #: IPC-2221 external-layer constants for I = k * dT^0.44 * A^0.725 (A in mil^2).
@@ -75,25 +82,56 @@ def decoupling_for(*, power_pins: int, rails: int = 1) -> dict[str, int]:
 
 @dataclass(frozen=True)
 class BoardPlan:
-    """What the planner proposes before a line of TSX is written."""
+    """What the planner proposes before a line of TSX is written.
+
+    Three of the fields below exist because a defect kept being *detected* on
+    a finished board when it could have been *refused* here:
+
+    * ``power_trace_width_mm`` — the router uses one width for everything, so
+      a rail ends up on signal copper. The number the planner already knows
+      (peak current) decides it, by IPC-2221, before anything is routed.
+    * ``regulator`` — a linear regulator asked to drop 1.7V at 600mA cooks.
+      That is arithmetic on numbers the plan already contains, so a plan that
+      would cook a part is not buildable rather than merely warned about.
+    * ``must_expose`` — an MCU whose SWD pins reach nothing cannot be
+      programmed after assembly. Every block is individually fine; only the
+      plan can see it.
+    """
 
     block_ids: tuple[str, ...]
     unmet: tuple[str, ...]
     unavailable: tuple[str, ...]
     current_ma: float
     est_parts_cost_usd: float
+    peak_current_ma: float = 0.0
+    power_trace_width_mm: float = 0.0
+    must_expose: tuple[str, ...] = ()
+    regulator: dict[str, object] | None = None
+
+    @property
+    def overheats(self) -> bool:
+        return bool(self.regulator and self.regulator.get("severity") == "error")
 
     @property
     def buildable(self) -> bool:
-        return not self.unmet and not self.unavailable
+        return not self.unmet and not self.unavailable and not self.overheats
 
 
-def board_plan(*, capabilities: list[str]) -> BoardPlan:
-    """Turn a capability list into a concrete block set.
+def board_plan(
+    *,
+    capabilities: list[str],
+    counts: dict[str, int] | None = None,
+    power_source: str = "usb-c-5v",
+) -> BoardPlan:
+    """Turn a capability list into a concrete block set, sized and budgeted.
 
     Capabilities we have no block for come back in ``unavailable`` — that is the
     honest answer, and the SKILL.md's rule is to report it, never to fill the
     hole by inventing a circuit.
+
+    ``counts`` gives unit counts for parametric blocks (``{"ws2812-chain": 8}``);
+    without one a parametric block is counted as a single unit, which
+    understates its peak.
     """
     chosen: list[str] = []
     unavailable: list[str] = []
@@ -122,13 +160,35 @@ def board_plan(*, capabilities: list[str]) -> BoardPlan:
     chosen = _collapse_supersets(chosen)
 
     current = sum(BLOCKS[b].current_draw_ma for b in chosen)
+    peak = total_peak_ma(chosen, counts)
     cost = sum(len(BLOCKS[b].parts) for b in chosen) * 0.6  # rough, marked estimate
+
+    width = trace_width_for(current_a=peak / 1000.0) if peak > 0 else 0.0
+
+    regulator: dict[str, object] | None = None
+    if "ldo-3v3" in chosen and peak > 0:
+        # The LDO passes everything downstream of it. Charging it with the
+        # whole rail overstates slightly (its own quiescent is counted twice)
+        # and that is the safe direction for a thermal number.
+        regulator = regulator_thermal(
+            vin=tables.USB_VBUS_V if hasattr(tables, "USB_VBUS_V") else 5.0,
+            vout=3.3,
+            current_a=peak / 1000.0,
+            package="SOT-223",
+            ambient_c=AMBIENT_HOT_C,
+        )
+        regulator["refdes"] = "U2"
+
     return BoardPlan(
         block_ids=tuple(chosen),
         unmet=tuple(missing_requirements(chosen)),
         unavailable=tuple(unavailable),
         current_ma=current,
         est_parts_cost_usd=round(cost, 2),
+        peak_current_ma=round(peak, 1),
+        power_trace_width_mm=width,
+        must_expose=tuple(unexposed_nets(chosen)),
+        regulator=regulator,
     )
 
 
@@ -184,6 +244,10 @@ THETA_JA_C_PER_W = {
 }
 MAX_JUNCTION_C = 125.0
 AMBIENT_C = 25.0
+#: What a desk object actually sits in. A datasheet quotes 25 degC; a puck in a
+#: warm room with an enclosure round it does not, and planning at 25 is
+#: planning for a laboratory.
+AMBIENT_HOT_C = 45.0
 
 
 def regulator_thermal(
@@ -372,6 +436,9 @@ def validate_board_law(
     block_ids: list[str] | None = None,
     power_source: str | None = None,
     board_mm: tuple[float, float] | None = None,
+    counts: dict[str, int] | None = None,
+    exposed_nets: list[str] | None = None,
+    power_trace_width_mm: float | None = None,
     envelope_mm: tuple[float, float] | None = None,
     thickness_mm: float | None = None,
     mounting_holes: int | None = None,
@@ -404,6 +471,74 @@ def validate_board_law(
                 source=power_source,
                 current_ma=sum(BLOCKS[b].current_draw_ma for b in ids if b in BLOCKS),
             ))
+
+        # -- Three things only the *plan* can see. Each one used to be found
+        # -- on a finished board, or on the gerbers, or not at all.
+        if ids:
+            peak = total_peak_ma(ids, counts)
+
+            # 1. A rail on signal copper. The router uses one width for
+            #    everything, so the plan has to state the number.
+            if peak > 0:
+                required = trace_width_for(current_a=peak / 1000.0)
+                if power_trace_width_mm is None:
+                    out.append({
+                        "part": "board", "kind": "power_trace_width",
+                        "severity": "info",
+                        "detail": (
+                            f"peak rail current is {peak:.0f}mA, so every power "
+                            f"and ground net needs at least {required:.3f}mm of "
+                            "copper (IPC-2221B, 1oz external, 10degC rise). The "
+                            "router's default is 0.15mm and applies to every net "
+                            "equally — set the width on the power traces"
+                        ),
+                    })
+                elif power_trace_width_mm < required - 1e-9:
+                    out.append({
+                        "part": "board", "kind": "power_trace_width",
+                        "severity": "error",
+                        "detail": (
+                            f"power nets are declared at "
+                            f"{power_trace_width_mm:.3f}mm but the plan draws "
+                            f"{peak:.0f}mA peak, which needs {required:.3f}mm"
+                        ),
+                    })
+
+            # 2. A linear regulator asked to drop more heat than its package
+            #    can shed. Arithmetic on numbers the plan already has.
+            if "ldo-3v3" in ids and peak > 0:
+                verdict = regulator_thermal(
+                    vin=5.0, vout=3.3, current_a=peak / 1000.0,
+                    package="SOT-223", ambient_c=AMBIENT_HOT_C,
+                )
+                if verdict["verdict"] != "ok":
+                    out.append({
+                        "part": "U2", "kind": "regulator_thermal",
+                        "severity": str(verdict["severity"]),
+                        "detail": (
+                            f"the plan draws {peak:.0f}mA peak through a SOT-223 "
+                            f"linear regulator dropping 1.7V: {verdict['watts']}W, "
+                            f"about {verdict['junction_c']}degC junction at a "
+                            f"{AMBIENT_HOT_C:g}degC ambient "
+                            f"({verdict['headroom_c']}degC from the 125degC "
+                            "limit). Use a buck, split the rail, or cut the load"
+                        ),
+                    })
+
+            # 3. A board nobody can program. Every block is individually fine.
+            for net in unexposed_nets(ids, exposed_nets):
+                out.append({
+                    "part": "board", "kind": "debug_unreachable",
+                    "severity": "error",
+                    "detail": (
+                        f"{net} is owned by a block on this board and reaches no "
+                        "connector, header or test point, so the board cannot be "
+                        f"programmed or halted once it is assembled. Add a "
+                        f"<testpoint> on {net} (copper only — it costs nothing "
+                        "and the BOM gate exempts it)"
+                    ),
+                })
+
         if board_mm:
             w, h = board_mm
             if min(w, h) < tables.MIN_BOARD_EDGE_MM:
