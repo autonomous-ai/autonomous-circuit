@@ -8,6 +8,8 @@ import {
   aggregateActivityStatus,
   activityDefaultsOpen,
   headerActivityStatus,
+  shortenCommand,
+  toolDetailShort,
   formatDuration,
 } from "../activityLabels.js";
 
@@ -147,4 +149,37 @@ test("headerActivityStatus passes through every other state", () => {
   assert.equal(headerActivityStatus([{ status: "ok" }]), "ok");
   assert.equal(headerActivityStatus([]), "ok");
   assert.equal(headerActivityStatus(undefined), "ok");
+});
+
+// Eighteen consecutive rows all reading `Running command  cd /Users/d/.clau…`
+// carry no information: they truncate at the same point, so the list is a wall
+// of identical grey text in front of someone trying to see if anything is
+// happening.
+test("a generated shell command reads as what it does, not where it lives", () => {
+  const input = {
+    command:
+      'P=/private/tmp/claude-502/scratchpad/circuit-home/projects/a61bad2a; ' +
+      'python ~/.claude/skills/circuitcode/scripts/check "$P/boards/main.tsx" 2>&1 | tail -5',
+  };
+  const short = toolDetailShort("Bash", input);
+  assert.doesNotMatch(short, /\/private\/tmp/);
+  assert.match(short, /^python/);
+  assert.match(short, /check/);
+  // The tooltip still carries every character.
+  assert.equal(toolDetail("Bash", input), input.command);
+});
+
+test("shortenCommand collapses paths and strips the preamble, and leaves short ones alone", () => {
+  assert.equal(shortenCommand("ls -la"), "ls -la");
+  assert.equal(shortenCommand("cd /a/b/c/d && npm test"), "npm test");
+  assert.equal(shortenCommand("npm --prefix viewer test"), "npm --prefix viewer test");
+  assert.equal(shortenCommand("cat /one/two/three/four/five.txt"), "cat …/five.txt");
+  // Two segments is short enough to be readable and to matter.
+  assert.equal(shortenCommand("cat /etc/hosts"), "cat /etc/hosts");
+  assert.equal(shortenCommand(""), "");
+});
+
+test("shortening only applies to shell commands", () => {
+  assert.equal(toolDetailShort("Read", { file_path: "/a/b/c/d/main.tsx" }), "main.tsx");
+  assert.equal(toolDetailShort("Grep", { pattern: "/a/b/c/d/e" }), "/a/b/c/d/e");
 });

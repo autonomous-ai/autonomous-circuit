@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, Loader2, Check, XCircle, Ban, Wrench, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/ui/utils";
-import { toolLabel, toolDetail, headerActivityStatus, activityDefaultsOpen } from "./activityLabels";
+import { toolLabel, toolDetail, toolDetailShort, headerActivityStatus, activityDefaultsOpen } from "./activityLabels";
 import { SpanDuration } from "./liveDuration";
 
 // Status glyph for the disclosure header / a tool row. Mirrors the status
@@ -20,7 +20,10 @@ function StatusGlyph({ status, className }) {
 // query, command) + status — so the row reads "Searching code · «pattern» ✓"
 // instead of a bare "Working".
 function ActivityRow({ block }) {
-  const detail = toolDetail(block.tool, block.input);
+  // The row shows the shortened form; the tooltip keeps the whole command, so
+  // nothing is lost — only the wall of identical leading paths.
+  const detail = toolDetailShort(block.tool, block.input);
+  const fullDetail = toolDetail(block.tool, block.input);
   return (
     <div
       data-slot="chat-activity-row"
@@ -31,7 +34,7 @@ function ActivityRow({ block }) {
       <Wrench className="size-3.5 shrink-0" aria-hidden />
       <span className="shrink-0 font-medium text-foreground">{toolLabel(block.tool, block.input)}</span>
       {detail ? (
-        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={detail}>
+        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={fullDetail}>
           {detail}
         </span>
       ) : null}

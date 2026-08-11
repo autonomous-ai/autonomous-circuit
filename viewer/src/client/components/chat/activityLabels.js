@@ -144,6 +144,41 @@ export function toolDetail(tool, input) {
 }
 
 /**
+ * The same detail, shortened for the row.
+ *
+ * Watched on a real build: eighteen consecutive activity rows all reading
+ * `Running command  cd /Users/d/.clau…`. Every one was truncated at the same
+ * point, so the list carried no information at all — it was a wall of
+ * identical grey text in front of someone trying to work out whether anything
+ * was happening. The information was there; it was just behind a long absolute
+ * path and a shell preamble.
+ *
+ * Two rules, both lossless in the tooltip (which still carries the full
+ * command): collapse a long absolute path to `…/lastSegment`, and drop the
+ * leading `cd …` / `VAR=…;` preamble that every generated command starts with.
+ */
+export function toolDetailShort(tool, input) {
+  const full = toolDetail(tool, input);
+  if (String(tool || "") !== "Bash") return full;
+  return shortenCommand(full);
+}
+
+export function shortenCommand(command) {
+  let text = String(command || "").replace(/\s+/g, " ").trim();
+  // Any absolute path of three or more segments becomes …/<last segment>.
+  text = text.replace(/(?:\/[^\s/"';|&]+){3,}/g, (match) => `…/${match.split("/").pop()}`);
+  // Shell preamble: variable assignments and a leading `cd`, in any order.
+  for (let i = 0; i < 4; i += 1) {
+    const next = text
+      .replace(/^[A-Za-z_][A-Za-z0-9_]*=\S*\s*(?:;|&&)\s*/, "")
+      .replace(/^cd\s+\S+\s*(?:;|&&)\s*/, "");
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+}
+
+/**
  * Badge label for a turn's workflow phase.
  * @param {"plan"|"implement"|string|undefined} phase
  * @returns {string}
