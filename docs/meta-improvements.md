@@ -249,8 +249,11 @@ defaults. Still open, in leverage order:
     footprint defect, block-owned), and `pcb_trace_error` "trace too close to
     board edge" on `rp2040-core` pairings — the router runs tracks to the
     outline because nothing tells it not to. The second is the next real
-    lever and it is not a placement fix: growing the board does not help when
-    the router prefers the outside path.
+    lever — and it turns out growing the board *is* the fix: the same
+    `ldo-3v3 + rp2040-core` cell went from blocked to fab-ready on an outline
+    8mm larger each way, which `place_board()`'s margins and hole strip now
+    supply. `minBoardEdgeClearance` is not the fix and made it worse (0 errors
+    to 8); it gates the checker, not the router.
 33. **next — Monte-Carlo over component tolerances.** Every resistor is +/-1%,
     every capacitor +/-10%. Nothing we own asks whether a design still works
     at the corners rather than at nominal. A divider that is fine at nominal
@@ -272,6 +275,11 @@ defaults. Still open, in leverage order:
   matrix refuses to build a plan the helper does not believe in. The layout
   bug survived because nothing ever asked the placement code whether its own
   output fitted.
+- **A prop that names a limit gates the checker, not the machine.** Raising
+  `minTraceWidth` (7 errors to 125) and `minBoardEdgeClearance` (0 to 8) both
+  made boards worse, because neither moves a single track — they only move the
+  line the tracks are measured against. The lever that actually worked was
+  room: the same board 8mm larger in each direction came back fab-ready.
 - **Measure the dial before assuming the default is right.** The autorouter
   effort level had five settings and we never touched it. The default cost
   us 28 blocking errors on one board.
