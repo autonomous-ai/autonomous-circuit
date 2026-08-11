@@ -36,6 +36,7 @@ import {
   spawnTurn,
   summarizeToolResult,
   uuidv5,
+  workspaceFabReady,
 } from "./driver.mjs";
 import { encodeCwd, sessionJsonlPath } from "./projects.mjs";
 
@@ -1019,4 +1020,54 @@ test("buildCommandArgs omits both flags when unset rather than sending empties",
   });
   assert.equal(args.includes("--model"), false);
   assert.equal(args.includes("--effort"), false);
+});
+
+// ---------------------------------------------------------------------------
+// workspaceFabReady — the ratchet's input
+//
+// The agent eval caught macropad-6 fab-ready on its first build and NOT
+// fab-ready five repair rounds later. The loop had no rule against walking
+// downhill, so it did.
+// ---------------------------------------------------------------------------
+
+function sidecarDir(boards) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "circuit-fabready-"));
+  boards.forEach((fab, i) => {
+    const body = fab === undefined ? {} : { fab: { ready: fab } };
+    fs.writeFileSync(path.join(dir, `b${i}.board.json`), JSON.stringify(body));
+  });
+  return dir;
+}
+
+test("workspaceFabReady is null when nothing reports a fab verdict", () => {
+  // "We do not know" must not collapse into false, or the very first round of
+  // every build would look like a regression.
+  assert.equal(workspaceFabReady(sidecarDir([])), null);
+  assert.equal(workspaceFabReady(sidecarDir([undefined])), null);
+});
+
+test("workspaceFabReady is true only when every board is orderable", () => {
+  assert.equal(workspaceFabReady(sidecarDir([true])), true);
+  assert.equal(workspaceFabReady(sidecarDir([true, true])), true);
+  assert.equal(workspaceFabReady(sidecarDir([true, false])), false);
+  assert.equal(workspaceFabReady(sidecarDir([false])), false);
+});
+
+test("workspaceFabReady ignores a sidecar it cannot parse", () => {
+  // A half-written file during a build must not read as "not ready" and trip
+  // the ratchet on a healthy board.
+  const dir = sidecarDir([true]);
+  fs.writeFileSync(path.join(dir, "broken.board.json"), '{"fab": {"rea');
+  assert.equal(workspaceFabReady(dir), true);
+});
+
+test("workspaceFabReady skips the directories the walker is told to skip", () => {
+  const dir = sidecarDir([true]);
+  const inputs = path.join(dir, "inputs");
+  fs.mkdirSync(inputs);
+  fs.writeFileSync(
+    path.join(inputs, "old.board.json"),
+    JSON.stringify({ fab: { ready: false } }),
+  );
+  assert.equal(workspaceFabReady(dir), true, "a stale copy must not veto");
 });

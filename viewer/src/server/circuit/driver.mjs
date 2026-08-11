@@ -790,6 +790,48 @@ export function recoverPlanFromSession(workspace, sessionId, env = process.env) 
 // Review loop (silent, best-effort, caps mirrored from the donor: 2/3/2)
 // ---------------------------------------------------------------------------
 
+/**
+ * Is every board in the workspace orderable right now?
+ *
+ * Returns null when no sidecar carries a `fab` block — "we do not know" is a
+ * third answer and must not collapse into false, or the very first round would
+ * look like a regression.
+ */
+export function workspaceFabReady(dir) {
+  const skip = skipDirNames();
+  const stack = [dir];
+  let seen = 0;
+  let ready = 0;
+  while (stack.length) {
+    const current = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!skip.has(entry.name)) stack.push(full);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".board.json")) continue;
+      try {
+        const json = JSON.parse(fs.readFileSync(full, "utf8"));
+        if (json?.fab && typeof json.fab.ready === "boolean") {
+          seen += 1;
+          if (json.fab.ready) ready += 1;
+        }
+      } catch {
+        // malformed sidecar — tells us nothing either way
+      }
+    }
+  }
+  if (seen === 0) return null;
+  return ready === seen;
+}
+
 export const MAX_STRUCTURE_ROUNDS = 2;
 export const MAX_ELECTRICAL_ROUNDS = 3;
 export const MAX_CRAFT_ROUNDS = 2;
@@ -1258,8 +1300,20 @@ export async function runReviewFixLoop({
       fabReady: null,
     });
 
-  const round = (prompt) =>
-    runReviewRound({
+  // The ratchet. The agent eval caught a board that was fab-ready on its first
+  // build and was NOT fab-ready five repair rounds later: the loop took a
+  // finished board and broke it, chasing cosmetic findings. The router already
+  // refuses a retry that is not strictly better (stage 0b); the board-level
+  // loop had no such rule, so nothing stopped it walking downhill.
+  //
+  // A round may leave the board no worse than it found it. The moment one
+  // turns orderable into not-orderable, the loop stops — one bad round instead
+  // of five — and says so out loud rather than quietly handing back a board
+  // that used to be shippable.
+  let regressed = false;
+  const round = async (prompt) => {
+    const readyBefore = workspaceFabReady(workspace);
+    const didChange = await runReviewRound({
       claudePath,
       workspace,
       sessionId,
@@ -1270,10 +1324,24 @@ export async function runReviewFixLoop({
       signal,
       env,
     });
+    if (readyBefore === true && workspaceFabReady(workspace) === false) {
+      regressed = true;
+      log("review: a round made an orderable board un-orderable — stopping");
+      onEvent?.({
+        kind: "assistant_message",
+        turnId,
+        text:
+          "_I stopped the automatic review: the last change made a board that " +
+          "could be ordered no longer orderable. The board is back in your " +
+          "hands rather than being polished further._",
+      });
+    }
+    return didChange;
+  };
 
   // Phase 1 — structure (blocking = severity "error").
   for (let i = 0; i < MAX_STRUCTURE_ROUNDS; i += 1) {
-    if (aborted()) return changed;
+    if (aborted() || regressed) return changed;
     const all = collectBoardWarnings(workspace);
     const blocking = all.filter(isBlocking);
     const prompt = buildStructurePrompt(blocking);
@@ -1282,7 +1350,7 @@ export async function runReviewFixLoop({
     log(`review structure round ${i + 1}: ${blocking.length} blocking warning(s)`);
     changed = (await round(prompt)) || changed;
   }
-  if (aborted()) return changed;
+  if (aborted() || regressed) return changed;
   const afterStructure = collectBoardWarnings(workspace);
   const structureRemaining = afterStructure.filter(isBlocking);
   if (structureRemaining.length) {
@@ -1293,7 +1361,7 @@ export async function runReviewFixLoop({
 
   // Phase 2 — electrical function (contract kind set).
   for (let i = 0; i < MAX_ELECTRICAL_ROUNDS; i += 1) {
-    if (aborted()) return changed;
+    if (aborted() || regressed) return changed;
     const all = collectBoardWarnings(workspace);
     const electrical = all.filter(isElectrical);
     const prompt = buildElectricalPrompt(electrical);
@@ -1302,7 +1370,7 @@ export async function runReviewFixLoop({
     log(`review electrical round ${i + 1}: ${electrical.length} electrical warning(s)`);
     changed = (await round(prompt)) || changed;
   }
-  if (aborted()) return changed;
+  if (aborted() || regressed) return changed;
   const afterElectrical = collectBoardWarnings(workspace);
   const electricalRemaining = afterElectrical.filter(isElectrical);
   if (electricalRemaining.length) {
@@ -1317,7 +1385,7 @@ export async function runReviewFixLoop({
     (w) => !isBlocking(w) && !isElectrical(w),
   );
   for (let i = 0; i < MAX_CRAFT_ROUNDS; i += 1) {
-    if (aborted()) return changed;
+    if (aborted() || regressed) return changed;
     snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
     const roundChanged = await round(buildCraftPrompt(hints));
