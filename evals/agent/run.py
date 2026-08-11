@@ -162,11 +162,13 @@ class SidecarWatcher(threading.Thread):
         self.interval = interval
         self.builds: list[dict] = []
         self._seen: set[str] = set()
-        self._stop = threading.Event()
-        self._started = time.time()
+        # NB: Thread already owns `_started` (an Event) and `_stop` (a method).
+        # Shadowing either breaks Thread internals in ways that surface far away.
+        self._done = threading.Event()
+        self._t0 = time.time()
 
     def stop(self) -> None:
-        self._stop.set()
+        self._done.set()
 
     def _scan(self) -> None:
         for path in sorted(self.project.glob("boards/*.board.json")):
@@ -187,7 +189,7 @@ class SidecarWatcher(threading.Thread):
             self.builds.append(
                 {
                     "n": len(self.builds) + 1,
-                    "atSeconds": round(time.time() - self._started, 1),
+                    "atSeconds": round(time.time() - self._t0, 1),
                     "board": path.name,
                     "fabReady": bool(sidecar.get("fab", {}).get("ready")),
                     "gerberSource": sidecar.get("fab", {}).get("gerberSource"),
@@ -208,9 +210,9 @@ class SidecarWatcher(threading.Thread):
             )
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._done.is_set():
             self._scan()
-            self._stop.wait(self.interval)
+            self._done.wait(self.interval)
         self._scan()  # final sweep — never miss the last build
 
 

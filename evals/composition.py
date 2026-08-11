@@ -169,18 +169,18 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
     from circuitlib import layout
 
     ids = list(cell)
-    width, height = layout.min_board_for(ids, columns=len(ids))
-    centres = layout.place_row(ids)
+    plan = layout.place_board(ids)
+    width, height = plan["width_mm"], plan["height_mm"]
+    centres = plan["placements"]
 
     # The placement helper must agree with itself before we pay for a build:
     # a cell that fails here would fail as pcb_component_outside_board_error
     # after 90 seconds of compute, and the bug would be in this file, not in
     # the composition under test.
-    misfits = layout.board_fits(centres, width, height)
-    if misfits:
+    if plan["warnings"]:
         raise AssertionError(
-            "circuitlib.layout placed a block outside the board it sized: "
-            + "; ".join(m["detail"] for m in misfits)
+            "circuitlib.layout produced a plan it does not believe in: "
+            + "; ".join(w["detail"] for w in plan["warnings"])
         )
 
     imports = "\n".join(
@@ -196,6 +196,12 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
             f"    <{symbol} {extra} pcbX={{{x}}} pcbY={{{y}}} "
             f"schX={{{sch_x}}} schY={{0}} />".replace("  ", " ", 1)
         )
+    for hole in plan["holes"]:
+        lines.append(
+            f'    <hole name="{hole["name"]}" '
+            f'diameter="{hole["diameter_mm"]}mm" '
+            f'pcbX={{{hole["pcbX"]}}} pcbY={{{hole["pcbY"]}}} />'
+        )
     body = "\n".join(lines)
     source = (
         f"// composition-matrix cell: {' + '.join(ids)}\n"
@@ -210,133 +216,137 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
     return source, (width, height)
 
 
-def build_cell(cell: tuple[str, ...], keep: bool = False) -> dict:
-    """Build one cell as a real project through the real pipeline."""
-    from circuitpy.generation import build_board
-
+def prepare_cell(root: Path, cell: tuple[str, ...]) -> tuple[Path, tuple[float, float]]:
+    """Materialise one matrix cell as a real project on disk."""
     name = "__".join(cell)
-    root = Path(tempfile.mkdtemp(prefix=f"composition-{name[:40]}-"))
-    started = time.time()
-    record: dict = {"cell": list(cell), "blocks": len(cell)}
-    try:
-        project = root / "proj"
-        project.mkdir(parents=True)
-        for config in ("tsconfig.json", "tscircuit.config.json"):
-            shutil.copy(SKELETON / config, project / config)
-        shutil.copytree(BLOCKS_DIR, project / "blocks", dirs_exist_ok=True)
-        source, (width, height) = board_source(cell)
-        project.joinpath("product.json").write_text(
-            json.dumps(
-                {
-                    "name": f"matrix-{name}",
-                    "description": f"composition matrix cell: {' + '.join(cell)}",
-                    "power": "usb-c-5v",
-                    # Generous: the matrix tests composition, not size policy.
-                    "envelopeMm": [200, 200],
-                    "layers": 2,
-                    "fab": "jlcpcb",
-                    "assembly": True,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        boards = project / "boards"
-        boards.mkdir()
-        (boards / "main.tsx").write_text(source, encoding="utf-8")
+    project = root / name
+    project.mkdir(parents=True, exist_ok=True)
+    for config in ("tsconfig.json", "tscircuit.config.json"):
+        shutil.copy(SKELETON / config, project / config)
+    shutil.copytree(BLOCKS_DIR, project / "blocks", dirs_exist_ok=True)
+    source, (width, height) = board_source(cell)
+    project.joinpath("product.json").write_text(
+        json.dumps(
+            {
+                "name": f"matrix-{name}"[:60],
+                "description": f"composition matrix cell: {' + '.join(cell)}",
+                "power": "usb-c-5v",
+                # Generous: the matrix tests composition, not size policy.
+                "envelopeMm": [200, 200],
+                "layers": 2,
+                "fab": "jlcpcb",
+                "assembly": True,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    boards = project / "boards"
+    boards.mkdir(exist_ok=True)
+    (boards / "main.tsx").write_text(source, encoding="utf-8")
+    return project, (width, height)
 
-        build_board(boards / "main.tsx", boards / "main.circuit.json")
-        sidecar = json.loads((boards / "main.board.json").read_text())
-        warnings = sidecar.get("validation", {}).get("warnings", [])
-        blocking = [w for w in warnings if w.get("severity") == "error"]
-        record.update(
-            {
-                "status": "clean" if not blocking else "blocked",
-                "fabReady": bool(sidecar.get("fab", {}).get("ready")),
-                "autorouterEffort": sidecar.get("build", {}).get(
-                    "autorouterEffort", "default"
-                ),
-                "blockingByAttempt": sidecar.get("build", {}).get(
-                    "blockingByAttempt"
-                ),
-                "boardMm": [width, height],
-                "bomLines": sidecar.get("bom", {}).get("lines"),
-                "blocking": [
-                    {
-                        "kind": w["kind"],
-                        "part": w.get("part", ""),
-                        "detail": w.get("detail", "")[:220],
-                    }
-                    for w in blocking
-                ],
-                "warningCount": len(warnings),
-            }
-        )
-    except Exception as exc:  # noqa: BLE001 — the matrix cell is the report
-        record.update(
-            {
-                "status": "error",
-                "fabReady": False,
-                "blocking": [
-                    {"kind": type(exc).__name__, "part": "", "detail": str(exc)[:400]}
-                ],
-            }
-        )
-        keep = True
-    record["seconds"] = round(time.time() - started, 1)
-    if keep:
-        record["kept"] = str(root)
-    else:
-        shutil.rmtree(root, ignore_errors=True)
+
+def _record(outcome, size: tuple[float, float]) -> dict:
+    """One cell's row in the matrix, read from the sidecar the build wrote."""
+    cell = tuple(outcome.job.meta["cell"])
+    record: dict = {
+        "cell": list(cell),
+        "blocks": len(cell),
+        "seconds": round(outcome.seconds, 1),
+        "boardMm": list(size),
+    }
+    if not outcome.ok:
+        record.update({
+            "status": "error",
+            "fabReady": False,
+            "blocking": [{"kind": "BuildCrashed", "part": "",
+                          "detail": (outcome.error or "")[:400]}],
+        })
+        return record
+
+    sidecar_path = Path(str(outcome.job.output)).with_name("main.board.json")
+    try:
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        record.update({
+            "status": "error", "fabReady": False,
+            "blocking": [{"kind": "NoSidecar", "part": "", "detail": str(exc)}],
+        })
+        return record
+
+    warnings = sidecar.get("validation", {}).get("warnings", [])
+    blocking = [w for w in warnings if w.get("severity") == "error"]
+    record.update({
+        "status": "clean" if not blocking else "blocked",
+        "fabReady": bool(sidecar.get("fab", {}).get("ready")),
+        "autorouterEffort": sidecar.get("build", {}).get(
+            "autorouterEffort", "default"
+        ),
+        "blockingByAttempt": sidecar.get("build", {}).get("blockingByAttempt"),
+        "bomLines": sidecar.get("bom", {}).get("lines"),
+        "blocking": [
+            {"kind": w["kind"], "part": w.get("part", ""),
+             "detail": w.get("detail", "")[:220]}
+            for w in blocking
+        ],
+        "warningCount": len(warnings),
+    })
     return record
 
 
 # ---------------------------------------------------------------------------
-# Runner
+# Runner — exhaustive in compute, fast in wall-clock
 # ---------------------------------------------------------------------------
-
-
-def _worker(cell_list: list[str]) -> dict:
-    return build_cell(tuple(cell_list))
 
 
 def run(
     tier: str = "default",
     *,
-    jobs: int = 4,
+    jobs: int | None = None,
     only: list[tuple[str, ...]] | None = None,
     sample: int | None = None,
     seed: int = 11,
+    keep: bool = False,
 ) -> dict:
+    from circuitpy.batch import BuildJob, build_many
+
     todo = only if only is not None else cells(tier)
     sampled_from = len(todo)
     if sample and sample < len(todo):
         todo = random.Random(seed).sample(todo, sample)
 
-    results: list[dict] = []
-    started = time.time()
-    with futures.ProcessPoolExecutor(max_workers=jobs) as pool:
-        pending = {pool.submit(_worker, list(c)): c for c in todo}
-        for done in futures.as_completed(pending):
-            record = done.result()
-            results.append(record)
-            mark = {"clean": "ok  ", "blocked": "FAIL", "error": "ERR "}[
-                record["status"]
-            ]
-            summary = ""
-            if record["status"] != "clean":
-                kinds = sorted({b["kind"] for b in record["blocking"]})
-                summary = "  " + ", ".join(kinds[:3])
-            print(
-                f"{mark} {' + '.join(record['cell']):<46} "
-                f"{record['seconds']:>5.0f}s{summary}",
-                flush=True,
+    root = Path(tempfile.mkdtemp(prefix="composition-matrix-"))
+    build_jobs = []
+    sizes: dict[tuple[str, ...], tuple[float, float]] = {}
+    for cell in todo:
+        project, size = prepare_cell(root, cell)
+        sizes[cell] = size
+        build_jobs.append(
+            BuildJob(
+                source=project / "boards" / "main.tsx",
+                output=project / "boards" / "main.circuit.json",
+                label=" + ".join(cell),
+                meta={"cell": list(cell)},
             )
+        )
 
-    results.sort(key=lambda r: r["cell"])
+    def _progress(outcome, done: int, total: int) -> None:
+        cell = tuple(outcome.job.meta["cell"])
+        mark = "ok  " if outcome.fab_ready else ("ERR " if not outcome.ok else "FAIL")
+        print(
+            f"[{done:>3}/{total}] {mark} {' + '.join(cell):<50} "
+            f"{outcome.seconds:>5.0f}s",
+            flush=True,
+        )
+
+    report = build_many(build_jobs, workers=jobs, on_done=_progress)
+    results = [_record(o, sizes[tuple(o.job.meta["cell"])]) for o in report.outcomes]
+    results.sort(key=lambda r: (r["blocks"], r["cell"]))
+
     clean = [r for r in results if r["status"] == "clean"]
     ready = [r for r in results if r.get("fabReady")]
-    report = {
+    payload = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "tier": tier,
         "cellsBuilt": len(results),
@@ -344,14 +354,23 @@ def run(
         "sampled": bool(sample and sample < sampled_from),
         "clean": len(clean),
         "fabReady": len(ready),
-        "closureRate": round(len(clean) / len(results), 3) if results else 0.0,
-        "wallSeconds": round(time.time() - started),
+        "closureRate": round(len(ready) / len(results), 3) if results else 0.0,
+        # Both numbers, always: the claim is about the ratio between them.
+        "computeMinutes": round(report.compute_s / 60, 1),
+        "wallMinutes": round(report.wall_s / 60, 1),
+        "speedup": round(report.speedup, 1),
+        "workers": report.workers,
+        "summary": report.summary(),
         "knownUnsupported": {
             " + ".join(k): v for k, v in KNOWN_UNSUPPORTED.items()
         },
         "cells": results,
     }
-    return report
+    if keep:
+        payload["projects"] = str(root)
+    else:
+        shutil.rmtree(root, ignore_errors=True)
+    return payload
 
 
 def main(argv: list[str]) -> int:
@@ -361,7 +380,10 @@ def main(argv: list[str]) -> int:
         default="default",
         choices=["singles", "pairs", "triples", "spine", "all", "default"],
     )
-    parser.add_argument("--jobs", type=int, default=4)
+    parser.add_argument("--jobs", type=int, default=None,
+                        help="workers (default: cpu_count-1, CIRCUIT_BATCH_WORKERS)")
+    parser.add_argument("--keep", action="store_true",
+                        help="keep the built projects for inspection")
     parser.add_argument("--sample", type=int, default=None)
     parser.add_argument("--only", default=None, help="comma-separated block ids")
     parser.add_argument("--report", default=str(REPORT))
@@ -380,14 +402,15 @@ def main(argv: list[str]) -> int:
         )
         return 2
 
-    report = run(args.tier, jobs=args.jobs, only=only, sample=args.sample)
+    report = run(args.tier, jobs=args.jobs, only=only, sample=args.sample,
+                 keep=args.keep)
     Path(args.report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     failed = [r for r in report["cells"] if r["status"] != "clean"]
+    print(f"\n{report['summary']}")
     print(
-        f"\n{report['clean']}/{report['cellsBuilt']} compositions clean "
-        f"({report['closureRate']:.0%}), {report['fabReady']} fab-ready, "
-        f"{report['wallSeconds']}s wall"
+        f"closure: {report['fabReady']}/{report['cellsBuilt']} compositions "
+        f"fab-ready ({report['closureRate']:.0%})"
     )
     if failed:
         print("\nopen holes in the tested space:")

@@ -307,7 +307,7 @@ python skills/circuitcode/scripts/check  <same>     # stages 0–2 only, tempdir
 python skills/circuitcode/scripts/review <project>  # re-surface warnings + regenerate _review pngs
 ```
 
-Runner: subprocess + wall clock (default **1800s** since 2026-08-11, was 300s —
+Runner: subprocess + wall clock (default **2700s** since 2026-08-11, was 300s —
 see the -CHANGES entry; `CIRCUIT_WALL_CLOCK_S` override; parent
 `subprocess.run(timeout=…)`, always returns a dict, never raises), rlimit ceilings kept as
 a runaway backstop. The elaborate user-code import sandbox is GONE — the board source is

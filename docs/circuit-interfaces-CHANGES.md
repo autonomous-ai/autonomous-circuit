@@ -14,7 +14,7 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
-## 2026-08-11 — Autorouter effort escalation (stage 0b), a `build` sidecar member, 1800s wall clock
+## 2026-08-11 — Autorouter effort escalation (stage 0b), a `build` sidecar member, 2700s wall clock
 - **Change:** three coupled edits. (1) §1 gains **stage 0b**: after stages 1, 2
   and 4a run on the first compile, if any blocking warning is routing-class
   (`pcb_autorouting_error`, `pcb_trace_missing_error`,
@@ -26,7 +26,8 @@ first, in this template, before the doc itself is edited:
   disables it. (2) The sidecar gains a `build` member —
   `{autorouterEffort, attempts, blockingByAttempt}` — and `CircuitcodeResult`
   gains the snake_case equivalent. (3) The skill runner's wall clock rises from
-  300s to **1800s**, and `CPU_TIMEOUT_S` with it.
+  300s to **2700s**, and `CPU_TIMEOUT_S` with it — enough for the first attempt
+  plus a 5x retry (measured: harness-puck took 1240s at 5x, 5 blocking to 1).
 - **Why:** `autorouterEffortLevel` is a `<board>` prop with no CLI flag, and
   nothing in the skeleton, `circuitlib` or the skill ever set it — so every
   board ever built routed at the default. Measured on terminal-keyboard

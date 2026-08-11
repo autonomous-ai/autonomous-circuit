@@ -1,0 +1,35 @@
+{
+  "note": "Ratchet, not a snapshot: these are the best numbers each example board has ever reached. A build may improve on them and --accept records that; a build may never come back worse. Written by evals/examples_lock.py.",
+  "updatedAt": "2026-08-11",
+  "boards": {
+    "harness-puck": {
+      "blocking": 5,
+      "fabReady": false,
+      "blockingKinds": [
+        "dfm_hole_clearance",
+        "drc_violation"
+      ],
+      "bomLines": 58,
+      "autorouterEffort": "default"
+    },
+    "hydrate-coaster": {
+      "blocking": 4,
+      "fabReady": false,
+      "blockingKinds": [
+        "dfm_hole_clearance",
+        "drc_violation"
+      ],
+      "bomLines": 41,
+      "autorouterEffort": "default"
+    },
+    "terminal-keyboard": {
+      "blocking": 1,
+      "fabReady": false,
+      "blockingKinds": [
+        "drc_violation"
+      ],
+      "bomLines": 134,
+      "autorouterEffort": "default"
+    }
+  }
+}

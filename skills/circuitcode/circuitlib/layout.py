@@ -159,6 +159,134 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
     return out
 
 
+#: Blocks whose whole point is a plug going into them. They have to sit at the
+#: board edge facing outward, or `pcb_connector_not_in_accessible_orientation`
+#: fires and — more to the point — the finished device has a USB socket in the
+#: middle of a PCB inside a printed box.
+EDGE_BLOCKS = frozenset({"usb-c-power", "usb-c-data"})
+
+
+#: A 3.2mm hole (M3 clearance) plus room for the screw head and the fab's
+#: hole-to-copper rule. Blocks are kept out of this strip so a mounting hole
+#: never lands on a footprint — which is what happens when holes are dropped
+#: into the corners of a board sized only for its parts.
+HOLE_DIAMETER_MM = 3.2
+HOLE_STRIP_MM = 6.4
+
+
+def place_board(
+    block_ids: list[str],
+    *,
+    gap: float = BLOCK_GAP_MM,
+    margin: float = EDGE_MARGIN_MM,
+    mounting_holes: bool = True,
+) -> dict[str, object]:
+    """A whole board plan: outline, placements, mounting holes.
+
+    ``place_row`` is the primitive; this is the thing to actually call. It
+    encodes the composition rules a first-build-orderable board needs, so an
+    agent does not have to rediscover them once per board:
+
+    * **connectors on the bottom edge, facing out** — anything in
+      :data:`EDGE_BLOCKS` is placed against the outline rather than inline,
+      because a USB socket in the middle of the board is not a product (and
+      `pcb_connector_not_in_accessible_orientation` says so);
+    * **everything else in a row above it**, spaced by the measured boxes;
+    * **two mounting holes on opposite corners, in a reserved strip** — the
+      board grows sideways to make room rather than dropping a drill on top of
+      a footprint, which is what corner holes do on a board sized only for its
+      parts;
+    * an outline sized to hold all of it with ``margin`` to spare.
+
+    Returns ``{"width_mm", "height_mm", "placements", "holes", "warnings"}``.
+    ``warnings`` is empty on a plan that fits — check it, do not assume it.
+    """
+    edge = [b for b in block_ids if b in EDGE_BLOCKS]
+    inner = [b for b in block_ids if b not in EDGE_BLOCKS]
+
+    edge_w = sum(extent(b)[0] for b in edge) + gap * max(0, len(edge) - 1)
+    edge_h = max((extent(b)[1] for b in edge), default=0.0)
+    inner_w = sum(extent(b)[0] for b in inner) + gap * max(0, len(inner) - 1)
+    inner_h = max((extent(b)[1] for b in inner), default=0.0)
+
+    content_w = max(edge_w, inner_w)
+    content_h = edge_h + inner_h + (gap if edge and inner else 0.0)
+    strip = HOLE_STRIP_MM if mounting_holes else 0.0
+
+    def _up(value: float) -> float:
+        return math.ceil(round(value, 6) * 10) / 10.0
+
+    width = max(_up(content_w + 2 * margin + 2 * strip), tables.MIN_BOARD_EDGE_MM)
+    height = max(_up(content_h + 2 * margin), tables.MIN_BOARD_EDGE_MM)
+
+    placements: dict[str, tuple[float, float]] = {}
+    if edge:
+        # Bottom band: the connector's own geometry sits against the margin.
+        placements.update(
+            place_row(edge, y=-height / 2.0 + margin + edge_h / 2.0, gap=gap)
+        )
+    if inner:
+        placements.update(
+            place_row(inner, y=height / 2.0 - margin - inner_h / 2.0, gap=gap)
+        )
+
+    holes: list[dict[str, object]] = []
+    if mounting_holes:
+        inset = strip / 2.0
+        holes = [
+            {"name": "H1", "diameter_mm": HOLE_DIAMETER_MM,
+             "pcbX": round(-width / 2 + inset, 2),
+             "pcbY": round(-height / 2 + inset, 2)},
+            {"name": "H2", "diameter_mm": HOLE_DIAMETER_MM,
+             "pcbX": round(width / 2 - inset, 2),
+             "pcbY": round(height / 2 - inset, 2)},
+        ]
+
+    warnings = board_fits(placements, width, height, margin=margin)
+    warnings += overlap_warnings(placements, gap=gap)
+    warnings += _hole_clearance_warnings(holes, placements)
+    return {
+        "width_mm": width,
+        "height_mm": height,
+        "placements": placements,
+        "holes": holes,
+        "warnings": warnings,
+    }
+
+
+def _hole_clearance_warnings(
+    holes: list[dict[str, object]], placements: dict[str, tuple[float, float]]
+) -> list[dict[str, str]]:
+    """A mounting hole landing on a footprint is a board nobody can screw down.
+    Cheap to check here; expensive to discover in a fab packet."""
+    out: list[dict[str, str]] = []
+    try:
+        for hole in holes:
+            hx = float(hole["pcbX"])  # type: ignore[arg-type]
+            hy = float(hole["pcbY"])  # type: ignore[arg-type]
+            radius = float(hole["diameter_mm"]) / 2.0  # type: ignore[arg-type]
+            for block_id, (x, y) in placements.items():
+                if block_id not in BLOCK_BOX_MM:
+                    continue
+                min_x, min_y, max_x, max_y = box(block_id)
+                dx = max(x + min_x - hx, 0.0, hx - (x + max_x))
+                dy = max(y + min_y - hy, 0.0, hy - (y + max_y))
+                if math.hypot(dx, dy) < radius + 0.5:
+                    out.append({
+                        "part": f"{hole['name']},{block_id}",
+                        "kind": "functional",
+                        "severity": "warning",
+                        "detail": (
+                            f"mounting hole {hole['name']} at ({hx}, {hy}) lands "
+                            f"on {block_id} — move the hole or grow the board"
+                        ),
+                    })
+    except Exception as exc:  # pragma: no cover - advisory must never break
+        out.append({"part": "board", "kind": "check_failed", "severity": "warning",
+                    "detail": f"_hole_clearance_warnings: {exc}"})
+    return out
+
+
 def occupied_box(
     placements: dict[str, tuple[float, float]]
 ) -> tuple[float, float, float, float]:
