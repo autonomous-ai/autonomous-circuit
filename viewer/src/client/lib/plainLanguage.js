@@ -458,6 +458,32 @@ const SEVERITY_RANK = { error: 0, warning: 1, info: 2 };
  * @param {Array<object>} rows buildMessages() output (or normalized warnings)
  * @returns {Array<{code,title,meaning,impact,severity,count,blocking,rows,parts,sample}>}
  */
+/**
+ * The name of the thing a finding is about, short enough to sit in a chip.
+ *
+ * KiCad names its own objects, and it names them for KiCad: a row's `part` can
+ * arrive as `Track [DVDD] on F.Cu, length 0.2973 mm`. Three of the four chips
+ * under one issue on a real board read like that, which turns the "where" line
+ * into noise — and `F.Cu` is not a thing anyone can be expected to know.
+ * A reference designator (`U3`, `C6`) is left exactly as it is; only KiCad's
+ * sentences are shortened, and only to what they identify.
+ */
+export function shortPartName(value) {
+  const text = String(value || "").trim();
+  if (!text || text.length < 12) return text;
+  const track = /^Track\s+\[([^\]]+)\]/i.exec(text);
+  if (track) return `track ${track[1]}`;
+  const via = /^(?:Via|PTH|NPTH)\s+\[([^\]]+)\]/i.exec(text);
+  if (via) return `hole ${via[1]}`;
+  const pad = /^Pad\s+(\S+)\s+\[[^\]]*\]\s+of\s+(\S+)/i.exec(text);
+  if (pad) return `${pad[2]}.${pad[1]}`;
+  const zone = /^Zone\s+\[([^\]]+)\]/i.exec(text);
+  if (zone) return `copper fill ${zone[1]}`;
+  // Anything else keeps its own words; a trailing ", length …mm" clause never
+  // identifies anything, so it goes.
+  return text.replace(/,\s*length\s+[\d.]+\s*mm\s*$/i, "").trim();
+}
+
 export function groupFindings(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const groups = new Map();
@@ -494,7 +520,7 @@ export function groupFindings(rows) {
       group.blocking = true;
     }
     if (!group.sample) group.sample = issueDetailText(row);
-    const part = String(row?.part || "").trim();
+    const part = shortPartName(row?.part);
     if (part && part !== "board" && group.parts.length < 24 && !group.parts.includes(part)) {
       group.parts.push(part);
     }

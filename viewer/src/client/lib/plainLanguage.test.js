@@ -14,6 +14,7 @@ import {
   partRole,
   partsCostUsd,
   plainIssue,
+  shortPartName,
   plainParts,
   plural,
   refdesPrefix,
@@ -303,4 +304,28 @@ test("an unknown code still fails safe — named, not invented", () => {
   assert.equal(issue.known, false);
   assert.equal(issue.meaning, "", "an unknown code must not be given a made-up meaning");
   assert.equal(issue.title, "pcb something new error");
+});
+
+// KiCad names its own objects for KiCad. On a real board three of the four
+// chips under one issue read `Track [DVDD] on F.Cu, length 0.2973 mm`, which
+// turns the "where" line into noise — and F.Cu is not a thing a first-timer
+// can be expected to know.
+test("shortPartName keeps designators and shortens KiCad's own sentences", () => {
+  assert.equal(shortPartName("U3"), "U3");
+  assert.equal(shortPartName("C6"), "C6");
+  assert.equal(shortPartName("J1.B4A9"), "J1.B4A9");
+  assert.equal(shortPartName("Track [DVDD] on F.Cu, length 0.2973 mm"), "track DVDD");
+  assert.equal(shortPartName("Via [GND] on F.Cu - B.Cu"), "hole GND");
+  assert.equal(shortPartName("Pad 2 [VBUS] of J1"), "J1.2");
+  assert.equal(shortPartName("Zone [GND] on B.Cu"), "copper fill GND");
+  assert.equal(shortPartName(""), "");
+  assert.equal(shortPartName(null), "");
+});
+
+test("grouped findings carry the short names", () => {
+  const groups = groupFindings([
+    { severity: "error", kind: "clearance", part: "Track [DVDD] on F.Cu, length 0.2973 mm", detail: "[clearance] too close" },
+    { severity: "error", kind: "clearance", part: "U3", detail: "[clearance] too close" },
+  ]);
+  assert.deepEqual(groups[0].parts, ["track DVDD", "U3"]);
 });
