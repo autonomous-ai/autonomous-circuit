@@ -16,6 +16,7 @@ import { useProjectsStore } from "@/store/projects.ts";
 import { useChatStore } from "@/store/chat.js";
 import { triggerBlobDownload } from "@/ui/download.js";
 import Board3DView from "./Board3DView.jsx";
+import BoardActions from "./BoardActions.jsx";
 import BoardOrientationCube from "./BoardOrientationCube.jsx";
 import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
 import RevisionPager from "./RevisionPager.jsx";
@@ -613,7 +614,21 @@ export default function BoardWorkspace({
         {catalogRefreshing ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Refreshing catalog" />
         ) : null}
-        <div className="ml-auto flex items-center gap-1">
+        {/* Packet actions live on the app header, not the board tab row: the
+            tab row already carries six tabs, the board name, the revision
+            pager and the selection chip, and at Split width that row runs out
+            before these do. Vibe puts the same cluster at the top of the stage
+            for the same reason. */}
+        {selectedEntry ? (
+          <BoardActions
+            className="ml-auto"
+            stem={selectedStem}
+            artifact={artifact}
+            sidecar={effectiveSidecar}
+            onOpenTab={setActiveTab}
+          />
+        ) : null}
+        <div className={cn("flex items-center gap-1", selectedEntry ? "" : "ml-auto")}>
           <SidebarUserCard onOpenAccountScreen={onOpenAccountScreen} />
         </div>
       </header>
