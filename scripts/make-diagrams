@@ -135,7 +135,13 @@ CAP = "#3f3f3f"
 
 def node(c: Canvas, cx, cy, lines, fill, txt, min_w=0, pad=34, lh=38, size=27):
     """A box centred on (cx, cy), sized to its widest line."""
-    w = max(min_w, max(text_width(t, size, True) for t, _ in lines) + pad * 2)
+    # measure each line at the size and weight it is actually drawn with —
+    # sizing every line as bold-at-full-size inflated the box and pushed it
+    # into its neighbour
+    w = max(
+        min_w,
+        max(text_width(t, size if b else size - 4, b) for t, b in lines) + pad * 2,
+    )
     h = len(lines) * lh + 32
     c.rect(cx - w / 2, cy - h / 2, w, h, fill, rx=13)
     c.note_box(cx - w / 2, cy - h / 2, w, h, lines[0][0])
@@ -147,100 +153,89 @@ def node(c: Canvas, cx, cy, lines, fill, txt, min_w=0, pad=34, lh=38, size=27):
 
 # ============================== diagram 1 =================================
 def architecture() -> Canvas:
-    c = Canvas(1740, 900, BG)
+    """Mirrors Anthropic's multi-agent research diagram: chat on the left, the
+    agent system on the right, lead in the middle, subagents underneath.
 
-    c.text(870, 66, "How Autonomous Circuit is put together", 44, INK, "middle", True)
+    One thing theirs does not need: every box in their picture is a model, so
+    they can all be the same blue. Ours has a box where no model runs, and that
+    is the load-bearing claim of the design, so it gets its own colour and says
+    so on its face."""
+    c = Canvas(2000, 1125, BG)
+    c.text(1000, 92, "High-level architecture of Autonomous Circuit", 52, INK,
+           "middle", True)
 
-    # left panel — the chat
-    c.rect(40, 110, 430, 690, PANEL, rx=22)
-    c.text(255, 172, "What you type", 30, GREY, "middle", True)
-    for i, ln in enumerate(
-        [
-            "a coaster that reminds me",
-            "to drink water. it should",
-            "light up when my cup is",
-            "empty. usb-c powered.",
-        ]
-    ):
-        c.text(78, 250 + i * 40, ln, 26, "#2f2f2f")
-    for i, ln in enumerate(
-        [
-            "You get a plan back:",
-            "the parts, the pins,",
-            "what it will cost.",
-            "",
-            "You say yes.",
-            "",
-            "The boards arrive",
-            "from JLCPCB about",
-            "two weeks later.",
-        ]
-    ):
-        if ln:
-            c.text(78, 466 + i * 38, ln, 26, "#8a8a8a")
+    # ---- left: the chat -------------------------------------------------
+    c.rect(30, 168, 500, 900, PANEL, rx=26)
+    c.text(280, 250, "The chat", 40, GREY, "middle", True)
 
-    # right panel — the system
-    c.rect(560, 110, 1140, 690, PANEL, rx=22)
-    c.text(1130, 172, "What happens next", 30, GREY, "middle", True)
+    c.rect(64, 330, 58, 58, "#c8623a", rx=14)
+    c.text(93, 370, "\u25c6", 28, "#ffffff", "middle", True)
+    c.text(146, 352, "What do you", 33, "#1f1f1f", "start", True)
+    c.text(146, 392, "want to build?", 33, "#1f1f1f", "start", True)
 
-    # arrows between panels, captions in their own gap
-    c.line(476, 300, 552, 300)
-    c.text(514, 276, "ask", 24, CAP, "middle")
-    c.line(552, 700, 476, 700)
-    c.text(514, 676, "boards", 24, CAP, "middle")
+    c.parts.append('<circle cx="93" cy="486" r="25" fill="none" stroke="#9a9a9a" stroke-width="2.4"/>'
+                   '<circle cx="93" cy="477" r="9" fill="none" stroke="#9a9a9a" stroke-width="2.4"/>'
+                   '<path d="M 79 502 a 14 12 0 0 1 28 0" fill="none" stroke="#9a9a9a" stroke-width="2.4"/>')
+    for i, ln in enumerate([
+        "a coaster that", "reminds me to", "drink water. it",
+        "should light up", "when my cup is", "empty. usb-c",  "powered.",
+    ]):
+        c.text(146, 470 + i * 40, ln, 27, "#4a4a4a")
 
-    # orchestrator
-    node(
-        c,
-        1110,
-        330,
-        [("circuitcode", True), ("writes the board", False), ("runs the others", False)],
-        BLUE,
-        BLUE_TXT,
-        min_w=340,
-    )
+    # ---- arrows between the panels --------------------------------------
+    c.line(546, 430, 762, 430)
+    c.text(654, 404, "Your request", 26, CAP, "middle", True)
+    c.line(762, 700, 546, 700)
+    c.text(654, 674, "The files to order", 26, CAP, "middle", True)
 
-    # golden blocks, right
-    node(c, 1562, 330, [("Golden", True), ("blocks", True)], BLUE, BLUE_TXT, min_w=184)
-    c.line(1300, 330, 1466, 330)
-    c.text(1383, 306, "parts it may use", 23, CAP, "middle")
+    # ---- right: the system ----------------------------------------------
+    c.rect(770, 168, 1200, 900, PANEL, rx=26)
+    c.text(1370, 250, "Multi-agent electrical engineering system", 38, GREY,
+           "middle", True)
 
-    # the gauntlet, left — deliberately not blue
-    node(
-        c,
-        712,
-        336,
-        [("The checks", True), ("no AI here", False)],
-        CORAL,
-        CORAL_TXT,
-        min_w=240,
-    )
-    c.line(958, 300, 832, 300)
-    c.text(895, 276, "the board", 23, CAP, "middle")
-    c.line(832, 372, 958, 372)
-    c.text(895, 404, "what is wrong with it", 23, CAP, "middle")
+    LEAD_X, LEAD_Y = 1400, 500
+    node(c, LEAD_X, LEAD_Y, [
+        ("circuitcode", True),
+        ("(lead agent)", True),
+        ("Tools: golden blocks + circuitlib", False),
+        ("+ generator + run_subagent", False),
+    ], BLUE, BLUE_TXT, min_w=520, lh=44, size=32)
 
-    # workers — widths measured first, then packed with even gaps and centred
-    ws = [
-        ("circuit-analysis", "what you meant"),
-        ("parts-book", "parts you can buy"),
-        ("design-review", "seven experts"),
-    ]
-    widths = [
-        max(text_width(a, 27, True), text_width(b, 23)) + 68 for a, b in ws
-    ]
-    gap = 46
-    total = sum(widths) + gap * (len(ws) - 1)
-    x = 1130 - total / 2
-    centres = []
-    for w in widths:
-        centres.append(x + w / 2)
+    # memory-equivalent, to the right
+    node(c, 1846, 500, [("Golden", True), ("blocks", True)], BLUE, BLUE_TXT,
+         min_w=210, size=29)
+    c.line(1698, 500, 1740, 500)
+    c.parts.append('<line x1="1740" y1="500" x2="1698" y2="500" stroke="#6f6f6f"'
+                   ' stroke-width="2.1" marker-end="url(#arw)"/>')
+
+    # the one box that is not an agent
+    node(c, 906, 500, [("The checks", True), ("not an agent —", False),
+                       ("plain code, no model", False)], CORAL, CORAL_TXT,
+         min_w=290, size=29)
+    c.line(1112, 470, 1094, 470)          # board out to the checks
+    c.line(1094, 530, 1112, 530)          # findings back
+
+    # subagents, packed from measured widths
+    subs = ["Brief subagent", "Parts subagent", "Review subagent"]
+    widths = [text_width(t, 29, True) + 96 for t in subs]
+    gap = 60
+    total = sum(widths) + gap * 2
+    x = LEAD_X - total / 2
+    for w, name in zip(widths, subs):
+        cx = x + w / 2
+        node(c, cx, 860, [(name, True)], BLUE, BLUE_TXT, min_w=w, size=29)
+        # bidirectional, like the reference
+        c.path(f"M {cx - 14:.0f} 806 L {cx - 14 + (LEAD_X - cx) * 0.30:.0f} 604")
+        c.parts.append(
+            f'<path d="M {cx + 14 + (LEAD_X - cx) * 0.30:.0f} 604 '
+            f'L {cx + 14:.0f} 806" fill="none" stroke="#6f6f6f" '
+            f'stroke-width="2.1" marker-end="url(#arw)"/>')
+        # each subagent loops on itself
+        c.path(f"M {cx + 34:.0f} 916 a 40 30 0 1 0 -66 8")
         x += w + gap
 
-    for cx, w, (name, sub) in zip(centres, widths, ws):
-        node(c, cx, 720, [(name, True), (sub, False)], BLUE, BLUE_TXT, min_w=w)
-        c.path(f"M {cx:.0f} 666 L {1130 + (cx - 1130) * 0.22:.0f} 414")
-
+    c.text(LEAD_X, 1020, "each subagent gets one question and its own context",
+           26, CAP, "middle")
     return c
 
 
@@ -250,9 +245,9 @@ def process() -> Canvas:
     lanes = [
         ("You", "#e6f4ec", "#265f45", 130),
         ("The app", "#cfe9dc", "#265f45", 350),
-        ("circuitcode", "#8ed2b3", "#123d2a", 610),
+        ("circuitcode\n(lead)", "#8ed2b3", "#123d2a", 610),
         ("The checks", CORAL, CORAL_TXT, 920),
-        ("design-review", "#35a97c", "#ffffff", 1240),
+        ("Review subagent", "#35a97c", "#ffffff", 1240),
         ("Golden blocks", "#17875e", "#ffffff", 1560),
     ]
     X = {n: x for n, _, _, x in lanes}
@@ -273,29 +268,29 @@ def process() -> Canvas:
         y += SELF
 
     m("You", "The app", "describe the gadget")
-    m("The app", "circuitcode", "start a session")
-    m("circuitcode", "Golden blocks", "what could build this?")
-    m("Golden blocks", "circuitcode", "these blocks — or: nothing in the catalog fits")
-    m("circuitcode", "You", "the plan: parts, pins, rough cost")
-    m("You", "circuitcode", "you approve", True)
+    m("The app", "circuitcode\n(lead)", "start a session")
+    m("circuitcode\n(lead)", "Golden blocks", "what could build this?")
+    m("Golden blocks", "circuitcode\n(lead)", "these blocks — or: nothing in the catalog fits")
+    m("circuitcode\n(lead)", "You", "the plan: parts, pins, rough cost")
+    m("You", "circuitcode\n(lead)", "you approve", True)
 
     y += 34
     loop_top = y
     y += 56
-    sc("circuitcode", "write the board")
-    m("circuitcode", "The checks", "build it")
+    sc("circuitcode\n(lead)", "write the board")
+    m("circuitcode\n(lead)", "The checks", "build it")
     sc("The checks", "compile it, then check it two ways")
-    m("The checks", "circuitcode", "everything wrong with it")
-    sc("circuitcode", "fix what blocks it")
+    m("The checks", "circuitcode\n(lead)", "everything wrong with it")
+    sc("circuitcode\n(lead)", "fix what blocks it")
     caption_y = y + 8
     y += 54
     loop_bottom = y
 
     y += 56
-    m("circuitcode", "design-review", "nothing blocks it — review it")
-    sc("design-review", "seven experts, each scoring alone")
-    m("design-review", "circuitcode", "what to fix — round again, up to 4 times")
-    m("circuitcode", "The app", "every score 7 or better")
+    m("circuitcode\n(lead)", "Review subagent", "nothing blocks it — review it")
+    sc("Review subagent", "seven experts, each scoring alone")
+    m("Review subagent", "circuitcode\n(lead)", "what to fix — round again, up to 4 times")
+    m("circuitcode\n(lead)", "The app", "every score 7 or better")
 
     # --- pass 2: draw, with everything offset below the header ---
     top = 150
@@ -309,9 +304,13 @@ def process() -> Canvas:
 
     def headers(yy):
         for name, fill, txt, x in lanes:
-            w = text_width(name, 25, True) + 52
-            c.rect(x - w / 2, yy, w, HDR, fill, rx=12)
-            c.text(x, yy + 38, name, 25, txt, "middle", True)
+            rows = name.split("\n")
+            w = max(text_width(r, 25, True) for r in rows) + 52
+            h = HDR if len(rows) == 1 else HDR + 26
+            c.rect(x - w / 2, yy, w, h, fill, rx=12)
+            for i, r in enumerate(rows):
+                c.text(x, yy + (38 if len(rows) == 1 else 32 + i * 28), r, 25,
+                       txt, "middle", True)
 
     headers(top)
     headers(int(bot_y))

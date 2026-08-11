@@ -18,24 +18,26 @@
   <text x="130" y="188" font-size="25" fill="#265f45" text-anchor="middle" font-weight="700">You</text>
   <rect x="274.885" y="150" width="150.23" height="60" rx="12" fill="#cfe9dc"/>
   <text x="350" y="188" font-size="25" fill="#265f45" text-anchor="middle" font-weight="700">The app</text>
-  <rect x="513.72375" y="150" width="192.55249999999998" height="60" rx="12" fill="#8ed2b3"/>
-  <text x="610" y="188" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">circuitcode</text>
+  <rect x="513.72375" y="150" width="192.55249999999998" height="86" rx="12" fill="#8ed2b3"/>
+  <text x="610" y="182" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">circuitcode</text>
+  <text x="610" y="210" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">(lead)</text>
   <rect x="822.94" y="150" width="194.12" height="60" rx="12" fill="#f0c8b4"/>
   <text x="920" y="188" font-size="25" fill="#7a3418" text-anchor="middle" font-weight="700">The checks</text>
-  <rect x="1120.995" y="150" width="238.01000000000002" height="60" rx="12" fill="#35a97c"/>
-  <text x="1240" y="188" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">design-review</text>
+  <rect x="1108.455" y="150" width="263.09" height="60" rx="12" fill="#35a97c"/>
+  <text x="1240" y="188" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">Review subagent</text>
   <rect x="1447.7875" y="150" width="224.42499999999998" height="60" rx="12" fill="#17875e"/>
   <text x="1560" y="188" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">Golden blocks</text>
   <rect x="80.74875" y="1656" width="98.5025" height="60" rx="12" fill="#e6f4ec"/>
   <text x="130" y="1694" font-size="25" fill="#265f45" text-anchor="middle" font-weight="700">You</text>
   <rect x="274.885" y="1656" width="150.23" height="60" rx="12" fill="#cfe9dc"/>
   <text x="350" y="1694" font-size="25" fill="#265f45" text-anchor="middle" font-weight="700">The app</text>
-  <rect x="513.72375" y="1656" width="192.55249999999998" height="60" rx="12" fill="#8ed2b3"/>
-  <text x="610" y="1694" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">circuitcode</text>
+  <rect x="513.72375" y="1656" width="192.55249999999998" height="86" rx="12" fill="#8ed2b3"/>
+  <text x="610" y="1688" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">circuitcode</text>
+  <text x="610" y="1716" font-size="25" fill="#123d2a" text-anchor="middle" font-weight="700">(lead)</text>
   <rect x="822.94" y="1656" width="194.12" height="60" rx="12" fill="#f0c8b4"/>
   <text x="920" y="1694" font-size="25" fill="#7a3418" text-anchor="middle" font-weight="700">The checks</text>
-  <rect x="1120.995" y="1656" width="238.01000000000002" height="60" rx="12" fill="#35a97c"/>
-  <text x="1240" y="1694" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">design-review</text>
+  <rect x="1108.455" y="1656" width="263.09" height="60" rx="12" fill="#35a97c"/>
+  <text x="1240" y="1694" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">Review subagent</text>
   <rect x="1447.7875" y="1656" width="224.42499999999998" height="60" rx="12" fill="#17875e"/>
   <text x="1560" y="1694" font-size="25" fill="#ffffff" text-anchor="middle" font-weight="700">Golden blocks</text>
   <rect x="548" y="686" width="1132" height="590" rx="18" fill="#eaf7f0" stroke="#4cb389" stroke-width="2.5"/>
