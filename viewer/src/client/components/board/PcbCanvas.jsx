@@ -76,6 +76,8 @@ export default function PcbCanvas({
   units = "mm",
   measuring = false,
   showGrid = true,
+  regions = null,
+  showRegions = false,
   flash = null,
   fallbackSrc = "",
   onSelect,
@@ -616,6 +618,43 @@ export default function PcbCanvas({
 
   const hasGeometry = Boolean(index && index.pcbDrawables.length);
 
+  /**
+   * Rooms — a named rectangle per area of the board (see boardRegions.js).
+   * Altium draws exactly this and calls it a room; without it the layout is
+   * two hundred pads and no way to tell the power supply from the radio.
+   *
+   * Screen space, like the other overlays, so the outline stays one pixel and
+   * the label stays legible at any zoom. Three rules keep it from becoming
+   * clutter rather than a map:
+   *   · a room that covers essentially the whole board is a frame around
+   *     everything and says nothing, so it is dropped
+   *   · below about 44 px the label would sit over its own room's copper, so
+   *     the outline stays and the label goes
+   *   · largest first, so a small room's label is never painted under a big
+   *     room's outline
+   */
+  const roomRects = useMemo(() => {
+    if (!showRegions || !Array.isArray(regions) || !regions.length) return [];
+    const boardArea =
+      boxIsReal(boardBox) ? (boardBox.maxX - boardBox.minX) * (boardBox.maxY - boardBox.minY) : 0;
+    const out = [];
+    for (const region of regions) {
+      if (!boxIsReal(region.box)) continue;
+      const w = region.box.maxX - region.box.minX;
+      const h = region.box.maxY - region.box.minY;
+      if (boardArea > 0 && w * h > boardArea * 0.92) continue;
+      const rect = boxToScreenRect(view, inflateBox(region.box, 0.6));
+      out.push({
+        id: region.id,
+        label: region.instances > 1 ? `${region.label} ×${region.instances}` : region.label,
+        rect,
+        area: w * h,
+        showLabel: rect.width >= 44 && rect.height >= 14,
+      });
+    }
+    return out.sort((a, b) => b.area - a.area);
+  }, [showRegions, regions, view, boardBox]);
+
   return (
     <div
       ref={stageRef}
@@ -681,6 +720,50 @@ export default function PcbCanvas({
           </g>
 
           {/* Screen-space overlays: constant stroke width at any zoom. */}
+          {roomRects.length ? (
+            <g data-slot="pcb-rooms" style={{ pointerEvents: "none" }}>
+              {roomRects.map((room) => (
+                <g key={room.id} data-slot="pcb-room" data-label={room.label}>
+                  <rect
+                    x={room.rect.x}
+                    y={room.rect.y}
+                    width={room.rect.width}
+                    height={room.rect.height}
+                    fill={colors.room}
+                    fillOpacity={0.05}
+                    stroke={colors.room}
+                    strokeWidth={1}
+                    strokeDasharray="4 3"
+                    opacity={0.6}
+                    rx={2}
+                  />
+                  {room.showLabel ? (
+                    <>
+                      <rect
+                        x={room.rect.x}
+                        y={Math.max(0, room.rect.y - 14)}
+                        width={room.label.length * 6.1 + 9}
+                        height={13}
+                        fill={colors.background}
+                        fillOpacity={0.82}
+                        rx={2}
+                      />
+                      <text
+                        x={room.rect.x + 4}
+                        y={Math.max(0, room.rect.y - 14) + 9.5}
+                        fill={colors.roomText}
+                        fontSize={10}
+                        fontFamily="ui-sans-serif, system-ui, -apple-system, sans-serif"
+                        opacity={0.95}
+                      >
+                        {room.label}
+                      </text>
+                    </>
+                  ) : null}
+                </g>
+              ))}
+            </g>
+          ) : null}
           {selectionRect ? (
             <rect
               x={selectionRect.x}

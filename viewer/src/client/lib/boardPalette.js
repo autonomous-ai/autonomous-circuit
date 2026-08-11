@@ -68,6 +68,11 @@ const STUDIO = Object.freeze({
   drcError: "#d75b6b",
   drcWarning: "#ffd042",
   cursor: "#ffffff",
+  // Rooms — Altium's name for a named area of board that belongs to one block.
+  // Deliberately not any copper colour: a room is an annotation over the
+  // drawing, and a reader must never mistake its outline for a track.
+  room: "#9fb3c8",
+  roomText: "#dbe6f0",
 });
 
 const ALTIUM_CLASSIC = Object.freeze({
@@ -104,6 +109,8 @@ const ALTIUM_CLASSIC = Object.freeze({
   drcError: "#00ff00",
   drcWarning: "#ffd042",
   cursor: "#ffffff",
+  room: "#8a8a8a",
+  roomText: "#d0d0d0",
 });
 
 export const PALETTES = Object.freeze({ studio: STUDIO, altium: ALTIUM_CLASSIC });

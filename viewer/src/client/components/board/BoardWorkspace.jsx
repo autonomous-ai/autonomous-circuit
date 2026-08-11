@@ -10,6 +10,7 @@ import {
 } from "@/components/chat/chatInputHelpers.js";
 import { boardStatus, boardStem, selectBoardEntries } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
+import { boardRegions } from "@/lib/boardRegions.js";
 import { buildMessages } from "@/lib/boardViolations.js";
 import { groupFindings, partPlainName } from "@/lib/plainLanguage.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
@@ -28,6 +29,7 @@ import useBuildStatus from "./useBuildStatus.js";
 import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
+import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
@@ -45,6 +47,10 @@ const TABS = Object.freeze([
   // EDA tool lands on Split otherwise and sees two drawings with no way in.
   // An engineer is one click (or `0`) from the split view they want.
   { id: "overview", label: "Overview" },
+  // Second, because "can I get it made?" and "does it do what I asked?" are
+  // the two questions a non-engineer has, in that order, and until now only
+  // the first one had an answer anywhere in this app.
+  { id: "function", label: "What it does" },
   { id: "split", label: "Split" },
   { id: "schematic", label: "Schematic" },
   { id: "pcb", label: "PCB" },
@@ -54,6 +60,10 @@ const TABS = Object.freeze([
 ]);
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
+// Tabs that explain the board in words. They carry their own findings list and
+// their own inspector, so the EDA panels along the bottom and the right would
+// be a second copy of the same numbers in the vocabulary the tab is avoiding.
+const PLAIN_TABS = new Set(["overview", "function"]);
 
 /** True when the event came from somewhere the user is typing. */
 function isTypingTarget(target) {
@@ -94,7 +104,9 @@ export default function BoardWorkspace({
   const [circuit, setCircuit] = useState(null);
   const [circuitState, setCircuitState] = useState("idle"); // idle | loading | ready | failed
   const [parts, setParts] = useState([]);
+  const [product, setProduct] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [regionsVisible, setRegionsVisible] = useState(true);
 
   // --- editor state (all Altium analogues; see ALTIUM-NOTES.md)
   const [selection, setSelection] = useState(null);
@@ -136,7 +148,19 @@ export default function BoardWorkspace({
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const openProject = useProjectsStore((state) => state.open);
   const turnInProgress = useChatStore((state) => state.turnInProgress);
+  const chatHistory = useChatStore((state) => state.history);
   const buildStatus = useBuildStatus(currentProjectId || "", turnInProgress);
+
+  // The first thing the user typed for this project, verbatim. It is the only
+  // record of the request in their own words, and quoting it is honest in a
+  // way that paraphrasing it would not be. Absent for a project that was
+  // imported rather than chatted into existence — the tab copes.
+  const requestText = useMemo(() => {
+    const first = (Array.isArray(chatHistory) ? chatHistory : []).find(
+      (turn) => turn.role === "user" && String(turn.userText || "").trim(),
+    );
+    return String(first?.userText || "").trim();
+  }, [chatHistory]);
 
   const selectedEntry = useMemo(
     () => boardEntries.find((entry) => entry.file === selectedFile) || null,
@@ -244,6 +268,28 @@ export default function BoardWorkspace({
     };
   }, [partsUrl]);
 
+  // product.json — the recorded brief. Two tabs read it, so it is fetched once
+  // here rather than twice in the tabs that want it.
+  const productUrl = currentProjectId ? `/projects/${currentProjectId}/product.json?v=${manifestRevision}` : "";
+  useEffect(() => {
+    if (!productUrl) {
+      setProduct(null);
+      return undefined;
+    }
+    let cancelled = false;
+    fetch(productUrl)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled) setProduct(data && typeof data === "object" ? data : null);
+      })
+      .catch(() => {
+        if (!cancelled) setProduct(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productUrl]);
+
   const liveIndex = useMemo(() => (circuit ? buildBoardIndex(circuit) : null), [circuit]);
 
   // --- build history. Recording is a side effect of looking; `viewing` is
@@ -300,6 +346,12 @@ export default function BoardWorkspace({
     [index, effectiveSidecar],
   );
   const findingGroups = useMemo(() => groupFindings(messageRows), [messageRows]);
+
+  // Named areas of the board — one per golden block the composition used, plus
+  // one for whatever the board file wired itself. Drawn on the PCB canvas and
+  // listed on the What-it-does tab, from the same derivation.
+  const regions = useMemo(() => boardRegions(index), [index]);
+
   const buildLine = useMemo(() => buildStatusLine(buildStatus), [buildStatus]);
   const building = buildLine?.tone === "running";
 
@@ -347,7 +399,7 @@ export default function BoardWorkspace({
         setSelection({ kind: row.target.kind, key: row.target.key });
       }
       if (!row.box) return;
-      if (activeTab === "bom" || activeTab === "fab") setActiveTab("split");
+      if (!CANVAS_TABS.has(activeTab)) setActiveTab("split");
       pcbRef.current?.zoomToBox?.(row.box);
       setFlash({ box: row.box, token: Date.now() });
     },
@@ -441,6 +493,7 @@ export default function BoardWorkspace({
       measuring,
       hudVisible,
       showGrid,
+      showRegions: regionsVisible,
       singleLayerMode,
       highlightMethod,
       maskLevel,
@@ -449,6 +502,7 @@ export default function BoardWorkspace({
       onToggleMeasure: () => setMeasuring((value) => !value),
       onToggleHud: () => setHudVisible((value) => !value),
       onToggleGrid: () => setShowGrid((value) => !value),
+      onToggleRegions: () => setRegionsVisible((value) => !value),
       onCycleSingleLayer: () => setSingleLayerMode(nextSingleLayerMode(singleLayerMode)),
       onCycleHighlightMethod: () => setHighlightMethod(nextHighlightMethod(highlightMethod)),
       onToggleUnits: () => setUnits((value) => (value === "mm" ? "mil" : "mm")),
@@ -461,7 +515,18 @@ export default function BoardWorkspace({
         fitAll();
       },
     }),
-    [measuring, hudVisible, showGrid, singleLayerMode, highlightMethod, maskLevel, units, fitAll, handleExportView],
+    [
+      measuring,
+      hudVisible,
+      showGrid,
+      regionsVisible,
+      singleLayerMode,
+      highlightMethod,
+      maskLevel,
+      units,
+      fitAll,
+      handleExportView,
+    ],
   );
 
   const schematicToolContext = useMemo(
@@ -548,6 +613,10 @@ export default function BoardWorkspace({
         case "L":
           setMessagesOpen((value) => !value);
           break;
+        case "r":
+        case "R":
+          setRegionsVisible((value) => !value);
+          break;
         default:
           break;
       }
@@ -603,6 +672,8 @@ export default function BoardWorkspace({
         units={units}
         measuring={measuring}
         showGrid={showGrid}
+        regions={regions}
+        showRegions={regionsVisible}
         flash={flash}
         fallbackSrc={String(artifact.pcbUrl || "")}
         onSelect={handleSelect}
@@ -798,10 +869,22 @@ export default function BoardWorkspace({
                       building={building}
                       buildLine={buildLine}
                       boardName={selectedStem}
-                      productUrl={currentProjectId ? `/projects/${currentProjectId}/product.json` : ""}
+                      product={product}
                       artifact={artifact}
                       onFix={handlePrefillNote}
                       onLocate={handleLocate}
+                      onSelect={handleSelect}
+                      onOpenTab={setActiveTab}
+                      className="min-h-0 flex-1"
+                    />
+                  ) : null}
+                  {activeTab === "function" ? (
+                    <FunctionTab
+                      index={index}
+                      product={product}
+                      regions={regions}
+                      requestText={requestText}
+                      boardName={selectedStem}
                       onSelect={handleSelect}
                       onOpenTab={setActiveTab}
                       className="min-h-0 flex-1"
@@ -882,7 +965,7 @@ export default function BoardWorkspace({
                   {/* Overview carries the same findings, already grouped and
                       in plain words — two lists of the same thing on one
                       screen is how a panel becomes furniture. */}
-                  {activeTab === "overview" ? null : (
+                  {PLAIN_TABS.has(activeTab) ? null : (
                   <MessagesPanel
                     rows={messageRows}
                     groups={findingGroups}
@@ -899,11 +982,11 @@ export default function BoardWorkspace({
                   )}
                 </div>
 
-                {/* Properties is an inspector for the drawing panes. On
-                    Overview it duplicates the same numbers in EDA words and
-                    steals a third of the width from the thing that is trying
-                    to explain them. */}
-                {activeTab === "overview" ? null : (
+                {/* Properties is an inspector for the drawing panes. On the
+                    plain-language tabs it duplicates the same numbers in EDA
+                    words and steals a third of the width from the thing that
+                    is trying to explain them. */}
+                {PLAIN_TABS.has(activeTab) ? null : (
                   <PropertiesPanel
                     index={index}
                     sidecar={effectiveSidecar}

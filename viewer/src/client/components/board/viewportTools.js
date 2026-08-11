@@ -35,6 +35,10 @@ export const VIEWPORT_TOOLS = Object.freeze([
   { id: "measure", group: "inspect", label: "Measure", icon: "ruler", key: "⌘M", state: "toggle" },
   { id: "hud", group: "inspect", label: "Coordinates", icon: "crosshair", key: "⇧H", state: "toggle" },
   { id: "grid", group: "inspect", label: "Grid", icon: "grid", key: "", state: "toggle" },
+  // Rooms. Altium's own name for a named area of board belonging to one block,
+  // and the only thing on this rail that answers "what am I looking at" rather
+  // than "how do I look at it".
+  { id: "rooms", group: "inspect", label: "Block areas", icon: "rooms", key: "R", state: "toggle" },
   { id: "single-layer", group: "layers", label: "Single layer", icon: "layers", key: "⇧S", state: "cycle" },
   { id: "highlight", group: "layers", label: "Highlight method", icon: "contrast", key: "M", state: "cycle" },
   { id: "units", group: "layers", label: "Units", icon: "units", key: "Q", state: "cycle" },
@@ -70,6 +74,8 @@ export function toolState(tool, ctx = {}) {
       return { active: Boolean(ctx.hudVisible), value: "" };
     case "grid":
       return { active: ctx.showGrid !== false, value: "" };
+    case "rooms":
+      return { active: Boolean(ctx.showRegions), value: "" };
     case "single-layer": {
       const mode = String(ctx.singleLayerMode || "off");
       return { active: mode !== "off", value: mode === "off" ? "" : mode };
@@ -126,6 +132,10 @@ export function dispatchViewportTool(id, ctx = {}) {
     case "grid":
       if (!ctx.onToggleGrid) return false;
       ctx.onToggleGrid();
+      return true;
+    case "rooms":
+      if (!ctx.onToggleRegions) return false;
+      ctx.onToggleRegions();
       return true;
     case "single-layer":
       if (!ctx.onCycleSingleLayer) return false;

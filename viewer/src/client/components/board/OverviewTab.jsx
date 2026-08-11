@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -192,7 +192,7 @@ export default function OverviewTab({
   building = false,
   buildLine = null,
   boardName = "",
-  productUrl = "",
+  product = null,
   artifact = null,
   onFix,
   onLocate,
@@ -200,27 +200,6 @@ export default function OverviewTab({
   onOpenTab,
   className,
 }) {
-  const [product, setProduct] = useState(null);
-
-  useEffect(() => {
-    if (!productUrl) {
-      setProduct(null);
-      return undefined;
-    }
-    let cancelled = false;
-    fetch(productUrl)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!cancelled) setProduct(data && typeof data === "object" ? data : null);
-      })
-      .catch(() => {
-        if (!cancelled) setProduct(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [productUrl]);
-
   const verdict = useMemo(() => boardVerdict({ sidecar, groups, building }), [sidecar, groups, building]);
   const counts = useMemo(() => impactCounts(groups), [groups]);
   const roles = useMemo(() => plainParts(index), [index]);

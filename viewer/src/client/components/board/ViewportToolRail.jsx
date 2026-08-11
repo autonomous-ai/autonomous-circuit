@@ -9,6 +9,7 @@ import {
   Plus,
   RotateCcw,
   Ruler,
+  SquareDashed,
 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { dispatchViewportTool, toolState, toolsForSurface } from "./viewportTools.js";
@@ -20,6 +21,7 @@ const ICONS = Object.freeze({
   ruler: Ruler,
   crosshair: Crosshair,
   grid: Grid3x3,
+  rooms: SquareDashed,
   layers: Layers,
   contrast: Contrast,
   image: ImageDown,

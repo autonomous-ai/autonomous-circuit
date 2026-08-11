@@ -20,6 +20,14 @@
 //     schematic_port   → source_port_id  → source_port
 //     schematic_net_label → source_net_id → source_net
 // Resolution is a two-pass walk, so element order in the file never matters.
+//
+// Group identity, and why it is worth indexing. Every golden block a board
+// composes becomes one `source_group` in the compiled JSON, and every part the
+// block brought carries that group's id. That is the only surviving record of
+// "these eleven parts arrived together as the USB-C entry" — the block name
+// itself does not survive compilation. `pcb_group` carries the same id plus a
+// real anchor and box, so the grouping is drawable as well as listable.
+// `boardRegions.js` turns that into labelled areas; here we only index it.
 
 /** The id field for an element is conventionally `<type>_id`. */
 export function elementId(element) {
@@ -243,6 +251,8 @@ const PCB_DRAW_TYPES = new Set([
  *   netByName: Map<string, object>,
  *   netKeyByElementId: Map<string, string>,
  *   componentKeyByElementId: Map<string, string>,
+ *   groups: object[],
+ *   groupById: Map<string, object>,
  *   pcbDrawables: object[],
  *   layers: string[],
  *   stats: {elements:number, components:number, nets:number},
@@ -342,6 +352,7 @@ export function buildBoardIndex(input) {
     const lcsc = String((supplier.jlcpcb || supplier.lcsc || [])[0] || "");
     const component = {
       key: sourceId,
+      groupId: String(source.source_group_id || ""),
       refdes: String(source.name || "").trim(),
       ftype: String(source.ftype || ""),
       mpn: String(source.manufacturer_part_number || ""),
@@ -367,6 +378,10 @@ export function buildBoardIndex(input) {
       pcbElementIds: [],
       schematicElementIds: [],
       netKeys: new Set(),
+      // Pin name → net, the one thing that lets the UI say "GPIO0" instead of
+      // "a pin somewhere on U3". Filled from source_port below.
+      ports: [],
+      portNamesByNetKey: new Map(),
       pads: 0,
     };
     if (pcb) component.pcbBox = pcbElementBox(pcb);
@@ -417,8 +432,18 @@ export function buildBoardIndex(input) {
   }
   for (const port of of("source_port")) {
     const owner = componentBySourceId.get(String(port.source_component_id || ""));
-    const key = netKeyByElementId.get(elementId(port));
-    if (owner && key) owner.netKeys.add(key);
+    if (!owner) continue;
+    const key = netKeyByElementId.get(elementId(port)) || "";
+    const name = String(port.name || "").trim() || `pin${port.pin_number ?? ""}`;
+    owner.ports.push({ name, pinNumber: Number(port.pin_number) || 0, netKey: key });
+    if (!key) continue;
+    owner.netKeys.add(key);
+    const names = owner.portNamesByNetKey.get(key);
+    if (names) {
+      if (!names.includes(name)) names.push(name);
+    } else {
+      owner.portNamesByNetKey.set(key, [name]);
+    }
   }
 
   // --- nets: one row per connectivity key, named from the source layer.
@@ -503,6 +528,68 @@ export function buildBoardIndex(input) {
   const netByName = new Map();
   for (const net of nets) if (!netByName.has(net.name)) netByName.set(net.name, net);
 
+  // --- groups: one row per source_group that actually owns parts.
+  //
+  // A block instance compiles to one source_group; the block's own name is
+  // gone by then, but the membership is not. Groups that own no components of
+  // their own (a bare `<group>` wrapper used only to rotate a child) are
+  // indexed too, so a caller can walk the tree, but they carry no parts.
+  const pcbGroupBySourceId = new Map();
+  for (const element of of("pcb_group")) {
+    const sourceGroupId = String(element.source_group_id || "");
+    if (sourceGroupId && !pcbGroupBySourceId.has(sourceGroupId)) {
+      pcbGroupBySourceId.set(sourceGroupId, element);
+    }
+  }
+  const groups = [];
+  const groupById = new Map();
+  const ensureGroup = (id) => {
+    let group = groupById.get(id);
+    if (group) return group;
+    group = {
+      id,
+      parentId: "",
+      isRoot: false,
+      pcbGroup: null,
+      anchor: null,
+      componentKeys: [],
+      pcbBox: emptyBox(),
+      childIds: [],
+    };
+    groupById.set(id, group);
+    groups.push(group);
+    return group;
+  };
+  for (const element of of("source_group")) {
+    const id = String(element.source_group_id || "");
+    if (!id) continue;
+    const group = ensureGroup(id);
+    group.parentId = String(element.parent_source_group_id || "");
+    // The board's own group is the one nothing else contains. Board-level
+    // glue — the passives a composer wrote directly in the board file rather
+    // than getting from a block — lands there, which is exactly what makes it
+    // worth distinguishing from a block's group.
+    group.isRoot = !group.parentId;
+  }
+  for (const group of groups) {
+    if (group.parentId && groupById.has(group.parentId)) {
+      groupById.get(group.parentId).childIds.push(group.id);
+    }
+  }
+  for (const component of components) {
+    if (!component.groupId) continue;
+    const group = ensureGroup(component.groupId);
+    group.componentKeys.push(component.key);
+    group.pcbBox = unionBox(group.pcbBox, component.pcbBox);
+  }
+  for (const group of groups) {
+    const pcbGroup = pcbGroupBySourceId.get(group.id) || null;
+    group.pcbGroup = pcbGroup;
+    if (pcbGroup?.anchor_position) {
+      group.anchor = { x: NUM(pcbGroup.anchor_position.x), y: NUM(pcbGroup.anchor_position.y) };
+    }
+  }
+
   // --- drawable PCB geometry, in file order (painter order comes later).
   const pcbDrawables = elements.filter((element) => PCB_DRAW_TYPES.has(element.type));
 
@@ -539,6 +626,8 @@ export function buildBoardIndex(input) {
     componentByPcbId,
     componentBySchematicId,
     componentKeyByElementId,
+    groups,
+    groupById,
     nets,
     netByKey,
     netByName,

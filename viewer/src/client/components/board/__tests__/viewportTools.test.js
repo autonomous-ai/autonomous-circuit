@@ -70,6 +70,7 @@ function spyContext() {
       onToggleMeasure: record("measure"),
       onToggleHud: record("hud"),
       onToggleGrid: record("grid"),
+      onToggleRegions: record("rooms"),
       onCycleSingleLayer: record("singleLayer"),
       onCycleHighlightMethod: record("highlight"),
       onToggleUnits: record("units"),
