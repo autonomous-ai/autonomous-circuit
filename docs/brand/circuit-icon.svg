@@ -1,14 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="512" height="512">
   <rect width="24" height="24" rx="5.4" fill="#d2643a"/>
-  <!-- A copper trace between two vias, turning at 45 degrees. Boards are
-       routed at 45, never 90, so the diagonal is the tell that this is a PCB
-       and not a generic network glyph. -->
-  <g fill="none" stroke="#ffffff" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 5.6 18.4 L 11.3 18.4 L 18.4 11.3 L 18.4 5.6"/>
+  <!-- An IC seen from above: body, six legs, and the pin-1 dot every real
+       package carries. A chip is the one electronics mark everybody already
+       reads, and it says silicon as well as circuit.
+
+       Drawn for 16px, which is where it actually lives in the menu bar. Two
+       legs a side read as a battery; four sides of legs went to mush; three a
+       side is the most chip it can be and still hold its silhouette when each
+       leg is barely more than a pixel. -->
+  <g stroke="#fff" stroke-width="2.1" stroke-linecap="round">
+    <path d="M3.0 8.2h3.4M3.0 12h3.4M3.0 15.8h3.4M17.6 8.2h3.4M17.6 12h3.4M17.6 15.8h3.4"/>
   </g>
-  <!-- vias: white annulus, orange drill -->
-  <circle cx="5.6" cy="18.4" r="3.15" fill="#ffffff"/>
-  <circle cx="5.6" cy="18.4" r="1.25" fill="#d2643a"/>
-  <circle cx="18.4" cy="5.6" r="3.15" fill="#ffffff"/>
-  <circle cx="18.4" cy="5.6" r="1.25" fill="#d2643a"/>
+  <rect x="6.1" y="5.5" width="11.8" height="13" rx="2.1" fill="#fff"/>
+  <circle cx="9.3" cy="8.7" r="1.5" fill="#d2643a"/>
 </svg>
