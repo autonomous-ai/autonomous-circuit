@@ -29,6 +29,7 @@
   "pcb_courtyard_rect": 3,
   "pcb_group": 1,
   "pcb_hole": 2,
+  "pcb_keepout": 1,
   "pcb_plated_hole": 4,
   "pcb_port": 28,
   "pcb_silkscreen_path": 10,
