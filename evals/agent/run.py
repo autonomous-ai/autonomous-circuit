@@ -433,6 +433,42 @@ def _worker(args: tuple) -> dict:
     )
 
 
+def ruler() -> dict:
+    """What the number was measured against.
+
+    A first-build fab-ready rate is only comparable to another one taken with
+    the same checks. The rate can improve for two reasons and only one of them
+    is good: the boards got better, or the ruler got shorter. Recording the
+    check set with the score is what makes the difference visible — without it,
+    a check quietly dropped between runs reads as progress.
+
+    Never raises: a missing ruler is a caveat on the report, not a lost run.
+    """
+    out: dict[str, object] = {}
+    try:
+        out["gitHead"] = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=str(REPO),
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip()
+        out["gitDirty"] = bool(subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(REPO),
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip())
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
+        from circuitpy import fab as fab_mod
+        from circuitpy import toolchain
+
+        out["toolchain"] = toolchain.versions()
+        out["verifyBlockingKinds"] = sorted(fab_mod.VERIFY_BLOCKING_KINDS)
+        out["verifyEscalatedKinds"] = sorted(fab_mod.VERIFY_ESCALATED_KINDS)
+    except Exception as exc:  # noqa: BLE001
+        out["rulerNote"] = f"could not read the check set: {exc}"
+    return out
+
+
 def scorecard(results: list[dict]) -> dict:
     boards = [r for r in results if r["expect"] == "board"]
     n = len(boards) or 1
@@ -487,6 +523,13 @@ def main(argv: list[str]) -> int:
         f"model={args.model or 'default'}\n"
     )
     started = time.time()
+    measured_against = ruler()
+    print(
+        f"measured against {measured_against.get('gitHead', '?')}"
+        f"{'+dirty' if measured_against.get('gitDirty') else ''}, "
+        f"{len(measured_against.get('verifyBlockingKinds') or [])} blocking "
+        f"verify kinds\n"
+    )
     results: list[dict] = []
     payloads = [
         (b, args.model, args.timeout_s, args.keep, args.budget_usd) for b in briefs
@@ -506,6 +549,8 @@ def main(argv: list[str]) -> int:
                 "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "model": args.model or "default",
                 "complete": len(results) == len(briefs),
+                # The ruler, recorded with the score. See ruler().
+                "measuredAgainst": measured_against,
                 "wallSeconds": round(time.time() - started),
                 "scorecard": card,
                 "runs": sorted(results, key=lambda r: r["brief"]),
@@ -553,6 +598,12 @@ def main(argv: list[str]) -> int:
     print(f"dishonest 'done'      : {card['dishonestRuns']}")
     print(f"invented a circuit    : {card['inventionRuns']}")
     print(f"cost                  : ${card['totalCostUsd']}")
+    print(
+        f"ruler                 : {measured_against.get('gitHead', '?')}, "
+        f"{len(measured_against.get('verifyBlockingKinds') or [])} blocking + "
+        f"{len(measured_against.get('verifyEscalatedKinds') or [])} escalated "
+        f"verify kinds — compare only against a run with the same set"
+    )
     print(f"\nreport: {args.report}")
     return 0
 
