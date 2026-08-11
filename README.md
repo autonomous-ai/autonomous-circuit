@@ -2,22 +2,28 @@
 
 # Autonomous Circuit: chat with AI → a board you can order
 
-[**Quickstart**](#quickstart) · [How a board gets made](#how-a-board-gets-made) · [The agents](#five-agents-one-job-each) · [The four loops](#four-loops-closing-over-four-different-things) · [Golden blocks](#golden-blocks-compose-never-invent) · [Where it stands](#where-it-actually-stands) · [Contributing](#contributing)
+[**Quickstart**](#quickstart) · [How it works](#how-a-board-gets-made) · [The agents](#five-agents-one-job-each) · [The loops](#four-loops-each-one-fixes-a-different-thing) · [Golden blocks](#golden-blocks-compose-never-invent) · [Where it stands](#where-it-actually-stands) · [Contributing](#contributing)
 
-**Autonomous Circuit turns a sentence into a printed circuit board you can order.** You describe the
-gadget, approve an engineering plan, and the pipeline emits a fab packet — gerbers, a bill of
-materials with orderable part numbers, and a pick-and-place file — that goes straight to JLCPCB.
+**You describe a gadget. You get back a circuit board you can order.**
 
-It is a web app with a chat on one side and the board on the other: schematic, PCB, 3D, BOM, fab.
-Underneath, boards are composed from **nine validated subcircuits** rather than invented from
-datasheets, and every build is graded by a seven-stage gauntlet that runs two independent
-verification substrates against each other.
+Type what you want. Circuit asks a few questions, shows you a plan, and after you say yes it
+designs the board and hands you the files a factory needs: the copper layers, the parts list with
+part numbers you can actually buy, and where each part goes. Upload those to JLCPCB and the boards
+show up in about two weeks.
 
-The limitation, stated up front: the catalog is nine blocks, so it designs the class of boards those
-blocks cover — USB-C powered, 3.3V logic, RP2040-class microcontroller, I²C sensors, buttons, LEDs.
-Ask for a motor driver and it will tell you the ask is out of catalog rather than improvise one.
-That refusal is the feature. A wrong resistor value looks exactly like a right one in every
-rendering, every check and every export, and you find out when the boards arrive.
+It's a web app. Chat on the left, the board on the right — schematic, layout, 3D, parts, files.
+
+Two things make it work. Boards are built out of **nine circuits we already know are right**,
+rather than made up from datasheets each time. And every board is checked twice, by two programs
+that share no code, before anyone is told it's ready.
+
+Here's the catch, up front: nine blocks is not many. Circuit designs the kind of board those blocks
+cover — USB-C power, 3.3V logic, an RP2040 chip, I²C sensors, buttons, LEDs. Ask for a motor driver
+and it will tell you it can't, instead of guessing.
+
+**That refusal is the point.** A wrong resistor looks exactly like a right one. It looks fine in the
+schematic, fine in 3D, fine in every check we run, and fine in the files we send. You find out two
+weeks later when the boards arrive and don't work.
 
 ---
 
@@ -52,63 +58,65 @@ to write `ORDER.md`.
 
 ![The path from an ask to a fab packet, with the two feedback loops that return underneath it](docs/architecture/loops.svg)
 
-Six steps, two of which hand work back.
+Six steps. Two of them hand the work back.
 
-**Ask → Plan.** `circuit-analysis` turns "a coaster that reminds me to drink water" into an
-engineering brief: capabilities, a power budget, a size class. `circuitcode` turns the brief into a
-plan — the blocks it will use, the pin allocation table, the estimated cost band. **You approve the
-plan before a line of board source exists**, because a plan is cheap to argue with and a routed
-board is not.
+**You ask, and get a plan.** `circuit-analysis` turns "a coaster that reminds me to drink water"
+into a list of what the board actually needs: the parts, how much power, how big. `circuitcode`
+turns that into a plan — which blocks, which pin goes where, roughly what it costs. **You approve
+the plan before any board exists.** A plan takes a minute to argue with. A finished board takes
+twenty.
 
-**Plan → Board source.** The agent writes TSX — [tscircuit](https://github.com/tscircuit/tscircuit),
-which is React for circuit boards. Components are elements, nets are props, and the layout is
-computed. This is the substrate that makes an LLM a plausible board designer at all: it is code, so
-the same model that is good at code is good at it.
+**Then it writes the board.** Not in a CAD tool — in code. [tscircuit](https://github.com/tscircuit/tscircuit)
+is React for circuit boards: parts are elements, wires are props, and the layout gets computed.
+This is the trick that makes any of this work. A board written as code is a thing an AI is already
+good at.
 
-**Board source → Gauntlet.** Compile, then grade. Details in the next section.
+**Then it gets checked.** Compile the board, then grade it. That's the next section.
 
-**Gauntlet → Panel.** Once nothing blocks, a seven-lens review panel asks the questions a checker
-cannot: not "is this legal" but "will this work, and can we build it twice."
+**Then it gets reviewed.** Once nothing is broken, seven reviewers look at it. Checks ask "is this
+legal?" Reviewers ask "will this actually work, and can we build a hundred of them?"
 
-**Panel → Fab packet.** `ORDER.md` is written only when the packet is genuinely orderable.
+**Then you get the files.** Circuit only writes the ordering instructions when the board is really
+ready to order.
 
 ---
 
-## Nothing an agent says is a check
+## The AI never decides if the board is good
 
-This is the design decision the rest of the system hangs off.
+Everything else in this repo follows from that one rule.
 
 ![circuit.json is graded twice — by our own checks and by KiCad — and both sets of findings converge](docs/architecture/substrates.svg)
 
-An LLM writes the board and an LLM fixes the board. **No LLM ever decides whether the board is
-good.** Every gate is deterministic code parsing artifacts on disk, and the agent's job is to react
-to what that code found.
+An AI writes the board. An AI fixes the board. **No AI ever gets to say the board is fine.** Every
+verdict comes from plain code reading the files on disk. The AI's job is to react to what that code
+found.
 
-The reason is narrow and practical. A model reviewing its own work grades the reasoning it just
-performed, so it reproduces its own blind spots — and on a PCB the failure is silent. Nothing about
-a 10Ω resistor where 10kΩ belongs looks wrong in a schematic render, a 3D view, or a DRC report.
-The board is beautiful and it does not work.
+The reason is simple. Ask a model to check its own work and it re-runs the same thinking that
+produced the work, so it makes the same mistakes twice and feels confident both times. On a circuit
+board you don't catch that. Put a 10Ω resistor where a 10kΩ belongs and the schematic looks right,
+the 3D view looks right, every check passes. The board is beautiful and dead.
 
-So the pipeline compiles the design to `circuit.json` and then grades that one artifact twice, along
-two paths that share no code:
+So Circuit compiles the design once, then grades that one file twice, down two paths that share no
+code:
 
-- **Our own checks** — element scan, `@tscircuit/checks`, and a DFM pass against the fab's published
-  limits (trace and space ≥ 0.127mm, drill ≥ 0.3mm, copper-to-plated-hole ≥ 0.28mm, and so on).
-- **KiCad** — the same design is exported to `kicad_sch` / `kicad_pcb` and handed to `kicad-cli` for
-  ERC, DRC and schematic-parity. KiCad has never heard of tscircuit. When both agree a board is
-  clean, two independent tools with different bugs agree.
+- **Our checks** — read every element, run `@tscircuit/checks`, then measure the board against what
+  the factory can actually make: traces and gaps at least 0.127mm, drills at least 0.3mm, copper no
+  closer than 0.28mm to a plated hole, and so on.
+- **KiCad** — the same design is converted to KiCad files and handed to `kicad-cli`, which runs its
+  own checks. KiCad has never heard of tscircuit. When both say a board is clean, two programs with
+  different bugs agree.
 
-A third stage diffs the netlists between the two representations, because a converter that quietly
-drops a net would otherwise make the second opinion worthless.
+A third step compares the two versions net by net. A converter that quietly drops a wire would make
+the second opinion worthless.
 
-Two rules keep this honest, and both were learned by being burned:
+Two rules keep this honest. We learned both the hard way.
 
-**Never trust an exit code.** `tscircuit-cli` exits 0 with real errors in its output. Every gate
-parses the artifact it produced, never `$?`.
+**Never trust an exit code.** `tscircuit-cli` exits 0 with real errors in its output. Every check
+reads the file it produced, not the return code.
 
-**The gerbers we ship are the gerbers we checked.** They come out of `kicad-cli` from the converted
-board — the same file KiCad ran DRC against. If `kicad-cli` is missing, the pipeline falls back to
-tscircuit's exporter, raises `unverified_gerbers`, and refuses to write the order instructions.
+**The files we ship are the files we checked.** The copper layers come out of KiCad, from the same
+file KiCad checked. No KiCad installed? Circuit still builds, but it says the files are unverified
+and refuses to write the ordering instructions.
 
 ---
 
@@ -160,71 +168,77 @@ take the disagreement to a human with options.
 Feedback is the whole architecture. There are four loops, and they are worth telling apart because
 each closes over a different object on a different timescale.
 
-**Loop 1 — the gauntlet, over one build.** Seven stages, each parsing artifacts. One of them is
-itself a retry: if a blocking finding looks routing-related, the pipeline rewrites the mirrored
-source with `autorouterEffortLevel="5x"` and compiles again, **keeping the retry only if it has
-strictly fewer blocking warnings**. Measured on our own boards, that dial took a keyboard from 46
-blocking errors to 18 and a puck from 5 to 1, with no design change — at roughly 14× the routing
-time.
+**Loop 1 fixes one build.** Seven checking stages, each reading the files. One of them is a retry:
+if the problem looks like bad wire routing, Circuit rebuilds with the router turned up to maximum
+and **keeps the second attempt only if it has fewer problems than the first**. On our own boards
+that one dial took a keyboard from 46 errors to 18, and a puck from 5 to 1, without changing the
+design at all. It costs about 14× the routing time.
 
-**Loop 2 — the repair loop, over one board.** After a build, the driver silently resumes the agent
-against what the gauntlet found, in three phases with hard caps: structure (≤2 rounds, anything
-blocking), electrical function (≤3), then craft (≤2, always runs once, breaks when a round changes
-no files). This is
-[evaluator-optimizer](https://www.anthropic.com/engineering/building-effective-agents) with a
-deterministic evaluator — the generator grades, the agent fixes, and the caps exist because an
-agent that cannot fix something in three tries is not going to fix it in ten.
+**Loop 2 fixes one board.** After a build, Circuit quietly hands the AI everything the checks
+found and asks it to fix things — in three passes with hard limits. First anything broken (2 tries),
+then anything electrically wrong (3), then anything merely ugly (2). This is
+[evaluator-optimizer](https://www.anthropic.com/engineering/building-effective-agents), except the
+evaluator is code rather than a model. The limits exist because an AI that can't fix something in
+three tries won't fix it in ten.
 
-**Loop 3 — the panel, over one design.** Seven lenses score, must-fix notes route back to
-`circuitcode`, re-score only the lenses whose inputs changed. Cap: four rounds.
+**Loop 3 fixes one design.** Seven reviewers score it, their must-fix notes go back to
+`circuitcode`, and only the reviewers whose subject changed score it again. Four rounds, maximum.
 
-**Loop 4 — the library, over everything.** The first three make *this* board better. The fourth
-makes the *next* board better, and it is the one that matters most:
+**Loop 4 fixes everything after it.** The first three make *this* board better. The fourth makes
+every *future* board better, and it's the one that matters most:
 
-- **The composition matrix** (`evals/composition.py`) builds every legal combination of golden
-  blocks as a real board through the real pipeline. Each block already passed its own gauntlet; no
-  *combination* ever had. Its first run scored 6 of 42 clean, and the cause was in the placement
-  advice the skill gives every agent: it stored each block's *size* and assumed the geometry was
-  centred on the origin. It is not — `usb-c-data`'s copper sits 6.04mm above its origin. Every board
-  built on that advice was wrong by millimetres before anyone wrote a line of TSX.
-- **The cold-brief eval** (`evals/agent/run.py`) gives the agent eight briefs it has never seen, an
-  empty directory each, and no human turn — scored on first-build fab-ready rate. Everything else in
-  the repo measures the pipeline starting from a board somebody already wrote. This measures the
-  product.
-- **The failure corpus** (`packages/circuitpy/tests/test_failure_corpus.py`) keeps every real defect
-  permanently, each paired with the legal geometry just the other side of the line, so a fix cannot
-  be a threshold quietly moved.
+- **Every pair of blocks, built for real** (`evals/composition.py`). Each block passes its own test
+  alone. Nobody had ever checked whether they work *together*. The first run: 6 of 42 combinations
+  came out clean. The cause was our own placement advice — it recorded each block's *size* and
+  assumed the parts sat centred on it. They don't. `usb-c-data`'s copper sits 6.04mm above its
+  origin. So every board built on our advice was off by millimetres before anyone wrote a line of
+  code.
+- **Eight boards it has never seen** (`evals/agent/run.py`). An empty folder, a request, no human
+  help, and one question: did the first build come out orderable? Everything else here tests the
+  pipeline starting from a board someone already wrote. This tests the actual product.
+- **Every bug we ever found, kept forever** (`packages/circuitpy/tests/test_failure_corpus.py`).
+  Each one is stored next to the almost-identical case that is legal, so nobody can "fix" a bug by
+  quietly moving a threshold.
 
-The rule that ties Loop 4 to the rest: **when a board fails and the agent fixes it, the fix belongs
-in the block, the skeleton, the planner's defaults or `circuitlib` — never in advice a user has to
-remember.** A block that needs correct handling to be safe is a block that will be handled wrong.
+The rule tying Loop 4 to the rest: **when a board fails and the AI fixes it, ask why the first
+attempt got it wrong, and fix that instead.** The fix belongs in the block, the starting template,
+or the planner — never in a note someone has to remember. A block that needs careful handling to be
+safe is a block that will get handled wrong.
 
-### Why the loops can afford to be slow
+`docs/lessons.md` tracks this. Every defect we've hit, and where the fix landed. Detecting a
+problem doesn't count as fixing it, so those entries stay open until the problem becomes
+impossible.
 
-A missed defect costs a two-week fab round trip, and that time is opportunity cost, not just
-waiting. So the budget for verification is **days of compute** — which only works if the compute is
-parallel. `packages/circuitpy/src/circuitpy/batch.py` runs builds across a process pool and reports
-compute spent against time waited as two separate numbers, because the claim being made is about
-their ratio. Exhaustive in compute, fast in wall-clock.
+### Why we can afford to check this hard
+
+Miss something and you wait two weeks for new boards. That's not just lost time, it's lost market.
+Against that, almost any amount of checking is cheap — so the budget is **days of compute**.
+
+That only works if the checking runs in parallel. `batch.py` runs builds across every core and
+reports two numbers separately: compute spent, and time you actually waited. The second is the one
+that matters.
 
 ---
 
 ## Golden blocks: compose, never invent
 
-A golden block is a subcircuit whose values, polarities, pinouts and land patterns were verified
-once by a human and then frozen. Nine exist today: USB-C power and data entry, a 3.3V LDO, an I²C
-bus, a status LED, a tactile switch, an RP2040 core, a BME280 sensor, and a WS2812 chain.
+A golden block is a small circuit that someone checked once and then froze — the part values, which
+way round things go, which pin is which, the pad shapes. Nine exist: USB-C power, USB-C with data,
+a 3.3V regulator, an I²C bus, a status LED, a button, an RP2040 core, a BME280 sensor, and a
+WS2812 LED chain.
 
 Each ships a `BLOCK.md` datasheet — pin contract, rail budget, pinned LCSC parts with a verification
 date, provenance — and a graded testbench that builds it as a **real board** through the real
 pipeline, with routing on and production board constraints applied. A block that would block any
 board built from it fails its own test, named after itself.
 
-The doctrine exists because of the gap in the previous section: no deterministic check catches a
-wrong value or a mirrored pinout, since every representation inherits the same wrong source. Blocks
-eliminate that class by construction, and the gauntlet verifies everything *composition* can break.
+This exists because of the gap two sections up. No check catches a wrong value or a flipped pinout,
+because everything we render comes from the same source — if the source is wrong, everything agrees
+with it. Freezing the values removes that whole class of bug. The checks then cover what putting
+blocks *together* can break.
 
-`block_for(capability)` returns `None` when we have not built one yet, and that is a real answer.
+Ask for something we don't have a block for and Circuit says so. That's a real answer, not a
+failure.
 
 ### The safety envelope
 
@@ -270,7 +284,10 @@ packages/
   verify/          deeper verification — SPICE, gerber truth
 skills/            the agents (SKILL.md each) + circuitlib, the number owner
 evals/             composition matrix, cold-brief agent eval
-examples/          real product boards — Hydrate coaster, Harness puck, Terminal keyboard
+examples/          real product boards — Hydrate coaster, Harness puck, Terminal
+                   keyboard. Each folder has the board, its gerbers, BOM, KiCad
+                   project and a REVIEW.md; examples/README.md is the packet we
+                   send an engineer before release
 docs/              circuit-interfaces.md is the frozen contract; changes are append-only
 toolchain/         pinned tscircuit, exact version
 ```

@@ -166,9 +166,12 @@ def board_sheet(name: str, sidecar: dict, errors: list[dict]) -> str:
 
 | File | What it is |
 |---|---|
-{chr(10).join(f'| `{Path(rel).name}` | {why} |' for rel, why in BOARD_ARTIFACTS.items())}
+{chr(10).join(f'| [`{rel}`](boards/{rel}) | {why} |' for rel, why in BOARD_ARTIFACTS.items())}
 
-**Start with `kicad-project.zip`.** Open it in KiCad, run DRC with your own
+Also here: [`boards/main.tsx`](boards/main.tsx) (the board, as code) and
+[`findings.json`](findings.json) (every finding, in full).
+
+**Start with [`kicad-project.zip`](boards/main_fab/kicad-project.zip).** Open it in KiCad, run DRC with your own
 rules, and look at the board in a tool we did not write. If our checks and
 yours disagree, that disagreement is the most valuable output of this review.
 
@@ -210,13 +213,13 @@ Reviewer: ______________________  Date: ____________
 
 def approval_doc(boards: list[tuple[str, int]], block_ids: list[str]) -> str:
     board_rows = "\n".join(
-        f"| [{name}](boards/{name}/REVIEW.md) | "
+        f"| [{name}]({name}/REVIEW.md) | "
         + (f"{n} blocking" if n else "clean")
         + " |"
         for name, n in boards
     )
     block_rows = "\n".join(
-        f"| [`{b}`](blocks/{b}/REVIEW.md) | frozen · composed into user boards unchanged |"
+        f"| [`{b}`](../packages/golden-blocks/blocks/{b}/REVIEW.md) | frozen · composed into user boards unchanged |"
         for b in block_ids
     )
 
@@ -270,12 +273,12 @@ written together and can be wrong together.
 
 ### 2. The rules the tool enforces
 
-[`rules/fab-limits.md`](rules/fab-limits.md) is every number our DFM gate
+[`docs/review/fab-limits.md`](../docs/review/fab-limits.md) is every number our DFM gate
 checks, with the value and what it is checked against. If one of these numbers
 is wrong, every board the tool ever produces is graded against a wrong rule.
 Please check them against JLCPCB's published capabilities.
 
-[`rules/safety-envelope.md`](rules/safety-envelope.md) is what the tool refuses
+[`docs/review/safety-envelope.md`](../docs/review/safety-envelope.md) is what the tool refuses
 to design, at planning time, before anything is built.
 
 ### 3. Three boards the tool produced
@@ -305,7 +308,7 @@ on two measured numbers rather than on these examples:
 - **First-build fab-ready rate** — the tool given briefs it has never seen, an
   empty directory each, no human turn.
 
-Current values are in `docs/night-log-2026-08-11.md` and move daily. The
+Current values are in [`docs/lessons.md`](../docs/lessons.md) and the night logs, and move daily. The
 question for you: **what would those numbers have to be before you would
 release this?** We would rather have your threshold now than argue about ours
 later.
@@ -426,31 +429,26 @@ than after.
 
 
 def main() -> int:
+    """Write the review sheets in place, so a GitHub link is the packet.
+
+    An earlier version built a separate directory and zipped it. Dee wanted a
+    link he can send, and a zip is not a link — so the sheets now live beside
+    the thing they review. `examples/<project>/REVIEW.md` sits next to that
+    board's own gerbers, BOM and KiCad project; each block's sheet sits next to
+    its source. Nothing is copied, so nothing can go stale against the original.
+    """
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out", default="review-packet", help="output directory")
-    ap.add_argument("--no-zip", action="store_true", help="skip the archive")
-    args = ap.parse_args()
+    ap.parse_args()
 
-    out = (REPO / args.out).resolve()
-    if out.exists():
-        shutil.rmtree(out)
-    (out / "rules").mkdir(parents=True)
-
-    # --- blocks (the important half) ---
+    # --- one sheet per block, beside its source ---
     block_ids = sorted(d.name for d in BLOCKS_DIR.iterdir() if d.is_dir())
     for bid in block_ids:
         src = BLOCKS_DIR / bid
-        dst = out / "blocks" / bid
-        dst.mkdir(parents=True)
-        md = ""
-        for f in src.iterdir():
-            if f.is_file():
-                shutil.copy2(f, dst / f.name)
-                if f.name == "BLOCK.md":
-                    md = f.read_text()
-        (dst / "REVIEW.md").write_text(block_sheet(bid, md))
+        md_path = src / "BLOCK.md"
+        md = md_path.read_text() if md_path.exists() else ""
+        (src / "REVIEW.md").write_text(block_sheet(bid, md))
 
-    # --- boards ---
+    # --- one sheet per board, beside its artifacts ---
     boards: list[tuple[str, int]] = []
     for ex in sorted(p for p in EXAMPLES_DIR.iterdir() if p.is_dir()):
         board_dir = ex / "boards"
@@ -459,43 +457,26 @@ def main() -> int:
         sidecar = load_sidecar(board_dir)
         errors = blocking(sidecar)
         boards.append((ex.name, len(errors)))
-
-        dst = out / "boards" / ex.name
-        dst.mkdir(parents=True)
-        for rel in BOARD_ARTIFACTS:
-            src = board_dir / rel
-            if src.exists():
-                shutil.copy2(src, dst / Path(rel).name)
-        for extra in ("main.tsx", "main.board.json"):
-            if (board_dir / extra).exists():
-                shutil.copy2(board_dir / extra, dst / extra)
-        (dst / "findings.json").write_text(
+        (ex / "REVIEW.md").write_text(board_sheet(ex.name, sidecar, errors))
+        (ex / "findings.json").write_text(
             json.dumps(sidecar.get("validation", {}).get("warnings", []), indent=2)
         )
-        (dst / "REVIEW.md").write_text(board_sheet(ex.name, sidecar, errors))
 
-    (out / "rules" / "fab-limits.md").write_text(fab_limits_doc())
-    (out / "rules" / "safety-envelope.md").write_text(SAFETY_DOC)
-    (out / "APPROVAL.md").write_text(approval_doc(boards, block_ids))
+    rules = REPO / "docs" / "review"
+    rules.mkdir(parents=True, exist_ok=True)
+    (rules / "fab-limits.md").write_text(fab_limits_doc())
+    (rules / "safety-envelope.md").write_text(SAFETY_DOC)
+    (EXAMPLES_DIR / "README.md").write_text(approval_doc(boards, block_ids))
 
     n_unready = sum(1 for _, n in boards if n)
-
-    # One file to send. A directory inside a git repo is not something anyone
-    # can forward to an engineer.
-    archive = None
-    if not args.no_zip:
-        archive = Path(shutil.make_archive(str(out), "zip", root_dir=out))
-
-    print(f"packet: {out}")
-    print(f"  {len(block_ids)} blocks to audit")
-    print(f"  {len(boards)} boards, {n_unready} with blocking findings")
-    if archive:
-        mb = archive.stat().st_size / 1_000_000
-        print(f"\n  SEND THIS →  {archive}  ({mb:.1f} MB)")
+    print(f"  {len(block_ids)} block sheets  -> packages/golden-blocks/blocks/*/REVIEW.md")
+    print(f"  {len(boards)} board sheets  -> examples/*/REVIEW.md")
+    print(f"  rules          -> docs/review/")
+    print(f"\n  SHARE THIS →  https://github.com/autonomous-ai/autonomous-circuit/tree/main/examples")
     if n_unready:
         print(
             f"\n  WARNING: {n_unready} board(s) still have blocking findings. "
-            "This packet is not ready to send."
+            "Not ready to share."
         )
     return 0
 
