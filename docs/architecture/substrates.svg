@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1380 470" width="1380" height="470" font-family="Avenir Next, Nunito, Segoe UI, Helvetica, sans-serif">
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#a1a099" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1380" height="470" fill="#ffffff"/>
+
+  <!-- spine -->
+  <rect x="50"   y="202" width="216" height="66" rx="33" fill="#fbf0ed" stroke="#f0c5b6" stroke-width="2"/>
+  <text x="158"  y="235" fill="#ad5130" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Board source</text>
+
+  <rect x="430"  y="202" width="188" height="66" fill="#eff5ea" stroke="#b8d7a6" stroke-width="2"/>
+  <text x="524"  y="235" fill="#5a912f" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">circuit.json</text>
+
+  <rect x="1010" y="202" width="146" height="66" fill="#f3f2f9" stroke="#a9a3c9" stroke-width="2"/>
+  <text x="1083" y="235" fill="#5d579d" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Findings</text>
+
+  <line x1="266" y1="235" x2="422" y2="235" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+  <text x="344" y="214" fill="#2b2b29" font-size="22" text-anchor="middle">compile</text>
+
+  <!-- branch up: our own checks -->
+  <rect x="700" y="60" width="204" height="66" fill="#eff5ea" stroke="#b8d7a6" stroke-width="2"/>
+  <text x="802" y="93" fill="#5a912f" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Our checks</text>
+
+  <path d="M 618 218 L 660 218 L 660 93 L 692 93" fill="none" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+  <text x="802" y="150" fill="#2b2b29" font-size="22" text-anchor="middle">elements, DFM, the fab's limits</text>
+
+  <path d="M 904 93 L 952 93 L 952 218 L 1002 218" fill="none" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+
+  <!-- branch down: KiCad, an independent second opinion -->
+  <rect x="700" y="344" width="204" height="66" fill="#eff5ea" stroke="#b8d7a6" stroke-width="2"/>
+  <text x="802" y="377" fill="#5a912f" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">KiCad</text>
+
+  <path d="M 618 252 L 660 252 L 660 377 L 692 377" fill="none" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+  <text x="802" y="326" fill="#2b2b29" font-size="22" text-anchor="middle">ERC, DRC, netlist parity</text>
+
+  <path d="M 904 377 L 952 377 L 952 252 L 1002 252" fill="none" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+
+  <!-- terminal -->
+  <rect x="1240" y="202" width="90" height="66" rx="33" fill="#fbf0ed" stroke="#f0c5b6" stroke-width="2"/>
+  <text x="1285" y="235" fill="#ad5130" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Fab</text>
+
+  <line x1="1156" y1="235" x2="1232" y2="235" stroke="#a1a099" stroke-width="2" marker-end="url(#ah2)"/>
+</svg>

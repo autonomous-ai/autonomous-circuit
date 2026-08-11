@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1826 430" width="1826" height="430" font-family="Avenir Next, Nunito, Segoe UI, Helvetica, sans-serif">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#a1a099" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1826" height="430" fill="#ffffff"/>
+
+  <!-- spine -->
+  <rect x="60"   y="70" width="90"  height="66" rx="33" fill="#fbf0ed" stroke="#f0c5b6" stroke-width="2"/>
+  <text x="105"  y="103" fill="#ad5130" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Ask</text>
+
+  <rect x="280"  y="70" width="104" height="66" fill="#f3f2f9" stroke="#a9a3c9" stroke-width="2"/>
+  <text x="332"  y="103" fill="#5d579d" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Plan</text>
+
+  <rect x="554"  y="70" width="216" height="66" fill="#eff5ea" stroke="#b8d7a6" stroke-width="2"/>
+  <text x="662"  y="103" fill="#5a912f" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Board source</text>
+
+  <rect x="910"  y="70" width="160" height="66" fill="#f3f2f9" stroke="#a9a3c9" stroke-width="2"/>
+  <text x="990"  y="103" fill="#5d579d" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Gauntlet</text>
+
+  <rect x="1260" y="70" width="118" height="66" fill="#f3f2f9" stroke="#a9a3c9" stroke-width="2"/>
+  <text x="1319" y="103" fill="#5d579d" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Panel</text>
+
+  <rect x="1578" y="70" width="188" height="66" rx="33" fill="#fbf0ed" stroke="#f0c5b6" stroke-width="2"/>
+  <text x="1672" y="103" fill="#ad5130" font-size="25" font-weight="600" text-anchor="middle" dominant-baseline="central">Fab packet</text>
+
+  <!-- spine arrows -->
+  <line x1="150"  y1="103" x2="272"  y2="103" stroke="#a1a099" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="211"  y="82" fill="#2b2b29" font-size="22" text-anchor="middle">a brief</text>
+
+  <line x1="384"  y1="103" x2="546"  y2="103" stroke="#a1a099" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="465"  y="82" fill="#2b2b29" font-size="22" text-anchor="middle">you approve</text>
+
+  <line x1="770"  y1="103" x2="902"  y2="103" stroke="#a1a099" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="836"  y="82" fill="#2b2b29" font-size="22" text-anchor="middle">compiled</text>
+
+  <line x1="1070" y1="103" x2="1252" y2="103" stroke="#a1a099" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="1161" y="82" fill="#2b2b29" font-size="22" text-anchor="middle">zero blocking</text>
+
+  <line x1="1378" y1="103" x2="1570" y2="103" stroke="#a1a099" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="1474" y="82" fill="#2b2b29" font-size="22" text-anchor="middle">every lens ≥ 7</text>
+
+  <!-- feedback: the gauntlet sends blocking findings back -->
+  <path d="M 990 136 L 990 250 L 640 250 L 640 136" fill="none" stroke="#a1a099" stroke-width="2"
+        stroke-dasharray="7 6" marker-end="url(#ah)"/>
+  <text x="815" y="238" fill="#2b2b29" font-size="22" text-anchor="middle">blocking findings · at most 2 rounds</text>
+
+  <!-- feedback: the panel sends must-fix notes back -->
+  <path d="M 1319 136 L 1319 350 L 684 350 L 684 136" fill="none" stroke="#a1a099" stroke-width="2"
+        stroke-dasharray="7 6" marker-end="url(#ah)"/>
+  <text x="1001" y="338" fill="#2b2b29" font-size="22" text-anchor="middle">must-fix notes · at most 4 rounds</text>
+</svg>
