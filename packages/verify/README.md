@@ -44,11 +44,34 @@ classes were found and removed *before* shipping, each now a regression test:
 | a poured board looking empty | `G36` region contours skipped by the reader |
 | a 120 mA indicator LED, then an 8.7 GA one | a piecewise-linear diode that never converged, then a Newton step trusted while the limiter was holding it down |
 
-## Wiring it in
+## Wiring it in — done 2026-08-11
 
-Nothing here is wired into the pipeline — that is deliberate, since
-`packages/circuitpy` belongs to another track. Each check already returns the
-pipeline's warning shape, so wiring is a call, not a translation:
+All seven are live in the pipeline as **stage 4c** (the five circuit-json
+checks, beside the DFM gate) and **stage 5b** (the gerber check, after the
+packet is written). See `docs/circuit-interfaces-CHANGES.md` for the contract
+entry. The adapter is `circuitpy/verify_bridge.py`; it finds `verifylib`
+vendored beside `circuitpy` or in the repo, and emits one `verify_unavailable`
+info if it cannot — an absent check must be visible, never silent.
+
+**The severity policy lives on the fab profile, not in the checks**
+(`circuitpy/fab.py`: `VERIFY_BLOCKING_KINDS`, `VERIFY_ESCALATED_KINDS`,
+`apply_verify_policy`). Three states, and the default is the important one:
+
+- **blocking** — the check's own `error` is honoured and stops `fab.ready`
+- **escalated** — this fab raises a `warning` to `error`, with the reason in
+  the table beside it
+- **default** — capped at `warning`, whatever the check said
+
+A kind nobody has classified is capped. Adding a check must never move the bar
+on its own: a bar that improves for a reason nobody chose is indistinguishable
+from a bar that broke.
+
+`corners` is deliberately **not** in the build. It is the only check whose cost
+is noticeable, it can never block, and its job is to catch what a nominal pass
+already called clean. `CIRCUIT_VERIFY_CORNERS=1` opts in; `CIRCUIT_VERIFY_OFF=1`
+turns the whole thing off for a bisect.
+
+The call shape, if you need it elsewhere:
 
 ```python
 from verifylib import (
@@ -65,30 +88,27 @@ warnings.extend(gerber_truth.check(board, str(gerbers_zip)).findings)   # after 
 warnings.extend(corners.check(board).findings)                          # off the critical path
 ```
 
-Suggested placement in the seven-stage gauntlet (`docs/circuit-interfaces.md`
-§1):
-
-- **stage 4** (DFM + BOM) gains `assembly`, `netclass`, `dc`, `review` and
-  `thermal` — all five read `circuit.json` and together add well under two
-  seconds.
-- **a new stage 5b**, after the fab export, gains `gerber` — it cannot run
-  earlier because the artifact does not exist yet, and it is the only check
-  that inspects what the fab receives.
-- `corners` should run **beside** the build, not inside it. It is the only
-  check whose cost is noticeable (a 500-corner sweep is seconds), it never
-  produces an `error`, and its whole purpose is to catch what a nominal-only
-  pass already called clean.
-
-Two contract notes for whoever wires it:
+Two contract notes:
 
 1. Every `kind` here is new, and the driver switches only on `severity`, so
-   nothing downstream needs to learn them (contract §1: "the driver never
+   nothing downstream had to learn them (contract §1: "the driver never
    switches on `kind`").
-2. The severities are chosen so `fab.ready` stays hard to earn but does not
-   move: blocking errors are only ever things the fab or the line will refuse
-   (a bottom-side part on a single-side order, a missing drill, a pad with no
-   mask opening, an LED drawing 120 mA). Everything advisory carries the
-   measurement that justifies it.
+2. `fab.ready` is hard to earn and its *definition* did not move. Blocking is
+   reserved for what the fab refuses or what arrives unusable. Three findings
+   are escalated from warning to error, each with its measurement:
+   silkscreen below the fab's line-width floor (100% of strokes on all three
+   example boards, 1145 of them at 0.033 mm against 0.15 — the layer will not
+   print, and a board with no reference designators cannot be reviewed or
+   reworked), mask webs at 0.114 mm against a 0.2 mm minimum (they burn off and
+   the pads bridge), and a debug interface reaching no connector (the board can
+   never run its firmware).
+
+   Deliberately **not** escalated, with the reasoning recorded in
+   `fab.py` so nobody re-derives it: a 96 °C junction (inside the part's own
+   125 °C rating with 29 °C spare), and 649 mA on copper rated 604 mA by an
+   IPC-2221 figure that already ignores the adjacent plane — 7% over a
+   conservative advisory number is an 11 °C rise instead of 10, not a defect.
+   The net-class check still blocks below 70% of required capacity.
 
 ## Wall-clock, not compute
 

@@ -8,6 +8,7 @@
 #
 # Currently vendors:
 #   packages/circuitpy/src/circuitpy/  →  skills/circuitcode/scripts/packages/circuitpy/
+#   packages/verify/src/verifylib/     →  skills/circuitcode/scripts/packages/verifylib/
 #   packages/golden-blocks/blocks/     →  skills/circuitcode/blocks/
 #
 # The blocks are vendored because circuitcode copies them into each new board
@@ -63,6 +64,20 @@ if [ ! -d "${CIRCUITPY_SRC}" ]; then
 fi
 vendor_package "${CIRCUITPY_SRC}" "${CIRCUITCODE_VENDOR}"
 echo "vendored circuitpy → skills/circuitcode/scripts/packages/circuitpy"
+
+# verifylib: the standalone pre-fabrication checks circuitpy calls at stages
+# 4c and 5b. Vendored beside circuitpy so the skill stays self-contained; the
+# pipeline degrades to one `verify_unavailable` info if it is missing rather
+# than failing, but a skill runtime shipping without it is graded on geometry
+# alone, which is the coverage we spent this work closing.
+VERIFY_SRC="${REPO_ROOT}/packages/verify/src/verifylib"
+VERIFY_VENDOR="${REPO_ROOT}/skills/circuitcode/scripts/packages/verifylib"
+if [ -d "${VERIFY_SRC}" ]; then
+  vendor_package "${VERIFY_SRC}" "${VERIFY_VENDOR}"
+  echo "vendored verifylib → skills/circuitcode/scripts/packages/verifylib"
+else
+  echo "note: no verifylib at ${VERIFY_SRC}; skipping"
+fi
 
 BLOCKS_SRC="${REPO_ROOT}/packages/golden-blocks/blocks"
 BLOCKS_VENDOR="${REPO_ROOT}/skills/circuitcode/blocks"

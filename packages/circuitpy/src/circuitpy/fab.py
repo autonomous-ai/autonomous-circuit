@@ -97,9 +97,129 @@ class FabProfile:
         "Assembled, 5x ESP32-class: ~$75-110 all-in, ~1-2 weeks to door.",
         "Extended parts add a ~$3/line loading fee; Basic parts avoid it.",
     )
+    # Which of the standalone `verifylib` findings block `fab.ready`. Kept on
+    # the profile, not in the checks, so an EE moves the line here in one
+    # place — see VERIFY_BLOCKING_KINDS below for the reasoning per kind.
+    verify_blocking: frozenset[str] = frozenset()
+    verify_escalated: frozenset[str] = frozenset()
 
 
-PROFILES: dict[str, FabProfile] = {"jlcpcb": FabProfile(id="jlcpcb")}
+# ---------------------------------------------------------------------------
+# The verify policy: what a standalone check does to `fab.ready`.
+# ---------------------------------------------------------------------------
+#
+# `verifylib` (packages/verify) sees things no other gate can, and each finding
+# has to be assigned a consequence. The rule is the one the north star sets:
+# **block only what makes the delivered board unusable or the order refused.**
+# Everything else advises, with its measurement attached.
+#
+# Three states, and the default matters most:
+#
+#   blocking  — the check's own `error` is honoured and stops `fab.ready`
+#   escalated — this fab raises the check's `warning` to `error`, with a reason
+#   (default) — capped at `warning`, whatever the check said
+#
+# A kind nobody has classified is capped. That is deliberate: adding a new
+# check must never silently move the bar, because the bar improving for a
+# reason nobody chose is indistinguishable from the bar breaking.
+
+#: Findings whose `error` severity is honoured. Each one means the fab refuses
+#: the order, or the board arrives and cannot do its job.
+VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
+    # The packet does not describe the board. Everything downstream of this is
+    # the fab building something we did not design.
+    "gerber_missing_layer",
+    "gerber_unreadable",
+    "gerber_outline_empty",
+    "gerber_outline_mismatch",
+    "gerber_scale_mismatch",
+    "gerber_drill_empty",
+    "gerber_drill_missing",
+    "gerber_drill_size_mismatch",
+    "gerber_drill_plating_mismatch",
+    "gerber_pad_missing",
+    "gerber_pad_masked_over",
+    "gerber_trace_width",
+    # The assembly line refuses or silently skips the part.
+    "dfa_bottom_side",
+    "dfa_board_size",
+    "dfa_pin_pitch",
+    "dfa_off_board",
+    "dfa_courtyard_overlap",
+    # The board powers up and destroys itself.
+    "dc_led_current",
+    "dc_rail_overload",
+    "thermal_resistor_power",
+    "netclass_trace_width",
+})
+
+#: Findings this fab raises from `warning` to `error`. Each needs a reason
+#: sharper than "it would be nice", because each one stops a board shipping.
+VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
+    # Measured 2026-08-11: 100% of silkscreen strokes on all three example
+    # boards are under JLCPCB's 0.15mm floor, 1145 of them at 0.033mm. This is
+    # not a few thin labels — the whole layer will print broken or be dropped,
+    # and a board where no part carries a reference designator cannot be
+    # reviewed, reworked or debugged. It is also a single-place fix in the
+    # exporter, which is the definition of a shift-left bug.
+    "gerber_silk_line_width",
+    # A mask web under the fab's minimum burns off in the reflow oven and the
+    # two pads it separated become one joint. Measured at 0.114mm between
+    # USB-C pads on every example board, against a 0.2mm rule. A bridged USB
+    # connector is a dead board, and it is not visible until it is built.
+    "gerber_mask_sliver",
+    # A debug interface that reaches no connector or test point cannot be used
+    # once the board is assembled, so the board can never run the firmware it
+    # was designed for. "Arrives and is useless" is exactly the bar.
+    "review_debug_unreachable",
+})
+
+#: Deliberately NOT escalated, with the reasoning recorded so the next person
+#: does not have to re-derive it:
+#:
+#: * `thermal_regulator` at 96 degC junction — hot, and inside the part's own
+#:   125 degC rating with 29 degC to spare. Blocking a part operating within
+#:   spec would be a gate set to a preference.
+#: * `netclass_trace_width` at 649mA on copper good for 604mA — 7% over an
+#:   IPC-2221 figure that already ignores the adjacent plane and is the
+#:   conservative direction to be wrong in. It means an 11 degC rise instead of
+#:   10. The check still blocks below 70% of required capacity, which is a real
+#:   failure rather than a rounding one.
+#: * `dfa_edge_clearance` in the 1.0-2.5mm band — JLCPCB assembles these; the
+#:   part is placed, not refused. Below 1.0mm it is in the conveyor rail and
+#:   the check raises its own error.
+#: * `review_decoupling_missing` — the board usually works. Real, and worth a
+#:   human's attention, but not worth refusing to let anyone order the board.
+
+_JLCPCB = FabProfile(
+    id="jlcpcb",
+    verify_blocking=VERIFY_BLOCKING_KINDS,
+    verify_escalated=VERIFY_ESCALATED_KINDS,
+)
+
+PROFILES: dict[str, FabProfile] = {"jlcpcb": _JLCPCB}
+
+
+def apply_verify_policy(findings: list[dict], profile: FabProfile) -> list[dict]:
+    """Re-grade standalone findings against this fab's policy.
+
+    The checks say what they measured; the fab profile says what it costs.
+    Keeping those apart is what lets an EE move the line without touching a
+    check, and lets a check be reused by a fab with different rules.
+    """
+    out: list[dict] = []
+    for raw in findings:
+        item = dict(raw)
+        kind = str(item.get("kind") or "")
+        severity = str(item.get("severity") or "info")
+        if kind in profile.verify_escalated:
+            item["severity"] = "error"
+        elif kind in profile.verify_blocking:
+            pass  # the check's own severity stands, error included
+        elif severity == "error":
+            item["severity"] = "warning"
+        out.append(item)
+    return out
 
 
 def get_profile(fab_id: str) -> FabProfile:

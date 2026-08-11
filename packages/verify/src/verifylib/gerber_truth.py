@@ -64,6 +64,10 @@ DRILL_TOLERANCE_MM = 0.06
 #: The outline is plotted as a stroked polyline whose centreline is the board
 #: edge; corners are approximated by short chords.
 OUTLINE_TOLERANCE_MM = 0.10
+#: Slack on any "is this under the floor" comparison. A micron is three orders
+#: below what a fab can hold, so a gap measuring 0.1999mm against a 0.2mm rule
+#: is a float tie, not a violation.
+MEASUREMENT_EPSILON_MM = 0.001
 
 
 @dataclass
@@ -487,7 +491,12 @@ def _mask_slivers(packet: gbr.Packet, rules: FabRules) -> list[Finding]:
                     continue
                 seen.add(key)  # type: ignore[arg-type]
                 gap = rect.gap_to(other_rect)
-                if 0 <= gap < rules.min_mask_sliver_mm:
+                # A hair under the floor is arithmetic, not a defect. Three of
+                # the five "slivers" on every example board measured 0.1999mm
+                # against a 0.2mm rule — a float tie in the aperture maths, not
+                # something the fab could tell apart. The two that survive this
+                # epsilon (0.114 and 0.157mm) are real.
+                if 0 <= gap < rules.min_mask_sliver_mm - MEASUREMENT_EPSILON_MM:
                     count += 1
                     if worst is None or gap < worst[0]:
                         worst = (gap, flash.x, flash.y)

@@ -173,4 +173,33 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** server (catalog visibility rule), client (already
   built to this: `lib/boardModel.js selectPartsEntry`).
 
+## 2026-08-11 — Stages 4c and 5b: the standalone checks join the gauntlet
+- **Change:** two new stages in the §1 build table. **4c** runs
+  `packages/verify`'s five circuit-json checks (assembly/DFA, net-class current
+  capacity, DC operating point, electrical design review, thermal) beside the
+  DFM gate. **5b** runs the gerber-truth check against the packet written by
+  stage 5. Both add new `validation.warnings[].kind` values — `dfa_*`,
+  `netclass_*`, `dc_*`, `review_*`, `thermal_*`, `gerber_*`, plus
+  `verify_unavailable` (info) when the package is not importable. `fab.ready`
+  is unchanged in definition and now sees more.
+- **Why:** the checks existed and the pipeline ignored them, which is strictly
+  worse than not having them — the tool would report a board orderable while
+  `verifylib` knew it was unprogrammable. Stage 5b in particular cannot live
+  anywhere else: the gerber zip is what JLCPCB actually consumes and does not
+  exist until stage 5, so an export bug had nowhere to be caught.
+- **Backward compatible:** yes for consumers — the `kind` set is documented as
+  open and the driver switches only on `severity` (§1). Not free for boards:
+  the honest blocking count on the three examples goes **up**, because these
+  are defects that were always true and nothing could see. Costs ~1s of
+  wall-clock on a multi-minute build; the corner sweep is deliberately excluded
+  and runs beside the build behind `CIRCUIT_VERIFY_CORNERS=1`.
+- **Mechanism:** `circuitpy/verify_bridge.py` (path resolution + degradation),
+  `circuitpy/generation.py` (the two call sites), `circuitpy/fab.py`
+  (`VERIFY_BLOCKING_KINDS`, `VERIFY_ESCALATED_KINDS`, `apply_verify_policy` —
+  the severity policy lives on the fab profile so an EE moves the line in one
+  place, never inside a check). `scripts/build/build-skill-runtimes.sh` vendors
+  `verifylib` beside `circuitpy`. Skill runtime re-vendor required.
+- **Tracks affected:** pipeline / skills (re-vendor) / docs (§1 stage table
+  when the freeze lifts).
+
 (No further entries yet.)

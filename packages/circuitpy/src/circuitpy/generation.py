@@ -39,6 +39,7 @@ from circuitpy import review as review_mod
 from circuitpy import spec as spec_mod
 from circuitpy import status as status_mod
 from circuitpy import toolchain
+from circuitpy import verify_bridge
 from circuitpy.errors import (
     BuildError,
     CompileError,
@@ -577,6 +578,20 @@ def build_board(
             checks.check_failed("assembly requested but no BOM rows were produced")
         )
 
+    # -- Stage 4c: the standalone checks (packages/verify). ------------------
+    # Assembly/DFA, net-class current capacity, the DC operating point, the
+    # electrical design review and thermal dissipation. All five read the
+    # compiled circuit.json, share no code with anything above them, and cost
+    # about a second between them on a 130-part board. The fab profile decides
+    # which of their findings block `fab.ready` — see fab.apply_verify_policy.
+    warnings.extend(
+        verify_bridge.check_circuit_json(
+            built_circuit_json,
+            profile=profile,
+            assembly_order=product.assembly,
+        )
+    )
+
     progress.stage("substrate")
 
     # -- Stage 3 + 5: second substrate + shipping gerbers. -------------------
@@ -749,6 +764,23 @@ def build_board(
     except (OSError, ValueError) as exc:
         warnings.append(checks.check_failed(f"enclosure spec not written: {exc}"))
 
+    # -- Stage 5b: the packet the fab actually receives. ---------------------
+    # This cannot run any earlier: the zip does not exist until stage 5. It is
+    # also the only check in the whole pipeline that inspects what JLCPCB is
+    # sent rather than what we meant to send, so a bug in the export itself —
+    # a missing layer, a drill in the wrong units, a footprint dropped between
+    # the board and the plot — has nowhere else to be caught.
+    if gerbers_path is not None and gerbers_path.is_file():
+        warnings.extend(
+            verify_bridge.check_packet(
+                built_circuit_json,
+                gerbers_path,
+                profile=profile,
+                assembly_order=product.assembly,
+            )
+        )
+
+    warnings = checks.dedupe(warnings)
     ready = fab_mod.fab_ready(warnings, gerber_source)
     order_path: Path | None = None
     board_el = next(
