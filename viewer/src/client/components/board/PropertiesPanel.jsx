@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/ui/utils";
+import { partPlainName, partRole } from "@/lib/plainLanguage.js";
 import { lcscUrl } from "./boardData.js";
 
 const NUM = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
@@ -83,8 +84,23 @@ function ComponentProperties({ component, index, partsByLcscMap, fmt, onSelect }
   const height = component.pcb ? NUM(component.pcb.height) : 0;
   const nets = [...component.netKeys].map((key) => index?.netByKey.get(key)).filter(Boolean);
 
+  const role = partRole(component);
+  const plainName = partPlainName(component);
+
   return (
     <>
+      {/* The plain read, above the EDA fields rather than instead of them.
+          An engineer's eye skips one line; everyone else needs it to know
+          what they just clicked. */}
+      <div className="border-b border-border/40 px-3 py-2">
+        <p data-slot="property-plain-name" className="text-[13px] font-medium leading-5 text-foreground">
+          {plainName}
+        </p>
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          {role.label}
+          {role.blurb ? ` — ${role.blurb}` : ""}
+        </p>
+      </div>
       <Section title="General">
         <Row label="Designator">{component.refdes}</Row>
         <Row label="Value">{component.value || component.mpn || null}</Row>

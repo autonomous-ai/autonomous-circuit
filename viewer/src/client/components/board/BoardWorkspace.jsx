@@ -11,7 +11,7 @@ import {
 import { boardStatus, boardStem, selectBoardEntries } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
 import { buildMessages } from "@/lib/boardViolations.js";
-import { groupFindings } from "@/lib/plainLanguage.js";
+import { groupFindings, partPlainName } from "@/lib/plainLanguage.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
 import { transport } from "@/lib/transport.ts";
 import { useProjectsStore } from "@/store/projects.ts";
@@ -32,6 +32,7 @@ import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
 import SchematicCanvas from "./SchematicCanvas.jsx";
+import StartHere from "./StartHere.jsx";
 import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
@@ -550,6 +551,14 @@ export default function BoardWorkspace({
     return index.netByKey.get(hover.netKey)?.name || "";
   }, [hover, index]);
 
+  // The component under the cursor, named the way a person would name it.
+  // `hitTestPcb` already resolves a pad or a silkscreen line back to its owner
+  // (`componentKey`), so this is a lookup, not a search.
+  const hoverPart = useMemo(() => {
+    if (!index || !hover?.componentKey) return null;
+    return index.componentBySourceId?.get(hover.componentKey) || null;
+  }, [hover, index]);
+
   const schematicPane = (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <SchematicCanvas
@@ -610,6 +619,8 @@ export default function BoardWorkspace({
         units={units}
         scale={pcbView.scale}
         netName={hoverNetName}
+        partName={hoverPart ? partPlainName(hoverPart) : ""}
+        partRefdes={hoverPart?.refdes || ""}
         visible={hudVisible}
         measuring={measuring}
       />
@@ -895,28 +906,17 @@ export default function BoardWorkspace({
               </div>
             </>
           ) : (
-            <div
-              data-slot="board-empty-state"
-              className="grid min-h-0 flex-1 place-items-center"
-              style={{ backgroundColor: "var(--ui-viewer-bg)" }}
-            >
-              <div className="flex flex-col items-center gap-3 px-6 text-center">
-                {catalogHydrated || catalogError ? (
-                  <>
-                    <span className="text-5xl font-semibold tracking-tight text-white">Circuit</span>
-                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
-                      Autonomous Circuit
-                    </span>
-                    <p className="max-w-xs text-sm leading-6 text-white/60">
-                      Chat a circuit board into existence. Describe the device in the panel on the right — the
-                      schematic, layout, and fab packet land here.
-                    </p>
-                  </>
-                ) : (
-                  <Loader2 className="size-5 animate-spin text-white/60" aria-hidden />
-                )}
+            catalogHydrated || catalogError ? (
+              <StartHere status={buildStatus} building={building || turnInProgress} className="min-h-0 flex-1" />
+            ) : (
+              <div
+                data-slot="board-empty-state"
+                className="grid min-h-0 flex-1 place-items-center"
+                style={{ backgroundColor: "var(--ui-viewer-bg)" }}
+              >
+                <Loader2 className="size-5 animate-spin text-white/60" aria-hidden />
               </div>
-            </div>
+            )
           )}
         </div>
       </div>

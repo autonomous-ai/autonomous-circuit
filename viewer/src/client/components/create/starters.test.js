@@ -10,7 +10,9 @@ test("STARTERS carries the four v1 board archetypes with complete cards", () => 
   for (const starter of STARTERS) {
     assert.ok(starter.title, `${starter.id} has a title`);
     assert.ok(starter.pitch, `${starter.id} has a pitch`);
+    assert.ok(starter.parts, `${starter.id} previews the parts it will use`);
     assert.ok(starter.brief.length > 40, `${starter.id} brief is a real request`);
+    assert.ok(!("emoji" in starter), `${starter.id} carries no emoji`);
   }
 });
 

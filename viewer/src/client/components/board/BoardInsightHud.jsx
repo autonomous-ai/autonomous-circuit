@@ -25,6 +25,8 @@ export default function BoardInsightHud({
   units = "mm",
   scale = 0,
   netName = "",
+  partName = "",
+  partRefdes = "",
   visible = true,
   measuring = false,
   className,
@@ -67,6 +69,15 @@ export default function BoardInsightHud({
         </span>
         {scale ? <span className="text-white/35">{Math.round(NUM(scale) * 10) / 10} px/mm</span> : null}
       </div>
+      {/* The one line that says what the thing under the cursor IS. Every
+          other field here is a coordinate or an id; this is the only one a
+          non-engineer can use, so it gets its own row and the brightest ink. */}
+      {partName ? (
+        <div data-slot="hud-part" className="mt-0.5 truncate text-[11px] text-white/90">
+          <span className="text-white/35">{partRefdes || "Part"} </span>
+          {partName}
+        </div>
+      ) : null}
       {measuring ? (
         <div className="mt-0.5 text-[10px] text-amber-300/70">measure — drag across the board · ⌘M off</div>
       ) : null}
