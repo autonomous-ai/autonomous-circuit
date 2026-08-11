@@ -111,7 +111,7 @@ test("the summary leads with the gap when there is one, and never grades the boa
   const summary = functionSummary(functionRows(index, regions), { brain });
   assert.equal(summary.tone, "gap");
   assert.equal(summary.isolated, 1);
-  assert.match(summary.headline, /connects to nothing else on the board/);
+  assert.match(summary.headline, /could not tie back to the brain/);
 });
 
 test("with nothing isolated the summary says every area is joined, not a score", () => {
@@ -157,4 +157,32 @@ test("loose ends find the part on no net and the net with one end", () => {
   const ends = looseEnds(index);
   assert.deepEqual(ends.unconnected.map((part) => part.refdes), ["U5"]);
   assert.deepEqual(ends.dangling.map((net) => net.net), ["SWCLK"]);
+});
+
+test("joined to something that is not the brain is not the same as joined to nothing", () => {
+  // A sensor wired to a connector but never to a pin. Calling that "isolated"
+  // would be false — it is wired — and calling it confirmed would be worse.
+  const elements = fixtureBoard();
+  elements.push({
+    type: "source_net",
+    source_net_id: "n_side",
+    name: "SIDE",
+    subcircuit_connectivity_map_key: "sub_connectivity_SIDE",
+  });
+  for (const element of elements) {
+    if (element.type === "source_port" && element.source_port_id === "sp_u5_sda") {
+      element.subcircuit_connectivity_map_key = "sub_connectivity_SIDE";
+    }
+    if (element.type === "source_port" && element.source_port_id === "sp_r3_1") {
+      // R3 also lands on SIDE, so the sensor has a neighbour that is not the MCU.
+      element.subcircuit_connectivity_map_key = "sub_connectivity_SIDE";
+    }
+  }
+  const index = buildBoardIndex(elements);
+  const rows = functionRows(index, boardRegions(index));
+  const sensor = rows.find((row) => row.refdes.includes("U5"));
+  assert.equal(sensor.status, FUNCTION_STATUS.LINKED);
+  assert.equal(sensor.confirmed, false);
+  assert.match(sensor.sentence, /Joined to R3/);
+  assert.match(sensor.sentence, /nothing carries a signal from here to the brain/);
 });

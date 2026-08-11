@@ -29,6 +29,11 @@ const STATUS_STYLE = {
     ring: "border-border/60 bg-card/30",
   },
   [FUNCTION_STATUS.POWER]: { icon: Plug, tint: "text-muted-foreground", ring: "border-border/60 bg-card/30" },
+  [FUNCTION_STATUS.LINKED]: {
+    icon: TriangleAlert,
+    tint: "text-amber-500",
+    ring: "border-amber-500/40 bg-amber-500/[0.05]",
+  },
   [FUNCTION_STATUS.ISOLATED]: {
     icon: TriangleAlert,
     tint: "text-amber-500",
@@ -199,7 +204,9 @@ export default function FunctionTab({
   const [showInternal, setShowInternal] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
 
-  const isolated = rows.filter((row) => row.status === FUNCTION_STATUS.ISOLATED);
+  const isolated = rows.filter(
+    (row) => row.status === FUNCTION_STATUS.ISOLATED || row.status === FUNCTION_STATUS.LINKED,
+  );
   const SummaryIcon =
     summary.tone === "traced" ? CircleCheck : summary.tone === "gap" ? TriangleAlert : CircleDashed;
 
@@ -458,10 +465,10 @@ export default function FunctionTab({
                 <p data-slot="function-isolated">
                   <span className="text-foreground">
                     {plural(isolated.length, "area")}{" "}
-                    {isolated.length === 1 ? "connects" : "connect"} to nothing else on the board
+                    {isolated.length === 1 ? "does" : "do"} not reach the brain
                   </span>{" "}
-                  — {isolated.map((row) => row.label).join(", ")}. Parts that are placed but not joined to the circuit
-                  get built and soldered and then do nothing.
+                  — {isolated.map((row) => row.label).join(", ")}. Parts the program cannot read or drive get built
+                  and soldered and then sit there.
                 </p>
               ) : null}
               {ends.unconnected.length ? (

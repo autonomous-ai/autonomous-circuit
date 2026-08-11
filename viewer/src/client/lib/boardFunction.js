@@ -150,6 +150,10 @@ const STATUS = Object.freeze({
   BRAIN: "brain",
   SIGNAL: "signal",
   POWER: "power",
+  // Joined to other parts, but nothing on those nets reaches the
+  // microcontroller. Distinct from ISOLATED, which is joined to nothing at all
+  // — calling a sensor wired to a connector "isolated" would be false.
+  LINKED: "linked",
   ISOLATED: "isolated",
 });
 
@@ -172,13 +176,18 @@ export function functionRows(index, regions) {
       .filter(Boolean);
     const holdsBrain = Boolean(brain && region.componentKeys.includes(brain.key));
 
+    const inRegion = new Set(region.componentKeys);
     const signals = new Map();
     const rails = new Map();
+    const neighbours = new Set();
     for (const component of components) {
       for (const net of netsOf(index, component)) {
         if (isRailNet(net)) {
           if (!rails.has(net.key)) rails.set(net.key, net);
           continue;
+        }
+        for (const key of net.componentKeys || []) {
+          if (!inRegion.has(key) && key !== brain?.key) neighbours.add(key);
         }
         // A signal counts for this region only when it leaves it — a net that
         // never touches the microcontroller cannot be read or driven by the
@@ -206,6 +215,7 @@ export function functionRows(index, regions) {
     if (holdsBrain) status = STATUS.BRAIN;
     else if (signalList.length) status = STATUS.SIGNAL;
     else if (railList.length) status = STATUS.POWER;
+    else if (neighbours.size) status = STATUS.LINKED;
 
     rows.push({
       id: region.id,
@@ -224,6 +234,10 @@ export function functionRows(index, regions) {
         brain,
         index,
         role: region.role,
+        neighbours: [...neighbours]
+          .map((key) => index?.componentBySourceId?.get(key)?.refdes)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })),
       }),
       // The one bit the honesty banner counts: did the chain close?
       confirmed: status === STATUS.BRAIN || status === STATUS.SIGNAL,
@@ -246,7 +260,7 @@ function joinNets(signals) {
  *  read as a fault where there is none. */
 const PLUMBING_ROLES = new Set(["power_reg", "power_in", "protection", "passive", "mechanical", "clock"]);
 
-function sentenceFor({ status, region, signals, rails, brain, index, role }) {
+function sentenceFor({ status, region, signals, rails, brain, index, role, neighbours = [] }) {
   if (status === STATUS.BRAIN) {
     const split = splitSignals(brainSignals(index, brain));
     return split.external.length
@@ -270,6 +284,11 @@ function sentenceFor({ status, region, signals, rails, brain, index, role }) {
     }
     if (PLUMBING_ROLES.has(role) || !brain) return `${where} Power and ground is all this part needs.`;
     return `${where} Nothing carries a signal from here to the brain, so the program can neither read it nor drive it.`;
+  }
+  if (status === STATUS.LINKED) {
+    const to = neighbours.slice(0, 6).join(", ");
+    const more = neighbours.length > 6 ? ` and ${neighbours.length - 6} more` : "";
+    return `Joined to ${to}${more}, but nothing carries a signal from here to the brain. We cannot confirm the program can use it.`;
   }
   const count = region?.componentKeys?.length || 0;
   return count
@@ -322,7 +341,12 @@ export function functionSummary(rows, { brain = null } = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const total = list.length;
   const confirmed = list.filter((row) => row.confirmed).length;
-  const isolated = list.filter((row) => row.status === STATUS.ISOLATED).length;
+  // Joined-to-nothing and joined-to-something-that-is-not-the-brain are both
+  // "we could not confirm the program can use this", which is the thing the
+  // headline is for. They stay separable in the rows.
+  const isolated = list.filter(
+    (row) => row.status === STATUS.ISOLATED || row.status === STATUS.LINKED,
+  ).length;
   const powerOnly = list.filter((row) => row.status === STATUS.POWER).length;
 
   if (!total) {
@@ -350,7 +374,7 @@ export function functionSummary(rows, { brain = null } = {}) {
   if (isolated) {
     return {
       tone: "gap",
-      headline: `${plural(isolated, "area")} connects to nothing else on the board`,
+      headline: `${plural(isolated, "area")} we could not tie back to the brain`,
       line: `${confirmed} of ${total} areas reach the brain on a named pin${
         powerOnly ? `, ${powerOnly} carry power and ground only` : ""
       }. The rest are below, with what we could and could not confirm.`,
