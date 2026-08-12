@@ -16,7 +16,7 @@ Kind sources (contract §1):
   stage 3 — ``erc_violation`` / ``drc_violation`` (kicad report parser),
             ``kicad_unavailable`` (info);
   stage 4 — ``dfm_*``, ``part_not_orderable``, ``extended_part``,
-            ``part_drift``, ``board_exceeds_envelope``;
+            ``part_drift``, ``part_lock_stale``, ``board_exceeds_envelope``;
   anywhere — ``check_failed`` (a verifier itself raised).
 """
 
@@ -1232,17 +1232,32 @@ def _is_unsourced_by_design(row: dict) -> bool:
     )
 
 
-def bom_gate(rows: list[dict], *, assembly: bool) -> list[Warning]:
-    """Orderability + lock agreement. ``part_not_orderable`` blocks assembly
-    packets (error) and merely advises bare-PCB ones (info); ``part_drift``
-    warns when a BOM row's part number disagrees with the parts.json lock;
-    ``extended_part`` advises about the loading fee. Never raises."""
+def bom_gate(
+    rows: list[dict],
+    *,
+    assembly: bool,
+    parts_lock: dict[str, dict] | None = None,
+) -> list[Warning]:
+    """Orderability + exact lock agreement.
+
+    ``part_not_orderable`` blocks assembly packets (error) and merely advises
+    bare-PCB ones (info). ``part_drift`` blocks assembly when the compiled BOM
+    disagrees with a matched ``parts.json`` identity. ``part_lock_stale``
+    blocks an assembly lock entry that names no populated compiled BOM row;
+    a compiled DNP is therefore stale too: an assembly parts lock describes
+    populated supplier identities, not every source component. ``extended_part``
+    advises about the loading fee. Never raises.
+    """
     try:
         warnings: list[Warning] = []
+        matched_lock_ids: set[str] = set()
         for row in rows:
             designator = str(row.get("designator") or "part")
             lcsc = str(row.get("lcsc") or "")
             lock = row.get("lock") if isinstance(row.get("lock"), dict) else None
+            lock_id = str(row.get("lock_id") or "").strip()
+            if lock_id:
+                matched_lock_ids.add(lock_id.casefold())
             if not lcsc and _is_unsourced_by_design(row):
                 # A test point, fiducial or mounting hole is copper, not a
                 # part: there is nothing to buy and nothing to place. Blocking
@@ -1261,17 +1276,18 @@ def bom_gate(rows: list[dict], *, assembly: bool) -> list[Warning]:
                 )
             if lock is not None:
                 locked_lcsc = str(lock.get("lcsc") or "")
-                if lcsc and locked_lcsc and lcsc != locked_lcsc:
+                identity_matches = not (lcsc and locked_lcsc and lcsc != locked_lcsc)
+                if not identity_matches:
                     warnings.append(
                         _warning(
                             designator,
                             "part_drift",
                             f"BOM resolved {lcsc} but parts.json locks {locked_lcsc} "
                             "— re-run parts-book or rebuild before ordering",
-                            "warning",
+                            "error" if assembly else "warning",
                         )
                     )
-                if lock.get("basic") is False:
+                if identity_matches and lock.get("basic") is False:
                     warnings.append(
                         _warning(
                             designator,
@@ -1281,6 +1297,38 @@ def bom_gate(rows: list[dict], *, assembly: bool) -> list[Warning]:
                             "info",
                         )
                     )
+        if parts_lock is not None:
+            if not isinstance(parts_lock, dict):
+                raise TypeError("parts_lock must be a dict")
+            seen_lock_ids: set[str] = set()
+            for raw_part_id in parts_lock:
+                part_id = str(raw_part_id).strip()
+                folded = part_id.casefold()
+                if folded in seen_lock_ids:
+                    warnings.append(
+                        _warning(
+                            part_id or "part",
+                            "part_lock_ambiguous",
+                            f"parts.json contains more than one case-insensitive "
+                            f"identity for {part_id or 'an empty ref'} — regenerate "
+                            "a unique exact-ref lock before ordering",
+                            "error" if assembly else "info",
+                        )
+                    )
+                    continue
+                seen_lock_ids.add(folded)
+                if part_id and folded in matched_lock_ids:
+                    continue
+                warnings.append(
+                    _warning(
+                        part_id or "part",
+                        "part_lock_stale",
+                        f"parts.json locks {part_id or 'an empty ref'} but the compiled "
+                        "populated BOM has no matching designator — regenerate the "
+                        "parts lock from the selected blocks before ordering",
+                        "error" if assembly else "info",
+                    )
+                )
         return warnings
     except Exception as exc:
         return [check_failed(f"BOM gate raised {type(exc).__name__}: {exc}")]

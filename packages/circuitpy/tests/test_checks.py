@@ -533,12 +533,36 @@ class BomGate(unittest.TestCase):
 
     def test_part_drift_against_lock(self) -> None:
         rows = [
-            {"designator": "R1", "lcsc": "C111", "lock": {"lcsc": "C222", "basic": True}}
+            {
+                "designator": "R1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C222", "basic": True},
+            }
         ]
-        warnings = checks.bom_gate(rows, assembly=True)
+        warnings = checks.bom_gate(
+            rows,
+            assembly=True,
+            parts_lock={"R1": {"lcsc": "C222", "basic": True}},
+        )
         self.assertEqual(warnings[0]["kind"], "part_drift")
+        self.assertEqual(warnings[0]["severity"], "error")
         self.assertIn("C111", warnings[0]["detail"])
         self.assertIn("C222", warnings[0]["detail"])
+        self.assertNotIn("extended_part", {w["kind"] for w in warnings})
+
+    def test_part_drift_only_advises_bare_pcb(self) -> None:
+        rows = [
+            {
+                "designator": "R1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C222", "basic": True},
+            }
+        ]
+        warnings = checks.bom_gate(rows, assembly=False)
+        self.assertEqual(warnings[0]["kind"], "part_drift")
+        self.assertEqual(warnings[0]["severity"], "warning")
 
     def test_extended_part_advises(self) -> None:
         rows = [
@@ -550,9 +574,113 @@ class BomGate(unittest.TestCase):
 
     def test_clean_locked_rows_pass(self) -> None:
         rows = [
-            {"designator": "R1", "lcsc": "C111", "lock": {"lcsc": "C111", "basic": True}}
+            {
+                "designator": "R1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C111", "basic": True},
+            }
         ]
-        self.assertEqual(checks.bom_gate(rows, assembly=True), [])
+        self.assertEqual(
+            checks.bom_gate(
+                rows,
+                assembly=True,
+                parts_lock={"R1": {"lcsc": "C111", "basic": True}},
+            ),
+            [],
+        )
+
+    def test_stale_parts_lock_entry_blocks_assembly(self) -> None:
+        rows = [
+            {
+                "designator": "R1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C111", "basic": True},
+            }
+        ]
+        warnings = checks.bom_gate(
+            rows,
+            assembly=True,
+            parts_lock={
+                "R1": {"lcsc": "C111", "basic": True},
+                "R99": {"lcsc": "C999", "basic": True},
+            },
+        )
+        self.assertEqual(
+            [(w["part"], w["kind"], w["severity"]) for w in warnings],
+            [("R99", "part_lock_stale", "error")],
+        )
+
+    def test_stale_parts_lock_entry_only_advises_bare_pcb(self) -> None:
+        warnings = checks.bom_gate(
+            [{"designator": "R1", "lcsc": "C111"}],
+            assembly=False,
+            parts_lock={"R99": {"lcsc": "C999"}},
+        )
+        self.assertEqual(warnings[0]["kind"], "part_lock_stale")
+        self.assertEqual(warnings[0]["severity"], "info")
+
+    def test_filtered_dnp_lock_entry_is_stale(self) -> None:
+        rows = [
+            {
+                "designator": "R1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C111", "basic": True},
+            }
+        ]
+        warnings = checks.bom_gate(
+            rows,
+            assembly=True,
+            parts_lock={
+                "R1": {"lcsc": "C111", "basic": True},
+                "R2": {"lcsc": "C222", "basic": True},
+            },
+        )
+        self.assertEqual(
+            [(w["part"], w["kind"], w["severity"]) for w in warnings],
+            [("R2", "part_lock_stale", "error")],
+        )
+
+    def test_parts_lock_matching_is_case_insensitive(self) -> None:
+        rows = [
+            {
+                "designator": "r1",
+                "lcsc": "C111",
+                "lock_id": "R1",
+                "lock": {"lcsc": "C111", "basic": True},
+            }
+        ]
+        self.assertEqual(
+            checks.bom_gate(
+                rows,
+                assembly=True,
+                parts_lock={"r1": {"lcsc": "C111", "basic": True}},
+            ),
+            [],
+        )
+
+    def test_case_colliding_parts_lock_entries_block_assembly(self) -> None:
+        warnings = checks.bom_gate(
+            [],
+            assembly=True,
+            parts_lock={"R1": {"lcsc": "C111"}, "r1": {"lcsc": "C222"}},
+        )
+        self.assertEqual(
+            [(w["part"], w["kind"], w["severity"]) for w in warnings],
+            [
+                ("R1", "part_lock_stale", "error"),
+                ("r1", "part_lock_ambiguous", "error"),
+            ],
+        )
+
+    def test_empty_parts_lock_identity_blocks_assembly(self) -> None:
+        warnings = checks.bom_gate(
+            [], assembly=True, parts_lock={"": {"lcsc": "C111"}}
+        )
+        self.assertEqual(warnings[0]["kind"], "part_lock_stale")
+        self.assertEqual(warnings[0]["severity"], "error")
 
 
 class Dedupe(unittest.TestCase):
