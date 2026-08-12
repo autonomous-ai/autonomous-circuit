@@ -531,6 +531,30 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
 
     out: list[Finding] = []
     placed_names = {component.name for component in board.placed()}
+    declared_refs = {
+        str(declaration.get("ref") or "")
+        for declaration in raw
+        if isinstance(declaration, dict)
+    }
+    for component in board.placed():
+        actual_mpn = _component_mpn(board, component)
+        matching_profiles = [
+            name
+            for name, profile in AUDITED_REGULATOR_PROFILES.items()
+            if component.lcsc == profile["lcsc"] and actual_mpn == profile["mpn"]
+        ]
+        if matching_profiles and component.name not in declared_refs:
+            out.append(
+                finding(
+                    component.name,
+                    "power_intent_regulator_contract",
+                    f"populated audited regulator {component.name} compiles as "
+                    f"{component.lcsc}/{actual_mpn} but product.json does not "
+                    f"declare its {matching_profiles[0]} load, ambient, capacitor, "
+                    "and thermal-land contract",
+                    "error",
+                )
+            )
     ports = _component_port_records(board)
     pads = _source_pad_rects(board)
     source_pads = _source_pads(board)

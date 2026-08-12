@@ -471,6 +471,17 @@ def test_audited_regulator_identity_caps_topology_and_thermal_budget_pass() -> N
     assert result.coverage.examined == 1
 
 
+def test_populated_audited_regulator_cannot_omit_its_product_declaration() -> None:
+    result = power_intent.check(model.Board(regulator_fixture()), {})
+    detail = next(
+        item["detail"]
+        for item in result.findings
+        if item["kind"] == "power_intent_regulator_contract"
+    )
+    assert "U2" in detail
+    assert "ap7361c-33e-c500795-v1" in detail
+
+
 def test_regulator_identity_and_exact_four_contact_topology_are_measured() -> None:
     elements = regulator_fixture()
     regulator = next(
