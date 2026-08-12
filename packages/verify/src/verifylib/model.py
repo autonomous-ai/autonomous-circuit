@@ -328,6 +328,11 @@ class Pad:
     height: float
     plated_hole: bool = False
     hole_diameter: float | None = None
+    # A mask-covered one-port routing node is copper by design, not a
+    # solderable assembly landing.  Preserve the Circuit JSON distinction so
+    # Gerber reconciliation can require its copper while refusing to invent a
+    # mask or paste aperture for it.
+    covered_with_solder_mask: bool = False
 
     @property
     def rect(self) -> Rect:
@@ -617,6 +622,9 @@ class Board:
                 y=float(y),
                 width=float(width),
                 height=float(height),
+                covered_with_solder_mask=(
+                    e.get("is_covered_with_solder_mask") is True
+                ),
             )
             pads_by_component.setdefault(cid, []).append(pad)
         for e in self.of_type("pcb_plated_hole"):

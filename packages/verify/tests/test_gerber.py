@@ -377,6 +377,41 @@ def test_a_pad_with_no_mask_opening_blocks(tmp_path):
     assert "gerber_pad_masked_over" in kinds(result, "error")
 
 
+def test_an_explicit_mask_covered_routing_node_needs_copper_but_not_mask_or_paste(
+    tmp_path,
+):
+    design = _design()
+    hidden_pad = next(
+        element
+        for element in design.elements
+        if element.get("pcb_smtpad_id") == "pcb_smtpad_1_0"
+    )
+    hidden_pad["is_covered_with_solder_mask"] = True
+    design = Board(design.elements)
+
+    visible_x, visible_y = PADS[1]
+    visible_flash = [(10, visible_x + OFFSET_X, visible_y + OFFSET_Y)]
+    members = _members(
+        **{
+            "board-F_Mask.gts": gerber_text(
+                apertures={10: "R,0.7X0.7"}, flashes=visible_flash
+            ),
+            "board-F_Paste.gtp": gerber_text(
+                apertures={10: "R,0.6X0.6"}, flashes=visible_flash
+            ),
+        }
+    )
+    result = gerber_truth.check(design, _zip(tmp_path, members))
+    assert "gerber_pad_masked_over" not in kinds(result)
+    assert "gerber_pad_no_paste" not in kinds(result)
+
+    members["board-F_Cu.gtl"] = gerber_text(
+        apertures={10: "R,0.6X0.6"}, flashes=visible_flash
+    )
+    missing_copper = gerber_truth.check(design, _zip(tmp_path, members))
+    assert "gerber_pad_missing" in kinds(missing_copper, "error")
+
+
 def test_a_pad_with_no_paste_warns_on_an_assembly_order(tmp_path):
     members = _members(**{"board-F_Paste.gtp": gerber_text(apertures={10: "C,0.1"})})
     result = gerber_truth.check(_design(), _zip(tmp_path, members))

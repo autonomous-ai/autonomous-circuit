@@ -433,8 +433,12 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                 continue
             mask_role = f"mask_{side}"
             mask = indexes.get(mask_role)
-            if (mask is not None or filled.get(mask_role)) and not _covers(
+            if (
+                not pad.covered_with_solder_mask
+                and (mask is not None or filled.get(mask_role))
+                and not _covers(
                 filled.get(mask_role, []), mask, gx, gy, POSITION_TOLERANCE_MM
+                )
             ):
                 out.append(
                     finding(
@@ -446,7 +450,11 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                         "error",
                     )
                 )
-            if assembly and not pad.plated_hole:
+            if (
+                assembly
+                and not pad.plated_hole
+                and not pad.covered_with_solder_mask
+            ):
                 paste_role = f"paste_{side}"
                 paste = indexes.get(paste_role)
                 if (paste is not None or filled.get(paste_role)) and not _covers(
