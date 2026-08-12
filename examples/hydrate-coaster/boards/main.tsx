@@ -151,6 +151,22 @@ export default () => (
     <SwTact name="SW1" signal="BTN_MUTE" pcbX={29} pcbY={-24} schX={30} schY={-14} />
     <trace name="TR_BTN_MUTE" from=".U3 > .GPIO1" to="net.BTN_MUTE" />
 
+    {/* ---- debug port ------------------------------------------------------
+        SWCLK/SWD are brought out by the rp2040-core block but reach nothing —
+        the board assembles, powers, and cannot be programmed or halted. Three
+        pads (CLK/DIO/GND) in the corridor below the electrodes, 2.54mm pitch so
+        a 3-pin header solders on when one is wanted; 1mm round pads take a pogo
+        or a clip when none is. Pads not plated holes — no drills, no keepouts. */}
+    <testpoint name="TP1" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={-2.54} pcbY={-12} />
+    <testpoint name="TP2" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={0} pcbY={-12} />
+    <testpoint name="TP3" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={2.54} pcbY={-12} />
+    <trace name="TR_TP1_SWCLK" from=".TP1 > .pin1" to="net.SWCLK" />
+    <trace name="TR_TP2_SWD" from=".TP2 > .pin1" to="net.SWD" />
+    <trace name="TR_TP3_GND" from=".TP3 > .pin1" to="net.GND" />
+    <silkscreentext text="CLK" pcbX={-2.54} pcbY={-13.8} fontSize={1} />
+    <silkscreentext text="DIO" pcbX={0} pcbY={-13.8} fontSize={1} />
+    <silkscreentext text="GND" pcbX={2.54} pcbY={-13.8} fontSize={1} />
+
     {/* ---- mechanics: M3 on a 64 x 64 square, one at each corner ---------- */}
     <MountingHole name="H1" diameter={3.2} pcbX={-32} pcbY={-32} />
     <MountingHole name="H2" diameter={3.2} pcbX={32} pcbY={-32} />
