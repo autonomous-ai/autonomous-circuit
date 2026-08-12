@@ -83,6 +83,7 @@ def test_explicit_product_layout_mismatches_block():
         "power_intent_regulator_load_unknown",
         "power_intent_regulator_load_budget",
         "power_intent_regulator_thermal",
+        "power_intent_regulator_thermal_land",
         "pcb_plane_connectivity_error",
         "pcb_copper_pour_short_error",
     ):

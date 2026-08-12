@@ -16,7 +16,7 @@ from typing import Any
 from verifylib import dc
 from verifylib.findings import CheckResult, Coverage, Finding, finding, never_raises
 from verifylib.loads import lookup
-from verifylib.model import Board, Component, Net
+from verifylib.model import Board, Component, Net, Pad
 
 
 _REGULATOR_KEYS = {
@@ -38,9 +38,18 @@ AUDITED_REGULATOR_PROFILES: dict[str, dict[str, Any]] = {
         "lcsc": "C500795",
         "mpn": "AP7361C-33E-13",
         "pins": {
-            "input": "IN",
-            "ground": "GND",
-            "output": "OUT",
+            "input": "VIN",
+            "grounds": ("GND1", "GND2"),
+            "output": "VOUT",
+        },
+        # Diodes DS37274 Rev. 5-2 page 21, rotated into any board orientation.
+        # Theta-JA=110C/W is conditional on at least this manufacturer land.
+        "thermalLand": {
+            "leadPadMm": (1.2, 1.6),
+            "tabPadMm": (1.6, 3.3),
+            "leadPitchMm": 2.3,
+            "rowCenterMm": 6.4,
+            "toleranceMm": 0.01,
         },
         # C19702 is Samsung CL10A106KP8NNNC: 10uF +/-10%, X5R, 10V,
         # 0603.  It exceeds the AP7361C's >=1uF input and >=2.2uF ceramic
@@ -154,6 +163,99 @@ def _source_pad_rects(board: Board) -> dict[str, Any]:
         for source_port_id, pcb_port_id in pcb_port_by_source.items()
         if pcb_port_id in pads_by_port
     }
+
+
+def _source_pads(board: Board) -> dict[str, Pad]:
+    pcb_port_by_source = {
+        str(element.get("source_port_id") or ""): str(
+            element.get("pcb_port_id") or ""
+        )
+        for element in board.of_type("pcb_port")
+        if element.get("source_port_id") and element.get("pcb_port_id")
+    }
+    pads_by_port = {
+        pad.port_id: pad
+        for component in board.components
+        for pad in component.pads
+        if pad.port_id
+    }
+    return {
+        source_port_id: pads_by_port[pcb_port_id]
+        for source_port_id, pcb_port_id in pcb_port_by_source.items()
+        if pcb_port_id in pads_by_port
+    }
+
+
+def _pad_size(pad: Pad) -> tuple[float, float]:
+    return tuple(sorted((pad.width, pad.height)))
+
+
+def _thermal_land_failures(
+    profile: dict[str, Any],
+    pin_names: dict[str, Any],
+    component_ports: dict[str, tuple[str, Net | None]],
+    pads: dict[str, Pad],
+) -> list[str]:
+    land = profile.get("thermalLand")
+    grounds = tuple(pin_names.get("grounds", ()))
+    if not isinstance(land, dict) or len(grounds) != 2:
+        return ["audited thermal-land profile is incomplete"]
+
+    names = {
+        "input": str(pin_names["input"]),
+        "groundLead": str(grounds[0]),
+        "output": str(pin_names["output"]),
+        "groundTab": str(grounds[1]),
+    }
+    resolved: dict[str, Pad] = {}
+    failures: list[str] = []
+    for role, name in names.items():
+        record = component_ports.get(name.casefold())
+        pad = pads.get(record[0]) if record else None
+        if pad is None or pad.plated_hole:
+            failures.append(f"{name} has no measurable SMT copper pad")
+        else:
+            resolved[role] = pad
+    if failures:
+        return failures
+
+    tolerance = float(land["toleranceMm"])
+
+    def close(left: float, right: float) -> bool:
+        return math.isclose(left, right, rel_tol=0, abs_tol=tolerance)
+
+    expected_lead = tuple(sorted(float(value) for value in land["leadPadMm"]))
+    expected_tab = tuple(sorted(float(value) for value in land["tabPadMm"]))
+    for role in ("input", "groundLead", "output"):
+        actual = _pad_size(resolved[role])
+        if not all(close(a, b) for a, b in zip(actual, expected_lead)):
+            failures.append(
+                f"{names[role]} pad is {actual[0]:.3f}x{actual[1]:.3f}mm, "
+                f"not the audited {expected_lead[0]:g}x{expected_lead[1]:g}mm land"
+            )
+    actual_tab = _pad_size(resolved["groundTab"])
+    if not all(close(a, b) for a, b in zip(actual_tab, expected_tab)):
+        failures.append(
+            f"{names['groundTab']} pad is {actual_tab[0]:.3f}x{actual_tab[1]:.3f}mm, "
+            f"not the audited {expected_tab[0]:g}x{expected_tab[1]:g}mm land"
+        )
+
+    distance = lambda a, b: math.hypot(a.x - b.x, a.y - b.y)
+    lead_pitch = float(land["leadPitchMm"])
+    for role in ("input", "output"):
+        actual = distance(resolved[role], resolved["groundLead"])
+        if not close(actual, lead_pitch):
+            failures.append(
+                f"{names[role]} to {names['groundLead']} pitch is {actual:.3f}mm, "
+                f"not {lead_pitch:g}mm"
+            )
+    row_center = float(land["rowCenterMm"])
+    actual_row = distance(resolved["groundLead"], resolved["groundTab"])
+    if not close(actual_row, row_center):
+        failures.append(
+            f"lead-to-tab row spacing is {actual_row:.3f}mm, not {row_center:g}mm"
+        )
+    return failures
 
 
 def _component_nets(
@@ -431,6 +533,7 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
     placed_names = {component.name for component in board.placed()}
     ports = _component_port_records(board)
     pads = _source_pad_rects(board)
+    source_pads = _source_pads(board)
     ground = board.ground
 
     for declaration in raw:
@@ -472,7 +575,14 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
 
         pin_names = profile["pins"]
         component_ports = ports.get(ref, {})
-        required_names = {str(value).casefold() for value in pin_names.values()}
+        required_names = {
+            str(value).casefold()
+            for role, value in pin_names.items()
+            if role != "grounds"
+        }
+        required_names.update(
+            str(value).casefold() for value in pin_names.get("grounds", ())
+        )
         topology_failures: list[str] = []
         if set(component_ports) != required_names:
             topology_failures.append(
@@ -489,13 +599,24 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
         input_port = port("input")
         output_port = port("output")
         ground_port = port("ground")
+        ground_ports = [
+            component_ports.get(str(name).casefold())
+            for name in pin_names.get("grounds", ())
+        ]
         enable_port = port("enable")
         unused_port = port("unused")
         expected_connections = [
             (str(pin_names["input"]), input_port, input_net),
             (str(pin_names["output"]), output_port, output_net),
-            (str(pin_names["ground"]), ground_port, ground),
         ]
+        if "ground" in pin_names:
+            expected_connections.append(
+                (str(pin_names["ground"]), ground_port, ground)
+            )
+        expected_connections.extend(
+            (str(name), record, ground)
+            for name, record in zip(pin_names.get("grounds", ()), ground_ports)
+        )
         if "enable" in pin_names:
             expected_connections.append(
                 (str(pin_names["enable"]), enable_port, input_net)
@@ -527,6 +648,21 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
                     "power_intent_regulator_topology",
                     f"{ref} does not implement {profile_name}: "
                     + "; ".join(topology_failures),
+                    "error",
+                )
+            )
+
+        thermal_land_failures = _thermal_land_failures(
+            profile, pin_names, component_ports, source_pads
+        )
+        if thermal_land_failures:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_thermal_land",
+                    f"{ref} does not implement the land required by {profile_name}'s "
+                    f"{profile['thetaJaCPerW']:g}C/W model: "
+                    + "; ".join(thermal_land_failures),
                     "error",
                 )
             )

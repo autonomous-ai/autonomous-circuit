@@ -102,17 +102,18 @@ def regulator_fixture(*, extra_flash: int = 0) -> list[dict]:
         lcsc="C500795",
         manufacturer_part_number="AP7361C-33E-13",
         pads=[
-            (-2.4, -1.8, 1.0, 1.5),
-            (0, -1.8, 1.0, 1.5),
-            (2.4, -1.8, 1.0, 1.5),
+            (3.2, -2.3, 1.6, 1.2),
+            (3.2, 0, 1.6, 1.2),
+            (3.2, 2.3, 1.6, 1.2),
+            (-3.2, 0, 1.6, 3.3),
         ],
     )
-    _rename_pins(elements, 1, ["IN", "GND", "OUT"])
+    _rename_pins(elements, 1, ["VIN", "GND1", "VOUT", "GND2"])
     elements += component(
         "C2",
         index=2,
-        x=-4.2,
-        y=-1.8,
+        x=5.75,
+        y=-2.3,
         width=1.6,
         height=0.8,
         ftype="simple_capacitor",
@@ -123,8 +124,8 @@ def regulator_fixture(*, extra_flash: int = 0) -> list[dict]:
     elements += component(
         "C3",
         index=3,
-        x=4.2,
-        y=-1.8,
+        x=5.75,
+        y=2.3,
         width=1.6,
         height=0.8,
         ftype="simple_capacitor",
@@ -155,6 +156,7 @@ def regulator_fixture(*, extra_flash: int = 0) -> list[dict]:
         ("U2", 0, "V5"),
         ("U2", 1, "GND"),
         ("U2", 2, "V3_3"),
+        ("U2", 3, "GND"),
         ("C2", 0, "V5"),
         ("C2", 1, "GND"),
         ("C3", 0, "V3_3"),
@@ -469,7 +471,7 @@ def test_audited_regulator_identity_caps_topology_and_thermal_budget_pass() -> N
     assert result.coverage.examined == 1
 
 
-def test_regulator_identity_and_exact_three_pin_topology_are_measured() -> None:
+def test_regulator_identity_and_exact_four_contact_topology_are_measured() -> None:
     elements = regulator_fixture()
     regulator = next(
         element
@@ -484,6 +486,37 @@ def test_regulator_identity_and_exact_three_pin_topology_are_measured() -> None:
         "power_intent_regulator_identity",
         "power_intent_regulator_topology",
     } <= error_kinds(result)
+
+
+def test_ap7361_requires_both_lead_and_tab_ground_contacts() -> None:
+    elements = regulator_fixture()
+    connect(elements, "U2", 3, "V3_3")
+    result = power_intent.check(model.Board(elements), regulator_policy())
+    assert "power_intent_regulator_topology" in error_kinds(result)
+
+
+def test_ap7361_thermal_land_dimensions_and_spacing_are_compiled_evidence() -> None:
+    elements = regulator_fixture()
+    tab = next(
+        element
+        for element in elements
+        if element.get("type") == "pcb_smtpad"
+        and element.get("pcb_port_id") == "pcb_port_1_3"
+    )
+    tab["height"] = 2.4
+    result = power_intent.check(model.Board(elements), regulator_policy())
+    assert "power_intent_regulator_thermal_land" in error_kinds(result)
+
+    spacing = regulator_fixture()
+    tab = next(
+        element
+        for element in spacing
+        if element.get("type") == "pcb_smtpad"
+        and element.get("pcb_port_id") == "pcb_port_1_3"
+    )
+    tab["x"] += 0.2
+    result = power_intent.check(model.Board(spacing), regulator_policy())
+    assert "power_intent_regulator_thermal_land" in error_kinds(result)
 
 
 def test_regulator_cap_identity_value_authored_branch_face_and_distance_are_measured() -> None:
