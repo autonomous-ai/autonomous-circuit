@@ -168,6 +168,27 @@ AMBIENT_MAX_C = 45.0
 
 
 # ---------------------------------------------------------------------------
+# Crystal net geometry.
+# tscircuit's ``DEFAULT_CRYSTAL_MAX_TRACE_LENGTH_MM``: every connection on a
+# crystal net has a hard ceiling, and when one cannot be met the autorouter
+# SKIPS THE WHOLE BOARD rather than that net. It then reports
+# ``pcb_autorouting_error`` against the crystal, which is almost never the part
+# that broke the rule — measured on harness-puck the binding endpoint was a
+# load capacitor, not the crystal. This is the one number here we do not own:
+# it mirrors the router's constant, and a router upgrade that changes it makes
+# this check wrong in the silent direction.
+# ---------------------------------------------------------------------------
+
+#: Hard ceiling, in mm, on any single connection to a crystal net.
+CRYSTAL_MAX_TRACE_LENGTH_MM = 10.0
+
+#: Slack below which a passing board is passing on luck rather than design.
+#: harness-puck shipped with 0.12mm of margin and its own source comment
+#: records that another 0.5mm re-broke routing — that is not a pass.
+CRYSTAL_LENGTH_MARGIN_MM = 1.0
+
+
+# ---------------------------------------------------------------------------
 # Packages whose zero-rotation convention differs between EDA output and
 # JLCPCB's own library. Auto-correction is imperfect, so the placement preview
 # is the safety net -- this list turns "eyeball everything" into "eyeball

@@ -236,6 +236,45 @@ def trace_on(
     }
 
 
+def source_trace(
+    trace_id: str,
+    net_name: str,
+    a: tuple[str, int],
+    b: tuple[str, int],
+    elements: list[dict],
+    *,
+    name: str | None = None,
+) -> dict:
+    """A *declared* connection between two pins — the pre-routing element.
+
+    Geometry checks that must work when the router gave up have nothing else to
+    read: ``pcb_trace`` only exists once routing succeeded. ``a`` and ``b`` are
+    ``(component name, pin index)``.
+    """
+
+    def port_id(component_name: str, pin_index: int) -> str:
+        sid = next(
+            e["source_component_id"]
+            for e in elements
+            if e.get("type") == "source_component" and e.get("name") == component_name
+        )
+        ports = [
+            e
+            for e in elements
+            if e.get("type") == "source_port"
+            and e.get("source_component_id") == sid
+        ]
+        return ports[pin_index]["source_port_id"]
+
+    return {
+        "type": "source_trace",
+        "source_trace_id": trace_id,
+        "connected_source_port_ids": [port_id(*a), port_id(*b)],
+        "subcircuit_connectivity_map_key": f"conn_{net_name}",
+        "name": name or trace_id,
+    }
+
+
 def clean_board() -> list[dict]:
     """A small board that violates nothing this package checks."""
     elements = [board(40, 30)]

@@ -20,6 +20,7 @@ cd packages/verify && python3.12 -m pytest                                      
 | `corners` | every number in the pipeline is nominal; this re-solves at every tolerance corner | `circuit.json` |
 | `review` | the electrical half of an EE design review — decoupling, bulk, crystal load caps, floating pins, ESD, test points, debug access | `circuit.json` |
 | `thermal` | dissipation against package ratings at *peak* load — the LDO helper, but reading the built board, plus every chip resistor | `circuit.json` |
+| `crystal` | the router's crystal-net ceiling, which when broken skips autorouting for the **whole board** and blames the crystal rather than the part that broke it | `circuit.json` |
 | `gerber` | **the packet we actually ship, which nothing had ever opened** | `gerbers.zip` |
 
 ## Three rules the package holds itself to
@@ -75,7 +76,8 @@ The call shape, if you need it elsewhere:
 
 ```python
 from verifylib import (
-    assembly, corners, dc, gerber_truth, model, netclass, review, thermal
+    assembly, corners, crystal, dc, gerber_truth, model, netclass, review,
+    thermal,
 )
 
 board = model.load(circuit_json_path)
@@ -84,6 +86,7 @@ warnings.extend(netclass.check(board).findings)
 warnings.extend(dc.check(board).findings)
 warnings.extend(review.check(board).findings)
 warnings.extend(thermal.check(board).findings)
+warnings.extend(crystal.check(board).findings)
 warnings.extend(gerber_truth.check(board, str(gerbers_zip)).findings)   # after stage 5
 warnings.extend(corners.check(board).findings)                          # off the critical path
 ```

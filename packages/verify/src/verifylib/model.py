@@ -499,6 +499,9 @@ class Board:
         self._pcb_port_net: dict[str, str] = {}   # pcb_port_id -> net key
         self._read_nets()
 
+        self._pad_by_source_port: dict[str, Pad] = {}
+        self._read_port_pads()
+
         self.traces: list[Trace] = []
         self._read_traces()
 
@@ -702,6 +705,21 @@ class Board:
             if key:
                 self._pcb_port_net[str(pcb_port.get("pcb_port_id") or "")] = key
 
+    def _read_port_pads(self) -> None:
+        """``source_port_id -> Pad``, the copper a schematic pin actually lands
+        on. Two hops: ``pcb_port`` carries the source id, and a pad carries the
+        pcb port id. Geometry checks that must work *before* routing need this
+        — pads exist whether or not a trace was ever laid."""
+        pcb_to_source = {
+            str(e.get("pcb_port_id") or ""): str(e.get("source_port_id") or "")
+            for e in self.of_type("pcb_port")
+        }
+        for component in self.components:
+            for pad in component.pads:
+                source_port = pcb_to_source.get(pad.port_id or "")
+                if source_port:
+                    self._pad_by_source_port[source_port] = pad
+
     def _read_traces(self) -> None:
         source_nets = {
             str(e.get("source_net_id")): e.get("subcircuit_connectivity_map_key")
@@ -798,6 +816,11 @@ class Board:
     def net_of_port(self, source_port_id: str) -> Net | None:
         key = self._port_net.get(source_port_id)
         return self.net_by_key.get(key) if key else None
+
+    def pad_of_source_port(self, source_port_id: str) -> Pad | None:
+        """The copper a schematic pin lands on, or ``None`` when the pin was
+        never placed (a do-not-place part, or a footprint short of pads)."""
+        return self._pad_by_source_port.get(source_port_id)
 
     def net_named(self, name: str) -> Net | None:
         for net in self.nets:

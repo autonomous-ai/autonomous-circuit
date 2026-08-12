@@ -69,6 +69,22 @@ def test_silk_on_a_pad_blocks_now_that_the_plot_can_clear_it():
     assert out[0]["severity"] == "error"
 
 
+def test_an_unroutable_crystal_net_keeps_its_error():
+    """Over the crystal-net ceiling the router skips autorouting for the whole
+    board, so the packet describes a board with no copper. If this were capped
+    to a warning the build would report a fab-ready board that has no traces on
+    it — the exact failure this check exists to make legible."""
+    out = apply_verify_policy([_finding("crystal_net_too_long", "error")], PROFILE)
+    assert out[0]["severity"] == "error"
+
+
+def test_a_tight_crystal_net_warns_and_never_blocks():
+    """0.12mm of slack routes today. Worth saying out loud, not worth refusing
+    to let anyone order a board that builds."""
+    out = apply_verify_policy([_finding("crystal_net_tight", "warning")], PROFILE)
+    assert out[0]["severity"] == "warning"
+
+
 def test_an_unclassified_kind_can_never_block():
     """The default that matters most. A check added tomorrow must not move the
     bar on its own — a bar that improves for a reason nobody chose is
@@ -221,6 +237,24 @@ def test_corners_stay_off_the_critical_path_unless_asked(board_json: Path, monke
         board_json, profile=PROFILE, assembly_order=True
     )
     assert not any(f["kind"].startswith("corner_") for f in default)
+
+
+def test_every_registered_check_actually_has_a_runner(board_json: Path):
+    """The wiring trap, caught in the act on 2026-08-12. Adding a name to
+    ``CIRCUIT_JSON_CHECKS`` without adding it to the ``runners`` dict raises a
+    KeyError that the loop catches and reports as one `check_failed` — so the
+    check reads as *ran and found nothing* while never having run at all. That
+    failure is invisible in exactly the place a verifier must not be."""
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    findings = verify_bridge.check_circuit_json(
+        board_json, profile=PROFILE, assembly_order=True
+    )
+    unwired = [
+        f for f in findings
+        if f["kind"] == "check_failed" and "KeyError" in str(f.get("detail"))
+    ]
+    assert not unwired, f"registered but never dispatched: {unwired}"
 
 
 def test_a_missing_verifylib_is_visible_not_silent():

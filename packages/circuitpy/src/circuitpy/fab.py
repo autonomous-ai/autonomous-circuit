@@ -201,6 +201,11 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
     "dc_rail_overload",
     "thermal_resistor_power",
     "netclass_trace_width",
+    # The router refuses to route the board at all. Over the crystal-net
+    # ceiling, tscircuit skips autorouting for the WHOLE board and every trace
+    # comes back missing, so the packet describes a board with no copper on it.
+    # There is no version of this that ships.
+    "crystal_net_too_long",
 })
 
 #: Findings this fab raises from `warning` to `error`. Each needs a reason
@@ -234,6 +239,12 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
 #: does not have to re-derive it:
+#:
+#: * `crystal_net_tight` — a connection with under 1mm of slack routes today.
+#:   It is one nudge from taking the whole board's routing down, which is why
+#:   it is reported at all rather than passed in silence, but a board that
+#:   routes is a board that ships. Blocking here would refuse an orderable
+#:   board over a risk that has not happened.
 #:
 #: * `gerber_mask_sliver` — escalated on 2026-08-11 and **retracted the same
 #:   day on measurement**. All ten sub-0.2mm mask webs on harness-puck sit
