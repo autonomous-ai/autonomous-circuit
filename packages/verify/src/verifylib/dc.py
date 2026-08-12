@@ -183,6 +183,7 @@ def build_network(
     for component in board.components:
         ports = _port_nets(board, component)
         ftype = component.ftype or ""
+        mpn = _mpn(board, component.source_id) or ""
 
         if ftype == "simple_resistor" and component.resistance and len(ports) >= 2:
             network.elements.append(
@@ -240,10 +241,18 @@ def build_network(
             network.modelled += 1
             continue
 
+        # A recognized fixed regulator is a rail boundary, not a black-box
+        # load on both of the power nets it touches.  Its downstream current is
+        # measured on the output rail and propagated by the net-class/thermal
+        # checks; the audited regulator profile separately accounts for Iq.
+        if _regulator_output_volts(mpn) is not None:
+            network.modelled += 1
+            continue
+
         # Everything else is a black box that draws current.
         load = lookup(
             lcsc=component.lcsc,
-            mpn=_mpn(board, component.source_id),
+            mpn=mpn,
             ftype=component.ftype,
         )
         power_nets = [net for _, net in ports if net.is_power]
@@ -290,6 +299,11 @@ def _regulator_output_volts(mpn: str) -> float | None:
     if not mpn:
         return None
     lower = mpn.lower()
+    # AP7361C uses a voltage code rather than a decimal suffix.  Match the
+    # exact standard-pin E option only: AP7361C-33ER is the reverse-pin
+    # package and must never be inferred as the approved regulator.
+    if re.fullmatch(r"ap7361c-33e(?:-13)?", lower):
+        return 3.3
     if not any(hint in lower for hint in _REGULATOR_HINTS):
         return None
     match = _REGULATOR_VOLTS_RE.search(mpn)
@@ -299,7 +313,16 @@ def _regulator_output_volts(mpn: str) -> float | None:
 
 
 #: Part-number fragments that identify a linear regulator.
-_REGULATOR_HINTS = ("ams1117", "lm1117", "xc6206", "me6211", "tlv7", "ldo", "ap2112")
+_REGULATOR_HINTS = (
+    "ams1117",
+    "lm1117",
+    "xc6206",
+    "me6211",
+    "tlv7",
+    "ldo",
+    "ap2112",
+    "ap7361c",
+)
 
 
 def _mpn(board: Board, source_id: str) -> str | None:

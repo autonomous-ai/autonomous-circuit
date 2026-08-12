@@ -224,6 +224,13 @@ def test_a_regulator_states_its_output_voltage_in_its_part_number():
     assert ("U2", local.key, 3.3) in network.regulators
 
 
+def test_ap7361_standard_pin_voltage_code_is_exact_and_reverse_pin_is_not() -> None:
+    assert dc._regulator_output_volts("AP7361C-33E-13") == pytest.approx(3.3)
+    assert dc._regulator_output_volts("AP7361C-33E") == pytest.approx(3.3)
+    assert dc._regulator_output_volts("AP7361C-33ER-13") is None
+    assert dc._regulator_output_volts("AP7361C-lookalike") is None
+
+
 def test_a_board_with_no_named_rail_says_so_rather_than_reporting_zeroes():
     elements = [fixtures.board(30, 20)]
     elements += fixtures.component("R1", index=1, x=0, y=0, resistance=1000)

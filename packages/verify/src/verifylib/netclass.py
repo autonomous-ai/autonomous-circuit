@@ -54,7 +54,15 @@ _RAIL_VOLTS: tuple[tuple[re.Pattern[str], float], ...] = (
 #: propagation covers our topology (USB 5V -> LDO -> 3.3V). It is exact for a
 #: linear regulator and *understates* a buck's input current at low duty, which
 #: is the safe direction but is stated in coverage rather than hidden.
-_REGULATOR_HINTS = ("ams1117", "ldo", "lm1117", "xc6206", "me6211", "tlv7")
+_REGULATOR_HINTS = (
+    "ams1117",
+    "ldo",
+    "lm1117",
+    "xc6206",
+    "me6211",
+    "tlv7",
+    "ap7361c",
+)
 _VIN_HINTS = ("vin", "in", "vi")
 _VOUT_HINTS = ("vout", "out", "vo")
 
@@ -101,6 +109,14 @@ class _Loads:
 
     def _tally(self) -> None:
         for component in self.board.components:
+            haystack = " ".join(
+                filter(None, [self._mpn(component.source_id) or "", component.name])
+            ).lower()
+            # Regulator output load is propagated to its input below.  Treating
+            # the package as an ordinary black box would either report a false
+            # unknown or count one load on both VIN and VOUT.
+            if any(hint in haystack for hint in _REGULATOR_HINTS):
+                continue
             load = lookup(
                 lcsc=component.lcsc,
                 mpn=self._mpn(component.source_id),

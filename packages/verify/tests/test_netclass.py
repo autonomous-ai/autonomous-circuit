@@ -179,6 +179,54 @@ def test_regulator_input_carries_its_output_current():
     assert "U2" in v5[0]["detail"]
 
 
+def test_ap7361_load_is_propagated_without_false_unknown_regulator_load():
+    elements = [fixtures.board(50, 40)]
+    elements.append(fixtures.net(0, "V5", is_power=True))
+    elements.append(fixtures.net(1, "V3_3", is_power=True))
+    elements += fixtures.component(
+        "U2",
+        index=2,
+        x=0,
+        y=10,
+        ftype="simple_chip",
+        lcsc="C500795",
+        manufacturer_part_number="AP7361C-33E-13",
+        courtyard=(8, 5.7),
+        pads=[(-2, 0, 1.2, 1.6), (2, 0, 1.2, 1.6)],
+    )
+    for element in elements:
+        if element.get("type") == "source_port" and element.get(
+            "source_component_id"
+        ) == "source_component_2":
+            element["name"] = "IN" if element["pin_number"] == 1 else "OUT"
+    fixtures.connect(elements, "U2", 0, "V5")
+    fixtures.connect(elements, "U2", 1, "V3_3")
+    for offset in range(6):
+        ref = f"U{3 + offset}"
+        elements += fixtures.component(
+            ref,
+            index=3 + offset,
+            x=-10 + offset * 4,
+            y=0,
+            ftype="simple_chip",
+            lcsc="C2040",
+            manufacturer_part_number="RP2040",
+        )
+        fixtures.connect(elements, ref, 0, "V3_3")
+    elements.append(
+        fixtures.trace_on("t_v5", 0, [(-10, 12), (10, 12)], width=0.15)
+    )
+
+    built = Board(elements)
+    loads = netclass._Loads(built)
+    v5 = built.net_named("V5")
+    assert loads.per_net[v5.key] == pytest.approx(600)
+    assert loads.contributors[v5.key] == [
+        "600mA drawn through U2 from V3_3"
+    ]
+    assert "U2" not in " ".join(sum(loads.unknown.values(), []))
+
+
 # --- pair skew ------------------------------------------------------------
 
 
