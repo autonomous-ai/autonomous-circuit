@@ -31,12 +31,14 @@ correcting it.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import dataclass
 
 from verifylib import gerber as gbr
 from verifylib.findings import CheckResult, Coverage, Finding, finding, never_raises
-from verifylib.model import Board, Poly, Rect
+from verifylib.model import Board, Component, Pad, Poly, Rect
 from verifylib.rules import JLCPCB_2LAYER, FabRules
 
 #: Layers the fab needs on a 2-layer board. Anything missing is an error, not
@@ -68,6 +70,10 @@ OUTLINE_TOLERANCE_MM = 0.10
 #: below what a fab can hold, so a gap measuring 0.1999mm against a 0.2mm rule
 #: is a float tie, not a violation.
 MEASUREMENT_EPSILON_MM = 0.001
+# Ownership is a topology question, not the looser positional reconciliation
+# question.  A 50um pad/opening mismatch is worth reporting elsewhere, but
+# allowing it here makes two genuinely separate lands both "own" a 50um web.
+OWNERSHIP_TOLERANCE_MM = MEASUREMENT_EPSILON_MM
 
 
 @dataclass
@@ -87,6 +93,39 @@ class Transform:
         return (
             abs(abs(self.scale_x) - 1.0) < 1e-3 and abs(abs(self.scale_y) - 1.0) < 1e-3
         )
+
+
+@dataclass(frozen=True)
+class ReviewedMaskSliverFootprint:
+    """An exact, review-owned exception to the global mask-web floor.
+
+    Identity alone is not enough: a board can claim a valid supplier number
+    while carrying a locally edited land pattern.  The signature binds the
+    exception to the placed component's complete pad geometry, and
+    ``min_web_mm`` prevents a plotting change from widening the waiver.
+    """
+
+    manufacturer_part_number: str
+    supplier_part_number: str
+    footprint_sha256: str
+    min_web_mm: float
+
+
+# Reviewed supplier footprints whose own land pattern intentionally contains a
+# mask web below the board-level JLCPCB floor.  Never key this by refdes or
+# product: the contract follows the exact part + exact pad geometry wherever it
+# is composed.  A geometry edit changes the digest and immediately revokes the
+# exception.
+REVIEWED_MASK_SLIVER_FOOTPRINTS: tuple[ReviewedMaskSliverFootprint, ...] = (
+    ReviewedMaskSliverFootprint(
+        manufacturer_part_number="TYPE-C-31-M-12",
+        supplier_part_number="C165948",
+        footprint_sha256="4ad8b311766fcc32b796d0fe740acd2075f1de9f0e89b5186824fbae88ed690f",
+        # Exact supplier-native land pattern: narrowest plotted web measured
+        # 0.114104mm.  This contract may not waive a still narrower export.
+        min_web_mm=0.114,
+    ),
+)
 
 
 def solve_transform(board: Board, packet: gbr.Packet) -> Transform | None:
@@ -511,27 +550,125 @@ def _aperture_floors(packet: gbr.Packet, rules: FabRules) -> list[Finding]:
     return out
 
 
-def _pad_owners(board: Board, transform: Transform | None) -> _Grid | None:
-    """Every pad's plot position, tagged with the component it belongs to."""
+def _canonical_ring(points: list[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
+    """Canonicalise a polygon independently of start vertex and winding."""
+    cleaned: list[tuple[float, float]] = []
+    for point in points:
+        rounded = (round(point[0], 6), round(point[1], 6))
+        if not cleaned or rounded != cleaned[-1]:
+            cleaned.append(rounded)
+    if len(cleaned) > 1 and cleaned[0] == cleaned[-1]:
+        cleaned.pop()
+    if not cleaned:
+        return ()
+    variants: list[tuple[tuple[float, float], ...]] = []
+    for ring in (cleaned, list(reversed(cleaned))):
+        variants.extend(tuple(ring[index:] + ring[:index]) for index in range(len(ring)))
+    return min(variants)
+
+
+def _footprint_signature(component: Component) -> str:
+    """Translation/rotation/mirror-invariant digest of every pad land."""
+    theta = math.radians(-component.rotation)
+    cosine, sine = math.cos(theta), math.sin(theta)
+
+    def representation(*, mirror: bool) -> str:
+        pads: list[dict[str, object]] = []
+        for pad in component.pads:
+            local: list[tuple[float, float]] = []
+            for x, y in pad.copper_outline.points:
+                dx, dy = x - component.center[0], y - component.center[1]
+                rx = dx * cosine - dy * sine
+                ry = dx * sine + dy * cosine
+                local.append((-rx if mirror else rx, ry))
+            side = "both" if pad.plated_hole else (
+                "front" if pad.layer == component.layer else "back"
+            )
+            pads.append(
+                {
+                    "covered": pad.covered_with_solder_mask,
+                    "plated": pad.plated_hole,
+                    "points": _canonical_ring(local),
+                    "side": side,
+                }
+            )
+        pads.sort(key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":")))
+        return json.dumps(pads, sort_keys=True, separators=(",", ":"))
+
+    payload = min(representation(mirror=False), representation(mirror=True))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class _PadOwner:
+    component: Component
+    pad: Pad
+    plot_outline: Poly
+    net: str | None
+
+    @property
+    def label(self) -> str:
+        net = f" on {self.net}" if self.net else ""
+        return f"{self.component.name}/{self.pad.id}{net}"
+
+
+def _pad_owners(
+    board: Board,
+    transform: Transform | None,
+    *,
+    side: str,
+) -> list[_PadOwner]:
+    """Exposed pads on one mask side, preserving their actual plot geometry."""
     if transform is None:
-        return None
-    points = []
+        return []
+    owners: list[_PadOwner] = []
     for component in board.components:
         for pad in component.pads:
-            gx, gy = transform.apply(pad.x, pad.y)
-            points.append((gx, gy, component.name))
-    return _Grid(points, cell=2.0) if points else None
+            if pad.covered_with_solder_mask:
+                continue
+            if not pad.plated_hole and pad.layer != side:
+                continue
+            points = [transform.apply(x, y) for x, y in pad.copper_outline.points]
+            if len(points) < 3:
+                continue
+            net = board.net_of_pcb_port(pad.port_id)
+            owners.append(
+                _PadOwner(
+                    component=component,
+                    pad=pad,
+                    plot_outline=Poly(points),
+                    net=net.label if net is not None else None,
+                )
+            )
+    return owners
 
 
-def _owner_of(grid: _Grid | None, x: float, y: float) -> str | None:
-    if grid is None:
+def _owners_of(opening: Poly, owners: list[_PadOwner]) -> tuple[_PadOwner, ...]:
+    """Pads whose real copper overlaps (or is within plot tolerance of) an opening."""
+    matches: list[_PadOwner] = []
+    for owner in owners:
+        if opening.bounds.gap_to(owner.plot_outline.bounds) > OWNERSHIP_TOLERANCE_MM:
+            continue
+        if opening.min_distance_to(owner.plot_outline) <= OWNERSHIP_TOLERANCE_MM:
+            matches.append(owner)
+    return tuple(matches)
+
+
+def _reviewed_mask_contract(
+    component: Component,
+    contracts: tuple[ReviewedMaskSliverFootprint, ...],
+) -> ReviewedMaskSliverFootprint | None:
+    if not component.manufacturer_part_number or not component.lcsc:
         return None
-    best: tuple[float, str] | None = None
-    for px, py, name in grid.near(x, y, 1.5):
-        distance = math.hypot(px - x, py - y)
-        if best is None or distance < best[0]:
-            best = (distance, str(name))
-    return best[1] if best else None
+    signature = _footprint_signature(component)
+    for contract in contracts:
+        if (
+            contract.manufacturer_part_number == component.manufacturer_part_number
+            and contract.supplier_part_number == component.lcsc
+            and contract.footprint_sha256 == signature
+        ):
+            return contract
+    return None
 
 
 @never_raises
@@ -540,29 +677,41 @@ def _mask_slivers(
     rules: FabRules,
     board: Board | None = None,
     transform: Transform | None = None,
+    reviewed_footprints: tuple[
+        ReviewedMaskSliverFootprint, ...
+    ] | None = None,
 ) -> list[Finding]:
     """A web of solder mask narrower than the fab can hold burns off in the
     oven, and the two pads it separated become one joint. Nothing upstream of
     the export can see this: it is a property of the mask apertures, which
     only exist in the gerbers.
 
-    **Scoped to webs between two different components, and that scoping is
-    the whole check.** Measured on harness-puck: all ten sub-0.2mm webs sit
-    between two pads of one part's own land pattern — 0.1141mm and 0.1571mm
-    inside the USB-C receptacle's footprint, and 0.1985mm inside each of eight
-    0402 capacitors, which is simply what a 0402 land pattern is. JLCPCB builds
-    those every day; the dam inside a qualified footprint is a property of the
-    package, specified by IPC-7351 and the part vendor, not a placement anyone
-    chose. Blocking on it would have made every board this tool will ever
-    produce permanently un-orderable over a standard 0402.
-
-    A web between two *different* parts is the opposite: nobody qualified it,
-    and it is exactly what the fab's rule is written about.
+    A same-component web is advisory only when an explicit contract binds the
+    exact supplier identity, complete pad-geometry digest, and the smallest web
+    that review approved.  Refdes equality by itself proves nothing: an
+    arbitrary custom footprint can put two different nets dangerously close.
+    Cross-component, unowned, ambiguous, and unreviewed same-component webs all
+    remain blocking findings.
 
     Works on either plot representation, flashed apertures or filled regions.
     """
     out: list[Finding] = []
-    owners = _pad_owners(board, transform) if board is not None else None
+    if reviewed_footprints is None:
+        reviewed_footprints = REVIEWED_MASK_SLIVER_FOOTPRINTS
+    contract_cache: dict[str, ReviewedMaskSliverFootprint | None] = {}
+
+    def contract_for(component: Component) -> ReviewedMaskSliverFootprint | None:
+        if component.source_id not in contract_cache:
+            contract_cache[component.source_id] = _reviewed_mask_contract(
+                component, reviewed_footprints
+            )
+        return contract_cache[component.source_id]
+
+    def owner_text(matches: tuple[_PadOwner, ...]) -> str:
+        if not matches:
+            return "no matching design pad"
+        return ", ".join(owner.label for owner in matches)
+
     for role in ("mask_top", "mask_bottom"):
         layer = packet.layers.get(role)
         if layer is None:
@@ -570,8 +719,10 @@ def _mask_slivers(
         openings = _openings(layer)
         if len(openings) < 2:
             continue
+        side = "bottom" if role.endswith("bottom") else "top"
+        owners = _pad_owners(board, transform, side=side) if board is not None else []
         boxed = [
-            (poly, poly.bounds, _owner_of(owners, *poly.bounds.center))
+            (poly, poly.bounds, _owners_of(poly, owners))
             for poly in openings
         ]
         grid = _Grid(
@@ -582,14 +733,15 @@ def _mask_slivers(
             cell=2.0,
         )
         seen: set[tuple[int, int]] = set()
-        worst: tuple[float, float, float] | None = None
-        count = 0
-        same_part = 0
-        for poly, rect, owner in boxed:
+        cross_part: list[tuple[float, float, float, tuple[_PadOwner, ...], tuple[_PadOwner, ...]]] = []
+        unknown: list[tuple[float, float, float, tuple[_PadOwner, ...], tuple[_PadOwner, ...]]] = []
+        unreviewed: list[tuple[float, float, float, tuple[_PadOwner, ...], tuple[_PadOwner, ...]]] = []
+        approved: list[tuple[float, float, float, tuple[_PadOwner, ...], tuple[_PadOwner, ...]]] = []
+        for poly, rect, matches in boxed:
             reach = max(rect.width, rect.height) + rules.min_mask_sliver_mm + 1.0
             cx, cy = rect.center
             for _, _, payload in grid.near(cx, cy, reach):
-                other, other_rect, other_owner = payload
+                other, other_rect, other_matches = payload
                 if other is poly:
                     continue
                 key = (min(id(poly), id(other)), max(id(poly), id(other)))
@@ -603,38 +755,97 @@ def _mask_slivers(
                 gap = poly.min_distance_to(other)
                 if not (0 < gap < rules.min_mask_sliver_mm - MEASUREMENT_EPSILON_MM):
                     continue
-                if owner is not None and owner == other_owner:
-                    same_part += 1
+                record = (gap, cx, cy, matches, other_matches)
+                if len(matches) != 1 or len(other_matches) != 1:
+                    unknown.append(record)
                     continue
-                count += 1
-                if worst is None or gap < worst[0]:
-                    worst = (gap, cx, cy)
-        if same_part:
+                left, right = matches[0], other_matches[0]
+                if left.component.source_id != right.component.source_id:
+                    cross_part.append(record)
+                    continue
+                contract = contract_for(left.component)
+                if (
+                    contract is None
+                    or gap + 1e-9 < contract.min_web_mm
+                ):
+                    unreviewed.append(record)
+                    continue
+                approved.append(record)
+
+        if approved:
+            worst = min(approved, key=lambda item: item[0])
+            owner = worst[3][0]
+            contract = contract_for(owner.component)
+            assert contract is not None
             out.append(
                 finding(
                     layer.path,
                     "gerber_mask_sliver_in_footprint",
-                    f"{same_part} thin mask web(s) on "
-                    f"{role.replace('_', ' ')} sit inside a single part's own "
-                    "land pattern (a 0402's pad gap is 0.1985mm, just under the "
-                    f"{rules.min_mask_sliver_mm:g}mm rule). That is a property "
-                    "of the qualified footprint, which the fab builds every "
-                    "day — recorded, not blocked",
+                    f"{len(approved)} thin mask web(s) on {role.replace('_', ' ')} "
+                    f"belong to reviewed footprint {owner.component.name} "
+                    f"({contract.manufacturer_part_number}, "
+                    f"{contract.supplier_part_number}); narrowest {worst[0]:.3f}mm "
+                    f"between {owner_text(worst[3])} and {owner_text(worst[4])}, "
+                    f"within its explicit {contract.min_web_mm:g}mm minimum-web "
+                    "contract — recorded, not blocked",
                     "info",
                 )
             )
-        if count and worst is not None:
+
+        if cross_part:
+            worst = min(cross_part, key=lambda item: item[0])
             out.append(
                 finding(
                     layer.path,
                     "gerber_mask_sliver",
-                    f"{count} pair(s) of mask openings belonging to *different* "
+                    f"{len(cross_part)} pair(s) of mask openings belonging to different "
                     f"parts on {role.replace('_', ' ')} are separated by less "
                     f"than {rules.min_mask_sliver_mm:g}mm; "
                     f"the narrowest is {worst[0]:.3f}mm near "
-                    f"({worst[1]:.2f}, {worst[2]:.2f}) in plot coordinates. A "
-                    "web that thin burns off and the two pads bridge",
+                    f"({worst[1]:.2f}, {worst[2]:.2f}) in plot coordinates, between "
+                    f"{owner_text(worst[3])} and {owner_text(worst[4])}. A web "
+                    "that thin burns off and the two pads bridge",
                     "warning",
+                )
+            )
+
+        if unknown:
+            worst = min(unknown, key=lambda item: item[0])
+            out.append(
+                finding(
+                    layer.path,
+                    "gerber_mask_sliver_ownership_unknown",
+                    f"{len(unknown)} sub-floor mask-web pair(s) on "
+                    f"{role.replace('_', ' ')} could not be attributed uniquely "
+                    f"to one design pad per opening; narrowest {worst[0]:.3f}mm "
+                    f"near ({worst[1]:.2f}, {worst[2]:.2f}), with "
+                    f"[{owner_text(worst[3])}] versus [{owner_text(worst[4])}]. "
+                    "Unchecked or ambiguous packet geometry cannot earn fab readiness",
+                    "error",
+                )
+            )
+
+        if unreviewed:
+            worst = min(unreviewed, key=lambda item: item[0])
+            left = worst[3][0]
+            contract = contract_for(left.component)
+            contract_detail = (
+                f"its reviewed contract only permits webs at or above "
+                f"{contract.min_web_mm:g}mm"
+                if contract is not None
+                else "no exact reviewed supplier/geometry contract exists"
+            )
+            out.append(
+                finding(
+                    layer.path,
+                    "gerber_mask_sliver_unreviewed_footprint",
+                    f"{len(unreviewed)} sub-floor mask-web pair(s) on "
+                    f"{role.replace('_', ' ')} sit inside one component but are "
+                    f"not waived by review; narrowest {worst[0]:.3f}mm between "
+                    f"{owner_text(worst[3])} and {owner_text(worst[4])}; "
+                    f"{contract_detail}. Same refdes is not proof that a custom "
+                    "land pattern is safe",
+                    "error",
                 )
             )
     return out
@@ -838,6 +1049,9 @@ def check(
     *,
     assembly: bool = True,
     rules: FabRules = JLCPCB_2LAYER,
+    reviewed_mask_sliver_footprints: tuple[
+        ReviewedMaskSliverFootprint, ...
+    ] | None = None,
 ) -> CheckResult:
     """Reconcile a shipped gerber packet against the design that produced it."""
     coverage = Coverage(unit="gerber layers")
@@ -881,7 +1095,13 @@ def check(
         findings += _drills_match(board, packet, transform)
         findings += _pads_match(board, packet, transform, assembly=assembly)
     findings += _aperture_floors(packet, rules)
-    findings += _mask_slivers(packet, rules, board, transform)
+    findings += _mask_slivers(
+        packet,
+        rules,
+        board,
+        transform,
+        reviewed_footprints=reviewed_mask_sliver_footprints,
+    )
     findings += _silk_over_pads(packet)
 
     notes = [

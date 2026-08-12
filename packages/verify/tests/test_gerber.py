@@ -10,6 +10,7 @@ trust.
 
 from __future__ import annotations
 
+import copy
 import zipfile
 from pathlib import Path
 
@@ -56,12 +57,18 @@ def gerber_text(
         lines.append(f"X{_coord(x0)}Y{_coord(y0)}D02*")
         lines.append(f"X{_coord(x1)}Y{_coord(y1)}D01*")
     for contour in regions:
+        if not contour:
+            continue
+        first_x, first_y = contour[0]
+        # Real RS-274X moves to the contour start before entering region mode.
+        # Doing the move inside G36 makes the parser correctly retain the
+        # previous graphics position as part of the filled contour.
+        lines.append(f"X{_coord(first_x)}Y{_coord(first_y)}D02*")
         lines.append("G36*")
-        first = True
-        for x, y in contour:
-            op = "D02" if first else "D01"
-            lines.append(f"X{_coord(x)}Y{_coord(y)}{op}*")
-            first = False
+        for x, y in contour[1:]:
+            lines.append(f"X{_coord(x)}Y{_coord(y)}D01*")
+        if contour[-1] != contour[0]:
+            lines.append(f"X{_coord(first_x)}Y{_coord(first_y)}D01*")
         lines.append("G37*")
     lines.append("M02*")
     return "\n".join(lines) + "\n"
@@ -436,7 +443,9 @@ def test_mask_slivers_are_caught(tmp_path):
     members = _members(
         **{"board-F_Mask.gts": gerber_text(apertures={10: "R,0.7X0.7"}, flashes=close)}
     )
-    result = gerber_truth.check(_design(), _zip(tmp_path, members))
+    result = gerber_truth.check(
+        _close_mask_pad_design(same_part=False), _zip(tmp_path, members)
+    )
     assert "gerber_mask_sliver" in kinds(result, "warning")
 
 
@@ -447,6 +456,7 @@ def _close_mask_pad_design(*, same_part: bool) -> Board:
             "U1", index=1, x=0, y=0,
             pads=[(0.0, 0.0, 0.6, 0.6), (0.75, 0.0, 0.6, 0.6)],
             courtyard=(2.0, 1.6),
+            manufacturer_part_number="TEST-TWO-PAD",
         )
     else:
         elements += fixtures.component(
@@ -462,19 +472,191 @@ def _close_mask_pad_design(*, same_part: bool) -> Board:
     return Board(elements)
 
 
-@pytest.mark.parametrize(
-    ("same_part", "expected", "unexpected"),
-    [
-        (True, "gerber_mask_sliver_in_footprint", "gerber_mask_sliver"),
-        (False, "gerber_mask_sliver", "gerber_mask_sliver_in_footprint"),
-    ],
-)
-def test_mask_sliver_ownership_distinguishes_one_footprint_from_two_parts(
-    tmp_path, same_part, expected, unexpected,
-):
-    """A standard fine-pitch land pattern is informational; a placement-made
-    web between two components remains a fabrication warning."""
+def _approval_for(
+    board: Board,
+    component_name: str,
+    *,
+    min_web_mm: float = 0.04,
+) -> tuple[gerber_truth.ReviewedMaskSliverFootprint, ...]:
+    component = board.by_name[component_name]
+    assert component.manufacturer_part_number
+    assert component.lcsc
+    return (
+        gerber_truth.ReviewedMaskSliverFootprint(
+            manufacturer_part_number=component.manufacturer_part_number,
+            supplier_part_number=component.lcsc,
+            footprint_sha256=gerber_truth._footprint_signature(component),
+            min_web_mm=min_web_mm,
+        ),
+    )
+
+
+def _close_mask_members() -> dict[str, str]:
     close = [(10, OFFSET_X, OFFSET_Y), (10, OFFSET_X + 0.75, OFFSET_Y)]
+    return _members(
+        **{
+            "board-F_Mask.gts": gerber_text(
+                apertures={10: "R,0.7X0.7"}, flashes=close
+            )
+        }
+    )
+
+
+def test_reviewed_same_footprint_sliver_is_advisory(tmp_path):
+    board = _close_mask_pad_design(same_part=True)
+    result = gerber_truth.check(
+        board,
+        _zip(tmp_path, _close_mask_members()),
+        reviewed_mask_sliver_footprints=_approval_for(board, "U1"),
+    )
+    assert "gerber_mask_sliver_in_footprint" in kinds(result, "info")
+    assert "gerber_mask_sliver" not in kinds(result)
+
+
+def test_review_contract_is_revoked_by_any_pad_geometry_edit():
+    original = _close_mask_pad_design(same_part=True)
+    contract = _approval_for(original, "U1")
+    elements = copy.deepcopy(original.elements)
+    pad = next(element for element in elements if element.get("type") == "pcb_smtpad")
+    pad["width"] = float(pad["width"]) + 0.01
+    changed = Board(elements)
+    assert gerber_truth._reviewed_mask_contract(changed.by_name["U1"], contract) is None
+
+
+def test_review_contract_cannot_waive_a_web_below_its_own_floor(tmp_path):
+    board = _close_mask_pad_design(same_part=True)
+    result = gerber_truth.check(
+        board,
+        _zip(tmp_path, _close_mask_members()),
+        reviewed_mask_sliver_footprints=_approval_for(board, "U1", min_web_mm=0.06),
+    )
+    assert "gerber_mask_sliver_unreviewed_footprint" in kinds(result, "error")
+
+
+def test_unreviewed_same_refdes_sliver_fails_closed(tmp_path):
+    result = gerber_truth.check(
+        _close_mask_pad_design(same_part=True),
+        _zip(tmp_path, _close_mask_members()),
+    )
+    assert "gerber_mask_sliver_unreviewed_footprint" in kinds(result, "error")
+    assert "gerber_mask_sliver_in_footprint" not in kinds(result)
+
+
+def test_cross_part_sliver_remains_a_fabrication_finding(tmp_path):
+    result = gerber_truth.check(
+        _close_mask_pad_design(same_part=False),
+        _zip(tmp_path, _close_mask_members()),
+    )
+    assert "gerber_mask_sliver" in kinds(result, "warning")
+    assert "gerber_mask_sliver_in_footprint" not in kinds(result)
+
+
+@pytest.mark.parametrize("side", ["top", "bottom"])
+def test_coincident_opposite_side_pad_cannot_steal_mask_opening(tmp_path, side):
+    opposite = "bottom" if side == "top" else "top"
+    elements = [fixtures.board(BOARD_W, BOARD_H)]
+    elements += fixtures.component(
+        "U1", index=1, x=0, y=0, layer=side,
+        pads=[(0.0, 0.0, 0.6, 0.6), (0.75, 0.0, 0.6, 0.6)],
+        manufacturer_part_number=f"TEST-{side.upper()}-TWO-PAD",
+    )
+    elements += fixtures.component(
+        "R9", index=9, x=0, y=0, layer=opposite,
+        pads=[(0.0, 0.0, 0.6, 0.6), (0.75, 0.0, 0.6, 0.6)],
+        manufacturer_part_number=f"TEST-{opposite.upper()}-TWO-PAD",
+    )
+    board = Board(elements)
+    role = "board-F_Mask.gts" if side == "top" else "board-B_Mask.gbs"
+    members = _members(
+        **{
+            role: gerber_text(
+                apertures={10: "R,0.7X0.7"},
+                flashes=[(10, OFFSET_X, OFFSET_Y), (10, OFFSET_X + 0.75, OFFSET_Y)],
+            )
+        }
+    )
+    result = gerber_truth.check(
+        board,
+        _zip(tmp_path, members),
+        reviewed_mask_sliver_footprints=_approval_for(board, "U1"),
+    )
+    info = [f for f in result.findings if f["kind"] == "gerber_mask_sliver_in_footprint"]
+    assert len(info) == 1
+    assert "U1/" in info[0]["detail"]
+    assert "gerber_mask_sliver_ownership_unknown" not in kinds(result)
+
+
+def test_concave_custom_pad_is_owned_by_its_polygon_not_its_bounds(tmp_path):
+    elements = [fixtures.board(BOARD_W, BOARD_H)]
+    elements += fixtures.component(
+        "J1", index=1, x=0, y=0, pads=[],
+        manufacturer_part_number="TEST-CONCAVE",
+    )
+    concave = [
+        {"x": -0.35, "y": -0.35}, {"x": 0.35, "y": -0.35},
+        {"x": 0.35, "y": -0.10}, {"x": -0.10, "y": -0.10},
+        {"x": -0.10, "y": 0.35}, {"x": -0.35, "y": 0.35},
+    ]
+    second = [
+        {"x": 0.40, "y": -0.35}, {"x": 1.00, "y": -0.35},
+        {"x": 1.00, "y": -0.10}, {"x": 0.40, "y": -0.10},
+    ]
+    for index, points in enumerate((concave, second)):
+        elements.append(
+            {
+                "type": "pcb_smtpad",
+                "pcb_smtpad_id": f"pcb_smtpad_1_custom_{index}",
+                "pcb_component_id": "pcb_component_1",
+                "layer": "top",
+                "shape": "polygon",
+                "points": points,
+            }
+        )
+    # Its centre lies in the concavity but its copper does not overlap J1.
+    elements += fixtures.component(
+        "R9", index=9, x=0.15, y=0.15,
+        pads=[(0.0, 0.0, 0.1, 0.1)],
+    )
+    board = Board(elements)
+    regions = [
+        [(x + OFFSET_X, y + OFFSET_Y) for x, y in ((p["x"], p["y"]) for p in points)]
+        for points in (concave, second)
+    ]
+    members = _members(
+        **{
+            "board-F_Mask.gts": gerber_text(
+                apertures={10: "C,0.1"}, regions=regions
+            )
+        }
+    )
+    result = gerber_truth.check(
+        board,
+        _zip(tmp_path, members),
+        reviewed_mask_sliver_footprints=_approval_for(board, "J1"),
+    )
+    assert "gerber_mask_sliver_in_footprint" in kinds(result, "info")
+    assert "gerber_mask_sliver_ownership_unknown" not in kinds(result)
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_unowned_or_ambiguous_mask_opening_fails_closed(tmp_path, ambiguous):
+    elements = [fixtures.board(BOARD_W, BOARD_H)]
+    if ambiguous:
+        elements += fixtures.component(
+            "R1", index=1, x=0, y=0, pads=[(0, 0, 0.6, 0.6)]
+        )
+        elements += fixtures.component(
+            "R2", index=2, x=0, y=0, pads=[(0, 0, 0.6, 0.6)]
+        )
+        elements += fixtures.component(
+            "R3", index=3, x=0.75, y=0, pads=[(0, 0, 0.6, 0.6)]
+        )
+        close = [(10, OFFSET_X, OFFSET_Y), (10, OFFSET_X + 0.75, OFFSET_Y)]
+    else:
+        elements += fixtures.component(
+            "R1", index=1, x=-5, y=0, pads=[(0, 0, 0.6, 0.6)]
+        )
+        close = [(10, OFFSET_X + 4, OFFSET_Y), (10, OFFSET_X + 4.75, OFFSET_Y)]
     members = _members(
         **{
             "board-F_Mask.gts": gerber_text(
@@ -482,12 +664,121 @@ def test_mask_sliver_ownership_distinguishes_one_footprint_from_two_parts(
             )
         }
     )
-    result = gerber_truth.check(
-        _close_mask_pad_design(same_part=same_part),
-        _zip(tmp_path, members),
+    result = gerber_truth.check(Board(elements), _zip(tmp_path, members))
+    assert "gerber_mask_sliver_ownership_unknown" in kinds(result, "error")
+
+
+def _protected_starter_j1_board() -> Board:
+    """The exact C165948 pad geometry from the public starter regression."""
+    elements = [
+        fixtures.board(BOARD_W, BOARD_H),
+        {
+            "type": "source_component",
+            "source_component_id": "source_component_0",
+            "name": "J1",
+            "ftype": "simple_connector",
+            "manufacturer_part_number": "TYPE-C-31-M-12",
+            "supplier_part_numbers": {"jlcpcb": ["C165948"]},
+        },
+        {
+            "type": "pcb_component",
+            "pcb_component_id": "pcb_component_0",
+            "source_component_id": "source_component_0",
+            "center": {"x": 0.0, "y": -11.72504355},
+            "width": 9.8502216,
+            "height": 6.4981709,
+            "layer": "top",
+            "rotation": 0,
+        },
+    ]
+    for index, x in enumerate(
+        (-1.75006, -1.249934, -0.750062, -0.249936, 0.249936, 0.750062, 1.24968, 1.75006)
+    ):
+        elements.append(
+            {
+                "type": "pcb_smtpad",
+                "pcb_smtpad_id": f"pcb_smtpad_{index}",
+                "pcb_component_id": "pcb_component_0",
+                "layer": "top",
+                "shape": "rect",
+                "x": x,
+                "y": -9.1259568,
+                "width": 0.2999994,
+                "height": 1.2999974,
+            }
+        )
+    polygons = (
+        [(-2.8999688, -9.775892), (-2.8999688, -8.4758692), (-3.1999682, -8.4758692),
+         (-3.1999682, -8.4760216), (-3.4999422, -8.4760216), (-3.4999422, -9.7760444),
+         (-3.1999428, -9.7760444), (-3.1999428, -9.775892)],
+        [(2.8999942, -8.4758692), (2.8999942, -9.7758412), (3.1999936, -9.7758412),
+         (3.5000184, -9.7758412), (3.5000184, -8.4758692), (3.200019, -8.4758692)],
+        [(2.7001724, -9.7758412), (2.7001724, -8.4758692), (2.400173, -8.4758692),
+         (2.1001482, -8.4758692), (2.1001482, -9.7758412), (2.4001476, -9.7758412)],
+        [(-2.0999704, -9.7759936), (-2.0999704, -8.4760216), (-2.3999952, -8.4760216),
+         (-2.6999438, -8.476047), (-2.6999438, -9.776019), (-2.399919, -9.776019)],
     )
-    assert expected in kinds(result)
-    assert unexpected not in kinds(result)
+    for index, points in enumerate(polygons, start=8):
+        elements.append(
+            {
+                "type": "pcb_smtpad",
+                "pcb_smtpad_id": f"pcb_smtpad_{index}",
+                "pcb_component_id": "pcb_component_0",
+                "layer": "top",
+                "shape": "polygon",
+                "points": [{"x": x, "y": y} for x, y in points],
+            }
+        )
+    for index, (x, y, height) in enumerate(
+        ((4.325112, -14.0741308, 1.7999964), (4.325112, -9.8943068, 1.999996),
+         (-4.325112, -9.8943068, 1.999996), (-4.325112, -14.0741308, 1.7999964))
+    ):
+        elements.append(
+            {
+                "type": "pcb_plated_hole",
+                "pcb_plated_hole_id": f"pcb_plated_hole_{index}",
+                "pcb_component_id": "pcb_component_0",
+                "x": x,
+                "y": y,
+                "outer_width": 1.1999976,
+                "outer_height": height,
+                "ccw_rotation": 0,
+            }
+        )
+    hidden = fixtures.component(
+        "N3", index=3, x=3.2, y=-7.9,
+        pads=[(0.0, 0.0, 0.8, 0.8)],
+        manufacturer_part_number="MASKED_COPPER_NODE",
+    )
+    for element in hidden:
+        if element.get("type") == "pcb_smtpad":
+            element["is_covered_with_solder_mask"] = True
+    return Board(elements + hidden)
+
+
+def test_protected_starter_uses_exact_reviewed_j1_not_nearby_masked_n3(tmp_path):
+    board = _protected_starter_j1_board()
+    assert gerber_truth._footprint_signature(board.by_name["J1"]) == (
+        "4ad8b311766fcc32b796d0fe740acd2075f1de9f0e89b5186824fbae88ed690f"
+    )
+    members = _members(
+        **{
+            "board-F_Mask.gts": gerber_text(
+                apertures={10: "R,0.600024X1.299972"},
+                flashes=[
+                    (10, OFFSET_X + 3.157147, OFFSET_Y - 9.033001),
+                    (10, OFFSET_X + 2.443019, OFFSET_Y - 9.218711),
+                ],
+            )
+        }
+    )
+    result = gerber_truth.check(board, _zip(tmp_path, members))
+    info = [f for f in result.findings if f["kind"] == "gerber_mask_sliver_in_footprint"]
+    assert len(info) == 1
+    assert "TYPE-C-31-M-12, C165948" in info[0]["detail"]
+    assert "gerber_mask_sliver" not in kinds(result)
+    assert "gerber_mask_sliver_ownership_unknown" not in kinds(result)
+    assert "gerber_mask_sliver_unreviewed_footprint" not in kinds(result)
 
 
 def test_silk_printed_over_a_pad_is_caught(tmp_path):

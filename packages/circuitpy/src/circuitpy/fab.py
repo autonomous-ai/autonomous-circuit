@@ -155,6 +155,10 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
     "gerber_pad_missing",
     "gerber_pad_masked_over",
     "gerber_trace_width",
+    # Ownership is part of Gerber coverage.  A narrow web cannot be waived
+    # unless both openings map uniquely to reviewed pad geometry.
+    "gerber_mask_sliver_ownership_unknown",
+    "gerber_mask_sliver_unreviewed_footprint",
     # The assembly line refuses or silently skips the part.
     "dfa_bottom_side",
     "dfa_board_size",
@@ -226,6 +230,11 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
 #: Findings this fab raises from `warning` to `error`. Each needs a reason
 #: sharper than "it would be nice", because each one stops a board shipping.
 VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
+    # A sub-floor solder-mask web between different components is placement
+    # geometry nobody qualified.  The Gerber check deliberately exempts only
+    # openings owned by one footprint; a real cross-part web burns away and
+    # can join the two otherwise independent solder lands.
+    "gerber_mask_sliver",
     # Measured 2026-08-11: 100% of silkscreen strokes on all three example
     # boards are under JLCPCB's 0.15mm floor, 1145 of them at 0.033mm. This is
     # not a few thin labels — the whole layer will print broken or be dropped,
@@ -250,16 +259,14 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
 #: does not have to re-derive it:
 #:
-#: * `gerber_mask_sliver` — escalated on 2026-08-11 and **retracted the same
-#:   day on measurement**. All ten sub-0.2mm mask webs on harness-puck sit
+#: * `gerber_mask_sliver_in_footprint` — the broad sliver rule was retracted
+#:   on measurement. All ten sub-0.2mm mask webs on harness-puck sit
 #:   inside a single part's own land pattern: 0.114mm and 0.157mm within the
 #:   USB-C receptacle's footprint, and 0.1985mm within each of eight 0402
 #:   capacitors — which is simply what a 0402 land pattern is. Those dams are
 #:   specified by the package, JLCPCB builds them daily, and blocking on them
 #:   would have made every board this tool will ever produce permanently
-#:   un-orderable. The check is now scoped to webs between *different* parts,
-#:   where nobody qualified the geometry; that version fires on none of the
-#:   three boards, so there is nothing to escalate yet.
+#:   un-orderable. The distinct cross-part kind remains escalated.
 #: * `thermal_regulator` at 96 degC junction — hot, and inside the part's own
 #:   125 degC rating with 29 degC to spare. Blocking a part operating within
 #:   spec would be a gate set to a preference.

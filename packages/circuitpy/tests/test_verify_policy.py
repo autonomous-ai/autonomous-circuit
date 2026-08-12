@@ -100,6 +100,7 @@ def test_a_blocking_kind_is_not_promoted_when_it_only_warned():
 
 def test_an_escalated_kind_is_raised_from_warning_to_error():
     for kind in (
+        "gerber_mask_sliver",
         "gerber_silk_line_width",
         "gerber_silk_over_pad",
         "review_debug_unreachable",
@@ -109,14 +110,29 @@ def test_an_escalated_kind_is_raised_from_warning_to_error():
         assert out[0]["severity"] == "error", kind
 
 
-def test_a_mask_web_inside_one_footprint_never_blocks():
-    """Retracted on measurement: all ten sub-0.2mm webs on harness-puck sit
-    inside a single part's own land pattern, and a 0402's pad gap is 0.1985mm.
-    Escalating that would have made every board permanently un-orderable over
-    a standard passive."""
-    for kind in ("gerber_mask_sliver", "gerber_mask_sliver_in_footprint"):
-        out = apply_verify_policy([_finding(kind, "warning")], PROFILE)
-        assert out[0]["severity"] == "warning", kind
+def test_a_reviewed_mask_web_inside_one_exact_footprint_stays_advisory():
+    """The verifier emits this kind only after supplier identity, exact pad
+    geometry, and the footprint-specific minimum web all match review."""
+    out = apply_verify_policy(
+        [_finding("gerber_mask_sliver_in_footprint", "info")], PROFILE
+    )
+    assert out[0]["severity"] == "info"
+
+
+def test_unknown_or_unreviewed_mask_ownership_blocks_fab_ready():
+    for kind in (
+        "gerber_mask_sliver_ownership_unknown",
+        "gerber_mask_sliver_unreviewed_footprint",
+    ):
+        out = apply_verify_policy([_finding(kind, "error")], PROFILE)
+        assert out[0]["severity"] == "error", kind
+        assert fab_ready(out, "kicad-cli") is False
+
+
+def test_a_cross_part_mask_web_blocks_fab_ready():
+    out = apply_verify_policy([_finding("gerber_mask_sliver", "warning")], PROFILE)
+    assert out[0]["severity"] == "error"
+    assert fab_ready(out, "kicad-cli") is False
 
 
 def test_an_unclassified_kind_can_never_block():

@@ -314,6 +314,92 @@ def _convex_hull(points: Sequence[tuple[float, float]]) -> list[tuple[float, flo
 # ---------------------------------------------------------------------------
 
 
+def _number(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        numeric = float(value)
+        if math.isfinite(numeric):
+            return numeric
+    return None
+
+
+def _rotate_about(
+    point: tuple[float, float],
+    center: tuple[float, float],
+    degrees: float,
+) -> tuple[float, float]:
+    if abs(degrees) < 1e-12:
+        return point
+    theta = math.radians(degrees)
+    dx, dy = point[0] - center[0], point[1] - center[1]
+    return (
+        center[0] + dx * math.cos(theta) - dy * math.sin(theta),
+        center[1] + dx * math.sin(theta) + dy * math.cos(theta),
+    )
+
+
+def _stadium_outline(
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    rotation: float,
+) -> Poly:
+    """A deterministic polygon for a circle/oval/pill copper land."""
+    radius = min(width, height) / 2.0
+    straight = abs(width - height) / 2.0
+    points: list[tuple[float, float]] = []
+    steps = 16
+    if width >= height:
+        for index in range(steps + 1):
+            angle = -math.pi / 2 + math.pi * index / steps
+            points.append((x + straight + radius * math.cos(angle), y + radius * math.sin(angle)))
+        for index in range(steps + 1):
+            angle = math.pi / 2 + math.pi * index / steps
+            points.append((x - straight + radius * math.cos(angle), y + radius * math.sin(angle)))
+    else:
+        for index in range(steps + 1):
+            angle = math.pi * index / steps
+            points.append((x + radius * math.cos(angle), y + straight + radius * math.sin(angle)))
+        for index in range(steps + 1):
+            angle = math.pi + math.pi * index / steps
+            points.append((x + radius * math.cos(angle), y - straight + radius * math.sin(angle)))
+    return Poly([_rotate_about(point, (x, y), rotation) for point in points])
+
+
+def _pad_outline_from_element(
+    element: Element,
+    *,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+) -> Poly:
+    points = [
+        (float(point["x"]), float(point["y"]))
+        for point in (element.get("points") or [])
+        if isinstance(point, dict)
+        and _number(point.get("x")) is not None
+        and _number(point.get("y")) is not None
+    ]
+    if len(points) >= 3:
+        return Poly(points)
+
+    shape = str(element.get("shape") or "rect").lower()
+    rotation = _number(element.get("ccw_rotation"))
+    if rotation is None:
+        rotation = _number(element.get("rotation")) or 0.0
+    if shape in {"circle", "oval", "pill", "rotated_pill"}:
+        return _stadium_outline(x, y, width, height, rotation)
+
+    corners = (
+        (x - width / 2.0, y - height / 2.0),
+        (x + width / 2.0, y - height / 2.0),
+        (x + width / 2.0, y + height / 2.0),
+        (x - width / 2.0, y + height / 2.0),
+    )
+    return Poly([_rotate_about(point, (x, y), rotation) for point in corners])
+
+
 @dataclass
 class Pad:
     """One copper landing: an SMT pad or a plated hole."""
@@ -333,10 +419,20 @@ class Pad:
     # Gerber reconciliation can require its copper while refusing to invent a
     # mask or paste aperture for it.
     covered_with_solder_mask: bool = False
+    #: The actual copper land, in board coordinates.  Custom pads serialize
+    #: only this polygon (no scalar centre/size), and rotated/circular pads are
+    #: not faithfully represented by their axis-aligned bounding rectangle.
+    #: Gerber ownership must use this geometry rather than a nearest-centre
+    #: guess, or a nearby part can steal an opening.
+    outline: Poly | None = None
 
     @property
     def rect(self) -> Rect:
         return Rect.from_center(self.x, self.y, self.width, self.height)
+
+    @property
+    def copper_outline(self) -> Poly:
+        return self.outline or self.rect.as_poly()
 
 
 @dataclass
@@ -354,6 +450,7 @@ class Component:
     rotation: float = 0.0
     do_not_place: bool = False
     lcsc: str | None = None
+    manufacturer_part_number: str | None = None
     resistance: float | None = None
     capacitance: float | None = None
     inductance: float | None = None
@@ -605,25 +702,58 @@ class Board:
             cid = str(e.get("pcb_component_id") or "")
             x, y = e.get("x"), e.get("y")
             if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                # Custom/polygon pads serialize their real copper as points
+                # instead of a centre/size.  They are still assembly pads and
+                # mask openings: dropping them here made Gerber ownership fall
+                # through to whichever unrelated rectangular pad happened to
+                # be nearest.  A conservative bounding box is sufficient for
+                # the pad-centre reconciliation performed by this model.
+                points = [
+                    (float(point["x"]), float(point["y"]))
+                    for point in (e.get("points") or [])
+                    if isinstance(point, dict)
+                    and isinstance(point.get("x"), (int, float))
+                    and isinstance(point.get("y"), (int, float))
+                ]
+                bounds = Rect.bounding(points)
+                if bounds is not None:
+                    x, y = bounds.center
+                    e_width, e_height = bounds.width, bounds.height
+                else:
+                    e_width = e_height = None
+            else:
+                e_width = e_height = None
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
                 continue
-            width = e.get("width")
-            height = e.get("height")
+            width = e.get("width") if e_width is None else e_width
+            height = e.get("height") if e_height is None else e_height
             if not isinstance(width, (int, float)):
                 radius = e.get("radius")
                 width = height = float(radius) * 2 if isinstance(radius, (int, float)) else 0.0
             if not isinstance(height, (int, float)):
                 height = width
+            x_float = float(x)
+            y_float = float(y)
+            width_float = float(width)
+            height_float = float(height)
             pad = Pad(
                 id=str(e.get("pcb_smtpad_id") or ""),
                 component_id=cid or None,
                 port_id=str(e.get("pcb_port_id") or "") or None,
                 layer=str(e.get("layer") or "top"),
-                x=float(x),
-                y=float(y),
-                width=float(width),
-                height=float(height),
+                x=x_float,
+                y=y_float,
+                width=width_float,
+                height=height_float,
                 covered_with_solder_mask=(
                     e.get("is_covered_with_solder_mask") is True
+                ),
+                outline=_pad_outline_from_element(
+                    e,
+                    x=x_float,
+                    y=y_float,
+                    width=width_float,
+                    height=height_float,
                 ),
             )
             pads_by_component.setdefault(cid, []).append(pad)
@@ -635,17 +765,28 @@ class Board:
             outer_w = e.get("outer_width") or e.get("outer_diameter") or 0.0
             outer_h = e.get("outer_height") or e.get("outer_diameter") or outer_w
             hole = e.get("hole_diameter") or e.get("hole_width")
+            x_float = float(x)
+            y_float = float(y)
+            width_float = float(outer_w or 0.0)
+            height_float = float(outer_h or 0.0)
             pad = Pad(
                 id=str(e.get("pcb_plated_hole_id") or ""),
                 component_id=cid or None,
                 port_id=str(e.get("pcb_port_id") or "") or None,
                 layer="top",
-                x=float(x),
-                y=float(y),
-                width=float(outer_w or 0.0),
-                height=float(outer_h or 0.0),
+                x=x_float,
+                y=y_float,
+                width=width_float,
+                height=height_float,
                 plated_hole=True,
                 hole_diameter=float(hole) if isinstance(hole, (int, float)) else None,
+                outline=_pad_outline_from_element(
+                    {**e, "shape": "pill" if abs(width_float - height_float) > 1e-12 else "circle"},
+                    x=x_float,
+                    y=y_float,
+                    width=width_float,
+                    height=height_float,
+                ),
             )
             pads_by_component.setdefault(cid, []).append(pad)
 
@@ -682,6 +823,11 @@ class Board:
                 rotation=float((pcb or {}).get("rotation") or 0.0),
                 do_not_place=bool((pcb or {}).get("do_not_place")),
                 lcsc=str(lcsc_list[0]) if isinstance(lcsc_list, list) and lcsc_list else None,
+                manufacturer_part_number=(
+                    str(source.get("manufacturer_part_number"))
+                    if source.get("manufacturer_part_number")
+                    else None
+                ),
                 color=str(source.get("color")) if source.get("color") else None,
                 cable_insertion_center=cable_insertion_center,
                 pads=pads_by_component.get(pcb_id or "", []),
@@ -848,6 +994,12 @@ class Board:
 
     def net_of_port(self, source_port_id: str) -> Net | None:
         key = self._port_net.get(source_port_id)
+        return self.net_by_key.get(key) if key else None
+
+    def net_of_pcb_port(self, pcb_port_id: str | None) -> Net | None:
+        if not pcb_port_id:
+            return None
+        key = self._pcb_port_net.get(pcb_port_id)
         return self.net_by_key.get(key) if key else None
 
     def net_named(self, name: str) -> Net | None:

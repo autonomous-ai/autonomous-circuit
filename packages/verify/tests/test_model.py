@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from verifylib.model import Board
 
 
@@ -55,3 +57,55 @@ def test_fixed_pcbpath_source_trace_is_joined_to_its_net() -> None:
     assert traces[0].net_name == "V5"
     assert traces[0].length == 12
     assert traces[0].min_width == 0.8
+
+
+def test_polygon_smt_pad_is_retained_from_its_real_bounds() -> None:
+    """Custom connector lands are real pads even without scalar x/y fields."""
+    board = Board(
+        [
+            {
+                "type": "source_component",
+                "source_component_id": "source_component_j1",
+                "name": "J1",
+                "manufacturer_part_number": "TEST-CONCAVE-PAD",
+                "supplier_part_numbers": {"jlcpcb": ["C123"]},
+            },
+            {
+                "type": "pcb_component",
+                "pcb_component_id": "pcb_component_j1",
+                "source_component_id": "source_component_j1",
+                "center": {"x": 0, "y": 0},
+                "width": 4,
+                "height": 3,
+                "layer": "top",
+            },
+            {
+                "type": "pcb_smtpad",
+                "pcb_smtpad_id": "pcb_smtpad_custom",
+                "pcb_component_id": "pcb_component_j1",
+                "layer": "top",
+                "shape": "polygon",
+                "points": [
+                    {"x": 2.1, "y": -0.65},
+                    {"x": 2.7, "y": -0.65},
+                    {"x": 2.7, "y": 0.65},
+                    {"x": 2.1, "y": 0.65},
+                ],
+            },
+        ]
+    )
+    assert len(board.components) == 1
+    assert len(board.components[0].pads) == 1
+    pad = board.components[0].pads[0]
+    assert pad.id == "pcb_smtpad_custom"
+    assert (pad.x, pad.y, pad.width, pad.height) == pytest.approx(
+        (2.4, 0.0, 0.6, 1.3)
+    )
+    assert pad.copper_outline.points == (
+        (2.1, -0.65),
+        (2.7, -0.65),
+        (2.7, 0.65),
+        (2.1, 0.65),
+    )
+    assert board.components[0].manufacturer_part_number == "TEST-CONCAVE-PAD"
+    assert board.components[0].lcsc == "C123"
