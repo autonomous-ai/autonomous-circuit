@@ -224,6 +224,9 @@ class OrderMd(unittest.TestCase):
         self.assertIn("$4-20", text)
         self.assertIn("$75-110", text)
         self.assertIn("14/14", text)
+        self.assertIn("**stop here**", text)
+        self.assertIn('Never accept "Do Not Place"', text)
+        self.assertIn("rebuild the board", text)
 
     def test_standard_assembly_walkthrough_selects_both_sides(self) -> None:
         text = self._write(assembly=True, assembly_tier="standard")

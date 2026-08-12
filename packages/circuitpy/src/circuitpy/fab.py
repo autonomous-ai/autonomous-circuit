@@ -535,7 +535,9 @@ def write_order_md(
    **Process BOM & CPL**.
 6. Parts-match table: every line should show a matched C-number and stock
    ({orderable}/{lines} lines carry part numbers in this packet). Shortfalls show
-   red — either accept "Do Not Place" or swap the part in chat and re-export.
+   red — **stop here**. Swap the part in chat, rebuild the board, and use the
+   new fab packet. Never accept "Do Not Place": that changes the assembled
+   circuit after its electrical, thermal, placement, and routing checks passed.
 7. Next -> **component placement preview**. **This screen is the safety net:**
    JLCPCB auto-rotates known parts and its rotation conventions differ from the
    CPL's — eyeball pin-1 orientation on every IC/module, connector orientation,
