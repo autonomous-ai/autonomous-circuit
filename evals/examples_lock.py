@@ -45,6 +45,8 @@ EXAMPLES = REPO / "examples"
 BASELINE = Path(__file__).resolve().parent / "examples-baseline.json"
 
 from circuitpy.source_hash import board_source_hash  # noqa: E402
+from circuitpy import fab as fab_mod  # noqa: E402
+from circuitpy import spec as spec_mod  # noqa: E402
 from circuitpy.generation import (  # noqa: E402
     GENERATOR_NAME,
     _current_toolchain_block,
@@ -131,16 +133,8 @@ def incomplete_sidecar_fields(sidecar: dict, *, project: Path | None = None) -> 
     """
     incomplete: list[str] = []
 
-    routing_error = routing_attempt_evidence_error(
-        sidecar.get("build"),
-        circuit_json_path=(project / "boards" / CANONICAL_BOARD_ARTIFACT)
-        if project is not None
-        else None,
-    )
-    if routing_error is not None:
-        incomplete.append(routing_error)
-
     validation = sidecar.get("validation")
+    validation_warnings: list[dict] | None = None
     if not isinstance(validation, dict):
         incomplete.append("validation (missing or not an object)")
     else:
@@ -148,6 +142,7 @@ def incomplete_sidecar_fields(sidecar: dict, *, project: Path | None = None) -> 
         if not isinstance(warnings, list):
             incomplete.append("validation.warnings (not a list)")
         else:
+            validation_warnings = warnings
             for index, warning in enumerate(warnings):
                 if not isinstance(warning, dict):
                     incomplete.append(
@@ -168,6 +163,25 @@ def incomplete_sidecar_fields(sidecar: dict, *, project: Path | None = None) -> 
         incomplete.append("fab (missing or not an object)")
     elif not isinstance(fab.get("ready"), bool):
         incomplete.append("fab.ready (missing or not a boolean)")
+    elif not isinstance(fab.get("profile"), str) or not fab.get("profile"):
+        incomplete.append("fab.profile (missing or invalid)")
+
+    routing_error = routing_attempt_evidence_error(
+        sidecar.get("build"),
+        circuit_json_path=(project / "boards" / CANONICAL_BOARD_ARTIFACT)
+        if project is not None
+        else None,
+        final_warnings=(
+            validation_warnings if project is not None else None
+        ),
+        fab_ready=(
+            fab.get("ready")
+            if isinstance(fab, dict) and isinstance(fab.get("ready"), bool)
+            else None
+        ),
+    )
+    if routing_error is not None:
+        incomplete.append(routing_error)
 
     bom = sidecar.get("bom")
     if not isinstance(bom, dict):
@@ -340,6 +354,9 @@ def measurement_for_project(project: Path) -> dict:
             currentToolchain=current_build_identity,
         )
 
+    # Structural validation comes before file validation so a missing
+    # canonical board is reported as MissingArtifact rather than as a derived
+    # routing-evidence mismatch.
     incomplete = incomplete_sidecar_fields(sidecar)
     if incomplete:
         return invalid_measurement(
@@ -356,9 +373,28 @@ def measurement_for_project(project: Path) -> dict:
             missingArtifacts=missing,
         )
 
+    validation = sidecar.get("validation")
+    warnings = validation.get("warnings", []) if isinstance(validation, dict) else []
+    fab = sidecar.get("fab")
+    try:
+        product = spec_mod.load_product(project)
+        profile = fab_mod.get_profile(str(fab.get("profile")))
+    except Exception as exc:
+        return invalid_measurement(
+            "IncompleteSidecar",
+            detail=f"cannot reconstruct routing evidence context: {exc}",
+        )
     routing_error = routing_attempt_evidence_error(
         sidecar.get("build"),
         circuit_json_path=project / "boards" / CANONICAL_BOARD_ARTIFACT,
+        final_warnings=warnings,
+        fab_ready=(
+            fab.get("ready")
+            if isinstance(fab, dict) and isinstance(fab.get("ready"), bool)
+            else None
+        ),
+        product=product,
+        profile=profile,
     )
     if routing_error is not None:
         return invalid_measurement(

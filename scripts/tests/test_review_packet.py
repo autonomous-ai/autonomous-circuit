@@ -48,7 +48,8 @@ class ReviewPacketFreshnessTests(unittest.TestCase):
         )
         sync_project(self.project, blocks=["thing"], source=source)
         (self.project / "product.json").write_text(
-            json.dumps({"name": "demo"}), encoding="utf-8"
+            json.dumps({"name": "demo", "power": "usb-c-5v"}),
+            encoding="utf-8",
         )
         (self.project / "parts.json").write_text("{}\n", encoding="utf-8")
         evidence = {
@@ -59,6 +60,9 @@ class ReviewPacketFreshnessTests(unittest.TestCase):
             artifact = self.project / "boards" / relative
             artifact.parent.mkdir(parents=True, exist_ok=True)
             artifact.write_bytes(b"fixture\n")
+        (self.project / "boards" / "main.circuit.json").write_text(
+            "[]\n", encoding="utf-8"
+        )
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -66,12 +70,26 @@ class ReviewPacketFreshnessTests(unittest.TestCase):
     def _sidecar(self) -> dict:
         from circuitpy.generation import (
             _current_toolchain_block,
+            _publish_routing_attempt_evidence,
+            _routing_attempt_evidence,
             pipeline_revision,
         )
         from circuitpy.source_hash import board_source_hash
 
         identity = board_source_hash(
             self.project / "boards" / "main.tsx", self.project
+        )
+        staged_attempts = self.project / ".staged-attempts"
+        attempt_record = _routing_attempt_evidence(
+            attempt_index=1,
+            effort="default",
+            warnings=[],
+            circuit_json_path=self.project / "boards" / "main.circuit.json",
+            staged_dir=staged_attempts,
+            stem="main",
+        )
+        _publish_routing_attempt_evidence(
+            staged_attempts, self.project / "boards", "main"
         )
         return {
             "generatorRevision": pipeline_revision(),
@@ -86,21 +104,16 @@ class ReviewPacketFreshnessTests(unittest.TestCase):
                 "autorouterEffort": "default",
                 "attempts": 1,
                 "blockingByAttempt": [0],
-                "attemptEvidence": [
-                    {
-                        "effort": "default",
-                        "status": "completed",
-                        "circuitSha256": hashlib.sha256(b"fixture\n").hexdigest(),
-                        "blocking": 0,
-                        "routingBlocking": 0,
-                        "blockingKinds": {},
-                    }
-                ],
+                "attemptEvidence": [attempt_record],
             },
             "artifacts": dict(review_packet.BOARD_ARTIFACT_KEYS),
             "validation": {"warnings": []},
             "bom": {"lines": 1, "orderable": 1},
-            "fab": {"ready": True, "gerberSource": "kicad-cli"},
+            "fab": {
+                "ready": True,
+                "profile": "jlcpcb",
+                "gerberSource": "kicad-cli",
+            },
         }
 
     def test_current_sidecar_is_accepted(self) -> None:
@@ -209,7 +222,46 @@ class ReviewPacketFreshnessTests(unittest.TestCase):
 
         self.assertEqual(
             error,
-            "main.board.json selected circuit artifact does not match routing attempt evidence",
+            "main.board.json build.attemptEvidence[0].circuitPath is not its "
+            "canonical content-addressed path",
+        )
+
+    def test_self_consistent_fabricated_scan_is_independently_rejected(self) -> None:
+        from circuitpy import generation
+
+        sidecar = self._sidecar()
+        record = sidecar["build"]["attemptEvidence"][0]
+        scan_path = self.project / "boards" / record["preExportScanPath"]
+        payload = json.loads(scan_path.read_text(encoding="utf-8"))
+        payload["warnings"] = [
+            {
+                "part": "TR_FAKE",
+                "kind": "pcb_trace_error",
+                "detail": "fabricated but internally content-addressed",
+                "severity": "error",
+            }
+        ]
+        forged = generation._canonical_json(payload).encode("utf-8")
+        digest = hashlib.sha256(forged).hexdigest()
+        relative = generation._attempt_relative_path(
+            "main", 1, digest, "pre-export-scan.json"
+        )
+        (self.project / "boards" / relative).write_bytes(forged)
+        record["preExportScanPath"] = relative
+        record["preExportScanSha256"] = digest
+        record["blocking"] = 1
+        record["routingBlocking"] = 1
+        record["blockingKinds"] = {"pcb_trace_error": 1}
+        sidecar["build"]["blockingByAttempt"] = [1]
+        sidecar["validation"]["warnings"] = payload["warnings"]
+        sidecar["fab"]["ready"] = False
+
+        error = review_packet.sidecar_freshness_error(self.project, sidecar)
+
+        self.assertEqual(
+            error,
+            "main.board.json build.attemptEvidence[0].preExportScanPath does "
+            "not match an independent current-toolchain scan",
         )
 
     def test_missing_required_artifact_is_rejected(self) -> None:

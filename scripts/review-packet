@@ -212,21 +212,40 @@ def review_evidence_error(project_root: Path, sidecar: dict) -> str | None:
         warning for warning in warnings
         if isinstance(warning, dict) and warning.get("severity") == "error"
     ]
-    if errors:
-        return f"main.board.json still has {len(errors)} blocking validation finding(s)"
 
     try:
         if str(CIRCUITPY_SRC) not in sys.path:
             sys.path.insert(0, str(CIRCUITPY_SRC))
         from circuitpy.generation import routing_attempt_evidence_error  # type: ignore
+        from circuitpy import fab as fab_mod  # type: ignore
+        from circuitpy import spec as spec_mod  # type: ignore
+        fab_block = sidecar.get("fab")
+        if not isinstance(fab_block, dict):
+            return "main.board.json has no fab block"
+        profile_id = fab_block.get("profile")
+        if not isinstance(profile_id, str) or not profile_id:
+            return "main.board.json has no fab.profile"
+        product = spec_mod.load_product(project_root)
+        profile = fab_mod.get_profile(profile_id)
     except Exception as exc:
         return f"could not validate routing attempt evidence: {type(exc).__name__}: {exc}"
     routing_error = routing_attempt_evidence_error(
         sidecar.get("build"),
         circuit_json_path=project_root / "boards" / "main.circuit.json",
+        final_warnings=warnings,
+        fab_ready=(
+            sidecar.get("fab", {}).get("ready")
+            if isinstance(sidecar.get("fab"), dict)
+            and isinstance(sidecar.get("fab", {}).get("ready"), bool)
+            else None
+        ),
+        product=product,
+        profile=profile,
     )
     if routing_error is not None:
         return f"main.board.json {routing_error}"
+    if errors:
+        return f"main.board.json still has {len(errors)} blocking validation finding(s)"
 
     fab = sidecar.get("fab")
     if not isinstance(fab, dict):

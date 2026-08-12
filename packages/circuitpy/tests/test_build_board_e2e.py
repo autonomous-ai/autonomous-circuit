@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import circuitproj  # noqa: E402
 from circuitproj import EnvGuard  # noqa: E402
 
+from circuitpy import fab as fab_mod  # noqa: E402
 from circuitpy import generation  # noqa: E402
+from circuitpy import spec as spec_mod  # noqa: E402
 from circuitpy.errors import (  # noqa: E402
     CompileError,
     ProjectShapeError,
@@ -71,6 +73,13 @@ class GoodBoardE2E(unittest.TestCase):
             "main_fab/cpl.csv",
         ):
             self.assertTrue((self.boards / rel).is_file(), rel)
+        for record in self.sidecar["build"]["attemptEvidence"]:
+            if record["status"] != "completed":
+                continue
+            self.assertTrue((self.boards / record["circuitPath"]).is_file())
+            self.assertTrue(
+                (self.boards / record["preExportScanPath"]).is_file()
+            )
 
     def test_circuit_json_is_element_array(self) -> None:
         cj = json.loads(self.output.read_text(encoding="utf-8"))
@@ -167,6 +176,29 @@ class GoodBoardE2E(unittest.TestCase):
         for rel in artifacts.values():
             self.assertTrue((self.boards / rel).is_file(), rel)
 
+    def test_every_completed_routing_attempt_is_replayable_evidence(self) -> None:
+        warnings = (self.sidecar.get("validation") or {}).get("warnings") or []
+        self.assertIsNone(
+            generation.routing_attempt_evidence_error(
+                self.sidecar["build"],
+                circuit_json_path=self.output,
+                final_warnings=warnings,
+                fab_ready=self.sidecar["fab"]["ready"],
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
+            )
+        )
+        selected = next(
+            record
+            for record in self.sidecar["build"]["attemptEvidence"]
+            if record.get("status") == "completed"
+            and record.get("effort") == self.sidecar["build"]["autorouterEffort"]
+        )
+        self.assertEqual(
+            self.output.read_bytes(),
+            (self.boards / selected["circuitPath"]).read_bytes(),
+        )
+
     def test_warnings_severities_closed_set(self) -> None:
         warnings = (self.sidecar.get("validation") or {}).get("warnings") or []
         for warning in warnings:
@@ -253,6 +285,8 @@ class GoodBoardE2E(unittest.TestCase):
                 output_p=self.output,
                 boards_dir=self.boards,
                 fab_dir=self.boards / "main_fab",
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
             )
             self.assertIsNone(prior)
         finally:
@@ -273,6 +307,8 @@ class GoodBoardE2E(unittest.TestCase):
                 output_p=self.output,
                 boards_dir=self.boards,
                 fab_dir=self.boards / "main_fab",
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
             )
             self.assertIsNone(prior)
         finally:
@@ -297,6 +333,8 @@ class GoodBoardE2E(unittest.TestCase):
                 output_p=self.output,
                 boards_dir=self.boards,
                 fab_dir=self.boards / "main_fab",
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
             )
             self.assertIsNone(prior)
         finally:
@@ -321,6 +359,8 @@ class GoodBoardE2E(unittest.TestCase):
                 output_p=self.output,
                 boards_dir=self.boards,
                 fab_dir=self.boards / "main_fab",
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
             )
             self.assertIsNone(prior)
         finally:
@@ -347,6 +387,8 @@ class GoodBoardE2E(unittest.TestCase):
                 output_p=self.output,
                 boards_dir=self.boards,
                 fab_dir=self.boards / "main_fab",
+                product=spec_mod.load_product(self.root),
+                profile=fab_mod.get_profile("jlcpcb"),
             )
             self.assertIsNone(prior)
             bom_csv.write_bytes(bom_payload)

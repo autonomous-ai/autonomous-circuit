@@ -147,12 +147,24 @@ def test_block_survives_the_board_gauntlet(gauntlet_projects, bench):
     # The verdict and the copper under test must be the same selected routing
     # candidate. This catches a stale/restored output directory even when its
     # validation summary happens to be clean.
+    from circuitpy.fab import get_profile
     from circuitpy.generation import routing_attempt_evidence_error
+    from circuitpy.spec import load_product
+
+    project = gauntlet_projects / bench
+    product = load_product(project)
+    fab = sidecar.get("fab", {})
+    profile_id = fab.get("profile") if isinstance(fab, dict) else None
+    assert isinstance(profile_id, str) and profile_id, (
+        f"{bench}: sidecar has no fabrication profile for evidence replay"
+    )
 
     evidence_error = routing_attempt_evidence_error(
         sidecar.get("build"),
-        circuit_json_path=(
-            gauntlet_projects / bench / "boards" / "main.circuit.json"
-        ),
+        circuit_json_path=project / "boards" / "main.circuit.json",
+        final_warnings=warnings,
+        fab_ready=fab.get("ready") if isinstance(fab, dict) else None,
+        product=product,
+        profile=get_profile(profile_id),
     )
     assert evidence_error is None, f"{bench}: {evidence_error}"

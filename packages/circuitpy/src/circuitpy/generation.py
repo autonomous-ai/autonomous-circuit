@@ -30,7 +30,7 @@ import shutil
 import zipfile
 import hashlib
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, Sequence
 
 from circuitpy import checks
@@ -352,6 +352,12 @@ ROUTING_ESCALATION_EFFORT = "5x"
 #: A hard subprocess bound; a solver that cannot finish is a failed candidate.
 ROUTING_ESCALATION_TIMEOUT_S = 1500.0
 
+# Retained candidate evidence is deliberately distinct from final validation.
+# This scan contains only the findings available immediately after the
+# compiler/router artifact exists (stages 1, 2 and 4a). BOM, verifylib, KiCad,
+# packet and export findings are added later to ``validation.warnings``.
+ROUTING_PRE_EXPORT_SCAN_SCHEMA = "circuitpy.routing-pre-export-scan.v1"
+
 #: Errors whose fix is "route it differently" — the only class a harder router
 #: pass can address. A placement overlap or a missing footprint is not here:
 #: escalating on those would burn twelve minutes to reproduce the same verdict.
@@ -487,20 +493,8 @@ def _source_routing_effort(board_source: Path) -> str:
     return "default"
 
 
-def _routing_attempt_evidence(
-    *,
-    effort: str,
-    warnings: Sequence[dict],
-    circuit_json_path: Path,
-) -> dict[str, object]:
-    """Content-addressed evidence for one completed routing candidate.
-
-    Counts alone cannot prove that a nominally different effort produced an
-    independently compiled artifact.  The exact circuit hash and parsed kind
-    histogram make the comparison reviewable without retaining a second full
-    manufacturing packet.  Failed/timed-out candidates are recorded by the
-    caller with ``status=failed`` because they have no trustworthy artifact.
-    """
+def _attempt_blocking_summary(warnings: Sequence[dict]) -> dict[str, object]:
+    """Return the canonical blocking summary for one pre-export scan."""
 
     blocking = [warning for warning in warnings if warning.get("severity") == "error"]
     counts: dict[str, int] = {}
@@ -508,32 +502,392 @@ def _routing_attempt_evidence(
         kind = str(warning.get("kind") or "unknown")
         counts[kind] = counts.get(kind, 0) + 1
     return {
-        "effort": effort,
-        "status": "completed",
-        "circuitSha256": export_cache.sha256_file(circuit_json_path),
         "blocking": len(blocking),
         "routingBlocking": len(_routing_blockers(blocking)),
         "blockingKinds": dict(sorted(counts.items())),
     }
 
 
+def _canonical_attempt_scan(warnings: Sequence[dict]) -> list[dict]:
+    """Validate, exact-dedupe and deterministically order attempt findings."""
+
+    normalized = list(warnings)
+    for warning_index, warning in enumerate(normalized):
+        if not isinstance(warning, dict) or set(warning) != {
+            "part",
+            "kind",
+            "detail",
+            "severity",
+        }:
+            raise CompileError(
+                "routing attempt pre-export scan contains a malformed warning "
+                f"at index {warning_index}"
+            )
+        if warning.get("severity") not in checks.SEVERITIES:
+            raise CompileError(
+                "routing attempt pre-export scan contains an invalid severity "
+                f"at index {warning_index}"
+            )
+        if any(
+            not isinstance(warning.get(field), str)
+            for field in ("part", "kind", "detail")
+        ):
+            raise CompileError(
+                "routing attempt pre-export scan contains a non-string warning "
+                f"field at index {warning_index}"
+            )
+    # ``checks.dedupe`` is intentionally first-occurrence-wins. Establish a
+    # deterministic, fail-closed order before calling it so raw tool emission
+    # order cannot decide which severity survives for the same finding.
+    severity_rank = {"error": 0, "warning": 1, "info": 2}
+    ordered = sorted(
+        normalized,
+        key=lambda warning: (
+            str(warning["kind"]),
+            str(warning["part"]),
+            str(warning["detail"]),
+            severity_rank[str(warning["severity"])],
+        ),
+    )
+    deduped = checks.dedupe(ordered)
+    return sorted(
+        deduped,
+        key=lambda warning: (
+            severity_rank[str(warning["severity"])],
+            str(warning["kind"]),
+            str(warning["part"]),
+            str(warning["detail"]),
+        ),
+    )
+
+
+def _pre_export_scan(
+    circuit_json_path: Path,
+    product: spec_mod.ResolvedProduct,
+    profile: fab_mod.FabProfile,
+    *,
+    elements: list | None = None,
+) -> list[dict]:
+    """Run the exact deterministic scan captured for routing attempts.
+
+    This helper is shared by generation and evidence consumers so retained
+    blocker histograms are independently reproduced from candidate Circuit
+    JSON under the current pinned checks, product contract and fab profile.
+    It intentionally excludes later BOM, verifylib, KiCad and packet checks.
+    """
+
+    if elements is None:
+        try:
+            parsed = json.loads(circuit_json_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CompileError(
+                f"retained routing candidate is unreadable: {exc}"
+            ) from exc
+        if not isinstance(parsed, list):
+            raise CompileError(
+                "retained routing candidate is not a Circuit JSON element array"
+            )
+        elements = parsed
+    found: list[dict] = []
+    found.extend(checks.harvest_circuit_json(elements))
+    found.extend(checks.run_tscircuit_checks(circuit_json_path))
+    found.extend(checks.iou_warnings(elements, profile))
+    found.extend(checks.dfm_warnings(elements, product, profile))
+    return _canonical_attempt_scan(found)
+
+
+def _attempt_relative_path(
+    stem: str,
+    attempt_index: int,
+    digest: str,
+    suffix: str,
+) -> str:
+    return f"{stem}_attempts/attempt-{attempt_index}-{digest}.{suffix}"
+
+
+def _routing_attempt_evidence(
+    *,
+    attempt_index: int,
+    effort: str,
+    warnings: Sequence[dict],
+    circuit_json_path: Path,
+    staged_dir: Path,
+    stem: str,
+) -> dict[str, object]:
+    """Retain content-addressed evidence for one completed routing candidate.
+
+    The exact Circuit JSON and its canonical pre-export scan are staged before
+    another attempt can replace ``dist/``. They are published beside the board
+    only after the full build finishes. Failed/timed-out candidates are
+    recorded by the caller with ``status=failed`` because they have no
+    trustworthy artifact.
+    """
+
+    if attempt_index < 1:
+        raise CompileError("routing attempt index must be positive")
+    if effort not in _ROUTING_EFFORT_VALUES:
+        raise CompileError(f"routing attempt effort is invalid: {effort!r}")
+    try:
+        circuit_bytes = circuit_json_path.read_bytes()
+        parsed_circuit = json.loads(circuit_bytes)
+    except (OSError, ValueError) as exc:
+        raise CompileError(
+            f"routing attempt {attempt_index} Circuit JSON is unreadable: {exc}"
+        ) from exc
+    if not isinstance(parsed_circuit, list):
+        raise CompileError(
+            f"routing attempt {attempt_index} Circuit JSON is not an element array"
+        )
+    canonical_warnings = _canonical_attempt_scan(warnings)
+    if list(warnings) != canonical_warnings:
+        raise CompileError(
+            "routing attempt pre-export scan is not in canonical deduped order"
+        )
+
+    circuit_sha = hashlib.sha256(circuit_bytes).hexdigest()
+    scan_payload = {
+        "schema": ROUTING_PRE_EXPORT_SCAN_SCHEMA,
+        "attempt": attempt_index,
+        "effort": effort,
+        "circuitSha256": circuit_sha,
+        "warnings": canonical_warnings,
+    }
+    scan_bytes = _canonical_json(scan_payload).encode("utf-8")
+    scan_sha = hashlib.sha256(scan_bytes).hexdigest()
+    circuit_relative = _attempt_relative_path(
+        stem, attempt_index, circuit_sha, "circuit.json"
+    )
+    scan_relative = _attempt_relative_path(
+        stem, attempt_index, scan_sha, "pre-export-scan.json"
+    )
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    staged_circuit = staged_dir / PurePosixPath(circuit_relative).name
+    staged_scan = staged_dir / PurePosixPath(scan_relative).name
+    staged_circuit.write_bytes(circuit_bytes)
+    staged_scan.write_bytes(scan_bytes)
+
+    return {
+        "effort": effort,
+        "status": "completed",
+        "circuitPath": circuit_relative,
+        "circuitSha256": circuit_sha,
+        "preExportScanPath": scan_relative,
+        "preExportScanSha256": scan_sha,
+        **_attempt_blocking_summary(canonical_warnings),
+    }
+
+
+def _publish_routing_attempt_evidence(
+    staged_dir: Path,
+    boards_dir: Path,
+    stem: str,
+    *,
+    retain_backup: bool = False,
+) -> Path | None:
+    """Atomically replace the exact retained-attempt set for this board.
+
+    A prepared sibling directory is complete before the prior set is moved.
+    If the final rename fails, the prior directory is restored. This both
+    prunes unreferenced attempts and keeps a failed rebuild from destroying the
+    last valid sidecar's evidence.
+    """
+
+    if not staged_dir.is_dir() or not any(staged_dir.iterdir()):
+        raise ExportError("no completed routing-attempt evidence was staged")
+    target_dir = boards_dir / f"{stem}_attempts"
+    prepared_dir = boards_dir / f".{stem}_attempts.staged-{os.getpid()}"
+    backup_dir = boards_dir / f".{stem}_attempts.backup-{os.getpid()}"
+    if target_dir.is_symlink():
+        raise ExportError(f"routing-attempt evidence target is a symlink: {target_dir}")
+    shutil.rmtree(prepared_dir, ignore_errors=True)
+    shutil.rmtree(backup_dir, ignore_errors=True)
+    moved_prior = False
+    try:
+        prepared_dir.mkdir(parents=True)
+        for source in sorted(staged_dir.iterdir(), key=lambda path: path.name):
+            if (
+                not source.is_file()
+                or source.is_symlink()
+                or "/" in source.name
+                or source.name in {".", ".."}
+            ):
+                raise ExportError(
+                    f"invalid staged routing-attempt artifact: {source}"
+                )
+            shutil.copy2(source, prepared_dir / source.name)
+        if target_dir.exists():
+            if not target_dir.is_dir():
+                raise ExportError(
+                    f"routing-attempt evidence target is not a directory: {target_dir}"
+                )
+            os.replace(target_dir, backup_dir)
+            moved_prior = True
+        os.replace(prepared_dir, target_dir)
+    except (OSError, ExportError) as exc:
+        if moved_prior and backup_dir.exists() and not target_dir.exists():
+            try:
+                os.replace(backup_dir, target_dir)
+            except OSError as rollback_exc:
+                raise ExportError(
+                    "failed to publish routing-attempt evidence and failed to "
+                    f"restore the prior set: {rollback_exc}"
+                ) from exc
+        shutil.rmtree(prepared_dir, ignore_errors=True)
+        raise ExportError(f"failed to publish routing-attempt evidence: {exc}") from exc
+    if retain_backup:
+        return backup_dir if moved_prior else None
+    shutil.rmtree(backup_dir, ignore_errors=True)
+    return None
+
+
+def _restore_routing_attempt_evidence(
+    boards_dir: Path,
+    stem: str,
+    backup_dir: Path | None,
+) -> None:
+    """Undo a retained-attempt swap after a later publication step fails."""
+
+    target_dir = boards_dir / f"{stem}_attempts"
+    failed_dir = boards_dir / f".{stem}_attempts.failed-{os.getpid()}"
+    shutil.rmtree(failed_dir, ignore_errors=True)
+    try:
+        if target_dir.exists():
+            os.replace(target_dir, failed_dir)
+        if backup_dir is not None and backup_dir.exists():
+            os.replace(backup_dir, target_dir)
+    except OSError as exc:
+        raise ExportError(
+            f"failed to restore prior routing-attempt evidence: {exc}"
+        ) from exc
+    finally:
+        shutil.rmtree(failed_dir, ignore_errors=True)
+
+
+def _publish_board_evidence_transaction(
+    *,
+    staged_attempt_dir: Path,
+    boards_dir: Path,
+    stem: str,
+    sidecar_path: Path,
+    sidecar_bytes: bytes,
+    built_circuit_json: Path,
+    output_path: Path,
+) -> None:
+    """Commit attempts, sidecar and selected IR as one rollback-safe set."""
+
+    token = f"{os.getpid()}-{id(sidecar_bytes)}"
+    staged_sidecar = boards_dir / f".{sidecar_path.name}.staged-{token}"
+    prior_sidecar = boards_dir / f".{sidecar_path.name}.backup-{token}"
+    staged_output = boards_dir / f".{output_path.name}.staged-{token}"
+    prior_output = boards_dir / f".{output_path.name}.backup-{token}"
+    attempt_backup: Path | None = None
+    moved_prior_sidecar = False
+    moved_prior_output = False
+    attempts_published = False
+    sidecar_published = False
+    output_published = False
+    try:
+        sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_sidecar.write_bytes(sidecar_bytes)
+        if _is_same_filesystem(built_circuit_json, boards_dir):
+            os.replace(built_circuit_json, staged_output)
+        else:  # pragma: no cover — project and .circuit share a disk
+            shutil.copy2(built_circuit_json, staged_output)
+
+        attempt_backup = _publish_routing_attempt_evidence(
+            staged_attempt_dir,
+            boards_dir,
+            stem,
+            retain_backup=True,
+        )
+        attempts_published = True
+        if sidecar_path.exists():
+            os.replace(sidecar_path, prior_sidecar)
+            moved_prior_sidecar = True
+        os.replace(staged_sidecar, sidecar_path)
+        sidecar_published = True
+        if output_path.exists():
+            os.replace(output_path, prior_output)
+            moved_prior_output = True
+        os.replace(staged_output, output_path)
+        output_published = True
+        os.utime(output_path, None)
+    except (OSError, ExportError) as exc:
+        rollback_errors: list[str] = []
+        try:
+            if output_published and output_path.exists():
+                output_path.unlink()
+            if moved_prior_output and prior_output.exists():
+                os.replace(prior_output, output_path)
+        except OSError as rollback_exc:
+            rollback_errors.append(f"circuit: {rollback_exc}")
+        try:
+            if sidecar_published and sidecar_path.exists():
+                sidecar_path.unlink()
+            if moved_prior_sidecar and prior_sidecar.exists():
+                os.replace(prior_sidecar, sidecar_path)
+        except OSError as rollback_exc:
+            rollback_errors.append(f"sidecar: {rollback_exc}")
+        if attempts_published:
+            try:
+                _restore_routing_attempt_evidence(
+                    boards_dir,
+                    stem,
+                    attempt_backup,
+                )
+            except ExportError as rollback_exc:
+                rollback_errors.append(f"attempts: {rollback_exc}")
+        suffix = (
+            "; rollback also failed: " + "; ".join(rollback_errors)
+            if rollback_errors
+            else ""
+        )
+        raise ExportError(f"failed to publish board evidence: {exc}{suffix}") from exc
+    finally:
+        for temporary in (
+            staged_sidecar,
+            prior_sidecar,
+            staged_output,
+            prior_output,
+        ):
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+    if attempt_backup is not None:
+        shutil.rmtree(attempt_backup, ignore_errors=True)
+
+
 def routing_attempt_evidence_error(
     build: object,
     *,
     circuit_json_path: Path | None = None,
+    final_warnings: Sequence[dict] | None = None,
+    fab_ready: bool | None = None,
+    product: spec_mod.ResolvedProduct | None = None,
+    profile: fab_mod.FabProfile | None = None,
 ) -> str | None:
     """Return why sidecar routing-attempt evidence is not trustworthy.
 
-    This is shared by the example ratchet and review-packet publisher.  It
-    accepts a failed alternate candidate (there is intentionally no artifact
-    for one), but every completed candidate is content-addressed and its
-    parsed blocker summary must agree with ``blockingByAttempt``.  When the
-    selected board artifact is available, its bytes must equal the completed
-    record for ``autorouterEffort``.
+    This is shared by reuse, the example ratchet and review publication. A
+    failed alternate candidate is intentionally minimal because it has no
+    trustworthy artifact. Every completed candidate must retain both its exact
+    Circuit JSON and canonical pre-export scan under the board's deterministic
+    ``<stem>_attempts`` directory. Their bytes, paths and parsed scan summary
+    are checked here, including for the candidate that was not selected.
+
+    ``final_warnings`` is the later, broader validation ledger (BOM, verifylib,
+    KiCad and packet checks included). The selected pre-export findings must be
+    preserved in it, but equality would be wrong because those downstream
+    stages legitimately add findings.
     """
 
     if not isinstance(build, dict):
         return "build (missing or not an object)"
+    if (product is None) != (profile is None):
+        return "retained scan recomputation requires both product and fab profile"
+    if circuit_json_path is not None and product is None:
+        return "retained scan recomputation requires product and fab profile"
     selected_effort = build.get("autorouterEffort")
     if not isinstance(selected_effort, str) or not selected_effort:
         return "build.autorouterEffort (missing or invalid)"
@@ -554,9 +908,20 @@ def routing_attempt_evidence_error(
     if not isinstance(evidence, list) or len(evidence) != attempts:
         return "build.attemptEvidence (must contain one record per attempt)"
 
+    artifact_root: Path | None = None
+    artifact_stem: str | None = None
+    if circuit_json_path is not None:
+        circuit_json_path = Path(circuit_json_path)
+        if not circuit_json_path.name.endswith(OUTPUT_SUFFIX):
+            return "selected circuit artifact name is invalid"
+        artifact_root = circuit_json_path.parent.resolve()
+        artifact_stem = circuit_json_path.name[: -len(OUTPUT_SUFFIX)]
+
     completed: list[dict[str, object]] = []
+    completed_scans: dict[int, list[dict]] = {}
     for index, record in enumerate(evidence):
         prefix = f"build.attemptEvidence[{index}]"
+        attempt_index = index + 1
         if not isinstance(record, dict):
             return f"{prefix} (not an object)"
         effort = record.get("effort")
@@ -564,20 +929,71 @@ def routing_attempt_evidence_error(
             return f"{prefix}.effort (missing or invalid)"
         status = record.get("status")
         if status == "failed":
-            completed_only = {
-                "circuitSha256",
-                "blocking",
-                "routingBlocking",
-                "blockingKinds",
-            }
-            if completed_only & record.keys():
-                return f"{prefix} failed record carries completed-artifact fields"
+            if set(record) != {"effort", "status"}:
+                return f"{prefix} failed record must contain only effort and status"
             continue
         if status != "completed":
             return f"{prefix}.status (must be completed or failed)"
+        required_completed_fields = {
+            "effort",
+            "status",
+            "circuitPath",
+            "circuitSha256",
+            "preExportScanPath",
+            "preExportScanSha256",
+            "blocking",
+            "routingBlocking",
+            "blockingKinds",
+        }
+        if set(record) != required_completed_fields:
+            return f"{prefix} completed record fields are missing or unexpected"
         digest = record.get("circuitSha256")
         if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
             return f"{prefix}.circuitSha256 (missing or invalid)"
+        scan_digest = record.get("preExportScanSha256")
+        if not isinstance(scan_digest, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", scan_digest
+        ):
+            return f"{prefix}.preExportScanSha256 (missing or invalid)"
+        circuit_relative = record.get("circuitPath")
+        scan_relative = record.get("preExportScanPath")
+        if not isinstance(circuit_relative, str) or not circuit_relative:
+            return f"{prefix}.circuitPath (missing or invalid)"
+        if not isinstance(scan_relative, str) or not scan_relative:
+            return f"{prefix}.preExportScanPath (missing or invalid)"
+
+        circuit_parts = PurePosixPath(circuit_relative)
+        scan_parts = PurePosixPath(scan_relative)
+        if (
+            circuit_parts.is_absolute()
+            or scan_parts.is_absolute()
+            or len(circuit_parts.parts) != 2
+            or len(scan_parts.parts) != 2
+            or circuit_parts.parent != scan_parts.parent
+            or not circuit_parts.parent.name.endswith("_attempts")
+        ):
+            return f"{prefix} retained artifact path is not board-contained"
+        record_stem = circuit_parts.parent.name[: -len("_attempts")]
+        if not record_stem:
+            return f"{prefix} retained artifact path has no board stem"
+        expected_circuit = _attempt_relative_path(
+            record_stem, attempt_index, digest, "circuit.json"
+        )
+        expected_scan = _attempt_relative_path(
+            record_stem,
+            attempt_index,
+            scan_digest,
+            "pre-export-scan.json",
+        )
+        if circuit_relative != expected_circuit:
+            return f"{prefix}.circuitPath is not its canonical content-addressed path"
+        if scan_relative != expected_scan:
+            return (
+                f"{prefix}.preExportScanPath is not its canonical "
+                "content-addressed path"
+            )
+        if artifact_stem is not None and record_stem != artifact_stem:
+            return f"{prefix} retained artifact path belongs to another board"
         blocking = record.get("blocking")
         routing_blocking = record.get("routingBlocking")
         if (
@@ -610,6 +1026,128 @@ def routing_attempt_evidence_error(
         )
         if routing_blocking != expected_routing_blocking:
             return f"{prefix}.routingBlocking does not match blockingKinds"
+
+        if artifact_root is not None:
+            circuit_candidate = artifact_root / circuit_relative
+            scan_candidate = artifact_root / scan_relative
+            for label, candidate in (
+                ("circuitPath", circuit_candidate),
+                ("preExportScanPath", scan_candidate),
+            ):
+                try:
+                    resolved = candidate.resolve()
+                    resolved.relative_to(artifact_root)
+                except (OSError, ValueError):
+                    return f"{prefix}.{label} escapes the board artifact directory"
+                if candidate.parent.is_symlink() or candidate.is_symlink():
+                    return f"{prefix}.{label} may not be a symlink"
+                if not candidate.is_file():
+                    return f"{prefix}.{label} is missing"
+
+            try:
+                circuit_bytes = circuit_candidate.read_bytes()
+            except OSError as exc:
+                return f"{prefix}.circuitPath is unreadable: {exc}"
+            if hashlib.sha256(circuit_bytes).hexdigest() != digest:
+                return f"{prefix}.circuitSha256 does not match retained bytes"
+            try:
+                parsed_circuit = json.loads(circuit_bytes)
+            except (UnicodeDecodeError, ValueError) as exc:
+                return f"{prefix}.circuitPath is not valid JSON: {exc}"
+            if not isinstance(parsed_circuit, list):
+                return f"{prefix}.circuitPath is not a Circuit JSON element array"
+
+            try:
+                scan_bytes = scan_candidate.read_bytes()
+            except OSError as exc:
+                return f"{prefix}.preExportScanPath is unreadable: {exc}"
+            if hashlib.sha256(scan_bytes).hexdigest() != scan_digest:
+                return (
+                    f"{prefix}.preExportScanSha256 does not match retained bytes"
+                )
+            try:
+                scan_payload = json.loads(scan_bytes)
+            except (UnicodeDecodeError, ValueError) as exc:
+                return f"{prefix}.preExportScanPath is not valid JSON: {exc}"
+            if not isinstance(scan_payload, dict):
+                return f"{prefix}.preExportScanPath is not an object"
+            try:
+                canonical_scan = _canonical_json(scan_payload).encode("utf-8")
+            except (TypeError, ValueError) as exc:
+                return f"{prefix}.preExportScanPath is not canonicalizable: {exc}"
+            if scan_bytes != canonical_scan:
+                return f"{prefix}.preExportScanPath is not canonical JSON"
+            if set(scan_payload) != {
+                "schema",
+                "attempt",
+                "effort",
+                "circuitSha256",
+                "warnings",
+            }:
+                return f"{prefix}.preExportScanPath has an invalid schema"
+            if scan_payload.get("schema") != ROUTING_PRE_EXPORT_SCAN_SCHEMA:
+                return f"{prefix}.preExportScanPath has an unknown schema"
+            if scan_payload.get("attempt") != attempt_index:
+                return f"{prefix}.preExportScanPath attempt does not match its record"
+            if scan_payload.get("effort") != effort:
+                return f"{prefix}.preExportScanPath effort does not match its record"
+            if scan_payload.get("circuitSha256") != digest:
+                return (
+                    f"{prefix}.preExportScanPath circuitSha256 does not match "
+                    "its retained circuit"
+                )
+            scan_warnings = scan_payload.get("warnings")
+            if not isinstance(scan_warnings, list):
+                return f"{prefix}.preExportScanPath warnings is not a list"
+            for warning_index, warning in enumerate(scan_warnings):
+                warning_prefix = (
+                    f"{prefix}.preExportScanPath warnings[{warning_index}]"
+                )
+                if not isinstance(warning, dict) or set(warning) != {
+                    "part",
+                    "kind",
+                    "detail",
+                    "severity",
+                }:
+                    return f"{warning_prefix} is malformed"
+                if warning.get("severity") not in checks.SEVERITIES:
+                    return f"{warning_prefix}.severity is invalid"
+                if any(
+                    not isinstance(warning.get(field), str)
+                    for field in ("part", "kind", "detail")
+                ):
+                    return f"{warning_prefix} has a non-string field"
+            try:
+                canonical_warnings = _canonical_attempt_scan(scan_warnings)
+            except CompileError as exc:
+                return f"{prefix}.preExportScanPath is invalid: {exc}"
+            if canonical_warnings != scan_warnings:
+                return (
+                    f"{prefix}.preExportScanPath warnings are not in canonical "
+                    "deduped order"
+                )
+            retained_summary = _attempt_blocking_summary(scan_warnings)
+            for field in ("blocking", "routingBlocking", "blockingKinds"):
+                if record.get(field) != retained_summary[field]:
+                    return (
+                        f"{prefix}.{field} does not match retained pre-export scan"
+                    )
+            if product is not None and profile is not None:
+                try:
+                    recomputed_scan = _pre_export_scan(
+                        circuit_candidate,
+                        product,
+                        profile,
+                        elements=parsed_circuit,
+                    )
+                except (BuildError, OSError, ValueError) as exc:
+                    return f"{prefix} pre-export scan recomputation failed: {exc}"
+                if recomputed_scan != scan_warnings:
+                    return (
+                        f"{prefix}.preExportScanPath does not match an "
+                        "independent current-toolchain scan"
+                    )
+            completed_scans[index] = scan_warnings
         completed.append(record)
 
     primary = evidence[0]
@@ -650,6 +1188,29 @@ def routing_attempt_evidence_error(
             return f"selected circuit artifact is unreadable: {exc}"
         if selected[0].get("circuitSha256") != selected_sha:
             return "selected circuit artifact does not match routing attempt evidence"
+    if final_warnings is not None:
+        if circuit_json_path is None:
+            return "final validation comparison requires retained attempt artifacts"
+        if not isinstance(final_warnings, Sequence) or isinstance(
+            final_warnings, (str, bytes)
+        ):
+            return "final validation warnings is not a list"
+        if any(not isinstance(warning, dict) for warning in final_warnings):
+            return "final validation warnings contains a malformed entry"
+        selected_index = evidence.index(selected[0])
+        selected_scan = completed_scans.get(selected_index)
+        if selected_scan is None:
+            return "selected pre-export scan was not validated"
+        # The final ledger starts with the selected scan and then adds later
+        # checks before exact-deduplication. It may be a strict superset, but it
+        # may never omit a scan finding.
+        for warning in selected_scan:
+            if warning not in final_warnings:
+                return (
+                    "final validation omits a selected pre-export scan finding"
+                )
+    if fab_ready is True and int(selected[0]["blocking"]) > 0:
+        return "fab.ready contradicts blocking selected pre-export evidence"
     return None
 
 
@@ -909,6 +1470,8 @@ def build_board(
             output_p=output_p,
             boards_dir=boards_dir,
             fab_dir=fab_dir,
+            product=product,
+            profile=profile,
         )
         if prior is not None:
             return prior
@@ -944,6 +1507,7 @@ def build_board(
         build_args.append("--disable-parts-engine")
     built_dir = work / "dist" / rel_entry.parent / rel_entry.stem
     built_circuit_json = built_dir / "circuit.json"
+    staged_attempt_evidence_dir = work / ".circuitpy-routing-attempt-evidence"
 
     def _compile_once(timeout_s: float) -> list:
         try:
@@ -993,12 +1557,12 @@ def build_board(
     def _scan(elements: list) -> list[dict]:
         """Stages 1, 2 and 4a — everything judgeable straight off the geometry,
         and therefore everything the escalation decision can be based on."""
-        found: list[dict] = []
-        found.extend(checks.harvest_circuit_json(elements))
-        found.extend(checks.run_tscircuit_checks(built_circuit_json))
-        found.extend(checks.iou_warnings(elements, profile))
-        found.extend(checks.dfm_warnings(elements, product, profile))
-        return found
+        return _pre_export_scan(
+            built_circuit_json,
+            product,
+            profile,
+            elements=elements,
+        )
 
     first_timeout = (
         max_build_s if max_build_s is not None else DEFAULT_BUILD_TIMEOUT_S
@@ -1020,9 +1584,12 @@ def build_board(
     ]
     attempt_evidence: list[dict[str, object]] = [
         _routing_attempt_evidence(
+            attempt_index=1,
             effort=primary_effort,
             warnings=warnings,
             circuit_json_path=built_circuit_json,
+            staged_dir=staged_attempt_evidence_dir,
+            stem=stem,
         )
     ]
     escalation_note: dict | None = None
@@ -1068,9 +1635,12 @@ def build_board(
                 retry_evidence.clear()
                 retry_evidence.update(
                     _routing_attempt_evidence(
+                        attempt_index=2,
                         effort=ROUTING_ESCALATION_EFFORT,
                         warnings=retry_warnings,
                         circuit_json_path=built_circuit_json,
+                        staged_dir=staged_attempt_evidence_dir,
+                        stem=stem,
                     )
                 )
                 retry_blocking = sum(
@@ -1504,24 +2074,19 @@ def build_board(
         "validation": validation,
         "artifacts": artifacts,
     }
-    try:
-        sidecar_path.parent.mkdir(parents=True, exist_ok=True)
-        sidecar_path.write_text(_canonical_json(sidecar_payload), encoding="utf-8")
-    except OSError as exc:
-        raise ExportError(f"failed to write metadata sidecar: {exc}") from exc
-
-    # Ordering rule: the sidecar is on disk; the circuit.json artifact of
-    # record appears (and gets its mtime) last, so artifact_changed fires
-    # after metadata is readable.
-    try:
-        if _is_same_filesystem(built_circuit_json, boards_dir):
-            os.replace(built_circuit_json, output_p)
-        else:  # pragma: no cover — project and .circuit share a disk
-            shutil.copy2(built_circuit_json, output_p)
-            built_circuit_json.unlink(missing_ok=True)
-        os.utime(output_p, None)
-    except OSError as exc:
-        raise ExportError(f"failed to move circuit.json into place: {exc}") from exc
+    # Ordering rule: attempt evidence and sidecar land before the artifact of
+    # record, but they form one rollback-safe publication transaction. A
+    # failed sidecar/final-IR swap must leave the complete prior selected
+    # evidence set valid rather than pruning its retained candidates.
+    _publish_board_evidence_transaction(
+        staged_attempt_dir=staged_attempt_evidence_dir,
+        boards_dir=boards_dir,
+        stem=stem,
+        sidecar_path=sidecar_path,
+        sidecar_bytes=_canonical_json(sidecar_payload).encode("utf-8"),
+        built_circuit_json=built_circuit_json,
+        output_path=output_p,
+    )
 
     shutil.rmtree(work, ignore_errors=True)
 
@@ -1565,6 +2130,8 @@ def _unchanged_prior_result(
     output_p: Path,
     boards_dir: Path,
     fab_dir: Path,
+    product: spec_mod.ResolvedProduct,
+    profile: fab_mod.FabProfile,
 ) -> dict[str, object] | None:
     """Return the §3-shaped result reconstructed from the existing sidecar
     when the prior build is provably still valid; None means build for real.
@@ -1588,9 +2155,27 @@ def _unchanged_prior_result(
         return None
     if not output_p.is_file():
         return None
+    validation = prior.get("validation")
+    final_warnings = (
+        validation.get("warnings", []) if isinstance(validation, dict) else None
+    )
+    fab_meta_for_evidence = prior.get("fab")
+    fab_ready_for_evidence = (
+        fab_meta_for_evidence.get("ready")
+        if isinstance(fab_meta_for_evidence, dict)
+        else None
+    )
     if routing_attempt_evidence_error(
         prior.get("build"),
         circuit_json_path=output_p,
+        final_warnings=final_warnings,
+        fab_ready=(
+            fab_ready_for_evidence
+            if isinstance(fab_ready_for_evidence, bool)
+            else None
+        ),
+        product=product,
+        profile=profile,
     ) is not None:
         return None
     artifacts = prior.get("artifacts")

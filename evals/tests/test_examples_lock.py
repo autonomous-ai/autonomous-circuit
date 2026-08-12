@@ -8,7 +8,6 @@ Node, the parts engine, or the board toolchain.
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import io
 import json
 import sys
@@ -21,9 +20,14 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "evals"))
 
 import examples_lock  # noqa: E402
+from circuitpy import fab as fab_mod  # noqa: E402
+from circuitpy import spec as spec_mod  # noqa: E402
 from circuitpy.generation import (  # noqa: E402
     GENERATOR_NAME,
     _current_toolchain_block,
+    _publish_routing_attempt_evidence,
+    _pre_export_scan,
+    _routing_attempt_evidence,
     pipeline_revision,
 )
 from circuitpy.source_hash import board_source_hash  # noqa: E402
@@ -54,7 +58,14 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
     )
     sync_project(project, blocks=["helper"], source=golden)
     (project / "product.json").write_text(
-        json.dumps({"name": "demo", "requirements": ["test"]}) + "\n",
+        json.dumps(
+            {
+                "name": "demo",
+                "power": "usb-c-5v",
+                "requirements": ["test"],
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     (project / "parts.json").write_text(
@@ -62,13 +73,41 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
 
-    (boards / "main.circuit.json").write_text("[]\n", encoding="utf-8")
+    (boards / "main.circuit.json").write_text(
+        json.dumps(
+            [
+                {
+                    "type": "pcb_trace_error",
+                    "pcb_trace_error_id": "fixture_error",
+                    "message": "fixture blocker",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     review = boards / "main_review"
     review.mkdir()
     (review / "_pcb.png").write_bytes(b"committed-png")
     (review / "_schematic.png").write_bytes(b"committed-schematic-png")
 
     identity = board_source_hash(boards / "main.tsx", project)
+    scan_warnings = _pre_export_scan(
+        boards / "main.circuit.json",
+        spec_mod.load_product(project),
+        fab_mod.get_profile("jlcpcb"),
+    )
+    scan_warning = scan_warnings[0]
+    staged_attempts = root / "staged-attempts"
+    attempt_record = _routing_attempt_evidence(
+        attempt_index=1,
+        effort="default",
+        warnings=scan_warnings,
+        circuit_json_path=boards / "main.circuit.json",
+        staged_dir=staged_attempts,
+        stem="main",
+    )
+    _publish_routing_attempt_evidence(staged_attempts, boards, "main")
+
     sidecar = {
         "generator": GENERATOR_NAME,
         "generatorRevision": pipeline_revision(),
@@ -84,22 +123,11 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
             "autorouterEffort": "default",
             "attempts": 1,
             "blockingByAttempt": [1],
-            "attemptEvidence": [
-                {
-                    "effort": "default",
-                    "status": "completed",
-                    "circuitSha256": hashlib.sha256(b"[]\n").hexdigest(),
-                    "blocking": 1,
-                    "routingBlocking": 0,
-                    "blockingKinds": {"drc_violation": 1},
-                }
-            ],
+            "attemptEvidence": [attempt_record],
         },
         "bom": {"lines": 1},
-        "fab": {"ready": True},
-        "validation": {
-            "warnings": [{"severity": "error", "kind": "drc_violation"}]
-        },
+        "fab": {"ready": False, "profile": "jlcpcb"},
+        "validation": {"warnings": [scan_warning]},
         "artifacts": {
             "pcbPng": "main_review/_pcb.png",
             "schematicPng": "main_review/_schematic.png",
@@ -118,8 +146,8 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
                 "boards": {
                     "demo-board": {
                         "blocking": 1,
-                        "fabReady": True,
-                        "blockingKinds": ["drc_violation"],
+                        "fabReady": False,
+                        "blockingKinds": ["pcb_trace_error"],
                         "bomLines": 1,
                         "autorouterEffort": "default",
                     }
@@ -144,7 +172,7 @@ class ExamplesLockEvidenceTests(unittest.TestCase):
         with mock.patch.object(examples_lock, "EXAMPLES", examples):
             measured = examples_lock.current(rebuild=False)["demo-board"]
         self.assertEqual(measured["evidence"]["status"], "Fresh")
-        self.assertTrue(measured["fabReady"])
+        self.assertFalse(measured["fabReady"])
         self.assertEqual(measured["blocking"], 1)
 
         output = io.StringIO()
@@ -325,7 +353,29 @@ class ExamplesLockEvidenceTests(unittest.TestCase):
         )
         sidecar_path = project / "boards" / "main.board.json"
         sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        (project / "boards" / "main.circuit.json").write_text(
+            "[]", encoding="utf-8"
+        )
+        staged_attempts = self.root / "clean-validation-staged"
+        attempt_record = _routing_attempt_evidence(
+            attempt_index=1,
+            effort="default",
+            warnings=[],
+            circuit_json_path=project / "boards" / "main.circuit.json",
+            staged_dir=staged_attempts,
+            stem="main",
+        )
+        _publish_routing_attempt_evidence(
+            staged_attempts, project / "boards", "main"
+        )
+        sidecar["build"] = {
+            "autorouterEffort": "default",
+            "attempts": 1,
+            "blockingByAttempt": [0],
+            "attemptEvidence": [attempt_record],
+        }
         sidecar["validation"] = {}
+        sidecar["fab"]["ready"] = True
         sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
 
         with mock.patch.object(examples_lock, "EXAMPLES", examples):
@@ -333,6 +383,29 @@ class ExamplesLockEvidenceTests(unittest.TestCase):
         self.assertEqual(measured["evidence"]["status"], "Fresh")
         self.assertEqual(measured["blocking"], 0)
         self.assertTrue(measured["fabReady"])
+
+    def test_retained_attempt_mutation_invalidates_example_evidence(self) -> None:
+        examples, project, _baseline = _write_fixture(
+            self.root / "mutated-retained-attempt"
+        )
+        sidecar = json.loads(
+            (project / "boards" / "main.board.json").read_text(encoding="utf-8")
+        )
+        scan_relative = sidecar["build"]["attemptEvidence"][0][
+            "preExportScanPath"
+        ]
+        scan_path = project / "boards" / scan_relative
+        scan_path.write_bytes(scan_path.read_bytes() + b"\n")
+
+        with mock.patch.object(examples_lock, "EXAMPLES", examples):
+            measured = examples_lock.current(False)["demo-board"]
+
+        self.assertEqual(measured["evidence"]["status"], "IncompleteSidecar")
+        self.assertIn(
+            "preExportScanSha256 does not match retained bytes",
+            measured["evidence"]["detail"],
+        )
+        self.assertFalse(measured["fabReady"])
 
     def test_missing_canonical_board_artifact_is_explicit(self) -> None:
         examples, project, _baseline = _write_fixture(
@@ -408,6 +481,12 @@ class ExamplesLockEvidenceTests(unittest.TestCase):
                     )
                 else:
                     sidecar["fab"]["ready"] = False
+                    baseline_payload = json.loads(baseline.read_text(encoding="utf-8"))
+                    baseline_payload["boards"]["demo-board"]["fabReady"] = True
+                    baseline.write_text(
+                        json.dumps(baseline_payload, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
                 sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
 
                 original_baseline = baseline.read_bytes()

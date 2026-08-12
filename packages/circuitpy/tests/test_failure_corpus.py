@@ -685,60 +685,114 @@ class RoutingEscalation(unittest.TestCase):
             )
 
     def test_completed_attempt_evidence_is_content_addressed_and_parsed(self) -> None:
+        import json
         import tempfile
 
         from circuitpy import generation
 
         with tempfile.TemporaryDirectory(prefix="effort-evidence-") as tmp:
-            artifact = Path(tmp) / "circuit.json"
-            artifact.write_text('[{"type":"pcb_trace"}]\n', encoding="utf-8")
+            boards = Path(tmp) / "boards"
+            boards.mkdir()
+            artifact = boards / "main.circuit.json"
+            artifact.write_text(
+                json.dumps(
+                    [
+                        {
+                            "type": "pcb_trace_error",
+                            "pcb_trace_error_id": "error_1",
+                            "message": "first",
+                        },
+                        {
+                            "type": "pcb_trace_error",
+                            "pcb_trace_error_id": "error_2",
+                            "message": "second",
+                        },
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            warnings = generation._pre_export_scan(
+                artifact, _product(), PROFILE
+            )
             evidence = generation._routing_attempt_evidence(
+                attempt_index=1,
                 effort="default",
-                warnings=[
-                    {"severity": "error", "kind": "pcb_trace_error"},
-                    {"severity": "error", "kind": "pcb_trace_error"},
-                    {"severity": "error", "kind": "board_exceeds_envelope"},
-                    {"severity": "warning", "kind": "pcb_trace_error"},
-                ],
+                warnings=warnings,
                 circuit_json_path=artifact,
+                staged_dir=Path(tmp) / "staged",
+                stem="main",
+            )
+            generation._publish_routing_attempt_evidence(
+                Path(tmp) / "staged", boards, "main"
             )
             self.assertEqual(evidence["effort"], "default")
             self.assertEqual(evidence["status"], "completed")
             self.assertRegex(str(evidence["circuitSha256"]), r"^[0-9a-f]{64}$")
-            self.assertEqual(evidence["blocking"], 3)
+            self.assertTrue((boards / str(evidence["circuitPath"])).is_file())
+            self.assertTrue(
+                (boards / str(evidence["preExportScanPath"])).is_file()
+            )
+            self.assertEqual(evidence["blocking"], 2)
             self.assertEqual(evidence["routingBlocking"], 2)
             self.assertEqual(
                 evidence["blockingKinds"],
-                {"board_exceeds_envelope": 1, "pcb_trace_error": 2},
+                {"pcb_trace_error": 2},
             )
 
             build = {
                 "autorouterEffort": "default",
                 "attempts": 2,
-                "blockingByAttempt": [3],
+                "blockingByAttempt": [2],
                 "attemptEvidence": [
                     evidence,
                     {"effort": "5x", "status": "failed"},
                 ],
             }
-            self.assertIsNone(generation.routing_attempt_evidence_error(build))
+            self.assertIsNone(
+                generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=artifact,
+                    final_warnings=warnings,
+                    fab_ready=False,
+                    product=_product(),
+                    profile=PROFILE,
+                )
+            )
             build["attemptEvidence"][0]["circuitSha256"] = "0" * 64
             self.assertEqual(
                 generation.routing_attempt_evidence_error(
                     build,
                     circuit_json_path=artifact,
+                    product=_product(),
+                    profile=PROFILE,
                 ),
-                "selected circuit artifact does not match routing attempt evidence",
+                "build.attemptEvidence[0].circuitPath is not its canonical "
+                "content-addressed path",
             )
 
     def test_attempt_evidence_enforces_the_bounded_winner_state_machine(self) -> None:
         from circuitpy import generation
 
-        def completed(effort: str, blocking: int, kind: str = "pcb_trace_error") -> dict:
+        def completed(
+            effort: str,
+            blocking: int,
+            kind: str = "pcb_trace_error",
+            attempt: int = 1,
+        ) -> dict:
+            circuit_sha = "a" * 64
+            scan_sha = "b" * 64
             return {
                 "effort": effort,
                 "status": "completed",
-                "circuitSha256": "a" * 64,
+                "circuitPath": (
+                    f"main_attempts/attempt-{attempt}-{circuit_sha}.circuit.json"
+                ),
+                "circuitSha256": circuit_sha,
+                "preExportScanPath": (
+                    "main_attempts/"
+                    f"attempt-{attempt}-{scan_sha}.pre-export-scan.json"
+                ),
+                "preExportScanSha256": scan_sha,
                 "blocking": blocking,
                 "routingBlocking": blocking,
                 "blockingKinds": ({kind: blocking} if blocking else {}),
@@ -749,13 +803,19 @@ class RoutingEscalation(unittest.TestCase):
                 "autorouterEffort": "5x",
                 "attempts": 2,
                 "blockingByAttempt": [0, 2],
-                "attemptEvidence": [completed("default", 0), completed("5x", 2)],
+                "attemptEvidence": [
+                    completed("default", 0),
+                    completed("5x", 2, attempt=2),
+                ],
             },
             "ignored-better": {
                 "autorouterEffort": "default",
                 "attempts": 2,
                 "blockingByAttempt": [2, 0],
-                "attemptEvidence": [completed("default", 2), completed("5x", 0)],
+                "attemptEvidence": [
+                    completed("default", 2),
+                    completed("5x", 0, attempt=2),
+                ],
             },
             "failed-primary": {
                 "autorouterEffort": "5x",
@@ -763,7 +823,7 @@ class RoutingEscalation(unittest.TestCase):
                 "blockingByAttempt": [0],
                 "attemptEvidence": [
                     {"effort": "default", "status": "failed"},
-                    completed("5x", 0),
+                    completed("5x", 0, attempt=2),
                 ],
             },
             "three-attempts": {
@@ -772,8 +832,8 @@ class RoutingEscalation(unittest.TestCase):
                 "blockingByAttempt": [0, 0, 0],
                 "attemptEvidence": [
                     completed("default", 0),
-                    completed("5x", 0),
-                    completed("10x", 0),
+                    completed("5x", 0, attempt=2),
+                    completed("10x", 0, attempt=3),
                 ],
             },
             "routing-count-lie": {
@@ -824,3 +884,420 @@ class RoutingEscalation(unittest.TestCase):
             "attemptEvidence": [completed("10x", 0)],
         }
         self.assertIsNone(generation.routing_attempt_evidence_error(authored))
+
+    def test_every_completed_attempt_is_retained_and_independently_checked(self) -> None:
+        import hashlib
+        import json
+        import tempfile
+
+        from circuitpy import generation
+
+        def make_fixture(root: Path, *, retry: bool = True):
+            boards = root / "boards"
+            boards.mkdir()
+            selected = boards / "main.circuit.json"
+            staged = root / "staged"
+            selected.write_text(
+                json.dumps(
+                    [
+                        {
+                            "type": "pcb_trace_error",
+                            "pcb_trace_error_id": "primary_error",
+                            "message": "primary route is blocked",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            primary_warnings = generation._pre_export_scan(
+                selected, _product(), PROFILE
+            )
+            primary_warning = primary_warnings[0]
+            primary = generation._routing_attempt_evidence(
+                attempt_index=1,
+                effort="default",
+                warnings=primary_warnings,
+                circuit_json_path=selected,
+                staged_dir=staged,
+                stem="main",
+            )
+            records = [primary]
+            blockers = [1]
+            selected_effort = "default"
+            final_warnings = [primary_warning]
+            if retry:
+                selected.write_text(
+                    "[]",
+                    encoding="utf-8",
+                )
+                retry_warnings = generation._pre_export_scan(
+                    selected, _product(), PROFILE
+                )
+                alternate = generation._routing_attempt_evidence(
+                    attempt_index=2,
+                    effort="5x",
+                    warnings=retry_warnings,
+                    circuit_json_path=selected,
+                    staged_dir=staged,
+                    stem="main",
+                )
+                records.append(alternate)
+                blockers.append(0)
+                selected_effort = "5x"
+                final_warnings = []
+            generation._publish_routing_attempt_evidence(staged, boards, "main")
+            build = {
+                "autorouterEffort": selected_effort,
+                "attempts": len(records),
+                "blockingByAttempt": blockers,
+                "attemptEvidence": records,
+            }
+            return boards, selected, build, primary_warning, final_warnings
+
+        with tempfile.TemporaryDirectory(prefix="retained-attempts-") as tmp:
+            boards, selected, build, _warning, final_warnings = make_fixture(
+                Path(tmp)
+            )
+            self.assertIsNone(
+                generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=selected,
+                    final_warnings=final_warnings,
+                    fab_ready=True,
+                    product=_product(),
+                    profile=PROFILE,
+                )
+            )
+            retained = sorted((boards / "main_attempts").iterdir())
+            self.assertEqual(len(retained), 4)
+            self.assertEqual(
+                {path.suffix for path in retained}, {".json"}
+            )
+
+        cases = (
+            "missing-unselected-circuit",
+            "mutated-unselected-scan",
+            "path-traversal",
+            "fabricated-histogram",
+            "self-consistent-fabricated-scan",
+            "noncanonical-scan",
+            "selected-main-drift",
+        )
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory(
+                prefix=f"retained-{case}-"
+            ) as tmp:
+                boards, selected, build, _warning, final_warnings = make_fixture(
+                    Path(tmp)
+                )
+                primary = build["attemptEvidence"][0]
+                if case == "missing-unselected-circuit":
+                    (boards / primary["circuitPath"]).unlink()
+                elif case == "mutated-unselected-scan":
+                    with (boards / primary["preExportScanPath"]).open("ab") as handle:
+                        handle.write(b"\n")
+                elif case == "path-traversal":
+                    primary["circuitPath"] = "../outside.circuit.json"
+                elif case == "fabricated-histogram":
+                    primary["blocking"] = 2
+                    primary["routingBlocking"] = 2
+                    primary["blockingKinds"] = {"pcb_trace_error": 2}
+                    build["blockingByAttempt"][0] = 2
+                elif case == "self-consistent-fabricated-scan":
+                    old_scan = boards / primary["preExportScanPath"]
+                    payload = json.loads(old_scan.read_text(encoding="utf-8"))
+                    fabricated_circuit = b"[]"
+                    circuit_digest = hashlib.sha256(fabricated_circuit).hexdigest()
+                    circuit_relative = generation._attempt_relative_path(
+                        "main", 1, circuit_digest, "circuit.json"
+                    )
+                    (boards / circuit_relative).write_bytes(fabricated_circuit)
+                    primary["circuitPath"] = circuit_relative
+                    primary["circuitSha256"] = circuit_digest
+                    payload["circuitSha256"] = circuit_digest
+                    payload["warnings"] = [
+                        {
+                            "part": "TR_FAKE",
+                            "kind": "pcb_trace_error",
+                            "detail": "fabricated but schema-shaped",
+                            "severity": "error",
+                        }
+                    ]
+                    fabricated = generation._canonical_json(payload).encode("utf-8")
+                    digest = hashlib.sha256(fabricated).hexdigest()
+                    relative = generation._attempt_relative_path(
+                        "main", 1, digest, "pre-export-scan.json"
+                    )
+                    (boards / relative).write_bytes(fabricated)
+                    primary["preExportScanPath"] = relative
+                    primary["preExportScanSha256"] = digest
+                elif case == "noncanonical-scan":
+                    old_scan = boards / primary["preExportScanPath"]
+                    payload = json.loads(old_scan.read_text(encoding="utf-8"))
+                    noncanonical = json.dumps(payload, indent=2).encode("utf-8")
+                    digest = hashlib.sha256(noncanonical).hexdigest()
+                    relative = generation._attempt_relative_path(
+                        "main", 1, digest, "pre-export-scan.json"
+                    )
+                    target = boards / relative
+                    target.write_bytes(noncanonical)
+                    primary["preExportScanPath"] = relative
+                    primary["preExportScanSha256"] = digest
+                elif case == "selected-main-drift":
+                    selected.write_text(
+                        '[{"type":"pcb_board"}]', encoding="utf-8"
+                    )
+                error = generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=selected,
+                    final_warnings=final_warnings,
+                    fab_ready=True,
+                    product=_product(),
+                    profile=PROFILE,
+                )
+                self.assertIsNotNone(error, case)
+
+    def test_attempt_scan_is_deduped_and_sorted_before_selection(self) -> None:
+        from circuitpy import generation
+
+        first = {
+            "part": "U2",
+            "kind": "z_warning",
+            "detail": "later",
+            "severity": "warning",
+        }
+        second = {
+            "part": "U1",
+            "kind": "a_error",
+            "detail": "earlier",
+            "severity": "error",
+        }
+        weaker_duplicate = dict(second, severity="warning")
+
+        self.assertEqual(
+            generation._canonical_attempt_scan(
+                [first, weaker_duplicate, second, first]
+            ),
+            [second, first],
+        )
+
+    def test_attempt_publication_prunes_stale_files_and_rolls_back(self) -> None:
+        import tempfile
+        from unittest import mock
+
+        from circuitpy import generation
+        from circuitpy.errors import ExportError
+
+        with tempfile.TemporaryDirectory(prefix="attempt-publish-") as tmp:
+            root = Path(tmp)
+            boards = root / "boards"
+            boards.mkdir()
+            first = root / "first"
+            first.mkdir()
+            (first / "attempt-1-a.circuit.json").write_text(
+                "first", encoding="utf-8"
+            )
+            generation._publish_routing_attempt_evidence(first, boards, "main")
+            target = boards / "main_attempts"
+            (target / "stale-unreferenced.json").write_text(
+                "stale", encoding="utf-8"
+            )
+
+            second = root / "second"
+            second.mkdir()
+            (second / "attempt-1-b.circuit.json").write_text(
+                "second", encoding="utf-8"
+            )
+            generation._publish_routing_attempt_evidence(second, boards, "main")
+            self.assertEqual(
+                {path.name for path in target.iterdir()},
+                {"attempt-1-b.circuit.json"},
+            )
+
+            prior = {
+                path.name: path.read_bytes() for path in target.iterdir()
+            }
+            third = root / "third"
+            third.mkdir()
+            (third / "attempt-1-c.circuit.json").write_text(
+                "third", encoding="utf-8"
+            )
+            real_replace = generation.os.replace
+
+            def fail_final_swap(source, destination):
+                source_path = Path(source)
+                destination_path = Path(destination)
+                if (
+                    source_path.name.startswith(".main_attempts.staged-")
+                    and destination_path == target
+                ):
+                    raise OSError("synthetic final rename failure")
+                return real_replace(source, destination)
+
+            with mock.patch.object(
+                generation.os, "replace", side_effect=fail_final_swap
+            ):
+                with self.assertRaises(ExportError):
+                    generation._publish_routing_attempt_evidence(
+                        third, boards, "main"
+                    )
+            self.assertEqual(
+                {path.name: path.read_bytes() for path in target.iterdir()},
+                prior,
+            )
+
+    def test_board_evidence_transaction_restores_prior_set_on_late_failure(self) -> None:
+        import tempfile
+        from unittest import mock
+
+        from circuitpy import generation
+        from circuitpy.errors import ExportError
+
+        for failure in ("sidecar-write", "sidecar", "final-ir"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory(
+                prefix=f"board-evidence-{failure}-"
+            ) as tmp:
+                root = Path(tmp)
+                boards = root / "boards"
+                boards.mkdir()
+                sidecar = boards / "main.board.json"
+                output = boards / "main.circuit.json"
+                sidecar.write_bytes(b"prior-sidecar")
+                output.write_bytes(b"prior-circuit")
+                prior_attempts = boards / "main_attempts"
+                prior_attempts.mkdir()
+                (prior_attempts / "prior.json").write_bytes(b"prior-attempt")
+                prior_bytes = {
+                    "sidecar": sidecar.read_bytes(),
+                    "circuit": output.read_bytes(),
+                    "attempt": (prior_attempts / "prior.json").read_bytes(),
+                }
+
+                staged_attempts = root / "staged-attempts"
+                staged_attempts.mkdir()
+                (staged_attempts / "next.json").write_bytes(b"next-attempt")
+                built_circuit = root / "built.circuit.json"
+                built_circuit.write_bytes(b"next-circuit")
+                real_replace = generation.os.replace
+                real_write_bytes = generation.Path.write_bytes
+
+                def fail_write(path, data):
+                    path = Path(path)
+                    if (
+                        failure == "sidecar-write"
+                        and path.name.startswith(".main.board.json.staged-")
+                    ):
+                        raise OSError("synthetic staged sidecar write failure")
+                    return real_write_bytes(path, data)
+
+                def fail_target(source, destination):
+                    source_path = Path(source)
+                    destination_path = Path(destination)
+                    if (
+                        failure == "sidecar"
+                        and source_path.name.startswith(".main.board.json.staged-")
+                        and destination_path == sidecar
+                    ):
+                        raise OSError("synthetic sidecar publish failure")
+                    if (
+                        failure == "final-ir"
+                        and source_path.name.startswith(".main.circuit.json.staged-")
+                        and destination_path == output
+                    ):
+                        raise OSError("synthetic final IR publish failure")
+                    return real_replace(source, destination)
+
+                with (
+                    mock.patch.object(
+                        generation.Path,
+                        "write_bytes",
+                        autospec=True,
+                        side_effect=fail_write,
+                    ),
+                    mock.patch.object(
+                        generation.os, "replace", side_effect=fail_target
+                    ),
+                ):
+                    with self.assertRaises(ExportError):
+                        generation._publish_board_evidence_transaction(
+                            staged_attempt_dir=staged_attempts,
+                            boards_dir=boards,
+                            stem="main",
+                            sidecar_path=sidecar,
+                            sidecar_bytes=b"next-sidecar",
+                            built_circuit_json=built_circuit,
+                            output_path=output,
+                        )
+
+                self.assertEqual(sidecar.read_bytes(), prior_bytes["sidecar"])
+                self.assertEqual(output.read_bytes(), prior_bytes["circuit"])
+                self.assertEqual(
+                    {path.name: path.read_bytes() for path in prior_attempts.iterdir()},
+                    {"prior.json": prior_bytes["attempt"]},
+                )
+
+    def test_selected_scan_must_survive_final_validation_and_fab_state(self) -> None:
+        import json
+        import tempfile
+
+        from circuitpy import generation
+
+        with tempfile.TemporaryDirectory(prefix="selected-scan-ledger-") as tmp:
+            root = Path(tmp)
+            boards = root / "boards"
+            boards.mkdir()
+            selected = boards / "main.circuit.json"
+            selected.write_text(
+                json.dumps(
+                    [
+                        {
+                            "type": "pcb_trace_error",
+                            "pcb_trace_error_id": "selected_error",
+                            "message": "must survive into final validation",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            scan_warnings = generation._pre_export_scan(
+                selected, _product(), PROFILE
+            )
+            warning = scan_warnings[0]
+            staged = root / "staged"
+            record = generation._routing_attempt_evidence(
+                attempt_index=1,
+                effort="default",
+                warnings=scan_warnings,
+                circuit_json_path=selected,
+                staged_dir=staged,
+                stem="main",
+            )
+            generation._publish_routing_attempt_evidence(staged, boards, "main")
+            build = {
+                "autorouterEffort": "default",
+                "attempts": 1,
+                "blockingByAttempt": [1],
+                "attemptEvidence": [record],
+            }
+            self.assertEqual(
+                generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=selected,
+                    final_warnings=[],
+                    fab_ready=False,
+                    product=_product(),
+                    profile=PROFILE,
+                ),
+                "final validation omits a selected pre-export scan finding",
+            )
+            self.assertEqual(
+                generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=selected,
+                    final_warnings=[warning],
+                    fab_ready=True,
+                    product=_product(),
+                    profile=PROFILE,
+                ),
+                "fab.ready contradicts blocking selected pre-export evidence",
+            )
