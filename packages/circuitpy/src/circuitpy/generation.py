@@ -1470,6 +1470,7 @@ def build_board(
     profile = fab_mod.get_profile(fab_id)
 
     identity = board_source_hash(script_path, project_root)
+    spec_mod.validate_profile_source_identity(product, identity.source_hash)
 
     # A generated board imports frozen golden blocks by relative path. Refuse
     # a missing, partial, locally modified, or unselected snapshot before any
@@ -1478,6 +1479,7 @@ def build_board(
     validate_project_snapshot(
         project_root,
         imported_paths=(source_file.path for source_file in identity.files),
+        required_blocks=spec_mod.required_blocks_for_product(product),
     )
 
     # Safety envelope — refused at spec time, before any toolchain process.
@@ -1748,9 +1750,14 @@ def build_board(
     bom_rows = fab_mod.merge_parts_lock(bom_rows, parts)
 
     # -- Stage 4b: BOM gate. -------------------------------------------------
-    if bom_rows:
-        warnings.extend(checks.bom_gate(bom_rows, assembly=product.assembly))
-    elif product.assembly:
+    warnings.extend(
+        checks.bom_gate(
+            bom_rows,
+            assembly=product.assembly,
+            parts_lock=parts,
+        )
+    )
+    if not bom_rows and product.assembly:
         warnings.append(
             checks.check_failed("assembly requested but no BOM rows were produced")
         )

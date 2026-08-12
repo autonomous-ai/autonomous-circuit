@@ -53,7 +53,8 @@ _TRACKABLE_SUFFIXES = {".tsx", ".ts", ".jsx", ".js", ".json"}
 _SCANNABLE_SUFFIXES = {".tsx", ".ts", ".jsx", ".js"}
 
 _IMPORT_FROM_RE = re.compile(
-    r"""^\s*(?:import|export)\b[^'"\n]*?\bfrom\s+['"]([^'"]+)['"]""", re.M
+    r"""^\s*(?:import|export)\b(?:(?:[^\n'"])|(?:\n(?!\s*(?:import|export)\b)))*?\bfrom\s+['"]([^'"]+)['"]""",
+    re.M,
 )
 _SIDE_EFFECT_RE = re.compile(r"""^\s*import\s+['"]([^'"]+)['"]""", re.M)
 _REQUIRE_RE = re.compile(r"""\brequire\(\s*['"]([^'"]+)['"]\s*\)""")

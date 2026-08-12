@@ -100,6 +100,7 @@ def validate_project_snapshot(
     project_root: Path,
     *,
     imported_paths: Iterable[str],
+    required_blocks: Iterable[str] = (),
 ) -> dict[str, object] | None:
     """Validate and return the frozen-block manifest used by this board.
 
@@ -109,8 +110,17 @@ def validate_project_snapshot(
     """
 
     imported_entries = _imported_block_entries(imported_paths)
+    required = set(required_blocks)
+    invalid_required = sorted(
+        block for block in required if not BLOCK_ID.fullmatch(block)
+    )
+    if invalid_required:
+        raise ProjectShapeError(
+            "design profile requires invalid block id(s): "
+            + ", ".join(invalid_required)
+        )
     lock = project_root / LOCK_NAME
-    if not imported_entries and not lock.exists():
+    if not imported_entries and not lock.exists() and not required:
         return None
     payload = _load_manifest(lock)
 
@@ -133,6 +143,15 @@ def validate_project_snapshot(
     if invalid_block is not None:
         raise ProjectShapeError(
             f"{LOCK_NAME} contains an invalid block id: {invalid_block!r}"
+        )
+    if required and set(blocks) != required:
+        missing = sorted(required - set(blocks))
+        unexpected = sorted(set(blocks) - required)
+        details = [*(f"missing {block}" for block in missing)]
+        details.extend(f"unexpected {block}" for block in unexpected)
+        raise ProjectShapeError(
+            "design profile requires exact golden-block lock entries: "
+            + "; ".join(details)
         )
 
     files_raw = payload.get("files")
@@ -201,5 +220,11 @@ def validate_project_snapshot(
         raise ProjectShapeError(
             "board imports block entries absent from golden-blocks.lock.json: "
             + ", ".join(unselected_imports)
+        )
+    missing_imports = sorted(required - imported_entries)
+    if missing_imports:
+        raise ProjectShapeError(
+            "design profile requires board imports for protected composition: "
+            + ", ".join(missing_imports)
         )
     return payload

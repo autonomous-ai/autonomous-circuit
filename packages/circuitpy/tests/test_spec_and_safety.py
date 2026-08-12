@@ -116,6 +116,73 @@ class PartsLock(unittest.TestCase):
             with self.assertRaises(ProjectShapeError):
                 spec.load_parts(root)
 
+    def test_valid_json_list_lock_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "parts.json").write_text("[]", encoding="utf-8")
+            with self.assertRaisesRegex(
+                ProjectShapeError, "JSON object of exact ref"
+            ):
+                spec.load_parts(root)
+
+    def test_legacy_parts_book_wrapper_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "parts.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "summary": {"lines": 1},
+                        "parts": [{"id": "r-1k", "refdes": ["R1"]}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                ProjectShapeError, r"legacy \{version, parts:\[\.\.\.\]\} shape"
+            ):
+                spec.load_parts(root)
+
+    def test_every_lock_entry_must_be_an_object(self) -> None:
+        for entry in (None, "C11702", ["C11702"], True):
+            with self.subTest(entry=entry), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "parts.json").write_text(
+                    json.dumps({"R1": entry}), encoding="utf-8"
+                )
+                with self.assertRaisesRegex(
+                    ProjectShapeError, "entry R1 must be an object"
+                ):
+                    spec.load_parts(root)
+
+    def test_lock_keys_are_single_exact_uppercase_component_refs(self) -> None:
+        invalid = ("", "summary", "r1", "R1/R2", "R1,R2", "C4-C11", "R 1")
+        for part_id in invalid:
+            with self.subTest(part_id=part_id), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "parts.json").write_text(
+                    json.dumps({part_id: {"lcsc": "C11702"}}), encoding="utf-8"
+                )
+                message = (
+                    "empty component ref"
+                    if not part_id
+                    else "not one exact uppercase component ref"
+                )
+                with self.assertRaisesRegex(ProjectShapeError, message):
+                    spec.load_parts(root)
+
+    def test_fixed_refs_do_not_require_a_numeric_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = {
+                ref: {"lcsc": "C11702"}
+                for ref in ("R1", "LED1", "U1A", "RDM")
+            }
+            (root / "parts.json").write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+            self.assertEqual(spec.load_parts(root), payload)
+
     def test_lock_entries_loaded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -129,6 +129,27 @@ class ImportForms(unittest.TestCase):
         self.assertIn("boards/a.tsx", paths)
         self.assertIn("blocks/b.tsx", paths)
 
+    def test_multiline_golden_imports_are_in_the_transitive_identity(self) -> None:
+        paths = self._graph(
+            'import { a } from "../blocks/a/a"\n'
+            'export default () => (<board width="10mm" height="10mm" />)\n',
+            {
+                "blocks/a/a.tsx": (
+                    "import {\n"
+                    "  b,\n"
+                    "  type BProps,\n"
+                    '} from "../b/b"\n'
+                    "export const a = b\n"
+                ),
+                "blocks/b/b.tsx": (
+                    "export const b = 2\n"
+                    "export type BProps = { value: number }\n"
+                ),
+            },
+        )
+        self.assertIn("blocks/a/a.tsx", paths)
+        self.assertIn("blocks/b/b.tsx", paths)
+
     def test_bare_specifiers_ignored(self) -> None:
         paths = self._graph(
             'import { x } from "tscircuit"\nimport { y } from "@tsci/some.pkg"\n'

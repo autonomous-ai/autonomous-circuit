@@ -73,6 +73,35 @@ def test_valid_snapshot_includes_nonimported_license_bytes(tmp_path: Path) -> No
     assert "rp2040-core/RASPBERRY_PI_MINIMAL_LICENSE.txt" in result["files"]
 
 
+def test_machine_profile_requires_selected_blocks_to_be_imported(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    with pytest.raises(ProjectShapeError, match="requires board imports"):
+        validate_project_snapshot(
+            project,
+            imported_paths=["boards/main.tsx", "blocks/glue.tsx"],
+            required_blocks=["rp2040-core"],
+        )
+    result = validate_project_snapshot(
+        project,
+        imported_paths=["blocks/rp2040-core/rp2040-core.tsx"],
+        required_blocks=["rp2040-core"],
+    )
+    assert result is not None
+
+
+def test_machine_profile_requires_its_blocks_in_the_content_lock(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    with pytest.raises(
+        ProjectShapeError,
+        match="requires exact golden-block lock entries: missing usb-power-entry; unexpected rp2040-core",
+    ):
+        validate_project_snapshot(
+            project,
+            imported_paths=["blocks/rp2040-core/rp2040-core.tsx"],
+            required_blocks=["usb-power-entry"],
+        )
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
