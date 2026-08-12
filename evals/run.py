@@ -38,7 +38,12 @@ os.environ["CIRCUIT_PARTS_ENGINE"] = "off"
 from circuitlib import golden as circuit_golden  # noqa: E402
 from circuitlib import safety  # noqa: E402
 from circuitpy.errors import BuildError  # noqa: E402
-from circuitpy.generation import build_board  # noqa: E402
+from circuitpy.fab import get_profile  # noqa: E402
+from circuitpy.generation import (  # noqa: E402
+    build_board,
+    routing_attempt_evidence_error,
+)
+from circuitpy.spec import load_product  # noqa: E402
 from scripts.sync_golden_blocks import sync_project  # noqa: E402
 
 SKELETON = REPO / "skills" / "circuitcode" / "templates" / "project_skeleton"
@@ -111,6 +116,75 @@ def blocking(proj: Path) -> list[dict]:
         w for w in sidecar(proj).get("validation", {}).get("warnings", [])
         if w.get("severity") == "error"
     ]
+
+
+READY_ARTIFACTS = {
+    "gerbers": "main_fab/gerbers.zip",
+    "bom": "main_fab/bom.csv",
+    "cpl": "main_fab/cpl.csv",
+    "kicadProject": "main_fab/kicad-project.zip",
+    "glb": "main_fab/board.glb",
+    "schematicPng": "main_review/_schematic.png",
+    "pcbPng": "main_review/_pcb.png",
+    "order": "main_fab/ORDER.md",
+}
+
+
+def assert_fab_ready_board(proj: Path) -> dict:
+    """Prove that the selected board is the complete orderable packet.
+
+    Structural evals are product-outcome tests.  A successful CLI call, a
+    clean warning list, or files with plausible names is not enough: the
+    literal readiness verdict, canonical packet manifest, and retained route
+    evidence must all describe the same selected Circuit JSON.
+    """
+
+    meta = sidecar(proj)
+    fab = meta.get("fab")
+    assert isinstance(fab, dict) and fab.get("ready") is True, (
+        "structural eval completed without literal fab.ready == true"
+    )
+    warnings = (meta.get("validation") or {}).get("warnings", [])
+    assert isinstance(warnings, list), "validation.warnings is not a list"
+    errors = [
+        warning for warning in warnings
+        if isinstance(warning, dict) and warning.get("severity") == "error"
+    ]
+    assert not errors, f"fab-ready sidecar contains blocking warnings: {errors}"
+
+    artifacts = meta.get("artifacts")
+    assert isinstance(artifacts, dict), "fab-ready sidecar has no artifact manifest"
+    boards = proj / "boards"
+    for key, expected in READY_ARTIFACTS.items():
+        assert artifacts.get(key) == expected, (
+            f"fab-ready artifact {key} must be {expected!r}, "
+            f"got {artifacts.get(key)!r}"
+        )
+        artifact = boards / expected
+        assert artifact.is_file() and not artifact.is_symlink(), (
+            f"fab-ready artifact is missing or unsafe: {artifact}"
+        )
+
+    profile_id = fab.get("profile")
+    assert isinstance(profile_id, str) and profile_id, (
+        "fab-ready sidecar has no fabrication profile"
+    )
+    circuit_json_path = boards / "main.circuit.json"
+    assert circuit_json_path.is_file() and not circuit_json_path.is_symlink(), (
+        "fab-ready sidecar has no regular selected Circuit JSON"
+    )
+    evidence_error = routing_attempt_evidence_error(
+        meta.get("build"),
+        circuit_json_path=circuit_json_path,
+        final_warnings=warnings,
+        fab_ready=True,
+        product=load_product(proj),
+        profile=get_profile(profile_id),
+    )
+    assert evidence_error is None, (
+        f"fab-ready packet is not bound to retained routing evidence: {evidence_error}"
+    )
+    return meta
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +284,7 @@ def eval_clean_board(tmp: Path):
 
     blockers = blocking(proj)
     assert not blockers, f"clean board has blocking warnings: {blockers}"
+    assert_fab_ready_board(proj)
     # The pipeline returns the board facts; `ok` is the skill CLI's framing.
     assert result.get("board") or result.get("circuit_json_path"), (
         f"pipeline returned nothing useful: {sorted(result)}"
@@ -292,6 +367,7 @@ def eval_dense_board(tmp: Path):
     elapsed = time.time() - started
     meta = sidecar(proj)
     assert meta["bom"]["lines"] >= 12, f"expected >=12 BOM lines: {meta['bom']}"
+    assert_fab_ready_board(proj)
     assert elapsed < 420, f"dense board took {elapsed:.0f}s"
 
 
@@ -302,10 +378,12 @@ def eval_cache_iteration(tmp: Path):
     first = time.time()
     run_board(proj)
     first_s = time.time() - first
+    assert_fab_ready_board(proj)
 
     second = time.time()
     result = run_board(proj)
     second_s = time.time() - second
+    assert_fab_ready_board(proj)
 
     assert result.get("unchanged") is True or second_s < first_s, (
         f"re-run was not cheaper: {first_s:.1f}s then {second_s:.1f}s"
