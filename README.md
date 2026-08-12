@@ -218,6 +218,12 @@ safe is a block that will get handled wrong.
 problem doesn't count as fixing it, so those entries stay open until the problem becomes
 impossible.
 
+[`docs/fab-ready-architecture.md`](docs/fab-ready-architecture.md) records the
+resulting production decision: tscircuit is the pinned compile/route substrate,
+not the manufacturing authority; independent intent/DFM, KiCad, packet truth,
+content locks, and evidence-based agent handoffs are part of one fab-ready
+system.
+
 ### Why we can afford to check this hard
 
 Miss something and you wait two weeks for new boards. That's not just lost time, it's lost market.
