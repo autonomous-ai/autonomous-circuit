@@ -70,11 +70,21 @@ else
   echo "[dev] WARNING: no python >= 3.10 found (set CIRCUIT_PYTHON) — board builds will fail." >&2
 fi
 
-# kicad-cli is optional (reported, not required): without it boards build but
-# fab packets are never fab-ready (unverified_gerbers blocks shipping).
-if ! command -v kicad-cli >/dev/null 2>&1 \
-   && [ ! -x "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli" ]; then
-  echo "[dev] WARNING: kicad-cli not found — ERC/DRC + verified gerbers unavailable (brew install --cask kicad)." >&2
+# Resolve KiCad through circuitpy's canonical probe instead of maintaining a
+# second, inevitably stale app-bundle list in this launcher.  Export the exact
+# result so the viewer prerequisite endpoint and every later board subprocess
+# use the same binary.  Without it boards may still compile, but the pipeline
+# must refuse fab.ready because ERC/DRC and verified Gerbers are unavailable.
+KICAD_CLI=""
+if [ -n "$CIRCUIT_PY" ]; then
+  KICAD_CLI="$(PYTHONPATH="$REPO_ROOT/packages/circuitpy/src" \
+    "$CIRCUIT_PY" -c 'from circuitpy.toolchain import kicad_cli_exe; print(kicad_cli_exe() or "")')"
+fi
+if [ -n "$KICAD_CLI" ] && [ -x "$KICAD_CLI" ]; then
+  export CIRCUIT_KICAD_CLI="$KICAD_CLI"
+  echo "[dev] kicad-cli: $KICAD_CLI"
+else
+  echo "[dev] WARNING: kicad-cli not found — ERC/DRC + verified gerbers unavailable (install KiCad 10)." >&2
 fi
 
 exec npm --prefix "$REPO_ROOT/viewer" run dev

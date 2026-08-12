@@ -53,6 +53,16 @@ class ToolchainResolution(EnvGuard, unittest.TestCase):
         with self.assertRaises(RuntimeError):
             toolchain.helper_js("nope.cjs")
 
+    def test_dev_launcher_uses_the_canonical_kicad_probe(self) -> None:
+        repo = Path(__file__).resolve().parents[3]
+        launcher = (repo / "scripts" / "dev.sh").read_text(encoding="utf-8")
+        self.assertIn("from circuitpy.toolchain import kicad_cli_exe", launcher)
+        self.assertIn('export CIRCUIT_KICAD_CLI="$KICAD_CLI"', launcher)
+        self.assertNotIn(
+            '[ ! -x "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli" ]',
+            launcher,
+        )
+
 
 class ToolchainVersions(EnvGuard, unittest.TestCase):
     def test_versions_shape(self) -> None:
