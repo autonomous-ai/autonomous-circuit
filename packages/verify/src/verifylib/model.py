@@ -428,10 +428,34 @@ class Trace:
     net_key: str | None
     net_name: str | None
     segments: list[TraceSegment] = field(default_factory=list)
+    #: How many times this trace changes layer. Each one is copper running
+    #: through the board, not across it — see :meth:`copper_length`.
+    via_count: int = 0
 
     @property
     def length(self) -> float:
+        """Planar length: what the trace covers looking down at the board.
+
+        This is the number the pair-skew and width checks want. It is **not**
+        the length the router budgets against — for that see
+        :meth:`copper_length`.
+        """
         return sum(s.length for s in self.segments)
+
+    def copper_length(self, board_thickness_mm: float | None) -> float:
+        """Total copper the signal travels, vias included.
+
+        A via is not free: the signal drops through the full board thickness
+        and climbs back. Measured against tscircuit's own
+        ``pcb_trace_too_long_warning`` on a 1.6mm board, planar + one thickness
+        per via reproduces its figure exactly (9.509mm planar + 2 vias =
+        12.709mm, matching to three decimals). Falls back to the planar length
+        when the board never declared a thickness, which *understates* — the
+        caller should say so rather than let it read as measured.
+        """
+        if not board_thickness_mm or self.via_count <= 0:
+            return self.length
+        return self.length + self.via_count * board_thickness_mm
 
     @property
     def min_width(self) -> float | None:
@@ -777,6 +801,11 @@ class Board:
                     net_key=key,
                     net_name=net.label if net else None,
                     segments=segments,
+                    via_count=sum(
+                        1
+                        for p in (e.get("route") or [])
+                        if isinstance(p, dict) and p.get("route_type") == "via"
+                    ),
                 )
             )
 

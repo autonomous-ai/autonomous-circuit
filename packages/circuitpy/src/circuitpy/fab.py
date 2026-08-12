@@ -240,6 +240,15 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
 #: does not have to re-derive it:
 #:
+#: * `crystal_net_routed_long` — the copper the router laid exceeds the crystal
+#:   ceiling even though the parts are placed inside it (a detour, or vias at a
+#:   full board thickness each). Measured 2026-08-12: **all four** boards in
+#:   this repo carry one, 10.09mm to 20.93mm against a 10mm line, and every
+#:   figure matches tscircuit's own `pcb_trace_too_long_warning` exactly. The
+#:   router routed them anyway and the fab will build them. Blocking here would
+#:   make every board this repo has ever produced un-orderable over an
+#:   oscillator that is marginal, not broken. Contrast `crystal_net_too_long`,
+#:   which blocks because the router refuses to lay any copper at all.
 #: * `crystal_net_tight` — a connection with under 1mm of slack routes today.
 #:   It is one nudge from taking the whole board's routing down, which is why
 #:   it is reported at all rather than passed in silence, but a board that

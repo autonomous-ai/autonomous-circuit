@@ -20,22 +20,34 @@ crystal net from pad to pad and says which one is too long and by how much:
 
 That is a finding an agent can act on inside the build loop without a human.
 
-**Why pads and not traces.** When the rule is broken there are no routed traces
-to measure — that is the whole failure mode. So this works off
-``source_trace`` (the declared connection, which exists before routing) and the
-pad each end lands on. It is geometry, available at compile time.
+**Two measurements, because there are two ways to break the rule.**
+
+*Placement* — the parts are simply too far apart. Measured pad to pad off
+``source_trace`` (the declared connection) and the pad each end lands on. Both
+exist before routing, which matters: when the rule is broken this way there are
+no routed traces to measure at all.
+
+*Routing* — the parts are close enough but the copper is not. The router
+detours around obstacles and drops through vias, and a via costs a full board
+thickness each way. Found on the first real board this check ever ran on:
+``Y1.pin1 -> U3.XIN`` measured 7.94mm pad to pad and passed, while the copper
+the router actually laid was **12.71mm** — 9.51mm of planar detour plus two
+vias at 1.6mm. Two vias alone spend 3.2mm, a third of the whole budget, without
+crossing a single millimetre of board.
+
+Straight-line distance is a *lower bound*, so the placement measurement can
+never catch the routing case. Both run; the worse one wins.
 
 **The margin warning.** A connection under
 ``CRYSTAL_LENGTH_MARGIN_MM`` of slack passes today and breaks on any nudge.
 harness-puck shipped at 0.12mm of margin with a source comment admitting that
 another 0.5mm re-broke routing. Silence there would be a lie.
 
-**What this cannot see.** The router's real path, which is longer than the
-straight line between pads — so every number here is a *lower* bound and the
-check is conservative in the reporting direction, not the missing one. It also
-cannot see a crystal whose pins were never placed (reported as coverage), and
-it does not know about oscillators or resonators, which tscircuit does not put
-under the same constant.
+**What this cannot see.** A crystal whose pins were never placed (reported as
+coverage). Oscillators and resonators, which tscircuit does not put under the
+same constant. And on a board that never declared a thickness, the via depth is
+unknown, so the routed length falls back to the planar figure and understates —
+said out loud in coverage rather than left to read as measured.
 """
 
 from __future__ import annotations
@@ -93,6 +105,72 @@ def _connections(board: Board, net_keys: set[str]) -> list[tuple[str, str, str]]
             continue
         out.append((str(trace.get("name") or "trace"), ports[0], ports[1]))
     return out
+
+
+def _routed_findings(
+    board: Board, crystal, net_keys: set[str], coverage: Coverage
+) -> list[Finding]:
+    """The copper the router actually laid, vias included.
+
+    Placement can be inside the ceiling while the copper is not: the router
+    detours around obstacles, and each via spends a full board thickness. This
+    runs only when there is routed copper to measure — on a board the router
+    refused, there is none, and the pad-to-pad measurement is the whole answer.
+    """
+    findings: list[Finding] = []
+    thickness = board.thickness_mm
+    for net_key in sorted(net_keys):
+        net = board.net_by_key.get(net_key)
+        if net is None:
+            continue
+        # A crystal net is usually unnamed, and `net:tivity_net13` tells nobody
+        # which part to move. The pins on it do.
+        pins = ", ".join(f"{c}.{p}" for c, p in net.pins) or net.label
+        who = f"{net.name} ({pins})" if net.name else f"the net joining {pins}"
+        for trace in board.traces_on(net):
+            if not trace.segments:
+                continue
+            length = trace.copper_length(thickness)
+            if length <= CRYSTAL_MAX_TRACE_LENGTH_MM:
+                continue
+            if thickness and trace.via_count:
+                breakdown = (
+                    f" ({trace.length:.2f}mm across the board plus "
+                    f"{trace.via_count} via{'s' if trace.via_count > 1 else ''} "
+                    f"through it at {thickness:g}mm each — the vias alone spend "
+                    f"{trace.via_count * thickness:.2f}mm)"
+                )
+                advice = (
+                    "Keep this net on one layer: a via costs a full board "
+                    "thickness each way and there is no budget for it here"
+                )
+            else:
+                breakdown = ""
+                advice = (
+                    "Shorten the detour — move the parts closer or clear what "
+                    "the router is routing around"
+                )
+            findings.append(
+                finding(
+                    crystal.name,
+                    "crystal_net_routed_long",
+                    f"{who} is routed as {length:.2f}mm of copper"
+                    f"{breakdown}, {length - CRYSTAL_MAX_TRACE_LENGTH_MM:.2f}mm "
+                    f"over the {CRYSTAL_MAX_TRACE_LENGTH_MM:g}mm ceiling. The "
+                    f"parts are placed close enough; the copper between them is "
+                    f"not. The board still routes and still ships — this is an "
+                    f"oscillator running on a longer antenna than its design "
+                    f"guide asks for, not a board that cannot be built. "
+                    f"{advice}",
+                    "warning",
+                )
+            )
+    if board.traces and not thickness:
+        coverage.skip(
+            "board thickness is not declared, so via depth could not be added "
+            "to any routed length — those figures understate"
+        )
+    return findings
 
 
 @never_raises
@@ -171,6 +249,8 @@ def _length_findings(board: Board, coverage: Coverage) -> list[Finding]:
                     )
                 )
 
+        findings += _routed_findings(board, crystal, net_keys, coverage)
+
         if measured:
             coverage.examined += 1
         else:
@@ -185,12 +265,13 @@ def _length_findings(board: Board, coverage: Coverage) -> list[Finding]:
 def check(board: Board) -> CheckResult:
     crystals = _crystal_components(board)
     coverage = Coverage(unit="crystals", total=len(crystals))
-    coverage.skip(
-        "the routed path, which is longer than the pad-to-pad straight line — "
-        "every distance here is a lower bound"
-    )
     coverage.skip("oscillators and resonators, which the router does not "
                   "put under this ceiling")
+    if crystals and not board.traces:
+        coverage.skip(
+            "no routed copper on this board, so every figure is the pad-to-pad "
+            "straight line — a lower bound on what the router would lay"
+        )
 
     findings = _length_findings(board, coverage)
 
@@ -200,6 +281,9 @@ def check(board: Board) -> CheckResult:
         "for the whole board, not just the offending net",
         f"a connection with under {CRYSTAL_LENGTH_MARGIN_MM:g}mm of slack is "
         "reported as tight rather than passed",
+        "measured twice: pad to pad (works before routing, and on a board the "
+        "router refused) and over the routed copper with via depth added "
+        "(catches a detour that placement alone cannot show)",
     ]
     if not crystals:
         notes.append("no crystal on this board — nothing to check")

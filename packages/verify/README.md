@@ -20,7 +20,7 @@ cd packages/verify && python3.12 -m pytest                                      
 | `corners` | every number in the pipeline is nominal; this re-solves at every tolerance corner | `circuit.json` |
 | `review` | the electrical half of an EE design review — decoupling, bulk, crystal load caps, floating pins, ESD, test points, debug access | `circuit.json` |
 | `thermal` | dissipation against package ratings at *peak* load — the LDO helper, but reading the built board, plus every chip resistor | `circuit.json` |
-| `crystal` | the router's crystal-net ceiling, which when broken skips autorouting for the **whole board** and blames the crystal rather than the part that broke it | `circuit.json` |
+| `crystal` | the router's crystal-net ceiling, measured twice — pad to pad (which is all there is when the router refused the board and skipped autorouting entirely) and over the routed copper with via depth added (a via costs a full board thickness, and two of them spend a third of the budget) | `circuit.json` |
 | `gerber` | **the packet we actually ship, which nothing had ever opened** | `gerbers.zip` |
 
 ## Three rules the package holds itself to

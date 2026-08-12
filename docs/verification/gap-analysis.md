@@ -413,9 +413,19 @@ parts actually needing to move were R11 and C16.
 
 Nothing measured the distance, so nothing could say which part or by how much.
 That is a constraint the *toolchain* owns and the pipeline had no opinion on —
-the same shape as "never trust an exit code". `crystal.py` measures each
-declared connection pad to pad, before routing, and names the endpoint and the
-overshoot.
+the same shape as "never trust an exit code". `crystal.py` measures it twice,
+because there are two ways to break it: pad to pad off the declared connection
+(works before routing, and on a board the router refused), and over the routed
+copper with via depth added.
+
+The second measurement was added the same day, after the first one passed a
+board it should not have: parts 7.94mm apart, copper 12.71mm — 9.51mm of
+detour plus two vias at a full 1.6mm board thickness each. **Two vias spend
+3.2mm, a third of the whole budget, without crossing a millimetre of board.**
+Every board in this repo carries one of these, 10.09mm to 20.93mm, and every
+figure matches tscircuit's own `pcb_trace_too_long_warning` exactly. They still
+route and still ship, so that one warns (`crystal_net_routed_long`) where the
+placement failure blocks.
 
 The general lesson is bigger than crystals: any router constraint that fails
 the whole board rather than one net needs its own pre-routing measurement, or
