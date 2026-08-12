@@ -61,6 +61,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 REPORT_DIR = Path(__file__).resolve().parent
 DEFAULT_REPORT = REPORT_DIR / "agent-eval-latest.json"
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from evals.run import assert_fab_ready_board  # noqa: E402
 
 #: Unattended framing. This is the *only* thing added to the brief, and it is
 #: appended to the system prompt rather than the prompt so the brief stays
@@ -194,6 +198,15 @@ class SidecarWatcher(threading.Thread):
                 sidecar = json.loads(raw)
             except ValueError:
                 continue  # mid-write; the next poll catches it
+            fab_ready, readiness_error = verified_fab_ready(
+                self.project, path, sidecar
+            )
+            # The evidence transaction publishes its retained attempt set,
+            # sidecar, and selected Circuit JSON with atomic individual
+            # renames. A poll can land in that tiny interval. Do not turn the
+            # transient view into build #1; retry the same digest next poll.
+            if sidecar.get("fab", {}).get("ready") is True and readiness_error:
+                continue
             self._seen.add(digest)
             warnings = sidecar.get("validation", {}).get("warnings", [])
             blocking = [w for w in warnings if w.get("severity") == "error"]
@@ -202,7 +215,8 @@ class SidecarWatcher(threading.Thread):
                     "n": len(self.builds) + 1,
                     "atSeconds": round(time.time() - self._t0, 1),
                     "board": path.name,
-                    "fabReady": bool(sidecar.get("fab", {}).get("ready")),
+                    "fabReady": fab_ready,
+                    "fabReadyEvidenceError": readiness_error,
                     "gerberSource": sidecar.get("fab", {}).get("gerberSource"),
                     "blockingCount": len(blocking),
                     "blockingKinds": sorted({w["kind"] for w in blocking}),
@@ -242,6 +256,28 @@ class SidecarWatcher(threading.Thread):
             self._scan()
             self._done.wait(self.interval)
         self._scan()  # final sweep — never miss the last build
+
+
+def verified_fab_ready(
+    project: Path, sidecar_path: Path, sidecar: dict
+) -> tuple[bool, str | None]:
+    """Return the literal, packet-backed readiness verdict for one sidecar.
+
+    The expensive eval's headline number must use the product gate, not
+    Python truthiness. Only the canonical board can be orderable, and its
+    sidecar must be backed by the complete packet plus independently retained
+    selected-route evidence.
+    """
+
+    if sidecar.get("fab", {}).get("ready") is not True:
+        return False, "sidecar does not contain literal fab.ready == true"
+    if sidecar_path.name != "main.board.json":
+        return False, "only boards/main.board.json is an orderable eval verdict"
+    try:
+        assert_fab_ready_board(project)
+    except Exception as exc:  # noqa: BLE001 — any verifier failure means not ready
+        return False, str(exc) or type(exc).__name__
+    return True, None
 
 
 # ---------------------------------------------------------------------------
@@ -340,11 +376,13 @@ def run_brief(
             w for w in sidecar.get("validation", {}).get("warnings", [])
             if w.get("severity") == "error"
         ]
+        fab_ready, readiness_error = verified_fab_ready(project, path, sidecar)
         snapshot = {
             "n": len(builds) + 1,
             "atSeconds": None,
             "board": path.name,
-            "fabReady": bool(sidecar.get("fab", {}).get("ready")),
+            "fabReady": fab_ready,
+            "fabReadyEvidenceError": readiness_error,
             "gerberSource": sidecar.get("fab", {}).get("gerberSource"),
             "blockingCount": len(blocking),
             "blockingKinds": sorted({w["kind"] for w in blocking}),
