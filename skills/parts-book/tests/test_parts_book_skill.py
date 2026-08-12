@@ -56,6 +56,14 @@ def test_skill_md_documents_every_flag():
 
 def test_skill_md_states_the_non_negotiables():
     doc = SKILL_MD.read_text(encoding="utf-8")
-    for phrase in ("wholly", "Basic", "47–90s", "one exact orderable number",
-                   "FOOTPRINT CHANGE"):
+    for phrase in (
+        "wholly",
+        "Basic",
+        "47–90s",
+        "one exact orderable `C` number",
+        "FOOTPRINT CHANGE",
+        "golden-blocks.lock.json",
+        "unresolved parametric",
+        "Do not write a `version`/`summary`/`parts` wrapper",
+    ):
         assert phrase in doc, f"SKILL.md is missing the rule about {phrase!r}"

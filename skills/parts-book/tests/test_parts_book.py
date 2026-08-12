@@ -1,61 +1,122 @@
-"""Tests for the parts-book skill's scripts/parts tool.
-
-No network, ever: the offline path is the default and the lookup path is
-exercised with a fake catalog client in test_lookup.py.
-"""
+"""Exact-ref parts-book behavior.  The suite is offline and self-contained."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 PARTS_TOOL = SKILL_DIR / "scripts" / "parts"
-REPO_BLOCKS = SKILL_DIR.parents[1] / "packages" / "golden-blocks" / "blocks"
 
-BLOCK_TSX = '''/**
- * golden-block: demo-block (test fixture)
- */
-export const DemoBlock = (props: { u?: string }) => {
+BLOCK_TSX = '''export const DemoBlock = (props: {
+  u?: string
+  r1?: string
+  r2?: string
+  c?: string
+}) => {
   const u = props.u ?? "U9"
+  const r1 = props.r1 ?? "R90"
+  const r2 = props.r2 ?? "R91"
+  const c = props.c ?? "C90"
   return (
     <group>
-      <chip
-        name={u}
-        supplierPartNumbers={{ jlcpcb: ["C6186"] }}
-        manufacturerPartNumber="AMS1117-3.3"
-        footprint="sot223"
-      />
-      <resistor name="R90" resistance="4.7k" footprint="0402"
+      <chip name={u} supplierPartNumbers={{ jlcpcb: ["C6186"] }}
+        manufacturerPartNumber="AMS1117-3.3" footprint="sot223" />
+      <resistor name={r1} resistance="4.7k" footprint="0402"
         supplierPartNumbers={{ jlcpcb: ["C25900"] }} />
-      <capacitor name="C90" capacitance="10uF" footprint="0805"
+      <resistor name={r2} resistance="4.7k" footprint="0402"
+        supplierPartNumbers={{ jlcpcb: ["C25900"] }} />
+      <capacitor name={c} capacitance="10uF" footprint="0805"
         supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
     </group>
   )
 }
 '''
 
-BLOCK_MD = """# demo-block — a test fixture
+BLOCK_MD = """# demo-block
 
-**Function:** nothing real.
-
-## Parts (pinned; verified 2026-08-10 via jlcsearch)
+## Parts (pinned)
 
 | Refdes | Part | LCSC | Package | Basic | Note |
 |---|---|---|---|---|---|
-| U9 | AMS1117-3.3 | C6186 | SOT-223 | yes | $0.15, 1.49M stock |
-| R90 | 0402WGF4701TCE, 4.7k | C25900 | 0402 | yes | pull-up |
+| U9 | AMS1117-3.3 | C6186 | SOT-223 | yes | regulator |
+| R90/R91 | 0402WGF4701TCE, 4.7k | C25900 | 0402 | yes | pull-ups |
 | C90 | CL21A106KAYNNNE, 10uF X5R | C15850 | 0805 | yes | bulk |
-
-## Provenance
-
-Fixture.
+| TP9 | DNP copper pad | — | copper | — | not populated |
 """
+
+BOARD_TSX = '''import { G } from "../blocks/glue"
+import { DemoBlock } from "../blocks/demo-block/demo-block"
+export default () => <board><G /><DemoBlock /></board>
+'''
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _tree(files: dict[str, str]) -> str:
+    digest = hashlib.sha256()
+    for relative, file_sha in sorted(files.items()):
+        digest.update(relative.encode())
+        digest.update(b"\0")
+        digest.update(file_sha.encode())
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _write_lock(project: Path, selected: tuple[str, ...]) -> None:
+    blocks = project / "blocks"
+    files: dict[str, str] = {"glue.tsx": _sha(blocks / "glue.tsx")}
+    for block in selected:
+        for path in sorted((blocks / block).rglob("*")):
+            if path.is_file():
+                files[path.relative_to(blocks).as_posix()] = _sha(path)
+    payload = {
+        "schemaVersion": 1,
+        "source": "test",
+        "blocks": sorted(selected),
+        "treeSha256": _tree(files),
+        "files": dict(sorted(files.items())),
+    }
+    (project / "golden-blocks.lock.json").write_text(
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def _make_project(
+    tmp_path: Path,
+    *,
+    board: str = BOARD_TSX,
+    block_tsx: str = BLOCK_TSX,
+    block_md: str = BLOCK_MD,
+    extra_blocks: dict[str, tuple[str, str]] | None = None,
+) -> Path:
+    (tmp_path / "product.json").write_text(
+        '{"name":"test-board","assembly":true}', encoding="utf-8"
+    )
+    boards = tmp_path / "boards"
+    boards.mkdir()
+    (boards / "main.tsx").write_text(board, encoding="utf-8")
+    blocks = tmp_path / "blocks"
+    blocks.mkdir()
+    (blocks / "glue.tsx").write_text("export const G = () => null\n", encoding="utf-8")
+    block = blocks / "demo-block"
+    block.mkdir()
+    (block / "demo-block.tsx").write_text(block_tsx, encoding="utf-8")
+    (block / "BLOCK.md").write_text(block_md, encoding="utf-8")
+    for block_id, (source, docs) in (extra_blocks or {}).items():
+        folder = blocks / block_id
+        folder.mkdir()
+        (folder / f"{block_id}.tsx").write_text(source, encoding="utf-8")
+        (folder / "BLOCK.md").write_text(docs, encoding="utf-8")
+    _write_lock(tmp_path, tuple(sorted(["demo-block", *(extra_blocks or {})])))
+    return tmp_path
 
 
 def _run(*args: str, cwd: Path | None = None) -> tuple[dict, str]:
@@ -63,211 +124,293 @@ def _run(*args: str, cwd: Path | None = None) -> tuple[dict, str]:
     env.setdefault("CIRCUIT_PARTS_CACHE_DIR", str(Path(args[0]) / ".cache"))
     proc = subprocess.run(
         [sys.executable, str(PARTS_TOOL), *args],
-        capture_output=True, text=True, timeout=120, env=env, cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+        cwd=cwd,
     )
-    stdout = proc.stdout or ""
-    lines = stdout.strip().splitlines()
+    lines = (proc.stdout or "").strip().splitlines()
     assert lines, f"no stdout (stderr: {proc.stderr[:400]!r})"
-    return json.loads(lines[-1]), stdout
-
-
-def _make_project(tmp_path: Path) -> Path:
-    (tmp_path / "product.json").write_text(json.dumps({
-        "name": "test-board", "power": "usb-c-5v", "layers": 2,
-        "fab": "jlcpcb", "assembly": True,
-    }), encoding="utf-8")
-    block = tmp_path / "blocks" / "demo-block"
-    block.mkdir(parents=True)
-    (block / "demo-block.tsx").write_text(BLOCK_TSX, encoding="utf-8")
-    (block / "BLOCK.md").write_text(BLOCK_MD, encoding="utf-8")
-    return tmp_path
+    payload = json.loads(lines[-1])
+    assert (proc.returncode == 0) == payload["ok"], (proc.stderr, payload)
+    return payload, proc.stdout
 
 
 def _parts(project: Path) -> dict:
     return json.loads((project / "parts.json").read_text(encoding="utf-8"))
 
 
-# --- the offline path -----------------------------------------------------
-
-
-def test_offline_sync_writes_candidate_slots(tmp_path: Path):
+def test_offline_sync_writes_only_exact_ref_entries(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
     payload, _ = _run(str(project))
 
     assert payload["ok"] is True
-    ids = {p["id"] for p in payload["parts"]}
-    assert ids == {"ams1117-3.3", "r-4.7k-0402", "c-10uf-0805"}
-    # Candidate slots: pinned identity, no stock check yet.
-    for part in payload["parts"]:
-        assert part["stock_checked"] is None
-        assert part["basic"] is True
-
+    assert [part["ref"] for part in payload["parts"]] == ["C90", "R90", "R91", "U9"]
     on_disk = _parts(project)
-    assert on_disk["version"] == 1
-    assert on_disk["generator"] == "parts-book"
-    assert on_disk["summary"]["lines"] == 3
-    record = next(p for p in on_disk["parts"] if p["id"] == "ams1117-3.3")
-    assert record["lcsc"] == "C6186"
-    assert record["mfr"] == "AMS1117-3.3"
-    assert record["package"] == "SOT-223"        # BLOCK.md beats the footprint
-    assert record["refdes"] == ["U9"]
-    assert record["blocks"] == ["demo-block"]
-    assert record["stock"] is None
-    assert record["unit_price_usd"] is None
-    assert record["source"] == "block-default"
-    assert record["datasheet_url"].endswith("C6186.html")
+    assert set(on_disk) == {"C90", "R90", "R91", "U9"}
+    assert not ({"version", "summary", "parts"} & set(on_disk))
+    assert on_disk["U9"] == {
+        "lcsc": "C6186",
+        "basic": True,
+        "description": "AMS1117-3.3",
+        "block": "demo-block",
+        "mfr": "AMS1117-3.3",
+        "package": "SOT-223",
+        "source": "block-default",
+    }
+    assert on_disk["R90"]["lcsc"] == on_disk["R91"]["lcsc"] == "C25900"
+    assert "TP9" not in on_disk
 
 
-def test_stdout_is_exactly_one_json_line(tmp_path: Path):
+def test_stdout_is_exactly_one_json_line(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
     _, stdout = _run(str(project))
     assert len(stdout.strip().splitlines()) == 1
 
 
-def test_whole_file_rewrite_drops_stale_content(tmp_path: Path):
-    """parts-book owns parts.json wholly — nothing survives that the blocks
-    (or an explicit --add) do not justify."""
+def test_legacy_wrapper_migrates_and_carries_catalog_facts_by_lcsc(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
-    (project / "parts.json").write_text(json.dumps({
-        "version": 0,
-        "hand_written": "should not survive",
+    legacy = {
+        "version": 1,
+        "summary": {"lines": 1},
         "parts": [
-            {"id": "ghost-part", "lcsc": "C999999", "basic": False},
-            {"id": "ams1117-3.3", "lcsc": "C6186", "stock": 1,
-             "unit_price_usd": 9.99, "stock_checked": "2020-01-01"},
+            {
+                "id": "r-4.7k-0402",
+                "lcsc": "C25900",
+                "basic": True,
+                "stock": 123456,
+                "unit_price_usd": 0.0005,
+                "stock_checked": "2026-08-10",
+                "source": "jlcsearch",
+            }
         ],
-    }), encoding="utf-8")
+    }
+    (project / "parts.json").write_text(json.dumps(legacy), encoding="utf-8")
 
     payload, _ = _run(str(project))
     assert payload["ok"] is True
     on_disk = _parts(project)
-    assert "hand_written" not in on_disk
-    assert on_disk["version"] == 1
-    assert "ghost-part" not in {p["id"] for p in on_disk["parts"]}
+    for ref in ("R90", "R91"):
+        assert on_disk[ref]["stock"] == 123456
+        assert on_disk[ref]["unit_price_usd"] == 0.0005
+        assert on_disk[ref]["stock_checked"] == "2026-08-10"
+        assert on_disk[ref]["source"] == "jlcsearch-cached"
 
 
-def test_previous_lookup_carries_forward(tmp_path: Path):
-    """An offline re-sync must never erase the last checked stock/price."""
+def test_whole_file_rewrite_drops_stale_exact_ref(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
     _run(str(project))
-    on_disk = _parts(project)
-    for part in on_disk["parts"]:
-        if part["lcsc"] == "C6186":
-            part.update({"stock": 1490681, "unit_price_usd": 0.151271,
-                         "stock_checked": "2026-08-10"})
-    (project / "parts.json").write_text(json.dumps(on_disk), encoding="utf-8")
-
+    lock = _parts(project)
+    lock["R99"] = {
+        "lcsc": "C999999",
+        "basic": False,
+        "description": "stale",
+        "block": "board",
+    }
+    (project / "parts.json").write_text(json.dumps(lock), encoding="utf-8")
     payload, _ = _run(str(project))
-    record = next(p for p in _parts(project)["parts"] if p["lcsc"] == "C6186")
-    assert record["stock"] == 1490681
-    assert record["unit_price_usd"] == 0.151271
-    assert record["stock_checked"] == "2026-08-10"
-    assert next(p for p in payload["parts"]
-                if p["lcsc"] == "C6186")["stock_checked"] == "2026-08-10"
+    assert payload["ok"] is True
+    assert "R99" not in _parts(project)
 
 
-# --- refusals -------------------------------------------------------------
+def test_literal_ref_overrides_are_resolved(tmp_path: Path) -> None:
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+export default () => <board><DemoBlock u="U8" r1="R8" r2={"R9"} c="C8" /></board>
+'''
+    project = _make_project(tmp_path, board=board)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is True
+    assert set(_parts(project)) == {"C8", "R8", "R9", "U8"}
 
 
-def test_duplicate_id_refused_and_file_untouched(tmp_path: Path):
+def test_dynamic_ref_override_fails_closed(tmp_path: Path) -> None:
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+const chosen = "U8"
+export default () => <board><DemoBlock u={chosen} /></board>
+'''
+    project = _make_project(tmp_path, board=board)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "dynamic/non-exact" in payload["error"]["message"]
+    assert not (project / "parts.json").exists()
+
+
+def test_jsx_prop_spread_that_could_override_refs_fails_closed(tmp_path: Path) -> None:
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+const refs = { u: "U8" }
+export default () => <board><DemoBlock {...refs} /></board>
+'''
+    project = _make_project(tmp_path, board=board)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "JSX prop spread" in payload["error"]["message"]
+
+
+def test_parametric_documented_ref_fails_closed(tmp_path: Path) -> None:
+    docs = BLOCK_MD.replace("R90/R91", "R`n`")
+    project = _make_project(tmp_path, block_md=docs)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "unresolved parametric" in payload["error"]["message"]
+    assert not (project / "parts.json").exists()
+
+
+def test_duplicate_populated_ref_from_two_instances_is_refused(tmp_path: Path) -> None:
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+export default () => <board><DemoBlock /><DemoBlock /></board>
+'''
+    project = _make_project(tmp_path, board=board)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "ambiguous duplicate populated ref" in payload["error"]["message"]
+
+
+def test_dependency_selected_by_lock_is_not_mistaken_for_owner(tmp_path: Path) -> None:
+    dep_source = '''export const Dependency = () => (
+  <chip name="U9" supplierPartNumbers={{ jlcpcb: ["C777"] }} />
+)\n'''
+    dep_docs = """# dependency
+## Parts
+| Ref | Part | LCSC | Package | Basic | Note |
+|---|---|---|---|---|---|
+| U9 | Dependency IC | C777 | QFN | no | dependency only |
+"""
+    project = _make_project(
+        tmp_path, extra_blocks={"demo-dependency": (dep_source, dep_docs)}
+    )
+    payload, _ = _run(str(project))
+    assert payload["ok"] is True
+    assert _parts(project)["U9"]["lcsc"] == "C6186"
+    assert _parts(project)["U9"]["block"] == "demo-block"
+
+
+def test_changed_frozen_block_is_refused(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    source = project / "blocks" / "demo-block" / "demo-block.tsx"
+    source.write_text(source.read_text() + "// drift\n", encoding="utf-8")
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "does not match its lock" in payload["error"]["message"]
+
+
+def test_missing_golden_lock_is_refused(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    (project / "golden-blocks.lock.json").unlink()
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "golden-blocks.lock.json" in payload["error"]["message"]
+
+
+def test_missing_basic_classification_refuses_without_truncating_lock(tmp_path: Path) -> None:
+    docs = BLOCK_MD.replace("| U9 | AMS1117-3.3 | C6186 | SOT-223 | yes |", "| U9 | AMS1117-3.3 | C6186 | SOT-223 | — |")
+    project = _make_project(tmp_path, block_md=docs)
+    previous = '{"SAFE":{"lcsc":"C1","basic":true,"description":"keep","block":"board"}}\n'
+    (project / "parts.json").write_text(previous, encoding="utf-8")
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "no reviewed Basic/Extended" in payload["error"]["message"]
+    assert (project / "parts.json").read_text() == previous
+
+
+def test_existing_exact_ref_preserves_reviewed_basic_classification(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
     _run(str(project))
-    before = (project / "parts.json").read_text(encoding="utf-8")
-
-    payload, _ = _run(str(project), "--add", "ams1117-3.3", "--lcsc", "C123456")
-    assert payload["ok"] is False
-    assert "already exists" in payload["error"]["message"]
-    assert (project / "parts.json").read_text(encoding="utf-8") == before
-
-
-def test_add_requires_one_exact_orderable_number(tmp_path: Path):
-    project = _make_project(tmp_path)
-
-    payload, _ = _run(str(project), "--add", "jst-ph-2")
-    assert payload["ok"] is False
-    assert "--lcsc" in payload["error"]["message"]
-
-    payload, _ = _run(str(project), "--add", "jst-ph-2", "--lcsc", "TP4056")
-    assert payload["ok"] is False
-    assert "exact LCSC number" in payload["error"]["message"]
-
-
-def test_missing_product_json_refused(tmp_path: Path):
-    payload, _ = _run(str(tmp_path))
-    assert payload["ok"] is False
-    assert "product.json" in payload["error"]["message"]
-    assert not (tmp_path / "parts.json").exists()
-
-
-# --- swaps ----------------------------------------------------------------
-
-
-def test_add_glue_part(tmp_path: Path):
-    project = _make_project(tmp_path)
-    payload, _ = _run(str(project), "--add", "jst-ph-2", "--lcsc", "C158012",
-                      "--mfr", "S2B-PH-K-S", "--package", "JST-PH", "--refdes", "J9")
+    lock = _parts(project)
+    lock["U9"]["basic"] = False
+    (project / "parts.json").write_text(json.dumps(lock), encoding="utf-8")
+    payload, _ = _run(str(project))
     assert payload["ok"] is True
-    record = next(p for p in _parts(project)["parts"] if p["id"] == "jst-ph-2")
-    assert record["lcsc"] == "C158012"
-    assert record["refdes"] == ["J9"]
-    assert record["source"] == "manual"
-    assert record["blocks"] == []
+    assert _parts(project)["U9"]["basic"] is False
 
 
-def test_footprint_changing_swap_warns_loudly(tmp_path: Path):
+def test_duplicate_json_ref_key_is_refused_without_rewrite(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
-    payload, _ = _run(str(project), "--swap", "c-10uf-0805",
-                      "--lcsc", "C15525", "--package", "0603")
+    duplicate = (
+        '{"U9":{"lcsc":"C6186","basic":true},'
+        '"U9":{"lcsc":"C6186","basic":true}}\n'
+    )
+    (project / "parts.json").write_text(duplicate, encoding="utf-8")
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "duplicate JSON key 'U9'" in payload["error"]["message"]
+    assert (project / "parts.json").read_text() == duplicate
+
+
+def test_add_requires_exact_ref_reviewed_description_and_classification(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    payload, _ = _run(
+        str(project),
+        "--add",
+        "J9",
+        "--lcsc",
+        "C158012",
+        "--description",
+        "S2B-PH-K-S connector",
+        "--extended",
+        "--mfr",
+        "S2B-PH-K-S",
+        "--package",
+        "JST-PH",
+    )
     assert payload["ok"] is True
-    notes = " ".join(payload.get("notes", []))
-    assert "FOOTPRINT CHANGE" in notes
-    assert "LAYOUT" in notes
-    record = next(p for p in _parts(project)["parts"] if p["id"] == "c-10uf-0805")
+    assert _parts(project)["J9"] == {
+        "lcsc": "C158012",
+        "basic": False,
+        "description": "S2B-PH-K-S connector",
+        "block": "board",
+        "mfr": "S2B-PH-K-S",
+        "package": "JST-PH",
+        "source": "manual",
+        "override": True,
+    }
+
+
+def test_add_rejects_group_or_lowercase_ref(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    for ref in ("J1/J2", "j9"):
+        payload, _ = _run(
+            str(project),
+            "--add",
+            ref,
+            "--lcsc",
+            "C158012",
+            "--description",
+            "connector",
+            "--extended",
+        )
+        assert payload["ok"] is False
+        assert "exact uppercase" in payload["error"]["message"]
+
+
+def test_footprint_changing_swap_warns_and_keeps_exact_ref(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    payload, _ = _run(
+        str(project),
+        "--swap",
+        "C90",
+        "--lcsc",
+        "C15525",
+        "--package",
+        "0603",
+        "--basic",
+    )
+    assert payload["ok"] is True
+    assert "FOOTPRINT CHANGE" in " ".join(payload["notes"])
+    record = _parts(project)["C90"]
     assert record["lcsc"] == "C15525"
     assert record["footprint_risk"] is True
     assert record["swapped_from"] == "C15850"
-    # A swap invalidates the old stock check.
-    assert record["stock_checked"] is None
 
 
-def test_same_footprint_swap_does_not_cry_wolf(tmp_path: Path):
+def test_swap_unknown_ref_is_refused(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
-    payload, _ = _run(str(project), "--swap", "r-4.7k-0402",
-                      "--lcsc", "C137885", "--package", "0402")
-    assert payload["ok"] is True
-    assert "FOOTPRINT CHANGE" not in " ".join(payload.get("notes", []))
-    record = next(p for p in _parts(project)["parts"] if p["id"] == "r-4.7k-0402")
-    assert "footprint_risk" not in record
-    # Still tells the truth about the block/parts.json divergence.
-    assert any("part_drift" in n for n in payload.get("notes", []))
-
-
-def test_swap_unknown_id_refused(tmp_path: Path):
-    project = _make_project(tmp_path)
-    payload, _ = _run(str(project), "--swap", "nope", "--lcsc", "C6186")
+    payload, _ = _run(str(project), "--swap", "U99", "--lcsc", "C6186", "--basic")
     assert payload["ok"] is False
-    assert "no part id" in payload["error"]["message"]
+    assert "no populated ref U99" in payload["error"]["message"]
 
 
-# --- the real library -----------------------------------------------------
-
-
-@pytest.mark.skipif(not REPO_BLOCKS.is_dir(), reason="golden-blocks absent")
-def test_real_golden_blocks_lock_cleanly(tmp_path: Path):
-    """The shipped blocks must parse into one slot per orderable number with
-    no drift notes — this is the docs-vs-source cross-check."""
-    project = tmp_path
-    (project / "product.json").write_text('{"name": "real"}', encoding="utf-8")
-    payload, _ = _run(str(project), "--blocks", str(REPO_BLOCKS))
-
-    assert payload["ok"] is True, payload
-    assert payload.get("notes") is None, payload.get("notes")
-    by_id = {p["id"]: p["lcsc"] for p in payload["parts"]}
-    assert by_id["ams1117-3.3"] == "C6186"
-    assert by_id["rp2040"] == "C2040"
-    assert by_id["type-c-31-m-12"] == "C165948"
-    lcscs = [p["lcsc"] for p in payload["parts"]]
-    assert len(lcscs) == len(set(lcscs)), "one part = one exact orderable number"
-    for part in _parts(project)["parts"]:
-        assert part["lcsc"].startswith("C") and part["lcsc"][1:].isdigit()
-        assert part["package"], f"{part['id']} has no package"
+def test_missing_product_json_is_refused(tmp_path: Path) -> None:
+    payload, _ = _run(str(tmp_path))
+    assert payload["ok"] is False
+    assert "product.json" in payload["error"]["message"]
