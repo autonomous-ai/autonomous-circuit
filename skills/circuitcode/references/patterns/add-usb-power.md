@@ -13,6 +13,14 @@ double-populates the connector or leaves the MCU without data lines.
 | only needs 5V | `usb-c-power` |
 | also needs USB data (native-USB MCU, HID, serial, flashing over USB) | `usb-c-data` |
 
+The public `protected-usb-indicator-v1` generator currently uses `usb-c-data`
+even for an indicator-only starter. That is intentional: it is the routed,
+top/bottom-authoritative connector superset, and it leaves D+/D- available for a
+future MCU without changing the power boundary. `usb-c-power` remains a valid
+library API but is not the default routing-authoritative starter until its
+strict-floor acceptance blocker is closed. Do not swap it into the generated
+profile merely because the first product does not consume data.
+
 `usb-c-data` is a **superset** of `usb-c-power` — it has the same connector, CC
 resistors and ESD, plus the 27.4Ω series resistors on D+/D−. Placing both puts
 two connectors on the board and is a blocking-grade mistake the board-law check
@@ -28,6 +36,12 @@ import { Ldo3v3 }   from "../blocks/ldo-3v3/ldo-3v3"
 <UsbPowerEntry rawNet="VBUS_RAW" outputNet="V5" />
 <Ldo3v3 vinNet="V5" voutNet="V3_3" />
 ```
+
+Those instances alone do not define a board-safe physical rail. Use the public
+generator (or the same typed external attachment APIs) so `VBUS_RAW`, `V5` and
+`V3_3` each have one acyclic authored tree, local <=2mm necks, .8/.5 power vias,
+and the connector pair retains .6/.3 signal vias. Never apply the power via
+style to an entire routing phase.
 
 **The rail chain:** the connector gives `VBUS_RAW` with 1uF local attach
 capacitance. `usb-power-entry` adds a controlled-rise, current-limited boundary

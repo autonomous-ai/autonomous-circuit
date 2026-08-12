@@ -186,6 +186,41 @@ class TraceGeometry(unittest.TestCase):
         self.assertEqual(contract["minCopperClearanceMm"], 0.15)
         self.assertEqual(contract["decoupling"], {"maxDistanceMm": 2.0})
 
+    def test_product_layout_emits_typed_usb_attach_and_control_classes(self) -> None:
+        contract = layout.product_layout(
+            board_size_mm=(46, 39),
+            power_nets=("V5", "V3_3"),
+            usb_attach_power_nets=("VBUS_RAW",),
+            control_signal_nets=("USB_POWER_FAULT",),
+        )
+        by_name = {rule["name"]: rule for rule in contract["netClasses"]}
+
+        self.assertEqual(set(by_name), {"POWER", "USB_ATTACH_POWER", "CONTROL_SIGNAL"})
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["nets"], ["VBUS_RAW"])
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["minTrunkWidthMm"], 0.8)
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["minNeckdownWidthMm"], 0.2)
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["maxNeckdownLengthMm"], 2.0)
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["minViaOuterDiameterMm"], 0.8)
+        self.assertEqual(by_name["USB_ATTACH_POWER"]["minViaHoleDiameterMm"], 0.5)
+        self.assertEqual(by_name["CONTROL_SIGNAL"]["nets"], ["USB_POWER_FAULT"])
+        self.assertEqual(by_name["CONTROL_SIGNAL"]["minTrunkWidthMm"], 0.25)
+        self.assertEqual(by_name["CONTROL_SIGNAL"]["minNeckdownWidthMm"], 0.15)
+        self.assertEqual(by_name["CONTROL_SIGNAL"]["maxNeckdownLengthMm"], 1.0)
+        self.assertNotIn("minViaOuterDiameterMm", by_name["CONTROL_SIGNAL"])
+
+    def test_product_layout_refuses_ambiguous_or_invalid_generated_classes(self) -> None:
+        invalid = (
+            {"power_nets": ("V5",), "usb_attach_power_nets": ("V5",)},
+            {"usb_attach_power_nets": ("",)},
+            {"control_signal_nets": ("FAULT", "FAULT")},
+            {"control_signal_width_mm": 0.15, "control_signal_escape_width_mm": 0.25},
+            {"control_signal_max_escape_length_mm": -1},
+        )
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    layout.product_layout(board_size_mm=(20, 20), **kwargs)
+
     def test_product_layout_defaults_to_stitched_planes_on_both_faces(self) -> None:
         contract = layout.product_layout(board_size_mm=(20, 20))
 
@@ -361,6 +396,14 @@ class TraceGeometry(unittest.TestCase):
 
 
 class RegulatorThermal(unittest.TestCase):
+    def test_generic_sot223_uses_conservative_board_level_theta(self) -> None:
+        result = regulator_thermal(
+            vin=5.25, vout=3.3, current_a=0.15, ambient_c=60
+        )
+        self.assertEqual(result["theta_ja"], 110.0)
+        self.assertEqual(result["junction_c"], 92.2)
+        self.assertGreaterEqual(result["headroom_c"], 30)
+
     def test_gentle_load_is_fine(self) -> None:
         self.assertEqual(
             regulator_thermal(vin=5.0, vout=3.3, current_a=0.1)["verdict"], "ok"
@@ -520,21 +563,72 @@ class Layout(unittest.TestCase):
         large = min_board_for(["rp2040-core", "usb-c-data", "ldo-3v3"])
         self.assertGreater(large[0] * large[1], small[0] * small[1])
 
-    def test_place_board_puts_the_connector_on_the_edge(self) -> None:
+    def test_place_board_puts_the_cable_insertion_datum_on_the_edge(self) -> None:
         """A USB socket in the middle of the board is not a product. The
         composition matrix flagged it as
         pcb_connector_not_in_accessible_orientation on every board where
-        place_row put the connector inline."""
-        from circuitlib.layout import box, place_board
+        place_row put the connector inline.  The earlier edge placement used
+        the lowest copper instead; the imported footprint's real cable datum
+        then landed 1.38mm *outside* the board."""
+        from circuitlib.layout import (
+            EDGE_CONNECTOR_INSET_MM,
+            PLACEMENT_GRID_MM,
+            box,
+            edge_connector_cable_datum,
+            place_board,
+            snap_to_placement_grid,
+        )
 
-        plan = place_board(["usb-c-power", "ldo-3v3", "status-led"])
-        x, y = plan["placements"]["usb-c-power"]
-        _, min_y, _, _ = box("usb-c-power")
-        bottom = y + min_y
-        # Its lowest copper sits within a millimetre of the margin, not
-        # somewhere in the middle of the board.
-        self.assertLess(bottom, -plan["height_mm"] / 2 + 2.6)
-        self.assertGreater(bottom, -plan["height_mm"] / 2)
+        for block_id in ("usb-c-power", "usb-c-data"):
+            with self.subTest(block=block_id):
+                plan = place_board([block_id, "ldo-3v3", "status-led"])
+                placement = plan["placements"][block_id]
+                _, datum_y = edge_connector_cable_datum(block_id, placement)
+                target_y = -plan["height_mm"] / 2 + EDGE_CONNECTOR_INSET_MM
+                self.assertLessEqual(
+                    abs(datum_y - target_y),
+                    PLACEMENT_GRID_MM / 2 + 1e-9,
+                )
+                datum_x, _ = edge_connector_cable_datum(block_id, placement)
+                self.assertLessEqual(abs(datum_x), PLACEMENT_GRID_MM / 2 + 1e-9)
+                self.assertEqual(placement[0], snap_to_placement_grid(placement[0]))
+                self.assertEqual(placement[1], snap_to_placement_grid(placement[1]))
+                # The copper box is deliberately farther inside; it must not
+                # be confused with the enclosure/cable contract again.
+                _, min_y, _, _ = box(block_id)
+                copper_bottom = placement[1] + min_y
+                self.assertGreater(copper_bottom, datum_y + 2.3)
+                self.assertEqual(plan["warnings"], [])
+
+    def test_edge_connector_datum_refuses_an_unmeasured_connector(self) -> None:
+        from circuitlib.layout import edge_connector_cable_datum
+
+        with self.assertRaisesRegex(ValueError, "no measured cable-insertion datum"):
+            edge_connector_cable_datum("mystery-socket", (0.0, 0.0))
+
+    def test_generated_usb_edge_placement_is_on_the_router_grid(self) -> None:
+        """Freeze the old eight-decimal USB placement which made the native
+        pair length matcher run past 60s despite identical local geometry."""
+        from circuitlib.layout import place_board, snap_to_placement_grid
+
+        plan = place_board(
+            ["usb-c-data", "usb-power-entry", "ldo-3v3", "status-led"]
+        )
+        point = plan["placements"]["usb-c-data"]
+        self.assertEqual(
+            point,
+            tuple(snap_to_placement_grid(value) for value in point),
+        )
+        # The datum-derived raw value is deliberately not fed to TSX.
+        self.assertNotEqual(-10.598397472, snap_to_placement_grid(-10.598397472))
+
+    def test_placement_grid_refuses_nonfinite_coordinates(self) -> None:
+        from circuitlib.layout import snap_to_placement_grid
+
+        for value in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "must be finite"):
+                    snap_to_placement_grid(value)
 
     def test_place_board_keeps_holes_off_the_footprints(self) -> None:
         """Corner holes on a board sized only for its parts land on a

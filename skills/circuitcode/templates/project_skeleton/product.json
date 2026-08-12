@@ -1,9 +1,134 @@
 {
   "name": "new-board",
-  "description": "one sentence: what this device does for its owner",
+  "description": "protected USB-powered board with a 3.3V status indicator",
   "power": "usb-c-5v",
-  "envelopeMm": [60, 40],
+  "envelopeMm": [
+    46.9,
+    36.8
+  ],
   "layers": 2,
   "fab": "jlcpcb",
-  "assembly": true
+  "assembly": true,
+  "assemblyTier": "standard",
+  "designProfile": "protected-usb-indicator-v1",
+  "designProfileSourceSha256": "6da57f1055e2dd2d48cb0e5801dc9b25fa6dcac37e1441aeeea32623eb1dfbc9",
+  "schematicPolicy": {
+    "placement": "explicit",
+    "flow": "left-to-right"
+  },
+  "layout": {
+    "boardSizeMm": [
+      46.9,
+      36.8
+    ],
+    "boardSizeToleranceMm": 0.1,
+    "minCopperClearanceMm": 0.15,
+    "decoupling": {
+      "maxDistanceMm": 2.0,
+      "exclude": [
+        "U1"
+      ]
+    },
+    "groundPlanes": {
+      "layers": [
+        "top",
+        "bottom"
+      ],
+      "maxRoutedLengthMm": 20.0,
+      "maxFanoutLengthMm": 2.0,
+      "stitchingPitchMm": 10.0
+    },
+    "componentSides": [
+      {
+        "match": [
+          "LED1",
+          "R20"
+        ],
+        "side": "bottom"
+      },
+      {
+        "match": "*",
+        "side": "top"
+      }
+    ],
+    "edgeConnectors": [
+      {
+        "ref": "J1",
+        "edge": "bottom",
+        "alignment": "center",
+        "edgeToleranceMm": 2.0,
+        "centerToleranceMm": 0.1
+      }
+    ],
+    "netClasses": [
+      {
+        "name": "POWER",
+        "nets": [
+          "V5",
+          "V3_3"
+        ],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 2.0,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "USB_ATTACH_POWER",
+        "nets": [
+          "VBUS_RAW"
+        ],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 2.0,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "CONTROL_SIGNAL",
+        "nets": [
+          "USB_POWER_FAULT"
+        ],
+        "minTrunkWidthMm": 0.25,
+        "minNeckdownWidthMm": 0.15,
+        "maxNeckdownLengthMm": 1.0
+      }
+    ]
+  },
+  "powerBudget": {
+    "usb": {
+      "rawVbusNet": "VBUS_RAW",
+      "protectedVbusNet": "V5",
+      "rawAttachCapacitanceMaxUf": 10.0,
+      "sourceCurrentMaxMa": 500.0,
+      "fixedOperationalLoadMa": 13.0,
+      "currentLimiter": {
+        "ref": "U7",
+        "lcsc": "C55266",
+        "inputPin": "IN",
+        "outputPin": "OUT",
+        "settingPin": "ILIM",
+        "settingResistor": {
+          "ref": "R31",
+          "lcsc": "C32297",
+          "resistanceOhms": 59000.0,
+          "returnNet": "GND"
+        },
+        "minTripMa": 400.6,
+        "maxTripMa": 500.0
+      },
+      "firmwareLimitedLoads": []
+    },
+    "regulators": [
+      {
+        "profile": "ap7361c-33e-c500795-v1",
+        "ref": "U2",
+        "inputNet": "V5",
+        "outputNet": "V3_3",
+        "inputCapRef": "C2",
+        "outputCapRef": "C3",
+        "maxAmbientC": 60.0
+      }
+    ]
+  }
 }

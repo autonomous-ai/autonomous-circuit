@@ -39,7 +39,7 @@ from circuitlib import tables
 #: legally overhang the outline, and counting it inflates every board.
 BLOCK_BOX_MM: dict[str, tuple[float, float, float, float]] = {
     "i2c-bus": (-0.78, -0.32, 2.78, 0.32),
-    "ldo-3v3": (-4.18, -6.7, 6.42, 2.85),
+    "ldo-3v3": (-4.25, -3.65, 7.23, 3.65),
     "rp2040-core": (-11.5, -17.72, 16.03, 6.7),
     "sensor-bme280": (-3.78, -1.16, 3.78, 1.16),
     "status-led": (-1.42, -0.7, 1.42, 2.82),
@@ -73,11 +73,63 @@ EDGE_MARGIN_MM = 1.5
 #: `place_board` sizes the outline off this rather than off EDGE_MARGIN_MM.
 ROUTER_HALO_MM = 4.0
 
+# Keep route-critical edge-connector placements on the router's native 0.1mm
+# planning grid.  This is not cosmetic rounding: the native USB-pair solver
+# took >60s in length matching when every connector pad inherited an 8-decimal
+# mechanical-datum offset, while the exact same local geometry snapped to this
+# grid solved in 7.4s under the same .15mm board floors.  Mechanical datums are
+# tolerances, not a reason to feed irrational-looking coordinates into every
+# route.  Ordinary rows retain their finer 0.01mm placement so snapping cannot
+# silently consume a measured inter-block gap or board margin.
+PLACEMENT_GRID_MM = 0.1
+
+
+def snap_to_placement_grid(value: float) -> float:
+    """Snap a finite board coordinate to the generated-placement grid."""
+
+    if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        raise ValueError("placement coordinate must be finite")
+    snapped = round(float(value) / PLACEMENT_GRID_MM) * PLACEMENT_GRID_MM
+    # Avoid negative zero in serialized TSX/product snapshots.
+    return 0.0 if abs(snapped) < 1e-9 else round(snapped, 6)
+
 # Edge connectors are the exception to the routing halo: their mating face has
-# to reach the enclosure opening. Keep the component body about 1mm inside the
-# routed outline; its footprint-specific shell/courtyard may intentionally
-# cross it.
+# to reach the enclosure opening. Keep the connector's *cable insertion datum*
+# about 1mm inside the routed outline; its footprint-specific shell/courtyard
+# may intentionally cross it.  The datum is not the block-box edge: on the
+# imported TYPE-C-31-M-12 it sits 2.38mm below the lowest copper feature.  The
+# old box-based placement put that datum outside a board which the planner
+# nevertheless called valid.
 EDGE_CONNECTOR_INSET_MM = 1.0
+
+#: Block-local ``pcb_component.cable_insertion_center`` measured from compiled
+#: golden artifacts.  This is the physical enclosure/cable datum reported by
+#: the connector footprint, not an inferred copper/courtyard edge.  Both USB
+#: blocks compose the same exact imported TYPE-C-31-M-12 connector.
+EDGE_CONNECTOR_CABLE_DATUM_MM: dict[str, tuple[float, float]] = {
+    "usb-c-power": (0.0, -6.051602528),
+    "usb-c-data": (0.0, -6.051602528),
+}
+
+
+def edge_connector_cable_datum(
+    block_id: str, placement: tuple[float, float]
+) -> tuple[float, float]:
+    """Return the connector cable-insertion datum in board coordinates.
+
+    Refuse an unmeasured connector rather than silently falling back to a
+    copper box.  A board/enclosure contract cares where a cable enters, and a
+    footprint bounding box is not a substitute for that mechanical datum.
+    """
+
+    try:
+        local_x, local_y = EDGE_CONNECTOR_CABLE_DATUM_MM[block_id]
+    except KeyError as exc:
+        raise ValueError(
+            f"no measured cable-insertion datum for edge connector {block_id!r}"
+        ) from exc
+    x, y = placement
+    return (x + local_x, y + local_y)
 
 
 def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float, float]:
@@ -241,16 +293,29 @@ def place_board(
 
     placements: dict[str, tuple[float, float]] = {}
     if edge:
-        # Bottom band: the connector's body reaches the enclosure edge. Using
-        # the general router halo here puts a perfectly routed USB socket 4mm
-        # inside the product where no cable can reach it.
-        placements.update(
-            place_row(
-                edge,
-                y=-height / 2.0 + EDGE_CONNECTOR_INSET_MM + edge_h / 2.0,
-                gap=gap,
+        # Bottom band: place the footprint's compiled cable-insertion datum,
+        # not the lowest copper/courtyard point, at the enclosure edge.  The
+        # general router halo puts a USB socket inside the product where no
+        # cable can reach it; the old box-edge shortcut put the actual cable
+        # datum outside the routed outline.
+        edge_row = place_row(edge, y=0.0, gap=gap)
+        # Centre the physical insertion datums as a row, not the asymmetric
+        # copper boxes.  For the common one-connector product this puts the
+        # cable at x=0 exactly; for multiple connectors it preserves their
+        # measured spacing while centring the mating interfaces.
+        datum_xs = [
+            edge_row[block_id][0] + EDGE_CONNECTOR_CABLE_DATUM_MM[block_id][0]
+            for block_id in edge
+        ]
+        datum_x_shift = -sum(datum_xs) / len(datum_xs)
+        for block_id, (x, _) in edge_row.items():
+            _, local_datum_y = EDGE_CONNECTOR_CABLE_DATUM_MM[block_id]
+            placements[block_id] = (
+                snap_to_placement_grid(x + datum_x_shift),
+                snap_to_placement_grid(
+                    -height / 2.0 + EDGE_CONNECTOR_INSET_MM - local_datum_y
+                ),
             )
-        )
     if inner:
         placements.update(
             place_row(inner, y=height / 2.0 - margin - inner_h / 2.0, gap=gap)
@@ -600,6 +665,11 @@ def product_layout(
     power_neckdown_max_length_mm: float = tables.POWER_NECKDOWN_MAX_LENGTH_MM,
     power_via_outer_diameter_mm: float = tables.POWER_VIA_OUTER_DIAMETER_MM,
     power_via_hole_diameter_mm: float = tables.POWER_VIA_HOLE_DIAMETER_MM,
+    usb_attach_power_nets: tuple[str, ...] = (),
+    control_signal_nets: tuple[str, ...] = (),
+    control_signal_width_mm: float = tables.PREFERRED_SIGNAL_TRACE_WIDTH_MM,
+    control_signal_escape_width_mm: float = 0.15,
+    control_signal_max_escape_length_mm: float = 1.0,
 ) -> dict[str, object]:
     """Build the ``product.json.layout`` compiled-artifact contract.
 
@@ -635,6 +705,28 @@ def product_layout(
         for pattern in decoupling_exclude
     ):
         raise ValueError("decoupling_exclude must contain only non-empty ref patterns")
+    for name, nets in (
+        ("power_nets", power_nets),
+        ("usb_attach_power_nets", usb_attach_power_nets),
+        ("control_signal_nets", control_signal_nets),
+    ):
+        if any(not isinstance(net, str) or not net for net in nets):
+            raise ValueError(f"{name} must contain only non-empty net patterns")
+        if len(set(nets)) != len(nets):
+            raise ValueError(f"{name} must not contain duplicates")
+    classed_nets = [*power_nets, *usb_attach_power_nets, *control_signal_nets]
+    if len(set(classed_nets)) != len(classed_nets):
+        raise ValueError("a net pattern may belong to only one generated net class")
+    if (
+        control_signal_width_mm <= 0
+        or control_signal_escape_width_mm <= 0
+        or control_signal_escape_width_mm > control_signal_width_mm
+        or control_signal_max_escape_length_mm < 0
+    ):
+        raise ValueError(
+            "control signal widths must be positive with escape <= ordinary "
+            "width and a non-negative escape length"
+        )
 
     out: dict[str, object] = {
         "boardSizeMm": [float(width), float(height)],
@@ -662,8 +754,9 @@ def product_layout(
         out["componentZones"] = _validate_component_zones(component_zones)
     if edge_connectors:
         out["edgeConnectors"] = deepcopy(edge_connectors)
+    net_classes: list[dict[str, object]] = []
     if power_nets and power_trunk_width_mm > 0:
-        out["netClasses"] = [
+        net_classes.append(
             {
                 "name": "POWER",
                 "nets": list(power_nets),
@@ -673,5 +766,35 @@ def product_layout(
                 "minViaOuterDiameterMm": float(power_via_outer_diameter_mm),
                 "minViaHoleDiameterMm": float(power_via_hole_diameter_mm),
             }
-        ]
+        )
+    if usb_attach_power_nets and power_trunk_width_mm > 0:
+        # USB raw attach copper obeys the same current/via geometry as the
+        # protected rail, but stays a separate semantic class so the verifier
+        # can prove the connector-side capacitance/topology contract by name.
+        net_classes.append(
+            {
+                "name": "USB_ATTACH_POWER",
+                "nets": list(usb_attach_power_nets),
+                "minTrunkWidthMm": float(power_trunk_width_mm),
+                "minNeckdownWidthMm": float(power_neckdown_width_mm),
+                "maxNeckdownLengthMm": float(power_neckdown_max_length_mm),
+                "minViaOuterDiameterMm": float(power_via_outer_diameter_mm),
+                "minViaHoleDiameterMm": float(power_via_hole_diameter_mm),
+            }
+        )
+    if control_signal_nets:
+        # Deliberately no via-size floor: a control net is an ordinary signal,
+        # not a reason to inflate the board's USB pair/fine-pitch vias.  Only
+        # authored power paths own the 0.8/0.5mm current-carrying via contract.
+        net_classes.append(
+            {
+                "name": "CONTROL_SIGNAL",
+                "nets": list(control_signal_nets),
+                "minTrunkWidthMm": float(control_signal_width_mm),
+                "minNeckdownWidthMm": float(control_signal_escape_width_mm),
+                "maxNeckdownLengthMm": float(control_signal_max_escape_length_mm),
+            }
+        )
+    if net_classes:
+        out["netClasses"] = net_classes
     return out

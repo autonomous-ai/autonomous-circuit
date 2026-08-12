@@ -79,6 +79,29 @@ def test_sync_writes_a_deterministic_exact_snapshot_with_provenance(
     assert check_project(project, source=source, check_upstream=True) == []
 
 
+def test_sync_content_locks_transitive_relative_golden_imports(tmp_path: Path) -> None:
+    source = _source(tmp_path)
+    project = _project(tmp_path)
+    (source / "alpha" / "alpha.tsx").write_text(
+        'import { name as betaName } from "../beta/beta"\n'
+        "export const name = `alpha-${betaName}`\n",
+        encoding="utf-8",
+    )
+
+    manifest = sync_project(
+        project,
+        blocks=["alpha"],
+        source=source,
+        source_label="fixture/golden",
+    )
+
+    assert manifest["blocks"] == ["alpha", "beta"]
+    assert (project / "blocks" / "alpha" / "alpha.tsx").is_file()
+    assert (project / "blocks" / "beta" / "beta.tsx").is_file()
+    assert "beta/beta.tsx" in manifest["files"]
+    assert check_project(project, source=source, check_upstream=True) == []
+
+
 def test_snapshot_and_upstream_drift_are_distinguished(tmp_path: Path) -> None:
     source = _source(tmp_path)
     project = _project(tmp_path)

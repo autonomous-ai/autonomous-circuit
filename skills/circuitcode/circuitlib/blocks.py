@@ -19,6 +19,7 @@ verification date, provenance) and a graded testbench.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,53 @@ class UsbSourceContract:
     setting_return_net: str
     min_trip_ma: float
     max_trip_ma: float
+    # Conservative fixed board-load declaration. The artifact verifier treats
+    # this as a hard lower bound; it is not recomputed from optimistic typical
+    # current when a selected regulator's quiescent current improves.
+    fixed_operational_load_floor_ma: float = 0.0
+
+
+@dataclass(frozen=True)
+class RegulatorContract:
+    """Audited regulator profile selected by a golden physical block.
+
+    Product JSON carries only the instance/rail/cap references and ambient.
+    Independent verifier code owns the electrical and thermal constants, but
+    the planner still records those reviewed limits here so selection and
+    budget arithmetic cannot retain an obsolete regulator's semantics.
+    """
+
+    profile: str
+    ref: str
+    input_net: str
+    output_net: str
+    input_cap_ref: str
+    output_cap_ref: str
+    max_ambient_c: float
+    max_input_volts: float
+    output_volts: float
+    max_continuous_output_ma: float
+    max_ground_current_ma: float
+    theta_ja_c_per_w: float
+    design_max_junction_c: float
+    min_thermal_headroom_c: float
+
+
+@dataclass(frozen=True)
+class AttachmentPort:
+    """A proven board-composition attachment in block-local coordinates.
+
+    The selector is the public copper endpoint exposed by a typed block opt-
+    out.  Keeping its measured datum beside the registry entry lets starter
+    composition derive authored board trees from planner placements instead
+    of copying one product's global coordinates.
+    """
+
+    role: str
+    selector: str
+    local_x_mm: float
+    local_y_mm: float
+    layer: str = "top"
 
 
 @dataclass(frozen=True)
@@ -87,6 +135,10 @@ class Block:
     #: owner for the product schema, current ceiling and exact populated
     #: limiter identity; a generator must not retype those beside the block.
     usb_source_contract: UsbSourceContract | None = None
+    #: Audited regulator selected by this physical block, if any.
+    regulator_contract: RegulatorContract | None = None
+    #: Typed external copper points used by board-owned authored trees.
+    attachments: tuple[AttachmentPort, ...] = ()
     #: Nets this block owns that are useless unless they reach a connector or
     #: a test point. An MCU whose SWD pins go nowhere cannot be programmed
     #: after assembly, and every block on that board is individually fine.
@@ -98,6 +150,17 @@ class Block:
         """Worst-case draw, including any per-unit scaling."""
         base = self.current_draw_ma if self.peak_draw_ma is None else self.peak_draw_ma
         return base + self.peak_per_unit_ma * max(units, 0)
+
+    def attachment(self, role: str) -> AttachmentPort:
+        """Return one typed external copper point or fail at composition."""
+
+        matches = [port for port in self.attachments if port.role == role]
+        if len(matches) != 1:
+            raise ValueError(
+                f"block {self.id!r} has {len(matches)} attachment ports for "
+                f"role {role!r}"
+            )
+        return matches[0]
 
     @property
     def source_current_max_ma(self) -> float:
@@ -118,6 +181,45 @@ class Block:
     @property
     def import_path(self) -> str:
         return f"blocks/{self.id}/{self.id}"
+
+
+_FIXED_REFDES = re.compile(r"^[A-Z][A-Z0-9]*$")
+
+
+def parts_lock_for_blocks(block_ids: tuple[str, ...] | list[str]) -> dict[str, dict]:
+    """Resolve exact fixed-ref parts for a generated composition.
+
+    Slash-separated registry refs (``R1/R2``) are a compact declaration of
+    identical fixed instances. Parametric ``D10+``-style families cannot be
+    inferred without a count and therefore fail closed here instead of
+    emitting a partial parts lock.
+    """
+
+    lock: dict[str, dict] = {}
+    for block_id in block_ids:
+        try:
+            block = BLOCKS[block_id]
+        except KeyError as exc:
+            raise ValueError(f"unknown block in parts lock: {block_id!r}") from exc
+        for part in block.parts:
+            refs = part.refdes.split("/")
+            if not refs or any(not _FIXED_REFDES.fullmatch(ref) for ref in refs):
+                raise ValueError(
+                    f"block {block_id!r} part {part.refdes!r} needs a "
+                    "count-aware parts-lock resolver"
+                )
+            for ref in refs:
+                if ref in lock:
+                    raise ValueError(
+                        f"duplicate generated part ref {ref!r} from block {block_id!r}"
+                    )
+                lock[ref] = {
+                    "lcsc": part.lcsc,
+                    "basic": part.basic,
+                    "description": part.description,
+                    "block": block_id,
+                }
+    return dict(sorted(lock.items()))
 
 
 BLOCKS: dict[str, Block] = {
@@ -164,11 +266,16 @@ BLOCKS: dict[str, Block] = {
         parts=(
             Part("J1", "C165948", "TYPE-C-31-M-12 receptacle"),
             Part("R1/R2", "C25905", "5.1k 0402 CC pulldown", basic=True),
-            Part("RDP/RDM", "C25100", "27.4R 0402 USB series", basic=True),
+            Part("R3/R4", "C25100", "27R 0402 USB series", basic=True),
             Part("U1", "C2687116", "USBLC6-2SC6 ESD"),
             Part("C1", "C52923", "1uF 0402 raw-attach bypass", basic=True),
         ),
         supply_rail="VBUS_RAW",
+        attachments=(
+            AttachmentPort(
+                "raw_vbus_boundary", ".N15 > .pin1", -2.8, 7.75
+            ),
+        ),
         notes=(
             "Superset of usb-c-power; use when the MCU speaks USB. Compose "
             "usb-power-entry before every downstream V5 load."
@@ -211,6 +318,12 @@ BLOCKS: dict[str, Block] = {
             setting_return_net="GND",
             min_trip_ma=400.6,
             max_trip_ma=500.0,
+            fixed_operational_load_floor_ma=13.0,
+        ),
+        attachments=(
+            AttachmentPort("raw_input", ".C24 > .pin1", 2.59, -0.5),
+            AttachmentPort("protected_output", ".U7 > .OUT", -1.35001, -0.94996),
+            AttachmentPort("fault_pullup", ".R32 > .pin2", -3.61, 0.95),
         ),
         notes=(
             "TPS2553 fixed 59k ILIM: 400.6mA minimum / 500mA maximum trip. "
@@ -220,7 +333,7 @@ BLOCKS: dict[str, Block] = {
     "ldo-3v3": Block(
         id="ldo-3v3",
         symbol="Ldo3v3",
-        function="5V -> 3.3V linear rail (AMS1117-3.3 + in/out bulk)",
+        function="Protected 5V -> 3.3V AP7361C rail with audited ceramic caps",
         provides=("V3_3",),
         requires=("V5", "GND"),
         props=(
@@ -231,14 +344,38 @@ BLOCKS: dict[str, Block] = {
             "pcbX", "pcbY", "schX", "schY",
         ),
         parts=(
-            Part("U2", "C6186", "AMS1117-3.3 SOT-223", basic=True),
-            Part("C2/C3", "C15850", "10uF 0805", basic=True),
+            Part("U2", "C500795", "AP7361C-33E-13 SOT-223"),
+            Part("C2/C3", "C19702", "10uF X5R 10V 0603", basic=True),
         ),
-        current_draw_ma=5.0,
-        peak_draw_ma=11.0,    # AMS1117 quiescent; its load is counted on V3_3
+        current_draw_ma=0.06,
+        peak_draw_ma=0.08,  # AP7361C ground current; load is counted on V3_3
         supply_rail="V5",
         regulator_output_rail="V3_3",
-        notes="Linear: dropout heat = (Vin-3.3) * I. Above ~500mA prefer a buck (not yet a block).",
+        regulator_contract=RegulatorContract(
+            profile="ap7361c-33e-c500795-v1",
+            ref="U2",
+            input_net="V5",
+            output_net="V3_3",
+            input_cap_ref="C2",
+            output_cap_ref="C3",
+            max_ambient_c=60.0,
+            max_input_volts=5.25,
+            output_volts=3.3,
+            max_continuous_output_ma=150.0,
+            max_ground_current_ma=0.08,
+            theta_ja_c_per_w=110.0,
+            design_max_junction_c=125.0,
+            min_thermal_headroom_c=30.0,
+        ),
+        attachments=(
+            AttachmentPort("input_cap", ".C2 > .pin1", 4.925, -2.3),
+            AttachmentPort("regulated_output", ".U2 > .VOUT", 3.2, 2.3),
+        ),
+        notes=(
+            "AP7361C-33E exact E pinout: VIN/GND1/VOUT/GND2; the broad tab is "
+            "GND, never output. Manufacturer land and C19702 input/output caps "
+            "are part of the 150mA, 60C ambient, >=30C-headroom profile."
+        ),
     ),
     "i2c-bus": Block(
         id="i2c-bus",
@@ -263,11 +400,14 @@ BLOCKS: dict[str, Block] = {
             "pcbX", "pcbY", "schX", "schY",
         ),
         parts=(
-            Part("D1", "C965793", "0402 LED"),
-            Part("R5", "C25104", "1k 0402", basic=True),
+            Part("LED1", "C2297", "KT-0805G green 0805 LED", basic=True),
+            Part("R20", "C11702", "1k 0402 series resistor", basic=True),
         ),
         current_draw_ma=2.0,
         supply_rail="V3_3",
+        attachments=(
+            AttachmentPort("rail_input", ".R20 > .pin1", 0.51, 2.2, "bottom"),
+        ),
     ),
     "sw-tact": Block(
         id="sw-tact",

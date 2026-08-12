@@ -57,23 +57,35 @@ Four habits, applied without being asked:
 
 ### Starting a new project
 
-The app creates the workspace; you fill it. From the skill's own templates:
+Use the public generator. It resolves the protected USB block plan, measured
+placement, board layout, current budget, explicit power trees and ground-plane
+policy as one closed machine profile; it also content-locks every selected or
+transitively imported golden block. Do not copy the static template and repair
+it by hand.
 
 ```bash
 SKILL=~/.claude/skills/circuitcode
-cp -R "$SKILL/templates/project_skeleton/." /abs/project/
-python "$SKILL/scripts/packages/sync_golden_blocks.py" /abs/project \
-  --source "$SKILL/blocks" --source-label circuitcode/golden-blocks \
-  --block usb-c-data --block usb-power-entry --block ldo-3v3
+python "$SKILL/scripts/create" /abs/project \
+  --name my-device --description "what this device does for its owner"
 ```
 
-Select every block returned by `board_plan` (the three shown are only a USB
-starter example). **Synchronizing the blocks and lock is not optional** —
-`boards/main.tsx` imports them by relative path, the lock covers every selected
-byte including third-party license/provenance, and a project that owns its own
-snapshot keeps building the same board after the shared library moves on. The
-sync refuses to overwrite a locally edited frozen block. Then edit
-`product.json` (name, description, power, envelope) before writing board source.
+The generated `protected-usb-indicator-v1` project is deliberately narrow and
+fail-closed. `product.json` contains its exact non-empty layout, source/current
+budget and schematic policy; `boards/main.tsx` consumes the same planner result
+and typed attachment datums to compose `VBUS_RAW -> U7 -> V5 -> U2 -> V3_3`,
+dual-face ground planes and scoped power vias. An unknown profile, missing
+profile contract, changed planner closure or missing imported block refuses
+before toolchain launch. **The lock is not optional**: it covers every selected
+and relative-import dependency byte, including provenance, so the project keeps
+building the same board after the shared catalog moves.
+
+For a different supported capability set, use `board_plan` and a corresponding
+machine-resolved generator; do not change only the profile label or copy profile
+JSON onto unrelated source. The low-level synchronizer remains available for a
+reviewed one-time migration. It refuses to overwrite a locally edited frozen
+block. Select every block returned by the planner; transitive golden imports are
+added to the lock automatically.
+
 For a reviewed one-time migration of an older project that already has an
 unlocked copied block tree, add `--replace-unlocked`; never use that flag for a
 locked project, because a mismatched lock remains a hard refusal.
@@ -95,27 +107,39 @@ Rules of the project format:
 
 ### The source contract
 
-`boards/main.tsx` default-exports a function returning one `<board>`:
+`boards/main.tsx` default-exports a function returning one `<board>`. The
+generated protected profile is the authoritative composition example; the
+abridged shape below only illustrates syntax and must not replace its authored
+power attachments, planes, phases or product contract:
 
 ```tsx
-import { UsbCPower } from "../blocks/usb-c-power/usb-c-power"
+import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
+import { UsbPowerEntry } from "../blocks/usb-power-entry/usb-power-entry"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
+import { GndPlanes, MountingHole } from "../blocks/glue"
 
 export default () => (
   <board
     width="40mm" height="30mm" thickness={1.6}
-    minTraceWidth="0.2mm"
+    minTraceWidth="0.15mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
     minTraceToPadEdgeClearance="0.15mm"
     minViaEdgeToPadEdgeClearance="0.15mm"
   >
-    <UsbCPower pcbX={-14} pcbY={0} schX={-6} schY={0} />
-    <Ldo3v3   pcbX={0}   pcbY={6} schX={0}  schY={0} />
-    <hole name="H1" diameter="3.2mm" pcbX={-17} pcbY={-12} />
+    <UsbCData pcbX={0} pcbY={-9} schX={-12} schY={0} />
+    <UsbPowerEntry pcbX={-9} pcbY={8} schX={-4} schY={0} />
+    <Ldo3v3 pcbX={8} pcbY={8} schX={4} schY={0} />
+    <GndPlanes layers={["top", "bottom"]} stitchingVias={[]} />
+    <MountingHole name="H1" diameter={3.2} pcbX={-17} pcbY={-12} />
   </board>
 )
 ```
+
+That abridged code is intentionally not a buildable substitute for the public
+starter. For a new board, generate first and modify only through typed block or
+planner abstractions; a missing protector, rail tree, stitch policy or profile
+contract must be treated as a design failure.
 
 These source rules are not optional:
 

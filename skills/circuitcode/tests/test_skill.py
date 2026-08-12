@@ -14,6 +14,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+import uuid
 
 import pytest
 
@@ -21,7 +22,7 @@ from conftest import GOOD_TSX, write_project
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPTS = SKILL_DIR / "scripts"
-TOOLS = ("circuit", "check", "review")
+TOOLS = ("create", "circuit", "check", "review")
 
 
 def _run(tool: str, *args: str, cwd: Path | None = None, timeout: int = 60):
@@ -68,6 +69,268 @@ def test_help_works(tool: str):
     proc = _run(tool, "--help", timeout=30)
     assert proc.returncode == 0, f"{tool} --help failed: {proc.stderr}"
     assert "usage" in proc.stdout.lower()
+
+
+def test_create_public_path_emits_planner_source_product_and_content_lock(
+    tmp_path: Path,
+) -> None:
+    from circuitlib.starter import protected_usb_indicator_starter
+
+    target = tmp_path / "fresh"
+    proc = _run(
+        "create",
+        str(target),
+        "--name",
+        "fresh-protected-board",
+        "--description",
+        "a cold generated protected USB board",
+        timeout=60,
+    )
+    payload = _payload(proc)
+    assert proc.returncode == 0, (proc.stderr, payload)
+    assert payload["ok"] is True
+    assert payload["designProfile"] == "protected-usb-indicator-v1"
+    assert payload["boardSizeMm"] == [46.9, 36.8]
+    expected = protected_usb_indicator_starter(
+        name="fresh-protected-board",
+        description="a cold generated protected USB board",
+    )
+    assert (target / "boards" / "main.tsx").read_text() == expected.board_source
+    assert json.loads((target / "product.json").read_text()) == expected.product
+    lock = json.loads((target / "golden-blocks.lock.json").read_text())
+    assert lock["treeSha256"] == payload["treeSha256"]
+    assert payload["plannerBlocks"] == list(expected.block_ids)
+    assert payload["blocks"] == lock["blocks"]
+    assert lock["blocks"] == sorted((*expected.block_ids, "usb-c-power"))
+    assert lock["source"] == "circuitcode/golden-blocks"
+    assert all((target / "blocks" / path).is_file() for path in lock["files"])
+
+
+def test_create_refuses_to_overwrite_even_an_existing_empty_path(tmp_path: Path) -> None:
+    target = tmp_path / "owned"
+    target.mkdir()
+    proc = _run("create", str(target))
+    payload = _payload(proc)
+    assert proc.returncode == 1
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "PROJECT_CREATE_FAILED"
+    assert "refusing to overwrite" in payload["error"]["message"]
+
+
+def test_create_can_atomically_initialize_only_viewer_metadata_workspace(
+    tmp_path: Path,
+) -> None:
+    project_id = str(uuid.uuid4())
+    target = tmp_path / project_id
+    target.mkdir()
+    metadata = (
+        json.dumps(
+            {
+                "id": project_id,
+                "name": "owned by server",
+                "created_at": 1723456789000,
+                "updated_at": 1723456789000,
+            },
+            indent=2,
+        )
+        + "\n"
+    ).encode()
+    (target / "project.json").write_bytes(metadata)
+
+    proc = _run("create", str(target), "--initialize-existing")
+    payload = _payload(proc)
+
+    assert proc.returncode == 0, (proc.stderr, payload)
+    assert payload["ok"] is True
+    assert (target / "project.json").read_bytes() == metadata
+    assert (target / "product.json").is_file()
+    assert (target / "boards" / "main.tsx").is_file()
+    assert (target / "golden-blocks.lock.json").is_file()
+
+
+def test_create_existing_mode_preserves_valid_viewer_reference_inputs(
+    tmp_path: Path,
+) -> None:
+    project_id = str(uuid.uuid4())
+    target = tmp_path / project_id
+    target.mkdir()
+    metadata = (
+        json.dumps(
+            {
+                "id": project_id,
+                "name": "image-assisted plan",
+                "created_at": 1723456789000,
+                "updated_at": 1723456789000,
+            },
+            indent=2,
+        )
+        + "\n"
+    ).encode()
+    (target / "project.json").write_bytes(metadata)
+    inputs = target / "inputs"
+    inputs.mkdir()
+    images = {
+        f"{uuid.uuid4()}.png": b"not-decoded-by-the-generator\x00",
+        f"{uuid.uuid4()}.webp": b"server-owned-reference\xff",
+    }
+    for name, data in images.items():
+        (inputs / name).write_bytes(data)
+
+    proc = _run("create", str(target), "--initialize-existing")
+    payload = _payload(proc)
+
+    assert proc.returncode == 0, (proc.stderr, payload)
+    assert (target / "project.json").read_bytes() == metadata
+    assert {
+        path.name: path.read_bytes() for path in sorted(inputs.iterdir())
+    } == images
+    assert (target / "golden-blocks.lock.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    ["empty", "unknown-file", "product", "boards", "metadata-symlink"],
+)
+def test_create_existing_mode_refuses_every_non_metadata_only_shape(
+    tmp_path: Path, unsafe: str
+) -> None:
+    target = tmp_path / str(uuid.uuid4())
+    target.mkdir()
+    if unsafe != "empty":
+        (target / "project.json").write_text(
+            json.dumps(
+                {
+                    "id": target.name,
+                    "name": "fixture",
+                    "created_at": 1723456789000,
+                    "updated_at": 1723456789000,
+                }
+            )
+            + "\n"
+        )
+    if unsafe == "unknown-file":
+        (target / "notes.txt").write_text("owned")
+    elif unsafe == "product":
+        (target / "product.json").write_text("{}")
+    elif unsafe == "boards":
+        (target / "boards").mkdir()
+    elif unsafe == "metadata-symlink":
+        (target / "project.json").unlink()
+        owner = tmp_path / "owned-meta.json"
+        owner.write_text(
+            json.dumps(
+                {
+                    "id": target.name,
+                    "name": "fixture",
+                    "created_at": 1723456789000,
+                    "updated_at": 1723456789000,
+                }
+            )
+            + "\n"
+        )
+        (target / "project.json").symlink_to(owner)
+
+    before = sorted(path.name for path in target.iterdir())
+    proc = _run("create", str(target), "--initialize-existing")
+    payload = _payload(proc)
+
+    assert proc.returncode == 1
+    assert payload["error"]["code"] == "PROJECT_CREATE_FAILED"
+    assert sorted(path.name for path in target.iterdir()) == before
+    assert not (target / "golden-blocks.lock.json").exists()
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        "inputs-symlink",
+        "input-subdir",
+        "input-symlink",
+        "input-bad-name",
+        "input-bad-extension",
+        "input-empty",
+        "input-too-large",
+        "input-too-many",
+    ],
+)
+def test_create_existing_mode_refuses_unsafe_viewer_inputs(
+    tmp_path: Path, unsafe: str
+) -> None:
+    target = tmp_path / str(uuid.uuid4())
+    target.mkdir()
+    (target / "project.json").write_text(
+        json.dumps(
+            {
+                "id": target.name,
+                "name": "fixture",
+                "created_at": 1723456789000,
+                "updated_at": 1723456789000,
+            }
+        )
+        + "\n"
+    )
+    inputs = target / "inputs"
+    if unsafe == "inputs-symlink":
+        owner = tmp_path / "owned-inputs"
+        owner.mkdir()
+        inputs.symlink_to(owner, target_is_directory=True)
+    else:
+        inputs.mkdir()
+        if unsafe == "input-subdir":
+            (inputs / str(uuid.uuid4())).mkdir()
+        elif unsafe == "input-symlink":
+            owner = tmp_path / "owned.png"
+            owner.write_bytes(b"owned")
+            (inputs / f"{uuid.uuid4()}.png").symlink_to(owner)
+        elif unsafe == "input-bad-name":
+            (inputs / "reference.png").write_bytes(b"x")
+        elif unsafe == "input-bad-extension":
+            (inputs / f"{uuid.uuid4()}.jpeg").write_bytes(b"x")
+        elif unsafe == "input-empty":
+            (inputs / f"{uuid.uuid4()}.gif").write_bytes(b"")
+        elif unsafe == "input-too-large":
+            with (inputs / f"{uuid.uuid4()}.jpg").open("wb") as handle:
+                handle.truncate(10 * 1024 * 1024 + 1)
+        elif unsafe == "input-too-many":
+            for _ in range(7):
+                (inputs / f"{uuid.uuid4()}.png").write_bytes(b"x")
+
+    before = sorted(path.name for path in target.iterdir())
+    proc = _run("create", str(target), "--initialize-existing")
+    payload = _payload(proc)
+
+    assert proc.returncode == 1
+    assert payload["error"]["code"] == "PROJECT_CREATE_FAILED"
+    assert sorted(path.name for path in target.iterdir()) == before
+    assert not (target / "golden-blocks.lock.json").exists()
+
+
+def test_create_existing_mode_refuses_a_symlink_target(tmp_path: Path) -> None:
+    project_id = str(uuid.uuid4())
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    metadata = (
+        json.dumps(
+            {
+                "id": project_id,
+                "name": "fixture",
+                "created_at": 1723456789000,
+                "updated_at": 1723456789000,
+            }
+        )
+        + "\n"
+    ).encode()
+    (owned / "project.json").write_bytes(metadata)
+    target = tmp_path / project_id
+    target.symlink_to(owned, target_is_directory=True)
+
+    proc = _run("create", str(target), "--initialize-existing")
+    payload = _payload(proc)
+
+    assert proc.returncode == 1
+    assert "must not be a symlink" in payload["error"]["message"]
+    assert (owned / "project.json").read_bytes() == metadata
+    assert sorted(path.name for path in owned.iterdir()) == ["project.json"]
 
 
 # -- The build ---------------------------------------------------------------

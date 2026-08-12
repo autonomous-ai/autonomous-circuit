@@ -1,0 +1,98 @@
+{
+  "C1": {
+    "lcsc": "C52923",
+    "basic": true,
+    "description": "1uF 0402 raw-attach bypass",
+    "block": "usb-c-data"
+  },
+  "C2": {
+    "lcsc": "C19702",
+    "basic": true,
+    "description": "10uF X5R 10V 0603",
+    "block": "ldo-3v3"
+  },
+  "C24": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "100nF 0402 raw-input bypass",
+    "block": "usb-power-entry"
+  },
+  "C3": {
+    "lcsc": "C19702",
+    "basic": true,
+    "description": "10uF X5R 10V 0603",
+    "block": "ldo-3v3"
+  },
+  "J1": {
+    "lcsc": "C165948",
+    "basic": false,
+    "description": "TYPE-C-31-M-12 receptacle",
+    "block": "usb-c-data"
+  },
+  "LED1": {
+    "lcsc": "C2297",
+    "basic": true,
+    "description": "KT-0805G green 0805 LED",
+    "block": "status-led"
+  },
+  "R1": {
+    "lcsc": "C25905",
+    "basic": true,
+    "description": "5.1k 0402 CC pulldown",
+    "block": "usb-c-data"
+  },
+  "R2": {
+    "lcsc": "C25905",
+    "basic": true,
+    "description": "5.1k 0402 CC pulldown",
+    "block": "usb-c-data"
+  },
+  "R20": {
+    "lcsc": "C11702",
+    "basic": true,
+    "description": "1k 0402 series resistor",
+    "block": "status-led"
+  },
+  "R31": {
+    "lcsc": "C32297",
+    "basic": false,
+    "description": "59k 1% 0402 current-limit resistor",
+    "block": "usb-power-entry"
+  },
+  "R32": {
+    "lcsc": "C25741",
+    "basic": true,
+    "description": "100k 0402 FAULT pull-up",
+    "block": "usb-power-entry"
+  },
+  "R3": {
+    "lcsc": "C25100",
+    "basic": true,
+    "description": "27R 0402 USB series",
+    "block": "usb-c-data"
+  },
+  "R4": {
+    "lcsc": "C25100",
+    "basic": true,
+    "description": "27R 0402 USB series",
+    "block": "usb-c-data"
+  },
+  "U1": {
+    "lcsc": "C2687116",
+    "basic": false,
+    "description": "USBLC6-2SC6 ESD",
+    "block": "usb-c-data"
+  },
+  "U2": {
+    "lcsc": "C500795",
+    "basic": false,
+    "description": "AP7361C-33E-13 SOT-223",
+    "block": "ldo-3v3"
+  },
+  "U7": {
+    "lcsc": "C55266",
+    "basic": false,
+    "description": "TPS2553DBVR USB power-distribution switch",
+    "block": "usb-power-entry"
+  }
+}

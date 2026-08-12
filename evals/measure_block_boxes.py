@@ -61,6 +61,8 @@ BOX_TYPES = {
     "pcb_hole",
     "pcb_via",
     "pcb_component",
+    "pcb_courtyard_outline",
+    "pcb_courtyard_rect",
 }
 
 
@@ -75,8 +77,25 @@ def _element_box(element: dict) -> tuple[float, float, float, float] | None:
     etype = element.get("type")
     if etype not in BOX_TYPES:
         return None
+    if etype == "pcb_courtyard_outline":
+        outline = element.get("outline") or []
+        points = [
+            (float(point["x"]), float(point["y"]))
+            for point in outline
+            if isinstance(point, dict)
+            and isinstance(point.get("x"), (int, float))
+            and isinstance(point.get("y"), (int, float))
+        ]
+        if not points:
+            return None
+        return (
+            min(point[0] for point in points),
+            min(point[1] for point in points),
+            max(point[0] for point in points),
+            max(point[1] for point in points),
+        )
     x, y = element.get("x"), element.get("y")
-    if etype == "pcb_component":
+    if etype in {"pcb_component", "pcb_courtyard_rect"}:
         centre = element.get("center") or {}
         x, y = centre.get("x", x), centre.get("y", y)
     if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
@@ -93,6 +112,10 @@ def _element_box(element: dict) -> tuple[float, float, float, float] | None:
         width = height = float(diameter)
     if not isinstance(height, (int, float)):
         height = width
+    if etype == "pcb_courtyard_rect" and round(
+        float(element.get("ccw_rotation", 0) or 0)
+    ) % 180 == 90:
+        width, height = height, width
     return (
         float(x) - float(width) / 2,
         float(y) - float(height) / 2,

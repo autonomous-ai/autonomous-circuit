@@ -17,8 +17,15 @@ Import what you need; never retype a number:
     )
 """
 
-from circuitlib import blocks, golden, helpers, safety, tables
-from circuitlib.blocks import BLOCKS, Block, Part, UsbSourceContract, block_for
+from circuitlib import blocks, golden, helpers, safety, starter, tables
+from circuitlib.blocks import (
+    BLOCKS,
+    AttachmentPort,
+    Block,
+    Part,
+    UsbSourceContract,
+    block_for,
+)
 from circuitlib.helpers import (
     BoardPlan,
     board_plan,
@@ -32,12 +39,14 @@ from circuitlib.helpers import (
     validate_board_law,
 )
 from circuitlib.safety import Verdict, safety_gate
+from circuitlib.starter import StarterProject, protected_usb_indicator_starter
 
 __all__ = [
-    "tables", "blocks", "safety", "helpers", "golden",
-    "BLOCKS", "Block", "Part", "UsbSourceContract", "block_for",
+    "tables", "blocks", "safety", "helpers", "golden", "starter",
+    "BLOCKS", "AttachmentPort", "Block", "Part", "UsbSourceContract", "block_for",
     "BoardPlan", "board_plan", "validate_board_law", "trace_width_for",
     "clearance_for", "decoupling_for", "power_budget",
     "usb_power_budget_for_plan", "estimate_cost",
     "fab_profile", "safety_gate", "Verdict",
+    "StarterProject", "protected_usb_indicator_starter",
 ]

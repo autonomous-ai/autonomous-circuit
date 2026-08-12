@@ -227,16 +227,53 @@ def board_plan(
         supply_rail_overrides,
     ) if regulator_rail else 0.0
     if "ldo-3v3" in chosen and regulator_load_ma > 0:
-        # Only loads supplied by the regulator's output heat it.  A V5 pixel
+        # Only loads supplied by the regulator's output heat it. A V5 pixel
         # ring still counts in the source/copper budget above, but does not
-        # magically flow through the 3V3 LDO.
-        regulator = regulator_thermal(
-            vin=tables.USB_VBUS_V if hasattr(tables, "USB_VBUS_V") else 5.0,
-            vout=3.3,
-            current_a=regulator_load_ma / 1000.0,
-            package="SOT-223",
-            ambient_c=AMBIENT_HOT_C,
-        )
+        # magically flow through the 3V3 LDO. For a selected audited profile,
+        # planning uses that exact worst-case envelope (including ground
+        # current) rather than a generic nominal-input package estimate.
+        contract = regulator_block.regulator_contract if regulator_block else None
+        if contract is None:
+            regulator = regulator_thermal(
+                vin=tables.USB_VBUS_V if hasattr(tables, "USB_VBUS_V") else 5.0,
+                vout=3.3,
+                current_a=regulator_load_ma / 1000.0,
+                package="SOT-223",
+                ambient_c=AMBIENT_HOT_C,
+            )
+        else:
+            watts = (
+                (contract.max_input_volts - contract.output_volts)
+                * regulator_load_ma
+                / 1000.0
+                + contract.max_input_volts
+                * contract.max_ground_current_ma
+                / 1000.0
+            )
+            junction = (
+                contract.max_ambient_c + watts * contract.theta_ja_c_per_w
+            )
+            headroom = contract.design_max_junction_c - junction
+            over_current = (
+                regulator_load_ma > contract.max_continuous_output_ma + 1e-9
+            )
+            if over_current:
+                verdict, severity = "over-current", "error"
+            elif headroom < contract.min_thermal_headroom_c:
+                verdict, severity = "over-temperature", "error"
+            else:
+                verdict, severity = "ok", "info"
+            regulator = {
+                "profile": contract.profile,
+                "watts": round(watts, 3),
+                "junction_c": round(junction, 1),
+                "headroom_c": round(headroom, 1),
+                "theta_ja": contract.theta_ja_c_per_w,
+                "max_continuous_output_ma": contract.max_continuous_output_ma,
+                "max_ground_current_ma": contract.max_ground_current_ma,
+                "verdict": verdict,
+                "severity": severity,
+            }
         regulator["refdes"] = "U2"
         regulator["output_rail"] = regulator_rail
         regulator["load_ma"] = round(regulator_load_ma, 1)
@@ -388,14 +425,18 @@ def usb_power_budget_for_plan(
             }
         )
 
-    return {
+    fixed_floor = float(contract.fixed_operational_load_floor_ma)
+    out: dict[str, object] = {
         "usb": {
             "rawVbusNet": contract.raw_net,
             "protectedVbusNet": contract.protected_net,
             "rawAttachCapacitanceMaxUf": contract.raw_attach_capacitance_max_uf,
             "sourceCurrentMaxMa": contract.source_current_max_ma,
             "fixedOperationalLoadMa": float(
-                budget.get("fixed_operational_load_ma") or 0.0
+                max(
+                    float(budget.get("fixed_operational_load_ma") or 0.0),
+                    fixed_floor,
+                )
             ),
             "currentLimiter": {
                 "ref": contract.limiter_ref,
@@ -415,6 +456,25 @@ def usb_power_budget_for_plan(
             "firmwareLimitedLoads": product_loads,
         }
     }
+    regulators: list[dict[str, object]] = []
+    for block_id in plan.block_ids:
+        selected = BLOCKS[block_id].regulator_contract
+        if selected is None:
+            continue
+        regulators.append(
+            {
+                "profile": selected.profile,
+                "ref": selected.ref,
+                "inputNet": selected.input_net,
+                "outputNet": selected.output_net,
+                "inputCapRef": selected.input_cap_ref,
+                "outputCapRef": selected.output_cap_ref,
+                "maxAmbientC": selected.max_ambient_c,
+            }
+        )
+    if regulators:
+        out["regulators"] = regulators
+    return out
 
 
 #: block id -> the block that subsumes it. When both land in a plan, only the

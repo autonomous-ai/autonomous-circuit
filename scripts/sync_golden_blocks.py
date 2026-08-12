@@ -34,6 +34,10 @@ DEFAULT_SOURCE = _REPO_SOURCE if _REPO_SOURCE.is_dir() else _SKILL_SOURCE
 LOCK_NAME = "golden-blocks.lock.json"
 SCHEMA_VERSION = 1
 BLOCK_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_SOURCE_SUFFIXES = {".tsx", ".ts", ".jsx", ".js"}
+_IMPORT_RE = re.compile(
+    r"(?:from\s*|import\s*)[\"'](?P<path>\.\.?/[^\"']+)[\"']"
+)
 
 
 class SyncError(RuntimeError):
@@ -88,6 +92,49 @@ def _normalize_blocks(blocks: Iterable[str]) -> list[str]:
     return normalized
 
 
+def _block_dependencies(source: Path, block: str) -> set[str]:
+    """Golden block ids imported through relative source paths."""
+
+    dependencies: set[str] = set()
+    block_root = source / block
+    for path in sorted(block_root.rglob("*")):
+        if not path.is_file() or path.suffix not in _SOURCE_SUFFIXES:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise SyncError(f"cannot read golden-block source {path}: {exc}") from exc
+        for match in _IMPORT_RE.finditer(text):
+            resolved = (path.parent / match.group("path")).resolve()
+            try:
+                relative = resolved.relative_to(source.resolve())
+            except ValueError:
+                continue
+            if not relative.parts:
+                continue
+            dependency = relative.parts[0]
+            if dependency != block and (source / dependency).is_dir():
+                dependencies.add(dependency)
+    return dependencies
+
+
+def _expand_block_dependencies(source: Path, blocks: Iterable[str]) -> list[str]:
+    """Return deterministic transitive closure of golden source imports."""
+
+    selected = set(_normalize_blocks(blocks))
+    pending = list(sorted(selected))
+    while pending:
+        block = pending.pop(0)
+        if not (source / block).is_dir():
+            raise SyncError(f"unknown golden block: {block}")
+        for dependency in sorted(_block_dependencies(source, block)):
+            if dependency in selected:
+                continue
+            selected.add(dependency)
+            pending.append(dependency)
+    return sorted(selected)
+
+
 def _entries(blocks: Iterable[str]) -> list[str]:
     return ["glue.tsx", *_normalize_blocks(blocks)]
 
@@ -97,7 +144,7 @@ def _manifest(
     source_label: str,
     blocks: Iterable[str],
 ) -> dict[str, object]:
-    normalized = _normalize_blocks(blocks)
+    normalized = _expand_block_dependencies(source, blocks)
     entries = _entries(normalized)
     for block in normalized:
         if not (source / block).is_dir():

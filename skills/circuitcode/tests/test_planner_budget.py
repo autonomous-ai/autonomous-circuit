@@ -175,10 +175,10 @@ class RegulatorHeat(unittest.TestCase):
         )
         self.assertEqual(severities(out, "regulator_thermal"), [])
 
-    def test_a_direct_ams_plan_that_would_cook_is_not_buildable(self):
-        """Twenty WS2812s behind an AMS1117 is 1.3A through a linear drop:
-        183 degC junction against a 125 degC limit. That board cannot be
-        planned, which is a better answer than finding out it runs hot."""
+    def test_a_direct_linear_plan_above_ap7361_limit_is_not_buildable(self):
+        """Twenty WS2812s behind the 3V3 LDO exceed both the AP7361's
+        product-level 150mA ceiling and its thermal envelope. The architecture
+        must be rejected while it is still a plan."""
         plan = board_plan(
             capabilities=["mcu", "rgb-pixels"],
             counts={"ws2812-chain": 20},
@@ -200,13 +200,16 @@ class RegulatorHeat(unittest.TestCase):
         self.assertTrue(plan.overheats)
         self.assertFalse(plan.buildable)
 
-    def test_the_same_direct_plan_with_a_short_chain_is_thermally_buildable(self):
+    def test_even_a_short_direct_pixel_chain_exceeds_the_150ma_profile(self):
         plan = board_plan(
             capabilities=["mcu", "rgb-pixels"],
-            counts={"ws2812-chain": 2},
+            counts={"ws2812-chain": 1},
             supply_rail_overrides={"ws2812-chain": "V3_3"},
         )
-        self.assertFalse(plan.overheats)
+        self.assertEqual(plan.regulator["max_continuous_output_ma"], 150.0)
+        self.assertEqual(plan.regulator["verdict"], "over-current")
+        self.assertTrue(plan.overheats)
+        self.assertFalse(plan.buildable)
 
     def test_the_v5_ahct_eight_pixel_plan_requires_an_operational_cap(self):
         uncapped = board_plan(
@@ -235,9 +238,9 @@ class RegulatorHeat(unittest.TestCase):
         self.assertLess(float(plan.regulator["load_ma"]), 150.0)
         self.assertFalse(plan.overheats)
         self.assertTrue(plan.buildable)
-        self.assertEqual(plan.source_budget["physical_peak_ma"], 593.0)
-        self.assertEqual(plan.source_budget["operational_load_ma"], 393.0)
-        self.assertEqual(plan.source_budget["fixed_operational_load_ma"], 113.0)
+        self.assertEqual(plan.source_budget["physical_peak_ma"], 582.1)
+        self.assertEqual(plan.source_budget["operational_load_ma"], 382.1)
+        self.assertEqual(plan.source_budget["fixed_operational_load_ma"], 102.1)
         self.assertEqual(
             plan.source_budget["firmware_load_caps_ma"],
             {"ws2812-chain": 280.0},
@@ -279,7 +282,7 @@ class RegulatorHeat(unittest.TestCase):
                     "protectedVbusNet": "V5",
                     "rawAttachCapacitanceMaxUf": 10.0,
                     "sourceCurrentMaxMa": 500.0,
-                    "fixedOperationalLoadMa": 113.0,
+                    "fixedOperationalLoadMa": 102.1,
                     "currentLimiter": {
                         "ref": "U7",
                         "lcsc": "C55266",
@@ -302,7 +305,18 @@ class RegulatorHeat(unittest.TestCase):
                             "aggregateOperationalMaxMa": 280.0,
                         }
                     ],
-                }
+                },
+                "regulators": [
+                    {
+                        "profile": "ap7361c-33e-c500795-v1",
+                        "ref": "U2",
+                        "inputNet": "V5",
+                        "outputNet": "V3_3",
+                        "inputCapRef": "C2",
+                        "outputCapRef": "C3",
+                        "maxAmbientC": 60.0,
+                    }
+                ],
             },
         )
 
