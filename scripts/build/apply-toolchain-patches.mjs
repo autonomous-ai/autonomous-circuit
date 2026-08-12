@@ -413,7 +413,6 @@ function acResolveDifferentialPairs(pairs, finalConnectionNames, hdRoutes, pipel
     };
   });
 }
-
 function acGetPlanarSegments(route) {
   const segments = [];
   for (let index = 0; index < route.length - 1; index++) {
