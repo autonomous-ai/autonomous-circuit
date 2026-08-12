@@ -10,6 +10,13 @@ complete input and output SHA-256, every replacement count, and (where the
 package ships one) the audited source-map source. A toolchain upgrade must
 therefore remove the obsolete patch or deliberately rebase it.
 
+`scripts/tests/toolchain-patches.test.mjs` also replays the complete capacity
+chain after reconstructing the exact npm-pristine bundle from any recognized
+installed endpoint. This is the restart boundary: a one-byte edit inside a
+compiled replacement payload fails before it can strand `npm ci` / `dev.sh`
+halfway through the chain, even when the shared install still contains the
+previous valid final bundle.
+
 ## `@tscircuit/props@0.0.618`
 
 Trace props now expose the opt-in boolean `authoredNetTreeBoundary`. It marks

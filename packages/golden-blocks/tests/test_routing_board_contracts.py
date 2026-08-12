@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from board_source_contract import force_routing_enabled, routing_is_definitely_disabled
+
 
 TESTBENCH_DIR = Path(__file__).resolve().parents[1] / "testbench"
 
@@ -15,6 +17,7 @@ TESTBENCH_DIR = Path(__file__).resolve().parents[1] / "testbench"
 # fixture. Source-only transform/topology benches declare ``routingDisabled``
 # and are discovered separately below.
 ROUTING_AUTHORITATIVE_BENCHES = (
+    "external-rail-attachments-routed",
     "gnd-planes",
     "i2c-bus",
     "ldo-3v3",
@@ -76,7 +79,9 @@ def test_every_routing_enabled_bench_has_fail_closed_contract_status() -> None:
         for path in TESTBENCH_DIR.glob("*.tsx")
     }
     routing_enabled = {
-        bench for bench, source in sources.items() if "routingDisabled" not in source
+        bench
+        for bench, source in sources.items()
+        if not routing_is_definitely_disabled(source)
     }
     classified = (
         set(ROUTING_AUTHORITATIVE_BENCHES)
@@ -92,7 +97,7 @@ def test_every_routing_enabled_bench_has_fail_closed_contract_status() -> None:
 @pytest.mark.parametrize("bench", ROUTING_AUTHORITATIVE_BENCHES)
 def test_routing_authoritative_benches_declare_real_board_floors(bench: str) -> None:
     source = (TESTBENCH_DIR / f"{bench}.tsx").read_text()
-    assert "routingDisabled" not in source
+    assert not routing_is_definitely_disabled(source)
     assert 'minTraceToPadEdgeClearance="0.15mm"' in source
     assert 'minViaEdgeToPadEdgeClearance="0.15mm"' in source
 
@@ -109,6 +114,90 @@ def test_non_authoritative_routing_benches_remain_explicit_blockers(
     assert declares_real_floors is blocker["declares_real_floors"]
     assert blocker["trace"]
     assert float(blocker["width_mm"]) >= 0.15
+
+
+@pytest.mark.parametrize(
+    ("source", "disabled"),
+    (
+        ('export default () => <board routingDisabled />', True),
+        ('export default () => <board routingDisabled={true} />', True),
+        ('export default () => <board routingDisabled={false} />', False),
+        (
+            '// routingDisabled is supported for geometry-only callers\n'
+            'export default () => <board />',
+            False,
+        ),
+        (
+            '/* <board routingDisabled> is only documentation */\n'
+            'export default () => <board data-note="routingDisabled ..." />',
+            False,
+        ),
+        (
+            'export const B = (props: { routingDisabled?: boolean } = {}) => '
+            '<board routingDisabled={props.routingDisabled ?? false} />',
+            False,
+        ),
+        ('export default () => <board routingDisabled={chosen} />', False),
+        ('export default () => <board {...props} routingDisabled={false} />', False),
+        ('export default () => <board routingDisabled={false} {...props} />', False),
+    ),
+)
+def test_routing_classification_reads_the_board_prop_not_a_substring(
+    source: str, disabled: bool
+) -> None:
+    assert routing_is_definitely_disabled(source) is disabled
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    (
+        (
+            'export default () => <board routingDisabled />',
+            'export default () => <board routingDisabled={false} />',
+        ),
+        (
+            'export default () => <board routingDisabled={true} />',
+            'export default () => <board routingDisabled={false} />',
+        ),
+        (
+            'export default () => <board routingDisabled={false} />',
+            'export default () => <board routingDisabled={false} />',
+        ),
+        (
+            'export const B = (props: { routingDisabled?: boolean } = {}) => '
+            '<board routingDisabled={props.routingDisabled ?? false} />',
+            'export const B = (props: { routingDisabled?: boolean } = {}) => '
+            '<board routingDisabled={props.routingDisabled ?? false} />',
+        ),
+        (
+            '/* <board routingDisabled> is documentation */\n'
+            'export default () => <board data-note="routingDisabled ..." />',
+            '/* <board routingDisabled> is documentation */\n'
+            'export default () => <board data-note="routingDisabled ..." />',
+        ),
+        (
+            'export default () => <board {...props} routingDisabled={false} />',
+            'export default () => <board {...props} routingDisabled={false} />',
+        ),
+    ),
+)
+def test_gauntlet_routing_override_rewrites_only_definite_true(
+    source: str, expected: str
+) -> None:
+    assert force_routing_enabled(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        'export default () => <board routingDisabled={chosen} />',
+        'export default () => <board {...props} />',
+        'export default () => <board routingDisabled={false} {...props} />',
+    ),
+)
+def test_gauntlet_routing_override_refuses_dynamic_controls(source: str) -> None:
+    with pytest.raises(AssertionError, match="dynamic routingDisabled"):
+        force_routing_enabled(source)
 
 
 @pytest.mark.parametrize("bench", FLOOR_BEHAVIOR_BENCHES)

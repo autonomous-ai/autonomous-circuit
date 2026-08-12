@@ -52,10 +52,12 @@ Usage:
     python evals/composition.py --only usb-c-power,ldo-3v3      # one cell
     python evals/composition.py --sample 12          # random subset, seeded
 
-Exit: non-zero when any built cell carries a blocking warning, or when a cell
-listed in ``KNOWN_UNSUPPORTED`` unexpectedly passes (a stale exclusion hides a
-fix). Writes ``evals/composition-matrix.json`` — the record of what has been
-built, which is the evidence behind the closure claim.
+Exit: non-zero when any built cell is not fab-ready, including a build with no
+validation errors whose manufacturing packet is still incomplete. Minimal
+``KNOWN_UNSUPPORTED`` cells are rejected at the earlier planner-law boundary
+and omitted here; a structural eval pins that exclusion. Writes
+``evals/composition-matrix.json`` — the record of what has been built, which is
+the evidence behind the closure claim.
 """
 
 from __future__ import annotations
@@ -138,8 +140,9 @@ INSTANTIATION: dict[str, tuple[str, str]] = {
 }
 
 #: Compositions the planner must NEVER emit, and why. These are excluded from
-#: the matrix *and* asserted against the registry: if one ever builds clean the
-#: exclusion is stale, and a stale exclusion hides a fix.
+#: routed composition because the planner-law structural eval proves the
+#: minimal invalid pair is rejected before board generation. The matrix must
+#: not claim it built an excluded cell.
 KNOWN_UNSUPPORTED: dict[tuple[str, ...], str] = {
     ("usb-c-data", "usb-c-power"): (
         "usb-c-data is a superset of usb-c-power and reuses the same refdes "
@@ -323,22 +326,41 @@ def _record(outcome, size: tuple[float, float]) -> dict:
 
     warnings = sidecar.get("validation", {}).get("warnings", [])
     blocking = [w for w in warnings if w.get("severity") == "error"]
+    fab_ready = sidecar.get("fab", {}).get("ready") is True
+    reported_blocking = [
+        {"kind": w["kind"], "part": w.get("part", ""),
+         "detail": w.get("detail", "")[:220]}
+        for w in blocking
+    ]
+    if not fab_ready and not reported_blocking:
+        reported_blocking.append({
+            "kind": "NotFabReady",
+            "part": "board",
+            "detail": (
+                "validation had no error finding, but the selected build did "
+                "not produce a fab-ready manufacturing packet"
+            ),
+        })
     record.update({
-        "status": "clean" if not blocking else "blocked",
-        "fabReady": bool(sidecar.get("fab", {}).get("ready")),
+        "status": _cell_status(blocking=blocking, fab_ready=fab_ready),
+        "fabReady": fab_ready,
         "autorouterEffort": sidecar.get("build", {}).get(
             "autorouterEffort", "default"
         ),
         "blockingByAttempt": sidecar.get("build", {}).get("blockingByAttempt"),
         "bomLines": sidecar.get("bom", {}).get("lines"),
-        "blocking": [
-            {"kind": w["kind"], "part": w.get("part", ""),
-             "detail": w.get("detail", "")[:220]}
-            for w in blocking
-        ],
+        "blocking": reported_blocking,
         "warningCount": len(warnings),
     })
     return record
+
+
+def _cell_status(*, blocking: list[dict], fab_ready: bool) -> str:
+    """A composition is clean only when its packet is orderable."""
+
+    if blocking:
+        return "blocked"
+    return "clean" if fab_ready else "not-ready"
 
 
 # ---------------------------------------------------------------------------

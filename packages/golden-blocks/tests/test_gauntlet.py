@@ -39,6 +39,7 @@ sys.path.insert(0, str(TESTS_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
 from conftest import BLOCK_IDS_FOR_GAUNTLET, _toolchain_bin_dir  # noqa: E402
+from board_source_contract import board_opening_span, force_routing_enabled  # noqa: E402
 from scripts.sync_golden_blocks import sync_project  # noqa: E402
 
 SKELETON = REPO_ROOT / "skills" / "circuitcode" / "templates" / "project_skeleton"
@@ -57,22 +58,25 @@ def _bench_board_source(bench_id: str) -> str:
 
     Two deliberate overrides of whatever the bench declares:
 
-    * **`routingDisabled` is stripped.** Three benches carried it —
-      `usb-c-power`, `usb-c-data`, `rp2040-core`, precisely the three blocks
-      that went on to break every example board. With routing off a block
-      cannot fail a routing check, so its tests stayed green while boards
-      built from it did not route. A block that cannot be routed cannot be
-      used; this gate says so.
+    * **A definitely-true `routingDisabled` is overridden to false.** Several
+      geometry benches carry it, including blocks that later broke in real
+      composition. With routing off a block cannot fail a routing check, so
+      its tests can stay green while downstream boards do not route. The JSX
+      helper changes only bare/literal true, leaves false/default-false forms
+      byte-identical, ignores comments, and refuses dynamic controls instead
+      of mutilating source. A block that cannot be routed cannot be used; this
+      gate says so.
     * **Production board props are added** (1.6mm, 0.2mm tracks, real via
       geometry), because a block judged under different rules than the boards
       that will use it is not really being judged.
     """
     source = (GB_ROOT / "testbench" / f"{bench_id}.tsx").read_text(encoding="utf-8")
-    start = source.index("<board")
-    end = source.index(">", start)
-    head, tail = source[:start], source[end + 1:]
-    props = source[start:end]
-    props = props.replace("routingDisabled={true}", "").replace("routingDisabled", "")
+    source = force_routing_enabled(source)
+    opening_span = board_opening_span(source)
+    assert opening_span is not None
+    start, end = opening_span
+    head, tail = source[:start], source[end:]
+    props = source[start : end - 1]
     for prop in ("thickness", "minTraceWidth", "minViaPadDiameter", "minViaHoleDiameter"):
         if prop in props:
             # The bench pinned this one itself; do not fight it.
@@ -136,3 +140,19 @@ def test_block_survives_the_board_gauntlet(gauntlet_projects, bench):
         f"{bench}: this block blocks any board that uses it — "
         + "; ".join(f"{w['kind']} @ {w['part']}: {w['detail'][:110]}" for w in blocking)
     )
+    assert sidecar.get("fab", {}).get("ready") is True, (
+        f"{bench}: zero validation errors did not produce a fab-ready packet"
+    )
+
+    # The verdict and the copper under test must be the same selected routing
+    # candidate. This catches a stale/restored output directory even when its
+    # validation summary happens to be clean.
+    from circuitpy.generation import routing_attempt_evidence_error
+
+    evidence_error = routing_attempt_evidence_error(
+        sidecar.get("build"),
+        circuit_json_path=(
+            gauntlet_projects / bench / "boards" / "main.circuit.json"
+        ),
+    )
+    assert evidence_error is None, f"{bench}: {evidence_error}"

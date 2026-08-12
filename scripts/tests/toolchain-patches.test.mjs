@@ -18,6 +18,67 @@ const toolchainDir =
 const digest = (value) =>
   createHash("sha256").update(value).digest("hex")
 
+const replaceExact = (source, before, after, expectedMatches, label) => {
+  const actualMatches = source.split(before).length - 1
+  assert.equal(
+    actualMatches,
+    expectedMatches,
+    `${label}: expected ${expectedMatches} exact byte match(es), found ${actualMatches}`,
+  )
+  return source.split(before).join(after)
+}
+
+const reverseReplacement = (source, replacement, packageName) => {
+  const expectedMatches = replacement.expectedMatches ?? 1
+  const label = `${packageName}: reverse ${replacement.label}`
+  if (
+    replacement.scopeStart !== undefined ||
+    replacement.scopeEnd !== undefined
+  ) {
+    assert.equal(typeof replacement.scopeStart, "string", `${label}: scopeStart`)
+    assert.equal(typeof replacement.scopeEnd, "string", `${label}: scopeEnd`)
+    const startMatches = source.split(replacement.scopeStart).length - 1
+    const endMatches = source.split(replacement.scopeEnd).length - 1
+    assert.equal(startMatches, 1, `${label}: scopeStart must be unique`)
+    assert.equal(endMatches, 1, `${label}: scopeEnd must be unique`)
+    const scopeStart = source.indexOf(replacement.scopeStart)
+    const scopeEnd = source.indexOf(replacement.scopeEnd, scopeStart)
+    assert.ok(scopeEnd >= scopeStart, `${label}: scope end precedes start`)
+    const scoped = source.slice(scopeStart, scopeEnd)
+    return (
+      source.slice(0, scopeStart) +
+      replaceExact(
+        scoped,
+        replacement.after,
+        replacement.before,
+        expectedMatches,
+        label,
+      ) +
+      source.slice(scopeEnd)
+    )
+  }
+  return replaceExact(
+    source,
+    replacement.after,
+    replacement.before,
+    expectedMatches,
+    label,
+  )
+}
+
+const reversePatch = (source, patch) => {
+  let pristine = source
+  for (const replacement of [...patch.replacements].reverse()) {
+    pristine = reverseReplacement(pristine, replacement, patch.packageName)
+  }
+  assert.equal(
+    digest(pristine),
+    patch.pristineSha256,
+    `${patch.packageName}: reverse reconstruction missed the guarded predecessor`,
+  )
+  return pristine
+}
+
 test("checked patching is exact, atomic, guarded, and idempotent", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "toolchain-patch-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -107,6 +168,104 @@ test("compiled replacements can be restricted to one audited class scope", async
 
   await applyToolchainPatch(join(root, "node_modules"), patch, false)
   assert.equal(await readFile(join(packageDir, "dist", "index.js"), "utf8"), patched)
+})
+
+test("the complete capacity chain replays from pristine bytes after a restart", async (t) => {
+  const capacityPatches = TOOLCHAIN_PATCHES.filter(
+    (patch) =>
+      patch.packageName === "@tscircuit/capacity-autorouter" &&
+      patch.file === "dist/index.js",
+  )
+  assert.ok(capacityPatches.length > 1)
+  for (let index = 1; index < capacityPatches.length; index += 1) {
+    assert.equal(
+      capacityPatches[index - 1].patchedSha256,
+      capacityPatches[index].pristineSha256,
+      `capacity stages ${index - 1}/${index} do not form one exact chain`,
+    )
+  }
+
+  const installedPackageDir = join(
+    toolchainDir,
+    "node_modules",
+    "@tscircuit",
+    "capacity-autorouter",
+  )
+  let installedSource
+  let packageJson
+  let sourceMap
+  try {
+    ;[installedSource, packageJson, sourceMap] = await Promise.all([
+      readFile(join(installedPackageDir, "dist", "index.js"), "utf8"),
+      readFile(join(installedPackageDir, "package.json"), "utf8"),
+      readFile(join(installedPackageDir, "dist", "index.js.map"), "utf8"),
+    ])
+  } catch (error) {
+    if (String(error).includes("ENOENT")) {
+      t.skip("pinned toolchain is not installed")
+      return
+    }
+    throw error
+  }
+
+  // Tests normally see the final installed endpoint. A developer may also
+  // invoke this immediately after npm ci (pristine) or after an interrupted
+  // patch run (an intermediate endpoint). Reconstruct the exact npm bytes by
+  // reversing only the stages already present, then replay the whole chain in
+  // a private package. This makes a one-byte manifest-payload edit fail here,
+  // even when the shared install still carries yesterday's valid endpoint.
+  let pristineSource = installedSource
+  const installedSha256 = digest(installedSource)
+  if (installedSha256 !== capacityPatches[0].pristineSha256) {
+    const installedStage = capacityPatches.findIndex(
+      (patch) => patch.patchedSha256 === installedSha256,
+    )
+    assert.notEqual(
+      installedStage,
+      -1,
+      `installed capacity bundle has unknown SHA-256 ${installedSha256}`,
+    )
+    for (let index = installedStage; index >= 0; index -= 1) {
+      pristineSource = reversePatch(pristineSource, capacityPatches[index])
+    }
+  }
+  assert.equal(digest(pristineSource), capacityPatches[0].pristineSha256)
+
+  const root = await mkdtemp(join(tmpdir(), "capacity-chain-restart-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const packageDir = join(
+    root,
+    "node_modules",
+    "@tscircuit",
+    "capacity-autorouter",
+  )
+  await mkdir(join(packageDir, "dist"), { recursive: true })
+  await Promise.all([
+    writeFile(join(packageDir, "package.json"), packageJson),
+    writeFile(join(packageDir, "dist", "index.js"), pristineSource),
+    writeFile(join(packageDir, "dist", "index.js.map"), sourceMap),
+  ])
+
+  for (const patch of capacityPatches) {
+    const result = await applyToolchainPatch(
+      join(root, "node_modules"),
+      patch,
+      false,
+    )
+    assert.equal(result.status, "patched")
+    assert.equal(
+      digest(await readFile(join(packageDir, "dist", "index.js"), "utf8")),
+      patch.patchedSha256,
+      `${patch.packageName}: ${patch.replacements[0]?.label ?? "stage"}`,
+    )
+  }
+
+  for (const patch of capacityPatches) {
+    assert.equal(
+      (await applyToolchainPatch(join(root, "node_modules"), patch, true)).status,
+      "already-patched",
+    )
+  }
 })
 
 test("the installed pinned toolchain carries every required patch", async (t) => {

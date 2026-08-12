@@ -10,7 +10,13 @@ sys.path.insert(0, str(REPO / "skills" / "circuitcode"))
 sys.path.insert(0, str(REPO / "evals"))
 
 from circuitlib.blocks import BLOCKS  # noqa: E402
-from composition import INSTANTIATION  # noqa: E402
+from composition import (  # noqa: E402
+    INSTANTIATION,
+    KNOWN_UNSUPPORTED,
+    _cell_status,
+    cells,
+)
+from circuitlib.helpers import validate_board_law  # noqa: E402
 
 
 REGISTERED_BLOCKS = tuple(sorted(BLOCKS))
@@ -63,9 +69,34 @@ def test_composition_supplies_every_required_golden_prop() -> None:
     assert set(INSTANTIATION) == set(REGISTERED_BLOCKS)
     for block_id in REGISTERED_BLOCKS:
         symbol, attributes = INSTANTIATION[block_id]
-        _, required = _exported_props(block_id, symbol)
+        declared, required = _exported_props(block_id, symbol)
         supplied = set(re.findall(r"\b([A-Za-z][A-Za-z0-9_]*)\s*=", attributes))
         assert required <= supplied, (
             f"{block_id} composition is missing required props: "
             f"{sorted(required - supplied)}"
         )
+        assert supplied <= declared, (
+            f"{block_id} composition supplies removed/unknown props: "
+            f"{sorted(supplied - declared)}"
+        )
+
+
+def test_composition_clean_status_requires_fab_readiness() -> None:
+    assert _cell_status(blocking=[], fab_ready=True) == "clean"
+    assert _cell_status(blocking=[], fab_ready=False) == "not-ready"
+    assert _cell_status(
+        blocking=[{"severity": "error", "kind": "pcb_trace_error"}],
+        fab_ready=True,
+    ) == "blocked"
+
+
+def test_known_unsupported_usb_pair_is_rejected_by_planner_law() -> None:
+    pair = ("usb-c-data", "usb-c-power")
+    assert pair in KNOWN_UNSUPPORTED
+    assert pair not in cells("pairs")
+    warnings = validate_board_law(block_ids=list(pair))
+    assert any(
+        warning.get("severity") in {"warning", "error"}
+        and "usb-c-data is a superset of usb-c-power" in warning.get("detail", "")
+        for warning in warnings
+    )
