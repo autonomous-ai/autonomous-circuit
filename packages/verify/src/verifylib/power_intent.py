@@ -50,14 +50,19 @@ AUDITED_REGULATOR_PROFILES: dict[str, dict[str, Any]] = {
         "maxCapPadGapMm": 2.0,
         "outputVolts": 3.3,
         "maxInputVolts": 5.25,
-        "maxContinuousOutputMa": 200.0,
+        # The 1A headline rating is not a board-level thermal entitlement.
+        # At the audited worst-case input and a 60C product ambient, 150mA
+        # retains just over 30C to the 125C design ceiling on the literal
+        # manufacturer land pattern.  Products with lower loads may declare a
+        # hotter ambient and are checked from their compiled load inventory.
+        "maxContinuousOutputMa": 150.0,
         "maxGroundCurrentMa": 0.08,
         # Datasheet theta-JA for SOT-223 on FR-4 with the manufacturer's
         # minimum recommended pad layout.  The block footprint and thermal
         # copper are therefore part of this profile, not optional decoration.
         "thetaJaCPerW": 110.0,
         "designMaxJunctionC": 125.0,
-        "minThermalHeadroomC": 20.0,
+        "minThermalHeadroomC": 30.0,
     }
 }
 
@@ -557,7 +562,14 @@ def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
         output_volts = float(profile["outputVolts"])
         max_input = float(profile["maxInputVolts"])
         ground_ma = float(profile["maxGroundCurrentMa"])
-        watts = (max_input - output_volts) * (peak_ma + ground_ma) / 1000.0
+        # Output current is dissipated across the regulator's voltage drop;
+        # quiescent/ground current is drawn from the input and therefore
+        # dissipates Vin * Iq.  Keeping these terms separate avoids silently
+        # understating the audited worst case.
+        watts = (
+            (max_input - output_volts) * peak_ma / 1000.0
+            + max_input * ground_ma / 1000.0
+        )
         junction = max_ambient + watts * float(
             profile["thetaJaCPerW"]
         )

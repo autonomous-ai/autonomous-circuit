@@ -51,7 +51,7 @@ def regulator_policy() -> dict:
                 "outputNet": "V3_3",
                 "inputCapRef": "C2",
                 "outputCapRef": "C3",
-                "maxAmbientC": 50,
+                "maxAmbientC": 60,
             }
         ]
     }
@@ -481,15 +481,15 @@ def test_unknown_regulator_load_fails_closed() -> None:
     assert "power_intent_regulator_load_unknown" in error_kinds(result)
 
 
-def test_200ma_regulator_peak_has_required_margin_but_225ma_is_rejected() -> None:
+def test_150ma_regulator_peak_has_required_margin_but_175ma_is_rejected() -> None:
     at_limit = power_intent.check(
-        model.Board(regulator_fixture(extra_flash=3)), regulator_policy()
+        model.Board(regulator_fixture(extra_flash=1)), regulator_policy()
     )
     assert "power_intent_regulator_load_budget" not in error_kinds(at_limit)
     assert "power_intent_regulator_thermal" not in error_kinds(at_limit)
 
     too_hot = power_intent.check(
-        model.Board(regulator_fixture(extra_flash=4)), regulator_policy()
+        model.Board(regulator_fixture(extra_flash=2)), regulator_policy()
     )
     assert "power_intent_regulator_load_budget" in error_kinds(too_hot)
 
@@ -498,9 +498,17 @@ def test_hot_product_ambient_is_measured_and_cannot_be_gamed_below_50c() -> None
     hot = regulator_policy()
     hot["regulators"][0]["maxAmbientC"] = 70
     result = power_intent.check(
-        model.Board(regulator_fixture(extra_flash=3)), hot
+        model.Board(regulator_fixture(extra_flash=1)), hot
     )
     assert "power_intent_regulator_thermal" in error_kinds(result)
+
+    detail = next(
+        item["detail"]
+        for item in result.findings
+        if item["kind"] == "power_intent_regulator_thermal"
+    )
+    assert "102.22C" in detail
+    assert "22.78C" in detail
 
     implausibly_cold = regulator_policy()
     implausibly_cold["regulators"][0]["maxAmbientC"] = 25
