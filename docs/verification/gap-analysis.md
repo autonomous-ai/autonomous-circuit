@@ -399,6 +399,28 @@ offset all become blocking. Recorded so it is a decision, not an oversight.
 Governs a soldered board under inspection. Nothing in CAD can pass or fail it.
 Listing it as a target would be dishonest.
 
+### G13 · The router's own constraints are invisible until they fire
+**Risk: high · Wall-clock: milliseconds · Status: BUILT (`packages/verify`, `crystal.py`)**
+
+Every gap above assumes the board *routed*. This one is about the case where it
+did not. tscircuit puts a hard ceiling on any connection to a crystal net, and
+breaking it does not fail that net — it skips autorouting for the **whole
+board**, then reports `pcb_autorouting_error` against the crystal, which is
+almost never the part that broke the rule. Measured on a rebuilt pre-fix
+`rp2040-core`: one cryptic error naming Y1, buried under 41 `pcb_trace_missing`
+and 40 `pcb_port_not_connected` findings that are all consequences, while the
+parts actually needing to move were R11 and C16.
+
+Nothing measured the distance, so nothing could say which part or by how much.
+That is a constraint the *toolchain* owns and the pipeline had no opinion on —
+the same shape as "never trust an exit code". `crystal.py` measures each
+declared connection pad to pad, before routing, and names the endpoint and the
+overshoot.
+
+The general lesson is bigger than crystals: any router constraint that fails
+the whole board rather than one net needs its own pre-routing measurement, or
+the agent debugs the symptom for hours.
+
 ---
 
 ## 4. What this implies for the pipeline
@@ -421,8 +443,8 @@ Three structural notes, independent of any single check:
 
 ## 5. What was built, and what it caught
 
-`packages/verify` — seven checks, 129 tests, no dependency on `circuitpy` or on
-any skill runtime. `packages/verify/README.md` says how each should be wired.
+`packages/verify` — eight checks, no dependency on `circuitpy` or on any skill
+runtime. `packages/verify/README.md` says how each should be wired.
 
 Run over the three example boards, these are the findings **no existing check
 can produce**:
@@ -437,6 +459,7 @@ can produce**:
 | SW2 and SW3 sit **1.80 mm** from the board edge where assembly asks for 2.5 mm | terminal-keyboard | G1 |
 | the second LDO reaches **~96 °C** junction at the WS2812 chain's datasheet peak | harness-puck | G7 |
 | the debug interface reaches no connector or test point — the board cannot be programmed once built | all three | G8 |
+| a load cap **9.88 mm** from XIN, 0.12 mm inside the router's 10 mm crystal-net ceiling — routes today, takes the whole board's routing down on any nudge | harness-puck | G13 |
 
 And four **false positives measured and removed before shipping**, each now a
 regression test — the "measure the noise floor" principle applied four more
