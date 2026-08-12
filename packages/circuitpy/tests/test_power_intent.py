@@ -46,12 +46,79 @@ def policy() -> dict:
     }
 
 
+def regulator_policy() -> dict:
+    return {
+        "regulators": [
+            {
+                "profile": "ap7361c-33e-c500795-v1",
+                "ref": "U2",
+                "inputNet": "V5",
+                "outputNet": "V3_3",
+                "inputCapRef": "C2",
+                "outputCapRef": "C3",
+                "maxAmbientC": 50,
+            }
+        ]
+    }
+
+
 def test_valid_contract_is_copied() -> None:
     raw = policy()
     resolved = validate_power_budget(raw)
     assert resolved == raw
     resolved["usb"]["rawVbusNet"] = "changed"
     assert raw["usb"]["rawVbusNet"] == "VBUS_RAW"
+
+
+def test_audited_regulator_contract_is_copied() -> None:
+    raw = regulator_policy()
+    resolved = validate_power_budget(raw)
+    assert resolved == raw
+    resolved["regulators"][0]["outputNet"] = "changed"
+    assert raw["regulators"][0]["outputNet"] == "V3_3"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda p: p.update({"regulators": {}}), "must be a list"),
+        (
+            lambda p: p["regulators"][0].update({"profile": "invented"}),
+            "audited regulator profile",
+        ),
+        (
+            lambda p: p["regulators"][0].update({"outputNet": "V5"}),
+            "must differ from inputNet",
+        ),
+        (
+            lambda p: p["regulators"][0].update({"outputCapRef": "C2"}),
+            "distinct regulator/input-cap/output-cap",
+        ),
+        (
+            lambda p: p["regulators"].append(dict(p["regulators"][0])),
+            "duplicates regulator reference",
+        ),
+        (
+            lambda p: p["regulators"][0].update({"thetaJa": 1}),
+            "unknown member",
+        ),
+        (
+            lambda p: p["regulators"][0].update({"maxAmbientC": 49}),
+            "between 50 and 85",
+        ),
+        (
+            lambda p: p["regulators"][0].update({"maxAmbientC": 86}),
+            "between 50 and 85",
+        ),
+    ],
+)
+def test_unreviewed_or_ambiguous_regulator_contracts_fail_closed(
+    mutate, message: str
+) -> None:
+    raw = regulator_policy()
+    mutate(raw)
+    with pytest.raises(ProjectShapeError, match=message):
+        validate_power_budget(raw)
 
 
 @pytest.mark.parametrize(

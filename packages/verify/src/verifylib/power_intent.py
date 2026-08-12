@@ -10,10 +10,56 @@ and fails closed when the routed artifact does not implement that contract.
 from __future__ import annotations
 
 import fnmatch
+import math
 from typing import Any
 
+from verifylib import dc
 from verifylib.findings import CheckResult, Coverage, Finding, finding, never_raises
+from verifylib.loads import lookup
 from verifylib.model import Board, Component, Net
+
+
+_REGULATOR_KEYS = {
+    "profile",
+    "ref",
+    "inputNet",
+    "outputNet",
+    "inputCapRef",
+    "outputCapRef",
+    "maxAmbientC",
+}
+
+# Independently reviewed regulator profiles.  Do not accept thermal or
+# capacitor requirements from product.json: a generated product choosing its
+# own theta-JA or junction limit would be circular evidence.  This table is
+# intentionally independent of circuitpy's schema registry.
+AUDITED_REGULATOR_PROFILES: dict[str, dict[str, Any]] = {
+    "ap7361c-33e-c500795-v1": {
+        "lcsc": "C500795",
+        "mpn": "AP7361C-33E-13",
+        "pins": {
+            "input": "IN",
+            "ground": "GND",
+            "output": "OUT",
+        },
+        # C19702 is Samsung CL10A106KP8NNNC: 10uF +/-10%, X5R, 10V,
+        # 0603.  It exceeds the AP7361C's >=1uF input and >=2.2uF ceramic
+        # output requirements while retaining DC-bias margin.
+        "capacitorLcsc": "C19702",
+        "capacitorFarads": 10e-6,
+        "maxCapPadGapMm": 2.0,
+        "outputVolts": 3.3,
+        "maxInputVolts": 5.25,
+        "maxContinuousOutputMa": 200.0,
+        "maxGroundCurrentMa": 0.08,
+        # Datasheet theta-JA for SOT-223 on FR-4 with the manufacturer's
+        # minimum recommended pad layout.  The block footprint and thermal
+        # copper are therefore part of this profile, not optional decoration.
+        "thetaJaCPerW": 110.0,
+        "designMaxJunctionC": 125.0,
+        "minThermalHeadroomC": 20.0,
+    }
+}
 
 
 def _patterns(value: object) -> list[str]:
@@ -30,6 +76,79 @@ def _component_pins(board: Board) -> dict[str, dict[str, Net]]:
         for component, pin in net.pins:
             out.setdefault(component, {})[pin.casefold()] = net
     return out
+
+
+def _source_component_names(board: Board) -> dict[str, str]:
+    return {
+        str(element.get("source_component_id") or ""): str(
+            element.get("name") or ""
+        )
+        for element in board.of_type("source_component")
+        if element.get("source_component_id")
+    }
+
+
+def _component_port_records(
+    board: Board,
+) -> dict[str, dict[str, tuple[str, Net | None]]]:
+    names = _source_component_names(board)
+    out: dict[str, dict[str, tuple[str, Net | None]]] = {}
+    for element in board.of_type("source_port"):
+        port_id = str(element.get("source_port_id") or "")
+        component = names.get(str(element.get("source_component_id") or ""), "")
+        name = str(element.get("name") or element.get("pin_number") or "")
+        if component and name and port_id:
+            out.setdefault(component, {})[name.casefold()] = (
+                port_id,
+                board.net_of_port(port_id),
+            )
+    return out
+
+
+def _component_mpn(board: Board, component: Component) -> str | None:
+    for element in board.of_type("source_component"):
+        if element.get("source_component_id") != component.source_id:
+            continue
+        value = element.get("manufacturer_part_number")
+        return str(value) if isinstance(value, str) and value else None
+    return None
+
+
+def _authored_edge(board: Board, left: str, right: str) -> bool:
+    wanted = {left, right}
+    for trace in board.of_type("source_trace"):
+        ports = {
+            str(value)
+            for value in (trace.get("connected_source_port_ids") or [])
+            if value
+        }
+        nets = [
+            value for value in (trace.get("connected_source_net_ids") or []) if value
+        ]
+        if ports == wanted and not nets:
+            return True
+    return False
+
+
+def _source_pad_rects(board: Board) -> dict[str, Any]:
+    pcb_port_by_source = {
+        str(element.get("source_port_id") or ""): str(
+            element.get("pcb_port_id") or ""
+        )
+        for element in board.of_type("pcb_port")
+        if element.get("source_port_id") and element.get("pcb_port_id")
+    }
+    pads_by_port = {
+        pad.port_id: pad.rect
+        for component in board.components
+        for pad in component.pads
+        if pad.port_id
+    }
+    return {
+        source_port_id: pads_by_port[pcb_port_id]
+        for source_port_id, pcb_port_id in pcb_port_by_source.items()
+        if pcb_port_id in pads_by_port
+    }
 
 
 def _component_nets(
@@ -110,6 +229,353 @@ def _contract_failures(usb: dict[str, Any]) -> list[str]:
                     f"firmwareLimitedLoads[{index}].aggregateOperationalMaxMa is not non-negative"
                 )
     return failures
+
+
+def _regulator_contract_failures(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return ["regulators is not a list"]
+    failures: list[str] = []
+    seen_refs: set[str] = set()
+    seen_outputs: set[str] = set()
+    seen_caps: set[str] = set()
+    for index, regulator in enumerate(value):
+        label = f"regulators[{index}]"
+        if not isinstance(regulator, dict):
+            failures.append(f"{label} is not an object")
+            continue
+        unknown = sorted(set(regulator) - _REGULATOR_KEYS)
+        missing = sorted(_REGULATOR_KEYS - set(regulator))
+        if unknown:
+            failures.append(f"{label} has unknown members: {', '.join(unknown)}")
+        if missing:
+            failures.append(f"{label} is missing: {', '.join(missing)}")
+        profile = regulator.get("profile")
+        if profile not in AUDITED_REGULATOR_PROFILES:
+            failures.append(f"{label}.profile is not audited")
+        strings: dict[str, str] = {}
+        for key in _REGULATOR_KEYS - {"profile", "maxAmbientC"}:
+            raw = regulator.get(key)
+            if not isinstance(raw, str) or not raw.strip():
+                failures.append(f"{label}.{key} is missing")
+            else:
+                strings[key] = raw.strip()
+        max_ambient = _finite_number(regulator.get("maxAmbientC"))
+        if max_ambient is None or max_ambient < 50.0 or max_ambient > 85.0:
+            failures.append(f"{label}.maxAmbientC is not between 50 and 85 degC")
+        ref = strings.get("ref")
+        input_net = strings.get("inputNet")
+        output_net = strings.get("outputNet")
+        input_cap = strings.get("inputCapRef")
+        output_cap = strings.get("outputCapRef")
+        if input_net and output_net and input_net == output_net:
+            failures.append(f"{label}.inputNet and outputNet are identical")
+        if ref and input_cap and output_cap and len({ref, input_cap, output_cap}) != 3:
+            failures.append(f"{label} reuses its regulator/capacitor reference")
+        if ref:
+            if ref in seen_refs:
+                failures.append(f"{label}.ref duplicates {ref}")
+            seen_refs.add(ref)
+        if output_net:
+            if output_net in seen_outputs:
+                failures.append(f"{label}.outputNet duplicates {output_net}")
+            seen_outputs.add(output_net)
+        for cap in (input_cap, output_cap):
+            if not cap:
+                continue
+            if cap in seen_caps:
+                failures.append(f"{label} reuses capacitor {cap}")
+            seen_caps.add(cap)
+    return failures
+
+
+def _regulator_peak_current(
+    board: Board, output: Net, regulator_ref: str, cap_refs: set[str]
+) -> tuple[float | None, list[str]]:
+    """Measure the built rail at datasheet peak, never a declared estimate."""
+
+    network = dc.build_network(board, load_mode="peak")
+    solution = dc.solve(network)
+    if not solution.voltages:
+        return None, ["DC operating point did not solve"]
+
+    unknown: list[str] = []
+    pins = _component_pins(board)
+    for component in board.placed():
+        if component.name == regulator_ref or component.name in cap_refs:
+            continue
+        if output.key not in _component_nets(pins, component):
+            continue
+        if lookup(
+            lcsc=component.lcsc,
+            mpn=_component_mpn(board, component),
+            ftype=component.ftype,
+        ) is None:
+            unknown.append(component.name)
+
+    amps = sum(sink.amps for sink in network.sinks if sink.net == output.key)
+    # Resistor-limited LEDs and similar loads are solved as elements rather
+    # than black-box sinks. Count current leaving the regulated node in either
+    # element orientation, exactly once at the boundary.
+    for element in network.elements:
+        flow = solution.currents.get(element.refdes, 0.0)
+        if element.a == output.key and flow > 0:
+            amps += flow
+        elif element.b == output.key and flow < 0:
+            amps -= flow
+    return amps * 1000.0, sorted(set(unknown))
+
+
+@never_raises
+def _regulators(board: Board, policy: dict[str, Any]) -> list[Finding]:
+    raw = policy.get("regulators", [])
+    failures = _regulator_contract_failures(raw)
+    if failures:
+        return [
+            finding(
+                "product.json",
+                "power_intent_regulator_contract",
+                "regulator power budget is malformed: " + "; ".join(failures),
+                "error",
+            )
+        ]
+    if not isinstance(raw, list):
+        return []
+
+    out: list[Finding] = []
+    placed_names = {component.name for component in board.placed()}
+    ports = _component_port_records(board)
+    pads = _source_pad_rects(board)
+    ground = board.ground
+
+    for declaration in raw:
+        if not isinstance(declaration, dict):
+            continue
+        profile_name = str(declaration["profile"])
+        profile = AUDITED_REGULATOR_PROFILES[profile_name]
+        ref = str(declaration["ref"])
+        input_name = str(declaration["inputNet"])
+        output_name = str(declaration["outputNet"])
+        input_cap_ref = str(declaration["inputCapRef"])
+        output_cap_ref = str(declaration["outputCapRef"])
+        max_ambient = float(declaration["maxAmbientC"])
+        input_net = board.net_named(input_name)
+        output_net = board.net_named(output_name)
+        component = board.by_name.get(ref)
+
+        if component is None or ref not in placed_names:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_missing",
+                    f"{profile_name} requires populated regulator {ref}, but it is absent or DNP",
+                    "error",
+                )
+            )
+            continue
+        actual_mpn = _component_mpn(board, component)
+        if component.lcsc != profile["lcsc"] or actual_mpn != profile["mpn"]:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_identity",
+                    f"{ref} compiles as LCSC {component.lcsc!r} / MPN {actual_mpn!r}; "
+                    f"{profile_name} requires {profile['lcsc']} / {profile['mpn']}",
+                    "error",
+                )
+            )
+
+        pin_names = profile["pins"]
+        component_ports = ports.get(ref, {})
+        required_names = {str(value).casefold() for value in pin_names.values()}
+        topology_failures: list[str] = []
+        if set(component_ports) != required_names:
+            topology_failures.append(
+                "semantic pins are "
+                + ", ".join(sorted(component_ports) or ["unreadable"])
+                + "; expected "
+                + ", ".join(sorted(required_names))
+            )
+
+        def port(role: str) -> tuple[str, Net | None] | None:
+            name = pin_names.get(role)
+            return component_ports.get(str(name).casefold()) if name else None
+
+        input_port = port("input")
+        output_port = port("output")
+        ground_port = port("ground")
+        enable_port = port("enable")
+        unused_port = port("unused")
+        expected_connections = [
+            (str(pin_names["input"]), input_port, input_net),
+            (str(pin_names["output"]), output_port, output_net),
+            (str(pin_names["ground"]), ground_port, ground),
+        ]
+        if "enable" in pin_names:
+            expected_connections.append(
+                (str(pin_names["enable"]), enable_port, input_net)
+            )
+        for label, record, expected in expected_connections:
+            actual = record[1] if record else None
+            if expected is None or actual is None or actual.key != expected.key:
+                topology_failures.append(
+                    f"{label} is on {actual.label if actual else 'no readable net'}, "
+                    f"not {expected.label if expected else 'the required net'}"
+                )
+        if "unused" in pin_names and (unused_port is None or unused_port[1] is None):
+            topology_failures.append(
+                f"{pin_names['unused']} has no readable isolated source port"
+            )
+        elif "unused" in pin_names and unused_port is not None:
+            nc_id, nc_net = unused_port
+            if len(nc_net.pins) != 1 or nc_net.pins[0] != (ref, pin_names["unused"]):
+                topology_failures.append("NC is electrically connected; it must be unused")
+            if any(
+                nc_id in (trace.get("connected_source_port_ids") or [])
+                for trace in board.of_type("source_trace")
+            ):
+                topology_failures.append("NC participates in a source trace")
+        if topology_failures:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_topology",
+                    f"{ref} does not implement {profile_name}: "
+                    + "; ".join(topology_failures),
+                    "error",
+                )
+            )
+
+        for role, cap_ref, rail, regulator_port in (
+            ("input", input_cap_ref, input_net, input_port),
+            ("output", output_cap_ref, output_net, output_port),
+        ):
+            cap = board.by_name.get(cap_ref)
+            if cap is None or cap_ref not in placed_names:
+                out.append(
+                    finding(
+                        cap_ref,
+                        "power_intent_regulator_capacitor_missing",
+                        f"{ref} requires populated {role} capacitor {cap_ref}",
+                        "error",
+                    )
+                )
+                continue
+            if cap.ftype != "simple_capacitor" or cap.lcsc != profile["capacitorLcsc"]:
+                out.append(
+                    finding(
+                        cap_ref,
+                        "power_intent_regulator_capacitor_identity",
+                        f"{cap_ref} compiles as {cap.ftype!r} / LCSC {cap.lcsc!r}; "
+                        f"{profile_name} requires audited X5R capacitor {profile['capacitorLcsc']}",
+                        "error",
+                    )
+                )
+            expected_farads = float(profile["capacitorFarads"])
+            if cap.capacitance is None or not math.isclose(
+                cap.capacitance, expected_farads, rel_tol=1e-9, abs_tol=1e-15
+            ):
+                out.append(
+                    finding(
+                        cap_ref,
+                        "power_intent_regulator_capacitor_value",
+                        f"{cap_ref} compiles as {cap.capacitance!r}F; "
+                        f"{profile_name} requires {expected_farads * 1e6:g}uF",
+                        "error",
+                    )
+                )
+            cap_records = ports.get(cap_ref, {})
+            rail_records = [
+                record
+                for record in cap_records.values()
+                if rail is not None and record[1] is not None and record[1].key == rail.key
+            ]
+            ground_records = [
+                record
+                for record in cap_records.values()
+                if ground is not None
+                and record[1] is not None
+                and record[1].key == ground.key
+            ]
+            geometry_failure = ""
+            if len(rail_records) != 1 or len(ground_records) != 1 or len(cap_records) != 2:
+                geometry_failure = f"{cap_ref} does not bridge {rail.label if rail else role + ' rail'} to GND"
+            elif regulator_port is None or not _authored_edge(
+                board, regulator_port[0], rail_records[0][0]
+            ):
+                geometry_failure = f"{ref}.{pin_names[role]} has no authored two-port branch to {cap_ref}"
+            elif component.layer != cap.layer:
+                geometry_failure = f"{cap_ref} is on {cap.layer}, not {component.layer} with {ref}"
+            else:
+                regulator_rect = pads.get(regulator_port[0])
+                cap_rect = pads.get(rail_records[0][0])
+                if regulator_rect is None or cap_rect is None:
+                    geometry_failure = "supply/capacitor pad copper is not measurable"
+                else:
+                    gap = max(0.0, regulator_rect.gap_to(cap_rect))
+                    if gap > float(profile["maxCapPadGapMm"]) + 1e-9:
+                        geometry_failure = (
+                            f"{cap_ref} is {gap:.3f}mm pad-edge from {ref}.{pin_names[role]}; "
+                            f"the audited maximum is {profile['maxCapPadGapMm']:g}mm"
+                        )
+            if geometry_failure:
+                out.append(
+                    finding(
+                        cap_ref,
+                        "power_intent_regulator_capacitor_topology",
+                        geometry_failure,
+                        "error",
+                    )
+                )
+
+        if input_net is None or output_net is None:
+            continue
+        peak_ma, unknown = _regulator_peak_current(
+            board, output_net, ref, {input_cap_ref, output_cap_ref}
+        )
+        if unknown:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_load_unknown",
+                    f"{ref}'s {output_name} peak cannot be proven: " + ", ".join(unknown),
+                    "error",
+                )
+            )
+        if peak_ma is None:
+            continue
+        max_load = float(profile["maxContinuousOutputMa"])
+        if peak_ma > max_load + 1e-9:
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_load_budget",
+                    f"{ref}'s compiled datasheet-peak load is {peak_ma:.3f}mA; "
+                    f"{profile_name} is approved for at most {max_load:g}mA continuous",
+                    "error",
+                )
+            )
+        output_volts = float(profile["outputVolts"])
+        max_input = float(profile["maxInputVolts"])
+        ground_ma = float(profile["maxGroundCurrentMa"])
+        watts = (max_input - output_volts) * (peak_ma + ground_ma) / 1000.0
+        junction = max_ambient + watts * float(
+            profile["thetaJaCPerW"]
+        )
+        headroom = float(profile["designMaxJunctionC"]) - junction
+        if headroom + 1e-9 < float(profile["minThermalHeadroomC"]):
+            out.append(
+                finding(
+                    ref,
+                    "power_intent_regulator_thermal",
+                    f"{ref} reaches {junction:.2f}C at {max_input:g}V input, "
+                    f"{peak_ma:.3f}mA peak and {max_ambient:g}C ambient "
+                    f"using {profile['thetaJaCPerW']:g}C/W; only {headroom:.2f}C "
+                    f"remains to the {profile['designMaxJunctionC']:g}C design limit, "
+                    f"below the required {profile['minThermalHeadroomC']:g}C",
+                    "error",
+                )
+            )
+    return out
 
 
 @never_raises
@@ -413,9 +879,16 @@ def _usb(board: Board, policy: dict[str, Any]) -> list[Finding]:
 
 def check(board: Board, intent: dict[str, Any] | None = None) -> CheckResult:
     policy = intent if isinstance(intent, dict) else {}
-    findings = _usb(board, policy)
-    declared = 1 if isinstance(policy.get("usb"), dict) else 0
-    coverage = Coverage(unit="declared power budgets", total=declared, examined=declared)
+    findings = _usb(board, policy) + _regulators(board, policy)
+    usb_declared = 1 if isinstance(policy.get("usb"), dict) else 0
+    raw_regulators = policy.get("regulators")
+    regulator_count = len(raw_regulators) if isinstance(raw_regulators, list) else 0
+    declared = usb_declared + regulator_count
+    coverage = Coverage(
+        unit="declared power boundaries",
+        total=declared,
+        examined=declared,
+    )
     if not policy:
         coverage.skip(
             "product.json has no powerBudget policy; USB attach/current intent is unknown"
@@ -434,5 +907,7 @@ def check(board: Board, intent: dict[str, Any] | None = None) -> CheckResult:
             "raw attach capacitance is summed only before the declared limiter boundary",
             "the current-limit range is tied to the populated setting resistor, value, and return topology",
             "firmware limits never erase the matched load family's physical peak",
+            "regulator thermal constants and capacitor technology come from an audited profile, never product-authored numbers",
+            "regulator load is measured from compiled datasheet-peak consumers at worst-case input and ambient",
         ],
     )

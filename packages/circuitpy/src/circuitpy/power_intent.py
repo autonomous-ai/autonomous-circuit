@@ -16,7 +16,7 @@ from typing import Any, NoReturn
 
 from circuitpy.errors import ProjectShapeError
 
-_TOP_LEVEL_KEYS = {"usb"}
+_TOP_LEVEL_KEYS = {"usb", "regulators"}
 _USB_KEYS = {
     "rawVbusNet",
     "protectedVbusNet",
@@ -47,6 +47,22 @@ _LOAD_KEYS = {
     "perDevicePhysicalPeakMa",
     "aggregateOperationalMaxMa",
 }
+_REGULATOR_KEYS = {
+    "profile",
+    "ref",
+    "inputNet",
+    "outputNet",
+    "inputCapRef",
+    "outputCapRef",
+    "maxAmbientC",
+}
+
+# A regulator profile is reviewed engineering evidence, not a bag of thermal
+# numbers a generated product may choose for itself.  The independent
+# verifylib copy owns the artifact-side constants (part identity, pinout,
+# capacitor identities and thermal model); this registry merely limits the
+# product schema to profiles the pipeline knows how to verify.
+AUDITED_REGULATOR_PROFILES = frozenset({"ap7361c-33e-c500795-v1"})
 
 
 def _fail(path: str, detail: str) -> NoReturn:
@@ -107,6 +123,65 @@ def validate_power_budget(raw: object) -> dict[str, Any]:
     unknown = sorted(set(raw) - _TOP_LEVEL_KEYS)
     if unknown:
         _fail("powerBudget", f"contains unknown member(s): {', '.join(unknown)}")
+
+    regulators = raw.get("regulators", [])
+    if not isinstance(regulators, list):
+        _fail("powerBudget.regulators", "must be a list")
+    seen_refs: set[str] = set()
+    seen_outputs: set[str] = set()
+    seen_caps: set[str] = set()
+    for index, regulator in enumerate(regulators):
+        path = f"powerBudget.regulators[{index}]"
+        if not isinstance(regulator, dict):
+            _fail(path, f"must be an object (got {type(regulator).__name__})")
+        unknown = sorted(set(regulator) - _REGULATOR_KEYS)
+        missing = sorted(_REGULATOR_KEYS - set(regulator))
+        if unknown:
+            _fail(path, f"contains unknown member(s): {', '.join(unknown)}")
+        if missing:
+            _fail(path, f"is missing member(s): {', '.join(missing)}")
+        profile = _string(regulator.get("profile"), f"{path}.profile")
+        if profile not in AUDITED_REGULATOR_PROFILES:
+            _fail(
+                f"{path}.profile",
+                "must select an audited regulator profile "
+                f"({', '.join(sorted(AUDITED_REGULATOR_PROFILES))})",
+            )
+        ref = _string(regulator.get("ref"), f"{path}.ref")
+        input_net = _string(regulator.get("inputNet"), f"{path}.inputNet")
+        output_net = _string(regulator.get("outputNet"), f"{path}.outputNet")
+        input_cap = _string(regulator.get("inputCapRef"), f"{path}.inputCapRef")
+        output_cap = _string(regulator.get("outputCapRef"), f"{path}.outputCapRef")
+        max_ambient = _number(
+            regulator.get("maxAmbientC"), f"{path}.maxAmbientC"
+        )
+        # Ambient is a product requirement, not a part constant.  Requiring at
+        # least the indoor-consumer design floor prevents a generated product
+        # from making the thermal proof pass by claiming an unrealistically
+        # cold room; the part's audited operating ceiling remains 85degC.
+        if max_ambient < 50.0 or max_ambient > 85.0:
+            _fail(f"{path}.maxAmbientC", "must be between 50 and 85 degC")
+        if input_net == output_net:
+            _fail(f"{path}.outputNet", "must differ from inputNet")
+        if len({ref, input_cap, output_cap}) != 3:
+            _fail(path, "requires distinct regulator/input-cap/output-cap references")
+        if ref in seen_refs:
+            _fail(f"{path}.ref", f"duplicates regulator reference {ref!r}")
+        if output_net in seen_outputs:
+            _fail(
+                f"{path}.outputNet",
+                f"duplicates regulated output {output_net!r}; two sources may not fight",
+            )
+        duplicate_caps = sorted({input_cap, output_cap} & seen_caps)
+        if duplicate_caps:
+            _fail(
+                path,
+                "reuses capacitor reference(s) already owned by another regulator: "
+                + ", ".join(duplicate_caps),
+            )
+        seen_refs.add(ref)
+        seen_outputs.add(output_net)
+        seen_caps.update((input_cap, output_cap))
 
     usb = raw.get("usb")
     if usb is None:
