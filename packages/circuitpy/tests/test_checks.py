@@ -590,6 +590,42 @@ class BomGate(unittest.TestCase):
             [],
         )
 
+    def test_missing_exact_lock_entry_blocks_assembly(self) -> None:
+        """An exporter-supplied C-number is not a reproducible parts lock."""
+        warnings = checks.bom_gate(
+            [{"designator": "U1", "lcsc": "C333"}],
+            assembly=True,
+            parts_lock={},
+        )
+        self.assertEqual(
+            [(w["part"], w["kind"], w["severity"]) for w in warnings],
+            [("U1", "part_lock_missing", "error")],
+        )
+
+    def test_missing_exact_lock_entry_only_advises_bare_pcb(self) -> None:
+        warnings = checks.bom_gate(
+            [{"designator": "U1", "lcsc": "C333"}],
+            assembly=False,
+            parts_lock={},
+        )
+        self.assertEqual(warnings[0]["kind"], "part_lock_missing")
+        self.assertEqual(warnings[0]["severity"], "info")
+
+    def test_empty_lock_reports_every_populated_sourced_ref(self) -> None:
+        warnings = checks.bom_gate(
+            [
+                {"designator": "R1", "lcsc": "C111"},
+                {"designator": "U1", "lcsc": "C333"},
+                {"designator": "TP1", "comment": "testpoint", "lcsc": ""},
+            ],
+            assembly=True,
+            parts_lock={},
+        )
+        self.assertEqual(
+            [(w["part"], w["kind"]) for w in warnings],
+            [("R1", "part_lock_missing"), ("U1", "part_lock_missing")],
+        )
+
     def test_stale_parts_lock_entry_blocks_assembly(self) -> None:
         rows = [
             {
@@ -614,9 +650,19 @@ class BomGate(unittest.TestCase):
 
     def test_stale_parts_lock_entry_only_advises_bare_pcb(self) -> None:
         warnings = checks.bom_gate(
-            [{"designator": "R1", "lcsc": "C111"}],
+            [
+                {
+                    "designator": "R1",
+                    "lcsc": "C111",
+                    "lock_id": "R1",
+                    "lock": {"lcsc": "C111"},
+                }
+            ],
             assembly=False,
-            parts_lock={"R99": {"lcsc": "C999"}},
+            parts_lock={
+                "R1": {"lcsc": "C111"},
+                "R99": {"lcsc": "C999"},
+            },
         )
         self.assertEqual(warnings[0]["kind"], "part_lock_stale")
         self.assertEqual(warnings[0]["severity"], "info")

@@ -16,7 +16,8 @@ Kind sources (contract §1):
   stage 3 — ``erc_violation`` / ``drc_violation`` (kicad report parser),
             ``kicad_unavailable`` (info);
   stage 4 — ``dfm_*``, ``part_not_orderable``, ``extended_part``,
-            ``part_drift``, ``part_lock_stale``, ``board_exceeds_envelope``;
+            ``part_drift``, ``part_lock_missing``, ``part_lock_stale``,
+            ``board_exceeds_envelope``;
   anywhere — ``check_failed`` (a verifier itself raised).
 """
 
@@ -1242,11 +1243,12 @@ def bom_gate(
 
     ``part_not_orderable`` blocks assembly packets (error) and merely advises
     bare-PCB ones (info). ``part_drift`` blocks assembly when the compiled BOM
-    disagrees with a matched ``parts.json`` identity. ``part_lock_stale``
-    blocks an assembly lock entry that names no populated compiled BOM row;
-    a compiled DNP is therefore stale too: an assembly parts lock describes
-    populated supplier identities, not every source component. ``extended_part``
-    advises about the loading fee. Never raises.
+    disagrees with a matched ``parts.json`` identity. ``part_lock_missing``
+    blocks a populated, sourced BOM row with no exact lock entry;
+    ``part_lock_stale`` blocks a lock entry that names no populated compiled
+    BOM row. A compiled DNP is therefore stale too: an assembly parts lock
+    describes populated supplier identities, not every source component.
+    ``extended_part`` advises about the loading fee. Never raises.
     """
     try:
         warnings: list[Warning] = []
@@ -1264,6 +1266,17 @@ def bom_gate(
                 # on it made test points impossible to add — while the review
                 # panel's testability lens asks for them on every rail.
                 continue
+            if parts_lock is not None and lock is None:
+                warnings.append(
+                    _warning(
+                        designator,
+                        "part_lock_missing",
+                        f"the populated BOM contains {designator} but parts.json "
+                        "has no exact matching component ref — regenerate the "
+                        "parts lock from the selected blocks before ordering",
+                        "error" if assembly else "info",
+                    )
+                )
             if not lcsc:
                 warnings.append(
                     _warning(
