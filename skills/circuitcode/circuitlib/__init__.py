@@ -13,12 +13,12 @@ Import what you need; never retype a number:
     from circuitlib.blocks import BLOCKS, block_for
     from circuitlib.helpers import (
         board_plan, validate_board_law, trace_width_for, decoupling_for,
-        estimate_cost, fab_profile,
+        usb_power_budget_for_plan, estimate_cost, fab_profile,
     )
 """
 
 from circuitlib import blocks, golden, helpers, safety, tables
-from circuitlib.blocks import BLOCKS, Block, Part, block_for
+from circuitlib.blocks import BLOCKS, Block, Part, UsbSourceContract, block_for
 from circuitlib.helpers import (
     BoardPlan,
     board_plan,
@@ -28,14 +28,16 @@ from circuitlib.helpers import (
     fab_profile,
     power_budget,
     trace_width_for,
+    usb_power_budget_for_plan,
     validate_board_law,
 )
 from circuitlib.safety import Verdict, safety_gate
 
 __all__ = [
     "tables", "blocks", "safety", "helpers", "golden",
-    "BLOCKS", "Block", "Part", "block_for",
+    "BLOCKS", "Block", "Part", "UsbSourceContract", "block_for",
     "BoardPlan", "board_plan", "validate_board_law", "trace_width_for",
-    "clearance_for", "decoupling_for", "power_budget", "estimate_cost",
+    "clearance_for", "decoupling_for", "power_budget",
+    "usb_power_budget_for_plan", "estimate_cost",
     "fab_profile", "safety_gate", "Verdict",
 ]

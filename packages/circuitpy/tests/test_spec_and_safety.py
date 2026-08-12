@@ -30,7 +30,46 @@ class ProductResolution(unittest.TestCase):
         self.assertEqual(product.power, "usb-c-5v")
         self.assertEqual(product.envelope_mm, (60.0, 40.0))
         self.assertTrue(product.assembly)
+        self.assertEqual(product.assembly_tier, "economic")
         self.assertEqual(product.fab, "jlcpcb")
+
+    def test_standard_assembly_tier(self) -> None:
+        product = self._load(circuitproj.product_dict(assembly_tier="standard"))
+        self.assertEqual(product.assembly_tier, "standard")
+
+    def test_layout_contract_is_resolved(self) -> None:
+        payload = circuitproj.product_dict()
+        payload["layout"] = {
+            "boardSizeMm": [60, 40],
+            "groundPlanes": {"layers": ["bottom"]},
+            "componentZones": [
+                {
+                    "match": "U*",
+                    "containment": "center",
+                    "shape": {
+                        "kind": "circle",
+                        "center": [0, 0],
+                        "radiusMm": 15,
+                    },
+                }
+            ],
+        }
+        product = self._load(payload)
+        self.assertEqual(product.layout["boardSizeMm"], [60, 40])
+        self.assertEqual(product.layout["componentZones"][0]["match"], "U*")
+
+    def test_bad_layout_contract_fails_at_spec_time(self) -> None:
+        payload = circuitproj.product_dict()
+        payload["layout"] = {"groundPlane": "bottom"}
+        with self.assertRaisesRegex(ProjectShapeError, "unknown member"):
+            self._load(payload)
+
+    def test_bad_assembly_tier(self) -> None:
+        for value in ("two-sided", None, True, 2):
+            with self.subTest(value=value), self.assertRaises(ProjectShapeError):
+                payload = circuitproj.product_dict()
+                payload["assemblyTier"] = value
+                self._load(payload)
 
     def test_missing_product_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

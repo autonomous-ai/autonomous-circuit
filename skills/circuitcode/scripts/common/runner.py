@@ -83,18 +83,16 @@ def _default_wall_clock_s() -> float:
     seconds, on a cold toolchain cache. ``CIRCUIT_WALL_CLOCK_S`` overrides
     this explicitly.
 
-    **Raised from 300s to 2700s on 2026-08-11.** Two measurements forced it.
-    The pipeline now escalates the autorouter to 5x when the first pass comes
-    back with routing errors, and a 5x pass on a 58-line board took over ten
-    minutes — harness-puck measured 1240s at 5x, and it went from 5 blocking
-    errors to 1 — and the largest example board takes about seventeen. The
-    budget has to cover the first attempt plus the escalated one, so 2700s.
-    At 300s the escalation could never finish, so the budget was silently
-    cancelling the single biggest lever we have on first-build fab-ready rate. Dee, the same
-    day: *"even if you send 1-day, 2-day or even 3-day to get the build right
-    and verify everything, that's still better than waiting 2 weeks from
-    JLCPCB."* A build that takes twenty minutes and comes back orderable beats
-    one that takes four and comes back with eighteen errors.
+    **Raised from 300s to 2700s on 2026-08-11.** Cold dense-board routes,
+    independent KiCad verification, and the one bounded alternate routing
+    candidate legitimately take minutes. The earlier claim that ``5x`` itself
+    improved harness/Terminal is withdrawn: the old route-cache identity
+    omitted effort, so those comparisons were not controlled. The longer
+    budget is a ceiling, not a promise that extra effort improves geometry;
+    every candidate still has to finish and beat the first parsed artifact.
+    Dee, the same day: *"even if you send 1-day, 2-day or even 3-day to get the
+    build right and verify everything, that's still better than waiting 2
+    weeks from JLCPCB."*
     """
     override = os.environ.get("CIRCUIT_WALL_CLOCK_S", "").strip()
     if override:

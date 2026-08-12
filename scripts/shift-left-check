@@ -29,33 +29,39 @@ REPO = Path(__file__).resolve().parent.parent
 CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
     (
         1,
-        "USB-C alignment drills are inside a keepout the router must respect",
+        "each USB-C alignment drill has its exact component-local keepout",
         "packages/golden-blocks/blocks/usb-c-power/usb-c-power.tsx",
-        r"<keepout",
+        r'<keepout shape="rect" pcbX="-2\.899918mm" pcbY="0\.9055672mm"[\s\S]*?width="1\.02mm" height="1\.02mm"[\s\S]*?<keepout shape="rect" pcbX="2\.899918mm" pcbY="0\.9055672mm"[\s\S]*?width="1\.02mm" height="1\.02mm"',
     ),
     (
         2,
-        "pour hole-margin is derived from the 32-gon chord, not guessed",
-        "packages/golden-blocks/blocks/glue.tsx",
-        r"POUR_CUTOUT_MARGIN_MM",
+        "a compiled GndPour clears the chord floor rather than only naming a constant",
+        "packages/golden-blocks/tests/test_glue_safety.py",
+        r"test_gnd_pour_emits_safe_32_spoke_hole_cutout",
+    ),
+    (
+        15,
+        "Hydrate's authored pours consume the shared cutout-margin constant",
+        "examples/hydrate-coaster/boards/main.tsx",
+        r"import[\s\S]*POUR_CUTOUT_MARGIN_MM[\s\S]*cutoutMargin=\{`\$\{POUR_CUTOUT_MARGIN_MM\}mm`\}[\s\S]*cutoutMargin=\{`\$\{POUR_CUTOUT_MARGIN_MM\}mm`\}",
     ),
     (
         7,
-        "a new project's first board uses MountingHole, which carries a keepout",
-        "skills/circuitcode/templates/project_skeleton/boards/main.tsx",
-        r"<MountingHole",
+        "MountingHole emits a concentric two-face keepout with drill-edge margin",
+        "packages/golden-blocks/tests/test_glue_safety.py",
+        r"test_mounting_hole_emits_concentric_two_face_keepout",
     ),
     (
         3,
-        "placement plans from measured block boxes, not assumed-centred sizes",
-        "skills/circuitcode/circuitlib/layout.py",
-        r"def place_board",
+        "every plannable block has a measured box before placement",
+        "skills/circuitcode/tests/test_circuitlib.py",
+        r"test_measured_extents_are_plausible[\s\S]*?assertEqual\(set\(BLOCK_BOX_MM\), set\(BLOCKS\)\)",
     ),
     (
-        4,
-        "a routing-class failure retries at higher router effort",
-        "packages/circuitpy/src/circuitpy/generation.py",
-        r"autorouterEffortLevel",
+        3,
+        "the protected USB plan reaches placement without a metadata gap",
+        "skills/circuitcode/tests/test_circuitlib.py",
+        r"test_a_protected_usb_plan_reaches_placement_without_metadata_gaps",
     ),
     (
         5,
@@ -76,10 +82,172 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         r"kicad_normalize\.normalize_for_fab",
     ),
     (
+        16,
+        "the final composite Gerber proves a later negative mask flash clears silk",
+        "packages/verify/tests/test_gerber.py",
+        r"test_silk_cleared_by_a_later_negative_pad_flash_is_not_reported",
+    ),
+    (
+        26,
+        "populated reference text is relocated before subtraction can clip it",
+        "packages/circuitpy/tests/test_kicad_normalize.py",
+        r"test_reference_is_relocated_before_mask_subtraction_can_clip_it",
+    ),
+    (
+        26,
+        "Gerber silk checks retain dark/clear plot polarity",
+        "packages/verify/src/verifylib/gerber.py",
+        r"_LP_RE",
+    ),
+    (
+        28,
+        "sidecars identify the exact patched router bundles",
+        "packages/circuitpy/src/circuitpy/toolchain.py",
+        r"checksBundleSha256[\s\S]*coreBundleSha256",
+    ),
+    (
+        28,
+        "the example ratchet refuses stale toolchain evidence",
+        "evals/examples_lock.py",
+        r"StaleToolchain",
+    ),
+    (
+        28,
+        "the example ratchet refuses structurally incomplete evidence",
+        "evals/tests/test_examples_lock.py",
+        r"test_incomplete_sidecars_fail_closed_and_cannot_be_accepted",
+    ),
+    (
+        28,
+        "example evidence requires an intact content-locked golden-block snapshot",
+        "evals/tests/test_examples_lock.py",
+        r"test_missing_or_drifted_golden_snapshot_is_invalid_evidence",
+    ),
+    (
+        28,
+        "golden-block synchronization preserves provenance and refuses local overwrite",
+        "scripts/tests/test_sync_golden_blocks.py",
+        r"test_sync_writes_a_deterministic_exact_snapshot_with_provenance[\s\S]*test_refresh_refuses_to_overwrite_a_modified_frozen_snapshot",
+    ),
+    (
+        28,
+        "legacy block adoption requires explicit replacement authority",
+        "scripts/tests/test_sync_golden_blocks.py",
+        r"test_first_migration_requires_explicit_authority_to_replace_unlocked_bytes",
+    ),
+    (
+        28,
+        "the golden-block lock participates in every board source fingerprint",
+        "packages/circuitpy/tests/test_source_hash.py",
+        r"test_golden_block_snapshot_lock_is_part_of_source_identity",
+    ),
+    (
+        28,
+        "an unlocked imported block is refused before any toolchain process",
+        "packages/circuitpy/tests/test_build_board_e2e.py",
+        r"test_unlocked_imported_block_is_refused_before_any_build",
+    ),
+    (
+        28,
+        "the review packet refuses incomplete and non-ready sidecars",
+        "scripts/tests/test_review_packet.py",
+        r"test_source_fresh_but_unready_sidecar_is_rejected[\s\S]*test_source_fresh_but_incomplete_sidecar_is_rejected",
+    ),
+    (
+        28,
+        "--accept cannot override a real example-board regression",
+        "evals/examples_lock.py",
+        r"--accept cannot record or ignore a regression",
+    ),
+    (
+        30,
+        "the claimed USB trip range is tested against exact setting resistor topology",
+        "packages/verify/tests/test_power_intent.py",
+        r"test_limiter_setting_resistor_identity_value_and_topology_are_measured",
+    ),
+    (
+        31,
+        "the USB power-entry benches use the product's real pad-clearance floors",
+        "packages/golden-blocks/testbench/usb-power-entry.tsx",
+        r'minTraceToPadEdgeClearance="0\.15mm"[\s\S]*minViaEdgeToPadEdgeClearance="0\.15mm"',
+    ),
+    (
+        31,
+        "the power-entry EN escape is a bounded transform-safe authored path",
+        "packages/golden-blocks/tests/test_bottom_transforms.py",
+        r'_assert_authored_route_mirror\(top, bottom, "TR_U7_en"\)[\s\S]*2\.182620920607784[\s\S]*<= 3\.0',
+    ),
+    (
+        31,
+        "every routed golden bench declares the real floors or remains an explicit blocker",
+        "packages/golden-blocks/tests/test_routing_board_contracts.py",
+        r"test_every_routing_enabled_bench_has_fail_closed_contract_status[\s\S]*test_routing_authoritative_benches_declare_real_board_floors[\s\S]*test_non_authoritative_routing_benches_remain_explicit_blockers",
+    ),
+    (
+        32,
+        "a manufacturer-specific decoupling distance is an explicit cited ref-scoped rule",
+        "packages/circuitpy/tests/test_layout_intent.py",
+        r"test_decoupling_overrides_are_explicit_typed_rules",
+    ),
+    (
+        32,
+        "the independent verifier rejects uncited, unmatched, and exclusion-conflicting overrides",
+        "packages/verify/tests/test_intent.py",
+        r"test_decoupling_override_is_a_ref_scoped_vendor_bound[\s\S]*test_decoupling_override_typo_and_exclusion_conflict_fail_closed",
+    ),
+    (
+        33,
+        "authoritative pipeline, golden, and eval CI cannot skip the KiCad substrate",
+        ".github/workflows/ci.yml",
+        r"name: Install KiCad CLI[\s\S]*?ppa:kicad/kicad-10\.0-releases[\s\S]*?name: Install KiCad CLI[\s\S]*?ppa:kicad/kicad-10\.0-releases[\s\S]*?name: Install kicad-cli[\s\S]*?ppa:kicad/kicad-10\.0-releases",
+    ),
+    (
+        34,
+        "mixed-width authored trees are graded by exact source-trace identity",
+        "scripts/tests/checks-source-trace-width-identity.test.mjs",
+        r"mixed-width authored trees use exact source_trace_id and retain fail-closed fallback[\s\S]*identityAbsent[\s\S]*actual: 0\\\.2mm[\s\S]*pcb_trace_trunk_duplicate[\s\S]*actual: 0\\\.6mm",
+    ),
+    (
+        35,
+        "every planner registry API exactly matches its live golden block",
+        "evals/tests/test_composition_contract.py",
+        r"REGISTERED_BLOCKS = tuple\(sorted\(BLOCKS\)\)[\s\S]*assert set\(INSTANTIATION\) == set\(REGISTERED_BLOCKS\)[\s\S]*assert set\(BLOCKS\[block_id\]\.props\) == declared",
+    ),
+    (
+        21,
+        "router effort is a bounded alternate candidate, never a universal first pass",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"primary_effort = _source_routing_effort\(entry_copy\)[\s\S]*?if _routing_blockers\(warnings\)[\s\S]*?_set_autorouter_effort\(entry_copy, ROUTING_ESCALATION_EFFORT\)[\s\S]*?retry_blocking < blocking_by_attempt\[0\]",
+    ),
+    (
+        21,
+        "cold 1x and 5x artifacts cannot share a stale whole-phase route",
+        "packages/circuitpy/tests/test_router_cache.py",
+        r"test_effort_change_is_a_cold_configuration_keyed_comparison",
+    ),
+    (
+        21,
+        "every routing candidate is content-addressed and publication checks the selected bytes",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"def routing_attempt_evidence_error[\s\S]*?selected circuit artifact does not match routing attempt evidence",
+    ),
+    (
+        21,
+        "the retry cannot reread attempt one's leftover circuit artifact",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"def _stash_completed_build_for_retry[\s\S]*?shutil\.rmtree\(built_dir\)[\s\S]*?_stash_completed_build_for_retry\(built_dir\)[\s\S]*?_compile_once\(budget\)",
+    ),
+    (
         8,
         "the planner refuses a board whose debug pins reach nothing",
         "skills/circuitcode/circuitlib/helpers.py",
-        r"debug_unreachable",
+        r"def buildable[\s\S]*?not self\.must_expose",
+    ),
+    (
+        8,
+        "the planner becomes buildable only after actual exposed nets are supplied",
+        "skills/circuitcode/tests/test_planner_budget.py",
+        r"test_the_plan_says_what_must_come_out[\s\S]*?assertFalse\(plan\.buildable\)[\s\S]*?exposed_nets=\[\"swclk\", \"swd\"\][\s\S]*?assertTrue\(debugged\.buildable\)",
     ),
     (
         13,
@@ -101,15 +269,111 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
     ),
     (
         10,
-        "mask slivers are judged between different parts, not inside one footprint",
-        "packages/verify/src/verifylib/gerber_truth.py",
-        r"gerber_mask_sliver_in_footprint",
+        "mask-sliver ownership distinguishes one footprint from two parts",
+        "packages/verify/tests/test_gerber.py",
+        r"test_mask_sliver_ownership_distinguishes_one_footprint_from_two_parts",
+    ),
+    (
+        11,
+        "local routing refuses an unrequested via inside an SMD pad",
+        "scripts/build/apply-toolchain-patches.mjs",
+        r"CAPACITY_VIA_IN_SMD_PAD_PREVENTION_PATCH",
+    ),
+    (
+        11,
+        "the core rejects cached and non-Pipeline7 via-in-pad output",
+        "scripts/tests/via-in-smd-pad.test.mjs",
+        r"core rejects illegal cached or non-P7 output before copper export",
+    ),
+    (
+        11,
+        "CI executes the complete deterministic router safety suite",
+        ".github/workflows/ci.yml",
+        r"node --test --test-concurrency=1 scripts/tests/\*\.test\.mjs",
+    ),
+    (
+        22,
+        "stage 4 measures via drills at the independent 0.20mm copper floor",
+        "packages/circuitpy/src/circuitpy/fab.py",
+        r"min_via_to_copper_mm:\s*float\s*=\s*0\.20",
+    ),
+    (
+        22,
+        "the two observed via-drill defects remain permanent corpus cases",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r'id="via-drill-to-track-at-0132mm"[\s\S]*id="via-drill-to-smd-pad-at-0148mm"',
+    ),
+    (
+        23,
+        "round and slotted drills use a swept-stadium geometry",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def _stadium\(",
+    ),
+    (
+        23,
+        "the USB-C slot endpoint cannot regress to a circle",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r'id="usb-c-slot-endpoint-modeled-as-a-circle"',
+    ),
+    (
+        24,
+        "the hole-clearance gate keeps legal own-pad copper connectable",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r'id="hole-rule-applied-to-the-hole-s-own-pad"',
+    ),
+    (
+        25,
+        "edge connectors keep their insertion datum at the board edge",
+        "skills/circuitcode/circuitlib/layout.py",
+        r"EDGE_CONNECTOR_INSET_MM if block_id in EDGE_BLOCKS else margin",
+    ),
+    (
+        29,
+        "hard-width regression covers fallback, terminal taper, and one-point routes",
+        "scripts/tests/explicit-trace-width.test.mjs",
+        r"must not fall back to 0\.20mm or 0\.15mm[\s\S]*terminal taper must not undercut[\s\S]*degenerate explicit connection must not silently use",
+    ),
+    (
+        29,
+        "the reusable USB block physically routes ordinary CC signals at 0.25mm",
+        "packages/golden-blocks/tests/test_bottom_transforms.py",
+        r'_route_widths\(g, name\) == \{0\.25\}',
     ),
     (
         6,
         "the RP2040 crystal sits inside the 10mm XIN limit",
         "packages/golden-blocks/blocks/rp2040-core/rp2040-core.tsx",
         r"(?i)crystal|Y1",
+    ),
+]
+
+#: (ledger #, what it prevents, file, regex that must *not* match)
+#: These pin copy-elimination lessons where the regression is the return of a
+#: duplicated literal rather than the disappearance of one implementation.
+FORBIDDEN_FIX_PATTERNS: list[tuple[int, str, str, str]] = [
+    (
+        21,
+        "the project skeleton must not impose an unverified router effort",
+        "skills/circuitcode/templates/project_skeleton/boards/main.tsx",
+        r"autorouterEffortLevel",
+    ),
+    (
+        15,
+        "Hydrate must not re-copy the pour cutout number",
+        "examples/hydrate-coaster/boards/main.tsx",
+        r"cutoutMargin\s*=\s*['\"]0\.25mm['\"]",
+    ),
+    (
+        15,
+        "the USB-C block guide must point at the shared constant",
+        "packages/golden-blocks/blocks/usb-c-power/BLOCK.md",
+        r"cutoutMargin\s*=\s*['\"]0\.25mm['\"]",
+    ),
+    (
+        15,
+        "the USB-C review must point at the shared constant",
+        "packages/golden-blocks/blocks/usb-c-power/REVIEW.md",
+        r"cutoutMargin\s*=\s*['\"]0\.25mm['\"]",
     ),
 ]
 
@@ -134,9 +398,41 @@ def open_entries() -> list[tuple[str, str]]:
     return rows
 
 
+def closed_ids() -> set[int]:
+    """Parse every numeric row in the Closed table.
+
+    The checker used to verify only the hand-maintained claim list. A new
+    Closed row could therefore have no ratchet at all and CI would stay green.
+    Requiring set equality makes adding a ledger row and adding its executable
+    proof one atomic change.
+    """
+    text = (REPO / "docs" / "lessons.md").read_text()
+    try:
+        section = text.split("## Closed —", 1)[1].split("## Open —", 1)[0]
+    except IndexError:
+        return set()
+    ids: set[int] = set()
+    for line in section.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or line.startswith("|---") or "Defect" in line:
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if cells and cells[0].isdigit():
+            ids.add(int(cells[0]))
+    return ids
+
+
 def main() -> int:
     print("Claimed fixes — is each one still in the tree?\n")
     missing = 0
+    ledger_ids = closed_ids()
+    claimed_ids = {num for num, *_ in CLAIMED_FIXES + FORBIDDEN_FIX_PATTERNS}
+    for num in sorted(ledger_ids - claimed_ids):
+        print(f"  MISSING  #{num}  closed ledger row has no executable ratchet")
+        missing += 1
+    for num in sorted(claimed_ids - ledger_ids):
+        print(f"  MISSING  #{num}  ratchet claims a defect that is not Closed")
+        missing += 1
     for num, what, rel, pattern in sorted(CLAIMED_FIXES):
         path = REPO / rel
         if not path.exists():
@@ -148,6 +444,18 @@ def main() -> int:
         else:
             print(f"  MISSING  #{num}  {what}\n           {rel} no longer matches /{pattern}/")
             missing += 1
+
+    for num, what, rel, pattern in sorted(FORBIDDEN_FIX_PATTERNS):
+        path = REPO / rel
+        if not path.exists():
+            print(f"  MISSING  #{num}  {what}\n           file is gone: {rel}")
+            missing += 1
+            continue
+        if re.search(pattern, path.read_text()):
+            print(f"  MISSING  #{num}  {what}\n           {rel} unexpectedly matches /{pattern}/")
+            missing += 1
+        else:
+            print(f"  ok       #{num}  {what}")
 
     rows = open_entries()
     if rows:
@@ -161,7 +469,8 @@ def main() -> int:
         print(f"FAIL — {missing} claimed fix(es) are not in the tree.")
         print("Either restore the fix or move its ledger entry back to Open.")
         return 1
-    print(f"PASS — {len(CLAIMED_FIXES)} fixes verified, {len(rows)} defects still open.")
+    verified = len(CLAIMED_FIXES) + len(FORBIDDEN_FIX_PATTERNS)
+    print(f"PASS — {verified} fixes verified, {len(rows)} defects still open.")
     if rows:
         print("Open defects are not failures. They are the backlog that decides")
         print("whether the next user's board hits what these three boards taught us.")

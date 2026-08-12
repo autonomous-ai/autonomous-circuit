@@ -15,6 +15,7 @@ from circuitlib.blocks import (
     CAPABILITY_INDEX,
     block_for,
     missing_requirements,
+    peak_ma_for_rail,
     total_peak_ma,
     unexposed_nets,
 )
@@ -104,17 +105,55 @@ class BoardPlan:
     current_ma: float
     est_parts_cost_usd: float
     peak_current_ma: float = 0.0
+    #: Preferred width for ordinary board-level signals. Fine-pitch package
+    #: escapes and impedance-controlled interfaces declare their own short or
+    #: calculated widths; this value never raises the board-wide minimum.
+    signal_trace_width_mm: float = tables.PREFERRED_SIGNAL_TRACE_WIDTH_MM
     power_trace_width_mm: float = 0.0
+    power_trunk_width_mm: float = 0.0
+    power_neckdown_width_mm: float = tables.POWER_NECKDOWN_WIDTH_MM
+    power_neckdown_max_length_mm: float = tables.POWER_NECKDOWN_MAX_LENGTH_MM
+    preferred_clearance_mm: float = tables.PREFERRED_CLEARANCE_MM
+    # Two solved, stitched faces are the ordinary two-layer-board contract.
+    # A one-face plane remains an explicit board choice, but must not be the
+    # generator's silent default: it lengthens return paths and makes
+    # opposite-side components depend on routed GND spokes.
+    ground_plane_layers: tuple[str, ...] = ("top", "bottom")
+    ground_fanout_max_length_mm: float = tables.GROUND_FANOUT_MAX_LENGTH_MM
+    ground_stitching_pitch_mm: float = tables.GROUND_STITCHING_PITCH_MM
     must_expose: tuple[str, ...] = ()
     regulator: dict[str, object] | None = None
+    #: Protected-source contract selected by the block plan. Physical peak is
+    #: never replaced by a firmware number; ``operational_load_ma`` applies
+    #: only to the normal-load/trip comparison.
+    source_budget: dict[str, object] | None = None
 
     @property
     def overheats(self) -> bool:
-        return bool(self.regulator and self.regulator.get("severity") == "error")
+        # Planning is where we still have the freedom to choose a sound power
+        # architecture. A regulator with less than 30degC junction headroom at
+        # the declared hot ambient is already a rejected plan, not a warning
+        # to discover after a complete layout. The artifact verifier keeps the
+        # warning severity useful for an existing board; the generator must
+        # not deliberately create that board in the first place.
+        return bool(
+            self.regulator
+            and self.regulator.get("severity") in {"warning", "error"}
+        )
 
     @property
     def buildable(self) -> bool:
-        return not self.unmet and not self.unavailable and not self.overheats
+        source_over_budget = bool(
+            self.source_budget
+            and self.source_budget.get("severity") == "error"
+        )
+        return (
+            not self.unmet
+            and not self.unavailable
+            and not self.must_expose
+            and not self.overheats
+            and not source_over_budget
+        )
 
 
 def board_plan(
@@ -122,6 +161,9 @@ def board_plan(
     capabilities: list[str],
     counts: dict[str, int] | None = None,
     power_source: str = "usb-c-5v",
+    supply_rail_overrides: dict[str, str] | None = None,
+    firmware_load_caps_ma: dict[str, float] | None = None,
+    exposed_nets: list[str] | None = None,
 ) -> BoardPlan:
     """Turn a capability list into a concrete block set, sized and budgeted.
 
@@ -131,7 +173,14 @@ def board_plan(
 
     ``counts`` gives unit counts for parametric blocks (``{"ws2812-chain": 8}``);
     without one a parametric block is counted as a single unit, which
-    understates its peak.
+    understates its peak. ``firmware_load_caps_ma`` may replace one chosen
+    block family's physical peak only for the source's *normal-operation*
+    comparison. The physical number remains in the plan for copper, fault and
+    product-policy generation; an omitted cap can therefore make a high-peak
+    USB plan honestly unbuildable. ``exposed_nets`` names signals that the
+    board composition really brings to a connector or probe. An MCU plan with
+    unresolved SWD obligations remains unbuildable rather than merely carrying
+    an advisory tuple that callers can ignore.
     """
     chosen: list[str] = []
     unavailable: list[str] = []
@@ -164,20 +213,93 @@ def board_plan(
     cost = sum(len(BLOCKS[b].parts) for b in chosen) * 0.6  # rough, marked estimate
 
     width = trace_width_for(current_a=peak / 1000.0) if peak > 0 else 0.0
+    trunk_width = max(width, tables.POWER_TRUNK_MIN_MM) if peak > 0 else 0.0
 
     regulator: dict[str, object] | None = None
-    if "ldo-3v3" in chosen and peak > 0:
-        # The LDO passes everything downstream of it. Charging it with the
-        # whole rail overstates slightly (its own quiescent is counted twice)
-        # and that is the safe direction for a thermal number.
+    regulator_block = BLOCKS.get("ldo-3v3")
+    regulator_rail = (
+        regulator_block.regulator_output_rail if regulator_block else ""
+    )
+    regulator_load_ma = peak_ma_for_rail(
+        chosen,
+        regulator_rail,
+        counts,
+        supply_rail_overrides,
+    ) if regulator_rail else 0.0
+    if "ldo-3v3" in chosen and regulator_load_ma > 0:
+        # Only loads supplied by the regulator's output heat it.  A V5 pixel
+        # ring still counts in the source/copper budget above, but does not
+        # magically flow through the 3V3 LDO.
         regulator = regulator_thermal(
             vin=tables.USB_VBUS_V if hasattr(tables, "USB_VBUS_V") else 5.0,
             vout=3.3,
-            current_a=peak / 1000.0,
+            current_a=regulator_load_ma / 1000.0,
             package="SOT-223",
             ambient_c=AMBIENT_HOT_C,
         )
         regulator["refdes"] = "U2"
+        regulator["output_rail"] = regulator_rail
+        regulator["load_ma"] = round(regulator_load_ma, 1)
+
+    source_budget: dict[str, object] | None = None
+    source_blocks = [
+        BLOCKS[block_id]
+        for block_id in chosen
+        if BLOCKS[block_id].source_operational_limit_ma > 0
+    ]
+    if source_blocks and power_source == "usb-c-5v":
+        source = source_blocks[0]
+        caps = dict(firmware_load_caps_ma or {})
+        operational = peak
+        normalized_caps: dict[str, float] = {}
+        limited_loads: dict[str, dict[str, float | int]] = {}
+        for block_id, raw_cap in caps.items():
+            if block_id not in chosen:
+                raise ValueError(
+                    f"firmware current cap names unselected block {block_id!r}"
+                )
+            if isinstance(raw_cap, bool) or not isinstance(raw_cap, (int, float)):
+                raise ValueError(
+                    f"firmware current cap for {block_id!r} must be a number"
+                )
+            cap = float(raw_cap)
+            units = (counts or {}).get(
+                block_id,
+                1 if BLOCKS[block_id].unit_prop else 0,
+            )
+            physical = BLOCKS[block_id].peak_ma(units)
+            if cap < 0 or cap > physical + 1e-9:
+                raise ValueError(
+                    f"firmware current cap for {block_id!r} must be between "
+                    f"0 and its {physical:g}mA physical peak (got {cap:g})"
+                )
+            operational += cap - physical
+            normalized_caps[block_id] = cap
+            limited_loads[block_id] = {
+                "count": max(units, 0),
+                "per_device_physical_peak_ma": (
+                    BLOCKS[block_id].peak_per_unit_ma or physical
+                ),
+                "physical_peak_ma": physical,
+                "operational_max_ma": cap,
+            }
+
+        limit = source.source_operational_limit_ma
+        fixed_operational_load = peak - sum(
+            float(load["physical_peak_ma"])
+            for load in limited_loads.values()
+        )
+        source_budget = {
+            "block_id": source.id,
+            "physical_peak_ma": round(peak, 1),
+            "operational_load_ma": round(operational, 1),
+            "fixed_operational_load_ma": round(fixed_operational_load, 1),
+            "operational_limit_ma": limit,
+            "source_current_max_ma": source.source_current_max_ma,
+            "firmware_load_caps_ma": dict(sorted(normalized_caps.items())),
+            "firmware_limited_loads": dict(sorted(limited_loads.items())),
+            "severity": "error" if operational > limit + 1e-9 else "info",
+        }
 
     return BoardPlan(
         block_ids=tuple(chosen),
@@ -187,9 +309,112 @@ def board_plan(
         est_parts_cost_usd=round(cost, 2),
         peak_current_ma=round(peak, 1),
         power_trace_width_mm=width,
-        must_expose=tuple(unexposed_nets(chosen)),
+        power_trunk_width_mm=trunk_width,
+        must_expose=tuple(unexposed_nets(chosen, exposed_nets)),
         regulator=regulator,
+        source_budget=source_budget,
     )
+
+
+def usb_power_budget_for_plan(
+    plan: BoardPlan,
+    *,
+    firmware_load_matches: dict[str, str | list[str]] | None = None,
+) -> dict[str, object]:
+    """Compile a USB ``product.json.powerBudget`` from a buildable plan.
+
+    The planner owns the arithmetic and the protected-entry block owns the
+    limiter identity. The caller supplies only the product's actual refdes
+    pattern for each firmware-limited block family; that cannot be inferred
+    from a block id after a board allocates its global designators.
+    """
+    budget = plan.source_budget
+    if not isinstance(budget, dict):
+        raise ValueError("plan has no protected USB source budget")
+    if budget.get("severity") == "error":
+        raise ValueError(
+            "plan exceeds its protected USB operational limit; choose lower "
+            "firmware caps before generating product.json"
+        )
+    if not plan.buildable:
+        raise ValueError(
+            "plan is not buildable; resolve unmet capabilities, unavailable "
+            "blocks, debug/test-point exposure, and regulator heat before "
+            "generating product.json"
+        )
+    source_id = str(budget.get("block_id") or "")
+    source = BLOCKS.get(source_id)
+    contract = source.usb_source_contract if source is not None else None
+    if contract is None:
+        raise ValueError(f"plan source block {source_id!r} has no USB contract")
+
+    limited = budget.get("firmware_limited_loads")
+    if not isinstance(limited, dict):
+        limited = {}
+    matches = dict(firmware_load_matches or {})
+    missing = sorted(set(limited) - set(matches))
+    extra = sorted(set(matches) - set(limited))
+    if missing:
+        raise ValueError(
+            "firmware-limited block(s) need product refdes match patterns: "
+            + ", ".join(missing)
+        )
+    if extra:
+        raise ValueError(
+            "firmware load match names block(s) not capped by this plan: "
+            + ", ".join(extra)
+        )
+
+    product_loads: list[dict[str, object]] = []
+    for block_id in sorted(limited):
+        load = limited[block_id]
+        if not isinstance(load, dict):
+            raise ValueError(f"invalid source budget for {block_id!r}")
+        raw_match = matches[block_id]
+        patterns = [raw_match] if isinstance(raw_match, str) else list(raw_match)
+        if not patterns or not all(
+            isinstance(pattern, str) and pattern.strip() for pattern in patterns
+        ):
+            raise ValueError(
+                f"firmware load match for {block_id!r} must contain non-empty strings"
+            )
+        product_loads.append(
+            {
+                "match": [pattern.strip() for pattern in patterns],
+                "perDevicePhysicalPeakMa": float(
+                    load["per_device_physical_peak_ma"]
+                ),
+                "aggregateOperationalMaxMa": float(load["operational_max_ma"]),
+            }
+        )
+
+    return {
+        "usb": {
+            "rawVbusNet": contract.raw_net,
+            "protectedVbusNet": contract.protected_net,
+            "rawAttachCapacitanceMaxUf": contract.raw_attach_capacitance_max_uf,
+            "sourceCurrentMaxMa": contract.source_current_max_ma,
+            "fixedOperationalLoadMa": float(
+                budget.get("fixed_operational_load_ma") or 0.0
+            ),
+            "currentLimiter": {
+                "ref": contract.limiter_ref,
+                "lcsc": contract.limiter_lcsc,
+                "inputPin": contract.input_pin,
+                "outputPin": contract.output_pin,
+                "settingPin": contract.setting_pin,
+                "settingResistor": {
+                    "ref": contract.setting_resistor_ref,
+                    "lcsc": contract.setting_resistor_lcsc,
+                    "resistanceOhms": contract.setting_resistance_ohms,
+                    "returnNet": contract.setting_return_net,
+                },
+                "minTripMa": contract.min_trip_ma,
+                "maxTripMa": contract.max_trip_ma,
+            },
+            "firmwareLimitedLoads": product_loads,
+        }
+    }
 
 
 #: block id -> the block that subsumes it. When both land in a plan, only the
@@ -215,8 +440,15 @@ def _collapse_supersets(chosen: list[str]) -> list[str]:
 
 def power_budget(*, source: str, current_ma: float) -> list[dict[str, str]]:
     """Warn when the draw outruns what the source/regulator can give."""
-    limits_ma = {"usb-c-5v": 1500.0, "external-dc-lv": 1000.0,
-                 "battery-lipo-sealed-block": 500.0}
+    # Keep this legacy single-number helper aligned with the block planner's
+    # protected USB entry.  An unadvertised USB-C sink is a 500mA source, not
+    # the historical 1.5A guess.  ``board_plan`` applies the stricter 400.6mA
+    # normal-operation/trip contract and preserves physical peak separately.
+    limits_ma = {
+        "usb-c-5v": BLOCKS["usb-power-entry"].source_current_max_ma,
+        "external-dc-lv": 1000.0,
+        "battery-lipo-sealed-block": 500.0,
+    }
     limit = limits_ma.get(source)
     if limit is None:
         return [{
@@ -437,6 +669,7 @@ def validate_board_law(
     power_source: str | None = None,
     board_mm: tuple[float, float] | None = None,
     counts: dict[str, int] | None = None,
+    supply_rail_overrides: dict[str, str] | None = None,
     exposed_nets: list[str] | None = None,
     power_trace_width_mm: float | None = None,
     envelope_mm: tuple[float, float] | None = None,
@@ -506,9 +739,20 @@ def validate_board_law(
 
             # 2. A linear regulator asked to drop more heat than its package
             #    can shed. Arithmetic on numbers the plan already has.
-            if "ldo-3v3" in ids and peak > 0:
+            regulator_block = BLOCKS.get("ldo-3v3")
+            regulator_rail = (
+                regulator_block.regulator_output_rail
+                if regulator_block else ""
+            )
+            regulator_load_ma = peak_ma_for_rail(
+                ids,
+                regulator_rail,
+                counts,
+                supply_rail_overrides,
+            ) if regulator_rail else 0.0
+            if "ldo-3v3" in ids and regulator_load_ma > 0:
                 verdict = regulator_thermal(
-                    vin=5.0, vout=3.3, current_a=peak / 1000.0,
+                    vin=5.0, vout=3.3, current_a=regulator_load_ma / 1000.0,
                     package="SOT-223", ambient_c=AMBIENT_HOT_C,
                 )
                 if verdict["verdict"] != "ok":
@@ -516,7 +760,8 @@ def validate_board_law(
                         "part": "U2", "kind": "regulator_thermal",
                         "severity": str(verdict["severity"]),
                         "detail": (
-                            f"the plan draws {peak:.0f}mA peak through a SOT-223 "
+                            f"the {regulator_rail} rail draws "
+                            f"{regulator_load_ma:.0f}mA peak through a SOT-223 "
                             f"linear regulator dropping 1.7V: {verdict['watts']}W, "
                             f"about {verdict['junction_c']}degC junction at a "
                             f"{AMBIENT_HOT_C:g}degC ambient "

@@ -29,6 +29,8 @@ export default () => (
     minTraceWidth="0.2mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
+    minTraceToPadEdgeClearance="0.15mm"
+    minViaEdgeToPadEdgeClearance="0.15mm"
   >
     {/* power entry: USB-C -> V5 */}
     <UsbCPower pcbX={0} pcbY={-11} schX={-6} schY={0} />

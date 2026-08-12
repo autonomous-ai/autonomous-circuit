@@ -3,10 +3,83 @@
   "description": "The Autonomous Terminal thumb keyboard: a 5x10 diode-isolated key matrix on an RP2040 that enumerates as a USB HID keyboard for the Terminal handheld Linux computer",
   "power": "usb-c-5v",
   "envelopeMm": [
-    112,
-    90
+    108,
+    58
   ],
   "layers": 2,
   "fab": "jlcpcb",
-  "assembly": true
+  "assembly": true,
+  "assemblyTier": "standard",
+  "layout": {
+    "boardSizeMm": [
+      108,
+      58
+    ],
+    "boardSizeToleranceMm": 0.01,
+    "minCopperClearanceMm": 0.15,
+    "decoupling": {
+      "maxDistanceMm": 2.0,
+      "exclude": [
+        "U1"
+      ]
+    },
+    "componentSides": [
+      {
+        "match": [
+          "D?",
+          "D[1-4][0-9]",
+          "D50",
+          "SW[1-5][0-9]"
+        ],
+        "side": "top"
+      },
+      {
+        "match": "*",
+        "side": "bottom"
+      }
+    ],
+    "edgeConnectors": [
+      {
+        "ref": "J1",
+        "edge": "bottom",
+        "alignment": "center",
+        "edgeToleranceMm": 1.0,
+        "centerToleranceMm": 0.1
+      }
+    ],
+    "groundPlanes": {
+      "layers": [
+        "top",
+        "bottom"
+      ],
+      "maxRoutedLengthMm": 30,
+      "maxFanoutLengthMm": 2,
+      "stitchingPitchMm": 10
+    },
+    "netClasses": [
+      {
+        "name": "POWER",
+        "nets": [
+          "V5",
+          "V3_3"
+        ],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 3,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "KEY_MATRIX_SIGNAL",
+        "nets": [
+          "ROW*",
+          "COL*",
+          "K*"
+        ],
+        "minTrunkWidthMm": 0.25,
+        "minNeckdownWidthMm": 0.25,
+        "maxNeckdownLengthMm": 0
+      }
+    ]
+  }
 }

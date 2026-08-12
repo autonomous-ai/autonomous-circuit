@@ -1,6 +1,7 @@
 import { I2cBus } from "../blocks/i2c-bus/i2c-bus"
 export default () => (
-  <board width="12mm" height="10mm" thickness="1.6mm">
+  <board width="12mm" height="10mm" thickness="1.6mm"
+    minTraceToPadEdgeClearance="0.15mm" minViaEdgeToPadEdgeClearance="0.15mm">
     <I2cBus pcbX={-1} pcbY={0} />
   </board>
 )

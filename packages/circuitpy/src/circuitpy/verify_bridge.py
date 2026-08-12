@@ -33,7 +33,16 @@ from typing import Any
 from circuitpy.fab import FabProfile, apply_verify_policy
 
 #: Checks that read circuit.json. They run at stage 4, beside the DFM gate.
-CIRCUIT_JSON_CHECKS = ("assembly", "netclass", "dc", "review", "thermal")
+CIRCUIT_JSON_CHECKS = (
+    "assembly",
+    "netclass",
+    "dc",
+    "review",
+    "layout",
+    "intent",
+    "power_intent",
+    "thermal",
+)
 #: Checks that read the shipped packet. Stage 5b, after the gerbers exist.
 PACKET_CHECKS = ("gerber",)
 
@@ -80,8 +89,11 @@ def _load() -> dict[str, Any] | None:
             corners,
             dc,
             gerber_truth,
+            intent,
+            layout,
             model,
             netclass,
+            power_intent,
             review,
             thermal,
         )
@@ -93,8 +105,11 @@ def _load() -> dict[str, Any] | None:
         "corners": corners,
         "dc": dc,
         "gerber_truth": gerber_truth,
+        "intent": intent,
+        "layout": layout,
         "model": model,
         "netclass": netclass,
+        "power_intent": power_intent,
         "review": review,
         "thermal": thermal,
     }
@@ -107,7 +122,8 @@ def unavailable_warning() -> dict[str, str]:
         "kind": "verify_unavailable",
         "detail": (
             "packages/verify is not importable, so the assembly, net-class, "
-            "DC, design-review, thermal and gerber-truth checks did not run — "
+            "DC, design-review, electrical-layout, product-layout/power-intent, thermal and gerber-truth "
+            "checks did not run — "
             "this board was graded on geometry alone"
         ),
         "severity": "info",
@@ -132,6 +148,9 @@ def check_circuit_json(
     *,
     profile: FabProfile,
     assembly_order: bool,
+    assembly_tier: str = "economic",
+    layout_intent: dict[str, Any] | None = None,
+    power_intent: dict[str, Any] | None = None,
 ) -> list[dict]:
     """Stage 4c: everything judgeable from the compiled board."""
     if _truthy(os.environ.get(DISABLE_ENV)):
@@ -147,10 +166,15 @@ def check_circuit_json(
         return [_failed("model.load", exc)]
 
     runners = {
-        "assembly": lambda: modules["assembly"].check(board, assembly=assembly_order),
+        "assembly": lambda: modules["assembly"].check(
+            board, assembly=assembly_order, tier=assembly_tier
+        ),
         "netclass": lambda: modules["netclass"].check(board),
         "dc": lambda: modules["dc"].check(board),
         "review": lambda: modules["review"].check(board),
+        "layout": lambda: modules["layout"].check(board),
+        "intent": lambda: modules["intent"].check(board, layout_intent),
+        "power_intent": lambda: modules["power_intent"].check(board, power_intent),
         "thermal": lambda: modules["thermal"].check(board),
     }
     for name in CIRCUIT_JSON_CHECKS:

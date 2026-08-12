@@ -133,6 +133,7 @@ def product_dict(
     layers: int = 2,
     fab: str = "jlcpcb",
     assembly: bool = True,
+    assembly_tier: str | None = None,
 ) -> dict:
     payload: dict = {
         "name": name,
@@ -144,6 +145,8 @@ def product_dict(
     }
     if envelope_mm is not None:
         payload["envelopeMm"] = list(envelope_mm)
+    if assembly_tier is not None:
+        payload["assemblyTier"] = assembly_tier
     return payload
 
 

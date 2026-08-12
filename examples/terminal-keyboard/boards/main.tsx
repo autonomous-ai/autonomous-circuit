@@ -9,7 +9,7 @@
  * Blocks used: rp2040-core, usb-c-data, ldo-3v3, status-led, sw-tact (x50)
  * Glue:        50x 1N4148W (SOD-123, LCSC C81598), 6x M2.5 mounting holes
  * Rails:       V5 (USB VBUS) -> V3_3 (ldo-3v3)
- * Envelope:    112 x 90 mm, 2 layers, 1.6mm — matches product.json
+ * Envelope:    108 x 58 mm, 2 layers, 1.6mm — matches product.json
  *
  * Matrix wiring is COL2ROW: net.COL<c> -> D<n> anode, D<n> cathode -> the
  * per-key node net K<r><c>, node -> SW<n> -> net.ROW<r>. Firmware drives one
@@ -29,24 +29,107 @@ import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { StatusLed } from "../blocks/status-led/status-led"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
-import { MountingHole } from "../blocks/glue"
+import { GndPlanes, MountingHole, PowerTrunk } from "../blocks/glue"
 
 /** Key pitch, millimetres. 10mm is the tightest the TS-1187A land pattern
  *  (dfn4_p3.6998mm_w7mm_pw0.75mm, 7.9mm across the pads) allows while still
  *  leaving a 2.1mm channel between columns for the column trace. */
 const PITCH = 10
+const ROWS = 5
+const COLS = 10
+// Matrix copper is spacious board-level wiring, not a fine-pitch escape. The
+// EE layout contract therefore keeps it at the preferred 0.25mm signal width;
+// RP2040/USB traces may still use the board's 0.20mm fine-pitch floor where
+// their package geometry requires it.
+const MATRIX_TRACE_WIDTH = "0.25mm"
 
-/** Board outline. 10 columns x 10mm = 100mm of key field, plus edge margin
- *  and the mounting-hole column; the electronics strip lives below the keys.
- *  90mm tall rather than 84: the last blocking errors are all crowding in the
- *  MCU escape, and 6mm more strip is the only lever left that adds room
- *  without moving a key. The spare margin lands at the top, under the screen
- *  bezel, where nothing else needs it. */
-const BOARD_W = 112
-const BOARD_H = 90
+/** The approved outline is derived from the key field, not from a leftover
+ *  electronics strip: 100 x 50mm of nominal key cells plus a 4mm mechanical
+ *  band on every edge. The band leaves the measured key keep-outs at least
+ *  4.25mm from the vertical edges / at least 4.025mm from the horizontal edges and
+ *  gives each M2.5 drill 0.65mm of material to the routed outline. */
+const MECHANICAL_MARGIN = 4
+const BOARD_W = COLS * PITCH + 2 * MECHANICAL_MARGIN
+const BOARD_H = ROWS * PITCH + 2 * MECHANICAL_MARGIN
 
-const colX = (c: number) => -45 + PITCH * c
-const rowY = (r: number) => 36 - PITCH * r
+/** The diode is asymmetric inside each cell. The X offset centres the combined
+ *  99.5mm keep-out. The Y offset starts from its 1.425mm centring correction
+ *  and adds 0.85mm so D46 clears J1's unavoidable through-hole shell tab;
+ *  the compact outline still retains a measured 4.025mm top margin. */
+const KEY_KEEPOUT_X_BIAS = 1
+const KEY_KEEPOUT_Y_BIAS = 2.275
+const colX = (c: number) => (c - (COLS - 1) / 2) * PITCH + KEY_KEEPOUT_X_BIAS
+const rowY = (r: number) => ((ROWS - 1) / 2 - r) * PITCH + KEY_KEEPOUT_Y_BIAS
+
+/** Exactly 32 explicit GND stitches satisfy the product's 10mm-density floor
+ *  after the verifier's 50% component-keepout allowance. They sit in the
+ *  perimeter mechanical band: the lower row deliberately skips |x| < 15 so
+ *  J1's plated shell and insertion edge remain unobstructed. */
+const GND_STITCHING_VIAS = [
+  { x: -45, y: 27 },
+  { x: -39, y: 27 },
+  { x: -33, y: 27 },
+  { x: -27, y: 27 },
+  { x: -21, y: 27 },
+  { x: -15, y: 27 },
+  { x: -9, y: 27 },
+  { x: -3, y: 27 },
+  { x: 3, y: 27 },
+  { x: 9, y: 27 },
+  { x: 15, y: 27 },
+  { x: 21, y: 27 },
+  { x: 27, y: 27 },
+  { x: 33, y: 27 },
+  { x: 39, y: 27 },
+  { x: 45, y: 27 },
+  { x: -45, y: -26 },
+  { x: -35, y: -26 },
+  { x: -25, y: -26 },
+  { x: -15, y: -26 },
+  { x: 15, y: -26 },
+  { x: 25, y: -26 },
+  { x: 35, y: -26 },
+  { x: 45, y: -26 },
+  { x: -52, y: -18 },
+  { x: 52, y: -18 },
+  { x: -52, y: -9 },
+  { x: 52, y: -9 },
+  { x: -52, y: 9 },
+  { x: 52, y: 9 },
+  { x: -52, y: 18 },
+  { x: 52, y: 18 },
+]
+
+/** Autorouting-phase regions are board-global coordinates; tscircuit does not
+ * transform them with a translated/rotated block. Preserve phase 0's exact
+ * previously-proven SRJ bounds so its crystal/clock copper remains stable. */
+const RP_CLOCK_ROUTING_REGION = {
+  minX: -54,
+  maxX: 54,
+  minY: -29,
+  maxY: 29,
+} as const
+
+/** The five phase-1 QSPI nets use a local solve space instead of spanning the
+ * 108x58mm keyboard. This integer box was cold-replayed at 0.15mm clearance
+ * against the preserved phase-0 copper and solved deterministically. */
+const RP_QSPI_ROUTING_REGION = {
+  minX: -11,
+  maxX: 10,
+  minY: -11,
+  maxY: 25,
+} as const
+
+/** Route both sides of the USB pair before plane escapes and the key matrix.
+ * The region contains J1, ESD/series parts, and the RP2040 USB pins while
+ * excluding the rest of the 108mm key field. Pair quality is still measured
+ * from emitted copper; a phase name is not evidence of matched routing. */
+const USB_ROUTING_REGION = {
+  minX: -12,
+  maxX: 12,
+  minY: -29,
+  maxY: 14,
+} as const
 
 /** The legend on the real prototype, row by row, left to right.
  *  Rows are 10 wide except where an oversized keycap covers two positions:
@@ -59,9 +142,6 @@ const LEGEND: string[][] = [
   ["TAB", "Z", "X", "C", "V", "B", "N", "M", "PGUP", "ENT"],
   ["SHFT", "ALT", "MIC", "SPC", "SPC", "SPC", "HOME", "PGDN", "END", "SPR"],
 ]
-
-const ROWS = 5
-const COLS = 10
 
 /** One key cell: the diode (COL2ROW, anode on the column side) and the switch.
  *  Index n runs 0..49 row-major, so refdes D1..D50 / SW10..SW59 read straight
@@ -76,6 +156,11 @@ const keyCells = () => {
       const node = `K${r}${c}`
       const x = colX(c)
       const y = rowY(r)
+      // Locating J1 by its cable-mating datum puts its right plated shell
+      // anchor beneath D46's default cathode pad. Keep that diode inside its
+      // own 10mm cell but use the otherwise-empty left half of the cell so top
+      // copper clears the through-hole anchor.
+      const diodeX = x - 3.4 - (r === ROWS - 1 && c === 5 ? 1.5 : 0)
       // schematic: one cell per key on a 9 x 6 grid, same shape as the board,
       // sitting directly above the block row so the drawing reads as one page
       const sx = -40 + 9 * c
@@ -91,19 +176,33 @@ const keyCells = () => {
           footprint="sod123"
           supplierPartNumbers={{ jlcpcb: ["C81598"] }}
           manufacturerPartNumber="1N4148W"
-          pcbX={x - 3.4}
+          layer="top"
+          pcbX={diodeX}
           pcbY={y - 4.4}
           schX={sx - 3}
           schY={sy}
         />,
-        <trace key={`dc${n}`} name={`TR_${d}_col`} from={`.${d} > .anode`} to={`net.COL${c}`} />,
-        <trace key={`dn${n}`} name={`TR_${d}_node`} from={`.${d} > .cathode`} to={`net.${node}`} />,
+        <trace
+          key={`dc${n}`}
+          name={`TR_${d}_col`}
+          from={`.${d} > .anode`}
+          to={`net.COL${c}`}
+          thickness={MATRIX_TRACE_WIDTH}
+        />,
+        <trace
+          key={`dn${n}`}
+          name={`TR_${d}_node`}
+          from={`.${d} > .cathode`}
+          to={`net.${node}`}
+          thickness={MATRIX_TRACE_WIDTH}
+        />,
         /* the key itself: node -> switch -> row */
         <SwTact
           key={`sw${n}`}
           name={sw}
           signal={node}
           to={`ROW${r}`}
+          layer="top"
           pcbX={x}
           pcbY={y}
           schX={sx + 3}
@@ -134,6 +233,7 @@ const matrixToMcu = () => {
         name={`TR_ROW${r}`}
         from={`.U3 > .GPIO${r}`}
         to={`net.ROW${r}`}
+        thickness={MATRIX_TRACE_WIDTH}
       />,
     )
   }
@@ -144,88 +244,139 @@ const matrixToMcu = () => {
         name={`TR_COL${c}`}
         from={`.U3 > .GPIO${5 + c}`}
         to={`net.COL${c}`}
+        thickness={MATRIX_TRACE_WIDTH}
       />,
     )
   }
   return out
 }
 
-/** Bring-up access. There is no dedicated test-point component on this board,
- *  and that is a limitation, not a choice — see README "Honest limits".
- *  tscircuit's <testpoint> always emits a source_component, and the
- *  circuit-json BOM exporter writes it into bom.csv with an empty LCSC column
- *  even with `doNotPlace` set, which the DFM gate turns into a blocking
- *  `part_not_orderable`. A <via connectsTo="net.X"> is net-tagged but the
- *  autorouter never routes to it, so it lands as a dangling via and an
- *  `unconnected_items` DRC error. Both were tried and both blocked the fab
- *  packet, so the bring-up story rides on copper that is already here:
- *    V3_3  — U2's SOT-223 tab (2.3 x 3.6mm) and C3's high pad
- *    V5    — C2's high pad and C1 beside the connector
- *    GND   — C2/C3 low pads, the four USB shell tabs, every switch row pad
- *    ROW n — pads 3/4 of any switch in that row (0.75mm, tweezer-friendly)
- *    COL n — the anode pad of any diode in that column
- *  plus LED1, which says "3V3 is up" before a meter comes out.
- *  What is genuinely missing is SWD: SWCLK/SWD only exist on QFN pins 24/25.
- *  Reflashing goes through BOOTSEL + USB mass storage instead. */
-
-export default () => (
+export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
   <board
     width={`${BOARD_W}mm`}
     height={`${BOARD_H}mm`}
     thickness={1.6}
-    autorouterEffortLevel="5x"
+    routingDisabled={props.routingDisabled ?? false}
+    doubleSidedAssembly={true}
     minTraceWidth="0.2mm"
+    minTraceToPadEdgeClearance="0.15mm"
+    minViaEdgeToPadEdgeClearance="0.15mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
-    /* Measured, not assumed: raising minTraceToPadEdgeClearance /
-       minViaEdgeToPadEdgeClearance to 0.15mm does NOT make the router route
-       wider — it lays copper at ~0.115mm either way and the checkers simply
-       report more failures (7 via-clearance errors at the 0.1mm default
-       became 125 at 0.15mm). Those props are a *check* threshold here, not a
-       routing constraint, so the board declares only the fab rules it means. */
   >
+    <autoroutingphase phaseIndex={0} region={RP_CLOCK_ROUTING_REGION} />
+    <autoroutingphase phaseIndex={1} region={RP_QSPI_ROUTING_REGION} />
+    <autoroutingphase phaseIndex={2} region={USB_ROUTING_REGION} />
+    <net name="USB_DP" routingPhaseIndex={2} />
+    <net name="USB_DM" routingPhaseIndex={2} />
+    <net name="USB_DP_CONN" routingPhaseIndex={2} />
+    <net name="USB_DM_CONN" routingPhaseIndex={2} />
+    <GndPlanes
+      layers={["top", "bottom"]}
+      stitchingVias={GND_STITCHING_VIAS}
+    />
+
+    {/* The power rails are tree-shaped source branches, not a global width
+        override. J1.VBUS1 and U2.TAB deliberately omit their ordinary net
+        edge below; each source reaches its rail exactly once through a short
+        0.2mm escape, an unobstructed 0.8mm bottom trunk, and a second short
+        escape. The DNP boundary pads are also useful V5/V3V3 probe points. */}
+    <PowerTrunk
+      name="V5_MAIN"
+      source=".J1 > .VBUS1"
+      net="V5"
+      layer="bottom"
+      start={{ x: -2.4, y: -19.1 }}
+      end={{ x: -22.93, y: -16.8 }}
+      startTestpoint="TP4"
+      endTestpoint="TP5"
+      trunkWidthMm={0.8}
+      neckdownWidthMm={0.2}
+    />
+    <PowerTrunk
+      name="V3V3_MAIN"
+      source=".U2 > .TAB"
+      net="V3_3"
+      layer="bottom"
+      start={{ x: -15.4, y: -21.8 }}
+      end={{ x: -4.7, y: -2.6 }}
+      startTestpoint="TP6"
+      endTestpoint="TP7"
+      trunkWidthMm={0.8}
+      neckdownWidthMm={0.2}
+    />
+
     {/* ---- the key field: 50 switches, 50 diodes, on a strict 10mm grid ---- */}
     {keyCells()}
 
-    {/* ---- the electronics strip, below the keys ---- */}
+    {/* ---- all assembled electronics live on the back, behind the keys ---- */}
 
-    {/* The brain: RP2040 minimal system, native USB HID. Centred under the key
-        field on purpose — the fifteen matrix nets fan out symmetrically, so the
-        longest column run is half the board instead of the whole board. */}
-    <Rp2040Core pcbX={0} pcbY={-25} schX={0} schY={-16} />
+    {/* The board chooses the reusable SWD furniture coordinate because only
+        the composition knows where its other blocks land. Local (6, 12)
+        clears the flash courtyard introduced by the reusable critical-bus
+        placement while retaining a reachable horizontal 2.54mm row. */}
+    <Rp2040Core
+      layer="bottom"
+      pcbX={0}
+      pcbY={4}
+      debugPortPcbX={6}
+      debugPortPcbY={12}
+      buttonVariant="compact"
+      schX={0}
+      schY={-16}
+    />
     {matrixToMcu()}
 
-    {/* Power entry + USB 2.0 data, on the bottom edge (the cable runs down,
-        away from the thumbs and out from under the screen). Pulled in to
-        x=-23 so the D+/D- pair has a short, clear diagonal to U3's top edge:
-        at x=-34 the pair had to cross the whole strip and the router shorted
-        USB_DP to USB_DM in three places. Nothing else lives on that diagonal. */}
-    <UsbCData pcbX={-23} pcbY={-40.5} schX={-46} schY={-16} />
+    {/* J1 is exactly on the lower-edge centreline, and its compiled cable
+        insertion datum lands within 0.002mm of the routed edge. The body
+        stays inside the outline while the insertion volume points outward. */}
+    <UsbCData
+      layer="bottom"
+      externalPowerTrunkPort="VBUS1"
+      pcbX={0}
+      pcbY={-BOARD_H / 2 + 6.05}
+      schX={-46}
+      schY={-16}
+    />
 
-    {/* Logic rail: V5 -> V3_3. Parked left of the port so it is close to VBUS
-        and out of the USB pair's lane; V3_3 leaves as one wide net eastward. */}
-    <Ldo3v3 pcbX={-40} pcbY={-27} schX={-24} schY={-16} />
+    <Ldo3v3
+      layer="bottom"
+      externalPowerTrunkPort="TAB"
+      pcbX={-20}
+      pcbY={-21.8}
+      schX={-24}
+      schY={-16}
+    />
 
-    {/* proof of life, next to the port so it shows through the body's LED pipe */}
-    <StatusLed rail="V3_3" led="LED1" r="R20" pcbX={-48} pcbY={-32} schX={26} schY={-16} />
+    <StatusLed
+      layer="bottom"
+      rail="V3_3"
+      led="LED1"
+      r="R20"
+      pcbX={-48}
+      pcbY={17}
+      schX={26}
+      schY={-16}
+    />
 
-    {/* ---- the printed body needs something to hold: 6x M2.5 on a 105mm x
-            38mm rectangle plus mid-span pairs (a 112mm board flexes under
-            thumbs; the mid holes are what stop it) ---- */}
-    <MountingHole name="H1" diameter={2.7} pcbX={-52.5} pcbY={41} />
-    <MountingHole name="H2" diameter={2.7} pcbX={52.5} pcbY={41} />
-    <MountingHole name="H3" diameter={2.7} pcbX={-52.5} pcbY={0} />
-    <MountingHole name="H4" diameter={2.7} pcbX={52.5} pcbY={0} />
-    <MountingHole name="H5" diameter={2.7} pcbX={-52.5} pcbY={-41} />
-    <MountingHole name="H6" diameter={2.7} pcbX={52.5} pcbY={-41} />
+    {/* Six M2.5 holes sit in the 4mm mechanical band. Their centres are 2mm
+        from the outline; the keep-outs, not comments, reserve both layers. */}
+    <MountingHole name="H1" diameter={2.7} pcbX={-BOARD_W / 2 + 2} pcbY={BOARD_H / 2 - 2} />
+    <MountingHole name="H2" diameter={2.7} pcbX={BOARD_W / 2 - 2} pcbY={BOARD_H / 2 - 2} />
+    <MountingHole name="H3" diameter={2.7} pcbX={-BOARD_W / 2 + 2} pcbY={0} />
+    <MountingHole name="H4" diameter={2.7} pcbX={BOARD_W / 2 - 2} pcbY={0} />
+    <MountingHole name="H5" diameter={2.7} pcbX={-BOARD_W / 2 + 2} pcbY={-BOARD_H / 2 + 2} />
+    <MountingHole name="H6" diameter={2.7} pcbX={BOARD_W / 2 - 2} pcbY={-BOARD_H / 2 + 2} />
 
     <silkscreentext
       text="AUTONOMOUS TERMINAL KEYBOARD"
-      layer="top"
+      layer="bottom"
       pcbX={0}
-      pcbY={-43.4}
-      fontSize="1.4mm"
+      pcbY={BOARD_H / 2 - 1.5}
+      fontSize="1mm"
       anchorAlignment="center"
     />
   </board>
 )
+
+export default () => <TerminalKeyboard />

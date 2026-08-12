@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
 sys.path.insert(0, str(REPO / "skills" / "circuitcode"))  # circuitlib
 
@@ -38,6 +39,7 @@ from circuitlib import golden as circuit_golden  # noqa: E402
 from circuitlib import safety  # noqa: E402
 from circuitpy.errors import BuildError  # noqa: E402
 from circuitpy.generation import build_board  # noqa: E402
+from scripts.sync_golden_blocks import sync_project  # noqa: E402
 
 SKELETON = REPO / "skills" / "circuitcode" / "templates" / "project_skeleton"
 BLOCKS = REPO / "packages" / "golden-blocks" / "blocks"
@@ -59,7 +61,18 @@ def build_project(tmp: Path, tsx: str, *, product: dict | None = None) -> Path:
     proj.mkdir(parents=True, exist_ok=True)
     for name in ("tsconfig.json", "tscircuit.config.json"):
         shutil.copy(SKELETON / name, proj / name)
-    shutil.copytree(BLOCKS, proj / "blocks", dirs_exist_ok=True)
+    selected = sorted(
+        block_id
+        for block_id in (entry.name for entry in BLOCKS.iterdir() if entry.is_dir())
+        if f'../blocks/{block_id}/{block_id}' in tsx
+    )
+    if selected:
+        sync_project(
+            proj,
+            blocks=selected,
+            source=BLOCKS,
+            source_label="packages/golden-blocks/blocks",
+        )
     payload = {
         "name": "eval-board",
         "description": "structural eval board",

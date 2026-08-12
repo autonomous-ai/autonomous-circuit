@@ -55,6 +55,11 @@ Every block has a `BLOCK.md` next to its source. Read these three sections:
 1. Power first: one power-entry block, then the rail blocks it feeds.
 2. Brain next: the MCU block, wired to its rail and its USB pair.
 3. Peripherals: sensors, indicators, buttons — each to the bus block it needs.
-4. Glue and mechanics last: holes, test points, silkscreen.
+4. Service access before cosmetics: physically compose every net in
+   `plan.must_expose` (for RP2040, SWCLK/SWD) to the actual connector/probe,
+   then re-plan with exactly those `exposed_nets`. A bare MCU plan is
+   intentionally not buildable.
+5. Glue and mechanics last: holes, test points, silkscreen.
 
-`missing_requirements()` after each step is cheaper than a build.
+`missing_requirements()` after each step is cheaper than a build. The final
+pre-source gate is `plan.buildable`, not merely an empty `unmet` tuple.

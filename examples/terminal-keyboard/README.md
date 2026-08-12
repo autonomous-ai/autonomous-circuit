@@ -10,6 +10,15 @@ speaks USB natively, so the board enumerates as a plain HID keyboard over
 USB-C — no bridge chip, no driver, and the same firmware path (BOOTSEL → drag
 a UF2) every RP2040 board uses.
 
+> **Migration status (2026-08-11): not fab-ready.** `boards/main.tsx` and
+> `product.json` now describe the 108 × 58 mm, two-sided layout fixture; the
+> committed `main.circuit.json`, sidecar, review images, and fab directory below
+> are historical until the full pipeline republishes them from that source.
+> The declared power-trunk policy is still an intentional blocking check.
+> SW2/SW3 use the reusable golden-core compact option: validated TPT-2C1,
+> LCSC C2828561, 3 × 2 mm, with the two-pin topology compiled rather than
+> pretending it has the standard switch's redundant four terminals.
+
 ```
 boards/main.tsx          the board program — the only hand-written file
 boards/main.circuit.json the compiled IR of record
@@ -101,26 +110,15 @@ not guessed: at 3.6 mm the SOD-123 courtyard (4.7 × 2.3 mm) overlapped the
 switch courtyard (7.5 × 5.4 mm) by 0.25 mm and the build returned 100
 `pcb_courtyard_overlap_error`s.
 
-**Board: 112 × 90 mm, 2 layers, 1.6 mm.** Ten columns at 10 mm is 100 mm of key
-field on its own; 112 mm adds edge margin plus the column of mounting holes.
-The key field occupies the top 48 mm and the electronics live in a 29 mm strip
-underneath. It is a big board — a landscape two-thumb handheld, not a
-palm-sized one — and that size is a direct consequence of the switch land
-pattern. A smaller Terminal needs a smaller switch, which is a new golden
-block and a sourcing pass, not a layout change.
+**Board: 108 × 58 mm, 2 layers, 1.6 mm.** The 100 × 50 mm nominal key field gets
+an explicit 4 mm mechanical band on every edge. Switches and diodes are the
+only top-side parts; the RP2040 core, USB protection, regulator, LED, and their
+passives live on the bottom behind the key field instead of requiring a stale
+electronics strip below it.
 
-The height started at 84 mm and grew to 90 mm for one reason, recorded because
-it is the kind of trade that usually goes undocumented: the last blocking
-errors were all crowding in the MCU escape, and 6 mm of extra strip was the
-only lever left that added room without moving a key. It took the board from
-**3 blocking errors to 1**. The spare margin lands at the top of the board,
-under the screen bezel, where nothing else needs it.
-
-**Mechanical:** six M2.5 clearance holes (2.7 mm) at x = ±52.5, y = +41 / 0 /
-−41. The mid-span pair is not decoration — a 112 mm board flexes under thumbs,
-and those two screws are what stop the middle of the key field from moving.
-USB-C is on the **bottom edge** at x = −23, so the cable runs down and away
-from the hands, out from under the screen.
+**Mechanical:** six M2.5 clearance holes (2.7 mm) at x = ±52, y = +27 / 0 /
+−27. USB-C is centred at **x = 0** on the bottom edge, so cable alignment is a
+machine-checked layout contract rather than a historical placement anecdote.
 
 ## Parts and cost
 
@@ -139,7 +137,7 @@ $0.33, the rest under a dollar), so about **$59 for five boards, ≈ $12 each**.
 
 Two honest corrections to that number. The `$2.00` PCB line is JLCPCB's flat
 prototype price, which applies to boards up to 100 × 100 mm — this one is
-112 × 90 mm and falls outside it, so budget **$15–25** for the bare boards and
+108 × 58 mm and falls outside it, so budget **$15–25** for the bare boards and
 about **$75–85 all-in for five**, which is the profile's own
 `cost_band_assembled_5x_usd` of $75–110. And every number here is *modelled*,
 not quoted: nobody has put this board through a real JLC cart.
@@ -151,10 +149,12 @@ CIRCUIT_PARTS_ENGINE=off python3.12 skills/circuitcode/scripts/circuit \
   /abs/path/examples/terminal-keyboard/boards/main.tsx --wall-clock-s 2400
 ```
 
-Budget **~17 minutes** per build: the source sets
-`autorouterEffortLevel="5x"`, which is what gets the error count down (see
-below). Drop that one line and a build is ~4:45 with roughly 2.5× the
-blocking errors — useful while you are still moving parts around.
+There is no trustworthy wall-clock estimate yet. The migrated source no longer
+sets `autorouterEffortLevel="5x"`: the pinned core accepts that prop but does
+not map it to a different router implementation. The old 17-minute-versus-
+4:45 comparison was also contaminated by stale compiled/cache inputs and is
+withdrawn. Treat a build as current only when the exact TSX source fingerprint
+matches the published artifacts and every routing phase completes.
 
 ## Bring-up
 
@@ -168,135 +168,66 @@ fires that key without the switch; if that works the switch is dead, and if it
 does not, walk the column at the diode anode. There is no SWD header — see
 below.
 
-## Where it ended up
+## Where it stands now
 
-**46 → 1 blocking error**, on two layers, with the fab packet intact
-(gerbers, BOM and CPL all written from kicad-cli). It is one error short of
-orderable, and that error is documented below rather than papered over.
+**Not fab-ready.** The historical claim of “46 → 1 blocking error” came from a
+superseded 112 × 90 mm layout and is not evidence for the current 108 × 58 mm
+source. The latest clean exact-source routing evidence passes the six
+crystal/clock connections and five remaining QSPI connections, then stops in
+the dedicated GND fanout phase after routing only 20 of 31 drops. No full
+routed artifact or current KiCad/fab packet has been published from this
+source.
 
 ## Honest limits
 
-**This board is not fab-ready. `fab.ready` is `false` on exactly one blocking
-error, and the reason is routing, not sourcing.** Final state:
+The checked-in circuit JSON, review images, sidecar, and fab directory are a
+historical packet. Their counts must not be mixed with the migrated source:
 
 | | |
 |---|---|
-| blocking (`error`) | **1** — a V5 track 0.1196 mm from one of J1's plated legs, against a 0.2 mm hole-clearance rule |
-| `warning` | 358 — of which 267 are kicad-converter noise (`footprint_symbol_mismatch` ×134, `footprint_symbol_field_mismatch` ×133) and 80 are `net_conflict` pad-vs-schematic naming from the same converter |
-| `info` | 888 |
-| `fab.ready` | **false** — one error stands, so `ORDER.md` is not written |
-| gerber source | `kicad-cli` 10.0.5 — the shipping exporter, not the fallback |
-| BOM | 134 lines, **134 orderable**, every row with an LCSC number |
+| current source routing | **blocked** — GND fanout routed 20/31 drops |
+| parsed routed artifact | **not available** — the partial artifact contains a `pcb_autorouting_error` |
+| current KiCad/DFM gate | **not run** — routing must complete first |
+| `fab.ready` | **not proven / must remain false** |
+| historical packet | retained for provenance only; excluded from current review results |
 
-All 134 BOM lines carry an LCSC number and the 50-key matrix routes clean —
-**zero errors anywhere in the key field**. The one blocking warning, and every
-warning that matters, sits in a roughly 30 × 20 mm patch around the MCU and the
-USB connector. Details, with numbers, below.
+### Withdrawn router experiment record
 
-### How the router actually behaved
+Earlier versions of this README compared default effort, `5x`, four layers,
+and several placement changes using blocking-error counts from generated
+artifacts. Those numbers are withdrawn: the runs did not reliably prove that
+the source fingerprint, sibling `main.circuit.json`, and router cache all
+described the same build, and the pinned core does not implement a distinct
+`5x` routing strategy. The useful lessons that survive are procedural:
 
-The claim that tscircuit's default router "degrades past roughly 50 traces" is
-not what happened here. This board has **424 source traces, 349 routed PCB
-traces and 259 vias**, and the router placed all of them — the 50-key matrix,
-500 switch-pad connections, 100 diode connections and the fifteen matrix nets
-fanning into the QFN — in about **four and a half minutes**, with **zero
-unrouted nets**. Scale was not the problem.
-
-Density was. Every remaining error lives in the electronics strip:
-
-| what | why it cannot be fixed by moving parts |
-|---|---|
-| the RP2040 QFN-56 escape | 0.4 mm pitch, 0.2 mm pads → 0.2 mm between adjacent pads. The mandated `minTraceWidth="0.2mm"` needs 0.4 mm of channel to pass between two pads. Nothing can go between them, so the router doglegs and lays parallel traces at ~0.05–0.09 mm apart. |
-| the USB D+/D− pair | leaves pins 46/47, two adjacent 0.4 mm-pitch pads; at default effort the router repeatedly shorted DP to DM in the first millimetre of the escape. |
-| J1's own drill field | the USB-C receptacle is a hybrid SMD+TH part with four plated legs. V5 and GND have to leave through them, and the last surviving error is a V5 track 0.12 mm from one of those drills. |
-| the QSPI bus to U4 | six signals sharing the corridor with the 3V3/GND/DVDD web and the 15 matrix nets converging on the same chip. |
-
-Four things were tried and measured. Blocking-error counts, same board:
-
-| change | blocking errors | build |
-|---|---|---|
-| baseline, default effort, 2 layers | 39–46 | ~4:45 |
-| clearance floor raised to 0.15 mm | **151** | ~4:50 |
-| `layers={4}`, default effort | **6** | 6:12 |
-| `autorouterEffortLevel="5x"`, 2 layers | **18** | 16:52 |
-| + crystal cluster given room (a block fix) | **3** | 16:40 |
-| + board 84 → 90 mm, strip moved down 3 mm | **1** | 17:10 |
-| + one more placement fix on the last error | **26** | 17:00 |
-
-The last row is the important one and it is why this stopped at 1: fixing the
-final error by moving the VBUS bulk cap re-solved the whole board and produced
-26 different errors, including two phantom `Track [<no net>]` segments, one
-21.2 mm long and sitting 0.000 mm from a drill. It was reverted. At 2 layers
-and 0.2 mm, "fix this error" and "keep the other 25 fixed" are not the same
-request.
-
-1. **Raising the clearance floor made it worse.** Setting
-   `minTraceToPadEdgeClearance` / `minViaEdgeToPadEdgeClearance` to 0.15 mm did
-   not make the router route wider — it lays copper at ~0.115 mm either way —
-   it only raised the bar the checkers measure against. Via-clearance errors
-   went **7 → 125**. Those props are a check threshold in this toolchain, not a
-   routing constraint. Reverted.
-2. **Moving parts shuffles the failures rather than removing them.** Pushing
-   the flash from 13 mm to 22 mm off the QFN took the U4 cluster from 9 errors
-   to 3 — and a USB short storm appeared instead (39 → 38 total). Pulling the
-   USB connector 11 mm closer fixed the pair's long run and the count went to
-   46. At default effort the total sat in a 38–46 band whatever the placement;
-   the router's output is close to chaotic with respect to small placement
-   moves, so chasing individual errors by nudging parts is not a convergent
-   loop.
-3. **Four layers fixes it, and the pipeline cannot ship it.** One
-   character — `layers={4}` — took the board from **46 blocking errors to 6**.
-   The inner planes give the QFN escape and the D± pair somewhere to go. But at
-   4 layers `tscircuit-cli export` throws `Inner layer … only supports copper
-   gerber`, which aborts the whole fab-packet step: **no bom.csv, no cpl.csv,
-   BOM lines reported as 0**. A 4-layer board here is well routed and
-   unorderable. Reverted to 2 layers, which is what `product.json` declares and
-   what an economy JLC order wants.
-4. **Effort level is the lever that actually worked on 2 layers.**
-   `autorouterEffortLevel="5x"` took the same board from **46 to 18** blocking
-   errors with no other change. It costs **16:52 per build instead of 4:45**,
-   which is why it went on last: at 17 minutes a round it is not a knob you
-   iterate with, it is one you turn once the placement is settled. It is on in
-   the shipped source. Two placement fixes on top of it — space around the
-   relocated crystal cluster, and 6 mm more electronics strip — took 18 → 3 → 1.
-
-So the honest verdict is narrow and specific: **the open router closes a 50-key
-matrix without complaint; what it cannot close on two layers at a 0.2 mm trace
-width is the 0.4 mm-pitch QFN-56 escape and the through-hole USB connector's
-own drill field.** What would fix it, in order of preference: (a) four layers,
-once the gerber exporter handles inner layers; (b) a 0.127 mm trace/space
-rule — JLC's actual floor — instead of 0.2 mm; (c) hand-routed escapes for the
-QFN and the USB connector via `pcbRouteHints`, with the router left to do the
-matrix, which is the part it is good at.
+1. Gate every phase and parsed `*_error`; a zero CLI exit code is insufficient.
+2. Never compare router knobs unless both runs start from the exact same source
+   fingerprint and a compatible, isolated cache.
+3. Treat a small placement or obstacle change as a fresh routing problem. A
+   remote obstacle can change global topology even when it appears in none of
+   the final DRC pairs.
+4. Four-layer export support and narrower fabrication rules remain capability
+   questions, not demonstrated fixes for this migrated board.
 
 ### Other things you should know
 
-- **kicad's DRC is looser than the fab.** The converted board carries a 0.09 mm
-  netclass clearance; JLCPCB's 2-layer minimum spacing in
-  `circuitlib.tables` is **0.127 mm**. Passing the kicad DRC here would still
-  not prove JLC compliance, and circuitpy's own DFM gate checks trace width,
-  via size, annular ring and edge clearance — not trace-to-trace spacing.
-- **No test points, and that is a limitation.** Two mechanisms were tried and
-  both blocked the packet. `<testpoint>` emits a source component that the
-  circuit-json BOM exporter writes into `bom.csv` with an empty LCSC column
-  **even with `doNotPlace` set** → 8 × `part_not_orderable` (error).
-  `<via connectsTo="net.X">` is net-tagged but the autorouter never routes to
-  it → 8 dangling vias and 7 × `unconnected_items` (error). Bring-up therefore
-  rides on copper that is already there: U2's SOT-223 tab is V3_3, C2/C3 are
-  the rail pads, the four USB shell tabs are ground, and every ROW and COL is
-  exposed on 50 tactile-switch pads. **SWCLK/SWD are the real casualty** — they
-  exist only on QFN pins 24/25, so there is no probe access for a debugger.
-  Reflashing goes through BOOTSEL and USB mass storage.
-- **The routing does not look deliberate, and it is not.** On `_pcb.png` the
-  rows and columns are point-to-point stars fanning diagonally to the MCU, not
-  the straight bussed lines a human would draw. The nets are correct and, after
-  the 5x-effort pass, the runs are short; the drawing is still ugly. Forcing
-  straight buses means `pcbRouteHints` on fifteen nets, which is a real next
-  step and was not taken here.
-- **There is no ground pour.** `main.circuit.json` contains zero copper zones:
-  GND on this 112 × 90 mm board is a web of 0.2 mm traces serving 134 parts.
-  At ~150 mA total the DC drop does not matter; the return path and the loop
-  area do, and neither is modelled by anything in this pipeline.
+- **The old KiCad packet used the wrong clearance.** Its converted board carries
+  a 0.09 mm netclass and is historical evidence only. The migrated product and
+  TSX board both require 0.15 mm trace-to-pad and via-to-pad clearance, and the
+  pipeline now carries that same intent into KiCad. A current KiCad/DFM pass is
+  still required after routing; the declaration alone is not fabrication proof.
+- **SWD bring-up furniture is now explicit.** The reusable RP block emits
+  SWCLK, SWD, and GND test points at a board-owned collision-free coordinate;
+  the BOM policy excludes test points. The old `<via connectsTo="net.X">`
+  lesson still stands: a net-tagged via alone is metadata, not a routed
+  dogbone, and must not be presented as probeable connected copper.
+- **Current route quality is unknown.** Historical PCB images do not represent
+  the migrated source. Do not review trace aesthetics, length, or via count
+  until a complete exact-source artifact passes parsed DRC.
+- **Ground planes are source intent, not yet proven output.** The migrated
+  board declares top and bottom GND pours, explicit stitching, and a dedicated
+  fanout phase. That phase is currently blocked, so the final poured geometry
+  and island connectivity remain unverified.
 - **`bom.csv` ships with empty `Comment` and `Footprint` columns.** Only
   `Designator` and `LCSC Part #` are populated for all 134 rows. JLC will take
   it; a human checking a 134-line BOM cannot tell a 15 pF from a 10 µF. That is
@@ -306,36 +237,16 @@ matrix, which is the part it is good at.
   1+2 / 3+4, the block's tie traces are a permanent short and all 50 keys are
   scrap. On a board that is 50 copies of one switch, that is the single largest
   risk in the design. Verify on the first article before anyone orders five.
-- **Two golden-block placement bugs were fixed inside this project's own
-  `blocks/` snapshot.** Both are placement-only — no net, part, or value
-  changed — and both are marked with a `PROJECT-LOCAL` comment in
-  `blocks/rp2040-core/rp2040-core.tsx`. They belong upstream:
-  1. `rp2040-core` v1 puts the 12 MHz crystal 11.78 mm from `U3.XIN`.
-     tscircuit enforces a **10 mm maximum on a crystal connection** and, when
-     it cannot be met, **skips autorouting for the entire board**. As shipped,
-     no board using this block can route at all. XIN is the bottom-centre pin
-     of the QFN, so Y1, C15, C16 and R11 were moved from the left of the chip
-     into the strip below it, every endpoint now within 8.5 mm.
-  2. The flash U4 sat 5 mm off the QFN edge, in the same corridor as the
-     power web and the matrix fan-in; it was pushed out to 22 mm.
-  3. Consequence of (1): the relocated crystal row initially sat 8.3 mm below
-     the chip, close enough to the 100 nF row at 6 mm that the router threaded
-     XIN between C10 and C11 and **shorted it to V3_3**. The row moved to
-     10.5 mm, which needed BOOTSEL/RESET (SW2/SW3) pushed from 12 mm to
-     15.5 mm to keep the courtyards apart. A crystal that has to move because
-     of a routing rule drags the whole bottom of the block with it — the
-     upstream fix should re-place the cluster properly, not shim it.
-- **A repo-level toolchain trap.** A stale `/Users/d/code/package.json` (dated
-  2023, nothing to do with this repo) makes `tscircuit-cli` resolve its project
-  root to `/Users/d/code` and write `circuit.json` into `/Users/d/code/dist/…`
-  instead of the mirrored work dir. circuitpy then cannot find it and every
-  build in `examples/**` fails with `COMPILE_ERROR`. The workaround is the
-  one-line `package.json` in this project directory, which pins the CLI's root
-  back to the work dir. The skeleton deliberately ships no `package.json`, so
-  this file is a workaround and should disappear when the CLI's root resolution
-  is fixed. All three example boards built the same night hit this and all
-  three landed on the same workaround independently — it is environmental, not
-  specific to this project.
+- **The RP critical-cluster fixes are reusable now.** Crystal/flash placement,
+  routing phases, compact BOOTSEL/RESET buttons, and GND fanouts come from the
+  golden block snapshot; this example must stay byte-for-byte in parity rather
+  than accumulating project-local shims.
+- **A generated sibling can masquerade as a build input.** A broad CLI build
+  may discover `boards/main.circuit.json` and copy that historical artifact
+  without executing the edited `boards/main.tsx`. Always pass the exact TSX
+  entry point through the pinned loader/pipeline, and require the source
+  fingerprint freshness guard before publishing review results. Router-cache
+  comparisons are valid only when the source and toolchain fingerprints match.
 - **Never wrap a generated element in a bare `<group>`.** The first version put
   each key cell in `<group key={…}>` with no `pcbX/pcbY`. That hands the board
   to the auto-pack solver, which threw away all 50 computed positions and

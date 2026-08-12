@@ -182,8 +182,10 @@ def iou_warnings(
 
 def run_tscircuit_checks(circuit_json_path: Path) -> list[Warning]:
     """``runAllChecks`` via the packaged node helper. Findings become
-    warnings with kind = the finding's type (severity error — the library
-    only reports genuine DRC failures). Never raises."""
+    warnings with kind = the finding's type.  The library returns both
+    ``*_error`` and ``*_warning`` elements, so retain that distinction; the
+    routing retry compares blocking counts at this stage and must not choose
+    an attempt based on advisory trace-length warnings. Never raises."""
     try:
         output = toolchain.run_node(
             [toolchain.helper_js("run_all_checks.cjs"), str(circuit_json_path)],
@@ -202,7 +204,19 @@ def run_tscircuit_checks(circuit_json_path: Path) -> list[Warning]:
             detail = finding.get("message")
             if not isinstance(detail, str) or not detail.strip():
                 detail = json.dumps(finding, sort_keys=True)[:300]
-            warnings.append(_warning(_localize(finding, {}), kind, detail, "error"))
+            raw_severity = str(finding.get("severity") or "").lower()
+            if raw_severity in {"error", "warning", "info"}:
+                severity = raw_severity
+            elif kind.endswith("_warning") or finding.get("warning_type"):
+                severity = "warning"
+            else:
+                # Unknown findings remain conservative.  Error elements in
+                # circuit-json normally advertise `error_type` or `_error`;
+                # an untyped finding must never silently make a bad board pass.
+                severity = "error"
+            warnings.append(
+                _warning(_localize(finding, {}), kind, detail, severity)
+            )
         return warnings
     except Exception as exc:
         return [check_failed(f"@tscircuit/checks run failed: {exc}")]
@@ -322,96 +336,636 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
 # ---------------------------------------------------------------------------
 
 
+_Point = tuple[float, float]
+_Stadium = tuple[_Point, _Point, float]
+
+
+def _finite_number(value: object) -> float | None:
+    if not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _rotate_point(point: _Point, degrees: float) -> _Point:
+    radians = math.radians(degrees)
+    cosine = math.cos(radians)
+    sine = math.sin(radians)
+    return (
+        point[0] * cosine - point[1] * sine,
+        point[0] * sine + point[1] * cosine,
+    )
+
+
+def _stadium(
+    center: _Point,
+    width: float,
+    height: float,
+    rotation_degrees: float = 0.0,
+) -> _Stadium | None:
+    """Exact capsule for a round drill or routed slot.
+
+    KiCad and Excellon represent a slot as a round tool swept along its long
+    axis.  Treating ``hole_width`` as a circle diameter loses the swept
+    centreline and overstates clearance at both slot endpoints by half the
+    slot travel — exactly how the USB-C shell-slot regression escaped.
+    """
+    if not all(math.isfinite(value) and value > 0 for value in (width, height)):
+        return None
+    radius = min(width, height) / 2.0
+    half_travel = (max(width, height) - min(width, height)) / 2.0
+    local_axis = (1.0, 0.0) if width >= height else (0.0, 1.0)
+    axis = _rotate_point(local_axis, rotation_degrees)
+    offset = (axis[0] * half_travel, axis[1] * half_travel)
+    return (
+        (center[0] - offset[0], center[1] - offset[1]),
+        (center[0] + offset[0], center[1] + offset[1]),
+        radius,
+    )
+
+
+def _point_segment_distance(point: _Point, first: _Point, second: _Point) -> float:
+    dx = second[0] - first[0]
+    dy = second[1] - first[1]
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 1e-24:
+        return math.hypot(point[0] - first[0], point[1] - first[1])
+    ratio = max(
+        0.0,
+        min(
+            1.0,
+            ((point[0] - first[0]) * dx + (point[1] - first[1]) * dy)
+            / length_sq,
+        ),
+    )
+    projection = (first[0] + ratio * dx, first[1] + ratio * dy)
+    return math.hypot(point[0] - projection[0], point[1] - projection[1])
+
+
+def _orientation(first: _Point, second: _Point, third: _Point) -> float:
+    return ((second[0] - first[0]) * (third[1] - first[1])
+            - (second[1] - first[1]) * (third[0] - first[0]))
+
+
+def _segments_intersect(
+    first_a: _Point, first_b: _Point, second_a: _Point, second_b: _Point
+) -> bool:
+    epsilon = 1e-12
+    orientations = (
+        _orientation(first_a, first_b, second_a),
+        _orientation(first_a, first_b, second_b),
+        _orientation(second_a, second_b, first_a),
+        _orientation(second_a, second_b, first_b),
+    )
+    if (
+        ((orientations[0] > epsilon and orientations[1] < -epsilon)
+         or (orientations[0] < -epsilon and orientations[1] > epsilon))
+        and ((orientations[2] > epsilon and orientations[3] < -epsilon)
+             or (orientations[2] < -epsilon and orientations[3] > epsilon))
+    ):
+        return True
+
+    def on_segment(point: _Point, start: _Point, end: _Point) -> bool:
+        return (
+            min(start[0], end[0]) - epsilon <= point[0]
+            <= max(start[0], end[0]) + epsilon
+            and min(start[1], end[1]) - epsilon <= point[1]
+            <= max(start[1], end[1]) + epsilon
+        )
+
+    return any((
+        abs(orientations[0]) <= epsilon and on_segment(second_a, first_a, first_b),
+        abs(orientations[1]) <= epsilon and on_segment(second_b, first_a, first_b),
+        abs(orientations[2]) <= epsilon and on_segment(first_a, second_a, second_b),
+        abs(orientations[3]) <= epsilon and on_segment(first_b, second_a, second_b),
+    ))
+
+
+def _segment_distance(
+    first_a: _Point, first_b: _Point, second_a: _Point, second_b: _Point
+) -> float:
+    if _segments_intersect(first_a, first_b, second_a, second_b):
+        return 0.0
+    return min(
+        _point_segment_distance(first_a, second_a, second_b),
+        _point_segment_distance(first_b, second_a, second_b),
+        _point_segment_distance(second_a, first_a, first_b),
+        _point_segment_distance(second_b, first_a, first_b),
+    )
+
+
+def _point_in_polygon(point: _Point, vertices: list[_Point]) -> bool:
+    if len(vertices) < 3:
+        return False
+    previous = vertices[-1]
+    inside = False
+    for current in vertices:
+        if _point_segment_distance(point, previous, current) <= 1e-12:
+            return True
+        if (current[1] > point[1]) != (previous[1] > point[1]):
+            crossing_x = (
+                (previous[0] - current[0])
+                * (point[1] - current[1])
+                / (previous[1] - current[1])
+                + current[0]
+            )
+            if point[0] < crossing_x:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def _segment_polygon_distance(
+    first: _Point, second: _Point, vertices: list[_Point]
+) -> float:
+    if not vertices:
+        return math.inf
+    if _point_in_polygon(first, vertices) or _point_in_polygon(second, vertices):
+        return 0.0
+    previous = vertices[-1]
+    distance = math.inf
+    for current in vertices:
+        distance = min(
+            distance,
+            _segment_distance(first, second, previous, current),
+        )
+        previous = current
+    return distance
+
+
+def _element_rotation(element: dict) -> float:
+    for field in ("ccw_rotation", "rotation"):
+        value = _finite_number(element.get(field))
+        if value is not None:
+            return value
+    return 0.0
+
+
+def _drill_stadium(element: dict) -> _Stadium | None:
+    x = _finite_number(element.get("x"))
+    y = _finite_number(element.get("y"))
+    if x is None or y is None:
+        return None
+    width = _finite_number(element.get("hole_width"))
+    height = _finite_number(element.get("hole_height"))
+    diameter = _finite_number(element.get("hole_diameter"))
+    if width is None:
+        width = diameter
+    if height is None:
+        height = diameter
+    if width is None or height is None:
+        return None
+    return _stadium((x, y), width, height, _element_rotation(element))
+
+
+def _own_pad_stadium(element: dict) -> _Stadium | None:
+    x = _finite_number(element.get("x"))
+    y = _finite_number(element.get("y"))
+    if x is None or y is None:
+        return None
+    width = _finite_number(element.get("outer_width"))
+    height = _finite_number(element.get("outer_height"))
+    diameter = _finite_number(element.get("outer_diameter"))
+    if width is None:
+        width = diameter
+    if height is None:
+        height = diameter
+    if width is None or height is None:
+        return None
+    return _stadium((x, y), width, height, _element_rotation(element))
+
+
+def _smt_copper_shape(element: dict) -> tuple[str, object] | None:
+    x = _finite_number(element.get("x"))
+    y = _finite_number(element.get("y"))
+    shape = str(element.get("shape") or "rect")
+    if shape == "polygon":
+        vertices: list[_Point] = []
+        for point in element.get("points") or []:
+            if not isinstance(point, dict):
+                return None
+            px = _finite_number(point.get("x"))
+            py = _finite_number(point.get("y"))
+            if px is None or py is None:
+                return None
+            vertices.append((px, py))
+        return ("polygon", vertices) if len(vertices) >= 3 else None
+    if x is None or y is None:
+        return None
+    if shape == "circle":
+        radius = _finite_number(element.get("radius"))
+        if radius is None:
+            diameter = _finite_number(element.get("width"))
+            radius = diameter / 2.0 if diameter is not None else None
+        if radius is None or radius <= 0:
+            return None
+        return ("stadium", ((x, y), (x, y), radius))
+
+    width = _finite_number(element.get("width"))
+    height = _finite_number(element.get("height"))
+    if width is None or height is None or width <= 0 or height <= 0:
+        return None
+    rotation = _element_rotation(element) if shape.startswith("rotated_") else 0.0
+    if shape in {"pill", "rotated_pill"}:
+        stadium = _stadium((x, y), width, height, rotation)
+        return ("stadium", stadium) if stadium is not None else None
+    if shape not in {"rect", "rotated_rect"}:
+        return None
+    local = [
+        (-width / 2.0, -height / 2.0),
+        (width / 2.0, -height / 2.0),
+        (width / 2.0, height / 2.0),
+        (-width / 2.0, height / 2.0),
+    ]
+    vertices = [
+        (x + rotated[0], y + rotated[1])
+        for rotated in (_rotate_point(point, rotation) for point in local)
+    ]
+    return ("polygon", vertices)
+
+
+def _shape_gap(drill: _Stadium, copper_shape: tuple[str, object]) -> float:
+    first, second, drill_radius = drill
+    kind, shape = copper_shape
+    if kind == "stadium":
+        copper_first, copper_second, copper_radius = shape  # type: ignore[misc]
+        return (
+            _segment_distance(first, second, copper_first, copper_second)
+            - drill_radius
+            - copper_radius
+        )
+    vertices = shape  # type: ignore[assignment]
+    return _segment_polygon_distance(first, second, vertices) - drill_radius
+
+
+def _shape_inside_stadium(
+    copper_shape: tuple[str, object], container: _Stadium
+) -> bool:
+    container_first, container_second, container_radius = container
+    kind, shape = copper_shape
+    if kind == "stadium":
+        first, second, radius = shape  # type: ignore[misc]
+        return all(
+            _point_segment_distance(point, container_first, container_second)
+            + radius
+            <= container_radius + 1e-9
+            for point in (first, second)
+        )
+    vertices = shape  # type: ignore[assignment]
+    return bool(vertices) and all(
+        _point_segment_distance(point, container_first, container_second)
+        <= container_radius + 1e-9
+        for point in vertices
+    )
+
+
 def _hole_to_copper_warnings(
     circuit_json: Sequence[dict], names: dict, profile: FabProfile
 ) -> list[Warning]:
-    """Tracks passing too near a drill.
+    """Exact drill-to-unrelated-copper clearance over circuit.json.
 
-    Two rules, not one (jlcpcb.com/capabilities, read 2026-08-11): a
-    non-plated mounting hole needs 0.20mm to copper, a plated hole needs
-    0.28mm. This is the check that caught the defect blocking every example
-    board — the router threads a ground track through the 0.525mm channel
-    beside a USB-C connector's alignment holes because it is the shortest
-    path, leaving 0.115mm where 0.2mm is required. A drill lands within its
-    own positional tolerance of that, so the track can simply be cut: some
-    boards in the batch work and some do not, which is the worst way to fail.
-
-    A track *terminating* at a hole is the connection to it, not a violation.
+    Drills are round-tool stadiums, not bounding circles.  The gate includes
+    NPTH/PTH slots and via drills, and compares them with trace capsules, SMD
+    copper and other via pads.  Electrical identity exempts real same-net
+    connections; geometry exempts unidentified copper only while it remains
+    wholly inside the drill feature's own annular pad.
     """
-    warnings: list[Warning] = []
-    holes: list[tuple[float, float, float, bool]] = []
+    source_keys: dict[str, str] = {}
+    pcb_port_keys: dict[str, str] = {}
     for element in circuit_json:
-        etype = element.get("type")
-        if etype not in ("pcb_hole", "pcb_plated_hole"):
+        if not isinstance(element, dict):
             continue
-        x, y = element.get("x"), element.get("y")
-        diameter = (
-            element.get("hole_diameter")
-            or element.get("hole_width")
-            or element.get("outer_diameter")
-        )
-        if not all(isinstance(v, (int, float)) for v in (x, y, diameter)):
+        key = str(element.get("subcircuit_connectivity_map_key") or "")
+        if key:
+            for field in ("source_net_id", "source_trace_id", "source_port_id"):
+                element_id = str(element.get(field) or "")
+                if element_id:
+                    source_keys[element_id] = key
+    for element in circuit_json:
+        if not isinstance(element, dict) or element.get("type") != "pcb_port":
             continue
-        holes.append((float(x), float(y), float(diameter) / 2.0,
-                      etype == "pcb_plated_hole"))
-    if not holes:
-        return warnings
+        pcb_port_id = str(element.get("pcb_port_id") or "")
+        source_port_id = str(element.get("source_port_id") or "")
+        key = str(element.get("subcircuit_connectivity_map_key") or "")
+        if not key:
+            key = source_keys.get(source_port_id, "")
+        if pcb_port_id and key:
+            pcb_port_keys[pcb_port_id] = key
 
+    def element_key(element: dict, trace_keys: dict[str, str]) -> str:
+        direct = str(element.get("subcircuit_connectivity_map_key") or "")
+        if direct:
+            return direct
+        pcb_port_id = str(element.get("pcb_port_id") or "")
+        if pcb_port_id in pcb_port_keys:
+            return pcb_port_keys[pcb_port_id]
+        for field in (
+            "connection_name", "source_net_id", "source_trace_id", "source_port_id"
+        ):
+            candidate = str(element.get(field) or "")
+            if candidate in source_keys:
+                return source_keys[candidate]
+        pcb_trace_id = str(element.get("pcb_trace_id") or "")
+        return trace_keys.get(pcb_trace_id, "")
+
+    trace_keys: dict[str, str] = {}
+    for element in circuit_json:
+        if not isinstance(element, dict) or element.get("type") != "pcb_trace":
+            continue
+        trace_id = str(element.get("pcb_trace_id") or "")
+        key = element_key(element, {})
+        if trace_id and key:
+            trace_keys[trace_id] = key
+
+    drills: list[dict] = []
+    for index, element in enumerate(circuit_json):
+        if not isinstance(element, dict):
+            continue
+        etype = str(element.get("type") or "")
+        if etype not in {"pcb_hole", "pcb_plated_hole", "pcb_via"}:
+            continue
+        geometry = _drill_stadium(element)
+        if geometry is None:
+            continue
+        x = _finite_number(element.get("x"))
+        y = _finite_number(element.get("y"))
+        if x is None or y is None:
+            continue
+        is_via = etype == "pcb_via"
+        plated = etype in {"pcb_plated_hole", "pcb_via"}
+        if is_via:
+            floor = profile.min_via_to_copper_mm
+            warn_floor = None
+            kind = "via drill"
+        elif plated:
+            floor = profile.min_pth_to_copper_mm
+            warn_floor = profile.warn_pth_to_copper_mm
+            kind = "plated slot" if math.dist(geometry[0], geometry[1]) > 1e-12 else "plated hole"
+        else:
+            floor = profile.min_npth_to_copper_mm
+            warn_floor = None
+            kind = "mounting slot" if math.dist(geometry[0], geometry[1]) > 1e-12 else "mounting hole"
+        element_id = str(
+            element.get("pcb_via_id")
+            or element.get("pcb_plated_hole_id")
+            or element.get("pcb_hole_id")
+            or f"drill_{index}"
+        )
+        pcb_port_id = str(element.get("pcb_port_id") or "")
+        drills.append({
+            "id": element_id,
+            "element": element,
+            "shape": geometry,
+            "own_pad": _own_pad_stadium(element),
+            "key": element_key(element, trace_keys),
+            "port_id": pcb_port_id,
+            "trace_id": str(element.get("pcb_trace_id") or ""),
+            "floor": floor,
+            "warn_floor": warn_floor,
+            "kind": kind,
+            "is_via": is_via,
+            "center": (x, y),
+        })
+    if not drills:
+        return []
+
+    copper: list[dict] = []
+    for index, element in enumerate(circuit_json):
+        if not isinstance(element, dict):
+            continue
+        etype = str(element.get("type") or "")
+        key = element_key(element, trace_keys)
+        if etype == "pcb_trace":
+            trace_id = str(element.get("pcb_trace_id") or f"trace_{index}")
+            connected_ports = {
+                str(port_id)
+                for port_id in (element.get("connectsTo") or [])
+                if port_id
+            }
+            route = [point for point in (element.get("route") or []) if isinstance(point, dict)]
+            for segment_index, (first, second) in enumerate(zip(route, route[1:])):
+                first_x = _finite_number(first.get("x"))
+                first_y = _finite_number(first.get("y"))
+                second_x = _finite_number(second.get("x"))
+                second_y = _finite_number(second.get("y"))
+                if None in (first_x, first_y, second_x, second_y):
+                    continue
+                widths = [
+                    _finite_number(point.get("width"))
+                    for point in (first, second)
+                    if point.get("route_type") == "wire"
+                ]
+                widths = [width for width in widths if width is not None and width > 0]
+                if not widths:
+                    continue
+                shape: tuple[str, object] = (
+                    "stadium",
+                    (
+                        (float(first_x), float(first_y)),
+                        (float(second_x), float(second_y)),
+                        max(widths) / 2.0,
+                    ),
+                )
+                copper.append({
+                    "id": trace_id,
+                    "segment": segment_index,
+                    "element": element,
+                    "shape": shape,
+                    "key": key,
+                    "port_id": "",
+                    "trace_id": trace_id,
+                    "connected_ports": connected_ports,
+                    "kind": "track",
+                    "label": f"track {trace_id}",
+                })
+        elif etype == "pcb_smtpad":
+            shape = _smt_copper_shape(element)
+            if shape is None:
+                continue
+            pad_id = str(element.get("pcb_smtpad_id") or f"pad_{index}")
+            copper.append({
+                "id": pad_id,
+                "element": element,
+                "shape": shape,
+                "key": key,
+                "port_id": str(element.get("pcb_port_id") or ""),
+                "trace_id": "",
+                "connected_ports": set(),
+                "kind": "SMD pad",
+                "label": f"SMD pad {pad_id}",
+            })
+        elif etype == "pcb_via":
+            x = _finite_number(element.get("x"))
+            y = _finite_number(element.get("y"))
+            diameter = _finite_number(element.get("outer_diameter"))
+            if x is None or y is None or diameter is None or diameter <= 0:
+                continue
+            via_id = str(element.get("pcb_via_id") or f"via_{index}")
+            copper.append({
+                "id": via_id,
+                "element": element,
+                "shape": ("stadium", ((x, y), (x, y), diameter / 2.0)),
+                "key": key,
+                "port_id": str(element.get("pcb_port_id") or ""),
+                "trace_id": str(element.get("pcb_trace_id") or ""),
+                "connected_ports": set(),
+                "kind": "via pad",
+                "label": f"via pad {via_id}",
+            })
+
+    closest: dict[tuple[str, str], tuple[float, dict, dict]] = {}
+    for drill in drills:
+        for conductor in copper:
+            # A via's drill and annular pad are one physical feature.
+            if drill["element"] is conductor["element"]:
+                continue
+            drill_key = str(drill["key"] or "")
+            copper_key = str(conductor["key"] or "")
+            known_different = bool(
+                drill_key and copper_key and drill_key != copper_key
+            )
+            if drill_key and copper_key and drill_key == copper_key:
+                continue
+            if (
+                drill["port_id"]
+                and drill["port_id"] == conductor["port_id"]
+            ):
+                continue
+            if (
+                conductor["kind"] == "track"
+                and drill["port_id"]
+                and drill["port_id"] in conductor["connected_ports"]
+            ):
+                continue
+            if (
+                drill["is_via"]
+                and conductor["kind"] == "track"
+                and drill["trace_id"]
+                and drill["trace_id"] == conductor["trace_id"]
+            ):
+                continue
+            if (
+                not drill_key
+                and not copper_key
+                and drill["own_pad"] is not None
+                and _shape_inside_stadium(conductor["shape"], drill["own_pad"])
+            ):
+                continue
+            # Legacy artifacts sometimes omit every connectivity identifier.
+            # Preserve an explicit trace endpoint landing in a PTH as the
+            # intended connection, but never apply this ambiguity exemption
+            # when the artifact proves the nets are different.
+            if (
+                not known_different
+                and not drill["is_via"]
+                and conductor["kind"] == "track"
+            ):
+                trace_first, trace_second, _ = conductor["shape"][1]
+                drill_first, drill_second, drill_radius = drill["shape"]
+                if min(
+                    _point_segment_distance(
+                        trace_first, drill_first, drill_second
+                    ),
+                    _point_segment_distance(
+                        trace_second, drill_first, drill_second
+                    ),
+                ) <= drill_radius + 0.05:
+                    continue
+
+            gap = _shape_gap(drill["shape"], conductor["shape"])
+            if not math.isfinite(gap):
+                continue
+            if drill["is_via"] and conductor["kind"] == "via pad":
+                via_ids = sorted((str(drill["id"]), str(conductor["id"])))
+                pair = (f"via:{via_ids[0]}", f"via:{via_ids[1]}")
+            else:
+                pair = (str(drill["id"]), str(conductor["id"]))
+            prior = closest.get(pair)
+            if prior is None or gap < prior[0]:
+                closest[pair] = (gap, drill, conductor)
+
+    warnings: list[Warning] = []
+    for gap, drill, conductor in closest.values():
+        floor = float(drill["floor"])
+        warn_floor = drill["warn_floor"]
+        if gap >= floor - 1e-9 and (
+            warn_floor is None or gap >= float(warn_floor) - 1e-9
+        ):
+            continue
+        part = _localize(conductor["element"], names)
+        if part == "board":
+            part = _localize(drill["element"], names)
+        x, y = drill["center"]
+        if gap < floor - 1e-9:
+            warnings.append(_warning(
+                part,
+                "dfm_hole_clearance",
+                f"{conductor['label']} is {gap:.3f}mm from {drill['kind']} "
+                f"{drill['id']} at ({x:.2f}, {y:.2f}); the fab needs "
+                f"{floor:g}mm — move the copper or drill",
+                "error",
+            ))
+        else:
+            warnings.append(_warning(
+                part,
+                "dfm_hole_clearance",
+                f"{conductor['label']} is {gap:.3f}mm from {drill['kind']} "
+                f"{drill['id']} at ({x:.2f}, {y:.2f}) — legal, but "
+                f"{float(warn_floor):g}mm is the recommended margin",
+                "warning",
+            ))
+    return warnings
+
+
+def _trace_endpoint_layer_warnings(
+    circuit_json: Sequence[dict], names: dict
+) -> list[Warning]:
+    """Catch a routed trace that only *geometrically* reaches an SMD pad.
+
+    A bottom-copper segment ending at the coordinates of a top-only pad looks
+    connected in a 2-D renderer, but there is no copper path between them.  The
+    hydrate-coaster's V5 rail reached a USB-C VBUS pad exactly this way; a later
+    router attempt hid the open by putting a via inside the pad.  Detect the
+    layer mismatch directly, before the KiCad conversion is available.
+    """
+    port_layers = {
+        str(element.get("pcb_port_id")): {
+            str(layer) for layer in (element.get("layers") or []) if layer
+        }
+        for element in circuit_json
+        if element.get("type") == "pcb_port" and element.get("pcb_port_id")
+    }
+    warnings: list[Warning] = []
     seen: set[tuple[str, str]] = set()
     for element in circuit_json:
         if element.get("type") != "pcb_trace":
             continue
-        route = [
-            p for p in (element.get("route") or [])
-            if isinstance(p, dict) and isinstance(p.get("x"), (int, float))
-        ]
-        for first, second in zip(route, route[1:]):
-            x1, y1 = float(first["x"]), float(first["y"])
-            x2, y2 = float(second["x"]), float(second["y"])
-            half = float(first.get("width") or 0.2) / 2.0
-            dx, dy = x2 - x1, y2 - y1
-            length_sq = dx * dx + dy * dy
-            for hx, hy, radius, plated in holes:
-                # The segment that lands on a hole is its connection.
-                if min(math.hypot(x1 - hx, y1 - hy),
-                       math.hypot(x2 - hx, y2 - hy)) <= radius + 0.05:
-                    continue
-                t = 0.0 if length_sq == 0 else max(
-                    0.0, min(1.0, ((hx - x1) * dx + (hy - y1) * dy) / length_sq)
-                )
-                gap = math.hypot(x1 + t * dx - hx, y1 + t * dy - hy) - radius - half
-                floor = (
-                    profile.min_pth_to_copper_mm if plated
-                    else profile.min_npth_to_copper_mm
-                )
-                kind = "plated hole" if plated else "mounting hole"
-                key = (f"{hx:.2f},{hy:.2f}", element.get("pcb_trace_id", ""))
-                if gap < floor - 1e-9 and key not in seen:
-                    seen.add(key)
-                    warnings.append(_warning(
-                        _localize(element, names),
-                        "dfm_hole_clearance",
-                        f"a track passes {gap:.3f}mm from a {kind} at "
-                        f"({hx:.2f}, {hy:.2f}); the fab needs {floor:g}mm — "
-                        "route around it, the drill's own tolerance can cut "
-                        "a track this close",
-                        "error",
-                    ))
-                elif (
-                    plated
-                    and gap < profile.warn_pth_to_copper_mm - 1e-9
-                    and key not in seen
-                ):
-                    seen.add(key)
-                    warnings.append(_warning(
-                        _localize(element, names),
-                        "dfm_hole_clearance",
-                        f"a track passes {gap:.3f}mm from a plated hole at "
-                        f"({hx:.2f}, {hy:.2f}) — legal, but "
-                        f"{profile.warn_pth_to_copper_mm:g}mm is the "
-                        "recommended margin",
-                        "warning",
-                    ))
+        trace_id = str(element.get("pcb_trace_id") or "trace")
+        route = [point for point in (element.get("route") or []) if isinstance(point, dict)]
+        for point in route:
+            endpoint = ""
+            port_id = ""
+            if point.get("start_pcb_port_id"):
+                endpoint = "start"
+                port_id = str(point["start_pcb_port_id"])
+            elif point.get("end_pcb_port_id"):
+                endpoint = "end"
+                port_id = str(point["end_pcb_port_id"])
+            if not port_id or point.get("route_type") != "wire":
+                continue
+            allowed = port_layers.get(port_id) or set()
+            layer = str(point.get("layer") or "")
+            key = (trace_id, port_id)
+            if allowed and layer and layer not in allowed and key not in seen:
+                seen.add(key)
+                warnings.append(_warning(
+                    _localize(element, names),
+                    "pcb_trace_endpoint_layer_mismatch",
+                    f"the {endpoint} of {trace_id} reaches {port_id} on {layer}, "
+                    f"but that pad only has copper on {', '.join(sorted(allowed))}; "
+                    "the coordinates touch but the net is electrically open",
+                    "error",
+                ))
     return warnings
 
 
@@ -425,6 +979,7 @@ def dfm_warnings(
         names = _component_names(circuit_json)
         warnings: list[Warning] = []
         warnings.extend(_hole_to_copper_warnings(circuit_json, names, profile))
+        warnings.extend(_trace_endpoint_layer_warnings(circuit_json, names))
         board = next(
             (
                 e

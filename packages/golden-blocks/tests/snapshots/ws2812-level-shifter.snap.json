@@ -1,0 +1,47 @@
+{
+ "components": {
+  "C20": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "U6": {
+   "ftype": "simple_chip",
+   "lcsc": "C7484"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 2,
+  "pcb_board": 1,
+  "pcb_component": 2,
+  "pcb_copper_pour": 1,
+  "pcb_courtyard_outline": 1,
+  "pcb_courtyard_rect": 1,
+  "pcb_group": 1,
+  "pcb_port": 7,
+  "pcb_silkscreen_path": 10,
+  "pcb_silkscreen_text": 1,
+  "pcb_smtpad": 7,
+  "pcb_solder_paste": 7,
+  "pcb_trace": 4,
+  "schematic_component": 2,
+  "schematic_group": 2,
+  "schematic_net_label": 5,
+  "schematic_port": 7,
+  "schematic_text": 2,
+  "schematic_trace": 3,
+  "source_board": 1,
+  "source_component": 2,
+  "source_group": 2,
+  "source_net": 4,
+  "source_port": 7,
+  "source_project_metadata": 1,
+  "source_trace": 7
+ },
+ "nets": [
+  "GND",
+  "LED_DATA_3V3",
+  "LED_DATA_5V",
+  "V5"
+ ],
+ "traceCount": 7
+}

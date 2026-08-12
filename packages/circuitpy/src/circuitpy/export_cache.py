@@ -3,8 +3,9 @@
 An exported artifact (gerbers zip, kicad_sch/kicad_pcb conversion, glb) is
 keyed by sha256 of the canonical JSON of everything that determines its
 bytes: the circuit.json content hash, the export kind, the toolchain
-versions, and the fab profile. Tool versions in the key are the honest
-invalidation dial — upgrading tscircuit re-exports everything once.
+versions, fab profile, and circuitpy/verifylib implementation revision. Tool
+versions invalidate upstream exporter changes; the implementation revision
+invalidates our own normalization and packet logic.
 
 Best-effort by design: a miss just re-runs the exporter; a hit saves the
 ~5-10s subprocess. The full-build no-op case is handled one level up by the
@@ -41,6 +42,7 @@ def export_key(
     kind: str,
     versions: dict[str, str | None],
     fab: str,
+    pipeline_revision: str,
 ) -> str:
     payload = {
         "cacheVersion": CACHE_VERSION,
@@ -48,6 +50,7 @@ def export_key(
         "kind": kind,
         "versions": versions,
         "fab": fab,
+        "pipelineRevision": pipeline_revision,
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

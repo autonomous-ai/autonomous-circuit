@@ -19,14 +19,15 @@ a demo. A closed matrix is a structural guarantee.
 inside the tested space.** A composition the agent can produce but we have
 never built is an untested claim.
 
-Three tiers, cheapest first:
+Tiers, cheapest first (the exact cell count is derived from the live registry;
+never copy a stale count into this contract):
 
-| Tier | Cells | What it proves |
+| Tier | Coverage | What it proves |
 |---|---|---|
-| `singles` | 9 | each block alone (duplicates `packages/golden-blocks/tests/test_gauntlet.py`; off by default) |
-| `pairs` | 36 | no two blocks break each other — the missing half |
-| `spine` | 9 | the realistic minimum board: USB-C in, 3V3 rail, one block |
-| `triples` | 84 | every three-block combination the planner can reach |
+| `singles` | every registered block | each block alone (duplicates `packages/golden-blocks/tests/test_gauntlet.py`; off by default) |
+| `pairs` | every legal two-block combination | no two blocks break each other — the missing half |
+| `spine` | protected USB + 3V3 + each compatible block | the realistic minimum powered board |
+| `triples` | every legal three-block combination | every three-block combination the planner can reach |
 
 Dee's budget rule, 2026-08-11: *"even if you send 1-day, 2-day or even 3-day to
 get the build right and verify everything, that's still better than waiting 2
@@ -72,6 +73,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
 sys.path.insert(0, str(REPO / "skills" / "circuitcode"))  # circuitlib
 
@@ -81,11 +83,15 @@ SKELETON = REPO / "skills" / "circuitcode" / "templates" / "project_skeleton"
 BLOCKS_DIR = REPO / "packages" / "golden-blocks" / "blocks"
 REPORT = Path(__file__).resolve().parent / "composition-matrix.json"
 
+from scripts.sync_golden_blocks import sync_project  # noqa: E402
+
 #: Board props every real board sets. A cell judged under different rules than
 #: the boards that will use it is not really being judged (same reasoning as
 #: the block gauntlet's BOARD_PROPS).
 BOARD_PROPS = (
-    'thickness={1.6} minTraceWidth="0.2mm" '
+    'thickness={1.6} minTraceWidth="0.15mm" '
+    'minTraceToPadEdgeClearance="0.15mm" '
+    'minViaEdgeToPadEdgeClearance="0.15mm" '
     'minViaPadDiameter="0.6mm" minViaHoleDiameter="0.3mm"'
 )
 
@@ -99,14 +105,35 @@ BOARD_PROPS = (
 #: Keep in sync with circuitlib.blocks.BLOCKS — test_matrix_covers_registry
 #: below fails if the registry grows a block this table does not know.
 INSTANTIATION: dict[str, tuple[str, str]] = {
-    "usb-c-power": ("UsbCPower", ""),
-    "usb-c-data": ("UsbCData", ""),
+    "usb-c-power": (
+        "UsbCPower",
+        'vbusBoundaryRefs={{ right: "N3", left: "N4" }} '
+        'vbusRailNodeRef="N15"',
+    ),
+    "usb-c-data": (
+        "UsbCData",
+        'vbusBoundaryRefs={{ right: "N3", left: "N4" }} '
+        'vbusRailNodeRef="N15" vbusClampNodeRef="N16" '
+        'pairRules={{ pcbTraceGapMm: 0.15, maxLengthSkewMm: 3.8, '
+        'maxUncoupledLengthMm: 3 }}',
+    ),
+    "usb-power-entry": ("UsbPowerEntry", ""),
     "ldo-3v3": ("Ldo3v3", ""),
     "i2c-bus": ("I2cBus", ""),
     "status-led": ("StatusLed", ""),
     "sw-tact": ("SwTact", 'name="SW1" signal="KEY1"'),
-    "rp2040-core": ("Rp2040Core", ""),
+    "rp2040-core": (
+        "Rp2040Core",
+        'debugPortPcbX={14} debugPortPcbY={-2} '
+        'debugSwclkBoundaryRef="N1" debugSwdBoundaryRef="N2" '
+        'powerRailNodeRefs={{ westUpper: "N5", westLower: "N6", '
+        'south: "N7", eastLower: "N8", eastUpper: "N9", '
+        'topRight: "N10", topMiddle: "N11", topLeft: "N12", '
+        'bulk: "N13", flash: "N14", dvddLeft: "N17", '
+        'dvddRight: "N18", dvddSouth: "N19", dvddJunction: "N20" }}',
+    ),
     "sensor-bme280": ("SensorBme280", ""),
+    "ws2812-level-shifter": ("Ws2812LevelShifter", ""),
     "ws2812-chain": ("Ws2812Chain", "count={4}"),
 }
 
@@ -122,8 +149,8 @@ KNOWN_UNSUPPORTED: dict[tuple[str, ...], str] = {
     ),
 }
 
-#: The power spine every realistic board starts from.
-SPINE = ("usb-c-power", "ldo-3v3")
+#: The protected power spine every realistic USB board starts from.
+SPINE = ("usb-c-power", "usb-power-entry", "ldo-3v3")
 
 
 def block_ids() -> list[str]:
@@ -193,6 +220,7 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
         f'import {{ {INSTANTIATION[b][0]} }} from "../blocks/{b}/{b}"'
         for b in ids
     )
+    imports += '\nimport { GndPlanes, MountingHole } from "../blocks/glue"'
     lines = []
     for index, b in enumerate(ids):
         symbol, extra = INSTANTIATION[b]
@@ -204,10 +232,17 @@ def board_source(cell: tuple[str, ...]) -> tuple[str, tuple[float, float]]:
         )
     for hole in plan["holes"]:
         lines.append(
-            f'    <hole name="{hole["name"]}" '
-            f'diameter="{hole["diameter_mm"]}mm" '
+            f'    <MountingHole name="{hole["name"]}" '
+            f'diameter={{{hole["diameter_mm"]}}} '
             f'pcbX={{{hole["pcbX"]}}} pcbY={{{hole["pcbY"]}}} />'
         )
+    # All golden powered blocks author one-port GND fanouts into the reserved
+    # plane phase. A composition fixture without a plane tests a different
+    # electrical contract and falsely turns short local drops into remote-net
+    # max-length failures. One top pour is sufficient here because every
+    # matrix block uses its default top-side placement; double-face behavior
+    # has its own golden regressions.
+    lines.append('    <GndPlanes layers={["top"]} />')
     body = "\n".join(lines)
     source = (
         f"// composition-matrix cell: {' + '.join(ids)}\n"
@@ -229,7 +264,12 @@ def prepare_cell(root: Path, cell: tuple[str, ...]) -> tuple[Path, tuple[float, 
     project.mkdir(parents=True, exist_ok=True)
     for config in ("tsconfig.json", "tscircuit.config.json"):
         shutil.copy(SKELETON / config, project / config)
-    shutil.copytree(BLOCKS_DIR, project / "blocks", dirs_exist_ok=True)
+    sync_project(
+        project,
+        blocks=cell,
+        source=BLOCKS_DIR,
+        source_label="packages/golden-blocks/blocks",
+    )
     source, (width, height) = board_source(cell)
     project.joinpath("product.json").write_text(
         json.dumps(

@@ -1,0 +1,14 @@
+Building boards/main.tsx...
+Autorouting <board#2925 /> phase 2 failed start: connections=31, obstacles=501, previous_traces=11
+  phase 2 error after 37ms: Fanout failed: only 20 of 31 connections could escape to the breakout boundary.
+Async effect error in PcbTraceRender "autorouting":
+Error: Fanout failed: only 20 of 31 connections could escape to the breakout boundary.
+    at CapacityMeshSolver.solve (autorouter.js:123:4)
+Circuit JSON written to dist/boards/main/circuit.json
+
+Build complete
+  Circuits  1 passed
+  Output    dist
+
+⚠ Build completed with errors
+Build exiting with code 0: build finished successfully

@@ -1,0 +1,56 @@
+{
+  "layerCount": 2,
+  "bounds": {
+    "minX": -5,
+    "minY": -2,
+    "maxX": 5,
+    "maxY": 2
+  },
+  "minTraceWidth": 0.15,
+  "minViaDiameter": 0.6,
+  "minViaHoleDiameter": 0.3,
+  "minTraceToPadEdgeClearance": 0.15,
+  "minViaEdgeToPadEdgeClearance": 0.15,
+  "connections": [
+    {
+      "name": "explicit_width",
+      "pointsToConnect": [
+        {
+          "x": -4,
+          "y": 0,
+          "layer": "top",
+          "pointId": "pcb_port_start",
+          "pcb_port_id": "pcb_port_start"
+        },
+        {
+          "x": 4,
+          "y": 0,
+          "layer": "top",
+          "pointId": "pcb_port_end",
+          "pcb_port_id": "pcb_port_end"
+        }
+      ],
+      "nominalTraceWidth": 0.25,
+      "mergedConnectionNames": []
+    }
+  ],
+  "obstacles": [
+    {
+      "type": "rect",
+      "center": { "x": 0, "y": 1.235 },
+      "width": 8,
+      "height": 2,
+      "layers": ["top"],
+      "connectedTo": ["upper_keepout"]
+    },
+    {
+      "type": "rect",
+      "center": { "x": 0, "y": -1.235 },
+      "width": 8,
+      "height": 2,
+      "layers": ["top"],
+      "connectedTo": ["lower_keepout"]
+    }
+  ],
+  "traces": []
+}

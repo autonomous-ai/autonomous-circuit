@@ -23,7 +23,8 @@ class BuildError(Exception):
 
 class ProjectShapeError(BuildError):
     """Missing board source / bad ``product.json`` / bad output suffix /
-    unknown fab profile / unreadable ``parts.json``."""
+    unknown fab profile / unreadable ``parts.json`` / invalid frozen block
+    snapshot."""
 
 
 class SpecValidationError(BuildError):

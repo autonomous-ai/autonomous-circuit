@@ -11,6 +11,8 @@
  * Default refdes (global v1 allocation): U2, C2, C3.
  */
 
+import { GndFanoutTrace } from "../glue"
+
 const ldoPinLabels = {
   pin1: ["GND"],
   pin2: ["VOUT1", "VOUT"],
@@ -20,6 +22,7 @@ const ldoPinLabels = {
 
 export const Ams1117_33 = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number | string
   pcbY?: number | string
   pcbRotation?: number | string
@@ -61,6 +64,9 @@ export const Ldo3v3 = (props: {
   cout?: string
   vinNet?: string
   voutNet?: string
+  /** Output pad whose ordinary rail edge is replaced by a board PowerTrunk. */
+  externalPowerTrunkPort?: "VOUT" | "TAB"
+  layer?: "top" | "bottom"
   pcbX?: number
   pcbY?: number
   schX?: number
@@ -71,22 +77,27 @@ export const Ldo3v3 = (props: {
   const cout = props.cout ?? "C3"
   const vin = props.vinNet ?? "V5"
   const vout = props.voutNet ?? "V3_3"
+  const layer = props.layer ?? "top"
   return (
     <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
-      <Ams1117_33 name={u} pcbX={0} pcbY={0} schX={0} schY={0} />
+      <Ams1117_33 name={u} layer={layer} pcbX={0} pcbY={0} schX={0} schY={0} />
       <capacitor name={cin} capacitance="10uF" footprint="0805" pcbX={-2} pcbY={-6} schX={-3} schY={-2}
-        schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
+        layer={layer} schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
       <capacitor name={cout} capacitance="10uF" footprint="0805" pcbX={5} pcbY={-6} schX={3} schY={-2}
-        schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
+        layer={layer} schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
 
       <trace name={`TR_${u}_vin`} from={`.${u} > .VIN`} to={`net.${vin}`} />
-      <trace name={`TR_${u}_vout`} from={`.${u} > .VOUT`} to={`net.${vout}`} />
-      <trace name={`TR_${u}_tab`} from={`.${u} > .TAB`} to={`net.${vout}`} />
-      <trace name={`TR_${u}_gnd`} from={`.${u} > .GND`} to="net.GND" />
+      {props.externalPowerTrunkPort !== "VOUT" ? (
+        <trace name={`TR_${u}_vout`} from={`.${u} > .VOUT`} to={`net.${vout}`} />
+      ) : null}
+      {props.externalPowerTrunkPort !== "TAB" ? (
+        <trace name={`TR_${u}_tab`} from={`.${u} > .TAB`} to={`net.${vout}`} />
+      ) : null}
+      <GndFanoutTrace name={`TR_${u}_gnd`} from={`.${u} > .GND`} />
       <trace name={`TR_${cin}_v`} from={`.${cin} > .pin1`} to={`net.${vin}`} />
-      <trace name={`TR_${cin}_g`} from={`.${cin} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${cin}_g`} from={`.${cin} > .pin2`} />
       <trace name={`TR_${cout}_v`} from={`.${cout} > .pin1`} to={`net.${vout}`} />
-      <trace name={`TR_${cout}_g`} from={`.${cout} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${cout}_g`} from={`.${cout} > .pin2`} />
     </group>
   )
 }

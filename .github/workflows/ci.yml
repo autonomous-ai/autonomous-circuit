@@ -33,8 +33,34 @@ jobs:
         run: bash scripts/setup-toolchain.sh
       - name: Install pytest
         run: pip install pytest
+      - name: Install KiCad CLI
+        # A green pipeline job must exercise the real second substrate. The
+        # unit tests still support developer machines without KiCad, but CI
+        # may not silently skip conversion, DRC, or shipping-Gerber coverage.
+        run: |
+          sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
+          sudo apt-get update
+          sudo apt-get install -y kicad
+          kicad-cli version
+      - name: Prove every patched router safety invariant
+        # These fixtures exercise the installed, hash-pinned bundles.  Keep
+        # them serial: several cases deliberately stress the same local
+        # autorouter and a concurrent run would turn a deterministic safety
+        # gate into a host-capacity lottery.
+        run: node --test --test-concurrency=1 scripts/tests/*.test.mjs
+      - name: Test example-evidence locks
+        run: >-
+          python -m pytest evals/tests
+          scripts/tests/test_review_packet.py
+          scripts/tests/test_sync_golden_blocks.py -q
+      - name: Verify every closed defect still has its source ratchet
+        run: python scripts/shift-left-check
+      - name: Require fresh committed example evidence
+        run: python evals/examples_lock.py
       - name: Run circuitpy tests
         run: python -m pytest packages/circuitpy/tests -q
+      - name: Run independent artifact and Gerber tests
+        run: python -m pytest packages/verify/tests -q
 
   golden-blocks:
     name: golden blocks
@@ -52,6 +78,14 @@ jobs:
         run: bash scripts/setup-toolchain.sh
       - name: Install pytest
         run: pip install pytest
+      - name: Install KiCad CLI
+        # Hidden-node BOM/CPL and real-Gerber integration is part of the
+        # golden-block freeze, so this job may not skip it either.
+        run: |
+          sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
+          sudo apt-get update
+          sudo apt-get install -y kicad
+          kicad-cli version
       - name: Build every block and check its testbench
         run: python -m pytest packages/golden-blocks/tests -q
 
@@ -76,6 +110,8 @@ jobs:
           python-version: "3.12"
       - name: Install pytest
         run: pip install pytest
+      - name: Rebuild self-contained skill runtimes
+        run: bash scripts/build/build-skill-runtimes.sh
       - name: Run skill tests
         run: python -m pytest skills/circuitcode/tests skills/parts-book/tests -q
 
@@ -93,13 +129,13 @@ jobs:
           python-version: "3.12"
       - name: Install the pinned toolchain
         run: bash scripts/setup-toolchain.sh
-      # kicad-cli is what makes a packet shippable; without it the evals still
-      # run and simply assert the honest not-ready path.
-      - name: Install kicad-cli (best effort)
-        continue-on-error: true
+      # kicad-cli is what makes a packet shippable. Absence is not a valid
+      # passing eval environment for a fab-readiness pipeline.
+      - name: Install kicad-cli
         run: |
-          sudo add-apt-repository --yes ppa:kicad/kicad-dev-nightly || true
-          sudo apt-get update && sudo apt-get install -y kicad-cli || \
-            echo "kicad-cli unavailable; evals will exercise the degraded path"
+          sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
+          sudo apt-get update
+          sudo apt-get install -y kicad
+          kicad-cli version
       - name: Run structural evals
         run: python evals/run.py

@@ -210,6 +210,161 @@ CORPUS: tuple[Defect, ...] = (
         near_miss_why="a track landing on a hole is its connection, not a violation.",
     ),
     Defect(
+        id="via-drill-to-track-at-0132mm",
+        found="2026-08-12 — rp2040-core KiCad drill-clearance audit",
+        story=(
+            "The stage-4 gate inspected component holes but never treated a "
+            "pcb_via as a drill. KiCad therefore found a routed track only "
+            "0.132mm from a via drill after the pipeline had already called "
+            "the circuit artifact clean. A late-only finding cannot trigger "
+            "routing escalation, so this exact geometry belongs in the early "
+            "gate and in the permanent corpus."
+        ),
+        elements=[
+            board(),
+            dict(
+                via(hole_d=0.3, outer_d=0.6),
+                subcircuit_connectivity_map_key="via-net",
+            ),
+            dict(
+                track([(-3.0, 0.382), (3.0, 0.382)], width=0.2),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            dict(
+                via(hole_d=0.3, outer_d=0.6),
+                subcircuit_connectivity_map_key="via-net",
+            ),
+            dict(
+                track([(-3.0, 0.451), (3.0, 0.451)], width=0.2),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        near_miss_why=(
+            "0.201mm from the via drill is just beyond the distinct 0.20mm "
+            "via-hole-to-copper floor and must remain legal."
+        ),
+    ),
+    Defect(
+        id="via-drill-to-smd-pad-at-0148mm",
+        found="2026-08-12 — rp2040-core KiCad drill-clearance audit",
+        story=(
+            "The same missing via-drill model ignored SMD copper entirely. "
+            "KiCad measured 0.148mm from a via drill to a neighbouring SMD "
+            "pad, while stage 4 only searched component-hole-to-track pairs. "
+            "This pins the second observed distance and the copper-kind split: "
+            "restoring trace checks alone is not enough."
+        ),
+        elements=[
+            board(),
+            dict(
+                via(hole_d=0.3, outer_d=0.6),
+                subcircuit_connectivity_map_key="via-net",
+            ),
+            dict(
+                pad(0.498, 0.0, w=0.4, h=0.4),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            dict(
+                via(hole_d=0.3, outer_d=0.6),
+                subcircuit_connectivity_map_key="via-net",
+            ),
+            dict(
+                pad(0.551, 0.0, w=0.4, h=0.4),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        near_miss_why=(
+            "The pad begins 0.201mm beyond the via drill edge, so the exact "
+            "different-net geometry clears the 0.20mm floor."
+        ),
+    ),
+    Defect(
+        id="usb-c-slot-endpoint-modeled-as-a-circle",
+        found="2026-08-12 — USB-C imported-footprint rule audit",
+        story=(
+            "The checker reduced every hole to hole_width/2 around its centre. "
+            "A USB-C shell drill is a 0.8 by 1.6mm routed slot, so that shortcut "
+            "discarded 0.4mm of drill travel at each endpoint and could call "
+            "copper beside the real slot legal. The drill must be the stadium "
+            "swept by the round tool, including component rotation."
+        ),
+        elements=[
+            board(),
+            {
+                "type": "pcb_plated_hole",
+                "pcb_plated_hole_id": "usb_slot",
+                "x": 0.0,
+                "y": 0.0,
+                "shape": "pill",
+                "hole_width": 0.8,
+                "hole_height": 1.6,
+                "outer_width": 1.2,
+                "outer_height": 2.0,
+                "subcircuit_connectivity_map_key": "shell-net",
+            },
+            dict(
+                track([(-3.0, 1.0), (3.0, 1.0)], width=0.15),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            {
+                "type": "pcb_plated_hole",
+                "pcb_plated_hole_id": "usb_slot",
+                "x": 0.0,
+                "y": 0.0,
+                "shape": "pill",
+                "hole_width": 0.8,
+                "hole_height": 1.6,
+                "outer_width": 1.2,
+                "outer_height": 2.0,
+                "subcircuit_connectivity_map_key": "shell-net",
+            },
+            dict(
+                track([(-3.0, 1.155), (3.0, 1.155)], width=0.15),
+                subcircuit_connectivity_map_key="other-net",
+            ),
+        ],
+        near_miss_why=(
+            "The trace is exactly 0.280mm from the swept slot endpoint: at the "
+            "PTH floor, therefore legal even though it remains below the "
+            "optional 0.35mm preference."
+        ),
+    ),
+    Defect(
+        id="hole-rule-applied-to-the-hole-s-own-pad",
+        found="2026-08-12 — harness-puck and hydrate-coaster shell-tie audit",
+        story=(
+            "A geometry-only pass counted copper still inside a plated hole's "
+            "own annular pad as an unrelated track and reported the annular "
+            "ring itself as a clearance defect. Compiled net identity is the "
+            "primary exemption; when old artifacts carry no identity, copper "
+            "wholly contained by the feature's own pad is still the connection, "
+            "not a spacing violation."
+        ),
+        elements=[],
+        expect_kind="",
+        near_miss=[
+            board(),
+            plated_hole(hole_d=0.8, outer_d=1.2),
+            track([(0.45, 0.0), (0.50, 0.0)], width=0.1),
+        ],
+        near_miss_why=(
+            "The unidentified trace capsule is wholly inside the PTH's own "
+            "1.2mm annular pad and must not be judged as foreign copper."
+        ),
+    ),
+    Defect(
         id="via-judged-by-the-through-hole-rule",
         found="2026-08-10 — the skeleton board, 14 blocking errors down to 2",
         story=(
@@ -380,12 +535,13 @@ if __name__ == "__main__":
 class RoutingEscalation(unittest.TestCase):
     """Stage 0b's decision logic, without paying for a twenty-minute build.
 
-    The escalation itself is measured end to end elsewhere (harness-puck: 5
-    blocking errors to 1 at ``"5x"``, 1240s). What has to be pinned here is
-    *when* it fires and *what it refuses to touch* — an escalation that runs on
-    a placement overlap burns twelve minutes to reproduce the same verdict, and
-    one that overwrites an author's own effort setting silently disagrees with
-    the source.
+    The old harness/Terminal improvement claim was cache-contaminated and is
+    explicitly withdrawn. What this unit owns is only *when* a bounded alternate
+    candidate may run and *what it refuses to touch* — an escalation that runs
+    on a placement overlap burns twelve minutes to reproduce the same verdict,
+    and one that overwrites an author's own effort setting silently disagrees
+    with the source. Any claim that 5x improves a real board still requires a
+    cold, configuration-keyed, end-to-end comparison of parsed artifacts.
     """
 
     def test_only_routing_class_errors_escalate(self) -> None:
@@ -429,3 +585,242 @@ class RoutingEscalation(unittest.TestCase):
         off.write_text('<board routingDisabled={true}>', encoding="utf-8")
         self.assertFalse(generation._set_autorouter_effort(off, "5x"))
         self.assertNotIn("autorouterEffortLevel", off.read_text())
+
+        authored = tmp / "authored.tsx"
+        authored.write_text(
+            '<board autorouterEffortLevel="10x"></board>', encoding="utf-8"
+        )
+        self.assertEqual(generation._source_routing_effort(authored), "10x")
+        self.assertFalse(generation._set_autorouter_effort(authored, "5x"))
+
+        dynamic = tmp / "dynamic.tsx"
+        dynamic.write_text(
+            "<board autorouterEffortLevel={chosen}></board>", encoding="utf-8"
+        )
+        self.assertEqual(generation._source_routing_effort(dynamic), "authored")
+        self.assertFalse(generation._set_autorouter_effort(dynamic, "5x"))
+
+        definite_false = tmp / "definite-false.tsx"
+        definite_false.write_text(
+            '<board routingDisabled={false} width={value > 0 ? "20mm" : "10mm"}>',
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            generation._source_routing_effort(definite_false), "default"
+        )
+        self.assertTrue(generation._set_autorouter_effort(definite_false, "5x"))
+
+        default_false_wrapper = tmp / "default-false-wrapper.tsx"
+        default_false_wrapper.write_text(
+            "<board\n"
+            "  routingDisabled={props.routingDisabled ?? false}\n"
+            "  width={pickWidth(value > threshold)}\n"
+            ">",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            generation._source_routing_effort(default_false_wrapper), "default"
+        )
+        self.assertTrue(
+            generation._set_autorouter_effort(default_false_wrapper, "5x")
+        )
+
+        dynamic_disabled = tmp / "dynamic-disabled.tsx"
+        dynamic_disabled.write_text(
+            "<board routingDisabled={chosen}></board>", encoding="utf-8"
+        )
+        self.assertEqual(
+            generation._source_routing_effort(dynamic_disabled), "authored"
+        )
+        self.assertFalse(
+            generation._set_autorouter_effort(dynamic_disabled, "5x")
+        )
+
+        true_overrides_effort = tmp / "true-overrides-effort.tsx"
+        true_overrides_effort.write_text(
+            '<board routingDisabled autorouterEffortLevel="10x"></board>',
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            generation._source_routing_effort(true_overrides_effort), "disabled"
+        )
+
+    def test_changed_retry_clears_only_the_private_route_cache(self) -> None:
+        import tempfile
+
+        from circuitpy import generation
+
+        with tempfile.TemporaryDirectory(prefix="escalation-cache-") as tmp:
+            root = Path(tmp)
+            work = root / "private-build-mirror"
+            cache = work / ".tscircuit" / "cache"
+            cache.mkdir(parents=True)
+            (cache / "stale-route.json").write_text("attempt-one", encoding="utf-8")
+            project_cache = root / "user-project" / ".tscircuit" / "cache"
+            project_cache.mkdir(parents=True)
+            (project_cache / "keep.json").write_text("user-owned", encoding="utf-8")
+
+            self.assertTrue(generation._clear_tscircuit_route_cache(work))
+            self.assertFalse(cache.exists())
+            self.assertEqual(
+                (project_cache / "keep.json").read_text(encoding="utf-8"),
+                "user-owned",
+            )
+            self.assertFalse(generation._clear_tscircuit_route_cache(work))
+
+    def test_retry_stash_removes_the_live_artifact_before_the_next_cli(self) -> None:
+        import tempfile
+
+        from circuitpy import generation
+
+        with tempfile.TemporaryDirectory(prefix="retry-artifact-") as tmp:
+            built = Path(tmp) / "dist" / "main"
+            built.mkdir(parents=True)
+            (built / "circuit.json").write_text("attempt-one", encoding="utf-8")
+            kept = generation._stash_completed_build_for_retry(built)
+            self.assertFalse(built.exists())
+            self.assertEqual(
+                (kept / "circuit.json").read_text(encoding="utf-8"),
+                "attempt-one",
+            )
+
+    def test_completed_attempt_evidence_is_content_addressed_and_parsed(self) -> None:
+        import tempfile
+
+        from circuitpy import generation
+
+        with tempfile.TemporaryDirectory(prefix="effort-evidence-") as tmp:
+            artifact = Path(tmp) / "circuit.json"
+            artifact.write_text('[{"type":"pcb_trace"}]\n', encoding="utf-8")
+            evidence = generation._routing_attempt_evidence(
+                effort="default",
+                warnings=[
+                    {"severity": "error", "kind": "pcb_trace_error"},
+                    {"severity": "error", "kind": "pcb_trace_error"},
+                    {"severity": "error", "kind": "board_exceeds_envelope"},
+                    {"severity": "warning", "kind": "pcb_trace_error"},
+                ],
+                circuit_json_path=artifact,
+            )
+            self.assertEqual(evidence["effort"], "default")
+            self.assertEqual(evidence["status"], "completed")
+            self.assertRegex(str(evidence["circuitSha256"]), r"^[0-9a-f]{64}$")
+            self.assertEqual(evidence["blocking"], 3)
+            self.assertEqual(evidence["routingBlocking"], 2)
+            self.assertEqual(
+                evidence["blockingKinds"],
+                {"board_exceeds_envelope": 1, "pcb_trace_error": 2},
+            )
+
+            build = {
+                "autorouterEffort": "default",
+                "attempts": 2,
+                "blockingByAttempt": [3],
+                "attemptEvidence": [
+                    evidence,
+                    {"effort": "5x", "status": "failed"},
+                ],
+            }
+            self.assertIsNone(generation.routing_attempt_evidence_error(build))
+            build["attemptEvidence"][0]["circuitSha256"] = "0" * 64
+            self.assertEqual(
+                generation.routing_attempt_evidence_error(
+                    build,
+                    circuit_json_path=artifact,
+                ),
+                "selected circuit artifact does not match routing attempt evidence",
+            )
+
+    def test_attempt_evidence_enforces_the_bounded_winner_state_machine(self) -> None:
+        from circuitpy import generation
+
+        def completed(effort: str, blocking: int, kind: str = "pcb_trace_error") -> dict:
+            return {
+                "effort": effort,
+                "status": "completed",
+                "circuitSha256": "a" * 64,
+                "blocking": blocking,
+                "routingBlocking": blocking,
+                "blockingKinds": ({kind: blocking} if blocking else {}),
+            }
+
+        cases = {
+            "selected-worse": {
+                "autorouterEffort": "5x",
+                "attempts": 2,
+                "blockingByAttempt": [0, 2],
+                "attemptEvidence": [completed("default", 0), completed("5x", 2)],
+            },
+            "ignored-better": {
+                "autorouterEffort": "default",
+                "attempts": 2,
+                "blockingByAttempt": [2, 0],
+                "attemptEvidence": [completed("default", 2), completed("5x", 0)],
+            },
+            "failed-primary": {
+                "autorouterEffort": "5x",
+                "attempts": 2,
+                "blockingByAttempt": [0],
+                "attemptEvidence": [
+                    {"effort": "default", "status": "failed"},
+                    completed("5x", 0),
+                ],
+            },
+            "three-attempts": {
+                "autorouterEffort": "default",
+                "attempts": 3,
+                "blockingByAttempt": [0, 0, 0],
+                "attemptEvidence": [
+                    completed("default", 0),
+                    completed("5x", 0),
+                    completed("10x", 0),
+                ],
+            },
+            "routing-count-lie": {
+                "autorouterEffort": "default",
+                "attempts": 1,
+                "blockingByAttempt": [1],
+                "attemptEvidence": [
+                    {
+                        **completed("default", 1),
+                        "routingBlocking": 0,
+                    }
+                ],
+            },
+            "failed-with-artifact": {
+                "autorouterEffort": "default",
+                "attempts": 2,
+                "blockingByAttempt": [1],
+                "attemptEvidence": [
+                    completed("default", 1),
+                    {
+                        "effort": "5x",
+                        "status": "failed",
+                        "circuitSha256": "b" * 64,
+                    },
+                ],
+            },
+            "retry-without-routing-primary": {
+                "autorouterEffort": "default",
+                "attempts": 2,
+                "blockingByAttempt": [1],
+                "attemptEvidence": [
+                    {
+                        **completed("default", 1, "board_exceeds_envelope"),
+                        "routingBlocking": 0,
+                    },
+                    {"effort": "5x", "status": "failed"},
+                ],
+            },
+        }
+        for label, build in cases.items():
+            with self.subTest(label=label):
+                self.assertIsNotNone(generation.routing_attempt_evidence_error(build))
+
+        authored = {
+            "autorouterEffort": "10x",
+            "attempts": 1,
+            "blockingByAttempt": [0],
+            "attemptEvidence": [completed("10x", 0)],
+        }
+        self.assertIsNone(generation.routing_attempt_evidence_error(authored))

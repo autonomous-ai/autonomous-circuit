@@ -37,6 +37,47 @@ def test_a_blocking_kind_keeps_its_own_error():
     assert out[0]["severity"] == "error"
 
 
+def test_an_explicit_source_trace_minimum_is_a_blocking_contract():
+    out = apply_verify_policy(
+        [_finding("layout_trace_below_requested", "error")], PROFILE
+    )
+    assert out[0]["severity"] == "error"
+
+
+def test_explicit_product_layout_mismatches_block():
+    for kind in (
+        "layout_intent_board_size",
+        "layout_intent_component_side",
+        "layout_intent_component_zone",
+        "layout_intent_component_zone_unmatched",
+        "layout_intent_decoupling_missing",
+        "layout_intent_decoupling_topology",
+        "layout_intent_decoupling_geometry",
+        "layout_intent_decoupling_distance",
+        "layout_intent_decoupling_override_invalid",
+        "layout_intent_decoupling_override_unmatched",
+        "layout_intent_decoupling_policy_conflict",
+        "layout_intent_connector_alignment",
+        "layout_intent_ground_plane_missing",
+        "layout_intent_ground_route_length",
+        "layout_intent_ground_fanout_length",
+        "layout_intent_power_trunk",
+        "layout_intent_netclass_via",
+        "power_intent_usb_raw_capacitance",
+        "power_intent_usb_contract",
+        "power_intent_usb_limiter_topology",
+        "power_intent_usb_limiter_setting_missing",
+        "power_intent_usb_limiter_setting_identity",
+        "power_intent_usb_limiter_setting_value",
+        "power_intent_usb_limiter_setting_topology",
+        "power_intent_usb_load_budget",
+        "pcb_plane_connectivity_error",
+        "pcb_copper_pour_short_error",
+    ):
+        out = apply_verify_policy([_finding(kind, "error")], PROFILE)
+        assert out[0]["severity"] == "error", kind
+
+
 def test_a_blocking_kind_is_not_promoted_when_it_only_warned():
     """`dfa_pin_pitch` is an error below the floor and an info exactly on it.
     Being in the blocking set must not turn the info into a block."""
@@ -45,7 +86,12 @@ def test_a_blocking_kind_is_not_promoted_when_it_only_warned():
 
 
 def test_an_escalated_kind_is_raised_from_warning_to_error():
-    for kind in ("gerber_silk_line_width", "review_debug_unreachable"):
+    for kind in (
+        "gerber_silk_line_width",
+        "gerber_silk_over_pad",
+        "review_debug_unreachable",
+        "netclass_pair_skew",
+    ):
         out = apply_verify_policy([_finding(kind, "warning")], PROFILE)
         assert out[0]["severity"] == "error", kind
 
@@ -195,6 +241,183 @@ def test_stage_4c_returns_graded_findings(board_json: Path):
     )
     kinds = {f["kind"] for f in findings}
     assert any(k.startswith("review_") for k in kinds)
+
+
+def test_stage_4c_blocks_copper_below_an_explicit_source_minimum(board_json: Path):
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    elements = json.loads(board_json.read_text(encoding="utf-8"))
+    elements += [
+        {
+            "type": "source_trace",
+            "source_trace_id": "source_trace_control",
+            "name": "TR_CONTROL",
+            "connected_source_port_ids": ["sp0", "sp1"],
+            "min_trace_thickness": 0.25,
+            "subcircuit_connectivity_map_key": "conn_control",
+        },
+        {
+            "type": "pcb_trace",
+            "pcb_trace_id": "pcb_trace_control",
+            "source_trace_id": "source_trace_control",
+            "connection_name": "source_trace_control",
+            "route": [
+                {
+                    "route_type": "wire",
+                    "x": -2,
+                    "y": 4,
+                    "width": 0.15,
+                    "layer": "top",
+                },
+                {
+                    "route_type": "wire",
+                    "x": 2,
+                    "y": 4,
+                    "width": 0.15,
+                    "layer": "top",
+                },
+            ],
+        },
+    ]
+    board_json.write_text(json.dumps(elements), encoding="utf-8")
+
+    findings = verify_bridge.check_circuit_json(
+        board_json, profile=PROFILE, assembly_order=True
+    )
+    match = [
+        item
+        for item in findings
+        if item["kind"] == "layout_trace_below_requested"
+    ]
+    assert match and match[0]["severity"] == "error"
+    assert "0.15mm" in match[0]["detail"] and "0.25mm" in match[0]["detail"]
+
+
+def test_stage_4c_uses_the_product_assembly_tier(board_json: Path):
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    elements = json.loads(board_json.read_text(encoding="utf-8"))
+    elements += [
+        {
+            "type": "source_component",
+            "source_component_id": "sc_bottom",
+            "ftype": "simple_resistor",
+            "name": "R2",
+        },
+        {
+            "type": "pcb_component",
+            "pcb_component_id": "pc_bottom",
+            "source_component_id": "sc_bottom",
+            "center": {"x": 6, "y": 0},
+            "width": 2,
+            "height": 1,
+            "layer": "bottom",
+        },
+        {
+            "type": "pcb_smtpad",
+            "pcb_smtpad_id": "pad_bottom",
+            "pcb_component_id": "pc_bottom",
+            "layer": "bottom",
+            "shape": "rect",
+            "x": 6,
+            "y": 0,
+            "width": 0.5,
+            "height": 0.5,
+        },
+    ]
+    board_json.write_text(json.dumps(elements), encoding="utf-8")
+
+    economic = verify_bridge.check_circuit_json(
+        board_json,
+        profile=PROFILE,
+        assembly_order=True,
+        assembly_tier="economic",
+    )
+    standard = verify_bridge.check_circuit_json(
+        board_json,
+        profile=PROFILE,
+        assembly_order=True,
+        assembly_tier="standard",
+    )
+
+    assert "dfa_bottom_side" in {finding["kind"] for finding in economic}
+    assert "dfa_bottom_side" not in {finding["kind"] for finding in standard}
+
+
+def test_stage_4c_measures_product_layout_intent(board_json: Path):
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    findings = verify_bridge.check_circuit_json(
+        board_json,
+        profile=PROFILE,
+        assembly_order=True,
+        layout_intent={"boardSizeMm": [31, 20]},
+    )
+    match = [item for item in findings if item["kind"] == "layout_intent_board_size"]
+    assert match and match[0]["severity"] == "error"
+
+
+def test_stage_4c_blocks_a_declared_missing_local_decoupler(board_json: Path):
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    elements = json.loads(board_json.read_text(encoding="utf-8"))
+    supply = next(
+        element
+        for element in elements
+        if element.get("type") == "source_port" and element.get("name") == "VDD"
+    )
+    supply["requires_power"] = True
+    board_json.write_text(json.dumps(elements), encoding="utf-8")
+
+    findings = verify_bridge.check_circuit_json(
+        board_json,
+        profile=PROFILE,
+        assembly_order=True,
+        layout_intent={"decoupling": {"maxDistanceMm": 2.0}},
+    )
+    match = [
+        item
+        for item in findings
+        if item["kind"] == "layout_intent_decoupling_missing"
+    ]
+    assert match and match[0]["severity"] == "error"
+
+
+def test_stage_4c_measures_product_power_intent(board_json: Path):
+    if not verify_bridge.available():
+        pytest.skip("packages/verify is not importable in this runtime")
+    findings = verify_bridge.check_circuit_json(
+        board_json,
+        profile=PROFILE,
+        assembly_order=True,
+        power_intent={
+            "usb": {
+                "rawVbusNet": "VBUS_RAW",
+                "protectedVbusNet": "V5",
+                "rawAttachCapacitanceMaxUf": 10,
+                "sourceCurrentMaxMa": 500,
+                "fixedOperationalLoadMa": 0,
+                "currentLimiter": {
+                    "ref": "U7",
+                    "lcsc": "C55266",
+                    "inputPin": "IN",
+                    "outputPin": "OUT",
+                    "settingPin": "ILIM",
+                    "settingResistor": {
+                        "ref": "R31",
+                        "lcsc": "C32297",
+                        "resistanceOhms": 59000,
+                        "returnNet": "GND",
+                    },
+                    "minTripMa": 400,
+                    "maxTripMa": 500,
+                },
+                "firmwareLimitedLoads": [],
+            }
+        },
+    )
+    match = [item for item in findings if item["kind"] == "power_intent_usb_raw_net"]
+    assert match and match[0]["severity"] == "error"
 
 
 def test_stage_4c_is_disableable_for_a_bisect(board_json: Path, monkeypatch):

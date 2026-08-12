@@ -14,10 +14,28 @@ from __future__ import annotations
 
 import unittest
 
-from circuitlib.blocks import BLOCKS, total_peak_ma, unexposed_nets
-from circuitlib.helpers import board_plan, trace_width_for, validate_board_law
+from circuitlib.blocks import (
+    BLOCKS,
+    missing_requirements,
+    peak_ma_for_rail,
+    total_peak_ma,
+    unexposed_nets,
+)
+from circuitlib.helpers import (
+    board_plan,
+    trace_width_for,
+    usb_power_budget_for_plan,
+    validate_board_law,
+)
 
-PUCK = ["usb-c-power", "ldo-3v3", "rp2040-core", "ws2812-chain"]
+RAW_PUCK = [
+    "usb-c-power",
+    "usb-power-entry",
+    "ldo-3v3",
+    "rp2040-core",
+    "ws2812-chain",
+]
+PUCK = [*RAW_PUCK, "ws2812-level-shifter"]
 
 
 def severities(warnings, kind):
@@ -36,6 +54,7 @@ class PeakCurrent(unittest.TestCase):
     def test_the_typical_number_is_not_the_peak(self):
         chain = BLOCKS["ws2812-chain"]
         self.assertLess(chain.current_draw_ma, chain.peak_ma(8) / 10)
+        self.assertEqual(chain.peak_ma(8), 480.0)
 
     def test_a_missing_count_is_understated_not_invented(self):
         """One unit is assumed, which is low. The planner reports the number it
@@ -43,6 +62,51 @@ class PeakCurrent(unittest.TestCase):
         self.assertEqual(
             total_peak_ma(["ws2812-chain"]),
             total_peak_ma(["ws2812-chain"], {"ws2812-chain": 1}),
+        )
+
+    def test_a_raw_5v_chain_is_unmet_without_the_level_shifter(self):
+        self.assertIn("LED_DATA_5V", missing_requirements(RAW_PUCK))
+        self.assertNotIn("LED_DATA_5V", missing_requirements(PUCK))
+
+    def test_peak_current_is_accounted_on_the_rail_that_carries_it(self):
+        counts = {"ws2812-chain": 8}
+        self.assertGreater(peak_ma_for_rail(PUCK, "V5", counts), 480.0)
+        self.assertLess(peak_ma_for_rail(PUCK, "V3_3", counts), 150.0)
+
+    def test_usb_connector_is_raw_and_the_planner_inserts_the_limiter(self):
+        self.assertIn("VBUS_RAW", BLOCKS["usb-c-data"].provides)
+        self.assertNotIn("V5", BLOCKS["usb-c-data"].provides)
+        plan = board_plan(capabilities=["power-usb"])
+        self.assertIn("usb-c-power", plan.block_ids)
+        self.assertIn("usb-power-entry", plan.block_ids)
+        self.assertIn("ldo-3v3", plan.block_ids)  # supplies the FAULT pull-up
+        self.assertEqual(plan.unmet, ())
+
+    def test_usb_mcu_uses_one_data_connector_and_the_protected_entry(self):
+        plan = board_plan(capabilities=["mcu", "power-usb"])
+
+        self.assertIn("usb-c-data", plan.block_ids)
+        self.assertNotIn("usb-c-power", plan.block_ids)
+        self.assertIn("usb-power-entry", plan.block_ids)
+        self.assertEqual(plan.block_ids.count("usb-c-data"), 1)
+        self.assertEqual(plan.unmet, ())
+
+    def test_the_usb_source_contract_matches_its_own_block_and_part(self):
+        entry = BLOCKS["usb-power-entry"]
+        contract = entry.usb_source_contract
+
+        self.assertIsNotNone(contract)
+        self.assertIn(contract.raw_net, entry.requires)
+        self.assertIn(contract.protected_net, entry.provides)
+        self.assertIn(contract.setting_return_net, entry.requires)
+        self.assertGreater(contract.setting_resistance_ohms, 0)
+        self.assertIn(
+            (contract.limiter_ref, contract.limiter_lcsc),
+            {(part.refdes, part.lcsc) for part in entry.parts},
+        )
+        self.assertIn(
+            (contract.setting_resistor_ref, contract.setting_resistor_lcsc),
+            {(part.refdes, part.lcsc) for part in entry.parts},
         )
 
 
@@ -58,6 +122,22 @@ class PowerTraceWidth(unittest.TestCase):
             trace_width_for(current_a=plan.peak_current_ma / 1000.0),
             places=6,
         )
+        self.assertGreaterEqual(plan.power_trunk_width_mm, plan.power_trace_width_mm)
+        self.assertGreaterEqual(plan.power_trunk_width_mm, 0.6)
+        self.assertLess(plan.power_neckdown_width_mm, plan.power_trunk_width_mm)
+
+    def test_the_plan_prefers_quarter_mm_ordinary_signals_without_raising_the_floor(self):
+        from circuitlib import tables
+
+        plan = board_plan(capabilities=["mcu"])
+        self.assertEqual(plan.signal_trace_width_mm, 0.25)
+        self.assertGreater(plan.signal_trace_width_mm, tables.MIN_TRACE_WIDTH_MM)
+        self.assertEqual(tables.MIN_TRACE_WIDTH_MM, 0.127)
+
+    def test_the_plan_defaults_to_ground_planes_on_both_faces(self):
+        plan = board_plan(capabilities=["mcu"])
+
+        self.assertEqual(plan.ground_plane_layers, ("top", "bottom"))
 
     def test_declaring_copper_too_thin_for_the_plan_is_an_error(self):
         out = validate_board_law(
@@ -82,7 +162,11 @@ class PowerTraceWidth(unittest.TestCase):
 
 class RegulatorHeat(unittest.TestCase):
     def test_a_linear_rail_asked_for_too_much_is_flagged_at_plan_time(self):
-        out = validate_board_law(block_ids=PUCK, counts={"ws2812-chain": 8})
+        out = validate_board_law(
+            block_ids=PUCK,
+            counts={"ws2812-chain": 8},
+            supply_rail_overrides={"ws2812-chain": "V3_3"},
+        )
         self.assertTrue(severities(out, "regulator_thermal"))
 
     def test_a_light_board_is_not(self):
@@ -91,23 +175,201 @@ class RegulatorHeat(unittest.TestCase):
         )
         self.assertEqual(severities(out, "regulator_thermal"), [])
 
-    def test_a_plan_that_would_cook_the_regulator_is_not_buildable(self):
+    def test_a_direct_ams_plan_that_would_cook_is_not_buildable(self):
         """Twenty WS2812s behind an AMS1117 is 1.3A through a linear drop:
         183 degC junction against a 125 degC limit. That board cannot be
         planned, which is a better answer than finding out it runs hot."""
         plan = board_plan(
             capabilities=["mcu", "rgb-pixels"],
             counts={"ws2812-chain": 20},
+            supply_rail_overrides={"ws2812-chain": "V3_3"},
         )
         self.assertTrue(plan.overheats)
         self.assertFalse(plan.buildable)
 
-    def test_the_same_plan_with_a_short_chain_is_buildable(self):
+    def test_a_marginal_eight_pixel_direct_ams_plan_is_not_generated(self):
+        """The Harness-scale chain is below absolute maximum but leaves only
+        about 17degC of estimated headroom in a warm enclosure. The planner
+        must choose a cooler rail architecture while it still can."""
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            supply_rail_overrides={"ws2812-chain": "V3_3"},
+        )
+        self.assertEqual(plan.regulator["severity"], "warning")
+        self.assertTrue(plan.overheats)
+        self.assertFalse(plan.buildable)
+
+    def test_the_same_direct_plan_with_a_short_chain_is_thermally_buildable(self):
         plan = board_plan(
             capabilities=["mcu", "rgb-pixels"],
             counts={"ws2812-chain": 2},
+            supply_rail_overrides={"ws2812-chain": "V3_3"},
         )
         self.assertFalse(plan.overheats)
+
+    def test_the_v5_ahct_eight_pixel_plan_requires_an_operational_cap(self):
+        uncapped = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+        )
+        self.assertFalse(uncapped.buildable)
+        self.assertIsNotNone(uncapped.source_budget)
+        self.assertEqual(uncapped.source_budget["severity"], "error")
+        self.assertGreater(
+            uncapped.source_budget["physical_peak_ma"],
+            uncapped.source_budget["operational_limit_ma"],
+        )
+
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            firmware_load_caps_ma={"ws2812-chain": 280},
+            exposed_nets=["SWCLK", "SWD"],
+        )
+        self.assertIn("ws2812-level-shifter", plan.block_ids)
+        self.assertIn("ws2812-chain", plan.block_ids)
+        self.assertEqual(plan.unmet, ())
+        self.assertIsNotNone(plan.regulator)
+        self.assertEqual(plan.regulator["output_rail"], "V3_3")
+        self.assertLess(float(plan.regulator["load_ma"]), 150.0)
+        self.assertFalse(plan.overheats)
+        self.assertTrue(plan.buildable)
+        self.assertEqual(plan.source_budget["physical_peak_ma"], 593.0)
+        self.assertEqual(plan.source_budget["operational_load_ma"], 393.0)
+        self.assertEqual(plan.source_budget["fixed_operational_load_ma"], 113.0)
+        self.assertEqual(
+            plan.source_budget["firmware_load_caps_ma"],
+            {"ws2812-chain": 280.0},
+        )
+        self.assertEqual(
+            plan.source_budget["firmware_limited_loads"]["ws2812-chain"],
+            {
+                "count": 8,
+                "per_device_physical_peak_ma": 60.0,
+                "physical_peak_ma": 480.0,
+                "operational_max_ma": 280.0,
+            },
+        )
+
+    def test_firmware_cap_cannot_exceed_or_hide_the_physical_block_peak(self):
+        with self.assertRaisesRegex(ValueError, "physical peak"):
+            board_plan(
+                capabilities=["mcu", "rgb-pixels"],
+                counts={"ws2812-chain": 8},
+                firmware_load_caps_ma={"ws2812-chain": 500},
+            )
+
+    def test_the_plan_compiles_the_exact_usb_product_contract(self):
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            firmware_load_caps_ma={"ws2812-chain": 280},
+            exposed_nets=["SWCLK", "SWD"],
+        )
+
+        self.assertEqual(
+            usb_power_budget_for_plan(
+                plan,
+                firmware_load_matches={"ws2812-chain": "D1[0-7]"},
+            ),
+            {
+                "usb": {
+                    "rawVbusNet": "VBUS_RAW",
+                    "protectedVbusNet": "V5",
+                    "rawAttachCapacitanceMaxUf": 10.0,
+                    "sourceCurrentMaxMa": 500.0,
+                    "fixedOperationalLoadMa": 113.0,
+                    "currentLimiter": {
+                        "ref": "U7",
+                        "lcsc": "C55266",
+                        "inputPin": "IN",
+                        "outputPin": "OUT",
+                        "settingPin": "ILIM",
+                        "settingResistor": {
+                            "ref": "R31",
+                            "lcsc": "C32297",
+                            "resistanceOhms": 59000.0,
+                            "returnNet": "GND",
+                        },
+                        "minTripMa": 400.6,
+                        "maxTripMa": 500.0,
+                    },
+                    "firmwareLimitedLoads": [
+                        {
+                            "match": ["D1[0-7]"],
+                            "perDevicePhysicalPeakMa": 60.0,
+                            "aggregateOperationalMaxMa": 280.0,
+                        }
+                    ],
+                }
+            },
+        )
+
+    def test_usb_product_contract_refuses_missing_or_extra_load_patterns(self):
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            firmware_load_caps_ma={"ws2812-chain": 280},
+            exposed_nets=["SWCLK", "SWD"],
+        )
+        with self.assertRaisesRegex(ValueError, "need product refdes"):
+            usb_power_budget_for_plan(plan)
+        with self.assertRaisesRegex(ValueError, "not capped"):
+            usb_power_budget_for_plan(
+                plan,
+                firmware_load_matches={
+                    "ws2812-chain": "D1[0-7]",
+                    "sensor-bme280": "U5",
+                },
+            )
+
+    def test_usb_product_contract_refuses_an_over_limit_plan(self):
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+        )
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            usb_power_budget_for_plan(plan)
+
+    def test_usb_product_contract_refuses_any_other_unbuildable_plan(self):
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            supply_rail_overrides={"ws2812-chain": "V3_3"},
+            firmware_load_caps_ma={"ws2812-chain": 280},
+        )
+        self.assertTrue(plan.overheats)
+        with self.assertRaisesRegex(ValueError, "not buildable"):
+            usb_power_budget_for_plan(
+                plan,
+                firmware_load_matches={"ws2812-chain": "D1[0-7]"},
+            )
+
+    def test_usb_product_contract_cannot_waive_missing_debug_furniture(self):
+        plan = board_plan(
+            capabilities=["mcu", "rgb-pixels"],
+            counts={"ws2812-chain": 8},
+            firmware_load_caps_ma={"ws2812-chain": 280},
+        )
+        self.assertEqual(plan.must_expose, ("SWCLK", "SWD"))
+        self.assertFalse(plan.overheats)
+        self.assertEqual(plan.source_budget["severity"], "info")
+        with self.assertRaisesRegex(ValueError, "debug/test-point exposure"):
+            usb_power_budget_for_plan(
+                plan,
+                firmware_load_matches={"ws2812-chain": "D1[0-7]"},
+            )
+
+    def test_a_light_usb_plan_compiles_without_firmware_loads(self):
+        plan = board_plan(capabilities=["power-usb"])
+        budget = usb_power_budget_for_plan(plan)
+
+        self.assertEqual(budget["usb"]["firmwareLimitedLoads"], [])
+        self.assertLessEqual(
+            budget["usb"]["fixedOperationalLoadMa"],
+            budget["usb"]["currentLimiter"]["minTripMa"],
+        )
 
     def test_heat_is_planned_at_a_warm_room_not_a_laboratory(self):
         """A datasheet quotes 25 degC. A puck in a warm room with an enclosure
@@ -158,6 +420,14 @@ class DebugAccess(unittest.TestCase):
     def test_the_plan_says_what_must_come_out(self):
         plan = board_plan(capabilities=["mcu"])
         self.assertIn("SWCLK", plan.must_expose)
+        self.assertFalse(plan.buildable)
+
+        debugged = board_plan(
+            capabilities=["mcu"],
+            exposed_nets=["swclk", "swd"],
+        )
+        self.assertEqual(debugged.must_expose, ())
+        self.assertTrue(debugged.buildable)
 
 
 class NeverRaises(unittest.TestCase):

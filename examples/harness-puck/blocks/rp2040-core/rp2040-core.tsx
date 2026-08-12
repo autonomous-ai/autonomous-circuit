@@ -17,17 +17,14 @@
  * JSX, 2026-08-10.
  *
  * Default refdes (global v1 allocation): U3, U4, Y1, R11-R13, SW2, SW3,
- * C4-C16.
- *
- * LOCAL DEVIATION (harness-puck project snapshot, 2026-08-10): Y1/C15/C16/R11
- * moved ~3mm toward U3. PLACEMENT ONLY - no net, value or pinout changed. The
- * library placement puts Y1.pin1 11.78mm from U3.XIN and the router enforces a
- * 10mm ceiling on the crystal net, so autorouting was skipped entirely. Upstream
- * fix belongs in packages/golden-blocks/blocks/rp2040-core. The binding
- * constraint is C15, not Y1: at pcbX=-8 its pin1 sits 9.89mm from XIN, 0.11mm
- * inside the ceiling. Moving the cluster another 0.5mm out puts C15 at 10.29mm
- * and routing is skipped again — verified 2026-08-10.
+ * TP1-TP3, C4-C16.
  */
+
+import { DebugPort, GndFanoutTrace } from "../glue"
+import {
+  TactileButton,
+  type TactileSwitchVariant,
+} from "../sw-tact/sw-tact"
 
 const rp2040PinLabels = {
   pin1: ["IOVDD6"],
@@ -91,6 +88,7 @@ const rp2040PinLabels = {
 
 export const Rp2040Chip = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number | string
   pcbY?: number | string
   pcbRotation?: number | string
@@ -136,6 +134,7 @@ const flashPinLabels = {
 
 export const W25q128 = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number | string
   pcbY?: number | string
   pcbRotation?: number | string
@@ -159,20 +158,114 @@ export const Rp2040Core = (props: {
   u?: string
   flash?: string
   xtal?: string
+  layer?: "top" | "bottom"
   pcbX?: number
   pcbY?: number
   schX?: number
   schY?: number
+  /** Required board-local placement for the outboard SWD pads. */
+  debugPortPcbX: number
+  debugPortPcbY: number
+  debugPortSchX?: number
+  debugPortSchY?: number
+  /** Globally unique DNP copper boundaries for the two fixed QFN escapes. */
+  debugSwclkEscapeRef: string
+  debugSwdEscapeRef: string
+  /** Boundary-to-debug-pad width; the QFN toe escape remains fixed at 0.15mm. */
+  debugSignalTraceWidthMm?: number
+  buttonVariant?: TactileSwitchVariant
 }) => {
   const u = props.u ?? "U3"
   const f = props.flash ?? "U4"
   const y = props.xtal ?? "Y1"
+  const layer = props.layer ?? "top"
+  const buttonVariant = props.buttonVariant ?? "standard"
+  const debugSignalTraceWidthMm = props.debugSignalTraceWidthMm ?? 0.25
+  if (!Number.isFinite(props.debugPortPcbX) || !Number.isFinite(props.debugPortPcbY)) {
+    throw new Error(
+      "Rp2040Core requires finite debugPortPcbX/debugPortPcbY coordinates; " +
+      "the board must place its outboard SWD pads explicitly",
+    )
+  }
+  const debugEscapeRefs = [props.debugSwclkEscapeRef, props.debugSwdEscapeRef]
+  if (
+    debugEscapeRefs.some(
+      (ref) => !/^TP[1-9][0-9]*$/.test(ref) || ["TP1", "TP2", "TP3"].includes(ref),
+    ) ||
+    new Set(debugEscapeRefs).size !== debugEscapeRefs.length
+  ) {
+    throw new Error(
+      "Rp2040Core debug escape refs must be distinct TP references outside TP1-TP3",
+    )
+  }
+  const debugEscape = (
+    ref: string,
+    signal: "SWCLK" | "SWD",
+    pcbX: number,
+    schY: number,
+  ) => (
+    <>
+      {/* Copper-only boundary: leave the 0.4mm-pitch QFN perpendicular at
+          0.15mm, then widen before the general route turns toward the probe. */}
+      <testpoint
+        name={ref}
+        footprintVariant="pad"
+        padShape="circle"
+        padDiameter="0.25mm"
+        doNotPlace={true}
+        layer={layer}
+        pcbX={pcbX}
+        pcbY={-4.25}
+        schX={-12}
+        schY={schY}
+      />
+      <trace
+        name={`TR_${u}_${signal.toLowerCase()}_escape`}
+        from={`.${u} > .${signal}`}
+        to={`.${ref} > .pin1`}
+        thickness="0.15mm"
+        pcbPath={[
+          { x: pcbX, y: -3.6 },
+          { x: pcbX, y: -4.25 },
+        ]}
+      />
+      <trace
+        name={`TR_${ref}`}
+        from={`.${ref} > .pin1`}
+        to={`net.${signal}`}
+        thickness={`${debugSignalTraceWidthMm}mm`}
+      />
+    </>
+  )
   return (
     <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
-      <Rp2040Chip name={u} pcbX={0} pcbY={0} schX={0} schY={0} />
-      <W25q128 name={f} pcbX={13} pcbY={0} schX={14} schY={-6} />
+      <Rp2040Chip name={u} layer={layer} pcbX={0} pcbY={0} schX={0} schY={0} />
+      {/* Bring-up is part of the reusable block contract, not board-author
+          advice. Placement is deliberately required from the board: a
+          coordinate that is outboard before a parent-group rotation can land
+          inside a connector afterwards. The block owns the nets and geometry;
+          the composition owns the collision-free board coordinate. */}
+      <DebugPort
+        layer={layer}
+        pcbX={props.debugPortPcbX}
+        pcbY={props.debugPortPcbY}
+        schX={props.debugPortSchX ?? -20}
+        schY={props.debugPortSchY ?? -4}
+        signalTraceWidthMm={debugSignalTraceWidthMm}
+      />
+      {/* RP2040 pins 51-56 all leave the QFN's north edge. Keep the flash on
+          that edge as a bus cluster instead of making every QSPI trace cross
+          the package from a part on its east side. Crystal and flash clock
+          route in phase 0; the remaining QSPI bus follows in phase 1, then
+          later rail/GPIO routing treats all of their copper as fixed. */}
+      <W25q128 name={f} layer={layer} pcbX={-0.7} pcbY={11} schX={14} schY={-6} />
+      {/* XIN/XOUT leave the south edge. Rotating Y1 puts pin1 toward XIN and
+          pin3 toward R11/C16; the load capacitors then branch at the crystal
+          pads rather than doubling back to the QFN. This is a route topology,
+          not just a distance nudge: both oscillator nets compile under 10mm
+          with no layer changes in the routed regression bench. */}
       <crystal name={y} frequency="12MHz" loadCapacitance="10pF" pinVariant="four_pin"
-        footprint="crystal" pcbX={-8} pcbY={0} schX={-14} schY={6}
+        footprint="crystal" layer={layer} pcbX={-0.2} pcbY={-7.6} pcbRotation={270} schX={-14} schY={6}
         supplierPartNumbers={{ jlcpcb: ["C20625731"] }} />
 
       {/* --- Rails ------------------------------------------------------- */}
@@ -188,119 +281,133 @@ export const Rp2040Core = (props: {
       <trace name={`TR_${u}_vregout`} from={`.${u} > .VREG_VOUT`} to="net.DVDD" />
       <trace name={`TR_${u}_dvdd1`} from={`.${u} > .DVDD1`} to="net.DVDD" />
       <trace name={`TR_${u}_dvdd2`} from={`.${u} > .DVDD2`} to="net.DVDD" />
-      <trace name={`TR_${u}_gnd`} from={`.${u} > .GND`} to="net.GND" />
-      <trace name={`TR_${u}_testen`} from={`.${u} > .TESTEN`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${u}_gnd`} from={`.${u} > .GND`} />
+      <GndFanoutTrace name={`TR_${u}_testen`} from={`.${u} > .TESTEN`} />
 
       {/* --- USB + debug nets out ---------------------------------------- */}
       <trace name={`TR_${u}_usbdp`} from={`.${u} > .USB_DP`} to="net.USB_DP" />
       <trace name={`TR_${u}_usbdm`} from={`.${u} > .USB_DM`} to="net.USB_DM" />
-      <trace name={`TR_${u}_swclk`} from={`.${u} > .SWCLK`} to="net.SWCLK" />
-      <trace name={`TR_${u}_swd`} from={`.${u} > .SWD`} to="net.SWD" />
+      {debugEscape(props.debugSwclkEscapeRef, "SWCLK", 1, -4)}
+      {debugEscape(props.debugSwdEscapeRef, "SWD", 1.4, -6)}
 
       {/* --- Crystal: XIN direct, XOUT through 1k series ------------------ */}
-      <trace name={`TR_${y}_xin`} from={`.${y} > .pin1`} to={`.${u} > .XIN`} />
-      <resistor name="R11" resistance="1k" footprint="0402" pcbX={-5.5} pcbY={3} schX={-10} schY={7}
+      <trace name={`TR_${y}_xin`} from={`.${y} > .pin1`} to={`.${u} > .XIN`} routingPhaseIndex={0} />
+      <resistor name="R11" resistance="1k" footprint="0402" layer={layer} pcbX={0.3} pcbY={-4.9} schX={-10} schY={7}
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
-      <trace name={`TR_${u}_xout_r`} from={`.${u} > .XOUT`} to=".R11 > .pin1" />
-      <trace name={`TR_R11_${y}`} from=".R11 > .pin2" to={`.${y} > .pin3`} />
+      <trace name={`TR_${u}_xout_r`} from={`.${u} > .XOUT`} to=".R11 > .pin1" routingPhaseIndex={0} />
+      <trace name={`TR_R11_${y}`} from=".R11 > .pin2" to={`.${y} > .pin3`} routingPhaseIndex={0} />
       {/* four_pin crystal: pin2/pin4 are the ground pads */}
-      <trace name={`TR_${y}_gnd1`} from={`.${y} > .pin2`} to="net.GND" />
-      <trace name={`TR_${y}_gnd2`} from={`.${y} > .pin4`} to="net.GND" />
-      <capacitor name="C15" capacitance="15pF" footprint="0402" pcbX={-8} pcbY={2.5} schX={-16} schY={9}
+      <GndFanoutTrace name={`TR_${y}_gnd1`} from={`.${y} > .pin2`} />
+      <GndFanoutTrace name={`TR_${y}_gnd2`} from={`.${y} > .pin4`} />
+      <capacitor name="C15" capacitance="15pF" footprint="0402" layer={layer} pcbX={-3.1} pcbY={-6.5} pcbRotation={180} schX={-16} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
-      <capacitor name="C16" capacitance="15pF" footprint="0402" pcbX={-8} pcbY={-3.5} schX={-12} schY={9}
+      <capacitor name="C16" capacitance="15pF" footprint="0402" layer={layer} pcbX={2.7} pcbY={-8.7} schX={-12} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
-      <trace name={`TR_C15_xin`} from=".C15 > .pin1" to={`.${u} > .XIN`} />
-      <trace name={`TR_C15_gnd`} from=".C15 > .pin2" to="net.GND" />
-      <trace name={`TR_C16_xt`} from=".C16 > .pin1" to={`.${y} > .pin3`} />
-      <trace name={`TR_C16_gnd`} from=".C16 > .pin2" to="net.GND" />
+      <trace name={`TR_C15_xin`} from=".C15 > .pin1" to={`.${y} > .pin1`} routingPhaseIndex={0} />
+      <GndFanoutTrace name="TR_C15_gnd" from=".C15 > .pin2" />
+      <trace name={`TR_C16_xt`} from=".C16 > .pin1" to={`.${y} > .pin3`} routingPhaseIndex={0} />
+      <GndFanoutTrace name="TR_C16_gnd" from=".C16 > .pin2" />
 
       {/* --- QSPI flash --------------------------------------------------- */}
-      <trace name={`TR_${f}_cs`} from={`.${f} > .CS`} to={`.${u} > .QSPI_SS`} />
-      <trace name={`TR_${f}_clk`} from={`.${f} > .CLK`} to={`.${u} > .QSPI_SCLK`} />
-      <trace name={`TR_${f}_io0`} from={`.${f} > .IO0`} to={`.${u} > .QSPI_SD0`} />
-      <trace name={`TR_${f}_io1`} from={`.${f} > .IO1`} to={`.${u} > .QSPI_SD1`} />
-      <trace name={`TR_${f}_io2`} from={`.${f} > .IO2`} to={`.${u} > .QSPI_SD2`} />
-      <trace name={`TR_${f}_io3`} from={`.${f} > .IO3`} to={`.${u} > .QSPI_SD3`} />
+      <trace name={`TR_${f}_cs`} from={`.${f} > .CS`} to={`.${u} > .QSPI_SS`} routingPhaseIndex={1} />
+      <trace name={`TR_${f}_clk`} from={`.${f} > .CLK`} to={`.${u} > .QSPI_SCLK`} routingPhaseIndex={0} />
+      <trace name={`TR_${f}_io0`} from={`.${f} > .IO0`} to={`.${u} > .QSPI_SD0`} routingPhaseIndex={1} />
+      <trace name={`TR_${f}_io1`} from={`.${f} > .IO1`} to={`.${u} > .QSPI_SD1`} routingPhaseIndex={1} />
+      <trace name={`TR_${f}_io2`} from={`.${f} > .IO2`} to={`.${u} > .QSPI_SD2`} routingPhaseIndex={1} />
+      <trace name={`TR_${f}_io3`} from={`.${f} > .IO3`} to={`.${u} > .QSPI_SD3`} routingPhaseIndex={1} />
       <trace name={`TR_${f}_vcc`} from={`.${f} > .VCC`} to="net.V3_3" />
-      <trace name={`TR_${f}_gnd`} from={`.${f} > .GND`} to="net.GND" />
-      <capacitor name="C14" capacitance="100nF" footprint="0402" pcbX={13} pcbY={-6.5} schX={17} schY={-3}
+      <GndFanoutTrace name={`TR_${f}_gnd`} from={`.${f} > .GND`} />
+      <capacitor name="C14" capacitance="100nF" footprint="0402" layer={layer} pcbX={-4.6} pcbY={10.5} schX={17} schY={-3}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
       <trace name={`TR_C14_v`} from=".C14 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C14_g`} from=".C14 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C14_g" from=".C14 > .pin2" />
 
       {/* --- BOOTSEL: QSPI_SS -> 1k -> button -> GND ---------------------- */}
-      <resistor name="R13" resistance="1k" footprint="0402" pcbX={8} pcbY={-6} schX={10} schY={-10}
+      <resistor name="R13" resistance="1k" footprint="0402" layer={layer} pcbX={-4.7} pcbY={7.4} pcbRotation={180} schX={10} schY={-10}
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
-      <pushbutton name="SW2"
-        supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-12} schX={14} schY={-10} />
+      <TactileButton name="SW2"
+        variant={buttonVariant}
+        layer={layer}
+        pcbX={-11} pcbY={7} schX={14} schY={-10} />
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1" />
-      <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to=".SW2 > .pin1" />
-      <trace name={`TR_SW2_p3`} from=".SW2 > .pin3" to="net.GND" />
-      <trace name={`TR_SW2_p4`} from=".SW2 > .pin4" to="net.GND" />
+      {buttonVariant === "standard" ? (
+        <>
+          <trace name="TR_SW2_p2" from=".SW2 > .pin2" to=".SW2 > .pin1" />
+          <GndFanoutTrace name="TR_SW2_p3" from=".SW2 > .pin3" />
+          <GndFanoutTrace name="TR_SW2_p4" from=".SW2 > .pin4" />
+        </>
+      ) : (
+        <GndFanoutTrace name="TR_SW2_p2" from=".SW2 > .pin2" />
+      )}
 
       {/* --- RUN: 10k pull-up + reset button ------------------------------ */}
-      <resistor name="R12" resistance="10k" footprint="0402" pcbX={-8} pcbY={-6} schX={-10} schY={-8}
+      <resistor name="R12" resistance="10k" footprint="0402" layer={layer} pcbX={6} pcbY={-4} pcbRotation={180} schX={-10} schY={-8}
         supplierPartNumbers={{ jlcpcb: ["C25744"] }} />
-      <pushbutton name="SW3"
-        supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-12} schX={-14} schY={-10} />
+      <TactileButton name="SW3"
+        variant={buttonVariant}
+        layer={layer}
+        pcbX={9} pcbY={-8} schX={-14} schY={-10} />
       <trace name={`TR_R12_v`} from=".R12 > .pin1" to="net.V3_3" />
       <trace name={`TR_R12_run`} from=".R12 > .pin2" to={`.${u} > .RUN`} />
       <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to={`.${u} > .RUN`} />
-      <trace name={`TR_SW3_p2`} from=".SW3 > .pin2" to={`.${u} > .RUN`} />
-      <trace name={`TR_SW3_p3`} from=".SW3 > .pin3" to="net.GND" />
-      <trace name={`TR_SW3_p4`} from=".SW3 > .pin4" to="net.GND" />
+      {buttonVariant === "standard" ? (
+        <>
+          <trace name="TR_SW3_p2" from=".SW3 > .pin2" to={`.${u} > .RUN`} />
+          <GndFanoutTrace name="TR_SW3_p3" from=".SW3 > .pin3" />
+          <GndFanoutTrace name="TR_SW3_p4" from=".SW3 > .pin4" />
+        </>
+      ) : (
+        <GndFanoutTrace name="TR_SW3_p2" from=".SW3 > .pin2" />
+      )}
 
       {/* --- Decoupling (design guide: 100nF per supply pin) -------------- */}
-      <capacitor name="C4" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={6} schX={-6} schY={12}
+      <capacitor name="C4" capacitance="100nF" footprint="0402" layer={layer} pcbX={-5.3} pcbY={2.8} schX={-6} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C5" capacitance="100nF" footprint="0402" pcbX={-3} pcbY={6} schX={-4} schY={12}
+      <capacitor name="C5" capacitance="100nF" footprint="0402" layer={layer} pcbX={-5.3} pcbY={-1} schX={-4} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C6" capacitance="100nF" footprint="0402" pcbX={0} pcbY={6} schX={-2} schY={12}
+      <capacitor name="C6" capacitance="100nF" footprint="0402" layer={layer} pcbX={-4} pcbY={-5.4} schX={-2} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C7" capacitance="100nF" footprint="0402" pcbX={3} pcbY={6} schX={0} schY={12}
+      <capacitor name="C7" capacitance="100nF" footprint="0402" layer={layer} pcbX={5.3} pcbY={-1} schX={0} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C8" capacitance="100nF" footprint="0402" pcbX={6} pcbY={6} schX={2} schY={12}
+      <capacitor name="C8" capacitance="100nF" footprint="0402" layer={layer} pcbX={5.3} pcbY={2.8} schX={2} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C9" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={-6} schX={4} schY={12}
+      <capacitor name="C9" capacitance="100nF" footprint="0402" layer={layer} pcbX={3.8} pcbY={4.9} schX={4} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C10" capacitance="100nF" footprint="0402" pcbX={-3} pcbY={-6} schX={6} schY={12}
+      <capacitor name="C10" capacitance="100nF" footprint="0402" layer={layer} pcbX={1.8} pcbY={5.1} schX={6} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C11" capacitance="100nF" footprint="0402" pcbX={0} pcbY={-6} schX={8} schY={12}
+      <capacitor name="C11" capacitance="100nF" footprint="0402" layer={layer} pcbX={5.3} pcbY={0.8} schX={8} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
       <trace name={`TR_C4_v`} from=".C4 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C4_g`} from=".C4 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C4_g" from=".C4 > .pin2" />
       <trace name={`TR_C5_v`} from=".C5 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C5_g`} from=".C5 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C5_g" from=".C5 > .pin2" />
       <trace name={`TR_C6_v`} from=".C6 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C6_g`} from=".C6 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C6_g" from=".C6 > .pin2" />
       <trace name={`TR_C7_v`} from=".C7 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C7_g`} from=".C7 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C7_g" from=".C7 > .pin2" />
       <trace name={`TR_C8_v`} from=".C8 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C8_g`} from=".C8 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C8_g" from=".C8 > .pin2" />
       <trace name={`TR_C9_v`} from=".C9 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C9_g`} from=".C9 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C9_g" from=".C9 > .pin2" />
       <trace name={`TR_C10_v`} from=".C10 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C10_g`} from=".C10 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C10_g" from=".C10 > .pin2" />
       <trace name={`TR_C11_v`} from=".C11 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C11_g`} from=".C11 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C11_g" from=".C11 > .pin2" />
       {/* DVDD (1.1V core, fed by the internal regulator) */}
-      <capacitor name="C12" capacitance="1uF" footprint="0402" pcbX={3} pcbY={-6} schX={10} schY={12}
+      <capacitor name="C12" capacitance="1uF" footprint="0402" layer={layer} pcbX={3.5} pcbY={-5.2} schX={10} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C52923"] }} />
-      <capacitor name="C13" capacitance="100nF" footprint="0402" pcbX={6} pcbY={-6} schX={12} schY={12}
+      <capacitor name="C13" capacitance="100nF" footprint="0402" layer={layer} pcbX={3.2} pcbY={6.2} schX={12} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
       <trace name={`TR_C12_v`} from=".C12 > .pin1" to="net.DVDD" />
-      <trace name={`TR_C12_g`} from=".C12 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C12_g" from=".C12 > .pin2" />
       <trace name={`TR_C13_v`} from=".C13 > .pin1" to="net.DVDD" />
-      <trace name={`TR_C13_g`} from=".C13 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C13_g" from=".C13 > .pin2" />
       {/* 3.3V bulk */}
-      <capacitor name="C17" capacitance="10uF" footprint="0805" pcbX={9} pcbY={6} schX={14} schY={12}
+      <capacitor name="C17" capacitance="10uF" footprint="0805" layer={layer} pcbX={6.5} pcbY={5.8} schX={14} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
       <trace name={`TR_C17_v`} from=".C17 > .pin1" to="net.V3_3" />
-      <trace name={`TR_C17_g`} from=".C17 > .pin2" to="net.GND" />
+      <GndFanoutTrace name="TR_C17_g" from=".C17 > .pin2" />
     </group>
   )
 }

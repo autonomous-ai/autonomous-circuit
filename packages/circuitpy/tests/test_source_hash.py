@@ -60,6 +60,23 @@ class SourceHashGraph(unittest.TestCase):
         (self.root / "parts.json").write_text('{"R1":{"lcsc":"C999"}}')
         self.assertNotEqual(before, self._fingerprint())
 
+    def test_golden_block_snapshot_lock_is_part_of_source_identity(self) -> None:
+        lock = self.root / "golden-blocks.lock.json"
+        lock.write_text(
+            '{"schemaVersion":1,"treeSha256":"' + "0" * 64 + '"}\n',
+            encoding="utf-8",
+        )
+        first = board_source_hash(self.entry, self.root)
+        self.assertIn(
+            "golden-blocks.lock.json", {file.path for file in first.files}
+        )
+
+        lock.write_text(
+            '{"schemaVersion":1,"treeSha256":"' + "1" * 64 + '"}\n',
+            encoding="utf-8",
+        )
+        self.assertNotEqual(first.source_fingerprint, self._fingerprint())
+
     def test_unrelated_file_does_not_change_fingerprint(self) -> None:
         before = self._fingerprint()
         (self.root / "notes.txt").write_text("irrelevant")

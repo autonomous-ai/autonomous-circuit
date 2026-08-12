@@ -1,0 +1,33 @@
+{
+  "layerCount": 2,
+  "minTraceWidth": 0.2,
+  "minViaDiameter": 0.6,
+  "minViaHoleDiameter": 0.3,
+  "minTraceToPadEdgeClearance": 0.15,
+  "minViaEdgeToPadEdgeClearance": 0.15,
+  "bounds": { "minX": -3, "maxX": 3, "minY": -3, "maxY": 3 },
+  "obstacles": [],
+  "connections": [],
+  "traces": [
+    {
+      "type": "pcb_trace",
+      "pcb_trace_id": "fixed_a",
+      "connection_name": "net_a",
+      "connectsTo": ["pcb_port_a_start", "pcb_port_a_end"],
+      "route": [
+        { "route_type": "wire", "x": -2, "y": -2, "width": 0.2, "layer": "top" },
+        { "route_type": "wire", "x": 2, "y": 2, "width": 0.2, "layer": "top" }
+      ]
+    },
+    {
+      "type": "pcb_trace",
+      "pcb_trace_id": "fixed_b",
+      "connection_name": "net_b",
+      "connectsTo": ["pcb_port_b_start", "pcb_port_b_end"],
+      "route": [
+        { "route_type": "wire", "x": -2.254558441, "y": -1.745441559, "width": 0.2, "layer": "top" },
+        { "route_type": "wire", "x": 1.745441559, "y": 2.254558441, "width": 0.2, "layer": "top" }
+      ]
+    }
+  ]
+}

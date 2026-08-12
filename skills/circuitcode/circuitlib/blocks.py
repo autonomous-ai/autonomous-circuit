@@ -32,6 +32,27 @@ class Part:
 
 
 @dataclass(frozen=True)
+class UsbSourceContract:
+    """Exact product fields owned by a protected USB source-entry block."""
+
+    raw_net: str
+    protected_net: str
+    raw_attach_capacitance_max_uf: float
+    source_current_max_ma: float
+    limiter_ref: str
+    limiter_lcsc: str
+    input_pin: str
+    output_pin: str
+    setting_pin: str
+    setting_resistor_ref: str
+    setting_resistor_lcsc: str
+    setting_resistance_ohms: float
+    setting_return_net: str
+    min_trip_ma: float
+    max_trip_ma: float
+
+
+@dataclass(frozen=True)
 class Block:
     """A validated subcircuit. ``symbol`` is the default export to import."""
 
@@ -46,12 +67,26 @@ class Block:
     #: Worst case the rail and the regulator must survive. Sizing copper and
     #: heat against the *typical* number is sizing for the easy case: a WS2812
     #: idles at 4mA and pulls 60mA at full white, fifteen times more.
-    peak_draw_ma: float = 0.0
+    # ``None`` means "use current_draw_ma as the non-parametric peak". Zero
+    # is meaningful for a purely per-unit load: an eight-pixel WS2812 chain is
+    # 8 x 60mA, not 4mA + 8 x 60mA. A truthiness fallback cannot express that.
+    peak_draw_ma: float | None = None
     #: For a parametric block, the peak each unit adds. ``unit_prop`` names the
     #: prop that sets the count, so the planner can ask for it instead of a
     #: BLOCK.md telling a human to remember to multiply.
     peak_per_unit_ma: float = 0.0
     unit_prop: str = ""
+    #: Rail that carries this block's current budget.  Thermal planning must
+    #: charge a regulator only for loads on its output rail; summing the whole
+    #: board made a 5V pixel ring look as though it flowed through the 3V3 LDO.
+    supply_rail: str = ""
+    #: Non-empty only for a regulator block.  Its downstream thermal load is
+    #: the peak current of blocks whose ``supply_rail`` names this rail.
+    regulator_output_rail: str = ""
+    #: Non-empty only for a protected USB source-entry block. It is the one
+    #: owner for the product schema, current ceiling and exact populated
+    #: limiter identity; a generator must not retype those beside the block.
+    usb_source_contract: UsbSourceContract | None = None
     #: Nets this block owns that are useless unless they reach a connector or
     #: a test point. An MCU whose SWD pins go nowhere cannot be programmed
     #: after assembly, and every block on that board is individually fine.
@@ -61,8 +96,24 @@ class Block:
 
     def peak_ma(self, units: int = 0) -> float:
         """Worst-case draw, including any per-unit scaling."""
-        base = self.peak_draw_ma or self.current_draw_ma
+        base = self.current_draw_ma if self.peak_draw_ma is None else self.peak_draw_ma
         return base + self.peak_per_unit_ma * max(units, 0)
+
+    @property
+    def source_current_max_ma(self) -> float:
+        return (
+            self.usb_source_contract.source_current_max_ma
+            if self.usb_source_contract is not None
+            else 0.0
+        )
+
+    @property
+    def source_operational_limit_ma(self) -> float:
+        return (
+            self.usb_source_contract.min_trip_ma
+            if self.usb_source_contract is not None
+            else 0.0
+        )
 
     @property
     def import_path(self) -> str:
@@ -73,31 +124,98 @@ BLOCKS: dict[str, Block] = {
     "usb-c-power": Block(
         id="usb-c-power",
         symbol="UsbCPower",
-        function="USB-C 5V power entry (sink, 5.1k CC, ESD, bulk cap)",
-        provides=("V5", "GND"),
-        props=("j", "vbusNet", "pcbX", "pcbY", "schX", "schY"),
+        function="USB-C raw VBUS entry (sink, 5.1k CC, ESD, 1uF attach cap)",
+        provides=("VBUS_RAW", "GND"),
+        props=(
+            "j", "r1", "r2", "u", "c", "vbusNet",
+            "vbusBoundaryRefs", "vbusRailNodeRef",
+            "localRoutingPhaseIndex", "signalTraceWidthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("J1", "C165948", "TYPE-C-31-M-12 receptacle"),
             Part("R1/R2", "C25905", "5.1k 0402 CC pulldown", basic=True),
             Part("U1", "C2687116", "USBLC6-2SC6 ESD"),
-            Part("C1", "C15850", "10uF 0805 VBUS bulk", basic=True),
+            Part("C1", "C52923", "1uF 0402 raw-attach bypass", basic=True),
         ),
-        notes="Power only. Never place alongside usb-c-data — that block is a superset.",
+        supply_rail="VBUS_RAW",
+        notes=(
+            "Raw connector side only; compose usb-power-entry before V5. "
+            "Never place alongside usb-c-data — that block is a superset."
+        ),
     ),
     "usb-c-data": Block(
         id="usb-c-data",
         symbol="UsbCData",
-        function="USB-C power + D+/D- data pair with 27.4R series resistors",
-        provides=("V5", "GND", "USB_DP", "USB_DM"),
-        props=("j", "vbusNet", "dpNet", "dmNet", "pcbX", "pcbY", "schX", "schY"),
+        function="USB-C raw VBUS + coupled D+/D- pair with 27R series resistors",
+        provides=("VBUS_RAW", "GND", "USB_DP", "USB_DM"),
+        props=(
+            "j", "r1", "r2", "rDp", "rDm", "u", "c",
+            "vbusNet", "vbusBoundaryRefs", "vbusRailNodeRef",
+            "vbusClampNodeRef", "dpNet", "dmNet", "pairRules",
+            "localRoutingPhaseIndex", "dpConnectorRoutingPhaseIndex",
+            "dmConnectorRoutingPhaseIndex", "pairRoutingPhaseIndex",
+            "connectorPairRoutingPhaseIndex", "seriesPairRoutingPhaseIndex",
+            "cc1RoutingPhaseIndex", "cc2RoutingPhaseIndex",
+            "powerRoutingPhaseIndex", "criticalSignalWidthMm",
+            "signalTraceWidthMm", "emitMcuNetLeaves", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("J1", "C165948", "TYPE-C-31-M-12 receptacle"),
             Part("R1/R2", "C25905", "5.1k 0402 CC pulldown", basic=True),
             Part("RDP/RDM", "C25100", "27.4R 0402 USB series", basic=True),
             Part("U1", "C2687116", "USBLC6-2SC6 ESD"),
-            Part("C1", "C15850", "10uF 0805 VBUS bulk", basic=True),
+            Part("C1", "C52923", "1uF 0402 raw-attach bypass", basic=True),
         ),
-        notes="Superset of usb-c-power; use when the MCU speaks USB.",
+        supply_rail="VBUS_RAW",
+        notes=(
+            "Superset of usb-c-power; use when the MCU speaks USB. Compose "
+            "usb-power-entry before every downstream V5 load."
+        ),
+    ),
+    "usb-power-entry": Block(
+        id="usb-power-entry",
+        symbol="UsbPowerEntry",
+        function="Current-limited controlled-rise VBUS_RAW -> V5 entry",
+        provides=("V5", "USB_POWER_FAULT"),
+        requires=("VBUS_RAW", "V3_3", "GND"),
+        props=(
+            "u", "cIn", "rIlim", "rFault", "faultTestpoint",
+            "rawNet", "outputNet", "faultNet", "externalPowerTrunkPort",
+            "externalRawPowerTrunkPort", "externalFaultPullupPort",
+            "signalTraceWidthMm", "finePitchEscapeWidthMm",
+            "maxFinePitchEscapeLengthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
+        parts=(
+            Part("U7", "C55266", "TPS2553DBVR USB power-distribution switch"),
+            Part("C24", "C1525", "100nF 0402 raw-input bypass", basic=True),
+            Part("R31", "C32297", "59k 1% 0402 current-limit resistor"),
+            Part("R32", "C25741", "100k 0402 FAULT pull-up", basic=True),
+        ),
+        supply_rail="VBUS_RAW",
+        usb_source_contract=UsbSourceContract(
+            raw_net="VBUS_RAW",
+            protected_net="V5",
+            raw_attach_capacitance_max_uf=10.0,
+            source_current_max_ma=500.0,
+            limiter_ref="U7",
+            limiter_lcsc="C55266",
+            input_pin="IN",
+            output_pin="OUT",
+            setting_pin="ILIM",
+            setting_resistor_ref="R31",
+            setting_resistor_lcsc="C32297",
+            setting_resistance_ohms=59_000.0,
+            setting_return_net="GND",
+            min_trip_ma=400.6,
+            max_trip_ma=500.0,
+        ),
+        notes=(
+            "TPS2553 fixed 59k ILIM: 400.6mA minimum / 500mA maximum trip. "
+            "Raw attach capacitance belongs before U7; all bulk belongs after it."
+        ),
     ),
     "ldo-3v3": Block(
         id="ldo-3v3",
@@ -105,13 +223,21 @@ BLOCKS: dict[str, Block] = {
         function="5V -> 3.3V linear rail (AMS1117-3.3 + in/out bulk)",
         provides=("V3_3",),
         requires=("V5", "GND"),
-        props=("u", "cin", "cout", "vinNet", "voutNet", "pcbX", "pcbY", "schX", "schY"),
+        props=(
+            "u", "cin", "cout", "vinNet", "voutNet",
+            "externalInputPowerTrunkPort", "externalPowerTrunkPort",
+            "railWidthMm", "pinNeckdownWidthMm",
+            "maxPinNeckdownLengthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("U2", "C6186", "AMS1117-3.3 SOT-223", basic=True),
             Part("C2/C3", "C15850", "10uF 0805", basic=True),
         ),
         current_draw_ma=5.0,
         peak_draw_ma=11.0,    # AMS1117 quiescent; its load is counted on V3_3
+        supply_rail="V5",
+        regulator_output_rail="V3_3",
         notes="Linear: dropout heat = (Vin-3.3) * I. Above ~500mA prefer a buck (not yet a block).",
     ),
     "i2c-bus": Block(
@@ -122,6 +248,7 @@ BLOCKS: dict[str, Block] = {
         requires=("V3_3", "GND"),
         props=("rSda", "rScl", "sdaNet", "sclNet", "rail", "pcbX", "pcbY", "schX", "schY"),
         parts=(Part("R3/R4", "C25900", "4.7k 0402", basic=True),),
+        supply_rail="V3_3",
         notes="Exactly one instance per bus. Two instances halve the pull-up resistance.",
     ),
     "status-led": Block(
@@ -129,19 +256,28 @@ BLOCKS: dict[str, Block] = {
         symbol="StatusLed",
         function="Indicator LED + series resistor to a rail",
         requires=("GND",),
-        props=("led", "r", "rail", "pcbX", "pcbY", "schX", "schY"),
+        props=(
+            "led", "r", "rail", "driveKind", "externalRailAttachmentPort",
+            "railTraceWidthMm", "signalTraceWidthMm",
+            "maxRailNeckdownLengthMm", "maxSeriesTraceLengthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("D1", "C965793", "0402 LED"),
             Part("R5", "C25104", "1k 0402", basic=True),
         ),
         current_draw_ma=2.0,
+        supply_rail="V3_3",
     ),
     "sw-tact": Block(
         id="sw-tact",
         symbol="SwTact",
         function="Tactile push button to a signal net (active low)",
         requires=("GND",),
-        props=("name", "signal", "to", "pcbX", "pcbY", "schX", "schY"),
+        props=(
+            "name", "signal", "to", "signalTraceWidthMm", "variant", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(Part("SW1", "C318884", "TS-1187A-B-A-B tactile", basic=True),),
         notes="Parametric: instantiate one per button. Pull-up is the MCU's internal one.",
     ),
@@ -151,7 +287,16 @@ BLOCKS: dict[str, Block] = {
         function="RP2040 minimal core: QSPI flash, crystal, decoupling, BOOTSEL",
         provides=("MCU",),
         requires=("V3_3", "GND", "USB_DP", "USB_DM"),
-        props=("u", "flash", "xtal", "pcbX", "pcbY", "schX", "schY"),
+        props=(
+            "u", "flash", "xtal", "layer",
+            "debugPortPcbX", "debugPortPcbY", "debugPortSchX", "debugPortSchY",
+            "debugSwclkBoundaryRef", "debugSwdBoundaryRef", "powerRailNodeRefs",
+            "debugSignalTraceWidthMm", "criticalSignalWidthMm",
+            "criticalRoutingPhaseIndices", "localPowerRoutingPhaseIndex",
+            "powerRoutingPhaseIndices", "controlRoutingPhaseIndex",
+            "emitUsbNetLeaves", "buttonVariant",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("U3", "C2040", "RP2040 QFN-56"),
             Part("U4", "C97521", "W25Q128JVSIQ QSPI flash", basic=True),
@@ -159,6 +304,7 @@ BLOCKS: dict[str, Block] = {
         ),
         current_draw_ma=40.0,
         peak_draw_ma=100.0,   # RP2040 datasheet 5.2, core + IO at 133MHz
+        supply_rail="V3_3",
         exposes=("SWCLK", "SWD"),
         notes="Ported from seveibar/rp2040-module, itself following the RPi hardware design guide.",
     ),
@@ -167,20 +313,61 @@ BLOCKS: dict[str, Block] = {
         symbol="SensorBme280",
         function="BME280 temperature/humidity/pressure sensor on I2C",
         requires=("V3_3", "GND", "I2C_SDA", "I2C_SCL"),
-        props=("u", "cVdd", "cVddio", "sdaNet", "sclNet", "rail", "pcbX", "pcbY", "schX", "schY"),
+        props=(
+            "u", "cVdd", "cVddio", "sdaNet", "sclNet", "rail",
+            "signalTraceWidthMm", "localPowerWidthMm", "railTrunkWidthMm",
+            "maxDecouplingLengthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(Part("U5", "C92489", "BME280 LGA-8"),),
         current_draw_ma=0.7,
         peak_draw_ma=0.7,
-        notes="Needs an i2c-bus block for pull-ups. Address strap on SDO.",
+        supply_rail="V3_3",
+        notes=(
+            "Needs an i2c-bus block for pull-ups. Address strap on SDO; CSB "
+            "joins the VDDIO local tree. VDD and VDDIO each own a <=2mm "
+            "pin-to-cap branch before a wide rail boundary."
+        ),
+    ),
+    "ws2812-level-shifter": Block(
+        id="ws2812-level-shifter",
+        symbol="Ws2812LevelShifter",
+        function="3.3V GPIO to 5V WS2812 data translation (AHCT buffer)",
+        provides=("LED_DATA_5V",),
+        requires=("V5", "GND"),
+        props=(
+            "u", "c", "inputNet", "outputNet", "signalTraceWidthMm",
+            "localPowerWidthMm", "railTrunkWidthMm",
+            "maxDecouplingLengthMm", "layer",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
+        parts=(
+            Part("U6", "C7484", "SN74AHCT1G125DBVR DBV/SOT-23-5"),
+            Part("C20", "C1525", "100nF 0402 local bypass", basic=True),
+        ),
+        current_draw_ma=0.01,
+        peak_draw_ma=2.0,
+        supply_rail="V5",
+        notes=(
+            "Always enabled (/OE hard-low). Input defaults to LED_DATA_3V3; "
+            "output defaults to LED_DATA_5V and must feed the chain's 330R. "
+            "C7484 uses the exact imported supplier footprint; VCC owns a "
+            "<=2mm local bypass branch before its wide V5 boundary."
+        ),
     ),
     "ws2812-chain": Block(
         id="ws2812-chain",
         symbol="Ws2812Chain",
         function="Chain of WS2812B addressable RGB pixels on one GPIO",
-        provides=("LED_DATA",),
-        requires=("V3_3", "GND"),
-        props=("count", "dinNet", "rail", "startIndex", "pitch", "r",
-               "pcbX", "pcbY", "schX", "schY"),
+        requires=("V5", "GND", "LED_DATA_5V"),
+        props=(
+            "count", "dinNet", "rail", "startIndex", "pitch",
+            "signalTraceWidthMm", "localPowerWidthMm", "railTrunkWidthMm",
+            "maxDecouplingLengthMm", "maxRailNeckLengthMm",
+            "railNodeRefs", "railRoutingPhaseIndex",
+            "dataRoutingPhaseIndices", "layer", "r",
+            "pcbX", "pcbY", "schX", "schY",
+        ),
         parts=(
             Part("D10+", "C2761795", "WS2812B-B/T 5050 pixel"),
             Part("C40+", "C1525", "100nF 0402, one per pixel", basic=True),
@@ -190,14 +377,17 @@ BLOCKS: dict[str, Block] = {
         # — which is advice, not a mechanism. `peak_per_unit_ma` makes the
         # planner do it: see helpers.board_plan.
         current_draw_ma=4.0,
-        peak_draw_ma=4.0,
+        peak_draw_ma=0.0,
         peak_per_unit_ma=60.0,   # WS2812B datasheet: 3 x 20mA channels
         unit_prop="count",
+        supply_rail="V5",
         notes=(
             "Parametric in `count` (default 4). Worst-case draw is "
             "count x 60mA at full white, which is what the power budget must "
             "carry — the figure here is idle. The last pixel's DOUT is "
-            "deliberately unconnected so the chain can be extended."
+            "deliberately unconnected so the chain can be extended. Every "
+            "pixel owns a <=2mm local bypass branch before one count-aware "
+            "V5 tree; direct data hops may receive distinct board phases."
         ),
     ),
 }
@@ -211,7 +401,10 @@ GATED_BLOCKS: dict[str, str] = {
 
 #: Capability -> block ids that satisfy it, best first. The planner's index.
 CAPABILITY_INDEX: dict[str, tuple[str, ...]] = {
-    "power-usb": ("usb-c-power", "usb-c-data"),
+    # Choose the protected boundary first. Its VBUS_RAW requirement pulls in
+    # usb-c-power; if an MCU also needs USB data, normal superset collapse
+    # replaces that connector with usb-c-data without duplicating J1.
+    "power-usb": ("usb-power-entry",),
     "rail-3v3": ("ldo-3v3",),
     "mcu": ("rp2040-core",),
     "usb-data": ("usb-c-data",),
@@ -220,6 +413,7 @@ CAPABILITY_INDEX: dict[str, tuple[str, ...]] = {
     "button": ("sw-tact",),
     "indicator": ("status-led",),
     "rgb-pixels": ("ws2812-chain",),
+    "logic-level-3v3-to-5v": ("ws2812-level-shifter",),
 }
 
 
@@ -262,6 +456,34 @@ def total_peak_ma(block_ids: list[str], counts: dict[str, int] | None = None) ->
     for block_id in block_ids:
         block = BLOCKS.get(block_id)
         if block is None:
+            continue
+        units = counts.get(block_id, 1 if block.unit_prop else 0)
+        total += block.peak_ma(units)
+    return total
+
+
+def peak_ma_for_rail(
+    block_ids: list[str],
+    rail: str,
+    counts: dict[str, int] | None = None,
+    supply_rail_overrides: dict[str, str] | None = None,
+) -> float:
+    """Worst-case load carried by one named rail.
+
+    ``supply_rail_overrides`` models an explicit board composition that wires
+    a configurable block to a non-default rail.  It exists so validation can
+    reject the legacy WS2812-on-AMS1117 topology without pretending the V5
+    architecture's pixel current also heats the 3V3 regulator.
+    """
+    counts = counts or {}
+    overrides = supply_rail_overrides or {}
+    total = 0.0
+    for block_id in block_ids:
+        block = BLOCKS.get(block_id)
+        if block is None:
+            continue
+        supply_rail = overrides.get(block_id, block.supply_rail)
+        if supply_rail != rail:
             continue
         units = counts.get(block_id, 1 if block.unit_prop else 0)
         total += block.peak_ma(units)

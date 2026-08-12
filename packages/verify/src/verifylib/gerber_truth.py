@@ -632,6 +632,106 @@ def _mask_slivers(
     return out
 
 
+def _rect_intersection(left: Rect, right: Rect) -> Rect | None:
+    """Return the positive-area intersection of two axis-aligned boxes."""
+    x0, y0 = max(left.x0, right.x0), max(left.y0, right.y0)
+    x1, y1 = min(left.x1, right.x1), min(left.y1, right.y1)
+    if x0 >= x1 or y0 >= y1:
+        return None
+    return Rect(x0, y0, x1, y1)
+
+
+def _flash_covers_rect(flash: gbr.Flash, target: Rect) -> bool:
+    """Does a clear flash certainly erase every point in ``target``?
+
+    Standard circle, rectangle and obround apertures are tested against their
+    real shape. Macros and holed apertures deliberately return ``False``: a
+    bounding box can contain transparent space, and treating it as clear would
+    hide real printable ink. This conservative predicate can retain a warning
+    for an exotic subtraction aperture, but cannot suppress a real overlap on
+    the strength of geometry we did not prove.
+    """
+    aperture = flash.aperture
+    if aperture.macro:
+        return False
+
+    required_params = {"C": 1, "R": 2, "O": 2}
+    if aperture.shape not in required_params:
+        return False
+    if len(aperture.params) != required_params[aperture.shape]:
+        return False  # an extra parameter describes a transparent hole
+
+    corners = (
+        (target.x0 - flash.x, target.y0 - flash.y),
+        (target.x0 - flash.x, target.y1 - flash.y),
+        (target.x1 - flash.x, target.y0 - flash.y),
+        (target.x1 - flash.x, target.y1 - flash.y),
+    )
+    epsilon = 1e-9
+    if aperture.shape == "R":
+        width, height = aperture.size
+        return all(
+            abs(x) <= width / 2 + epsilon and abs(y) <= height / 2 + epsilon
+            for x, y in corners
+        )
+    if aperture.shape == "C":
+        radius = aperture.size[0] / 2
+        return all(math.hypot(x, y) <= radius + epsilon for x, y in corners)
+
+    # An obround is a rectangle swept by a circle. It is convex, so containing
+    # all four corners means it contains the complete target rectangle.
+    width, height = aperture.size
+    radius = min(width, height) / 2
+    straight_half = abs(width - height) / 2
+    if width >= height:
+        return all(
+            abs(y) <= radius + epsilon
+            and (
+                abs(x) <= straight_half
+                or math.hypot(abs(x) - straight_half, y) <= radius + epsilon
+            )
+            for x, y in corners
+        )
+    return all(
+        abs(x) <= radius + epsilon
+        and (
+            abs(y) <= straight_half
+            or math.hypot(x, abs(y) - straight_half) <= radius + epsilon
+        )
+        for x, y in corners
+    )
+
+
+def _flash_covers_flash(clear: gbr.Flash, target: gbr.Flash) -> bool:
+    """Does ``clear`` certainly contain a flashed mask opening?
+
+    KiCad emits the same standard aperture on the mask layer and as the clear
+    silk operation. Recognising that identity is important for circular pads:
+    their bounding-box corners are outside the circle even though the entire
+    circular opening is erased. Unknown macros are not equated across files,
+    because their names alone do not prove their definitions are identical.
+    """
+    dx, dy = clear.x - target.x, clear.y - target.y
+    same_center = abs(dx) <= 1e-9 and abs(dy) <= 1e-9
+    if (
+        same_center
+        and not clear.aperture.macro
+        and not target.aperture.macro
+        and clear.aperture.shape == target.aperture.shape
+        and clear.aperture.params == target.aperture.params
+    ):
+        return True
+    if target.aperture.shape == "C" and clear.aperture.shape == "C":
+        return (
+            math.hypot(dx, dy) + target.aperture.size[0] / 2
+            <= clear.aperture.size[0] / 2 + 1e-9
+        )
+    # A target's complete geometry is inside its bounding box. Proving that
+    # the clear aperture contains the box is therefore conservative for every
+    # standard target shape.
+    return _flash_covers_rect(clear, target.rect)
+
+
 @never_raises
 def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
     """Silkscreen ink on a solderable surface. Visible only in the gerbers:
@@ -642,21 +742,44 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
     for silk_role, mask_role in (("silk_top", "mask_top"), ("silk_bottom", "mask_bottom")):
         silk = packet.layers.get(silk_role)
         mask = packet.layers.get(mask_role)
-        if silk is None or mask is None or not silk.draws:
+        dark_draws = (
+            [draw for draw in silk.draws if draw.polarity == "dark"]
+            if silk
+            else []
+        )
+        if silk is None or mask is None or not dark_draws:
             continue
-        openings = [poly.bounds for poly in _openings(mask)]
+        if mask.regions:
+            openings = [
+                (poly.bounds, None)
+                for poly in _openings(mask)
+            ]
+        else:
+            openings = [
+                (flash.rect, flash)
+                for flash in mask.flashes
+                if flash.polarity == "dark" and flash.aperture.size[0] > 0
+            ]
         if not openings:
             continue
         grid = _Grid(
-            [(rect.center[0], rect.center[1], rect) for rect in openings], cell=2.0
+            [
+                (rect.center[0], rect.center[1], (rect, opening_flash))
+                for rect, opening_flash in openings
+            ],
+            cell=2.0,
         )
+        clear_flashes = [
+            flash for flash in silk.flashes if flash.polarity == "clear"
+        ]
         hits = 0
         worst: tuple[float, float] | None = None
-        for draw in silk.draws:
+        for draw in dark_draws:
             half = draw.width / 2
             mid = ((draw.x0 + draw.x1) / 2, (draw.y0 + draw.y1) / 2)
             reach = draw.length / 2 + half + 2.0
-            for _, _, rect in grid.near(mid[0], mid[1], reach):
+            for _, _, payload in grid.near(mid[0], mid[1], reach):
+                rect, opening_flash = payload
                 stroke = Rect(
                     min(draw.x0, draw.x1) - half,
                     min(draw.y0, draw.y1) - half,
@@ -665,6 +788,23 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
                 )
                 overlap = stroke.gap_to(rect)
                 if overlap < 0:
+                    intersection = _rect_intersection(stroke, rect)
+                    if intersection is not None and any(
+                        clear.sequence > draw.sequence
+                        and (
+                            (
+                                opening_flash is not None
+                                and _flash_covers_flash(clear, opening_flash)
+                            )
+                            or _flash_covers_rect(clear, intersection)
+                        )
+                        for clear in clear_flashes
+                    ):
+                        # KiCad's --subtract-soldermask plot is deliberately
+                        # composite: positive legend strokes followed by
+                        # pad-shaped clear flashes. The final image has no ink
+                        # here even though the original stroke crossed the pad.
+                        continue
                     hits += 1
                     if worst is None or -overlap > worst[0]:
                         worst = (-overlap, mid[0])

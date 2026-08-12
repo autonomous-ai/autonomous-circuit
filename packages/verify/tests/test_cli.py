@@ -41,7 +41,16 @@ def test_every_check_runs_and_reports_its_own_time(project):
     report = cli.verify(project, trials=0, parallel=False)
     names = {c["name"].split("[")[0] for c in report["checks"]}
     assert names == {
-        "assembly", "netclass", "dc", "corners", "review", "thermal", "gerber_truth"
+        "assembly",
+        "netclass",
+        "dc",
+        "corners",
+        "review",
+        "layout",
+        "intent",
+        "power_intent",
+        "thermal",
+        "gerber_truth",
     }
     assert all("seconds" in c for c in report["checks"])
 
@@ -52,6 +61,53 @@ def test_a_missing_packet_is_said_out_loud_not_skipped(project):
     report = cli.verify(project, trials=0, parallel=False, only=["gerber"])
     kinds = {f["kind"] for f in report["findings"]}
     assert "gerber_absent" in kinds
+
+
+def test_layout_intent_is_loaded_from_product_json(project):
+    (project / "product.json").write_text(
+        json.dumps({"layout": {"boardSizeMm": [41, 30]}}), encoding="utf-8"
+    )
+    report = cli.verify(project, trials=0, parallel=False, only=["intent"])
+    assert "layout_intent_board_size" in {item["kind"] for item in report["findings"]}
+
+
+def test_power_budget_is_loaded_from_product_json(project):
+    (project / "product.json").write_text(
+        json.dumps(
+            {
+                "powerBudget": {
+                    "usb": {
+                        "rawVbusNet": "VBUS_RAW",
+                        "protectedVbusNet": "V5",
+                        "rawAttachCapacitanceMaxUf": 10,
+                        "sourceCurrentMaxMa": 500,
+                        "fixedOperationalLoadMa": 0,
+                        "currentLimiter": {
+                            "ref": "U7",
+                            "lcsc": "C55266",
+                            "inputPin": "IN",
+                            "outputPin": "OUT",
+                            "settingPin": "ILIM",
+                            "settingResistor": {
+                                "ref": "R31",
+                                "lcsc": "C32297",
+                                "resistanceOhms": 59000,
+                                "returnNet": "GND",
+                            },
+                            "minTripMa": 400,
+                            "maxTripMa": 500,
+                        },
+                        "firmwareLimitedLoads": [],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = cli.verify(project, trials=0, parallel=False, only=["power_intent"])
+    assert "power_intent_usb_raw_net" in {
+        item["kind"] for item in report["findings"]
+    }
 
 
 def test_the_summary_counts_match_the_findings(project):

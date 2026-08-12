@@ -1,6 +1,6 @@
 # `packages/verify` — the checks the pipeline did not have
 
-Seven standalone checks that see things our four existing detection sources
+Ten standalone checks that see things our four existing detection sources
 cannot. Built 2026-08-11 against the gap analysis in
 `docs/verification/gap-analysis.md`.
 
@@ -19,8 +19,37 @@ cd packages/verify && python3.12 -m pytest                                      
 | `dc` | no check knew Ohm's law on a *built* board — a nodal solve with the rails still called by their names | `circuit.json` |
 | `corners` | every number in the pipeline is nominal; this re-solves at every tolerance corner | `circuit.json` |
 | `review` | the electrical half of an EE design review — decoupling, bulk, crystal load caps, floating pins, ESD, test points, debug access | `circuit.json` |
+| `layout` | routed critical geometry: explicit source trace minima, reference planes, critical-route vias and protection placement | `circuit.json` |
+| `intent` | the compiled board must implement the product's declared outline, assembly sides, edge connectors, local decoupling topology/distance (including populated-ref-scoped vendor overrides), ground planes and net classes | `circuit.json` + `product.json.layout` |
+| `power_intent` | raw USB attach capacitance, an exact populated current-limit boundary **and its setting resistor/value/topology**, and firmware-bounded loads below the worst-case trip point | `circuit.json` + `product.json.powerBudget` |
 | `thermal` | dissipation against package ratings at *peak* load — the LDO helper, but reading the built board, plus every chip resistor | `circuit.json` |
 | `gerber` | **the packet we actually ship, which nothing had ever opened** | `gerbers.zip` |
+
+### Measurable component zones
+
+`product.json.layout.componentZones` binds populated reference-designator
+globs to board-global geometry. Each rule has `match` (one string or a list),
+`containment` (`center` or `courtyard`), and one `shape`:
+
+```json
+{
+  "match": ["D1[0-7]", "C4[0-7]"],
+  "containment": "courtyard",
+  "shape": {
+    "kind": "annulus",
+    "center": [0, 0],
+    "innerRadiusMm": 23.5,
+    "outerRadiusMm": 32.5
+  }
+}
+```
+
+Circles use `radiusMm`; rectangles use `widthMm` and `heightMm`. Courtyard
+containment measures the compiled, rotated courtyard polygons (falling back
+to the footprint body), not an oversized axis-aligned guess. Annuli check the
+filled polygon against the inner void as well as the outer radius. A rule that
+matches no populated component and any matched component outside its zone are
+both fab-blocking errors; a misspelled pattern cannot silently claim coverage.
 
 ## Three rules the package holds itself to
 
@@ -46,7 +75,7 @@ classes were found and removed *before* shipping, each now a regression test:
 
 ## Wiring it in — done 2026-08-11
 
-All seven are live in the pipeline as **stage 4c** (the five circuit-json
+All ten are live in the pipeline as **stage 4c** (the circuit-json
 checks, beside the DFM gate) and **stage 5b** (the gerber check, after the
 packet is written). See `docs/circuit-interfaces-CHANGES.md` for the contract
 entry. The adapter is `circuitpy/verify_bridge.py`; it finds `verifylib`
@@ -75,7 +104,8 @@ The call shape, if you need it elsewhere:
 
 ```python
 from verifylib import (
-    assembly, corners, dc, gerber_truth, model, netclass, review, thermal
+    assembly, corners, dc, gerber_truth, intent, layout, model, netclass,
+    power_intent, review, thermal
 )
 
 board = model.load(circuit_json_path)
@@ -83,6 +113,9 @@ warnings.extend(assembly.check(board, assembly=product.assembly).findings)
 warnings.extend(netclass.check(board).findings)
 warnings.extend(dc.check(board).findings)
 warnings.extend(review.check(board).findings)
+warnings.extend(layout.check(board).findings)
+warnings.extend(intent.check(board, product.layout).findings)
+warnings.extend(power_intent.check(board, product.power_budget).findings)
 warnings.extend(thermal.check(board).findings)
 warnings.extend(gerber_truth.check(board, str(gerbers_zip)).findings)   # after stage 5
 warnings.extend(corners.check(board).findings)                          # off the critical path

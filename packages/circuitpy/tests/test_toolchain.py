@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import sys
 import tempfile
@@ -56,8 +57,23 @@ class ToolchainResolution(EnvGuard, unittest.TestCase):
 class ToolchainVersions(EnvGuard, unittest.TestCase):
     def test_versions_shape(self) -> None:
         versions = toolchain.versions(refresh=True)
-        self.assertRegex(str(versions["tscircuit"]), r"^\d+\.\d+\.\d+$")
-        self.assertRegex(str(versions["checks"]), r"^\d+\.\d+\.\d+$")
+        for key in (
+            "tscircuit",
+            "checks",
+            "core",
+            "capacityAutorouter",
+            "props",
+        ):
+            with self.subTest(key=key):
+                self.assertRegex(str(versions[key]), r"^\d+\.\d+\.\d+$")
+        for key in (
+            "checksBundleSha256",
+            "coreBundleSha256",
+            "capacityAutorouterBundleSha256",
+            "propsBundleSha256",
+        ):
+            with self.subTest(key=key):
+                self.assertRegex(str(versions[key]), r"^[0-9a-f]{64}$")
         self.assertIn("kicadCli", versions)  # None when kicad absent
 
     def test_versions_cached(self) -> None:
@@ -80,6 +96,29 @@ class ToolchainRun(EnvGuard, unittest.TestCase):
     def test_run_node_timeout_raises_timeout_error(self) -> None:
         with self.assertRaises(TimeoutError):
             toolchain.run_node(["-e", "setTimeout(()=>{}, 60000)"], timeout=0.5)
+
+    def test_timeout_kills_the_cli_process_tree(self) -> None:
+        import time
+
+        with tempfile.TemporaryDirectory(prefix="toolchain-timeout-") as tmp:
+            marker = Path(tmp) / "orphan-child-wrote-after-timeout"
+            child = (
+                "const {spawn}=require('node:child_process');"
+                "spawn(process.execPath,['-e',"
+                + json.dumps(
+                    "setTimeout(()=>require('node:fs').writeFileSync("
+                    + json.dumps(str(marker))
+                    + ", 'leaked'), 700)"
+                )
+                + "],{stdio:'ignore'});setTimeout(()=>{},60000)"
+            )
+            with self.assertRaises(TimeoutError):
+                toolchain.run_node(["-e", child], timeout=0.2)
+            time.sleep(1.0)
+            self.assertFalse(
+                marker.exists(),
+                "a router descendant survived after circuitpy timed out",
+            )
 
     def test_run_cli_check_false_returns_result(self) -> None:
         result = toolchain.run_cli(["--help"], cwd=Path.cwd(), timeout=60, check=False)

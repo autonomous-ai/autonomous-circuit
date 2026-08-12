@@ -19,6 +19,31 @@ The SOT-223 tab (`TAB`, pin 4) is tied to `VOUT` — it is the package's output
 pad, not a thermal-only pad, so it carries rail current and must be poured, not
 just stitched.
 
+VOUT and TAB are declared as the package's internal connection, so no invented
+PCB trace runs between them. The adjacent C2/C3 bulk capacitors are part of two
+authored rail trees: pin-to-cap links are bounded to 3mm and the sole board
+boundary is 0.8mm. For a board-level 3V3 `PowerTrunk`, set
+`externalPowerTrunkPort="TAB"` and start the trunk at `.U2 > .TAB`. That
+suppresses the block's C3→V3_3 boundary, leaving exactly one output-tree
+boundary and preventing the former VOUT/TAB duplicate cycle. VOUT is not an
+external trunk option; TAB is the wide electrical/thermal pad.
+
+When the protected 5V trunk is board-owned, set
+`externalInputPowerTrunkPort="VIN"` and attach its wide tree at
+`.C2 > .pin1` (or `.<cin> > .pin1` when the ref is overridden). This suppresses
+only the C2→V5 named boundary. The required U2.VIN→C2 local 0.2mm branch
+remains bounded to 3mm, and the board must provide exactly one 0.8mm V5
+boundary in the replacement tree. A cross-face replacement owns its explicit
+0.8/0.5mm off-pad transition; do not raise a phase-wide via minimum, because
+that also reinterprets already-authored 0.6/0.3mm signal vias elsewhere on the
+board.
+
+`layer="bottom"` mirrors the complete local placement around the asymmetric
+SOT-223 copper. U2 stays at the block origin, C2/C3 exchange X sides, and all
+rotations are complemented. The mirrored VIN→C2 and TAB→C3 traces retain the
+same endpoints, lengths, widths, and component face as the reviewed top
+instance.
+
 ## Rail budget
 
 Input 5V, output 3.3V — the regulator burns `(5 − 3.3) × I` as heat. At 300mA
@@ -40,8 +65,9 @@ run from a battery (it cannot — that is the sealed battery block's job).
 
 ## Design-rule notes
 
-- Both bulk caps are required: the AMS1117 needs output capacitance for loop
-  stability, and the input cap keeps the USB inrush edge off the regulator.
+- Both bulk caps are required and are placed beside their pins: the AMS1117
+  needs output capacitance for loop stability, and the input cap keeps the
+  protected 5V edge off the regulator.
 - The exposed tab is `VOUT` — a copper pour on the tab is the heatsink and it
   is at 3.3V, so keep it clear of GND fill.
 - One instance per board. A second 3V3 source fighting this one on the same net

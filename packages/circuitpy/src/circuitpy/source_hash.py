@@ -4,9 +4,10 @@ import scanner.
 
 ``board_source_hash(source_path, project_root)`` hashes the entry TSX
 (``source_hash``) and folds a whole-graph fingerprint over the entry plus
-``product.json`` plus ``parts.json`` plus every local import discovered
-statically (breadth-first) — including ``blocks/``. Editing the bible or the
-parts lock therefore invalidates every board (contract §1:
+``product.json`` plus ``parts.json`` plus the optional content-hashed
+``golden-blocks.lock.json`` plus every local import discovered statically
+(breadth-first) — including ``blocks/``. Editing the bible, either lock, or an
+imported block therefore invalidates every board (contract §1:
 ``source.fingerprint``).
 
 The import scanner is a regex over static ESM forms::
@@ -86,11 +87,14 @@ def board_source_hash(source_path: Path, project_root: Path) -> BoardSourceHash:
     resolved_root = project_root.expanduser().resolve()
 
     files: dict[Path, str] = {}
-    # The bible and the parts lock are seeded unconditionally (contract §1).
+    # The bible and both reproducibility locks are seeded unconditionally when
+    # present (contract §1). A project created before the golden-block snapshot
+    # lock existed remains hashable, but evidence/publication gates reject it.
     queue: list[Path] = [
         resolved_script,
         resolved_root / "product.json",
         resolved_root / "parts.json",
+        resolved_root / "golden-blocks.lock.json",
     ]
     seen: set[Path] = set()
 

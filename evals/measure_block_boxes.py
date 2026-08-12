@@ -42,6 +42,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
 sys.path.insert(0, str(REPO / "skills" / "circuitcode"))
 
@@ -49,6 +50,8 @@ BLOCKS_DIR = REPO / "packages" / "golden-blocks" / "blocks"
 SKELETON = REPO / "skills" / "circuitcode" / "templates" / "project_skeleton"
 LAYOUT_PY = REPO / "skills" / "circuitcode" / "circuitlib" / "layout.py"
 TOOLCHAIN_BIN = REPO / "toolchain" / "node_modules" / ".bin"
+
+from scripts.sync_golden_blocks import sync_project  # noqa: E402
 
 #: Element types that must sit inside the board outline. Silkscreen is
 #: deliberately absent: it may overhang, and counting it inflates every board.
@@ -104,7 +107,12 @@ def measure(block_id: str) -> tuple[str, tuple[float, float, float, float] | str
     try:
         for config in ("tsconfig.json", "tscircuit.config.json"):
             shutil.copy(SKELETON / config, root / config)
-        shutil.copytree(BLOCKS_DIR, root / "blocks", dirs_exist_ok=True)
+        sync_project(
+            root,
+            blocks=[block_id],
+            source=BLOCKS_DIR,
+            source_label="packages/golden-blocks/blocks",
+        )
         (root / "package.json").write_text(
             json.dumps({"name": "measure", "private": True, "version": "0.0.0"})
         )
@@ -124,14 +132,24 @@ def measure(block_id: str) -> tuple[str, tuple[float, float, float, float] | str
         env = dict(os.environ)
         env["PATH"] = f"{TOOLCHAIN_BIN}{os.pathsep}{env.get('PATH', '')}"
         env["NODE_PATH"] = str(REPO / "toolchain" / "node_modules")
-        subprocess.run(
+        completed = subprocess.run(
             [str(TOOLCHAIN_BIN / "tscircuit-cli"), "build", "boards/main.tsx",
              "--disable-parts-engine"],
             cwd=root, env=env, capture_output=True, text=True, timeout=300,
         )
         built = root / "dist" / "boards" / "main" / "circuit.json"
         if not built.is_file():
-            return block_id, "no circuit.json produced"
+            detail = "\n".join(
+                part.strip()
+                for part in (completed.stdout, completed.stderr)
+                if part.strip()
+            )
+            if len(detail) > 1200:
+                detail = detail[-1200:]
+            return block_id, (
+                f"no circuit.json produced (exit {completed.returncode})"
+                + (f": {detail}" if detail else "")
+            )
         elements = json.loads(built.read_text(encoding="utf-8"))
         boxes = [b for b in (_element_box(e) for e in elements) if b]
         if not boxes:

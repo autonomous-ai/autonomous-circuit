@@ -29,8 +29,10 @@ Helpers raise plain ``RuntimeError`` with an 800-char output tail /
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import signal
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -134,20 +136,34 @@ def _run(
     env: dict[str, str] | None = None,
     what: str,
 ) -> RunResult:
+    command = list(cmd)
     try:
-        proc = subprocess.run(
-            list(cmd),
+        proc = subprocess.Popen(
+            command,
             cwd=str(cwd) if cwd is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=timeout,
             env=env,
+            # tscircuit-cli immediately spawns tsx, which then spawns Node.
+            # A timeout that kills only the shim leaves the actual router
+            # running and writing artifacts after circuitpy has reported a
+            # failure. Give the whole invocation its own process group.
+            start_new_session=os.name == "posix",
         )
+        stdout, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        if os.name == "posix":
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        else:  # pragma: no cover - Windows developer workstation
+            proc.kill()
+        proc.communicate()
         raise TimeoutError(
-            f"{what} timed out after {timeout:g}s: {' '.join(list(cmd)[:6])}…"
+            f"{what} timed out after {timeout:g}s: {' '.join(command[:6])}…"
         ) from exc
-    output = proc.stdout.decode("utf-8", "replace")
+    output = stdout.decode("utf-8", "replace")
     if check and proc.returncode != 0:
         tail = output.strip()[-_OUTPUT_TAIL_CHARS:]
         raise RuntimeError(
@@ -230,8 +246,11 @@ _versions_cache: dict[str, str | None] | None = None
 
 def versions(*, refresh: bool = False) -> dict[str, str | None]:
     """Pinned toolchain versions for sidecars + idempotence checks:
-    ``{"tscircuit": "0.0.2279", "checks": "0.0.152", "kicadCli": "10.0.5"|None}``.
-    Cached per process (``refresh=True`` re-probes)."""
+    package versions plus the exact installed runtime-bundle identities and
+    ``kicadCli``.  The bundle hashes matter because Autonomous Circuit applies
+    audited, deterministic fixes without changing upstream package semver; a
+    version-only sidecar could otherwise reuse copper generated before a
+    routing-safety fix. Cached per process (``refresh=True`` re-probes)."""
     global _versions_cache
     if _versions_cache is not None and not refresh:
         return dict(_versions_cache)
@@ -247,6 +266,14 @@ def versions(*, refresh: bool = False) -> dict[str, str | None]:
         except (OSError, ValueError):
             return None
 
+    def _bundle_sha256(pkg: str, relative: str = "dist/index.js") -> str | None:
+        try:
+            return hashlib.sha256(
+                (modules / pkg / relative).read_bytes()
+            ).hexdigest()
+        except OSError:
+            return None
+
     kicad_version: str | None = None
     if kicad_cli_exe() is not None:
         try:
@@ -257,6 +284,15 @@ def versions(*, refresh: bool = False) -> dict[str, str | None]:
     _versions_cache = {
         "tscircuit": _pkg_version("tscircuit"),
         "checks": _pkg_version("@tscircuit/checks"),
+        "core": _pkg_version("@tscircuit/core"),
+        "capacityAutorouter": _pkg_version("@tscircuit/capacity-autorouter"),
+        "props": _pkg_version("@tscircuit/props"),
+        "checksBundleSha256": _bundle_sha256("@tscircuit/checks"),
+        "coreBundleSha256": _bundle_sha256("@tscircuit/core"),
+        "capacityAutorouterBundleSha256": _bundle_sha256(
+            "@tscircuit/capacity-autorouter"
+        ),
+        "propsBundleSha256": _bundle_sha256("@tscircuit/props"),
         "kicadCli": kicad_version,
     }
     return dict(_versions_cache)

@@ -3,7 +3,8 @@
 **Function:** the brain. A complete RP2040 minimal design per the Raspberry Pi
 hardware design guide: the MCU, its mandatory QSPI boot flash, the 12MHz
 crystal, full decoupling, the RUN pull-up with a reset button, and the BOOTSEL
-button. Everything the chip needs to come up and enumerate; nothing it doesn't.
+button, plus a three-pad SWD bring-up port. Everything the chip needs to come
+up, enumerate, and recover from a bad image; nothing it doesn't.
 Pick this brain when the device is **USB-attached only** (HID, serial, a device
 a computer drives) — anything needing Wi-Fi or BLE wants a certified radio
 module instead.
@@ -17,17 +18,28 @@ pairing are the two things to confirm).
 | Net | Meaning |
 |---|---|
 | `net.V3_3` | logic supply in — feed it from `ldo-3v3` |
-| `net.GND` | ground (QFN thermal pad is the GND pin) |
+| `net.GND` | ground (QFN thermal pad is the GND pin; TP3 is the debug return) |
 | `net.DVDD` | the 1.1V core rail, **generated on-chip** (VREG_VOUT) — never drive it |
 | `net.USB_DP` | USB D+ — pair with `usb-c-data`, which drives the same name |
 | `net.USB_DM` | USB D− — ditto |
-| `net.SWCLK` | SWD clock, brought out for a debug header |
-| `net.SWD` | SWD data, ditto |
+| `net.SWCLK` | SWD clock, physically available at TP1 |
+| `net.SWD` | SWD data, physically available at TP2 |
 
 GPIOs are **not** netted by the block — trace them directly off the chip
 refdes: `.U3 > .GPIO5`. ADC-capable pins are labelled both ways
 (`GPIO26_ADC0` / `GPIO26`). The default chip refdes is `U3`; override via the
 `u` prop (and `flash` / `xtal` for U4 / Y1) if a board ever carries two.
+Every composition must also provide `debugPortPcbX` / `debugPortPcbY` in the
+core's local coordinate system. There is intentionally no default: a parent
+group can rotate an apparently outboard default straight into another part.
+It must likewise allocate distinct `debugSwclkEscapeRef` /
+`debugSwdEscapeRef` DNP copper references outside TP1–TP3. The fixed 0.15mm
+segments leave the 0.4mm-pitch QFN row perpendicularly; only after those
+boundaries does the route widen to the preferred 0.25mm board-level debug
+width (`debugSignalTraceWidthMm`).
+`buttonVariant="compact"` selects the validated 3×2mm two-pin BOOTSEL/RESET
+parts when the board needs the smaller footprint; omission retains the Basic
+4-pad switches for compatibility.
 
 ## Rail budget
 
@@ -41,9 +53,9 @@ refdes: `.U3 > .GPIO5`. ADC-capable pins are labelled both ways
   it.
 - Decoupling as shipped: 8× 100nF on the 3V3 rail (one per supply pin class —
   IOVDD1-6, USB_VDD, ADC_AVDD), 100nF + 1uF on DVDD, 100nF at the flash, 10uF
-  bulk on 3V3. The *values* are frozen here; **which cap sits next to which
-  pin is a layout property the netlist cannot express** — that is checked on
-  `_pcb.png` in the craft pass.
+  bulk on 3V3. The values and placement are both part of the block contract:
+  the routed regression measures the compiled pad/part coordinates and keeps
+  every power-consuming U3/U4 pad within 5mm of a same-rail capacitor.
 
 ## Parts (pinned; verified 2026-08-10 via jlcsearch)
 
@@ -57,6 +69,8 @@ refdes: `.U3 > .GPIO5`. ADC-capable pins are labelled both ways
 | R13 | 0402WGF1001TCE, 1kΩ | C11702 | 0402 | yes | BOOTSEL series into QSPI_SS |
 | SW2 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | BOOTSEL |
 | SW3 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | RESET (pulls RUN low) |
+| SW2/SW3 compact option | TPT-2C1 | C2828561 | SMD, 3×2mm | no | `buttonVariant="compact"`; Extended |
+| TP1–TP3 | SWCLK / SWD / GND bring-up pads | — | 1.5mm PTH, 0.8mm drill, 2.54mm pitch | — | DNP copper feature; no part to source |
 | C4–C11 | CL05B104KO5NNNC, 100nF X7R | C1525 | 0402 | yes | 3V3 decoupling, 8 places |
 | C12 | CL05A105KA5NQNC, 1uF | C52923 | 0402 | yes | DVDD |
 | C13 | CL05B104KO5NNNC, 100nF | C1525 | 0402 | yes | DVDD |
@@ -74,16 +88,48 @@ buttons are Basic.
   on QSPI is part of the minimal system, and `QSPI_SS` must be free to float
   high at reset — which is why BOOTSEL goes through R13 and the testbench
   asserts `QSPI_SS` is *not* connected to GND at rest.
+- **Flash placement and routing are one cluster.** U4 sits beyond the QFN's
+  north edge, where pins 51–56 leave the package. The QSPI clock and both
+  oscillator nets route first in phase 0; QSPI data/select follow in phase 1,
+  so the clock's single-layer corridor cannot be displaced by the wider bus.
+  Later rail/GPIO copper must route around both phases. The compiled regression
+  holds QSPI clock to ≤25mm/≤1 via and every QSPI data or select net to
+  ≤35mm/≤2 vias.
+- **The board owns the phase-0/phase-1 routing regions.** An
+  `<autoroutingphase>` `region` uses absolute board coordinates; it is not
+  translated or rotated with this block. Each composition should declare a
+  board-global rectangle for each critical phase, enclosing that phase's
+  cluster and enough local routing space. The two rectangles may differ when
+  preserving phase-0 crystal/clock copper requires a wider solve than phase-1
+  QSPI. Do not hide those bounds inside `Rp2040Core`: a second instance or a
+  rotated parent needs different boxes.
+  The routed golden bench demonstrates the contract; product boards choose and
+  regression-test their own collision-free global coordinates.
 - **BOOTSEL is press-to-boot:** QSPI_SS → 1k (R13) → SW2 → GND. Holding it
   during reset pulls SS low through the resistor and the chip enumerates as a
   mass-storage device. The 1k is what keeps that from being a hard short on the
   live QSPI bus.
 - **RESET:** R12 holds RUN at 3V3; SW3 shorts RUN to ground. RUN must never be
   left floating (the pin is marked `mustBeConnected`).
+- **Button variant changes topology as well as area.** The default switch has
+  redundant 1+2 / 3+4 terminals; TPT-2C1 has only pin1/pin2. A compiled
+  compact-core regression proves BOOTSEL and RUN remain isolated from GND at
+  rest and both two-pin parts resolve to C2828561.
 - **TESTEN is tied to GND** — a factory-test pin; floating it is a latent
   bring-up failure.
+- **SWD is physically reachable:** TP1/TP2/TP3 expose SWCLK/SWD/GND on
+  2.54mm pitch for pogo tooling or temporary wire leads. They are marked DNP and
+  intentionally carry no LCSC number. The board must place them outboard via
+  the required `debugPortPcbX` / `debugPortPcbY` props; this cannot safely be
+  defaulted inside a block that may itself be rotated. The board also owns the
+  globally unique copper-boundary refs. Their 0.15mm QFN escapes are explicit,
+  measured fine-pitch exceptions; the boundary-to-probe segments default to
+  0.25mm.
 - **Crystal:** XIN is driven directly from Y1.pin1; XOUT returns through the 1kΩ
   series resistor R11 to Y1.pin3 (drive-level limiting per the design guide).
+  Y1 is rotated below the QFN, C15 branches at Y1.pin1, and C16/R11 flank the
+  return pad; the compiled regression holds both crystal-terminal nets to
+  ≤10mm with zero vias.
   The testbench asserts XIN and Y1.pin3 stay isolated — the series resistor
   must be in the path. Two 15pF loads in series (≈7.5pF) plus a few pF of stray
   land near the crystal's declared 10pF load; **whether that matches the real
@@ -94,8 +140,9 @@ buttons are Basic.
 - Board-level: the GPIO fan-out, USB pair routing, and mounting holes are the
   board's job. Pair with `usb-c-data` for a USB device; `usb-c-power` alone
   leaves the MCU with no host connection.
-- Default refdes U3, U4, Y1, R11–R13, SW2, SW3, C4–C17 are the global v1
-  allocation. `sw-tact` defaults to SW1 precisely so it never collides.
+- Default refdes U3, U4, Y1, R11–R13, SW2, SW3, TP1–TP3, C4–C17 are the
+  global v1 allocation. `sw-tact` defaults to SW1 precisely so it never
+  collides.
 
 ## Provenance
 

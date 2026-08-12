@@ -13,6 +13,8 @@
  * Default refdes (global v1 allocation): U5, C18, C19.
  */
 
+import { GndFanoutTrace } from "../glue"
+
 const bmePinLabels = {
   pin1: ["GND1"],
   pin2: ["CSB"],
@@ -75,17 +77,17 @@ export const SensorBme280 = (props: {
 
       <trace name={`TR_${u}_vdd`} from={`.${u} > .VDD`} to={`net.${rail}`} />
       <trace name={`TR_${u}_vddio`} from={`.${u} > .VDDIO`} to={`net.${rail}`} />
-      <trace name={`TR_${u}_gnd1`} from={`.${u} > .GND1`} to="net.GND" />
-      <trace name={`TR_${u}_gnd2`} from={`.${u} > .GND2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${u}_gnd1`} from={`.${u} > .GND1`} />
+      <GndFanoutTrace name={`TR_${u}_gnd2`} from={`.${u} > .GND2`} />
       {/* I2C mode + address 0x76 (both frozen — the block is the safety) */}
       <trace name={`TR_${u}_csb`} from={`.${u} > .CSB`} to={`net.${rail}`} />
-      <trace name={`TR_${u}_sdo`} from={`.${u} > .SDO`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${u}_sdo`} from={`.${u} > .SDO`} />
       <trace name={`TR_${u}_sda`} from={`.${u} > .SDA`} to={`net.${sda}`} />
       <trace name={`TR_${u}_scl`} from={`.${u} > .SCL`} to={`net.${scl}`} />
       <trace name={`TR_${cVdd}_v`} from={`.${cVdd} > .pin1`} to={`net.${rail}`} />
-      <trace name={`TR_${cVdd}_g`} from={`.${cVdd} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${cVdd}_g`} from={`.${cVdd} > .pin2`} />
       <trace name={`TR_${cVddio}_v`} from={`.${cVddio} > .pin1`} to={`net.${rail}`} />
-      <trace name={`TR_${cVddio}_g`} from={`.${cVddio} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${cVddio}_g`} from={`.${cVddio} > .pin2`} />
     </group>
   )
 }

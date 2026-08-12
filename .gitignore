@@ -15,6 +15,7 @@ build/
 .next/
 coverage/
 .nyc_output/
+.tscircuit/
 
 # Python
 .venv/

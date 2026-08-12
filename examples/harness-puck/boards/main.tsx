@@ -4,20 +4,23 @@
  *
  * dialect: tscircuit@0.0.2279 (pinned — repo toolchain/package.json)
  *
- * Blocks used: usb-c-data, ldo-3v3 (x2), rp2040-core, ws2812-chain
+ * Blocks used: usb-c-data, ldo-3v3, rp2040-core, ws2812-level-shifter,
+ *              ws2812-chain
  *              (Ws2812Pixel + the chain's own wiring rules, bent into a ring),
  *              sw-tact (x2), status-led
  *
  * Rails:
- *   V5      USB-C VBUS, 5V @ up to 1.5A budgeted
- *   V3_3    U2 (AMS1117-3.3)  -> logic only: RP2040 + flash        ~100mA
- *   V3_3_LED U5 (AMS1117-3.3) -> the 8-pixel ring only              <=480mA
- * Two regulators, not one: 8 WS2812s at the block's worst-case 60mA/pixel is
- * 480mA on its own, and 480 + 100 = 580mA through one AMS1117 is 0.99W in a
- * SOT-223 — past ldo-3v3's stated <=500mA budget. Split across two packages
- * each stays inside the block's budget and the heat lands in two places.
- * ldo-3v3's BLOCK.md sanctions exactly this: a second domain gets its own
- * net name via `voutNet`.
+ *   VBUS_RAW connector attach rail, 1.1uF total before U7
+ *   V5      U7 (TPS2553) controlled-rise/current-limited output
+ *   V3_3    U2 (AMS1117-3.3) + RP2040/flash + shifter fixed load     113mA
+ *   V5      -> 8-pixel ring, 480mA physical peak / 280mA firmware cap
+ * U7's locked 59k ILIM network spans 400.6–500mA. Firmware therefore caps
+ * the pixel family at 280mA so fixed logic plus LEDs stays at 393mA, below
+ * the guaranteed trip point even on a compliant low-threshold part.
+ * U6 (SN74AHCT1G125) translates the RP2040's 3.3V data to a valid 5V
+ * WS2812 input. The former second AMS1117 dissipated ~0.82W at full white and
+ * put the pixels below their intended 5V rail; that topology is now refused
+ * by the reusable planner rather than tolerated as a board-specific warning.
  *
  * Envelope: 70 x 70 mm outline, rounded to a 70mm circle, 2 layers, 1.6mm.
  *
@@ -38,26 +41,71 @@ import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
 import { Ws2812Pixel } from "../blocks/ws2812-chain/ws2812-chain"
+import { Ws2812LevelShifter } from "../blocks/ws2812-level-shifter/ws2812-level-shifter"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
 import { StatusLed } from "../blocks/status-led/status-led"
-import { MountingHole } from "../blocks/glue"
+import { GndFanoutTrace, GndPlanes, MountingHole, PowerTrunk } from "../blocks/glue"
 
 /* ---- ring geometry ------------------------------------------------------ */
 const PIXELS = 8
 const RING_R = 28 // mm, pixel centres
-const CAP_OFFSET = 4.2 // mm outboard of each pixel, its own 100nF
+const PIXEL_VDD_LOCAL = { x: -2.475, y: 1.6 } as const
+// Match the compiled reusable chain geometry: the horizontal 0402's pin1 is
+// 0.51mm left of its body centre, so this placement puts that pad directly
+// above VDD in pixel-local coordinates.  The resulting fixed branch is 1.8mm.
+const PIXEL_CAP_CENTER_LOCAL = { x: -1.965, y: 3.4 } as const
+const PIXEL_CAP_PIN1_LOCAL = { x: -2.475, y: 3.4 } as const
 const START_DEG = 247.5 // first pixel: lower-left, just past the USB gap
 const STEP_DEG = 45 // chain runs clockwise, so theta decreases
 const START_INDEX = 10 // D10..D17 / C40..C47 — the block's refdes allocation
-const LED_RAIL = "V3_3_LED"
+const LED_DATA_3V3 = "LED_DATA_3V3"
+const LED_DATA_5V = "LED_DATA_5V"
+const SIGNAL_TRACE_WIDTH = "0.25mm"
+const LOCAL_POWER_TRACE_WIDTH = "0.2mm"
+const POWER_RAIL_TRACE_WIDTH = "0.8mm"
 
 const rad = (deg: number) => (deg * Math.PI) / 180
 const r2 = (n: number) => Math.round(n * 1000) / 1000
+const rotateLocal = (point: { x: number; y: number }, degrees: number) => ({
+  x: point.x * Math.cos(rad(degrees)) - point.y * Math.sin(rad(degrees)),
+  y: point.x * Math.sin(rad(degrees)) + point.y * Math.cos(rad(degrees)),
+})
+
+/**
+ * The critical RP2040 phase regions are board-global.  They deliberately stop
+ * at the central electronics cluster instead of making the clock/QSPI solver
+ * search the whole 70mm puck and its LED ring.  These bounds include the
+ * complete reusable core geometry plus routing margin; exact cold replays are
+ * the acceptance evidence, not the rectangle itself.
+ */
+const RP_CRITICAL_ROUTING_REGION = {
+  minX: -18,
+  maxX: 12,
+  minY: -2,
+  maxY: 29,
+} as const
+
+/** Evenly-spaced polar rows fit a circular product better than a square via
+ * grid.  The inner row omits its north point because that coordinate is the
+ * flash package, not because a DRC result was nudged around after routing. */
+const polarRing = (radius: number, count: number, startDeg = 0) =>
+  Array.from({ length: count }, (_, index) => {
+    const theta = startDeg + (360 * index) / count
+    return {
+      x: r2(radius * Math.cos(rad(theta))),
+      y: r2(radius * Math.sin(rad(theta))),
+    }
+  })
+
+const GND_STITCHING_VIAS = [
+  ...polarRing(34, 16),
+  ...polarRing(23.5, 12).filter((_point, index) => index !== 3),
+]
 
 /**
  * The ring. One `Ws2812Pixel` per slot, rotated tangentially so each pixel's
- * DOUT faces the next pixel's DIN, each with its own 100nF just outboard of
- * it, and a single 330R damper (R30) on the first hop out of the MCU.
+ * DOUT faces the next pixel's DIN, each with its own 100nF continued outward
+ * from the rotated VDD pad, and a single 330R damper (R30) on the first hop.
  */
 const PuckRing = () => {
   const slots = Array.from({ length: PIXELS }, (_, i) => i)
@@ -77,8 +125,10 @@ const PuckRing = () => {
         schY={-12}
         supplierPartNumbers={{ jlcpcb: ["C25104"] }}
       />
-      <trace name="TR_R30_in" from=".R30 > .pin1" to="net.LED_DATA" />
-      <trace name="TR_R30_out" from=".R30 > .pin2" to={`net.PX_${START_INDEX}_DIN`} />
+      <trace name="TR_R30_in" from=".R30 > .pin1" to={`net.${LED_DATA_5V}`}
+        thickness={SIGNAL_TRACE_WIDTH} />
+      <trace name="TR_R30_out" from=".R30 > .pin2" to={`net.PX_${START_INDEX}_DIN`}
+        thickness={SIGNAL_TRACE_WIDTH} />
 
       {slots.flatMap((i) => {
         const d = `D${START_INDEX + i}`
@@ -87,8 +137,9 @@ const PuckRing = () => {
         const rot = theta + 90 // local +x tangential; DIN faces CCW, DOUT CW
         const px = r2(RING_R * Math.cos(rad(theta)))
         const py = r2(RING_R * Math.sin(rad(theta)))
-        const cx = r2((RING_R + CAP_OFFSET) * Math.cos(rad(theta)))
-        const cy = r2((RING_R + CAP_OFFSET) * Math.sin(rad(theta)))
+        const capCenterOffset = rotateLocal(PIXEL_CAP_CENTER_LOCAL, rot)
+        const cx = r2(px + capCenterOffset.x)
+        const cy = r2(py + capCenterOffset.y)
         return [
           <Ws2812Pixel
             key={d}
@@ -112,21 +163,30 @@ const PuckRing = () => {
             schRotation="90deg"
             supplierPartNumbers={{ jlcpcb: ["C1525"] }}
           />,
-          <trace key={`${d}v`} name={`TR_${d}_vdd`} from={`.${d} > .VDD`} to={`net.${LED_RAIL}`} />,
-          <trace key={`${d}g`} name={`TR_${d}_gnd`} from={`.${d} > .GND`} to="net.GND" />,
-          <trace key={`${c}v`} name={`TR_${c}_v`} from={`.${c} > .pin1`} to={`net.${LED_RAIL}`} />,
-          <trace key={`${c}g`} name={`TR_${c}_g`} from={`.${c} > .pin2`} to="net.GND" />,
+          // pcbPath is interpreted in the `from` component's local frame.
+          // Supplying already-rotated board coordinates here applies the
+          // pixel transform twice and throws the path outside the board.
+          <trace key={`${d}v`} name={`TR_${d}_vdd`}
+            from={`.${d} > .VDD`} to={`.${c} > .pin1`}
+            thickness={LOCAL_POWER_TRACE_WIDTH} maxLength="2mm"
+            pcbPath={[PIXEL_VDD_LOCAL, PIXEL_CAP_PIN1_LOCAL]} />,
+          <GndFanoutTrace key={`${d}g`} name={`TR_${d}_gnd`} from={`.${d} > .GND`} />,
+          <trace key={`${c}v`} name={`TR_${c}_v`} from={`.${c} > .pin1`} to="net.V5"
+            thickness={POWER_RAIL_TRACE_WIDTH} authoredNetTreeBoundary />,
+          <GndFanoutTrace key={`${c}g`} name={`TR_${c}_g`} from={`.${c} > .pin2`} />,
           <trace
             key={`${d}i`}
             name={`TR_${d}_din`}
             from={`.${d} > .DIN`}
             to={`net.PX_${START_INDEX + i}_DIN`}
+            thickness={SIGNAL_TRACE_WIDTH}
           />,
           <trace
             key={`${d}o`}
             name={`TR_${d}_dout`}
             from={`.${d} > .DOUT`}
             to={`net.PX_${START_INDEX + i + 1}_DIN`}
+            thickness={SIGNAL_TRACE_WIDTH}
           />,
         ]
       })}
@@ -134,18 +194,75 @@ const PuckRing = () => {
   )
 }
 
-export default () => (
+export const HarnessPuck = (props: { routingDisabled?: boolean } = {}) => (
   <board
     width="70mm"
     height="70mm"
     borderRadius={35}
     thickness={1.6}
-    minTraceWidth="0.15mm"
+    routingDisabled={props.routingDisabled ?? false}
+    minTraceWidth="0.2mm"
+    minTraceToPadEdgeClearance="0.15mm"
+    minViaEdgeToPadEdgeClearance="0.15mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
   >
-    {/* power + USB device: receptacle on the back rim, in the ring's gap */}
-    <UsbCData pcbX={0} pcbY={-29} schX={-42} schY={4} />
+    <autoroutingphase
+      name="rp-clock"
+      phaseIndex={0}
+      region={RP_CRITICAL_ROUTING_REGION}
+    />
+    <autoroutingphase
+      name="rp-qspi"
+      phaseIndex={1}
+      region={RP_CRITICAL_ROUTING_REGION}
+    />
+    <GndPlanes
+      pours={[
+        { name: "GND_TOP", layer: "top", boardEdgeMarginMm: 0.25 },
+        { name: "GND_BOTTOM", layer: "bottom", boardEdgeMarginMm: 0.25 },
+      ]}
+      stitchingVias={GND_STITCHING_VIAS}
+    />
+
+    {/* Source branches are explicit trees: short 0.2mm pad escapes bracket a
+        0.8mm trunk. Keeping them on the populated top layer avoids putting
+        the ~0.6A V5 path through a generic signal via. */}
+    <PowerTrunk
+      name="V5_MAIN"
+      source=".J1 > .VBUS1"
+      net="V5"
+      layer="top"
+      start={{ x: 2.4, y: -25.4 }}
+      end={{ x: -9.5, y: -20 }}
+      startTestpoint="TP4"
+      endTestpoint="TP5"
+      trunkWidthMm={0.8}
+      neckdownWidthMm={0.2}
+    />
+    <PowerTrunk
+      name="V3V3_MAIN"
+      source=".U2 > .TAB"
+      net="V3_3"
+      layer="top"
+      start={{ x: 5.9, y: -11 }}
+      end={{ x: 4, y: 3 }}
+      startTestpoint="TP6"
+      endTestpoint="TP7"
+      trunkWidthMm={0.8}
+      neckdownWidthMm={0.2}
+    />
+
+    {/* Power + USB device: J1's cable-insertion centre lands 0.052mm beyond
+        the routed bottom edge.  That is the mechanical datum; the connector's
+        generic component body ends farther inboard and is not its mating face. */}
+    <UsbCData
+      externalPowerTrunkPort="VBUS1"
+      pcbX={0}
+      pcbY={-29}
+      schX={-42}
+      schY={4}
+    />
 
     {/*
       NOTE (2026-08-10): two <keepout shape="circle" radius="0.6mm"> at
@@ -157,21 +274,30 @@ export default () => (
     */}
 
     {/* logic rail: V5 -> V3_3 (RP2040 + flash only) */}
-    <Ldo3v3 u="U2" cin="C2" cout="C3" voutNet="V3_3" pcbX={11} pcbY={-11} schX={-28} schY={12} />
-
-    {/* pixel rail: V5 -> V3_3_LED (the ring only, its own SOT-223) */}
     <Ldo3v3
-      u="U5"
-      cin="C20"
-      cout="C21"
-      voutNet={LED_RAIL}
-      pcbX={-12}
+      u="U2"
+      cin="C2"
+      cout="C3"
+      voutNet="V3_3"
+      externalPowerTrunkPort="TAB"
+      pcbX={11}
       pcbY={-11}
       schX={-28}
-      schY={2}
+      schY={12}
     />
 
-    {/* extra bulk on the pixel rail: eight WS2812s switch three channels each */}
+    {/* Valid 3.3V GPIO -> 5V pixel-data boundary. /OE is hard-low and C20 is
+        frozen into the sourced block; R30 remains after the buffer output. */}
+    <Ws2812LevelShifter
+      pcbX={-13}
+      pcbY={0}
+      schX={-28}
+      schY={2}
+      inputNet={LED_DATA_3V3}
+      outputNet={LED_DATA_5V}
+    />
+
+    {/* extra bulk on V5: eight WS2812s switch three channels each */}
     <capacitor
       name="C22"
       capacitance="10uF"
@@ -194,13 +320,26 @@ export default () => (
       schRotation="90deg"
       supplierPartNumbers={{ jlcpcb: ["C15850"] }}
     />
-    <trace name="TR_C22_v" from=".C22 > .pin1" to={`net.${LED_RAIL}`} />
-    <trace name="TR_C22_g" from=".C22 > .pin2" to="net.GND" />
-    <trace name="TR_C23_v" from=".C23 > .pin1" to={`net.${LED_RAIL}`} />
-    <trace name="TR_C23_g" from=".C23 > .pin2" to="net.GND" />
+    <trace name="TR_C22_v" from=".C22 > .pin1" to="net.V5"
+      thickness={POWER_RAIL_TRACE_WIDTH} authoredNetTreeBoundary />
+    <GndFanoutTrace name="TR_C22_g" from=".C22 > .pin2" />
+    <trace name="TR_C23_v" from=".C23 > .pin1" to="net.V5"
+      thickness={POWER_RAIL_TRACE_WIDTH} authoredNetTreeBoundary />
+    <GndFanoutTrace name="TR_C23_g" from=".C23 > .pin2" />
 
     {/* the brain: RP2040 minimal system, upper half of the disc */}
-    <Rp2040Core pcbX={-2} pcbY={11} schX={-2} schY={6} />
+    <Rp2040Core
+      pcbX={-2}
+      pcbY={11}
+      schX={-2}
+      schY={6}
+      debugPortPcbX={16}
+      debugPortPcbY={1}
+      debugSwclkEscapeRef="TP8"
+      debugSwdEscapeRef="TP9"
+      debugSignalTraceWidthMm={0.25}
+      buttonVariant="compact"
+    />
 
     {/* the face: eight addressable pixels around the rim */}
     <PuckRing />
@@ -215,19 +354,24 @@ export default () => (
     <StatusLed led="LED1" r="R20" rail="V3_3" pcbX={-20} pcbY={-3} schX={22} schY={0} />
 
     {/* MCU I/O */}
-    <trace name="TR_U3_leddata" from=".U3 > .GPIO16" to="net.LED_DATA" />
-    <trace name="TR_U3_btngo" from=".U3 > .GPIO14" to="net.BTN_GO" />
-    <trace name="TR_U3_btnmode" from=".U3 > .GPIO15" to="net.BTN_MODE" />
+    <trace name="TR_U3_leddata" from=".U3 > .GPIO16" to={`net.${LED_DATA_3V3}`}
+      thickness={SIGNAL_TRACE_WIDTH} />
+    <trace name="TR_U3_btngo" from=".U3 > .GPIO14" to="net.BTN_GO"
+      thickness={SIGNAL_TRACE_WIDTH} />
+    <trace name="TR_U3_btnmode" from=".U3 > .GPIO15" to="net.BTN_MODE"
+      thickness={SIGNAL_TRACE_WIDTH} />
 
     {/* three M2 holes at 120 degrees on a 22.8mm radius — the printed body's standoffs */}
-    <MountingHole name="H1" diameter={2.2} pcbX={0} pcbY={22} />
+    <MountingHole name="H1" diameter={2.2} pcbX={0} pcbY={30} />
     <MountingHole name="H2" diameter={2.2} pcbX={-19.75} pcbY={-11.4} />
     <MountingHole name="H3" diameter={2.2} pcbX={19.75} pcbY={-11.4} />
 
     {/* silkscreen: the name, and where to put a probe */}
     <silkscreentext text="AUTONOMOUS HARNESS" pcbX={0} pcbY={19.2} fontSize={1} />
     <silkscreentext text="3V3" pcbX={6.5} pcbY={-20.5} fontSize={1} />
-    <silkscreentext text="LED3V3" pcbX={-8.5} pcbY={-20.5} fontSize={1} />
+    <silkscreentext text="LED5V" pcbX={-8.5} pcbY={-20.5} fontSize={1} />
     <silkscreentext text="5V" pcbX={12} pcbY={-24.5} fontSize={1} />
   </board>
 )
+
+export default () => <HarnessPuck />

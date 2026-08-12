@@ -87,20 +87,18 @@ for logic rails. VBUS bulk capacitance kept at 10uF (USB 2.0 inrush limit).
   connector-facing pins are the protected side.
 - Both VBUS pins (A4B9/B4A9) and both GND pins are tied — never single-pin.
 - Shell (EH1-4) ties to GND.
-- **The receptacle's belly is a keepout, and it ships inside the footprint.**
-  The two 0.6mm NPTH alignment holes sit in an empty pocket the autorouter
-  finds attractive and has no clearance model for: it used to run GND through
-  it at 0.115mm from a drill where JLC needs 0.20mm. The 7.30 x 1.23mm keepout
-  at (0, 0.90) closes the pocket and the 0.525mm channel beside each drill;
-  worst measured track-to-drill distance goes 0.115mm -> 0.894mm. It lives in
-  the footprint so it travels with `pcbX`/`pcbY`/`pcbRotation` — placement
-  cannot get it wrong, and there is nothing a composer has to remember.
-- **If your board pours copper, set `cutoutMargin` on the pour.** A pour cuts a
-  32-sided polygon around every hole, so the default 0.2mm margin measures
-  0.1976mm at the chord midpoints and the fab's DRC calls it a violation. Use
-  `<copperpour layer="bottom" connectsTo="net.GND" cutoutMargin="0.25mm" />`.
-  This is true of any board with any NPTH, not just this block — an M2.5
-  mounting hole under the 0.2mm default measures 0.193mm.
+- **Each alignment drill has an exact component-local keepout.** The two
+  0.6mm NPTHs each carry a 1.02 x 1.02mm guard centered on the drill. Its edge
+  is 0.2100006mm beyond the actual 0.5999988mm drill, clearing the 0.20mm fab
+  floor without intersecting any imported connector pad. The guards close the
+  illegal narrow channels beside the holes while preserving the legal central
+  routing pocket used by the reversible data trees. They live inside J1's
+  footprint, so translation, rotation, and top/bottom placement transform the
+  holes and guards together; a composer has nothing extra to place.
+- **If your board pours copper, use the shared `GndPlanes` helper or derive the
+  pour cutout from `POUR_CUTOUT_MARGIN_MM`.** The constant accounts for the
+  chord error in the 32-sided hole cutout; do not copy its current numeric
+  value into a board. This applies to every NPTH, including mounting holes.
 
 ## Provenance
 
@@ -110,4 +108,3 @@ for logic rails. VBUS bulk capacitance kept at 10uF (USB 2.0 inrush limit).
 - CC/ESD pattern follows the seveibar `usb-c-flashlight` example family
   (registry survey r5, 2026-08-10) and the USB-C spec's sink-Rd rule.
 - USBLC6 channel mapping from the ST USBLC6-2SC6 datasheet (SOT-23-6).
-

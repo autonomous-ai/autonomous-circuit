@@ -174,6 +174,12 @@ test("buildCommandArgs resumes an existing session and passes the configured mod
   assert.equal(args[args.indexOf("--resume") + 1], sessionId);
   assert.ok(!args.includes("--session-id"));
   assert.equal(args[args.indexOf("--model") + 1], "opus");
+  const implementPrompt = args[args.indexOf("--append-system-prompt") + 1];
+  assert.ok(implementPrompt.includes("golden-blocks.lock.json"));
+  assert.match(
+    implementPrompt,
+    /never\s+copy or hand-edit an unlocked blocks\/ tree/,
+  );
 
   const review = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, env });
   assert.equal(review[review.indexOf("--permission-mode") + 1], "bypassPermissions");

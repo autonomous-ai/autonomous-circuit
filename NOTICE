@@ -6,3 +6,11 @@ which itself descends from the autonomous-vibe (Panda) viewer.
 
 All code in this repository is licensed under the MIT License,
 Copyright (c) 2026 dee (see LICENSE).
+
+The RP2040 minimal-system golden block adapts placement and critical-routing
+geometry from Raspberry Pi Ltd's official Minimal R3-S1 reference design,
+Copyright (c) 2026 Raspberry Pi Ltd and licensed under the MIT License. The
+complete upstream notice and pinned source record are preserved in
+packages/golden-blocks/blocks/rp2040-core/RASPBERRY_PI_MINIMAL_LICENSE.txt and
+RASPBERRY_PI_MINIMAL_REFERENCE.md; both files must accompany every vendored
+copy of that block.

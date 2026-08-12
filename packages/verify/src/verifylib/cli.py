@@ -30,8 +30,11 @@ from verifylib import (
     corners,
     dc,
     gerber_truth,
+    intent,
+    layout,
     model,
     netclass,
+    power_intent,
     review,
     thermal,
 )
@@ -44,6 +47,9 @@ CHECKS = {
     "dc": (False, "DC operating point over the real netlist"),
     "corners": (False, "the same solve at every tolerance corner"),
     "review": (False, "the electrical half of an EE design review"),
+    "layout": (False, "reference plane, critical-route vias, ESD placement"),
+    "intent": (False, "product-declared outline, sides, edge connectors, planes and net classes"),
+    "power_intent": (False, "product-declared USB attach capacitance, current limiter and operating load"),
     "thermal": (False, "dissipation against package ratings, at peak load"),
     "gerber": (True, "the shipped packet, reconciled against the design"),
 }
@@ -64,7 +70,14 @@ def resolve(target: str | Path) -> tuple[Path, Path | None]:
     return path, zip_path if zip_path.is_file() else None
 
 
-def run_one(name: str, circuit_json: str, gerbers: str | None, trials: int) -> dict:
+def run_one(
+    name: str,
+    circuit_json: str,
+    gerbers: str | None,
+    trials: int,
+    layout_intent: dict | None = None,
+    power_budget: dict | None = None,
+) -> dict:
     """Run a single check. Always returns a dict, never raises — a verifier
     that takes the run down with it is a verifier that gets deleted."""
     started = time.time()
@@ -80,6 +93,12 @@ def run_one(name: str, circuit_json: str, gerbers: str | None, trials: int) -> d
             result = corners.check(board, trials=trials)
         elif name == "review":
             result = review.check(board)
+        elif name == "layout":
+            result = layout.check(board)
+        elif name == "intent":
+            result = intent.check(board, layout_intent)
+        elif name == "power_intent":
+            result = power_intent.check(board, power_budget)
         elif name == "thermal":
             result = thermal.check(board)
         elif name == "gerber":
@@ -126,6 +145,9 @@ def verify(
     parallel: bool = True,
 ) -> dict:
     circuit_json, gerbers = resolve(target)
+    product_intent = _load_product_intent(circuit_json)
+    layout_intent = product_intent.get("layout")
+    power_budget = product_intent.get("powerBudget")
     names = [n for n in CHECKS if not only or n in only]
     started = time.time()
 
@@ -138,13 +160,22 @@ def verify(
                     str(circuit_json),
                     str(gerbers) if gerbers else None,
                     trials,
+                    layout_intent,
+                    power_budget,
                 )
                 for name in names
             }
             results = [futures[name].result() for name in names]
     else:
         results = [
-            run_one(name, str(circuit_json), str(gerbers) if gerbers else None, trials)
+            run_one(
+                name,
+                str(circuit_json),
+                str(gerbers) if gerbers else None,
+                trials,
+                layout_intent,
+                power_budget,
+            )
             for name in names
         ]
 
@@ -164,6 +195,41 @@ def verify(
         "seconds": round(wall, 3),
         "compute_seconds": round(serial, 3),
     }
+
+
+def _load_product_intent(circuit_json: Path) -> dict:
+    """Read product intent when a circuit artifact is in a project.
+
+    A standalone circuit-json file remains verifiable; the intent check then
+    reports the missing product contract in coverage rather than inventing
+    requirements.
+    """
+
+    candidates = [
+        circuit_json.parent / "product.json",
+        circuit_json.parent.parent / "product.json",
+    ]
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            key: payload[key]
+            for key in ("layout", "powerBudget")
+            if isinstance(payload.get(key), dict)
+        }
+    return {}
+
+
+def _load_layout_intent(circuit_json: Path) -> dict | None:
+    """Backward-compatible helper retained for callers/tests."""
+    value = _load_product_intent(circuit_json).get("layout")
+    return value if isinstance(value, dict) else None
 
 
 def main(argv: list[str] | None = None) -> int:

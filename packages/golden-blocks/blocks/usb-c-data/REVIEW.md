@@ -113,11 +113,12 @@ block edit (same 0402 footprint, so layout survives).
   belongs to the craft pass on `_pcb.png`.
 - Default refdes J1, R1, R2, U1, C1 are shared with `usb-c-power` (the two are
   mutually exclusive) plus R3, R4 for the series pair.
-- The receptacle carries a routing keepout over its own belly (it comes with
-  the shared `UsbCConnector` footprint, so it moves and rotates with J1). See
-  `usb-c-power/BLOCK.md` — that keepout is what keeps GND off the alignment
-  drills, and the same note explains why a board with a copper pour must set
-  `cutoutMargin="0.25mm"`.
+- Each receptacle alignment drill carries its own exact local guard in the
+  shared `UsbCConnector` footprint, so holes and guards move, rotate, and
+  mirror with J1. The guards hold every trace and via at least 0.20mm from the
+  NPTH drill edges without erasing the central reversible-data routing pocket.
+  See `usb-c-power/BLOCK.md`; its separate pour note still applies to boards
+  that add copper pours.
 
 ## Provenance
 
@@ -130,4 +131,3 @@ block edit (same 0402 footprint, so layout survives).
 - Series-resistor value and the ESD-then-series ordering follow the RP2040
   hardware design guide's minimal USB device example (r5 recon read the
   `seveibar/rp2040-module` port of it as reference; nothing is imported).
-

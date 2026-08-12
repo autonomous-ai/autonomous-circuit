@@ -15,13 +15,14 @@
  *     long first hop and protect the GPIO. Later hops are driven by the
  *     previous LED and do not need one.
  *
- * Data levels: WS2812B expects VIH >= 0.7 * VDD. Driven at 5V it wants 3.5V
- * and a 3.3V MCU pin is marginal. This block therefore defaults its rail to
- * net.V3_3, where 3.3V logic is comfortably in spec and the pixels are simply
- * dimmer. Pass rail="V5" only with a level shifter in front (not a block yet).
+ * Data levels: WS2812B expects VIH >= 0.7 * VDD. The chain therefore defaults
+ * to net.V5 and consumes net.LED_DATA_5V from ws2812-level-shifter. Connecting
+ * a raw 3.3V GPIO directly is outside the pixel's guaranteed input range.
  *
  * Default refdes: D10..D10+n, C40..C40+n, R30 (the series resistor).
  */
+
+import { GndFanoutTrace } from "../glue"
 
 const PIXEL_PITCH_MM = 7
 
@@ -83,6 +84,8 @@ export const Ws2812Chain = (props: {
   startIndex?: number
   /** mm between pixel centres along x */
   pitch?: number
+  /** Ordinary board-level data width; power is governed by its rail class. */
+  signalTraceWidthMm?: number
   r?: string
   pcbX?: number
   pcbY?: number
@@ -90,10 +93,11 @@ export const Ws2812Chain = (props: {
   schY?: number
 }) => {
   const count = props.count ?? 1
-  const din = props.dinNet ?? "LED_DATA"
-  const rail = props.rail ?? "V3_3"
+  const din = props.dinNet ?? "LED_DATA_5V"
+  const rail = props.rail ?? "V5"
   const start = props.startIndex ?? 10
   const pitch = props.pitch ?? PIXEL_PITCH_MM
+  const signalTraceWidthMm = props.signalTraceWidthMm ?? 0.25
   const r = props.r ?? "R30"
   const pixels = Array.from({ length: count }, (_, i) => i)
 
@@ -103,8 +107,10 @@ export const Ws2812Chain = (props: {
       <resistor name={r} resistance="330" footprint="0402"
         pcbX={-pitch} pcbY={0} schX={-3} schY={0}
         supplierPartNumbers={{ jlcpcb: ["C25104"] }} />
-      <trace name={`TR_${r}_in`} from={`.${r} > .pin1`} to={`net.${din}`} />
-      <trace name={`TR_${r}_out`} from={`.${r} > .pin2`} to={`net.PX_${start}_DIN`} />
+      <trace name={`TR_${r}_in`} from={`.${r} > .pin1`} to={`net.${din}`}
+        thickness={`${signalTraceWidthMm}mm`} />
+      <trace name={`TR_${r}_out`} from={`.${r} > .pin2`} to={`net.PX_${start}_DIN`}
+        thickness={`${signalTraceWidthMm}mm`} />
 
       {pixels.map((i) => {
         const d = `D${start + i}`
@@ -115,15 +121,19 @@ export const Ws2812Chain = (props: {
           // auto-layout, which stacks the pixels instead of spacing them.
           <group key={d} pcbX={x} pcbY={0} schX={i * 4} schY={0}>
             <Ws2812Pixel name={d} pcbX={0} pcbY={0} schX={0} schY={0} />
+            {/* The VDD pad is at (-2.475,+1.6). Put its bypass directly
+                beyond that pad, not beside the opposite-side GND pad. */}
             <capacitor name={c} capacitance="100nF" footprint="0402"
-              pcbX={0} pcbY={-3.6} schX={0} schY={-2.5} schRotation="90deg"
+              pcbX={-2.475} pcbY={3.8} schX={0} schY={-2.5} schRotation="90deg"
               supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
             <trace name={`TR_${d}_vdd`} from={`.${d} > .VDD`} to={`net.${rail}`} />
-            <trace name={`TR_${d}_gnd`} from={`.${d} > .GND`} to="net.GND" />
+            <GndFanoutTrace name={`TR_${d}_gnd`} from={`.${d} > .GND`} />
             <trace name={`TR_${c}_v`} from={`.${c} > .pin1`} to={`net.${rail}`} />
-            <trace name={`TR_${c}_g`} from={`.${c} > .pin2`} to="net.GND" />
-            <trace name={`TR_${d}_din`} from={`.${d} > .DIN`} to={`net.PX_${start + i}_DIN`} />
-            <trace name={`TR_${d}_dout`} from={`.${d} > .DOUT`} to={`net.PX_${start + i + 1}_DIN`} />
+            <GndFanoutTrace name={`TR_${c}_g`} from={`.${c} > .pin2`} />
+            <trace name={`TR_${d}_din`} from={`.${d} > .DIN`} to={`net.PX_${start + i}_DIN`}
+              thickness={`${signalTraceWidthMm}mm`} />
+            <trace name={`TR_${d}_dout`} from={`.${d} > .DOUT`} to={`net.PX_${start + i + 1}_DIN`}
+              thickness={`${signalTraceWidthMm}mm`} />
           </group>
         )
       })}

@@ -12,8 +12,8 @@ from a reflowed board. First-article check listed under Provenance.
 
 | Net | Meaning |
 |---|---|
-| `net.<dinNet>` (default `LED_DATA`) | in: the driving GPIO |
-| `net.<rail>` (default `V3_3`) | in: pixel supply |
+| `net.<dinNet>` (default `LED_DATA_5V`) | in: translated 5V-domain data |
+| `net.<rail>` (default `V5`) | in: pixel supply |
 | `net.GND` | in: ground |
 | `net.PX_<n>_DIN` | internal: one net per pixel-to-pixel hop |
 
@@ -24,9 +24,8 @@ deliberate (a chain can always be extended) and shows up as an
 ## Rail budget
 
 A WS2812B draws roughly **1mA idle** and up to **~20mA per channel** — so about
-**60mA per pixel at full white**. Budget the chain at `count × 60mA` worst case
-and check it against the source with `helpers.power_budget()`; at 3.3V the
-channels run below their rated current, so real draw is lower.
+**60mA per pixel at full white**. Budget the 5V chain at `count × 60mA` worst
+case and check it against the source with `helpers.power_budget()`.
 
 A 4-pixel ring is ~240mA worst case, which a USB-C source handles comfortably.
 Past roughly 20 pixels the rail wants its own bulk capacitance and a wider
@@ -42,18 +41,19 @@ supply trace — size it with `helpers.trace_width_for()`.
 
 ## Design-rule notes
 
-- **One 100nF per pixel, next to that pixel.** These parts switch three
+- **One 100nF per pixel, at most 2.2mm from its VDD pad.** These parts switch three
   constant-current channels fast; shared bulk alone browns out the far end of
-  the chain. This is the single most common WS2812 mistake and no deterministic
-  check catches it — which is exactly why it is frozen into the block.
+  the chain. The compiled block test measures pad-to-cap distance so a future
+  layout change cannot quietly turn the bypass into remote bulk capacitance.
 - **Series resistor on the first hop only** (330Ω). It damps the reflection on
   the long run from the MCU and protects the GPIO. Later hops are driven by the
   previous LED's output and do not need one.
-- **Rail defaults to 3.3V, not 5V.** WS2812B wants VIH ≥ 0.7 × VDD, so a 5V
-  part fed 3.3V logic is marginal (needs 3.5V). Running the pixels at 3.3V puts
-  the data levels comfortably in spec at the cost of some brightness. Pass
-  `rail="V5"` **only** with a level shifter in front — there is no level-shifter
-  block yet, so today that combination is unsupported.
+- **Data routes default to 0.25mm.** That is the ordinary board-level signal
+  width, independent of the wider current-carrying V5 rail class.
+- **Rail defaults to 5V and data defaults to `LED_DATA_5V`.** WS2812B wants
+  VIH ≥ 0.7 × VDD, so a 5V pixel fed directly from 3.3V logic is marginal
+  (needs 3.5V). Compose `ws2812-level-shifter` between the MCU GPIO and this
+  block. The translator's Y output feeds this block's existing 330Ω resistor.
 - Default pitch is 7mm, which clears the 5×5mm body plus its decoupling cap.
 
 ## Provenance

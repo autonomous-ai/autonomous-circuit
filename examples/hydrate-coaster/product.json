@@ -8,5 +8,84 @@
   ],
   "layers": 2,
   "fab": "jlcpcb",
-  "assembly": true
+  "assembly": true,
+  "layout": {
+    "boardSizeMm": [
+      80,
+      80
+    ],
+    "boardSizeToleranceMm": 0.01,
+    "minCopperClearanceMm": 0.15,
+    "componentSides": [
+      {
+        "match": "*",
+        "side": "top"
+      }
+    ],
+    "edgeConnectors": [
+      {
+        "ref": "J1",
+        "edge": "bottom",
+        "alignment": "center",
+        "edgeToleranceMm": 1.0,
+        "centerToleranceMm": 0.1
+      }
+    ],
+    "groundPlanes": {
+      "layers": [
+        "top",
+        "bottom"
+      ],
+      "maxRoutedLengthMm": 30,
+      "maxFanoutLengthMm": 2.0,
+      "stitchingPitchMm": 10
+    },
+    "decoupling": {
+      "maxDistanceMm": 2.0,
+      "exclude": [
+        "U1"
+      ]
+    },
+    "netClasses": [
+      {
+        "name": "POWER",
+        "nets": [
+          "V5",
+          "V3_3"
+        ],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 3,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "USB_ATTACH_POWER",
+        "nets": [
+          "VBUS_RAW"
+        ],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 3,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "CONTROL_SIGNAL",
+        "nets": [
+          "LED_NUDGE",
+          "BTN_MUTE",
+          "SWCLK",
+          "SWD",
+          "USB_POWER_FAULT",
+          "CAP_DRIVE",
+          "CAP_A_SENSE",
+          "CAP_B_SENSE"
+        ],
+        "minTrunkWidthMm": 0.25,
+        "minNeckdownWidthMm": 0.15,
+        "maxNeckdownLengthMm": 1
+      }
+    ]
+  }
 }

@@ -19,6 +19,12 @@ The SOT-223 tab (`TAB`, pin 4) is tied to `VOUT` — it is the package's output
 pad, not a thermal-only pad, so it carries rail current and must be poured, not
 just stitched.
 
+For a wide board-level 3V3 rail, set
+`externalPowerTrunkPort="VOUT"` (or `TAB`) and use that exact U2 pad as golden
+`PowerTrunk.source`. The selected pad's ordinary source-to-rail edge is omitted
+so the trunk owns one acyclic branch; the other package output pad remains tied
+to `net.V3_3`.
+
 ## Rail budget
 
 Input 5V, output 3.3V — the regulator burns `(5 − 3.3) × I` as heat. At 300mA

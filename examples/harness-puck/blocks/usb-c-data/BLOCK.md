@@ -26,6 +26,12 @@ resistors really separate the connector from the MCU. SBU1/SBU2 are marked
 do-not-connect. Pairs directly with `rp2040-core`, which drives the same
 `USB_DP`/`USB_DM` net names.
 
+For a wide board-level VBUS entry, set
+`externalPowerTrunkPort="VBUS1"` (or `VBUS2`) and use that exact J1 pad as
+golden `PowerTrunk.source`. The block then omits only that pad's ordinary
+source-to-`net.V5` edge; the trunk must supply it. This keeps the rail graph a
+tree while the receptacle's other duplicated VBUS pad remains connected.
+
 ## Rail budget
 
 Same as `usb-c-power`: 5V at up to 3A advertised by the 5.1k/5.1k Rd sink pair
@@ -65,6 +71,11 @@ block edit (same 0402 footprint, so layout survives).
   belongs to the craft pass on `_pcb.png`.
 - Default refdes J1, R1, R2, U1, C1 are shared with `usb-c-power` (the two are
   mutually exclusive) plus R3, R4 for the series pair.
+- The receptacle carries a routing keepout over its own belly (it comes with
+  the shared `UsbCConnector` footprint, so it moves and rotates with J1). See
+  `usb-c-power/BLOCK.md` — that keepout is what keeps GND off the alignment
+  drills, and the same note explains why a board with a copper pour must set
+  `cutoutMargin="0.25mm"`.
 
 ## Provenance
 

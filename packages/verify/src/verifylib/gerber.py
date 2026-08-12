@@ -75,6 +75,11 @@ class Flash:
     x: float
     y: float
     aperture: Aperture
+    #: ``dark`` adds material; ``clear`` (``%LPC``) subtracts it.
+    polarity: str = "dark"
+    #: Monotonic position in the graphics stream. Polarity is composited in
+    #: plot order, so a clear operation only erases material before it.
+    sequence: int = 0
 
     @property
     def rect(self) -> Rect:
@@ -88,6 +93,8 @@ class Draw:
     x1: float
     y1: float
     aperture: Aperture
+    polarity: str = "dark"
+    sequence: int = 0
 
     @property
     def width(self) -> float:
@@ -109,6 +116,8 @@ class Region:
     """
 
     points: list[tuple[float, float]] = field(default_factory=list)
+    polarity: str = "dark"
+    sequence: int = 0
 
     @property
     def bounds(self) -> Rect | None:
@@ -165,6 +174,7 @@ class GerberLayer:
 
 _FS_RE = re.compile(r"^%FS([LT])([AI])X(\d)(\d)Y(\d)(\d)\*%$")
 _AD_RE = re.compile(r"^%ADD(\d+)([A-Za-z_$][A-Za-z0-9_$.\-]*)(?:,(.*))?\*%$")
+_LP_RE = re.compile(r"^%LP([DC])\*%$")
 _COORD_RE = re.compile(
     r"(?:X(?P<x>[+-]?\d+))?(?:Y(?P<y>[+-]?\d+))?"
     r"(?:I(?P<i>[+-]?\d+))?(?:J(?P<j>[+-]?\d+))?"
@@ -291,6 +301,8 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
     pending_macro: list[str] | None = None
     pending_macro_name: str | None = None
     region: Region | None = None
+    polarity = "dark"
+    sequence = 0
 
     for raw in text.splitlines():
         line = raw.strip()
@@ -320,7 +332,11 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
             if "TF.FileFunction," in line:
                 layer.file_function = line.split("TF.FileFunction,", 1)[1].rstrip("*%")
             continue
-        if line.startswith("%TO") or line.startswith("%TD") or line.startswith("%LP"):
+        if line.startswith("%TO") or line.startswith("%TD"):
+            continue
+        match = _LP_RE.match(line)
+        if match:
+            polarity = "dark" if match.group(1) == "D" else "clear"
             continue
         if line.startswith("%MO"):
             layer.units = "in" if "IN" in line else "mm"
@@ -361,7 +377,8 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
         if line in ("G01*", "G75*", "G70*", "G71*", "G90*", "G91*"):
             continue
         if line.startswith("G36"):
-            region = Region()
+            region = Region(polarity=polarity, sequence=sequence)
+            sequence += 1
             continue
         if line.startswith("G37"):
             if region is not None and len(region.points) >= 3:
@@ -393,10 +410,14 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
                 continue
             if op == "1":
                 if current is not None:
-                    layer.draws.append(Draw(x, y, nx, ny, current))
+                    layer.draws.append(
+                        Draw(x, y, nx, ny, current, polarity, sequence)
+                    )
+                    sequence += 1
             elif op == "3":
                 if current is not None:
-                    layer.flashes.append(Flash(nx, ny, current))
+                    layer.flashes.append(Flash(nx, ny, current, polarity, sequence))
+                    sequence += 1
             x, y = nx, ny
             continue
 

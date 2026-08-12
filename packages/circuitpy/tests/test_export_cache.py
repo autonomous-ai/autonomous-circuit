@@ -14,41 +14,73 @@ import circuitproj  # noqa: E402  (sys.path bootstrap)
 
 from circuitpy import export_cache  # noqa: E402
 
-VERSIONS = {"tscircuit": "0.0.2279", "checks": "0.0.152", "kicadCli": None}
+VERSIONS = {
+    "tscircuit": "0.0.2279",
+    "checks": "0.0.152",
+    "checksBundleSha256": "c" * 64,
+    "coreBundleSha256": "a" * 64,
+    "kicadCli": None,
+}
+REVISION = "pipeline-a"
 
 
 class Keys(unittest.TestCase):
     def test_key_is_stable(self) -> None:
         a = export_cache.export_key(
-            circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="jlcpcb"
+            circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="jlcpcb",
+            pipeline_revision=REVISION,
         )
         b = export_cache.export_key(
-            circuit_json_sha="abc", kind="gerbers", versions=dict(VERSIONS), fab="jlcpcb"
+            circuit_json_sha="abc", kind="gerbers", versions=dict(VERSIONS), fab="jlcpcb",
+            pipeline_revision=REVISION,
         )
         self.assertEqual(a, b)
 
     def test_every_input_changes_the_key(self) -> None:
         base = export_cache.export_key(
-            circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="jlcpcb"
+            circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="jlcpcb",
+            pipeline_revision=REVISION,
         )
         variants = [
             export_cache.export_key(
-                circuit_json_sha="abd", kind="gerbers", versions=VERSIONS, fab="jlcpcb"
+                circuit_json_sha="abd", kind="gerbers", versions=VERSIONS, fab="jlcpcb",
+                pipeline_revision=REVISION,
             ),
             export_cache.export_key(
-                circuit_json_sha="abc", kind="glb", versions=VERSIONS, fab="jlcpcb"
+                circuit_json_sha="abc", kind="glb", versions=VERSIONS, fab="jlcpcb",
+                pipeline_revision=REVISION,
             ),
             export_cache.export_key(
                 circuit_json_sha="abc",
                 kind="gerbers",
                 versions={**VERSIONS, "tscircuit": "0.0.9999"},
                 fab="jlcpcb",
+                pipeline_revision=REVISION,
             ),
             export_cache.export_key(
-                circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="other"
+                circuit_json_sha="abc",
+                kind="gerbers",
+                versions={**VERSIONS, "checksBundleSha256": "d" * 64},
+                fab="jlcpcb",
+                pipeline_revision=REVISION,
+            ),
+            export_cache.export_key(
+                circuit_json_sha="abc",
+                kind="gerbers",
+                versions={**VERSIONS, "coreBundleSha256": "b" * 64},
+                fab="jlcpcb",
+                pipeline_revision=REVISION,
+            ),
+            export_cache.export_key(
+                circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="other",
+                pipeline_revision=REVISION,
+            ),
+            export_cache.export_key(
+                circuit_json_sha="abc", kind="gerbers", versions=VERSIONS, fab="jlcpcb",
+                pipeline_revision="pipeline-b",
             ),
         ]
-        self.assertEqual(len({base, *variants}), 5)
+        self.assertEqual(len({base, *variants}), 8)
 
 
 class StoreLookup(unittest.TestCase):

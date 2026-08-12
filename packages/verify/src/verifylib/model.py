@@ -181,6 +181,22 @@ class Poly:
                     return 0.0
         return best if best < math.inf else 0.0
 
+    def boundary_distance_to(self, other: "Poly") -> float:
+        """Minimum distance between polygon boundaries, ignoring containment.
+
+        ``min_distance_to`` correctly returns zero when one filled polygon is
+        inside another. Pour-island checks also need to distinguish that case
+        from two *boundaries* touching: an island wholly inside another
+        island's void has separated boundaries and no copper overlap.
+        """
+        if not self.points or not other.points:
+            return math.inf
+        return min(
+            _segment_distance(a0, a1, b0, b1)
+            for a0, a1 in self._edges()
+            for b0, b1 in other._edges()
+        )
+
     def _edges(self):
         n = len(self.points)
         for i in range(n):
@@ -337,6 +353,10 @@ class Component:
     capacitance: float | None = None
     inductance: float | None = None
     color: str | None = None
+    # Connectors may expose the mechanical cable-mating datum separately from
+    # their plastic/copper body.  Circuit JSON stores this in board-global
+    # coordinates after placement transforms have been applied.
+    cable_insertion_center: tuple[float, float] | None = None
     pads: list[Pad] = field(default_factory=list)
     courtyard: Rect | None = None
     #: The courtyard as the footprint actually declares it — one polygon per
@@ -625,6 +645,21 @@ class Board:
             pcb = pcbs_by_source.get(sid)
             pcb_id = str(pcb.get("pcb_component_id")) if pcb else None
             center = (pcb or {}).get("center") or {}
+            cable_insertion = (pcb or {}).get("cable_insertion_center") or {}
+            cable_insertion_center = (
+                (
+                    float(cable_insertion["x"]),
+                    float(cable_insertion["y"]),
+                )
+                if isinstance(cable_insertion, dict)
+                and isinstance(cable_insertion.get("x"), (int, float))
+                and not isinstance(cable_insertion.get("x"), bool)
+                and isinstance(cable_insertion.get("y"), (int, float))
+                and not isinstance(cable_insertion.get("y"), bool)
+                and math.isfinite(float(cable_insertion["x"]))
+                and math.isfinite(float(cable_insertion["y"]))
+                else None
+            )
             supplier = source.get("supplier_part_numbers") or {}
             lcsc_list = supplier.get("jlcpcb") if isinstance(supplier, dict) else None
             component = Component(
@@ -640,6 +675,7 @@ class Board:
                 do_not_place=bool((pcb or {}).get("do_not_place")),
                 lcsc=str(lcsc_list[0]) if isinstance(lcsc_list, list) and lcsc_list else None,
                 color=str(source.get("color")) if source.get("color") else None,
+                cable_insertion_center=cable_insertion_center,
                 pads=pads_by_component.get(pcb_id or "", []),
                 courtyard=courtyards.get(pcb_id or ""),
                 courtyard_parts=courtyard_parts.get(pcb_id or "", []),
@@ -712,7 +748,14 @@ class Board:
         }
         for e in self.of_type("pcb_trace"):
             key: str | None = None
-            connection = str(e.get("connection_name") or "")
+            # Autorouted copper names its source through ``connection_name``.
+            # Fixed/manual ``pcbPath`` copper from the exact-pinned core uses
+            # ``source_trace_id`` instead.  Treat both as the same foreign key
+            # or every explicit power trunk/debug escape disappears from
+            # net-class, ground-length and product-intent measurements.
+            connection = str(
+                e.get("connection_name") or e.get("source_trace_id") or ""
+            )
             if connection in source_nets and isinstance(source_nets[connection], str):
                 key = str(source_nets[connection])
             elif connection in source_traces:

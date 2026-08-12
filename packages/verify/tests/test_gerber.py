@@ -405,6 +405,56 @@ def test_mask_slivers_are_caught(tmp_path):
     assert "gerber_mask_sliver" in kinds(result, "warning")
 
 
+def _close_mask_pad_design(*, same_part: bool) -> Board:
+    elements = [fixtures.board(BOARD_W, BOARD_H)]
+    if same_part:
+        elements += fixtures.component(
+            "U1", index=1, x=0, y=0,
+            pads=[(0.0, 0.0, 0.6, 0.6), (0.75, 0.0, 0.6, 0.6)],
+            courtyard=(2.0, 1.6),
+        )
+    else:
+        elements += fixtures.component(
+            "R1", index=1, x=0, y=0,
+            pads=[(0.0, 0.0, 0.6, 0.6)],
+            courtyard=(0.7, 1.0),
+        )
+        elements += fixtures.component(
+            "R2", index=2, x=0.75, y=0,
+            pads=[(0.0, 0.0, 0.6, 0.6)],
+            courtyard=(0.7, 1.0),
+        )
+    return Board(elements)
+
+
+@pytest.mark.parametrize(
+    ("same_part", "expected", "unexpected"),
+    [
+        (True, "gerber_mask_sliver_in_footprint", "gerber_mask_sliver"),
+        (False, "gerber_mask_sliver", "gerber_mask_sliver_in_footprint"),
+    ],
+)
+def test_mask_sliver_ownership_distinguishes_one_footprint_from_two_parts(
+    tmp_path, same_part, expected, unexpected,
+):
+    """A standard fine-pitch land pattern is informational; a placement-made
+    web between two components remains a fabrication warning."""
+    close = [(10, OFFSET_X, OFFSET_Y), (10, OFFSET_X + 0.75, OFFSET_Y)]
+    members = _members(
+        **{
+            "board-F_Mask.gts": gerber_text(
+                apertures={10: "R,0.7X0.7"}, flashes=close
+            )
+        }
+    )
+    result = gerber_truth.check(
+        _close_mask_pad_design(same_part=same_part),
+        _zip(tmp_path, members),
+    )
+    assert expected in kinds(result)
+    assert unexpected not in kinds(result)
+
+
 def test_silk_printed_over_a_pad_is_caught(tmp_path):
     members = _members(
         **{
@@ -416,6 +466,28 @@ def test_silk_printed_over_a_pad_is_caught(tmp_path):
     )
     result = gerber_truth.check(_design(), _zip(tmp_path, members))
     assert "gerber_silk_over_pad" in kinds(result, "warning")
+
+
+def test_silk_cleared_by_a_later_negative_pad_flash_is_not_reported(tmp_path):
+    """KiCad's --subtract-soldermask output retains the positive text strokes
+    and then erases the pad areas with LPC flashes. The composite image, not
+    the pre-subtraction stroke list, is what the fab prints."""
+    silk = gerber_text(
+        apertures={10: "C,0.2", 11: "R,0.7X0.7"},
+        draws=[(10, OFFSET_X - 6, OFFSET_Y, OFFSET_X - 4, OFFSET_Y)],
+    ).replace(
+        "M02*",
+        f"%LPC*%\nD11*\nX{_coord(OFFSET_X - 5)}Y{_coord(OFFSET_Y)}D03*\n"
+        "%LPD*%\nM02*",
+    )
+    parsed = gerber.parse_gerber(silk)
+    assert parsed.draws[0].polarity == "dark"
+    assert parsed.flashes[0].polarity == "clear"
+    assert parsed.flashes[0].sequence > parsed.draws[0].sequence
+
+    members = _members(**{"board-F_Silkscreen.gto": silk})
+    result = gerber_truth.check(_design(), _zip(tmp_path, members))
+    assert "gerber_silk_over_pad" not in kinds(result, "warning")
 
 
 def test_an_unreadable_member_is_an_error_not_a_silent_skip(tmp_path):

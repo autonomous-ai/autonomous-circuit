@@ -10,7 +10,7 @@
   },
   "C12": {
    "ftype": "simple_capacitor",
-   "lcsc": "C52923"
+   "lcsc": "C1525"
   },
   "C13": {
    "ftype": "simple_capacitor",
@@ -31,6 +31,14 @@
   "C17": {
    "ftype": "simple_capacitor",
    "lcsc": "C15850"
+  },
+  "C25": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C52923"
+  },
+  "C26": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C52923"
   },
   "C4": {
    "ftype": "simple_capacitor",
@@ -56,6 +64,70 @@
    "ftype": "simple_capacitor",
    "lcsc": "C1525"
   },
+  "N1": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N10": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N11": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N12": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N13": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N14": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N15": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N16": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N17": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N18": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N2": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N5": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N6": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N7": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N8": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N9": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
   "R11": {
    "ftype": "simple_resistor",
    "lcsc": "C11702"
@@ -76,6 +148,18 @@
    "ftype": "simple_push_button",
    "lcsc": "C318884"
   },
+  "TP1": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
+  "TP2": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
+  "TP3": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
   "U3": {
    "ftype": "simple_chip",
    "lcsc": "C2040"
@@ -90,31 +174,34 @@
   }
  },
  "elementCounts": {
-  "cad_component": 22,
+  "cad_component": 24,
   "pcb_board": 1,
-  "pcb_component": 22,
+  "pcb_component": 43,
   "pcb_courtyard_outline": 2,
-  "pcb_courtyard_rect": 20,
-  "pcb_group": 1,
-  "pcb_port": 111,
-  "pcb_silkscreen_path": 38,
-  "pcb_silkscreen_text": 22,
-  "pcb_smtpad": 111,
-  "pcb_solder_paste": 103,
-  "schematic_component": 22,
-  "schematic_group": 2,
-  "schematic_net_label": 40,
-  "schematic_port": 107,
-  "schematic_text": 6,
-  "schematic_trace": 45,
+  "pcb_courtyard_rect": 22,
+  "pcb_group": 3,
+  "pcb_plated_hole": 3,
+  "pcb_port": 134,
+  "pcb_silkscreen_path": 40,
+  "pcb_silkscreen_text": 27,
+  "pcb_smtpad": 131,
+  "pcb_solder_paste": 113,
+  "pcb_trace": 8,
+  "pcb_via": 3,
+  "schematic_component": 27,
+  "schematic_group": 4,
+  "schematic_net_label": 44,
+  "schematic_port": 130,
+  "schematic_text": 4,
+  "schematic_trace": 149,
   "source_board": 1,
-  "source_component": 22,
+  "source_component": 43,
   "source_component_internal_connection": 1,
-  "source_group": 2,
+  "source_group": 4,
   "source_net": 7,
-  "source_port": 111,
+  "source_port": 134,
   "source_project_metadata": 1,
-  "source_trace": 70
+  "source_trace": 93
  },
  "nets": [
   "DVDD",
@@ -125,5 +212,5 @@
   "USB_DP",
   "V3_3"
  ],
- "traceCount": 70
+ "traceCount": 93
 }

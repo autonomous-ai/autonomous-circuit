@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from circuitpy.errors import ProjectShapeError
+from circuitpy.spec import ASSEMBLY_TIERS
 
 GERBER_MEMBER_SUFFIXES = (".gbr", ".drl", ".xln", ".gtl", ".gbl", ".gts", ".gbs",
                           ".gto", ".gbo", ".gko", ".gml", ".gm1", ".txt")
@@ -66,6 +67,11 @@ class FabProfile:
     warn_via_drill_mm: float = 0.3
     min_via_annular_mm: float = 0.075    # implied by 0.3 pad / 0.15 hole
     warn_via_annular_mm: float = 0.1
+    # JLC calls this out separately from component PTH-to-track clearance:
+    # the drilled barrel of a via needs 0.20mm to unrelated copper.  Keeping
+    # it explicit prevents a via drill from disappearing from the stage-4
+    # geometry gate merely because its annular pad passed the size rules.
+    min_via_to_copper_mm: float = 0.20
     min_pth_drill_mm: float = 0.3        # component through-hole
     min_pth_annular_mm: float = 0.2      # PTH annular ring (JLC spec)
     # Copper-to-hole is TWO rules, and reading jlcpcb.com/capabilities
@@ -160,6 +166,48 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
     "dc_rail_overload",
     "thermal_resistor_power",
     "netclass_trace_width",
+    "layout_trace_below_requested",
+    # The compiled board contradicts an explicit product decision. These are
+    # not preferences inferred by a checker: product.json declared the exact
+    # mechanical/electrical contract before routing began.
+    "layout_intent_board_size",
+    "layout_intent_component_side",
+    "layout_intent_component_zone",
+    "layout_intent_component_zone_unmatched",
+    "layout_intent_decoupling_missing",
+    "layout_intent_decoupling_topology",
+    "layout_intent_decoupling_geometry",
+    "layout_intent_decoupling_distance",
+    "layout_intent_decoupling_override_invalid",
+    "layout_intent_decoupling_override_unmatched",
+    "layout_intent_decoupling_policy_conflict",
+    "layout_intent_connector_missing",
+    "layout_intent_connector_edge",
+    "layout_intent_connector_alignment",
+    "layout_intent_clearance_contract",
+    "layout_intent_ground_plane_missing",
+    "layout_intent_ground_route_length",
+    "layout_intent_ground_fanout_length",
+    "layout_intent_netclass_empty",
+    "layout_intent_power_trunk",
+    "layout_intent_netclass_via",
+    "power_intent_usb_raw_net",
+    "power_intent_usb_protected_net",
+    "power_intent_usb_contract",
+    "power_intent_usb_raw_capacitance",
+    "power_intent_usb_raw_capacitance_unknown",
+    "power_intent_usb_limiter_missing",
+    "power_intent_usb_limiter_identity",
+    "power_intent_usb_limiter_topology",
+    "power_intent_usb_limiter_setting_missing",
+    "power_intent_usb_limiter_setting_identity",
+    "power_intent_usb_limiter_setting_value",
+    "power_intent_usb_limiter_setting_topology",
+    "power_intent_usb_load_missing",
+    "power_intent_usb_load_topology",
+    "power_intent_usb_load_budget",
+    "pcb_plane_connectivity_error",
+    "pcb_copper_pour_short_error",
 })
 
 #: Findings this fab raises from `warning` to `error`. Each needs a reason
@@ -172,10 +220,18 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
     # reviewed, reworked or debugged. It is also a single-place fix in the
     # exporter, which is the definition of a shift-left bug.
     "gerber_silk_line_width",
+    # Ink inside a mask opening either contaminates the joint or is clipped by
+    # the fab, silently deleting reference marks. The solved Gerber overlap is
+    # authoritative and must be repaired/normalized before ordering.
+    "gerber_silk_over_pad",
     # A debug interface that reaches no connector or test point cannot be used
     # once the board is assembled, so the board can never run the firmware it
     # was designed for. "Arrives and is useless" is exactly the bar.
     "review_debug_unreachable",
+    # USB full-speed timing is a routed-copper property. The verifier's 3.8mm
+    # budget already includes the FR-4 propagation estimate; shipping a pair
+    # outside it turns a deterministic layout defect into intermittent I/O.
+    "netclass_pair_skew",
 })
 
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
@@ -277,6 +333,55 @@ def parse_exporter_bom(text: str) -> list[dict]:
             }
         )
     return rows
+
+
+def do_not_place_designators(elements: list[dict]) -> set[str]:
+    """Resolve compiled DNP identity without guessing from a refdes prefix."""
+    source_names = {
+        str(element.get("source_component_id")): str(element.get("name"))
+        for element in elements
+        if element.get("type") == "source_component"
+        and element.get("source_component_id")
+        and element.get("name")
+    }
+    return {
+        source_names[str(element.get("source_component_id"))]
+        for element in elements
+        if element.get("type") == "pcb_component"
+        and element.get("do_not_place") is True
+        and str(element.get("source_component_id")) in source_names
+    }
+
+
+def exclude_designators_from_bom(
+    rows: list[dict], excluded: set[str]
+) -> list[dict]:
+    """Remove compiled DNP components before the BOM gate and packet write."""
+    folded = {designator.casefold() for designator in excluded}
+    return [
+        row
+        for row in rows
+        if str(row.get("designator") or "").casefold() not in folded
+    ]
+
+
+def exclude_designators_from_cpl(text: str, excluded: set[str]) -> str:
+    """Remove compiled DNP components from the exporter's placement CSV."""
+    if not text:
+        return text
+    folded = {designator.casefold() for designator in excluded}
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        return text
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=reader.fieldnames, lineterminator="\r\n")
+    writer.writeheader()
+    for row in reader:
+        designator = str(row.get("Designator") or "").strip().casefold()
+        if designator in folded:
+            continue
+        writer.writerow(row)
+    return output.getvalue()
 
 
 def merge_parts_lock(rows: list[dict], parts: dict[str, dict]) -> list[dict]:
@@ -390,9 +495,15 @@ def write_order_md(
     board_height_mm: float,
     layers: int,
     bom: dict[str, object],
+    assembly_tier: str = "economic",
 ) -> Path:
     """The exact-clicks JLCPCB walkthrough (R3, verified flow) including the
     placement-preview warning. Written only when the packet is fab-ready."""
+    if assembly_tier not in ASSEMBLY_TIERS:
+        raise ValueError(
+            f"assembly_tier must be one of {', '.join(ASSEMBLY_TIERS)} "
+            f"(got {assembly_tier!r})"
+        )
     orderable = bom.get("orderable", 0)
     lines = bom.get("lines", 0)
     cost = bom.get("estimatedCostUsd")
@@ -401,8 +512,10 @@ def write_order_md(
         if isinstance(cost, (int, float))
         else ""
     )
+    pcba_type = assembly_tier.capitalize()
+    assembly_side = "Both Sides" if assembly_tier == "standard" else "Top"
     assembly_steps = (
-        f"""3. Toggle **PCB Assembly** on: PCBA Type **Economic**, Assembly Side **Top**,
+        f"""3. Toggle **PCB Assembly** on: PCBA Type **{pcba_type}**, Assembly Side **{assembly_side}**,
    Qty **2** (or 5) -> **Confirm**.
 4. Next -> gerber preview renders -> Next.
 5. **Add BOM File** -> `{profile.bom_name}`; **Add CPL File** -> `{profile.cpl_name}` ->
@@ -429,7 +542,7 @@ def write_order_md(
 ({profile.id}). Files in this folder: `{profile.zip_name}`, `{profile.bom_name}`{
     f", `{profile.cpl_name}`" if assembly else ""}.
 
-## Walkthrough (JLCPCB economy{" PCBA" if assembly else ""})
+## Walkthrough (JLCPCB {assembly_tier}{" PCBA" if assembly else ""})
 
 1. cart.jlcpcb.com/quote -> **Add gerber file** -> drop `{profile.zip_name}`
    (layers + size auto-detect; verify {layers} layers, {board_width_mm:g} x {board_height_mm:g} mm).
@@ -454,7 +567,9 @@ def fab_ready(warnings: list[dict], gerber_source: str) -> bool:
     return not any(w.get("severity") == "error" for w in warnings)
 
 
-def kicad_project_json(profile: FabProfile) -> str:
+def kicad_project_json(
+    profile: FabProfile, *, min_clearance_mm: float | None = None
+) -> str:
     """A `.kicad_pro` carrying this fab's design rules.
 
     Why this exists (measured 2026-08-10): `circuit-json-to-kicad` emits a
@@ -470,8 +585,9 @@ def kicad_project_json(profile: FabProfile) -> str:
     everybody learns to ignore.
     """
     slack = profile.drc_tolerance_mm
+    clearance = max(profile.min_clearance_mm, min_clearance_mm or 0.0)
     rules = {
-        "min_clearance": round(profile.min_clearance_mm - slack, 4),
+        "min_clearance": round(clearance - slack, 4),
         "min_connection": 0.0,
         "min_copper_edge_clearance": round(profile.min_edge_clearance_mm - slack, 4),
         "min_hole_clearance": 0.2,
@@ -486,7 +602,7 @@ def kicad_project_json(profile: FabProfile) -> str:
     }
     netclass = {
         "name": "Default",
-        "clearance": round(profile.min_clearance_mm - slack, 4),
+        "clearance": round(clearance - slack, 4),
         "track_width": profile.warn_trace_mm,
         "via_diameter": 0.6,
         "via_drill": 0.3,
@@ -501,9 +617,17 @@ def kicad_project_json(profile: FabProfile) -> str:
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
-def write_kicad_project(board_path: Path, profile: FabProfile) -> Path:
+def write_kicad_project(
+    board_path: Path,
+    profile: FabProfile,
+    *,
+    min_clearance_mm: float | None = None,
+) -> Path:
     """Write `<board stem>.kicad_pro` beside a `.kicad_pcb`. kicad-cli picks the
     project up by basename, which is how the rules above reach DRC."""
     path = board_path.with_suffix(".kicad_pro")
-    path.write_text(kicad_project_json(profile), encoding="utf-8")
+    path.write_text(
+        kicad_project_json(profile, min_clearance_mm=min_clearance_mm),
+        encoding="utf-8",
+    )
     return path

@@ -1,0 +1,49 @@
+[
+  {
+    "type": "source_board",
+    "source_board_id": "source_board_0",
+    "source_group_id": "source_group_board"
+  },
+  {
+    "type": "pcb_board",
+    "pcb_board_id": "pcb_board_0",
+    "source_board_id": "source_board_0",
+    "center": { "x": 0, "y": 0 },
+    "width": 20,
+    "height": 20,
+    "num_layers": 2,
+    "min_trace_width": 0.15,
+    "min_trace_to_pad_edge_clearance": 0.15,
+    "min_via_edge_to_pad_edge_clearance": 0.15
+  },
+  {
+    "type": "source_trace",
+    "source_trace_id": "source_trace_fixed",
+    "connected_source_port_ids": [],
+    "connected_source_net_ids": [],
+    "subcircuit_id": "subcircuit_source_group_board",
+    "name": "TR_FIXED_HORIZONTAL"
+  },
+  {
+    "type": "pcb_trace",
+    "pcb_trace_id": "pcb_trace_fixed",
+    "source_trace_id": "source_trace_fixed",
+    "subcircuit_id": "subcircuit_source_group_board",
+    "route": [
+      {
+        "route_type": "wire",
+        "x": -5,
+        "y": 0,
+        "width": 0.4,
+        "layer": "top"
+      },
+      {
+        "route_type": "wire",
+        "x": 5,
+        "y": 0,
+        "width": 0.4,
+        "layer": "top"
+      }
+    ]
+  }
+]

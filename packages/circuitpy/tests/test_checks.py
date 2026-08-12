@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -124,6 +125,26 @@ class RunTscircuitChecks(EnvGuard, unittest.TestCase):
         self.assertEqual(warnings[0]["kind"], "check_failed")
         self.assertEqual(warnings[0]["severity"], "warning")
 
+    def test_library_warning_does_not_become_a_blocker(self) -> None:
+        output = (
+            '[{"type":"pcb_trace_too_long_warning",'
+            '"warning_type":"pcb_trace_too_long_warning",'
+            '"message":"trace exceeds the preferred length"}]'
+        )
+        with mock.patch.object(checks.toolchain, "run_node", return_value=output):
+            warnings = checks.run_tscircuit_checks(Path("board.circuit.json"))
+        self.assertEqual(warnings[0]["kind"], "pcb_trace_too_long_warning")
+        self.assertEqual(warnings[0]["severity"], "warning")
+
+    def test_unknown_library_finding_remains_conservative(self) -> None:
+        with mock.patch.object(
+            checks.toolchain,
+            "run_node",
+            return_value='[{"type":"new_check","message":"unknown shape"}]',
+        ):
+            warnings = checks.run_tscircuit_checks(Path("board.circuit.json"))
+        self.assertEqual(warnings[0]["severity"], "error")
+
 
 class KicadReportParsing(unittest.TestCase):
     def test_drc_report_shape(self) -> None:
@@ -225,6 +246,180 @@ class DfmGate(unittest.TestCase):
         ]
         warnings = checks.dfm_warnings(cj, _product(), PROFILE)
         self.assertEqual(warnings[0]["severity"], "warning")
+
+    def test_same_net_track_may_leave_its_own_plated_hole(self) -> None:
+        """A PTH annulus and its GND trace are one conductor, not a
+        PTH-to-track clearance violation.
+
+        Regression from all three example boards: after the first route point
+        left a USB-C shell pad, the next segment was still inside the pad's
+        copper and the net-blind check reported a 0.006mm gap.
+        """
+        key = "subcircuit_connectivity_net_gnd"
+        cj = [
+            self._board(),
+            {
+                "type": "source_net",
+                "source_net_id": "source_net_gnd",
+                "name": "GND",
+                "subcircuit_connectivity_map_key": key,
+            },
+            {
+                "type": "source_port",
+                "source_port_id": "source_port_shell",
+                "subcircuit_connectivity_map_key": key,
+            },
+            {
+                "type": "pcb_port",
+                "pcb_port_id": "pcb_port_shell",
+                "source_port_id": "source_port_shell",
+                "x": 0,
+                "y": 0,
+            },
+            {
+                "type": "pcb_plated_hole",
+                "pcb_plated_hole_id": "shell_hole",
+                "pcb_port_id": "pcb_port_shell",
+                "x": 0,
+                "y": 0,
+                "hole_diameter": 0.8,
+                "outer_diameter": 1.2,
+            },
+            {
+                "type": "pcb_trace",
+                "pcb_trace_id": "gnd_trace",
+                "connection_name": "source_net_gnd",
+                "connectsTo": ["pcb_port_shell"],
+                "route": [
+                    {"route_type": "wire", "x": 0, "y": 0, "width": 0.15, "layer": "top"},
+                    {"route_type": "wire", "x": 0.55, "y": 0, "width": 0.15, "layer": "top"},
+                    {"route_type": "wire", "x": 3, "y": 0, "width": 0.15, "layer": "top"},
+                ],
+            },
+        ]
+        warnings = checks.dfm_warnings(cj, _product(), PROFILE)
+        self.assertNotIn("dfm_hole_clearance", {w["kind"] for w in warnings})
+
+    def test_different_net_still_clears_a_plated_hole(self) -> None:
+        key = "subcircuit_connectivity_net_gnd"
+        cj = [
+            self._board(),
+            {
+                "type": "source_port",
+                "source_port_id": "source_port_shell",
+                "subcircuit_connectivity_map_key": key,
+            },
+            {
+                "type": "pcb_port",
+                "pcb_port_id": "pcb_port_shell",
+                "source_port_id": "source_port_shell",
+                "x": 0,
+                "y": 0,
+            },
+            {
+                "type": "pcb_plated_hole",
+                "pcb_plated_hole_id": "shell_hole",
+                "pcb_port_id": "pcb_port_shell",
+                "x": 0,
+                "y": 0,
+                "hole_diameter": 0.8,
+                "outer_diameter": 1.2,
+            },
+            {
+                "type": "pcb_trace",
+                "pcb_trace_id": "signal_trace",
+                "route": [
+                    {"route_type": "wire", "x": -3, "y": 0.55, "width": 0.15, "layer": "top"},
+                    {"route_type": "wire", "x": 3, "y": 0.55, "width": 0.15, "layer": "top"},
+                ],
+            },
+        ]
+        warnings = checks.dfm_warnings(cj, _product(), PROFILE)
+        self.assertIn("dfm_hole_clearance", {w["kind"] for w in warnings})
+
+    def test_trace_endpoint_must_reach_smd_pad_on_its_copper_layer(self) -> None:
+        cj = [
+            self._board(),
+            {
+                "type": "pcb_port",
+                "pcb_port_id": "pcb_port_vbus",
+                "layers": ["top"],
+                "x": 2,
+                "y": 1,
+            },
+            {
+                "type": "pcb_trace",
+                "pcb_trace_id": "vbus_trace",
+                "route": [
+                    {
+                        "route_type": "wire",
+                        "x": -2,
+                        "y": 1,
+                        "width": 0.15,
+                        "layer": "bottom",
+                    },
+                    {
+                        "route_type": "wire",
+                        "x": 2,
+                        "y": 1,
+                        "width": 0.15,
+                        "layer": "bottom",
+                        "end_pcb_port_id": "pcb_port_vbus",
+                    },
+                ],
+            },
+        ]
+
+        warnings = checks.dfm_warnings(cj, _product(), PROFILE)
+        mismatch = [
+            warning
+            for warning in warnings
+            if warning["kind"] == "pcb_trace_endpoint_layer_mismatch"
+        ]
+        self.assertEqual(len(mismatch), 1)
+        self.assertEqual(mismatch[0]["severity"], "error")
+        self.assertIn("bottom", mismatch[0]["detail"])
+        self.assertIn("top", mismatch[0]["detail"])
+
+    def test_trace_endpoint_on_matching_or_plated_layer_is_valid(self) -> None:
+        for layers, trace_layer in ((["top"], "top"), (["top", "bottom"], "bottom")):
+            with self.subTest(layers=layers, trace_layer=trace_layer):
+                cj = [
+                    self._board(),
+                    {
+                        "type": "pcb_port",
+                        "pcb_port_id": "pcb_port_endpoint",
+                        "layers": layers,
+                        "x": 1,
+                        "y": 1,
+                    },
+                    {
+                        "type": "pcb_trace",
+                        "pcb_trace_id": "matching_trace",
+                        "route": [
+                            {
+                                "route_type": "wire",
+                                "x": 0,
+                                "y": 1,
+                                "width": 0.15,
+                                "layer": trace_layer,
+                            },
+                            {
+                                "route_type": "wire",
+                                "x": 1,
+                                "y": 1,
+                                "width": 0.15,
+                                "layer": trace_layer,
+                                "end_pcb_port_id": "pcb_port_endpoint",
+                            },
+                        ],
+                    },
+                ]
+                warnings = checks.dfm_warnings(cj, _product(), PROFILE)
+                self.assertNotIn(
+                    "pcb_trace_endpoint_layer_mismatch",
+                    {warning["kind"] for warning in warnings},
+                )
 
     def test_small_drill_blocks(self) -> None:
         cj = [self._board(), {"type": "pcb_via", "hole_diameter": 0.2, "outer_diameter": 0.6, "x": 0, "y": 0}]

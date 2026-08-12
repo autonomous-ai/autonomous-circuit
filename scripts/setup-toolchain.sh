@@ -8,6 +8,7 @@ if [ -f package-lock.json ]; then
 else
   npm install --save-exact --no-audit --no-fund
 fi
+node ../scripts/build/apply-toolchain-patches.mjs --toolchain .
 BIN="node_modules/.bin/tscircuit-cli"
 if [ -x "$BIN" ]; then
   echo "toolchain ok: tscircuit-cli present ($(node -p "require('./node_modules/tscircuit/package.json').version"))"

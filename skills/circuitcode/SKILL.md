@@ -44,9 +44,10 @@ Four habits, applied without being asked:
 
 ```
 <project>/
-├── product.json          the bible: name, power, envelopeMm, layers, fab, assembly
+├── product.json          the bible: device, layout and source/current budget
 ├── parts.json            the locked BOM — parts-book owns it; you never write it
 ├── blocks/               the golden-block library, frozen with this project
+├── golden-blocks.lock.json  exact selected block bytes + provenance hash
 ├── boards/
 │   ├── main.tsx          your file — the only file you write
 │   └── main.circuit.json + main.board.json + main_review/ + main_fab/   generated
@@ -61,18 +62,27 @@ The app creates the workspace; you fill it. From the skill's own templates:
 ```bash
 SKILL=~/.claude/skills/circuitcode
 cp -R "$SKILL/templates/project_skeleton/." /abs/project/
-cp -R "$SKILL/blocks" /abs/project/blocks
+python "$SKILL/scripts/packages/sync_golden_blocks.py" /abs/project \
+  --source "$SKILL/blocks" --source-label circuitcode/golden-blocks \
+  --block usb-c-data --block usb-power-entry --block ldo-3v3
 ```
 
-**Copying the blocks in is not optional** — `boards/main.tsx` imports them by
-relative path, and a project that owns its own snapshot keeps building the same
-board after the shared library moves on. Then edit `product.json` (name,
-description, power, envelope) before you write any board source.
+Select every block returned by `board_plan` (the three shown are only a USB
+starter example). **Synchronizing the blocks and lock is not optional** —
+`boards/main.tsx` imports them by relative path, the lock covers every selected
+byte including third-party license/provenance, and a project that owns its own
+snapshot keeps building the same board after the shared library moves on. The
+sync refuses to overwrite a locally edited frozen block. Then edit
+`product.json` (name, description, power, envelope) before writing board source.
+For a reviewed one-time migration of an older project that already has an
+unlocked copied block tree, add `--replace-unlocked`; never use that flag for a
+locked project, because a mismatched lock remains a hard refusal.
 
 Rules of the project format:
 
 - **Device-wide facts live in `product.json` only.** Power source, envelope,
-  layer count, fab profile. Don't restate them in the board file; read them.
+  layer count, fab profile, physical layout intent and USB source/current
+  budget. Don't restate them in the board file; read them.
 - **One file per board.** Most projects have exactly one, `boards/main.tsx`.
 - **Every number comes from a table.** `circuitlib.tables` owns the electrical
   law and the fab limits. Retyping `0.127` into a board file makes a number
@@ -92,7 +102,14 @@ import { UsbCPower } from "../blocks/usb-c-power/usb-c-power"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 
 export default () => (
-  <board width="40mm" height="30mm" thickness={1.6}>
+  <board
+    width="40mm" height="30mm" thickness={1.6}
+    minTraceWidth="0.2mm"
+    minViaPadDiameter="0.6mm"
+    minViaHoleDiameter="0.3mm"
+    minTraceToPadEdgeClearance="0.15mm"
+    minViaEdgeToPadEdgeClearance="0.15mm"
+  >
     <UsbCPower pcbX={-14} pcbY={0} schX={-6} schY={0} />
     <Ldo3v3   pcbX={0}   pcbY={6} schX={0}  schY={0} />
     <hole name="H1" diameter="3.2mm" pcbX={-17} pcbY={-12} />
@@ -100,7 +117,7 @@ export default () => (
 )
 ```
 
-Four things that are not optional:
+These source rules are not optional:
 
 - **`thickness={1.6}` explicitly.** The toolchain default is 1.4mm; JLC's
   standard stackup is 1.6mm. Leave it out and you ship the wrong board.
@@ -160,11 +177,27 @@ spec the user can approve or redirect:
 2. **Block plan** — the table: capability → block → why. Call
    `circuitlib.helpers.board_plan(capabilities=[...])`; report anything it
    returns in `unavailable` honestly instead of inventing a circuit for it.
-3. **Power budget** — source, rail tree, the arithmetic. `V5 @ 1.5A → LDO →
-   V3_3`; sum the block draws; state the headroom.
+   An MCU plan is not buildable until its required debug nets are physically
+   brought to the board's real connector or probe furniture. Pass those nets
+   as `exposed_nets=[...]` only after that composition exists; never clear the
+   obligation because you intend to add it later.
+3. **Power budget** — source, rail tree, the arithmetic. USB enters as
+   `VBUS_RAW → UsbPowerEntry → V5 → LDO → V3_3`; sum the block draws and state
+   both the physical peak and normal operating ceiling. For a USB-powered
+   product, put the raw-attach capacitance, exact current-limit boundary and
+   any firmware-bounded load family in `product.json.powerBudget.usb`.
+   `board_plan(..., firmware_load_caps_ma={...})` refuses an uncapped load over
+   the limiter's 400.6mA worst-case trip, then
+   `usb_power_budget_for_plan(plan, firmware_load_matches={...})` compiles the
+   exact `powerBudget` object. The caller supplies only the board's real
+   refdes match pattern; it must not retype limiter identity or current
+   arithmetic. Firmware limits never erase the physical peak.
 4. **Pin allocation** — every MCU pin you intend to use, and for what.
-5. **Size and layout intent** — board outline, what sits on which edge, where
-   the mounting holes go, and whether it fits `product.json`'s envelope.
+5. **Size and layout intent** — board outline, assembly side for each
+   functional population, what sits on which edge, ground-plane layers, power
+   trunk and neck-down widths, mounting holes, and whether it fits
+   `product.json`'s envelope. Write these decisions into
+   `product.json.layout`; prose is not a constraint and cannot be verified.
 6. **Cost band** — `circuitlib.helpers.estimate_cost()` plus the parts total
    from the lock. Quote the assembled-5x band, not a fantasy unit price.
 7. **Safety verdict** — run `circuitlib.safety.safety_gate()` on the ask. If it
@@ -175,7 +208,9 @@ spec the user can approve or redirect:
 | Number you need | Where it lives |
 |---|---|
 | Rail voltages and tolerances | `circuitlib.tables.RAILS` |
+| Ordinary board-level signal width | `tables.PREFERRED_SIGNAL_TRACE_WIDTH_MM` / `BoardPlan.signal_trace_width_mm` (0.25mm) |
 | Trace width for a current | `helpers.trace_width_for(current_a=…)` (IPC-2221) |
+| Power trunk, neck-down and via defaults | `tables.POWER_TRUNK_MIN_MM`, `POWER_NECKDOWN_WIDTH_MM`, `POWER_VIA_OUTER_DIAMETER_MM`, `POWER_VIA_HOLE_DIAMETER_MM` (0.8/0.2mm, 0.8/0.5mm via) |
 | Conductor spacing for a voltage | `helpers.clearance_for(volts=…)` |
 | Min trace/space/drill/annular/edge | `tables.MIN_*` |
 | Board thickness, layer default | `tables.BOARD_THICKNESS_MM`, `tables.DEFAULT_LAYERS` |
@@ -191,6 +226,8 @@ spec the user can approve or redirect:
 | Iteration cap | `tables.MAX_REPAIR_ITERATIONS` |
 | How big a block is, and where it sits | `layout.box(block_id)` -> `(min_x, min_y, max_x, max_y)` around its origin |
 | **The whole board plan** | `layout.place_board([...])` -> outline + placements + holes + its own warnings |
+| **The compiled layout contract** | `layout.product_layout(...)` -> `product.json.layout` (exact size, sides, edge connectors, 2mm authored decoupling loops, planes, per-drop fanout length, trunk/neck-down widths) |
+| **The USB source/current contract** | `helpers.usb_power_budget_for_plan(plan, firmware_load_matches=...)` -> `product.json.powerBudget` with raw/protected nets, raw attach-cap limit, exact limiter plus ILIM resistor identity/value/topology, trip range, fixed load and firmware-limited load families |
 | Where to put a row of blocks | `layout.place_row([...])` -> `{block: (pcbX, pcbY)}` (the primitive) |
 | How big the board must be | `layout.min_board_for([...], columns=n)` |
 | Will anything hang off the edge | `layout.board_fits(placements, w, h)` — run it *before* building |
@@ -256,14 +293,25 @@ mains, bare RF, and loose battery charging are refusals, not challenges.
 
 ### 2. Inspect the project
 
-`ls` the project. `Read` `product.json` (power, envelope, layers), `parts.json`
+`ls` the project. `Read` `product.json` (power, envelope, layers, layout and
+power budget), `parts.json`
 if present, the current `boards/main.tsx`, and the `BLOCK.md` of every block you
 plan to use — the pin contract and rail budget are in there.
 
 ### 3. Block plan, then place by measurement
 
-`board_plan(capabilities=[...])`. Check `unmet` (a net nothing provides) and
-`unavailable` (a capability with no block). Resolve both *before* writing code.
+`board_plan(capabilities=[...])`. Check `unmet` (a net nothing provides),
+`unavailable` (a capability with no block), and `must_expose` (a debug or
+service net that reaches no real board connector/probe). Resolve all three and
+require `plan.buildable` *before* writing code. When the board actually composes
+its SWCLK/SWD probe, call `board_plan(..., exposed_nets=["SWCLK", "SWD"])`;
+the list describes compiled physical intent, not a promise to add pads later.
+For a high-peak USB load, also require `plan.source_budget["severity"] !=
+"error"`; pass a measured `firmware_load_caps_ma` only when the product will
+emit the matching load rule. Generate that rule with
+`usb_power_budget_for_plan(plan, firmware_load_matches={"block-id":
+"actual-refdes-pattern"})`; do not manually copy the source block's limiter
+part, trip range, or the plan's fixed-load arithmetic into `product.json`.
 
 Then size and place the board with `circuitlib.layout` rather than by eye. **A
 block's copper is not centred on its `pcbX`/`pcbY`** — `usb-c-power` sits
@@ -280,6 +328,71 @@ plan["placements"]                    # {block: (pcbX, pcbY)}
 plan["holes"]                         # two M3 holes, clear of every footprint
 plan["warnings"]                      # MUST be [] — the plan checking itself
 ```
+
+Record those decisions beside the electrical product definition. At minimum,
+an assembled board declares its exact outline, GND plane layers and power
+class. A double-sided product also declares ordered component-side rules and
+uses `assemblyTier: "standard"`:
+
+```python
+layout.product_layout(
+    board_size_mm=(plan["width_mm"], plan["height_mm"]),
+    ground_plane_layers=("top", "bottom"),
+    min_copper_clearance_mm=board_plan_result.preferred_clearance_mm,
+    decoupling_max_distance_mm=2.0,
+    # Only a measured non-load rail reference such as an ESD clamp belongs
+    # here; never exclude an IC because its bypass placement is inconvenient.
+    decoupling_exclude=("U_ESD*",),
+    # Use only when a cited manufacturer routed reference establishes a
+    # different local envelope. Authored topology and copper still gate it.
+    decoupling_overrides=[{
+        "match": "U3",
+        "maxDistanceMm": 5.0,
+        "source": "https://datasheets.raspberrypi.com/rp2040/Minimal-KiCAD.zip",
+    }],
+    power_trunk_width_mm=board_plan_result.power_trunk_width_mm,
+    power_via_outer_diameter_mm=0.8,
+    power_via_hole_diameter_mm=0.5,
+    component_zones=[
+        {
+            "match": ["D_RING*", "C_RING*"],
+            "containment": "courtyard",
+            "shape": {
+                "kind": "annulus",
+                "center": [0, 0],
+                "innerRadiusMm": 22,
+                "outerRadiusMm": 32,
+            },
+        },
+    ],
+)
+```
+
+Component zones are board-coordinate product constraints, not placement hints.
+Use `containment: "courtyard"` when the whole rotated footprint must remain in
+the declared circle, annulus, or rectangle; use `"center"` only when the
+component origin is the intended contract. Every rule must match at least one
+populated component, and the compiled-layout gate blocks unmatched rules or
+parts outside their zone. Zone checks do not replace overlap or edge checks.
+
+Apply that same clearance to the board's
+`minTraceToPadEdgeClearance` and `minViaEdgeToPadEdgeClearance` *before* the
+first route. It is a build contract, not a late attempt to make an already
+congested route look safer; KiCad independently receives the declared margin.
+
+Do not set one global board width to the power-trunk value. A 0.6–1.0mm trunk
+cannot enter a 0.4mm-pitch QFN. Use the declared short neck-down at component
+pads, then widen into the trunk; the artifact gate rejects a rail that stays
+narrow through the middle of the board.
+
+Use `BoardPlan.signal_trace_width_mm` (0.25mm) for ordinary board-level
+signals. Do not confuse the fab minimum with that preferred width, and do not
+reuse it blindly for controlled-impedance USB or another constrained
+interface. Fine-pitch escapes and impedance-specific widths are allowed only
+as explicit, measured exceptions; an escape must remain short. Power vias are
+part of the power net class too: the default 0.8mm outer diameter and 0.5mm
+drill prevent a 0.8mm trunk from silently bottlenecking through a generic
+0.6mm/0.3mm signal via.
 
 `place_board()` already knows the rules a one-shot board needs: the connector
 goes on the bottom edge facing out (a USB socket in the middle of the board is

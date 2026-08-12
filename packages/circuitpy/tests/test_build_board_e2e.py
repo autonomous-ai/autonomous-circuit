@@ -105,6 +105,9 @@ class GoodBoardE2E(unittest.TestCase):
 
     def test_sidecar_identity_block(self) -> None:
         self.assertEqual(self.sidecar["generator"], "circuitpy")
+        self.assertEqual(
+            self.sidecar["generatorRevision"], generation.pipeline_revision()
+        )
         self.assertEqual(self.sidecar["entryKind"], "board")
         source = self.sidecar["source"]
         self.assertEqual(source["kind"], "tsx")
@@ -126,12 +129,11 @@ class GoodBoardE2E(unittest.TestCase):
 
         block = self.sidecar["toolchain"]
         versions = toolchain.versions()
-        self.assertEqual(block["tscircuit"], versions["tscircuit"])
-        self.assertEqual(block["checks"], versions["checks"])
+        for key, value in versions.items():
+            if value is not None:
+                self.assertEqual(block[key], value, key)
         if versions["kicadCli"] is None:
             self.assertNotIn("kicadCli", block)  # omitted when absent
-        else:
-            self.assertEqual(block["kicadCli"], versions["kicadCli"])
 
     def test_sidecar_bom_block(self) -> None:
         bom = self.sidecar["bom"]
@@ -144,6 +146,7 @@ class GoodBoardE2E(unittest.TestCase):
         fab_block = self.sidecar["fab"]
         self.assertEqual(fab_block["profile"], "jlcpcb")
         self.assertTrue(fab_block["assembly"])
+        self.assertEqual(fab_block["assemblyTier"], "economic")
         self.assertEqual(fab_block["packet"], "main_fab/")
         self.assertIn(fab_block["gerberSource"], ("tscircuit", "kicad-cli"))
         if fab_block["gerberSource"] == "tscircuit":
@@ -174,7 +177,17 @@ class GoodBoardE2E(unittest.TestCase):
 
     def test_good_board_has_zero_error_warnings(self) -> None:
         warnings = (self.sidecar.get("validation") or {}).get("warnings") or []
-        self.assertFalse([w for w in warnings if w["severity"] == "error"], warnings)
+        errors = [w for w in warnings if w["severity"] == "error"]
+        if circuitproj.kicad_available():
+            self.assertFalse(errors, warnings)
+        else:
+            # The fallback gerber is deliberately non-shipping and is not run
+            # through the KiCad-board silkscreen normalizer.  Keep reporting
+            # that physical defect; absence of the second substrate must not
+            # turn a bad plotted layer into a clean-board assertion.
+            self.assertEqual(
+                {w["kind"] for w in errors}, {"gerber_silk_line_width"}, warnings
+            )
 
     def test_kicad_absence_surfaces_honestly(self) -> None:
         warnings = (self.sidecar.get("validation") or {}).get("warnings") or []
@@ -244,6 +257,78 @@ class GoodBoardE2E(unittest.TestCase):
             self.assertIsNone(prior)
         finally:
             product_path.write_text(original, encoding="utf-8")
+
+    def test_pipeline_revision_invalidates_the_short_circuit(self) -> None:
+        sidecar_path = self.boards / "main.board.json"
+        original = sidecar_path.read_text(encoding="utf-8")
+        original_stat = sidecar_path.stat()
+        try:
+            stale = json.loads(original)
+            stale["generatorRevision"] = "old-pipeline"
+            sidecar_path.write_text(json.dumps(stale), encoding="utf-8")
+            identity = board_source_hash(self.boards / "main.tsx", self.root)
+            prior = generation._unchanged_prior_result(
+                sidecar_path=sidecar_path,
+                identity=identity,
+                output_p=self.output,
+                boards_dir=self.boards,
+                fab_dir=self.boards / "main_fab",
+            )
+            self.assertIsNone(prior)
+        finally:
+            sidecar_path.write_text(original, encoding="utf-8")
+            os.utime(
+                sidecar_path,
+                ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+            )
+
+    def test_toolchain_bundle_identity_invalidates_the_short_circuit(self) -> None:
+        sidecar_path = self.boards / "main.board.json"
+        original = sidecar_path.read_text(encoding="utf-8")
+        original_stat = sidecar_path.stat()
+        try:
+            stale = json.loads(original)
+            stale["toolchain"]["coreBundleSha256"] = "0" * 64
+            sidecar_path.write_text(json.dumps(stale), encoding="utf-8")
+            identity = board_source_hash(self.boards / "main.tsx", self.root)
+            prior = generation._unchanged_prior_result(
+                sidecar_path=sidecar_path,
+                identity=identity,
+                output_p=self.output,
+                boards_dir=self.boards,
+                fab_dir=self.boards / "main_fab",
+            )
+            self.assertIsNone(prior)
+        finally:
+            sidecar_path.write_text(original, encoding="utf-8")
+            os.utime(
+                sidecar_path,
+                ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+            )
+
+    def test_routing_attempt_artifact_identity_invalidates_the_short_circuit(self) -> None:
+        sidecar_path = self.boards / "main.board.json"
+        original = sidecar_path.read_text(encoding="utf-8")
+        original_stat = sidecar_path.stat()
+        try:
+            stale = json.loads(original)
+            stale["build"]["attemptEvidence"][0]["circuitSha256"] = "0" * 64
+            sidecar_path.write_text(json.dumps(stale), encoding="utf-8")
+            identity = board_source_hash(self.boards / "main.tsx", self.root)
+            prior = generation._unchanged_prior_result(
+                sidecar_path=sidecar_path,
+                identity=identity,
+                output_p=self.output,
+                boards_dir=self.boards,
+                fab_dir=self.boards / "main_fab",
+            )
+            self.assertIsNone(prior)
+        finally:
+            sidecar_path.write_text(original, encoding="utf-8")
+            os.utime(
+                sidecar_path,
+                ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+            )
 
     def test_missing_artifact_invalidates_the_short_circuit(self) -> None:
         target = self.boards / "main_review" / "_schematic.svg"
@@ -384,6 +469,23 @@ class FailureContract(EnvGuard, unittest.TestCase):
                     root / "boards" / "main.circuit.json",
                 )
             self.assertFalse((root / ".circuit").exists())  # refused at spec time
+
+    def test_unlocked_imported_block_is_refused_before_any_build(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "proj"
+            circuitproj.write_project(
+                root,
+                tsx=circuitproj.BLOCK_IMPORT_TSX,
+                blocks={"led-indicator.tsx": circuitproj.LED_BLOCK_TSX},
+            )
+            with self.assertRaisesRegex(
+                ProjectShapeError, "has no golden-blocks.lock.json"
+            ):
+                generation.build_board(
+                    root / "boards" / "main.tsx",
+                    root / "boards" / "main.circuit.json",
+                )
+            self.assertFalse((root / ".circuit").exists())
 
 
 if __name__ == "__main__":

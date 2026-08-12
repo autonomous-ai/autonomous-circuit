@@ -23,13 +23,17 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable, Literal, cast
 
 from circuitpy.errors import ProjectShapeError, SpecValidationError
+from circuitpy.layout_intent import validate_layout
+from circuitpy.power_intent import validate_power_budget
 
 POWER_KINDS = ("usb-c-5v", "battery-lipo-sealed-block", "external-dc-lv")
+ASSEMBLY_TIERS = ("economic", "standard")
+AssemblyTier = Literal["economic", "standard"]
 MAX_DC_VOLTAGE = 24.0
 
 _SCANNABLE_SUFFIXES = {".tsx", ".ts", ".jsx", ".js"}
@@ -77,6 +81,9 @@ class ResolvedProduct:
     fab: str
     assembly: bool
     path: Path
+    assembly_tier: AssemblyTier = "economic"
+    layout: dict[str, Any] = field(default_factory=dict)
+    power_budget: dict[str, Any] = field(default_factory=dict)
 
 
 def load_product(project_root: Path) -> ResolvedProduct:
@@ -122,6 +129,17 @@ def load_product(project_root: Path) -> ResolvedProduct:
         raise ProjectShapeError(
             f"product.json 'layers' must be a positive integer (got {layers_raw!r})"
         )
+    assembly_tier_raw = raw.get("assemblyTier", "economic")
+    if assembly_tier_raw not in ASSEMBLY_TIERS:
+        raise ProjectShapeError(
+            "product.json 'assemblyTier' must be one of "
+            f"{', '.join(ASSEMBLY_TIERS)} (got {assembly_tier_raw!r})"
+        )
+    power_budget = validate_power_budget(raw.get("powerBudget"))
+    if power_budget.get("usb") and power != "usb-c-5v":
+        raise ProjectShapeError(
+            "product.json 'powerBudget.usb' requires product power='usb-c-5v'"
+        )
     return ResolvedProduct(
         name=name.strip(),
         description=str(raw.get("description") or ""),
@@ -131,6 +149,9 @@ def load_product(project_root: Path) -> ResolvedProduct:
         fab=str(raw.get("fab") or "jlcpcb"),
         assembly=bool(raw.get("assembly", False)),
         path=path,
+        assembly_tier=cast(AssemblyTier, assembly_tier_raw),
+        layout=validate_layout(raw.get("layout")),
+        power_budget=power_budget,
     )
 
 

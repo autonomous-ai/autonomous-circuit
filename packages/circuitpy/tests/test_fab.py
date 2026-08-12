@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -41,10 +42,18 @@ class Profiles(unittest.TestCase):
         # Block at the fab's floor, warn at our preference (see FabProfile).
         self.assertEqual(PROFILE.min_trace_mm, 0.10)
         self.assertEqual(PROFILE.warn_trace_mm, 0.15)
+        self.assertEqual(PROFILE.min_via_to_copper_mm, 0.20)
 
     def test_unknown_profile_raises(self) -> None:
         with self.assertRaises(ProjectShapeError):
             fab.get_profile("oshpark")
+
+    def test_product_clearance_tightens_kicad_rules_but_keeps_engine_slack(self) -> None:
+        project = json.loads(fab.kicad_project_json(PROFILE, min_clearance_mm=0.15))
+        self.assertEqual(
+            project["board"]["design_settings"]["rules"]["min_clearance"], 0.14
+        )
+        self.assertEqual(project["net_settings"]["classes"][0]["clearance"], 0.14)
 
 
 class ExporterParsing(unittest.TestCase):
@@ -62,6 +71,44 @@ class ExporterParsing(unittest.TestCase):
     def test_rows_without_designator_skipped(self) -> None:
         rows = fab.parse_exporter_bom("Designator,Comment\n,orphan\nR1,ok\n")
         self.assertEqual(len(rows), 1)
+
+
+class DnpFiltering(unittest.TestCase):
+    def test_compiled_dnp_identity_filters_bom_and_cpl_without_prefix_guesses(self) -> None:
+        elements = [
+            {"type": "source_component", "source_component_id": "s1", "name": "N1"},
+            {"type": "source_component", "source_component_id": "s2", "name": "N99"},
+            {"type": "source_component", "source_component_id": "s3", "name": "TP1"},
+            {"type": "pcb_component", "source_component_id": "s1", "do_not_place": True},
+            {"type": "pcb_component", "source_component_id": "s2", "do_not_place": False},
+            {"type": "pcb_component", "source_component_id": "s3", "do_not_place": False},
+        ]
+        excluded = fab.do_not_place_designators(elements)
+        self.assertEqual(excluded, {"N1"})
+
+        bom = fab.parse_exporter_bom(
+            "Designator,Comment,Value,Footprint,JLCPCB Part #\n"
+            "N1,hidden,,,\n"
+            "N99,real-node,,0402,C11702\n"
+            "TP1,assembled-probe,,SMD,C1\n"
+        )
+        kept_bom = fab.exclude_designators_from_bom(bom, excluded)
+        self.assertEqual(
+            [row["designator"] for row in kept_bom], ["N99", "TP1"]
+        )
+
+        cpl = (
+            "Designator,Mid X,Mid Y,Layer,Rotation\n"
+            "N1,0,0,top,0\n"
+            "N99,1,0,top,0\n"
+            "TP1,2,0,top,0\n"
+        )
+        kept_cpl = list(csv.DictReader(io.StringIO(
+            fab.exclude_designators_from_cpl(cpl, excluded)
+        )))
+        self.assertEqual(
+            [row["Designator"] for row in kept_cpl], ["N99", "TP1"]
+        )
 
 
 class LockMerge(unittest.TestCase):
@@ -149,7 +196,7 @@ class PacketWriters(unittest.TestCase):
 
 
 class OrderMd(unittest.TestCase):
-    def _write(self, *, assembly: bool) -> str:
+    def _write(self, *, assembly: bool, assembly_tier: str = "economic") -> str:
         with tempfile.TemporaryDirectory() as tmp:
             path = fab.write_order_md(
                 Path(tmp) / "ORDER.md",
@@ -160,6 +207,7 @@ class OrderMd(unittest.TestCase):
                 board_height_mm=38.0,
                 layers=2,
                 bom={"lines": 14, "orderable": 14, "basicParts": 9, "estimatedCostUsd": 11.2},
+                assembly_tier=assembly_tier,
             )
             return path.read_text(encoding="utf-8")
 
@@ -168,6 +216,7 @@ class OrderMd(unittest.TestCase):
         self.assertIn("cart.jlcpcb.com/quote", text)
         self.assertIn("Add gerber file", text)
         self.assertIn("PCB Assembly", text)
+        self.assertIn("PCBA Type **Economic**, Assembly Side **Top**", text)
         self.assertIn("Process BOM & CPL", text)
         self.assertIn("placement preview", text)
         self.assertIn("safety net", text)  # the placement-preview warning
@@ -175,6 +224,11 @@ class OrderMd(unittest.TestCase):
         self.assertIn("$4-20", text)
         self.assertIn("$75-110", text)
         self.assertIn("14/14", text)
+
+    def test_standard_assembly_walkthrough_selects_both_sides(self) -> None:
+        text = self._write(assembly=True, assembly_tier="standard")
+        self.assertIn("JLCPCB standard PCBA", text)
+        self.assertIn("PCBA Type **Standard**, Assembly Side **Both Sides**", text)
 
     def test_bare_pcb_walkthrough_skips_assembly(self) -> None:
         text = self._write(assembly=False)

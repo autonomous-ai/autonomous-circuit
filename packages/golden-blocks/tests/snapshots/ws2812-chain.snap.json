@@ -32,6 +32,22 @@
    "ftype": "simple_chip",
    "lcsc": "C2761795"
   },
+  "N30": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N31": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N32": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N33": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
   "R30": {
    "ftype": "simple_resistor",
    "lcsc": "C25104"
@@ -40,40 +56,38 @@
  "elementCounts": {
   "cad_component": 9,
   "pcb_board": 1,
-  "pcb_component": 9,
+  "pcb_component": 16,
+  "pcb_copper_pour": 2,
   "pcb_courtyard_outline": 4,
   "pcb_courtyard_rect": 5,
   "pcb_group": 5,
-  "pcb_port": 26,
+  "pcb_port": 39,
   "pcb_silkscreen_path": 10,
   "pcb_silkscreen_text": 5,
-  "pcb_smtpad": 26,
+  "pcb_smtpad": 30,
   "pcb_solder_paste": 26,
-  "pcb_trace": 18,
-  "pcb_via": 10,
+  "pcb_trace": 23,
+  "pcb_via": 3,
   "schematic_component": 9,
   "schematic_group": 6,
-  "schematic_net_label": 14,
-  "schematic_port": 26,
-  "schematic_text": 8,
-  "schematic_trace": 20,
+  "schematic_net_label": 10,
+  "schematic_port": 30,
+  "schematic_text": 12,
+  "schematic_trace": 16,
   "source_board": 1,
-  "source_component": 9,
+  "source_component": 13,
   "source_group": 6,
-  "source_net": 8,
-  "source_port": 26,
+  "source_manually_placed_via": 3,
+  "source_net": 4,
+  "source_port": 39,
   "source_project_metadata": 1,
   "source_trace": 26
  },
  "nets": [
   "GND",
-  "LED_DATA",
-  "PX_10_DIN",
-  "PX_11_DIN",
-  "PX_12_DIN",
-  "PX_13_DIN",
+  "LED_DATA_5V",
   "PX_14_DIN",
-  "V3_3"
+  "V5"
  ],
  "traceCount": 26
 }

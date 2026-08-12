@@ -1,0 +1,62 @@
+{
+ "components": {
+  "C24": {
+   "ftype": "simple_capacitor",
+   "lcsc": "C1525"
+  },
+  "R31": {
+   "ftype": "simple_resistor",
+   "lcsc": "C32297"
+  },
+  "R32": {
+   "ftype": "simple_resistor",
+   "lcsc": "C25741"
+  },
+  "TP10": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
+  "U7": {
+   "ftype": "simple_chip",
+   "lcsc": "C55266"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 4,
+  "pcb_board": 1,
+  "pcb_component": 9,
+  "pcb_copper_pour": 3,
+  "pcb_courtyard_outline": 1,
+  "pcb_courtyard_rect": 3,
+  "pcb_group": 1,
+  "pcb_port": 25,
+  "pcb_silkscreen_path": 8,
+  "pcb_silkscreen_text": 4,
+  "pcb_smtpad": 13,
+  "pcb_solder_paste": 13,
+  "pcb_trace": 8,
+  "pcb_via": 4,
+  "schematic_component": 5,
+  "schematic_group": 2,
+  "schematic_net_label": 8,
+  "schematic_port": 13,
+  "schematic_text": 3,
+  "schematic_trace": 9,
+  "source_board": 1,
+  "source_component": 5,
+  "source_group": 2,
+  "source_manually_placed_via": 4,
+  "source_net": 5,
+  "source_port": 25,
+  "source_project_metadata": 1,
+  "source_trace": 12
+ },
+ "nets": [
+  "GND",
+  "USB_POWER_FAULT",
+  "V3_3",
+  "V5",
+  "VBUS_RAW"
+ ],
+ "traceCount": 12
+}

@@ -14,7 +14,7 @@ SKILL_ROOT = Path(__file__).resolve().parents[1]
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
-from circuitlib import golden, safety, tables  # noqa: E402
+from circuitlib import golden, layout, safety, tables  # noqa: E402
 from circuitlib.blocks import BLOCKS, block_for, missing_requirements  # noqa: E402
 from circuitlib.helpers import (  # noqa: E402
     board_plan,
@@ -95,6 +95,44 @@ class GoldenSet(unittest.TestCase):
             with self.subTest(case=case.name):
                 self.assertTrue(rows[case.name]["cleared"], rows[case.name]["reasons"])
 
+    def test_powered_consumer_catalog_exposes_physical_bypass_controls(self) -> None:
+        required = {
+            "localPowerWidthMm",
+            "railTrunkWidthMm",
+            "maxDecouplingLengthMm",
+            "layer",
+        }
+        for block_id in (
+            "sensor-bme280",
+            "ws2812-level-shifter",
+            "ws2812-chain",
+        ):
+            with self.subTest(block=block_id):
+                self.assertLessEqual(required, set(BLOCKS[block_id].props))
+
+    def test_ws2812_catalog_exposes_count_aware_tree_controls(self) -> None:
+        self.assertLessEqual(
+            {
+                "maxRailNeckLengthMm",
+                "railNodeRefs",
+                "railRoutingPhaseIndex",
+                "dataRoutingPhaseIndices",
+            },
+            set(BLOCKS["ws2812-chain"].props),
+        )
+
+    def test_board_owned_power_trees_can_suppress_only_the_replaced_boundaries(self) -> None:
+        self.assertIn(
+            "externalFaultPullupPort", BLOCKS["usb-power-entry"].props
+        )
+        self.assertIn(
+            "externalRawPowerTrunkPort", BLOCKS["usb-power-entry"].props
+        )
+        self.assertIn("externalPowerTrunkPort", BLOCKS["ldo-3v3"].props)
+        self.assertIn(
+            "externalRailAttachmentPort", BLOCKS["status-led"].props
+        )
+
 
 class TraceGeometry(unittest.TestCase):
     def test_width_rises_with_current(self) -> None:
@@ -124,6 +162,202 @@ class TraceGeometry(unittest.TestCase):
     def test_clearance_refuses_outside_the_envelope(self) -> None:
         with self.assertRaises(ValueError):
             clearance_for(volts=400)
+
+    def test_product_layout_distinguishes_power_trunk_from_neckdown(self) -> None:
+        contract = layout.product_layout(
+            board_size_mm=(105, 55),
+            ground_plane_layers=("top", "bottom"),
+            power_trunk_width_mm=0.8,
+            component_sides=[
+                {"match": "SW*", "side": "top"},
+                {"match": "*", "side": "bottom"},
+            ],
+            edge_connectors=[
+                {"ref": "J1", "edge": "bottom", "alignment": "center"}
+            ],
+        )
+        power = contract["netClasses"][0]
+        self.assertEqual(power["minTrunkWidthMm"], 0.8)
+        self.assertLess(power["minNeckdownWidthMm"], power["minTrunkWidthMm"])
+        self.assertEqual(power["minViaOuterDiameterMm"], 0.8)
+        self.assertEqual(power["minViaHoleDiameterMm"], 0.5)
+        self.assertEqual(contract["groundPlanes"]["layers"], ["top", "bottom"])
+        self.assertEqual(contract["groundPlanes"]["maxFanoutLengthMm"], 2.0)
+        self.assertEqual(contract["minCopperClearanceMm"], 0.15)
+        self.assertEqual(contract["decoupling"], {"maxDistanceMm": 2.0})
+
+    def test_product_layout_defaults_to_stitched_planes_on_both_faces(self) -> None:
+        contract = layout.product_layout(board_size_mm=(20, 20))
+
+        self.assertEqual(contract["groundPlanes"]["layers"], ["top", "bottom"])
+
+    def test_product_layout_records_only_explicit_decoupling_exclusions(self) -> None:
+        contract = layout.product_layout(
+            board_size_mm=(20, 20),
+            decoupling_max_distance_mm=1.5,
+            decoupling_exclude=("U_ESD*",),
+        )
+        self.assertEqual(
+            contract["decoupling"],
+            {"maxDistanceMm": 1.5, "exclude": ["U_ESD*"]},
+        )
+
+    def test_product_layout_records_ref_scoped_vendor_decoupling_overrides(self) -> None:
+        overrides = [
+            {
+                "match": "U3",
+                "maxDistanceMm": 5.0,
+                "source": "https://example.test/vendor-reference.zip",
+            }
+        ]
+        contract = layout.product_layout(
+            board_size_mm=(20, 20),
+            decoupling_overrides=overrides,
+        )
+        self.assertEqual(contract["decoupling"]["overrides"], overrides)
+        self.assertIsNot(contract["decoupling"]["overrides"], overrides)
+
+        invalid = (
+            [],
+            [
+                {
+                    "match": [],
+                    "maxDistanceMm": 5,
+                    "source": "vendor-reference",
+                }
+            ],
+            [
+                {
+                    "match": "U3",
+                    "maxDistanceMm": 0,
+                    "source": "vendor-reference",
+                }
+            ],
+            [{"match": "U3", "maxDistanceMm": 5}],
+            [
+                {
+                    "match": "U3",
+                    "maxDistanceMm": 5,
+                    "source": "vendor-reference",
+                    "reason": "vendor",
+                }
+            ],
+        )
+        for bad in invalid:
+            with self.subTest(overrides=bad):
+                with self.assertRaises(ValueError):
+                    layout.product_layout(
+                        board_size_mm=(20, 20),
+                        decoupling_overrides=bad,
+                    )
+
+    def test_product_layout_validates_and_copies_component_zones(self) -> None:
+        zones = [
+            {
+                "match": ["D*", "C_LED*"],
+                "containment": "courtyard",
+                "shape": {
+                    "kind": "annulus",
+                    "center": [0, 0],
+                    "innerRadiusMm": 20,
+                    "outerRadiusMm": 30,
+                },
+            },
+            {
+                "match": "U*",
+                "containment": "center",
+                "shape": {
+                    "kind": "rect",
+                    "center": [0, 0],
+                    "widthMm": 18,
+                    "heightMm": 12,
+                },
+            },
+            {
+                "match": "TP*",
+                "containment": "center",
+                "shape": {
+                    "kind": "circle",
+                    "center": [8, -4],
+                    "radiusMm": 3,
+                },
+            },
+        ]
+        contract = layout.product_layout(
+            board_size_mm=(70, 70), component_zones=zones
+        )
+
+        self.assertEqual(contract["componentZones"], zones)
+        zones[0]["shape"]["outerRadiusMm"] = 99
+        self.assertEqual(
+            contract["componentZones"][0]["shape"]["outerRadiusMm"], 30
+        )
+
+    def test_product_layout_rejects_invalid_component_zones_early(self) -> None:
+        valid = {
+            "match": "D*",
+            "containment": "courtyard",
+            "shape": {
+                "kind": "annulus",
+                "center": [0, 0],
+                "innerRadiusMm": 20,
+                "outerRadiusMm": 30,
+            },
+        }
+        invalid = (
+            [],
+            [{**valid, "containment": "body"}],
+            [{**valid, "containment": ["center"]}],
+            [{**valid, "extra": True}],
+            [{**valid, "shape": {**valid["shape"], "center": [0, float("nan")]}}],
+            [
+                {
+                    **valid,
+                    "shape": {
+                        **valid["shape"],
+                        "innerRadiusMm": 30,
+                        "outerRadiusMm": 30,
+                    },
+                }
+            ],
+            [{**valid, "shape": {"kind": "triangle", "center": [0, 0]}}],
+            [{**valid, "shape": {"kind": ["circle"], "center": [0, 0]}}],
+        )
+        for component_zones in invalid:
+            with self.subTest(component_zones=component_zones):
+                with self.assertRaises(ValueError):
+                    layout.product_layout(
+                        board_size_mm=(70, 70),
+                        component_zones=component_zones,
+                    )
+
+    def test_product_layout_rejects_an_invalid_decoupling_contract(self) -> None:
+        with self.assertRaises(ValueError):
+            layout.product_layout(
+                board_size_mm=(20, 20),
+                decoupling_max_distance_mm=0,
+            )
+        with self.assertRaises(ValueError):
+            layout.product_layout(
+                board_size_mm=(20, 20),
+                decoupling_exclude=("",),
+            )
+
+    def test_product_layout_rejects_a_neckdown_wider_than_its_trunk(self) -> None:
+        with self.assertRaises(ValueError):
+            layout.product_layout(
+                board_size_mm=(20, 20),
+                power_trunk_width_mm=0.4,
+                power_neckdown_width_mm=0.6,
+            )
+
+    def test_product_layout_rejects_a_power_via_without_an_annular_ring(self) -> None:
+        with self.assertRaises(ValueError):
+            layout.product_layout(
+                board_size_mm=(20, 20),
+                power_via_outer_diameter_mm=0.5,
+                power_via_hole_diameter_mm=0.5,
+            )
 
 
 class RegulatorThermal(unittest.TestCase):
@@ -211,8 +445,10 @@ class Layout(unittest.TestCase):
     fifty cascading errors."""
 
     def test_measured_extents_are_plausible(self) -> None:
+        from circuitlib.blocks import BLOCKS
         from circuitlib.layout import BLOCK_BOX_MM, extent
 
+        self.assertEqual(set(BLOCK_BOX_MM), set(BLOCKS))
         for block_id in BLOCK_BOX_MM:
             with self.subTest(block=block_id):
                 width, height = extent(block_id)
@@ -220,6 +456,18 @@ class Layout(unittest.TestCase):
                 self.assertGreater(height, 0.5)
                 self.assertLess(width, 200)
                 self.assertLess(height, 200)
+
+    def test_a_protected_usb_plan_reaches_placement_without_metadata_gaps(self) -> None:
+        from circuitlib.helpers import board_plan
+        from circuitlib.layout import place_board
+
+        plan = board_plan(capabilities=["power-usb"])
+        placed = place_board(list(plan.block_ids))
+
+        self.assertTrue(plan.buildable)
+        self.assertEqual(plan.unmet, ())
+        self.assertIn("usb-power-entry", plan.block_ids)
+        self.assertEqual(placed["warnings"], [])
 
     def test_placed_blocks_land_where_the_arithmetic_says(self) -> None:
         """The 2026-08-11 defect: `place_row` assumed a block's geometry was
@@ -416,6 +664,12 @@ class BoardLaw(unittest.TestCase):
 class Budgets(unittest.TestCase):
     def test_over_budget_warns(self) -> None:
         self.assertTrue(power_budget(source="usb-c-5v", current_ma=5000))
+
+    def test_unadvertised_usb_budget_is_500ma(self) -> None:
+        self.assertEqual(power_budget(source="usb-c-5v", current_ma=500), [])
+        warnings = power_budget(source="usb-c-5v", current_ma=500.1)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("500mA budget", warnings[0]["detail"])
 
     def test_within_budget_is_silent(self) -> None:
         self.assertEqual(power_budget(source="usb-c-5v", current_ma=100), [])

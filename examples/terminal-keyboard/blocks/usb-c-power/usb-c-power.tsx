@@ -35,6 +35,7 @@ const usbcPinLabels = {
 
 export const UsbCConnector = (props: {
   name: string
+  layer?: "top" | "bottom"
   /** pins intentionally left unconnected in the enclosing block */
   ncPins?: string[]
   pcbX?: number | string
@@ -145,6 +146,7 @@ const esdPinLabels = {
 
 export const Usblc6 = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number | string
   pcbY?: number | string
   pcbRotation?: number | string

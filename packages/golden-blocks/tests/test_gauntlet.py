@@ -36,8 +36,10 @@ REPO_ROOT = GB_ROOT.parents[1]
 
 sys.path.insert(0, str(REPO_ROOT / "packages" / "circuitpy" / "src"))
 sys.path.insert(0, str(TESTS_DIR))
+sys.path.insert(0, str(REPO_ROOT))
 
 from conftest import BLOCK_IDS_FOR_GAUNTLET, _toolchain_bin_dir  # noqa: E402
+from scripts.sync_golden_blocks import sync_project  # noqa: E402
 
 SKELETON = REPO_ROOT / "skills" / "circuitcode" / "templates" / "project_skeleton"
 
@@ -98,7 +100,14 @@ def _run_gauntlet(root: Path, bench_id: str) -> dict:
     project.mkdir(parents=True, exist_ok=True)
     for name in ("tsconfig.json", "tscircuit.config.json"):
         shutil.copy(SKELETON / name, project / name)
-    shutil.copytree(GB_ROOT / "blocks", project / "blocks", dirs_exist_ok=True)
+    sync_project(
+        project,
+        blocks=sorted(
+            path.name for path in (GB_ROOT / "blocks").iterdir() if path.is_dir()
+        ),
+        source=GB_ROOT / "blocks",
+        source_label="packages/golden-blocks/blocks",
+    )
     (project / "product.json").write_text(json.dumps({
         "name": f"{bench_id}-gauntlet",
         "description": f"full-gauntlet harness for the {bench_id} block",

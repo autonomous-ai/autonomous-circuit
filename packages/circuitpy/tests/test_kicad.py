@@ -21,6 +21,17 @@ from circuitpy import generation, toolchain  # noqa: E402
 KICAD = circuitproj.kicad_available()
 
 
+class KicadGerberCommandPolicy(unittest.TestCase):
+    def test_shipping_silkscreen_is_clipped_to_soldermask_openings(self) -> None:
+        args = generation._kicad_gerber_export_args(
+            Path("/tmp/board-gerbers"), Path("/tmp/board.kicad_pcb")
+        )
+
+        self.assertEqual(args[:3], ["pcb", "export", "gerbers"])
+        self.assertIn("--subtract-soldermask", args)
+        self.assertLess(args.index("--subtract-soldermask"), args.index("-o"))
+
+
 @unittest.skipUnless(KICAD, "kicad-cli not installed")
 class KicadSecondSubstrate(unittest.TestCase):
     @classmethod
@@ -54,6 +65,11 @@ class KicadSecondSubstrate(unittest.TestCase):
         kinds = {w["kind"] for w in warnings}
         self.assertNotIn("unverified_gerbers", kinds)
         self.assertNotIn("kicad_unavailable", kinds)
+
+    def test_shipping_silkscreen_does_not_cover_mask_openings(self) -> None:
+        warnings = (self.sidecar.get("validation") or {}).get("warnings") or []
+        kinds = {w["kind"] for w in warnings}
+        self.assertNotIn("gerber_silk_over_pad", kinds)
 
 
 if __name__ == "__main__":

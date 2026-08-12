@@ -60,6 +60,30 @@ WARN_SILK_TEXT_MM = 1.0
 DEFAULT_LAYERS = 2
 COPPER_OZ = 1
 
+# --- Layout craft defaults -------------------------------------------------
+# Preferred design rules, not the fab's absolute floors. They came from the
+# 2026-08-11 EE review and stay separate from MIN_*: a board designed exactly
+# to a process floor has no routing or manufacturing margin.
+PREFERRED_CLEARANCE_MM = 0.15
+# Ordinary low-speed signals should have manufacturing margin above the fab
+# floor. Fine-pitch escapes and impedance-controlled nets are explicit,
+# package-/interface-specific exceptions; this is not a global board minimum.
+PREFERRED_SIGNAL_TRACE_WIDTH_MM = 0.25
+POWER_TRUNK_MIN_MM = 0.80
+POWER_NECKDOWN_WIDTH_MM = 0.20
+POWER_NECKDOWN_MAX_LENGTH_MM = 2.0
+# A wide rail narrowed through a generic signal via is still a bottleneck.
+POWER_VIA_OUTER_DIAMETER_MM = 0.80
+POWER_VIA_HOLE_DIAMETER_MM = 0.50
+GROUND_STITCHING_PITCH_MM = 10.0
+#: A decoupling/return pad must reach its plane through a genuinely local
+#: dogbone. Longer routes are ordinary ground traces wearing a fanout label.
+GROUND_FANOUT_MAX_LENGTH_MM = 2.0
+#: Maximum exposed-copper gap from an IC supply pad to the rail pad of its
+#: explicitly authored local bypass capacitor. This is a product contract,
+#: not the older 5mm advisory review radius.
+DECOUPLING_MAX_DISTANCE_MM = 2.0
+
 # --- Footprint-vs-supplier-part copper IoU ---------------------------------
 # Measured on known-correct parts: ~0.73-0.77. Bands chosen so correct parts
 # do not trip the blocking gate.

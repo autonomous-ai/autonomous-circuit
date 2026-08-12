@@ -5,5 +5,101 @@
   "envelopeMm": [70, 70],
   "layers": 2,
   "fab": "jlcpcb",
-  "assembly": true
+  "assembly": true,
+  "assemblyTier": "economic",
+  "layout": {
+    "boardSizeMm": [70, 70],
+    "boardSizeToleranceMm": 0.01,
+    "minCopperClearanceMm": 0.15,
+    "decoupling": {
+      "maxDistanceMm": 2.0,
+      "exclude": ["U1"]
+    },
+    "componentSides": [
+      {
+        "match": "*",
+        "side": "top"
+      }
+    ],
+    "edgeConnectors": [
+      {
+        "ref": "J1",
+        "edge": "bottom",
+        "alignment": "center",
+        "edgeToleranceMm": 1.0,
+        "centerToleranceMm": 0.1
+      }
+    ],
+    "groundPlanes": {
+      "layers": ["top", "bottom"],
+      "maxRoutedLengthMm": 25,
+      "maxFanoutLengthMm": 2.0,
+      "stitchingPitchMm": 10
+    },
+    "netClasses": [
+      {
+        "name": "POWER",
+        "nets": ["V5", "V3_3"],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 3,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "USB_ATTACH_POWER",
+        "nets": ["VBUS_RAW"],
+        "minTrunkWidthMm": 0.8,
+        "minNeckdownWidthMm": 0.2,
+        "maxNeckdownLengthMm": 3,
+        "minViaOuterDiameterMm": 0.8,
+        "minViaHoleDiameterMm": 0.5
+      },
+      {
+        "name": "HARNESS_SIGNAL",
+        "nets": ["BTN_*", "LED_DATA_*", "PX_*", "USB_POWER_FAULT"],
+        "minTrunkWidthMm": 0.25,
+        "minNeckdownWidthMm": 0.25,
+        "maxNeckdownLengthMm": 0
+      },
+      {
+        "name": "DEBUG_SIGNAL",
+        "nets": ["SWCLK", "SWD"],
+        "minTrunkWidthMm": 0.25,
+        "minNeckdownWidthMm": 0.15,
+        "maxNeckdownLengthMm": 1.0
+      }
+    ]
+  },
+  "powerBudget": {
+    "usb": {
+      "rawVbusNet": "VBUS_RAW",
+      "protectedVbusNet": "V5",
+      "rawAttachCapacitanceMaxUf": 10,
+      "sourceCurrentMaxMa": 500,
+      "fixedOperationalLoadMa": 113,
+      "currentLimiter": {
+        "ref": "U7",
+        "inputPin": "IN",
+        "outputPin": "OUT",
+        "lcsc": "C55266",
+        "minTripMa": 400.6,
+        "maxTripMa": 500,
+        "settingPin": "ILIM",
+        "settingResistor": {
+          "ref": "R31",
+          "lcsc": "C32297",
+          "resistanceOhms": 59000,
+          "returnNet": "GND"
+        }
+      },
+      "firmwareLimitedLoads": [
+        {
+          "match": ["D1[0-7]"],
+          "perDevicePhysicalPeakMa": 60,
+          "aggregateOperationalMaxMa": 280
+        }
+      ]
+    }
+  }
 }

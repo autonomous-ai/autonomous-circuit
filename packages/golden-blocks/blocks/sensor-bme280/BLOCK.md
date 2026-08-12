@@ -20,6 +20,14 @@ hardware-verified (first article pending).
 **Requires exactly one `i2c-bus` block on the same SDA/SCL nets** — this block
 ships no pull-ups.
 
+Physical props default to `signalTraceWidthMm=0.25`,
+`localPowerWidthMm=0.2`, `railTrunkWidthMm=0.8`, and
+`maxDecouplingLengthMm=2`. `layer` defaults to `top` and propagates to U5 and
+both capacitors. Bottom placement mirrors every block-local X coordinate and
+the authored bypass paths together with the footprints; it is an exact
+X-mirror of the reviewed top copper, not the top component centres with only
+their pad offsets reversed.
+
 ## Rail budget
 
 Sub-milliamp. The BME280's measurement current is in the µA range at typical
@@ -46,8 +54,17 @@ sensor is a different pin contract.
   one's SDO at VDDIO (0x77), which is a block variant, not a board-level trace.
 - CSB must stay at VDDIO. A floating CSB drops the part into SPI mode and the
   bus goes quiet — this is the single most common BME280 bring-up failure.
-- Both decoupling caps sit adjacent to their pin in layout; the netlist cannot
-  express "close to", so the craft pass on `_pcb.png` is where that is checked.
+- Both supply pins have authored port-to-port paths to their own 100nF
+  capacitor, bounded to 2mm at 0.2mm width. Each capacitor exposes a marked
+  0.8mm rail boundary. The compiled product-intent gate measures pad-edge
+  distance and rejects an aggregate-net/MST substitute; this is no longer a
+  visual-review-only promise.
+- Top and bottom compiled benches freeze the same pad endpoints, widths and
+  path lengths under an X mirror. Neither local branch may contain a via.
+- CSB is tied into the VDDIO local tree (selecting I2C) with a fixed 0.2mm
+  block-local diagonal between the exact package pads. The path mirrors with
+  `layer="bottom"` and clears the board's 0.15mm trace-to-pad rule rather than
+  relying on a portfolio-sensitive aggregate route. SDA/SCL default to 0.25mm.
 - Humidity and pressure both need the sensor to see outside air: the enclosure
   brief must carry a vent over U5, and the part should not sit next to the LDO
   or the MCU (self-heating skews the temperature reading by whole degrees).

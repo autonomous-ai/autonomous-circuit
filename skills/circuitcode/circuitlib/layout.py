@@ -28,6 +28,7 @@ the table below) whenever a footprint changes.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import math
 
 from circuitlib import tables
@@ -45,6 +46,8 @@ BLOCK_BOX_MM: dict[str, tuple[float, float, float, float]] = {
     "sw-tact": (-3.5, -2.22, 3.5, 2.22),
     "usb-c-data": (-5.78, -3.67, 9.42, 15.75),
     "usb-c-power": (-4.93, -3.67, 8.42, 10.25),
+    "usb-power-entry": (-3.88, -1.25, 3.88, 1.8),
+    "ws2812-level-shifter": (-3.98, -1.27, 1.85, 1.25),
     "ws2812-chain": (-7.78, -3.92, 24.23, 2.3),
 }
 
@@ -69,6 +72,12 @@ EDGE_MARGIN_MM = 1.5
 #: clean. This is the number that makes a dense block routable, and it is why
 #: `place_board` sizes the outline off this rather than off EDGE_MARGIN_MM.
 ROUTER_HALO_MM = 4.0
+
+# Edge connectors are the exception to the routing halo: their mating face has
+# to reach the enclosure opening. Keep the component body about 1mm inside the
+# routed outline; its footprint-specific shell/courtyard may intentionally
+# cross it.
+EDGE_CONNECTOR_INSET_MM = 1.0
 
 
 def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float, float]:
@@ -232,9 +241,15 @@ def place_board(
 
     placements: dict[str, tuple[float, float]] = {}
     if edge:
-        # Bottom band: the connector's own geometry sits against the margin.
+        # Bottom band: the connector's body reaches the enclosure edge. Using
+        # the general router halo here puts a perfectly routed USB socket 4mm
+        # inside the product where no cable can reach it.
         placements.update(
-            place_row(edge, y=-height / 2.0 + margin + edge_h / 2.0, gap=gap)
+            place_row(
+                edge,
+                y=-height / 2.0 + EDGE_CONNECTOR_INSET_MM + edge_h / 2.0,
+                gap=gap,
+            )
         )
     if inner:
         placements.update(
@@ -338,9 +353,12 @@ def board_fits(
             if block_id not in BLOCK_BOX_MM:
                 continue
             min_x, min_y, max_x, max_y = box(block_id)
+            bottom_margin = (
+                EDGE_CONNECTOR_INSET_MM if block_id in EDGE_BLOCKS else margin
+            )
             over = max(
                 -half_w + margin - (x + min_x),
-                -half_h + margin - (y + min_y),
+                -half_h + bottom_margin - (y + min_y),
                 (x + max_x) - (half_w - margin),
                 (y + max_y) - (half_h - margin),
             )
@@ -397,4 +415,263 @@ def overlap_warnings(
     except Exception as exc:  # pragma: no cover - advisory must never break
         out.append({"part": "board", "kind": "check_failed", "severity": "warning",
                     "detail": f"overlap_warnings: {exc}"})
+    return out
+
+
+def _component_zone_strings(value: object, path: str) -> None:
+    if isinstance(value, str) and value:
+        return
+    if (
+        isinstance(value, list)
+        and value
+        and all(isinstance(item, str) and item for item in value)
+    ):
+        return
+    raise ValueError(f"{path} must be a non-empty string or list of strings")
+
+
+def _component_zone_number(
+    value: object,
+    path: str,
+    *,
+    allow_zero: bool = False,
+) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"{path} must be a "
+            f"{'non-negative' if allow_zero else 'positive'} finite number"
+        )
+    number = float(value)
+    if not math.isfinite(number) or (number < 0 if allow_zero else number <= 0):
+        raise ValueError(
+            f"{path} must be a "
+            f"{'non-negative' if allow_zero else 'positive'} finite number"
+        )
+    return number
+
+
+def _component_zone_unknown(
+    value: dict[object, object],
+    allowed: set[str],
+    path: str,
+) -> None:
+    unknown = sorted((key for key in value if key not in allowed), key=str)
+    if unknown:
+        names = ", ".join(repr(key) for key in unknown)
+        raise ValueError(f"{path} contains unknown member(s): {names}")
+
+
+def _validate_component_zones(value: object) -> list[dict[str, object]]:
+    """Validate and defensively copy ``product.json.layout.componentZones``.
+
+    This deliberately mirrors circuitpy's product-schema validation without
+    importing circuitpy: circuitlib is vendored into a self-contained skill
+    runtime, so an invalid zone must be refused before generation in either
+    environment independently.
+    """
+
+    path = "component_zones"
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{path} must be a non-empty list")
+    for index, rule in enumerate(value):
+        rule_path = f"{path}[{index}]"
+        if not isinstance(rule, dict):
+            raise ValueError(f"{rule_path} must be an object")
+        _component_zone_strings(rule.get("match"), f"{rule_path}.match")
+        containment = rule.get("containment")
+        if (
+            not isinstance(containment, str)
+            or containment not in {"center", "courtyard"}
+        ):
+            raise ValueError(
+                f"{rule_path}.containment must be 'center' or 'courtyard'"
+            )
+        shape = rule.get("shape")
+        if not isinstance(shape, dict):
+            raise ValueError(f"{rule_path}.shape must be an object")
+        kind = shape.get("kind")
+        if not isinstance(kind, str) or kind not in {"circle", "annulus", "rect"}:
+            raise ValueError(
+                f"{rule_path}.shape.kind must be 'circle', 'annulus', or 'rect'"
+            )
+        center = shape.get("center")
+        if not isinstance(center, list) or len(center) != 2:
+            raise ValueError(
+                f"{rule_path}.shape.center must be [x, y] in board millimetres"
+            )
+        for coordinate_index, coordinate in enumerate(center):
+            if (
+                isinstance(coordinate, bool)
+                or not isinstance(coordinate, (int, float))
+                or not math.isfinite(float(coordinate))
+            ):
+                raise ValueError(
+                    f"{rule_path}.shape.center[{coordinate_index}] "
+                    "must be a finite number"
+                )
+
+        shape_keys = {"kind", "center"}
+        if kind == "circle":
+            _component_zone_number(
+                shape.get("radiusMm"), f"{rule_path}.shape.radiusMm"
+            )
+            shape_keys.add("radiusMm")
+        elif kind == "annulus":
+            inner = _component_zone_number(
+                shape.get("innerRadiusMm"),
+                f"{rule_path}.shape.innerRadiusMm",
+                allow_zero=True,
+            )
+            outer = _component_zone_number(
+                shape.get("outerRadiusMm"),
+                f"{rule_path}.shape.outerRadiusMm",
+            )
+            if inner >= outer:
+                raise ValueError(
+                    f"{rule_path}.shape.innerRadiusMm must be less than "
+                    "outerRadiusMm"
+                )
+            shape_keys.update({"innerRadiusMm", "outerRadiusMm"})
+        else:
+            _component_zone_number(
+                shape.get("widthMm"), f"{rule_path}.shape.widthMm"
+            )
+            _component_zone_number(
+                shape.get("heightMm"), f"{rule_path}.shape.heightMm"
+            )
+            shape_keys.update({"widthMm", "heightMm"})
+        _component_zone_unknown(shape, shape_keys, f"{rule_path}.shape")
+        _component_zone_unknown(
+            rule, {"match", "shape", "containment"}, rule_path
+        )
+
+    return deepcopy(value)
+
+
+def _validate_decoupling_overrides(value: object) -> list[dict[str, object]]:
+    """Validate ref-scoped vendor bypass-distance rules.
+
+    The default remains the product-wide bound. An override is appropriate
+    only when the component vendor's routed reference design establishes a
+    different physical envelope; it never disables the authored-topology or
+    measurable-pad requirements enforced by the independent verifier.
+    """
+
+    path = "decoupling_overrides"
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{path} must be a non-empty list")
+    for index, rule in enumerate(value):
+        rule_path = f"{path}[{index}]"
+        if not isinstance(rule, dict):
+            raise ValueError(f"{rule_path} must be an object")
+        _component_zone_strings(rule.get("match"), f"{rule_path}.match")
+        _component_zone_number(
+            rule.get("maxDistanceMm"), f"{rule_path}.maxDistanceMm"
+        )
+        source = rule.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(
+                f"{rule_path}.source must cite a non-empty manufacturer "
+                "reference URI or document identifier"
+            )
+        _component_zone_unknown(
+            rule, {"match", "maxDistanceMm", "source"}, rule_path
+        )
+    return deepcopy(value)
+
+
+def product_layout(
+    *,
+    board_size_mm: tuple[float, float],
+    component_sides: list[dict[str, object]] | None = None,
+    component_zones: list[dict[str, object]] | None = None,
+    edge_connectors: list[dict[str, object]] | None = None,
+    ground_plane_layers: tuple[str, ...] = ("top", "bottom"),
+    max_ground_route_length_mm: float = 20.0,
+    max_ground_fanout_length_mm: float = tables.GROUND_FANOUT_MAX_LENGTH_MM,
+    ground_stitching_pitch_mm: float = tables.GROUND_STITCHING_PITCH_MM,
+    min_copper_clearance_mm: float = tables.PREFERRED_CLEARANCE_MM,
+    decoupling_max_distance_mm: float = tables.DECOUPLING_MAX_DISTANCE_MM,
+    decoupling_exclude: tuple[str, ...] = (),
+    decoupling_overrides: list[dict[str, object]] | None = None,
+    power_nets: tuple[str, ...] = ("V5", "V3_3"),
+    power_trunk_width_mm: float = tables.POWER_TRUNK_MIN_MM,
+    power_neckdown_width_mm: float = tables.POWER_NECKDOWN_WIDTH_MM,
+    power_neckdown_max_length_mm: float = tables.POWER_NECKDOWN_MAX_LENGTH_MM,
+    power_via_outer_diameter_mm: float = tables.POWER_VIA_OUTER_DIAMETER_MM,
+    power_via_hole_diameter_mm: float = tables.POWER_VIA_HOLE_DIAMETER_MM,
+) -> dict[str, object]:
+    """Build the ``product.json.layout`` compiled-artifact contract.
+
+    This records decisions; it is not another placement generator. The
+    default is a solved, stitched GND plane on both faces; a board that needs
+    a partial or single-face pour must opt into that geometry explicitly.
+    Most importantly, a power rail is a wide trunk with short endpoint
+    neck-downs, not one global width forced through QFN and 0402 pads.
+    """
+
+    width, height = board_size_mm
+    if width <= 0 or height <= 0:
+        raise ValueError("board_size_mm must contain two positive dimensions")
+    if not ground_plane_layers:
+        raise ValueError("ground_plane_layers must not be empty")
+    if max_ground_fanout_length_mm <= 0:
+        raise ValueError("max_ground_fanout_length_mm must be positive")
+    if power_neckdown_width_mm > power_trunk_width_mm:
+        raise ValueError("power neck-down width cannot exceed the trunk width")
+    if power_neckdown_max_length_mm < 0:
+        raise ValueError("power neck-down length must be non-negative")
+    if (
+        power_via_hole_diameter_mm <= 0
+        or power_via_outer_diameter_mm <= power_via_hole_diameter_mm
+    ):
+        raise ValueError("power via outer diameter must exceed its positive hole")
+    if min_copper_clearance_mm <= 0:
+        raise ValueError("min_copper_clearance_mm must be positive")
+    if decoupling_max_distance_mm <= 0:
+        raise ValueError("decoupling_max_distance_mm must be positive")
+    if any(
+        not isinstance(pattern, str) or not pattern
+        for pattern in decoupling_exclude
+    ):
+        raise ValueError("decoupling_exclude must contain only non-empty ref patterns")
+
+    out: dict[str, object] = {
+        "boardSizeMm": [float(width), float(height)],
+        "boardSizeToleranceMm": 0.1,
+        "minCopperClearanceMm": float(min_copper_clearance_mm),
+        "decoupling": {
+            "maxDistanceMm": float(decoupling_max_distance_mm),
+            **({"exclude": list(decoupling_exclude)} if decoupling_exclude else {}),
+            **(
+                {"overrides": _validate_decoupling_overrides(decoupling_overrides)}
+                if decoupling_overrides is not None
+                else {}
+            ),
+        },
+        "groundPlanes": {
+            "layers": list(ground_plane_layers),
+            "maxRoutedLengthMm": float(max_ground_route_length_mm),
+            "maxFanoutLengthMm": float(max_ground_fanout_length_mm),
+            "stitchingPitchMm": float(ground_stitching_pitch_mm),
+        },
+    }
+    if component_sides:
+        out["componentSides"] = deepcopy(component_sides)
+    if component_zones is not None:
+        out["componentZones"] = _validate_component_zones(component_zones)
+    if edge_connectors:
+        out["edgeConnectors"] = deepcopy(edge_connectors)
+    if power_nets and power_trunk_width_mm > 0:
+        out["netClasses"] = [
+            {
+                "name": "POWER",
+                "nets": list(power_nets),
+                "minTrunkWidthMm": float(power_trunk_width_mm),
+                "minNeckdownWidthMm": float(power_neckdown_width_mm),
+                "maxNeckdownLengthMm": float(power_neckdown_max_length_mm),
+                "minViaOuterDiameterMm": float(power_via_outer_diameter_mm),
+                "minViaHoleDiameterMm": float(power_via_hole_diameter_mm),
+            }
+        ]
     return out

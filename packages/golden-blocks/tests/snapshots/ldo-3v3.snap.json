@@ -25,26 +25,26 @@
   "pcb_silkscreen_text": 3,
   "pcb_smtpad": 8,
   "pcb_solder_paste": 8,
-  "pcb_trace": 5,
-  "pcb_via": 4,
+  "pcb_trace": 4,
   "schematic_component": 3,
   "schematic_group": 2,
-  "schematic_net_label": 6,
+  "schematic_net_label": 5,
   "schematic_port": 8,
   "schematic_text": 2,
-  "schematic_trace": 7,
+  "schematic_trace": 4,
   "source_board": 1,
   "source_component": 3,
+  "source_component_internal_connection": 1,
   "source_group": 2,
   "source_net": 3,
   "source_port": 8,
   "source_project_metadata": 1,
-  "source_trace": 8
+  "source_trace": 7
  },
  "nets": [
   "GND",
   "V3_3",
   "V5"
  ],
- "traceCount": 8
+ "traceCount": 7
 }

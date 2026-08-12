@@ -14,6 +14,8 @@
  * See BLOCK.md for the pin contract and provenance.
  */
 
+import { GndFanoutTrace } from "../glue"
+
 const usbcPinLabels = {
   pin1: ["EH2", "SHELL2"],
   pin2: ["EH1", "SHELL1"],
@@ -35,6 +37,7 @@ const usbcPinLabels = {
 
 export const UsbCConnector = (props: {
   name: string
+  layer?: "top" | "bottom"
   /** pins intentionally left unconnected in the enclosing block */
   ncPins?: string[]
   pcbX?: number | string
@@ -145,6 +148,7 @@ const esdPinLabels = {
 
 export const Usblc6 = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number | string
   pcbY?: number | string
   pcbRotation?: number | string
@@ -202,18 +206,18 @@ export const UsbCPower = (props: {
       {/* Rails */}
       <trace name={`TR_${j}_vbus1`} from={`.${j} > .VBUS1`} to={`net.${vbus}`} />
       <trace name={`TR_${j}_vbus2`} from={`.${j} > .VBUS2`} to={`net.${vbus}`} />
-      <trace name={`TR_${j}_gnd1`} from={`.${j} > .GND1`} to="net.GND" />
-      <trace name={`TR_${j}_gnd2`} from={`.${j} > .GND2`} to="net.GND" />
-      <trace name={`TR_${j}_sh1`} from={`.${j} > .SHELL1`} to="net.GND" />
-      <trace name={`TR_${j}_sh2`} from={`.${j} > .SHELL2`} to="net.GND" />
-      <trace name={`TR_${j}_sh3`} from={`.${j} > .SHELL3`} to="net.GND" />
-      <trace name={`TR_${j}_sh4`} from={`.${j} > .SHELL4`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${j}_gnd1`} from={`.${j} > .GND1`} />
+      <GndFanoutTrace name={`TR_${j}_gnd2`} from={`.${j} > .GND2`} />
+      <GndFanoutTrace name={`TR_${j}_sh1`} from={`.${j} > .SHELL1`} />
+      <GndFanoutTrace name={`TR_${j}_sh2`} from={`.${j} > .SHELL2`} />
+      <GndFanoutTrace name={`TR_${j}_sh3`} from={`.${j} > .SHELL3`} />
+      <GndFanoutTrace name={`TR_${j}_sh4`} from={`.${j} > .SHELL4`} />
 
       {/* CC pulldowns: 5.1k to GND advertises a UFP sink (USB-C spec §4.5.1.2) */}
       <trace name={`TR_${j}_cc1r`} from={`.${j} > .CC1`} to={`.${r1} > .pin1`} />
-      <trace name={`TR_${r1}_gnd`} from={`.${r1} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${r1}_gnd`} from={`.${r1} > .pin2`} />
       <trace name={`TR_${j}_cc2r`} from={`.${j} > .CC2`} to={`.${r2} > .pin1`} />
-      <trace name={`TR_${r2}_gnd`} from={`.${r2} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${r2}_gnd`} from={`.${r2} > .pin2`} />
 
       {/* ESD: CC1 through channel 1, CC2 through channel 2 */}
       <trace name={`TR_${u}_cc1a`} from={`.${u} > .IO1`} to={`.${j} > .CC1`} />
@@ -221,11 +225,11 @@ export const UsbCPower = (props: {
       <trace name={`TR_${u}_cc2a`} from={`.${u} > .IO2`} to={`.${j} > .CC2`} />
       <trace name={`TR_${u}_cc2b`} from={`.${u} > .IO2B`} to={`.${j} > .CC2`} />
       <trace name={`TR_${u}_vbus`} from={`.${u} > .VBUS`} to={`net.${vbus}`} />
-      <trace name={`TR_${u}_gnd`} from={`.${u} > .GND`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${u}_gnd`} from={`.${u} > .GND`} />
 
       {/* VBUS bulk (10uF cap keeps inrush inside the USB 2.0 limit) */}
       <trace name={`TR_${c}_vbus`} from={`.${c} > .pin1`} to={`net.${vbus}`} />
-      <trace name={`TR_${c}_gnd`} from={`.${c} > .pin2`} to="net.GND" />
+      <GndFanoutTrace name={`TR_${c}_gnd`} from={`.${c} > .pin2`} />
     </group>
   )
 }

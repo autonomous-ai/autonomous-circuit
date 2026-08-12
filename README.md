@@ -12,6 +12,12 @@ part numbers you can actually buy, and where each part goes. Upload those to JLC
 show up in about two weeks.
 
 It's a web app. Chat on the left, the board on the right — schematic, layout, 3D, parts, files.
+The layout is not a one-shot picture: turn on **Move**, click a component, then drag it or nudge it
+on a 0.25mm grid. Circuit previews the ratsnest, nearby-part clearance, and board-edge violations.
+Sending the staged move through chat updates the board's source placement and rebuilds routing and
+verification; it never edits the generated `circuit.json` artifact in place. This is the same
+human-in-the-loop escape hatch that PCB engineers expect from desktop CAD, while keeping the result
+reproducible.
 
 Two things make it work. Boards are built out of **nine circuits we already know are right**,
 rather than made up from datasheets each time. And every board is checked twice, by two programs
@@ -48,9 +54,10 @@ python skills/circuitcode/scripts/circuit boards/main.tsx
 # {"ok": true, "fab": {"ready": false}, "warnings": 12, ...}
 ```
 
-`kicad-cli` is optional but strongly recommended — without it the pipeline still builds, but the
-gerbers come from a single exporter with nothing to check them against, and it says so by refusing
-to write `ORDER.md`.
+`kicad-cli` is optional only for local authoring and required for every fab-ready result and CI
+acceptance. Without it the pipeline can still build a diagnostic artifact, but the gerbers come
+from a single exporter with nothing independent to check them against; the result remains
+`fab.ready=false` and `ORDER.md` is not written.
 
 ---
 
@@ -115,8 +122,8 @@ Two rules keep this honest. We learned both the hard way.
 reads the file it produced, not the return code.
 
 **The files we ship are the files we checked.** The copper layers come out of KiCad, from the same
-file KiCad checked. No KiCad installed? Circuit still builds, but it says the files are unverified
-and refuses to write the ordering instructions.
+file KiCad checked. No KiCad installed? A diagnostic circuit may still build, but it is explicitly
+unverified, cannot be fab-ready, and has no ordering instructions.
 
 ---
 
@@ -169,10 +176,12 @@ Feedback is the whole architecture. There are four loops, and they are worth tel
 each closes over a different object on a different timescale.
 
 **Loop 1 fixes one build.** Seven checking stages, each reading the files. One of them is a retry:
-if the problem looks like bad wire routing, Circuit rebuilds with the router turned up to maximum
-and **keeps the second attempt only if it has fewer problems than the first**. On our own boards
-that one dial took a keyboard from 46 errors to 18, and a puck from 5 to 1, without changing the
-design at all. It costs about 14× the routing time.
+if the problem looks like bad wire routing, Circuit may rebuild one bounded alternate candidate
+and **keeps it only if its independently parsed artifact has fewer blocking problems than the
+first**. Router effort is not a quality guarantee: the old 46-to-18 and 5-to-1 claims were
+cache-contaminated because effort was absent from the route-cache key, and are withdrawn. The
+patched pipeline isolates configurations, clears its private retry cache, and fails closed when
+the router retains final DRC issues.
 
 **Loop 2 fixes one board.** After a build, Circuit quietly hands the AI everything the checks
 found and asks it to fix things — in three passes with hard limits. First anything broken (2 tries),

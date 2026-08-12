@@ -33,6 +33,7 @@ BUILD_TIMEOUT_S = 300.0
 #: test module.
 BLOCK_IDS_FOR_GAUNTLET = [
     "usb-c-power",
+    "usb-power-entry",
     "ldo-3v3",
     "status-led",
     "sw-tact",
@@ -40,6 +41,7 @@ BLOCK_IDS_FOR_GAUNTLET = [
     "rp2040-core",
     "usb-c-data",
     "sensor-bme280",
+    "ws2812-level-shifter",
     "ws2812-chain",
 ]
 
@@ -75,6 +77,10 @@ class BuildFarm:
             self._built[bench_id] = self._build(bench_id)
         return self._built[bench_id]
 
+    def circuit_json_path(self, bench_id: str) -> Path:
+        self.circuit_json(bench_id)
+        return self.root / "dist" / "testbench" / bench_id / "circuit.json"
+
     def _build(self, bench_id: str) -> list[dict]:
         source = self.root / "testbench" / f"{bench_id}.tsx"
         assert source.exists(), f"no testbench for block {bench_id!r}"
@@ -86,9 +92,14 @@ class BuildFarm:
         # Relative source path with cwd at the workspace root — the CLI
         # mirrors the source path under dist/ (an absolute path makes it
         # write somewhere else entirely).
+        command = [
+            str(bin_dir / "tscircuit-cli"),
+            "build",
+            f"testbench/{bench_id}.tsx",
+            "--disable-parts-engine",
+        ]
         proc = subprocess.run(
-            [str(bin_dir / "tscircuit-cli"), "build",
-             f"testbench/{bench_id}.tsx", "--disable-parts-engine"],
+            command,
             cwd=self.root,
             env=env,
             capture_output=True,
@@ -100,6 +111,11 @@ class BuildFarm:
             f"{bench_id}: no circuit.json produced "
             f"(exit={proc.returncode})\nstdout: {proc.stdout[-1500:]}\n"
             f"stderr: {proc.stderr[-1500:]}"
+        )
+        assert 'Async effect error in ' not in f"{proc.stdout}\n{proc.stderr}", (
+            f"{bench_id}: compiler swallowed a failed async effect despite "
+            f"exit={proc.returncode}\nstdout: {proc.stdout[-2000:]}\n"
+            f"stderr: {proc.stderr[-2000:]}"
         )
         return json.loads(out_path.read_text())
 
@@ -141,6 +157,15 @@ class CircuitGraph:
             members = list(e.get("connected_source_port_ids") or []) + [
                 f"net:{nid}" for nid in (e.get("connected_source_net_ids") or [])
             ]
+            for m in members[1:]:
+                self._union(members[0], m)
+        # Package-internal copper is electrical connectivity too (for
+        # example AMS1117 VOUT and its SOT-223 TAB). It must not be replaced
+        # by an invented PCB trace just to make source-topology tests see it.
+        for e in elements:
+            if e["type"] != "source_component_internal_connection":
+                continue
+            members = list(e.get("source_port_ids") or [])
             for m in members[1:]:
                 self._union(members[0], m)
 

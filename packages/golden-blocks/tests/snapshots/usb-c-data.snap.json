@@ -2,11 +2,27 @@
  "components": {
   "C1": {
    "ftype": "simple_capacitor",
-   "lcsc": "C15850"
+   "lcsc": "C52923"
   },
   "J1": {
    "ftype": "simple_connector",
    "lcsc": "C165948"
+  },
+  "N15": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N16": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N3": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N4": {
+   "ftype": "simple_chip",
+   "lcsc": null
   },
   "R1": {
    "ftype": "simple_resistor",
@@ -32,40 +48,41 @@
  "elementCounts": {
   "cad_component": 7,
   "pcb_board": 1,
-  "pcb_component": 7,
-  "pcb_copper_pour": 1,
+  "pcb_component": 11,
+  "pcb_copper_pour": 2,
   "pcb_courtyard_outline": 2,
   "pcb_courtyard_rect": 5,
-  "pcb_group": 2,
+  "pcb_group": 6,
   "pcb_hole": 3,
-  "pcb_keepout": 2,
+  "pcb_keepout": 3,
   "pcb_plated_hole": 4,
-  "pcb_port": 32,
+  "pcb_port": 36,
   "pcb_silkscreen_path": 14,
   "pcb_silkscreen_text": 7,
-  "pcb_smtpad": 28,
+  "pcb_smtpad": 32,
   "pcb_solder_paste": 32,
+  "pcb_trace": 8,
+  "pcb_via": 8,
   "schematic_component": 7,
-  "schematic_group": 3,
-  "schematic_net_label": 16,
-  "schematic_port": 32,
+  "schematic_group": 7,
+  "schematic_net_label": 19,
+  "schematic_port": 36,
   "schematic_text": 5,
-  "schematic_trace": 15,
+  "schematic_trace": 14,
   "source_board": 1,
-  "source_component": 7,
-  "source_group": 3,
-  "source_net": 6,
-  "source_port": 32,
+  "source_component": 11,
+  "source_component_internal_connection": 2,
+  "source_group": 7,
+  "source_net": 4,
+  "source_port": 36,
   "source_project_metadata": 1,
   "source_trace": 28
  },
  "nets": [
   "GND",
   "USB_DM",
-  "USB_DM_CONN",
   "USB_DP",
-  "USB_DP_CONN",
-  "V5"
+  "VBUS_RAW"
  ],
  "traceCount": 28
 }

@@ -2,11 +2,23 @@
  "components": {
   "C1": {
    "ftype": "simple_capacitor",
-   "lcsc": "C15850"
+   "lcsc": "C52923"
   },
   "J1": {
    "ftype": "simple_connector",
    "lcsc": "C165948"
+  },
+  "N15": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N3": {
+   "ftype": "simple_chip",
+   "lcsc": null
+  },
+  "N4": {
+   "ftype": "simple_chip",
+   "lcsc": null
   },
   "R1": {
    "ftype": "simple_resistor",
@@ -24,35 +36,38 @@
  "elementCounts": {
   "cad_component": 5,
   "pcb_board": 1,
-  "pcb_component": 5,
+  "pcb_component": 8,
   "pcb_courtyard_outline": 2,
   "pcb_courtyard_rect": 3,
-  "pcb_group": 1,
+  "pcb_group": 2,
   "pcb_hole": 2,
-  "pcb_keepout": 1,
+  "pcb_keepout": 2,
   "pcb_plated_hole": 4,
-  "pcb_port": 28,
+  "pcb_port": 31,
   "pcb_silkscreen_path": 10,
   "pcb_silkscreen_text": 5,
-  "pcb_smtpad": 24,
+  "pcb_smtpad": 27,
   "pcb_solder_paste": 28,
+  "pcb_trace": 3,
+  "pcb_via": 2,
   "schematic_component": 5,
-  "schematic_group": 2,
-  "schematic_net_label": 13,
-  "schematic_port": 28,
-  "schematic_text": 4,
-  "schematic_trace": 15,
+  "schematic_group": 3,
+  "schematic_net_label": 11,
+  "schematic_port": 31,
+  "schematic_text": 6,
+  "schematic_trace": 14,
   "source_board": 1,
-  "source_component": 5,
-  "source_group": 2,
+  "source_component": 8,
+  "source_component_internal_connection": 2,
+  "source_group": 3,
   "source_net": 2,
-  "source_port": 28,
+  "source_port": 31,
   "source_project_metadata": 1,
-  "source_trace": 20
+  "source_trace": 21
  },
  "nets": [
   "GND",
-  "V5"
+  "VBUS_RAW"
  ],
- "traceCount": 20
+ "traceCount": 21
 }

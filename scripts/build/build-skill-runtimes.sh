@@ -65,6 +65,13 @@ fi
 vendor_package "${CIRCUITPY_SRC}" "${CIRCUITCODE_VENDOR}"
 echo "vendored circuitpy → skills/circuitcode/scripts/packages/circuitpy"
 
+# The project snapshot synchronizer is also needed at skill runtime. Keep one
+# reviewed source at repo root, and vendor its exact bytes beside the packages
+# rather than maintaining a second implementation inside the skill.
+cp "${REPO_ROOT}/scripts/sync_golden_blocks.py" \
+  "${REPO_ROOT}/skills/circuitcode/scripts/packages/sync_golden_blocks.py"
+echo "vendored golden-block synchronizer → skills/circuitcode/scripts/packages"
+
 # verifylib: the standalone pre-fabrication checks circuitpy calls at stages
 # 4c and 5b. Vendored beside circuitpy so the skill stays self-contained; the
 # pipeline degrades to one `verify_unavailable` info if it is missing rather

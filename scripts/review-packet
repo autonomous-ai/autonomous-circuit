@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the packet our experts audit before we release the app.
 
-Run: scripts/review-packet [--out review-packet]
+Run: scripts/review-packet
 
 ## What this is, and what it is not
 
@@ -48,6 +48,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 BLOCKS_DIR = REPO / "packages" / "golden-blocks" / "blocks"
 EXAMPLES_DIR = REPO / "examples"
+CIRCUITPY_SRC = REPO / "packages" / "circuitpy" / "src"
+if str(REPO) not in sys.path:
+    # Executing ``/abs/repo/scripts/review-packet`` sets sys.path[0] to the
+    # scripts directory, not the repository root. Keep local process helpers
+    # importable regardless of the caller's working directory.
+    sys.path.insert(0, str(REPO))
 
 # Per-board artifacts copied into the packet, and why an EE needs each one.
 BOARD_ARTIFACTS = {
@@ -60,6 +66,20 @@ BOARD_ARTIFACTS = {
     "main_review/_pcb.png": "the layout",
 }
 
+# The sidecar is the manifest, not a suggestion.  These logical names must
+# resolve to the exact files linked from every board review; otherwise a
+# source-fresh JSON file can still publish a packet with no manufacturing
+# evidence behind it.
+BOARD_ARTIFACT_KEYS = {
+    "gerbers": "main_fab/gerbers.zip",
+    "bom": "main_fab/bom.csv",
+    "cpl": "main_fab/cpl.csv",
+    "kicadProject": "main_fab/kicad-project.zip",
+    "glb": "main_fab/board.glb",
+    "schematicPng": "main_review/_schematic.png",
+    "pcbPng": "main_review/_pcb.png",
+}
+
 
 def load_sidecar(board_dir: Path) -> dict:
     try:
@@ -68,9 +88,204 @@ def load_sidecar(board_dir: Path) -> dict:
         return {}
 
 
+def sidecar_freshness_error(project_root: Path, sidecar: dict) -> str | None:
+    """Explain why a board sidecar cannot represent the current source.
+
+    ``main.board.json`` is the index for every generated artifact linked from
+    a board review.  Its entry-file hash catches direct board edits; its
+    whole-graph fingerprint catches edits to imported blocks, ``product.json``
+    and ``parts.json``. The pipeline revision and exact patched compiler/router
+    bundle hashes catch grading or routing changes made without an upstream
+    semver bump. All must match before review results may be published;
+    otherwise a perfectly valid old packet can be presented as the result of
+    the source and toolchain beside it.
+    """
+    # Manufacturing evidence must remain reproducible from the exact frozen
+    # golden-block bytes beside the board. The source fingerprint below also
+    # notices imported TSX edits, but the lock covers the complete selected
+    # snapshot, including review docs and third-party license/provenance files.
+    try:
+        from scripts.sync_golden_blocks import (  # type: ignore
+            SyncError as GoldenBlockSyncError,
+            check_project as check_golden_block_snapshot,
+        )
+
+        snapshot_errors = check_golden_block_snapshot(project_root)
+    except GoldenBlockSyncError as exc:
+        return f"golden-block snapshot is not locked: {exc}"
+    except Exception as exc:
+        return (
+            "could not verify golden-block snapshot: "
+            f"{type(exc).__name__}: {exc}"
+        )
+    if snapshot_errors:
+        return "golden-block snapshot drift: " + "; ".join(snapshot_errors)
+
+    source = sidecar.get("source")
+    if not isinstance(source, dict):
+        return "main.board.json has no source identity"
+
+    source_path = source.get("path")
+    stored_hash = source.get("hash")
+    stored_fingerprint = source.get("fingerprint")
+    stored_pipeline_revision = sidecar.get("generatorRevision")
+    stored_toolchain = sidecar.get("toolchain")
+    if not isinstance(source_path, str) or not source_path.strip():
+        return "main.board.json has no source.path"
+    if not isinstance(stored_hash, str) or not stored_hash:
+        return "main.board.json has no source.hash"
+    if not isinstance(stored_fingerprint, str) or not stored_fingerprint:
+        return "main.board.json has no source.fingerprint"
+    if not isinstance(stored_pipeline_revision, str) or not stored_pipeline_revision:
+        return "main.board.json has no generatorRevision"
+    if not isinstance(stored_toolchain, dict) or not stored_toolchain:
+        return "main.board.json has no toolchain identity"
+
+    entry = (project_root / source_path).resolve()
+    root = project_root.resolve()
+    try:
+        entry.relative_to(root)
+    except ValueError:
+        return f"source.path escapes the project root: {source_path}"
+    if not entry.is_file():
+        return f"source.path does not exist: {source_path}"
+
+    try:
+        if str(CIRCUITPY_SRC) not in sys.path:
+            sys.path.insert(0, str(CIRCUITPY_SRC))
+        from circuitpy.generation import (  # type: ignore
+            _current_toolchain_block,
+            pipeline_revision,
+        )
+        from circuitpy.source_hash import board_source_hash  # type: ignore
+
+        current = board_source_hash(entry, root)
+        current_pipeline_revision = pipeline_revision()
+        current_toolchain = _current_toolchain_block()
+    except Exception as exc:
+        return f"could not recompute source identity: {type(exc).__name__}: {exc}"
+
+    mismatches: list[str] = []
+    if stored_hash != current.source_hash:
+        mismatches.append("entry hash")
+    if stored_fingerprint != current.source_fingerprint:
+        mismatches.append("source fingerprint")
+    if stored_pipeline_revision != current_pipeline_revision:
+        mismatches.append("pipeline revision")
+    # KiCad is recorded as artifact provenance, but is not a portable runtime
+    # pin: a reviewer and CI may have a different supported KiCad build. The
+    # compiler/router package versions and exact patched-bundle hashes must be
+    # identical everywhere.
+    stored_build_identity = {
+        key: value for key, value in stored_toolchain.items() if key != "kicadCli"
+    }
+    current_build_identity = {
+        key: value for key, value in current_toolchain.items() if key != "kicadCli"
+    }
+    if stored_build_identity != current_build_identity:
+        mismatches.append("toolchain identity")
+    if mismatches:
+        return (
+            f"stale main.board.json ({' and '.join(mismatches)} differ from "
+            "the current source graph)"
+        )
+    return review_evidence_error(project_root, sidecar)
+
+
+def review_evidence_error(project_root: Path, sidecar: dict) -> str | None:
+    """Reject a current-but-incomplete board verdict before publication.
+
+    Fresh source identity proves only *which source* produced a sidecar.  It
+    does not prove that the build finished, that the fab gate passed, or that
+    the files a reviewer is about to click still exist.  Review publication is
+    therefore stricter than sidecar reuse: every canonical artifact must be
+    declared, present below ``boards/``, and backed by ``fab.ready == true``.
+    """
+
+    validation = sidecar.get("validation")
+    if not isinstance(validation, dict):
+        return "main.board.json has no validation block"
+    warnings = validation.get("warnings", [])
+    if not isinstance(warnings, list):
+        return "main.board.json validation.warnings is not a list"
+    errors = [
+        warning for warning in warnings
+        if isinstance(warning, dict) and warning.get("severity") == "error"
+    ]
+    if errors:
+        return f"main.board.json still has {len(errors)} blocking validation finding(s)"
+
+    try:
+        if str(CIRCUITPY_SRC) not in sys.path:
+            sys.path.insert(0, str(CIRCUITPY_SRC))
+        from circuitpy.generation import routing_attempt_evidence_error  # type: ignore
+    except Exception as exc:
+        return f"could not validate routing attempt evidence: {type(exc).__name__}: {exc}"
+    routing_error = routing_attempt_evidence_error(
+        sidecar.get("build"),
+        circuit_json_path=project_root / "boards" / "main.circuit.json",
+    )
+    if routing_error is not None:
+        return f"main.board.json {routing_error}"
+
+    fab = sidecar.get("fab")
+    if not isinstance(fab, dict):
+        return "main.board.json has no fab block"
+    if fab.get("ready") is not True:
+        return "main.board.json does not prove fab.ready == true"
+    if fab.get("gerberSource") != "kicad-cli":
+        return "main.board.json fab evidence was not produced by kicad-cli"
+
+    bom = sidecar.get("bom")
+    if not isinstance(bom, dict):
+        return "main.board.json has no bom block"
+    for field in ("lines", "orderable"):
+        value = bom.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            return f"main.board.json bom.{field} is missing or invalid"
+
+    board = sidecar.get("board")
+    if not isinstance(board, dict):
+        return "main.board.json has no board block"
+    board_path = board.get("path")
+    if board_path != "main.circuit.json":
+        return "main.board.json board.path must be main.circuit.json"
+
+    artifacts = sidecar.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return "main.board.json has no artifact manifest"
+    for key, expected in BOARD_ARTIFACT_KEYS.items():
+        if artifacts.get(key) != expected:
+            return f"main.board.json artifacts.{key} must be {expected}"
+
+    boards_dir = (project_root / "boards").resolve()
+    declared = [("board.path", board_path)] + [
+        (f"artifacts.{key}", value) for key, value in sorted(artifacts.items())
+    ]
+    for label, relative in declared:
+        if not isinstance(relative, str) or not relative.strip():
+            return f"main.board.json {label} is empty"
+        candidate = (boards_dir / relative).resolve()
+        try:
+            candidate.relative_to(boards_dir)
+        except ValueError:
+            return f"main.board.json {label} escapes boards/: {relative}"
+        if not candidate.is_file():
+            return f"main.board.json {label} is missing: {relative}"
+    return None
+
+
 def blocking(sidecar: dict) -> list[dict]:
-    warnings = sidecar.get("validation", {}).get("warnings", [])
-    return [w for w in warnings if w.get("severity") == "error"]
+    validation = sidecar.get("validation")
+    if not isinstance(validation, dict):
+        return []
+    warnings = validation.get("warnings", [])
+    if not isinstance(warnings, list):
+        return []
+    return [
+        w for w in warnings
+        if isinstance(w, dict) and w.get("severity") == "error"
+    ]
 
 
 def block_sheet(block_id: str, block_md: str) -> str:
@@ -428,17 +643,56 @@ than after.
 """
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Write the review sheets in place, so a GitHub link is the packet.
 
     An earlier version built a separate directory and zipped it. Dee wanted a
     link he can send, and a zip is not a link — so the sheets now live beside
     the thing they review. `examples/<project>/REVIEW.md` sits next to that
     board's own gerbers, BOM and KiCad project; each block's sheet sits next to
-    its source. Nothing is copied, so nothing can go stale against the original.
+    its source. Before publishing, every board sidecar is checked against both
+    the current entry-file hash, whole-source-graph fingerprint, exact patched
+    toolchain, and content-hashed frozen golden-block snapshot.
     """
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.parse_args()
+    ap.parse_args(argv)
+
+    # Resolve every board before writing any review file.  A partial refresh
+    # is worse than a hard failure: it leaves a shareable tree whose block
+    # sheets are current while one or more board verdicts describe old source.
+    board_inputs: list[tuple[Path, dict]] = []
+    stale: list[tuple[str, str]] = []
+    projects = sorted(
+        p for p in EXAMPLES_DIR.iterdir()
+        if p.is_dir()
+        and ((p / "product.json").is_file() or (p / "boards" / "main.tsx").is_file())
+    )
+    for ex in projects:
+        board_dir = ex / "boards"
+        if not (board_dir / "main.board.json").exists():
+            stale.append((ex.name, "missing boards/main.board.json"))
+            continue
+        sidecar = load_sidecar(board_dir)
+        freshness_error = sidecar_freshness_error(ex, sidecar)
+        if freshness_error:
+            stale.append((ex.name, freshness_error))
+        else:
+            board_inputs.append((ex, sidecar))
+
+    if stale:
+        print(
+            "ERROR: refusing to publish review results from stale board "
+            "artifacts:",
+            file=sys.stderr,
+        )
+        for name, reason in stale:
+            print(f"  - {name}: {reason}", file=sys.stderr)
+        print(
+            "Rebuild each listed example so main.board.json and its artifacts "
+            "match the current source, then run scripts/review-packet again.",
+            file=sys.stderr,
+        )
+        return 1
 
     # --- one sheet per block, beside its source ---
     block_ids = sorted(d.name for d in BLOCKS_DIR.iterdir() if d.is_dir())
@@ -450,11 +704,7 @@ def main() -> int:
 
     # --- one sheet per board, beside its artifacts ---
     boards: list[tuple[str, int]] = []
-    for ex in sorted(p for p in EXAMPLES_DIR.iterdir() if p.is_dir()):
-        board_dir = ex / "boards"
-        if not (board_dir / "main.board.json").exists():
-            continue
-        sidecar = load_sidecar(board_dir)
+    for ex, sidecar in board_inputs:
         errors = blocking(sidecar)
         boards.append((ex.name, len(errors)))
         (ex / "REVIEW.md").write_text(board_sheet(ex.name, sidecar, errors))

@@ -1,0 +1,62 @@
+{
+  "bounds": { "minX": -5, "maxX": 5, "minY": -4, "maxY": 4 },
+  "layerCount": 2,
+  "minTraceWidth": 0.15,
+  "minViaDiameter": 0.6,
+  "minViaHoleDiameter": 0.3,
+  "minTraceToPadEdgeClearance": 0.15,
+  "minViaEdgeToPadEdgeClearance": 0.15,
+  "obstacles": [
+    {
+      "type": "rect",
+      "layers": ["top"],
+      "center": { "x": 0, "y": 0 },
+      "width": 1,
+      "height": 1,
+      "connectedTo": [
+        "connectivity_net7",
+        "source_trace_fanout",
+        "source_trace_local",
+        "pcb_smtpad_shared",
+        "pcb_port_shared"
+      ]
+    },
+    {
+      "type": "rect",
+      "layers": ["top"],
+      "center": { "x": 3, "y": 0 },
+      "width": 1,
+      "height": 1,
+      "connectedTo": [
+        "connectivity_net7",
+        "source_trace_local",
+        "pcb_smtpad_end",
+        "pcb_port_end"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "name": "source_trace_local",
+      "source_trace_id": "source_trace_local",
+      "pointsToConnect": [
+        { "x": 0, "y": 0, "layer": "top", "pointId": "pcb_port_shared", "pcb_port_id": "pcb_port_shared" },
+        { "x": 3, "y": 0, "layer": "top", "pointId": "pcb_port_end", "pcb_port_id": "pcb_port_end" }
+      ]
+    }
+  ],
+  "traces": [
+    {
+      "type": "pcb_trace",
+      "pcb_trace_id": "fanout:source_trace_fanout",
+      "connection_name": "source_trace_fanout",
+      "connectsTo": ["source_trace_fanout", "pcb_port_shared"],
+      "route": [
+        { "route_type": "wire", "x": 0, "y": 0, "width": 0.15, "layer": "top" },
+        { "route_type": "wire", "x": -1, "y": 1, "width": 0.15, "layer": "top" },
+        { "route_type": "via", "x": -1, "y": 1, "from_layer": "top", "to_layer": "bottom", "via_diameter": 0.6, "via_hole_diameter": 0.3 },
+        { "route_type": "wire", "x": -1, "y": 1, "width": 0.15, "layer": "bottom" }
+      ]
+    }
+  ]
+}
