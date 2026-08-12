@@ -206,6 +206,7 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
     "power_intent_usb_load_missing",
     "power_intent_usb_load_topology",
     "power_intent_usb_load_budget",
+    "power_intent_usb_load_unknown",
     "power_intent_regulator_contract",
     "power_intent_regulator_missing",
     "power_intent_regulator_identity",

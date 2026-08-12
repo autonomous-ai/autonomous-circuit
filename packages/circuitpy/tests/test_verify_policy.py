@@ -71,6 +71,7 @@ def test_explicit_product_layout_mismatches_block():
         "power_intent_usb_limiter_setting_value",
         "power_intent_usb_limiter_setting_topology",
         "power_intent_usb_load_budget",
+        "power_intent_usb_load_unknown",
         "power_intent_regulator_contract",
         "power_intent_regulator_missing",
         "power_intent_regulator_identity",

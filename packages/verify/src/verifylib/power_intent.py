@@ -293,10 +293,10 @@ def _regulator_contract_failures(value: object) -> list[str]:
     return failures
 
 
-def _regulator_peak_current(
-    board: Board, output: Net, regulator_ref: str, cap_refs: set[str]
+def _peak_current_on_net(
+    board: Board, output: Net, excluded_refs: set[str]
 ) -> tuple[float | None, list[str]]:
-    """Measure the built rail at datasheet peak, never a declared estimate."""
+    """Measure a built rail at datasheet peak, never a declared estimate."""
 
     network = dc.build_network(board, load_mode="peak")
     solution = dc.solve(network)
@@ -306,7 +306,7 @@ def _regulator_peak_current(
     unknown: list[str] = []
     pins = _component_pins(board)
     for component in board.placed():
-        if component.name == regulator_ref or component.name in cap_refs:
+        if component.name in excluded_refs:
             continue
         if output.key not in _component_nets(pins, component):
             continue
@@ -317,17 +317,98 @@ def _regulator_peak_current(
         ) is None:
             unknown.append(component.name)
 
-    amps = sum(sink.amps for sink in network.sinks if sink.net == output.key)
+    amps = sum(
+        sink.amps
+        for sink in network.sinks
+        if sink.net == output.key and sink.refdes not in excluded_refs
+    )
     # Resistor-limited LEDs and similar loads are solved as elements rather
     # than black-box sinks. Count current leaving the regulated node in either
     # element orientation, exactly once at the boundary.
     for element in network.elements:
+        if element.refdes in excluded_refs:
+            continue
         flow = solution.currents.get(element.refdes, 0.0)
         if element.a == output.key and flow > 0:
             amps += flow
         elif element.b == output.key and flow < 0:
             amps -= flow
     return amps * 1000.0, sorted(set(unknown))
+
+
+def _regulator_peak_current(
+    board: Board,
+    output: Net,
+    regulator_ref: str,
+    cap_refs: set[str],
+    *,
+    excluded_refs: set[str] | None = None,
+) -> tuple[float | None, list[str]]:
+    """Measure one regulator output, excluding its boundary and capacitors."""
+
+    return _peak_current_on_net(
+        board,
+        output,
+        {regulator_ref, *cap_refs, *(excluded_refs or set())},
+    )
+
+
+def _compiled_fixed_usb_peak(
+    board: Board,
+    policy: dict[str, Any],
+    protected: Net,
+    firmware_refs: set[str],
+) -> tuple[float | None, list[str]]:
+    """Measure uncapped protected loads, including declared downstream rails.
+
+    The USB limiter and regulator packages are boundaries, not loads on every
+    rail they touch. Their audited quiescent currents remain covered by the
+    deliberately conservative declared fixed allowance; all compiled consumer
+    loads are a hard lower bound on that allowance.
+    """
+
+    usb = policy.get("usb")
+    limiter_ref = ""
+    if isinstance(usb, dict) and isinstance(usb.get("currentLimiter"), dict):
+        limiter_ref = str(usb["currentLimiter"].get("ref") or "")
+
+    raw_regulators = policy.get("regulators")
+    declarations = raw_regulators if isinstance(raw_regulators, list) else []
+    boundary_refs = {limiter_ref} if limiter_ref else set()
+    for declaration in declarations:
+        if isinstance(declaration, dict):
+            boundary_refs.add(str(declaration.get("ref") or ""))
+    boundary_refs.discard("")
+
+    total, unknown = _peak_current_on_net(
+        board, protected, firmware_refs | boundary_refs
+    )
+    if total is None:
+        return None, unknown
+
+    for declaration in declarations:
+        if not isinstance(declaration, dict):
+            continue
+        if str(declaration.get("inputNet") or "") != protected.label:
+            continue
+        output = board.net_named(str(declaration.get("outputNet") or ""))
+        if output is None:
+            continue
+        downstream, downstream_unknown = _regulator_peak_current(
+            board,
+            output,
+            str(declaration.get("ref") or ""),
+            {
+                str(declaration.get("inputCapRef") or ""),
+                str(declaration.get("outputCapRef") or ""),
+            },
+            excluded_refs=firmware_refs,
+        )
+        unknown.extend(downstream_unknown)
+        if downstream is None:
+            return None, sorted(set(unknown))
+        total += downstream
+    return total, sorted(set(unknown))
 
 
 @never_raises
@@ -813,6 +894,7 @@ def _usb(board: Board, policy: dict[str, Any]) -> list[Finding]:
     fixed_load = _finite_number(usb.get("fixedOperationalLoadMa")) or 0.0
     operational_total = fixed_load
     physical_total = 0.0
+    firmware_refs: set[str] = set()
     loads = usb.get("firmwareLimitedLoads")
     loads = loads if isinstance(loads, list) else []
     for index, load in enumerate(loads):
@@ -824,6 +906,7 @@ def _usb(board: Board, policy: dict[str, Any]) -> list[Finding]:
             for component in board.placed()
             if any(fnmatch.fnmatchcase(component.name, pattern) for pattern in patterns)
         ]
+        firmware_refs.update(component.name for component in matches)
         label = ",".join(patterns) or f"load[{index}]"
         if not matches:
             out.append(
@@ -860,6 +943,33 @@ def _usb(board: Board, policy: dict[str, Any]) -> list[Finding]:
                     label,
                     "power_intent_usb_load_budget",
                     f"{len(matches)} matched device(s) have {physical:g}mA declared physical peak, but their aggregate operational cap is {operational:g}mA",
+                    "error",
+                )
+            )
+
+    if protected is not None:
+        compiled_fixed, fixed_unknown = _compiled_fixed_usb_peak(
+            board, policy, protected, firmware_refs
+        )
+        if fixed_unknown:
+            out.append(
+                finding(
+                    protected_name,
+                    "power_intent_usb_load_unknown",
+                    "the protected fixed-load peak cannot be proven because "
+                    + ", ".join(fixed_unknown)
+                    + " have no audited load model",
+                    "error",
+                )
+            )
+        elif compiled_fixed is not None and compiled_fixed > fixed_load + 1e-9:
+            out.append(
+                finding(
+                    protected_name,
+                    "power_intent_usb_load_budget",
+                    f"compiled uncapped fixed loads draw {compiled_fixed:.3f}mA peak, "
+                    f"but fixedOperationalLoadMa declares only {fixed_load:g}mA; "
+                    "the declaration must conservatively cover the built hardware",
                     "error",
                 )
             )

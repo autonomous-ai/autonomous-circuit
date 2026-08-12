@@ -257,6 +257,15 @@ def fixture() -> list[dict]:
             y=5,
             ftype="simple_led",
         )
+    elements += component(
+        "U8",
+        index=30,
+        x=0,
+        y=8,
+        ftype="simple_chip",
+        lcsc="C2040",
+        manufacturer_part_number="RP2040",
+    )
 
     for ref in ("C1", "C24"):
         connect(elements, ref, 0, "VBUS_RAW")
@@ -269,6 +278,8 @@ def fixture() -> list[dict]:
     for ref in (f"D{i}" for i in range(10, 18)):
         connect(elements, ref, 0, "V5")
         connect(elements, ref, 1, "GND")
+    connect(elements, "U8", 0, "V5")
+    connect(elements, "U8", 1, "GND")
     return elements
 
 
@@ -285,6 +296,47 @@ def test_clean_usb_power_boundary_passes() -> None:
     assert result.findings == []
     assert result.coverage is not None
     assert result.coverage.examined == 1
+
+
+def test_declared_fixed_load_must_cover_compiled_uncapped_peak() -> None:
+    underdeclared = policy()
+    underdeclared["usb"]["fixedOperationalLoadMa"] = 99
+    result = power_intent.check(model.Board(fixture()), underdeclared)
+    detail = next(
+        item["detail"]
+        for item in result.findings
+        if item["kind"] == "power_intent_usb_load_budget"
+        and "compiled uncapped" in item["detail"]
+    )
+    assert "100.000mA" in detail
+    assert "declares only 99mA" in detail
+
+
+def test_unknown_compiled_fixed_load_fails_closed() -> None:
+    elements = fixture()
+    fixed = next(
+        element
+        for element in elements
+        if element.get("type") == "source_component" and element.get("name") == "U8"
+    )
+    fixed["supplier_part_numbers"] = {"jlcpcb": ["C00000"]}
+    fixed["manufacturer_part_number"] = "UNKNOWN-FIXED-LOAD"
+    result = power_intent.check(model.Board(elements), policy())
+    assert "power_intent_usb_load_unknown" in error_kinds(result)
+
+
+def test_fixed_usb_peak_includes_declared_regulator_output_consumers() -> None:
+    board_model = model.Board(regulator_fixture())
+    declaration = regulator_policy()
+    declaration["usb"] = {"currentLimiter": {"ref": "U7"}}
+    peak, unknown = power_intent._compiled_fixed_usb_peak(
+        board_model,
+        declaration,
+        board_model.net_named("V5"),
+        set(),
+    )
+    assert unknown == []
+    assert peak == 125
 
 
 def test_raw_attach_capacitance_is_summed_before_the_limiter() -> None:
