@@ -2,49 +2,51 @@
  "components": {
   "C2": {
    "ftype": "simple_capacitor",
-   "lcsc": "C15850"
+   "lcsc": "C19702"
   },
   "C3": {
    "ftype": "simple_capacitor",
-   "lcsc": "C15850"
+   "lcsc": "C19702"
   },
   "U2": {
    "ftype": "simple_chip",
-   "lcsc": "C6186"
+   "lcsc": "C500795"
   }
  },
  "elementCounts": {
   "cad_component": 3,
   "pcb_board": 1,
-  "pcb_component": 3,
+  "pcb_component": 5,
+  "pcb_copper_pour": 2,
   "pcb_courtyard_outline": 1,
   "pcb_courtyard_rect": 2,
   "pcb_group": 1,
-  "pcb_port": 8,
+  "pcb_port": 14,
   "pcb_silkscreen_path": 3,
   "pcb_silkscreen_text": 3,
   "pcb_smtpad": 8,
   "pcb_solder_paste": 8,
-  "pcb_trace": 4,
+  "pcb_trace": 6,
+  "pcb_via": 2,
   "schematic_component": 3,
   "schematic_group": 2,
   "schematic_net_label": 5,
   "schematic_port": 8,
   "schematic_text": 2,
-  "schematic_trace": 4,
+  "schematic_trace": 5,
   "source_board": 1,
   "source_component": 3,
-  "source_component_internal_connection": 1,
   "source_group": 2,
+  "source_manually_placed_via": 2,
   "source_net": 3,
-  "source_port": 8,
+  "source_port": 14,
   "source_project_metadata": 1,
-  "source_trace": 7
+  "source_trace": 8
  },
  "nets": [
   "GND",
   "V3_3",
   "V5"
  ],
- "traceCount": 7
+ "traceCount": 8
 }

@@ -52,6 +52,12 @@ below 10uF. Downstream LDO/load bulk is isolated by the controlled-rise switch.
   then turns into its node. The dogleg is about 1.78mm long, below the 2mm
   limit, clears the adjacent GND pad, and reserves a real signal escape
   corridor around the 0.8mm nodes.
+- Dense consumers may provide `railLayerTransition` as two top-authored,
+  block-local off-pad via points. The helper anchors their offsets on the left
+  masked node, mirrors X for a bottom block, and emits a complete
+  component-face→opposite-face→component-face 0.8mm path with 0.8/0.5mm
+  vias. A rail path is never allowed to end on the opposite face of its
+  face-only masked node.
 
 - CC1/CC2 each run through one USBLC6 channel (IO1/IO1B, IO2/IO2B) — the
   connector-facing pins are the protected side.

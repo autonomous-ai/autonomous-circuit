@@ -9,19 +9,20 @@ export default () => (
     minViaPadDiameter="0.6mm" minViaHoleDiameter="0.3mm">
     <GndPlanes layers={["top", "bottom"]}
       stitchingVias={[{ x: -10, y: -7 }, { x: 10, y: -7 }]} />
-    <Ldo3v3 layer="bottom" externalInputPowerTrunkPort="VIN" />
+    <Ldo3v3 layer="bottom" externalInputPowerTrunkPort="VIN"
+      maxPinNeckdownLengthMm={2} />
     <MaskedCopperNode name="N90" layer="top" diameterMm={0.8}
-      pcbX={-5.8} pcbY={-3} />
+      pcbX={-4.925} pcbY={-7} />
     <group pcbStyle={{ viaPadDiameter: "0.8mm", viaHoleDiameter: "0.5mm" }}>
       <trace name="TR_BOARD_V5_ATTACH" from=".N90 > .pin1" to=".C2 > .pin1"
-        thickness="0.8mm" maxLength="6mm"
+        thickness="0.8mm" maxLength="10mm"
         pcbPathRelativeTo=".N90 > .pin1"
         pcbPath={[
           { x: 0, y: 0 },
-          { x: 0, y: 3 },
-          { x: 0, y: 3, via: true, fromLayer: "top", toLayer: "bottom" },
-          { x: 0, y: 3 },
-          { x: -0.0875, y: 5.3 },
+          { x: 0, y: 2.5 },
+          { x: 0, y: 2.5, via: true, fromLayer: "top", toLayer: "bottom" },
+          { x: 0, y: 2.5 },
+          { x: 0, y: 4.7 },
         ]} />
     </group>
     <trace name="TR_BOARD_V5_BOUNDARY" from=".N90 > .pin1" to="net.V5"

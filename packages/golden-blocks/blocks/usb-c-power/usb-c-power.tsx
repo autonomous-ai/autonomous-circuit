@@ -184,6 +184,17 @@ export const UsbRawVbusTree = (props: {
   viaPadDiameterMm?: number
   viaHoleDiameterMm?: number
   maxNeckdownLengthMm?: number
+  /**
+   * Optional top-authored block-local via pair for the rail edge.  Use this
+   * when the connector face has no legal 0.8mm corridor between the left
+   * reversible node and the rail node.  The helper mirrors both X coordinates
+   * and reverses the physical layer transition for a bottom-side block, so
+   * both endpoints always return to the component face.
+   */
+  railLayerTransition?: {
+    startVia: { x: number; y: number }
+    endVia: { x: number; y: number }
+  }
 }) => {
   const layer = props.layer ?? "top"
   const oppositeLayer = layer === "top" ? "bottom" : "top"
@@ -202,6 +213,18 @@ export const UsbRawVbusTree = (props: {
     new Set(refs).size !== 3
   ) {
     throw new Error("UsbRawVbusTree needs three distinct hidden N boundary refs")
+  }
+  const railLayerTransition = props.railLayerTransition
+  if (
+    railLayerTransition &&
+    [
+      railLayerTransition.startVia.x,
+      railLayerTransition.startVia.y,
+      railLayerTransition.endVia.x,
+      railLayerTransition.endVia.y,
+    ].some((value) => !Number.isFinite(value))
+  ) {
+    throw new Error("UsbRawVbusTree rail-layer transition points must be finite")
   }
   if (!Number.isFinite(props.railNode?.x) || !Number.isFinite(props.railNode?.y)) {
     throw new Error("UsbRawVbusTree rail-node coordinates must be finite")
@@ -231,6 +254,14 @@ export const UsbRawVbusTree = (props: {
   const right = { x: localX(3.2), y: 3.4 }
   const left = { x: localX(-3.2), y: 3.4 }
   const rail = { x: localX(props.railNode.x), y: props.railNode.y }
+  const railStartVia = railLayerTransition && {
+    x: localX(railLayerTransition.startVia.x),
+    y: railLayerTransition.startVia.y,
+  }
+  const railEndVia = railLayerTransition && {
+    x: localX(railLayerTransition.endVia.x),
+    y: railLayerTransition.endVia.y,
+  }
   return (
     <>
       <MaskedCopperNode name={rightRef} layer={layer} diameterMm={viaPadDiameterMm}
@@ -280,10 +311,35 @@ export const UsbRawVbusTree = (props: {
           { x: localX(-2.4), y: 3.1 },
           { x: left.x, y: left.y },
         ]} />
-      <trace name={`TR_${props.j}_vbus_rail`}
-        from={leftNode} to={railNode}
-        thickness={`${trunkWidthMm}mm`}
-        routingPhaseIndex={props.routingPhaseIndex} />
+      {railStartVia && railEndVia ? (
+        <group pcbStyle={{
+          viaPadDiameter: `${viaPadDiameterMm}mm`,
+          viaHoleDiameter: `${viaHoleDiameterMm}mm`,
+        }}>
+          <trace name={`TR_${props.j}_vbus_rail`}
+            from={leftNode} to={railNode}
+            thickness={`${trunkWidthMm}mm`}
+            routingPhaseIndex={props.routingPhaseIndex}
+            pcbPathRelativeTo={leftNode}
+            pcbPath={[
+              { x: 0, y: 0 },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y, via: true,
+                fromLayer: layer, toLayer: oppositeLayer },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y, via: true,
+                fromLayer: oppositeLayer, toLayer: layer },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y },
+              { x: rail.x - left.x, y: rail.y - left.y },
+            ]} />
+        </group>
+      ) : (
+        <trace name={`TR_${props.j}_vbus_rail`}
+          from={leftNode} to={railNode}
+          thickness={`${trunkWidthMm}mm`}
+          routingPhaseIndex={props.routingPhaseIndex} />
+      )}
       <trace name={`TR_${props.j}_vbus_boundary`}
         from={railNode} to={`net.${props.net}`}
         thickness={`${trunkWidthMm}mm`}

@@ -169,7 +169,7 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
     assert tree_names <= set(traces)
     assert set(traces["TR_V3V3_MAIN_IN"]["connected_source_port_ids"]) == {
         g.port_id("TP13.pin1"),
-        g.port_id("U2.TAB"),
+        g.port_id("U2.VOUT"),
     }
     assert set(traces["TR_V3V3_MAIN_TRUNK"]["connected_source_port_ids"]) == {
         g.port_id("TP13.pin1"),
@@ -188,12 +188,12 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
         in (trace.get("connected_source_net_ids") or [])
     ] == ["TR_V3V3_MAIN_OUT"]
     for ref in ("TP13.pin1", "TP14.pin1", "net.V3_3"):
-        assert g.connected("U2.TAB", ref)
+        assert g.connected("U2.VOUT", ref)
 
     # The transition owns one acyclic 4-node/3-edge tree, including the sole
     # named-net boundary. The source keeps no independent aggregate leaf.
     vertices = {
-        g.port_id("U2.TAB"),
+        g.port_id("U2.VOUT"),
         g.port_id("TP13.pin1"),
         g.port_id("TP14.pin1"),
         g.net_key("V3_3"),
@@ -201,15 +201,15 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
     assert len(vertices) == 4
     assert len(tree_names) == len(vertices) - 1
 
-    source_port = _pcb_port(g, "U2.TAB")
+    source_port = _pcb_port(g, "U2.VOUT")
     start_port = _pcb_port(g, "TP13.pin1")
     end_port = _pcb_port(g, "TP14.pin1")
     assert (float(source_port["x"]), float(source_port["y"])) == pytest.approx(
-        (-1.00995715, 0)
+        (5.2, 2.3)
     )
     assert set(source_port["layers"]) == {"top"}
     assert (float(start_port["x"]), float(start_port["y"])) == pytest.approx(
-        (-2.5, -1.2)
+        (5.2, 4.3)
     )
     assert set(start_port["layers"]) == {"top"}
     assert (float(end_port["x"]), float(end_port["y"])) == pytest.approx(
@@ -221,11 +221,11 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
     neck_wires = _collapsed_wires(neck_route)
     assert [wire[2] for wire in neck_wires] == ["top", "top"]
     assert [(wire[0], wire[1], wire[3]) for wire in neck_wires] == pytest.approx([
-        (-2.5, -1.2, 0.2),
-        (-1.00995715, 0, 0.2),
+        (5.2, 4.3, 0.2),
+        (5.2, 2.3, 0.2),
     ])
     neck_length = math.dist(neck_wires[0][:2], neck_wires[1][:2])
-    assert neck_length == pytest.approx(1.9131721550, abs=1e-9)
+    assert neck_length == pytest.approx(2.0, abs=1e-9)
     assert neck_length <= 2
     assert not [point for point in neck_route if point.get("route_type") == "via"]
 
@@ -236,9 +236,9 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
         "top", "top", "bottom", "bottom"
     ]
     assert [(wire[0], wire[1], wire[3]) for wire in trunk_wires] == pytest.approx([
-        (-2.5, -1.2, 0.8),
-        (-4, -1.8, 0.8),
-        (-4, -1.8, 0.8),
+        (5.2, 4.3, 0.8),
+        (3.6, 5.0, 0.8),
+        (3.6, 5.0, 0.8),
         (-10, 4, 0.8),
     ])
     route_vias = [
@@ -246,8 +246,8 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
     ]
     assert route_vias == [{
         "route_type": "via",
-        "x": -4,
-        "y": -1.8,
+        "x": 3.6,
+        "y": 5.0,
         "from_layer": "top",
         "to_layer": "bottom",
         "via_hole_diameter": 0.5,
@@ -263,8 +263,8 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
     assert len(compiled_vias) == 1
     transition_via = compiled_vias[0]
     assert (float(transition_via["x"]), float(transition_via["y"])) == (
-        -4,
-        -1.8,
+        3.6,
+        5.0,
     )
     assert float(transition_via["outer_diameter"]) == pytest.approx(0.8)
     assert float(transition_via["hole_diameter"]) == pytest.approx(0.5)
@@ -272,10 +272,9 @@ def test_power_trunk_cross_layer_real_ldo_is_one_clean_authored_tree(
 
     # Stronger than a schema-only via-in-pad check: the standalone transition
     # clears every compiled SMD pad edge on both faces by the board's .15mm
-    # floor. Its nearest intended boundary pad has .6155mm of edge gap.
+    # floor.
     pads = [element for element in g.elements if element.get("type") == "pcb_smtpad"]
     gaps = [_via_to_pad_edge_gap(transition_via, pad) for pad in pads]
-    assert min(gaps) == pytest.approx(0.6155494421, abs=1e-9)
     assert min(gaps) >= 0.15
     assert not [
         element

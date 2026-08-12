@@ -45,8 +45,14 @@ equivalent layout contract.
 
 The board also allocates three globally unique hidden nodes through
 `vbusBoundaryRefs` and `vbusRailNodeRef`. They form one authored raw-VBUS tree:
-short 0.2mm connector/clamp/cap leaves, a 0.8mm top-bottom-top crossover with
-0.8/0.5mm vias, and one 0.8mm boundary to `net.VBUS_RAW`.
+short 0.2mm connector/clamp/cap leaves, two explicit 0.8mm top-bottom-top
+crossovers with 0.8/0.5mm vias, and one 0.8mm boundary to `net.VBUS_RAW`.
+The connector rail leaves N4 through the off-pad local via `(-5.2, 3.4)`,
+returns through `(-2.8, 6.7)`, and reaches top-local N15 at `(-2.8, 7.75)`.
+Both via vertices are expressed relative to N4 by the shared helper before
+the group transform is applied. This is what keeps a translated instance from
+double-transforming the path, and it guarantees that the final segment lands
+on the component face instead of merely touching N15 on opposite-face copper.
 
 The two connector VBUS nodes sit at block-local `(±3.2, 3.4)`. Their fixed
 two-segment pad-to-node doglegs are about 1.78mm, below the 2mm limit. R1/R2
@@ -83,7 +89,8 @@ mirror. Component centers exchange left/right, the USBLC6's 90° rotation is
 complemented to 270°, and every authored DP/DM and VBUS path vertex is
 mirrored before compilation. The signal crossovers still start and finish on
 the component face and use 0.6/0.3mm vias; the power crossovers still use
-0.8/0.5mm vias. Callers always pass the same top-authored hidden-node
+0.8/0.5mm vias and return to the component face at both endpoints. Callers
+always pass the same top-authored hidden-node
 coordinates—the block owns the face transform.
 
 ## Rail budget

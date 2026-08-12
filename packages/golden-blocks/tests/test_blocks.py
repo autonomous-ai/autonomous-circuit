@@ -52,7 +52,7 @@ PINNED_BOM: dict[str, dict[str, str]] = {
         "U7": "C55266", "C24": "C1525", "R31": "C32297",
         "R32": "C25741",
     },
-    "ldo-3v3": {"U2": "C6186", "C2": "C15850", "C3": "C15850"},
+    "ldo-3v3": {"U2": "C500795", "C2": "C19702", "C3": "C19702"},
     "status-led": {"LED1": "C2297", "R20": "C11702"},
     "sw-tact": {"SW1": "C318884"},
     "i2c-bus": {"R8": "C25900", "R9": "C25900"},
@@ -110,8 +110,8 @@ CONNECTED: dict[str, list[tuple[str, str]]] = {
     "ldo-3v3": [
         ("U2.VIN", "net.V5"),
         ("U2.VOUT", "net.V3_3"),
-        ("U2.TAB", "net.V3_3"),
-        ("U2.GND", "net.GND"),
+        ("U2.GND1", "net.GND"),
+        ("U2.GND2", "net.GND"),
         ("C2.pin1", "net.V5"),
         ("C3.pin1", "net.V3_3"),
     ],
@@ -840,19 +840,22 @@ def test_status_led_compiles_explicit_rail_and_signal_widths(graph):
     assert width(signal, "TR_R20_led") == pytest.approx(0.25)
 
 
-def test_ldo_uses_local_cap_trees_and_one_tab_output_boundary(graph):
-    """AMS1117 package copper and board rail ownership cannot form a V3 cycle."""
+def test_ldo_uses_local_cap_trees_and_one_physical_output_boundary(graph):
+    """AP7361 local copper and board rail ownership cannot form a V3 cycle."""
     normal = graph("ldo-3v3")
-    external = graph("ldo-3v3-external-tab")
+    external = graph("ldo-3v3-external-vout")
     assert not normal.errors() and not normal.warnings()
     assert not external.errors() and not external.warnings()
 
-    internal_pairs = {
-        frozenset(element.get("source_port_ids") or [])
+    u2_ports = {
+        element["name"]
         for element in normal.elements
-        if element.get("type") == "source_component_internal_connection"
+        if element.get("type") == "source_port"
+        and element.get("source_component_id")
+        == normal.components["U2"]["source_component_id"]
     }
-    assert frozenset({normal.port_id("U2.VOUT"), normal.port_id("U2.TAB")}) in internal_pairs
+    assert u2_ports == {"VIN", "GND1", "VOUT", "GND2"}
+    assert "TAB" not in u2_ports
 
     def source_traces(g):
         return {
@@ -866,27 +869,31 @@ def test_ldo_uses_local_cap_trees_and_one_tab_output_boundary(graph):
     assert set(normal_traces["TR_U2_vin_C2"]["connected_source_port_ids"]) == {
         normal.port_id("U2.VIN"), normal.port_id("C2.pin1")
     }
-    assert set(normal_traces["TR_U2_tab_C3"]["connected_source_port_ids"]) == {
-        normal.port_id("U2.TAB"), normal.port_id("C3.pin1")
+    assert set(normal_traces["TR_U2_vout_C3"]["connected_source_port_ids"]) == {
+        normal.port_id("U2.VOUT"), normal.port_id("C3.pin1")
     }
     assert float(normal_traces["TR_U2_vin_C2"]["min_trace_thickness"]) == pytest.approx(0.2)
-    assert float(normal_traces["TR_U2_vin_C2"]["max_length"]) == pytest.approx(3.0)
-    assert float(normal_traces["TR_U2_tab_C3"]["min_trace_thickness"]) == pytest.approx(0.8)
-    assert float(normal_traces["TR_U2_tab_C3"]["max_length"]) == pytest.approx(3.0)
+    assert float(normal_traces["TR_U2_vin_C2"]["max_length"]) == pytest.approx(2.0)
+    assert float(normal_traces["TR_U2_vout_C3"]["min_trace_thickness"]) == pytest.approx(0.8)
+    assert float(normal_traces["TR_U2_vout_C3"]["max_length"]) == pytest.approx(2.0)
     assert "TR_C3_V3_3_boundary" in normal_traces
     assert "TR_C3_V3_3_boundary" not in external_traces
-    assert external_traces["TR_BOARD_V3_TAB_BOUNDARY"]["connected_source_port_ids"] == [
-        external.port_id("U2.TAB")
+    assert external_traces["TR_BOARD_V3_VOUT_BOUNDARY"]["connected_source_port_ids"] == [
+        external.port_id("U2.VOUT")
     ]
-    assert len(external_traces["TR_BOARD_V3_TAB_BOUNDARY"]["connected_source_net_ids"]) == 1
+    assert len(external_traces["TR_BOARD_V3_VOUT_BOUNDARY"]["connected_source_net_ids"]) == 1
 
-    # VOUT/TAB are connected inside the package; there must be no invented
-    # external trace that shorts the two pads or creates a second rail escape.
-    for g, traces in ((normal, normal_traces), (external, external_traces)):
-        assert not [
-            trace for trace in traces.values()
-            if set(trace.get("connected_source_port_ids") or [])
-            == {g.port_id("U2.VOUT"), g.port_id("U2.TAB")}
+    # The selected E package has two physical ground contacts. Its broad tab
+    # must terminate into GND and must never be offered as an output selector.
+    assert set(normal_traces["TR_U2_gnd1"]["connected_source_port_ids"]) == {
+        normal.port_id("U2.GND1")
+    }
+    assert set(normal_traces["TR_U2_tab_gnd"]["connected_source_port_ids"]) == {
+        normal.port_id("U2.GND2")
+    }
+    for name in ("TR_U2_gnd1", "TR_U2_tab_gnd"):
+        assert normal_traces[name]["connected_source_net_ids"] == [
+            normal.nets["GND"]["source_net_id"]
         ]
 
     def routed_width_and_length(g, trace_name: str) -> tuple[set[float], float, int]:
@@ -929,11 +936,11 @@ def test_ldo_uses_local_cap_trees_and_one_tab_output_boundary(graph):
 
     in_widths, in_length, in_vias = routed_width_and_length(normal, "TR_U2_vin_C2")
     assert in_widths == {0.2}
-    assert 0 < in_length <= 3.0
+    assert 0 < in_length <= 2.0
     assert in_vias == 0
-    out_widths, out_length, out_vias = routed_width_and_length(normal, "TR_U2_tab_C3")
+    out_widths, out_length, out_vias = routed_width_and_length(normal, "TR_U2_vout_C3")
     assert out_widths == {0.8}
-    assert 0 < out_length <= 3.0
+    assert 0 < out_length <= 2.0
     assert out_vias == 0
 
 

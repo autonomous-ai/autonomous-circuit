@@ -159,9 +159,9 @@ class CircuitGraph:
             ]
             for m in members[1:]:
                 self._union(members[0], m)
-        # Package-internal copper is electrical connectivity too (for
-        # example AMS1117 VOUT and its SOT-223 TAB). It must not be replaced
-        # by an invented PCB trace just to make source-topology tests see it.
+        # Package-internal copper is electrical connectivity too. It must not
+        # be replaced by an invented PCB trace just to make source-topology
+        # tests see it (some packages expose multiple names for one contact).
         for e in elements:
             if e["type"] != "source_component_internal_connection":
                 continue

@@ -118,8 +118,8 @@ def _assert_component_mirror(top, bottom, names: set[str], axis_x: float) -> Non
                 list(top_port.get("layers") or [])
             )
 
-        # Package copper is part of the transform contract too.  Port hints
-        # are stable for the imported connector, TPS2553, and AMS1117 pads.
+        # Package copper is part of the transform contract too. Port hints are
+        # stable for the imported connector, TPS2553, and AP7361 pads.
         top_pads = sorted([
             (
                 tuple(element.get("port_hints") or []),
@@ -899,27 +899,41 @@ def test_usb_power_entry_bottom_preserves_power_fault_contract(graph) -> None:
 
 
 def test_ldo_bottom_preserves_local_cap_trees(graph) -> None:
-    for bench in ("ldo-3v3", "ldo-3v3-bottom"):
-        g = graph(bench)
+    built = {bench: graph(bench) for bench in ("ldo-3v3", "ldo-3v3-bottom")}
+    _assert_component_mirror(
+        built["ldo-3v3"], built["ldo-3v3-bottom"],
+        {"U2", "C2", "C3"}, axis_x=-1,
+    )
+    for bench, g in built.items():
         _assert_clean(g)
         traces = _source_traces(g)
         assert set(traces["TR_U2_vin_C2"]["connected_source_port_ids"]) == {
             g.port_id("U2.VIN"),
             g.port_id("C2.pin1"),
         }
-        assert set(traces["TR_U2_tab_C3"]["connected_source_port_ids"]) == {
-            g.port_id("U2.TAB"),
+        assert set(traces["TR_U2_vout_C3"]["connected_source_port_ids"]) == {
+            g.port_id("U2.VOUT"),
             g.port_id("C3.pin1"),
         }
-        for name, width in (("TR_U2_vin_C2", 0.2), ("TR_U2_tab_C3", 0.8)):
+        for name, width in (("TR_U2_vin_C2", 0.2), ("TR_U2_vout_C3", 0.8)):
             assert _route_widths(g, name) == {width}
-            assert 0 < _route_length(g, name) <= 3.0
+            assert 0 < _route_length(g, name) <= 2.0
             assert not [
                 point
                 for point in _route_points(g, name)
                 if point.get("route_type") == "via"
             ]
             _assert_route_endpoints(g, name)
+
+        expected_layer = "bottom" if bench.endswith("bottom") else "top"
+        for name in ("TR_U2_gnd1", "TR_U2_tab_gnd"):
+            route = _route_points(g, name)
+            assert len(route) == 1
+            assert route[0]["layer"] == expected_layer
+            assert route[0].get("is_inside_copper_pour") is True
+            assert route[0].get("start_pcb_port_id") == route[0].get(
+                "end_pcb_port_id"
+            )
 
 
 def test_status_led_bottom_preserves_series_path(graph) -> None:

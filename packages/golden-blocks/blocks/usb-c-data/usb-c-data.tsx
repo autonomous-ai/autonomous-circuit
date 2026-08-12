@@ -216,6 +216,10 @@ export const UsbCData = (props: {
       {/* Reversible connector VBUS pads form one authored .2/.8/.2 tree. */}
       <UsbRawVbusTree j={j} net={vbus} boundaryRefs={props.vbusBoundaryRefs}
         railNodeRef={props.vbusRailNodeRef} railNode={{ x: -2.8, y: 7.75 }}
+        railLayerTransition={{
+          startVia: { x: -5.2, y: 3.4 },
+          endVia: { x: -2.8, y: 6.7 },
+        }}
         layer={layer} routingPhaseIndex={powerRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${j}_gnd1`} from={`.${j} > .GND1`} />
       <GndFanoutTrace name={`TR_${j}_gnd2`} from={`.${j} > .GND2`} />
