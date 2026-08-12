@@ -2024,6 +2024,199 @@ const CORE_LAYER_REVERSAL_RETRY_CACHE_IDENTITY_PATCH = {
   ],
 }
 
+const CORE_PLANE_FANOUT_CONNECTION_WIDTH_PATCH = {
+  packageName: "@tscircuit/core",
+  version: "0.0.1642",
+  file: "dist/index.js",
+  pristineSha256:
+    "6e014654d0bf4ce38d400ddf15ed3c6042d166771b3bc4e308785db48167a37b",
+  patchedSha256:
+    "0b42847da834ec61f03b54583f1c514d9b3c4fe5310d543e0d8fd7a15a18f3ce",
+  replacements: [
+    {
+      label: "prepared fanout buses retain their declared trace width",
+      before: `      termination: busSpec.termination ?? { type: "boundary" },
+      connections: preparedConnections,`,
+      after: `      termination: busSpec.termination ?? { type: "boundary" },
+      traceWidth: busSpec.traceWidth,
+      connections: preparedConnections,`,
+    },
+    {
+      label: "automatic plane buses expose their singleton connection width",
+      before: `    planeSrjBuses.push({
+      busId,
+      name: busId,
+      connectionNames: [srjConnection.name],
+      termination: { type: "plane", layer }
+    });`,
+      after: `    const connectionTraceWidths = [
+      srjConnection.nominalTraceWidth,
+      srjConnection.width
+    ].filter((candidate) => candidate !== void 0);
+    for (const candidate of connectionTraceWidths) {
+      if (!Number.isFinite(candidate) || candidate <= 0) {
+        throw new Error('Fanout plane trace "' + busId + '" has an invalid connection trace width');
+      }
+    }
+    const traceWidth = connectionTraceWidths.length > 0 ? Math.max(...connectionTraceWidths) : void 0;
+    planeSrjBuses.push({
+      busId,
+      name: busId,
+      connectionNames: [srjConnection.name],
+      ...traceWidth !== void 0 ? { traceWidth } : {},
+      termination: { type: "plane", layer }
+    });`,
+    },
+    {
+      label: "plane fanout resolves a hard width for each exact connection",
+      before: `function routePlaneTerminatedBus(params) {`,
+      after: `function resolvePlaneConnectionTraceWidth({ connection, bus, fallbackTraceWidth }) {
+  let resolvedTraceWidth = fallbackTraceWidth;
+  for (const [label, candidate] of [
+    [\`bus "\${bus.busId}" traceWidth\`, bus.traceWidth],
+    [\`connection "\${connection.name}" nominalTraceWidth\`, connection.nominalTraceWidth],
+    [\`connection "\${connection.name}" width\`, connection.width]
+  ]) {
+    if (candidate === void 0) continue;
+    resolvedTraceWidth = Math.max(
+      resolvedTraceWidth,
+      resolvePositiveNumber(label, candidate)
+    );
+  }
+  return resolvedTraceWidth;
+}
+function routePlaneTerminatedBus(params) {`,
+    },
+    {
+      label: "each plane dogbone is built at its connection minimum",
+      before: `      for (const preparedConnection of connectionOrder) {
+        const sourceTrack = getPerpendicularAxis(
+          preparedConnection.sourcePoint,
+          bus.direction
+        );
+        const plan = buildPlan({
+          preparedConnection,
+          bus,
+          targetLayer,
+          track: sourceTrack,
+          exitAxis: getExitAxis(bus),
+          layerNames,
+          traceWidth,`,
+      after: `      for (const preparedConnection of connectionOrder) {
+        const sourceTrack = getPerpendicularAxis(
+          preparedConnection.sourcePoint,
+          bus.direction
+        );
+        const connectionTraceWidth = resolvePlaneConnectionTraceWidth({
+          connection: preparedConnection.connection,
+          bus,
+          fallbackTraceWidth: traceWidth
+        });
+        const plan = buildPlan({
+          preparedConnection,
+          bus,
+          targetLayer,
+          track: sourceTrack,
+          exitAxis: getExitAxis(bus),
+          layerNames,
+          traceWidth: connectionTraceWidth,`,
+    },
+    {
+      label: "local routing has a final exact-connection width gate",
+      before: `var Group_assertNoIllegalViaInSmdPad = ({ simpleRouteJson, traces, phaseName }) => {`,
+      after: `var Group_getRequestedConnectionTraceWidths = (simpleRouteJson) => {
+  const defaultWidth = simpleRouteJson.minTraceWidth ?? 0;
+  if (!Number.isFinite(defaultWidth) || defaultWidth < 0) {
+    throw new Error("SimpleRouteJson minTraceWidth must be a non-negative number");
+  }
+  const widthsByConnectionName = /* @__PURE__ */ new Map();
+  const connectionNamesBySourceTraceId = /* @__PURE__ */ new Map();
+  for (const connection of simpleRouteJson.connections ?? []) {
+    if (widthsByConnectionName.has(connection.name)) {
+      throw new Error('SimpleRouteJson contains duplicate connection name "' + connection.name + '"');
+    }
+    let requestedWidth = defaultWidth;
+    for (const [label, candidate] of [
+      ["nominalTraceWidth", connection.nominalTraceWidth],
+      ["width", connection.width]
+    ]) {
+      if (candidate === void 0) continue;
+      if (!Number.isFinite(candidate) || candidate <= 0) {
+        throw new Error('Connection "' + connection.name + '" ' + label + " must be a positive number");
+      }
+      requestedWidth = Math.max(requestedWidth, candidate);
+    }
+    widthsByConnectionName.set(connection.name, requestedWidth);
+    if (typeof connection.source_trace_id === "string") {
+      const connectionNames = connectionNamesBySourceTraceId.get(connection.source_trace_id) ?? [];
+      connectionNames.push(connection.name);
+      connectionNamesBySourceTraceId.set(connection.source_trace_id, connectionNames);
+    }
+  }
+  return { widthsByConnectionName, connectionNamesBySourceTraceId };
+};
+var Group_assertNoRequestedTraceWidthUndercut = ({ simpleRouteJson, traces, phaseName }) => {
+  const {
+    widthsByConnectionName,
+    connectionNamesBySourceTraceId
+  } = Group_getRequestedConnectionTraceWidths(simpleRouteJson);
+  for (const trace of traces ?? []) {
+    if (trace.type !== "pcb_trace" || !Array.isArray(trace.route)) continue;
+    let connectionName = typeof trace.connection_name === "string" && widthsByConnectionName.has(trace.connection_name) ? trace.connection_name : void 0;
+    if (connectionName === void 0 && typeof trace.source_trace_id === "string") {
+      const candidates = connectionNamesBySourceTraceId.get(trace.source_trace_id) ?? [];
+      if (candidates.length > 1) {
+        throw new Error('Autorouter output source trace "' + trace.source_trace_id + '" ambiguously matches ' + candidates.length + " connections");
+      }
+      connectionName = candidates[0];
+    }
+    if (connectionName === void 0) continue;
+    const requestedWidth = widthsByConnectionName.get(connectionName);
+    if (!(requestedWidth > 0)) continue;
+    for (const point of trace.route) {
+      if (point.route_type !== "wire") continue;
+      if (!Number.isFinite(point.width) || point.width + 1e-9 < requestedWidth) {
+        const phaseDescription = phaseName === void 0 ? "" : ' in phase "' + phaseName + '"';
+        throw new Error(
+          'Autorouter output for connection "' + connectionName + '"' + phaseDescription +
+          " undercuts requested minimum trace width " + requestedWidth +
+          "mm with " + point.width + "mm copper"
+        );
+      }
+    }
+  }
+};
+var Group_assertNoIllegalViaInSmdPad = ({ simpleRouteJson, traces, phaseName }) => {`,
+    },
+    {
+      label: "cached and fresh local routes pass the width gate before use",
+      before: `        Group_assertNoIllegalViaInSmdPad({
+          simpleRouteJson,
+          traces,
+          phaseName: routingPhasePlan.phaseName
+        });`,
+      after: `        Group_assertNoRequestedTraceWidthUndercut({
+          simpleRouteJson,
+          traces,
+          phaseName: routingPhasePlan.phaseName
+        });
+        Group_assertNoIllegalViaInSmdPad({
+          simpleRouteJson,
+          traces,
+          phaseName: routingPhasePlan.phaseName
+        });`,
+    },
+    {
+      label: "plane fanout width semantics participate in route-cache identity",
+      before: `        capacityLayerReversalRetry: "p7-layer-reversal-v1",
+        useAssignableSolver:`,
+      after: `        capacityLayerReversalRetry: "p7-layer-reversal-v1",
+        planeFanoutConnectionWidths: "per-connection-v1",
+        useAssignableSolver:`,
+    },
+  ],
+}
+
 const CHECKS_SOURCE_TRACE_WIDTH_IDENTITY_PATCH = {
   packageName: "@tscircuit/checks",
   version: "0.0.152",
@@ -2099,6 +2292,7 @@ export const TOOLCHAIN_PATCHES = [
   CORE_VIA_IN_SMD_PAD_OUTPUT_GATE_PATCH,
   CORE_DIFFERENTIAL_PAIR_PHASED_TRACE_SELECTION_PATCH,
   CORE_LAYER_REVERSAL_RETRY_CACHE_IDENTITY_PATCH,
+  CORE_PLANE_FANOUT_CONNECTION_WIDTH_PATCH,
   CHECKS_SOURCE_TRACE_WIDTH_IDENTITY_PATCH,
 ]
 

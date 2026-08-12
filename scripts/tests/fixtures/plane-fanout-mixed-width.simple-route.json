@@ -1,0 +1,131 @@
+{
+  "bounds": { "minX": -18, "maxX": 18, "minY": -6, "maxY": 6 },
+  "obstacles": [
+    {
+      "type": "rect",
+      "componentId": "component_branch",
+      "layers": ["top"],
+      "center": { "x": -12, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_branch", "source_trace_branch"]
+    },
+    {
+      "type": "rect",
+      "componentId": "component_branch",
+      "layers": ["top"],
+      "center": { "x": -11, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_branch_other"]
+    },
+    {
+      "type": "rect",
+      "componentId": "component_rail",
+      "layers": ["top"],
+      "center": { "x": 0, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_rail", "source_trace_rail"]
+    },
+    {
+      "type": "rect",
+      "componentId": "component_rail",
+      "layers": ["top"],
+      "center": { "x": 1, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_rail_other"]
+    },
+    {
+      "type": "rect",
+      "componentId": "component_control",
+      "layers": ["top"],
+      "center": { "x": 12, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_control", "source_trace_control"]
+    },
+    {
+      "type": "rect",
+      "componentId": "component_control",
+      "layers": ["top"],
+      "center": { "x": 13, "y": 0 },
+      "width": 0.4,
+      "height": 0.4,
+      "connectedTo": ["port_control_other"]
+    }
+  ],
+  "connections": [
+    {
+      "name": "source_trace_branch",
+      "source_trace_id": "source_trace_branch",
+      "nominalTraceWidth": 0.2,
+      "width": 0.2,
+      "pointsToConnect": [
+        {
+          "x": -12,
+          "y": 0,
+          "layer": "top",
+          "pointId": "port_branch",
+          "pcb_port_id": "port_branch"
+        }
+      ]
+    },
+    {
+      "name": "source_trace_rail",
+      "source_trace_id": "source_trace_rail",
+      "nominalTraceWidth": 0.4,
+      "width": 0.4,
+      "pointsToConnect": [
+        {
+          "x": 0,
+          "y": 0,
+          "layer": "top",
+          "pointId": "port_rail",
+          "pcb_port_id": "port_rail"
+        }
+      ]
+    },
+    {
+      "name": "source_trace_control",
+      "source_trace_id": "source_trace_control",
+      "pointsToConnect": [
+        {
+          "x": 12,
+          "y": 0,
+          "layer": "top",
+          "pointId": "port_control",
+          "pcb_port_id": "port_control"
+        }
+      ]
+    }
+  ],
+  "buses": [
+    {
+      "busId": "TR_BRANCH",
+      "name": "TR_BRANCH",
+      "connectionNames": ["source_trace_branch"],
+      "termination": { "type": "plane", "layer": "bottom" }
+    },
+    {
+      "busId": "TR_RAIL",
+      "name": "TR_RAIL",
+      "connectionNames": ["source_trace_rail"],
+      "termination": { "type": "plane", "layer": "bottom" }
+    },
+    {
+      "busId": "TR_CONTROL",
+      "name": "TR_CONTROL",
+      "connectionNames": ["source_trace_control"],
+      "termination": { "type": "plane", "layer": "bottom" }
+    }
+  ],
+  "traces": [],
+  "layerCount": 2,
+  "minTraceWidth": 0.15,
+  "minViaDiameter": 0.6,
+  "minViaHoleDiameter": 0.3,
+  "minTraceToPadEdgeClearance": 0.15,
+  "minViaEdgeToPadEdgeClearance": 0.15
+}

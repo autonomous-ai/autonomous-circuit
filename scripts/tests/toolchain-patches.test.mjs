@@ -487,6 +487,15 @@ test("patch manifest pins the audited routing inputs and fail-closed gates", () 
         ),
       ),
   )
+  const corePlaneFanoutConnectionWidth = TOOLCHAIN_PATCHES.find(
+    (patch) =>
+      patch.packageName === "@tscircuit/core" &&
+      patch.replacements.some((item) =>
+        item.after.includes(
+          'planeFanoutConnectionWidths: "per-connection-v1"',
+        ),
+      ),
+  )
   const checksSourceTraceWidthIdentity = TOOLCHAIN_PATCHES.find(
     (patch) =>
       patch.packageName === "@tscircuit/checks" &&
@@ -523,6 +532,7 @@ test("patch manifest pins the audited routing inputs and fail-closed gates", () 
   assert.ok(coreViaInSmdPadOutputGate)
   assert.ok(coreDifferentialPairPhasedTraceSelection)
   assert.ok(coreLayerReversalRetryCacheIdentity)
+  assert.ok(corePlaneFanoutConnectionWidth)
   assert.ok(checksSourceTraceWidthIdentity)
   assert.equal(checksSourceTraceWidthIdentity.version, "0.0.152")
   assert.equal(
@@ -796,6 +806,18 @@ test("patch manifest pins the audited routing inputs and fail-closed gates", () 
     ),
   )
 
+  const planeFanoutWidthOutput = corePlaneFanoutConnectionWidth.replacements
+    .map((item) => item.after)
+    .join("\n")
+  assert.ok(planeFanoutWidthOutput.includes("connectionTraceWidths"))
+  assert.ok(planeFanoutWidthOutput.includes("resolvePlaneConnectionTraceWidth"))
+  assert.ok(planeFanoutWidthOutput.includes("Group_assertNoRequestedTraceWidthUndercut"))
+  assert.ok(
+    planeFanoutWidthOutput.includes(
+      'planeFanoutConnectionWidths: "per-connection-v1"',
+    ),
+  )
+
   const propsRuntimeOutput = propsRuntime.replacements
     .map((item) => item.after)
     .join("\n")
@@ -933,6 +955,10 @@ test("patch manifest pins the audited routing inputs and fail-closed gates", () 
   assert.equal(
     coreDifferentialPairPhasedTraceSelection.patchedSha256,
     coreLayerReversalRetryCacheIdentity.pristineSha256,
+  )
+  assert.equal(
+    coreLayerReversalRetryCacheIdentity.patchedSha256,
+    corePlaneFanoutConnectionWidth.pristineSha256,
   )
   for (let index = 0; index < TOOLCHAIN_PATCHES.length; index += 1) {
     const patch = TOOLCHAIN_PATCHES[index]
