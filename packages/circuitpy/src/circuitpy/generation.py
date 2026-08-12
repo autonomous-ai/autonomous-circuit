@@ -97,6 +97,35 @@ def _kicad_gerber_export_args(gerber_dir: Path, kicad_pcb: Path) -> list[str]:
     ]
 
 
+def _kicad_drc_args(drc_json: Path, kicad_pcb: Path) -> list[str]:
+    """Return DRC argv that first replaces converter-cached zone fills.
+
+    Saving the refilled board is intentional: the exact bytes graded here are
+    subsequently handed to KiCad's Gerber exporter.  Checking a temporary
+    refill while plotting the stale input would make a clean DRC meaningless.
+    """
+
+    return [
+        "pcb",
+        "drc",
+        "--schematic-parity",
+        "--all-track-errors",
+        # circuit-json-to-kicad serializes the source pour's filled polygons
+        # as a cache. Those polygons predate KiCad's exact custom-pad
+        # clearance calculation and can touch a different-net pad even though
+        # the zone outline/rules are correct.
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "--severity-all",
+        "--exit-code-violations",
+        "-o",
+        str(drc_json),
+        str(kicad_pcb),
+    ]
+
+
 @lru_cache(maxsize=1)
 def pipeline_revision() -> str:
     """Content identity of the code that grades and exports a board.
@@ -1832,19 +1861,7 @@ def build_board(
             drc_json = built_dir / "drc.json"
             try:
                 toolchain.run_kicad(
-                    [
-                        "pcb",
-                        "drc",
-                        "--schematic-parity",
-                        "--all-track-errors",
-                        "--format",
-                        "json",
-                        "--severity-all",
-                        "--exit-code-violations",
-                        "-o",
-                        str(drc_json),
-                        str(kicad_pcb),
-                    ],
+                    _kicad_drc_args(drc_json, kicad_pcb),
                     timeout=KICAD_TIMEOUT_S,
                     ok_codes=(0, 5),
                 )
