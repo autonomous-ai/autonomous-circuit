@@ -14,13 +14,158 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-12 — Viewer manufacturing publication requires literal fab readiness
+- **Change:** viewer catalog entries expose `gerbersUrl`, `bomUrl`, `cplUrl`,
+  `orderUrl`, `glbUrl`, `enclosureUrl`, and `kicadProjectUrl` only when the
+  sibling `<stem>.board.json` contains literal `fab.ready === true` and its
+  `artifacts` manifest declares that member's exact canonical
+  `<stem>_fab/<filename>` path. Direct `/projects/<id>/.../<stem>_fab/...`
+  downloads apply the same shared authorization before ordinary file or Range
+  serving.
+- **Why:** stage 5 intentionally leaves manufacturing diagnostics on disk when
+  later validation blocks a board. Catalog discovery and the direct asset
+  route previously treated those bytes as public solely because they existed,
+  allowing a stale, failed, or explicitly non-ready packet to bypass the
+  pipeline's definition of done.
+- **Backward compatible:** intentionally no for non-ready or legacy sidecars.
+  Their diagnostic sidecar, Circuit JSON, and review images remain visible,
+  but manufacturing links and direct downloads are unavailable until a current
+  sidecar earns literal readiness and declares the requested member exactly.
+- **Mechanism:** one server helper owns the closed artifact-name map, strict
+  readiness/manifest comparison, canonical path classification, and
+  symlink-free regular-file check. Catalog scanning and HTTP serving both call
+  it; focused adversarial tests cover missing/malformed/false/truthy sidecars,
+  path mismatch, unknown/nested members, missing bytes, symlinks, and authorized
+  byte ranges. No skill runtime re-vendor is required.
+- **Tracks affected:** server / viewer / docs.
+
+## 2026-08-12 — Routing attempts retain independently reproducible scan evidence
+- **Change:** every completed `build.attemptEvidence[]` record now carries
+  `circuitPath`, `circuitSha256`, `preExportScanPath`, and
+  `preExportScanSha256`. The deterministic `<stem>_attempts/` directory
+  retains that attempt's exact Circuit JSON and a canonical
+  `circuitpy.routing-pre-export-scan.v1` document. The scan is exact-deduped
+  and sorted before its blocking summary drives candidate selection. Failed
+  attempts remain the exact minimal `{effort,status}` record.
+- **Why:** the former sidecar deleted the non-selected completed candidate and
+  trusted pipeline-authored blocker counts. Even a fabricated Circuit JSON,
+  fabricated schema-shaped scan, and matching content hashes were internally
+  consistent without an independent current-toolchain verdict. Raw verifier
+  order and duplicates could also make attempt comparison irreproducible.
+- **Backward compatible:** no for committed evidence. Sidecars without the
+  retained paths and hashes, missing retained files, or scans produced by a
+  different current toolchain/product/profile are incomplete and must be
+  rebuilt. Selected `main.circuit.json` bytes and manufacturing packet
+  semantics are unchanged.
+- **Mechanism:** generation stages each completed candidate before a retry can
+  replace `dist/`, then publishes attempts, sidecar, and selected IR as one
+  rollback-safe transaction and prunes stale attempts only after success.
+  Injected staged-sidecar-write, sidecar-publish, and final-IR-move failures
+  preserve the complete prior evidence set byte-for-byte. Unchanged-build reuse,
+  `examples_lock.py`, and `review-packet` hash and parse every completed
+  candidate, independently rerun harvest + pinned `@tscircuit/checks` + IoU +
+  DFM under the current product/fab profile, compare canonical scans and
+  blocker summaries, and require the selected retained bytes to equal
+  `main.circuit.json`. Final validation remains a later superset and may not
+  omit a selected pre-export finding. Skill runtime re-vendor required.
+- **Tracks affected:** pipeline / evals / skills / docs.
+
+## 2026-08-12 — Toolchain patch manifests prove clean-install restartability
+- **Change:** the toolchain source suite reconstructs the exact npm-pristine
+  `@tscircuit/capacity-autorouter@0.0.782` bundle from any recognized installed
+  chain endpoint, applies every guarded capacity patch in a private package,
+  asserts every intermediate SHA-256, and then proves check-only idempotency at
+  the final endpoint.
+- **Why:** a one-byte blank-line drift inside the differential-pair replacement
+  payload preserved every structural manifest assertion and every previously
+  installed runtime check, but made a fresh `npm ci` stop at the authored-tree
+  predecessor because the computed successor no longer matched its declared
+  hash. `dev.sh` failed closed, correctly; the source test needed to move that
+  discovery before restart and shared mutation.
+- **Backward compatible:** yes. The installed runtime bytes and declared hashes
+  are unchanged; this is a stricter source/manifest consistency gate.
+- **Mechanism:** `toolchain-patches.test.mjs` reverses only recognized exact
+  stages, replays the full chain without touching shared `node_modules`, and
+  rejects unknown bytes or replacement-payload drift. No skill runtime
+  re-vendor is required.
+- **Tracks affected:** toolchain / CI / docs.
+
+## 2026-08-12 — Composition clean means fab-ready
+- **Change:** a composition-matrix cell has `status="clean"` only when its
+  selected build has zero blocking findings **and** literal `fab.ready ==
+  true`. A blocker-free build without an accepted manufacturing packet is
+  `not-ready`, records `NotFabReady`, and makes the matrix exit non-zero. The
+  full golden block gauntlet now requires the same fab-ready state and verifies
+  that its selected `main.circuit.json` matches routing-attempt evidence.
+- **Why:** the progress display already called that state FAIL, but the final
+  process exit considered only validation errors and returned success. That
+  allowed a missing/unaccepted fab substrate to masquerade as composition
+  closure. The matrix documentation also implied it routed excluded cells;
+  the minimal USB superset conflict is instead pinned at planner law.
+- **Backward compatible:** intentionally stricter for acceptance. A completed
+  but non-orderable cell no longer counts as clean. Cell JSON gains the
+  `not-ready` status and synthetic blocking reason in that case.
+- **Mechanism:** a pure status function has clean/not-ready/blocked behavior
+  tests, the structural eval proves the known USB pair remains rejected by
+  planner law and absent from routed cells, and every real gauntlet build
+  asserts fab readiness plus selected-artifact identity. No skill runtime
+  bytes changed; no skill re-vendor is required.
+- **Tracks affected:** evals / pipeline / docs.
+
+## 2026-08-12 — Golden route classification reads the actual board control
+- **Change:** `test_routing_board_contracts.py` determines whether a golden
+  bench is routing-enabled from its parsed `<board>` opening tag. A bare or
+  literal-true `routingDisabled` is geometry-only; literal false and the
+  supported `props.routingDisabled ?? false` zero-prop wrapper remain routed.
+  The full gauntlet uses the same helper: it changes only definite true to
+  literal false, leaves already-routed forms byte-identical, and refuses a
+  dynamic expression/spread rather than corrupting or guessing its source.
+- **Why:** the previous whole-source substring test could classify a routed
+  bench as disabled merely because a comment mentioned the prop. It also
+  misclassified wrappers whose normal default export explicitly routes. The
+  gauntlet also removed the word globally, turning such a wrapper into invalid
+  JSX. Both paths could let real copper escape the intended acceptance gate.
+- **Backward compatible:** yes for correctly classified benches. Any bench
+  that relied on the substring loophole must now declare real board floors and
+  be authoritative or remain an explicit blocker.
+- **Mechanism:** the self-contained golden gate parses its actual opening tag
+  with circuitpy-equivalent semantics, keeps exact classification-set
+  equality, and has cases for true, false, comments, default-false wrappers,
+  quoted attribute text, and dynamic authored values. No
+  runtime or skill bytes changed; no skill re-vendor is required.
+- **Tracks affected:** pipeline / golden blocks / docs.
+
+## 2026-08-12 — Discarded routing-attempt hashes are provenance, not retained proof
+- **Change:** clarify the current `build.attemptEvidence` trust boundary. The
+  completed record selected by `build.autorouterEffort` is independently
+  content-verified against `boards/main.circuit.json`, but publication does
+  not rerun the pre-export scan that produced its blocker histogram. A
+  non-selected completed record carries the pipeline-produced digest and
+  parsed blocker histogram, but its Circuit JSON is not retained and
+  publication therefore cannot recompute that record independently.
+- **Why:** an adversarial audit demonstrated that a schema-shaped fabricated
+  digest/count pair for the discarded primary or alternate passes structural
+  validation. An internally consistent selected histogram can likewise
+  contradict final validation while its exact artifact hash still passes.
+  The bounded winner policy, failed-retry handling, cache isolation, and
+  selected bytes remain verified; calling either recorded histogram or a
+  discarded record independent proof would overstate the interface.
+- **Backward compatible:** yes; this is a trust-boundary clarification and no
+  field changes. Closing lesson #38 will require retained content-addressed
+  candidate bytes (or an equivalent independently verifiable artifact) and
+  publication-time hash/blocker recomputation.
+- **Mechanism:** documentation and the prevention ledger distinguish selected
+  artifact evidence from discarded-attempt provenance. No runtime or skill
+  bytes changed, so no skill re-vendor is required.
+- **Tracks affected:** pipeline / evals / docs.
+
 ## 2026-08-12 — Planner registry mirrors every golden block API exactly
 - **Change:** `circuitlib.blocks.BLOCKS["sw-tact"].props` adds the already
   supported `signalTraceWidthMm`, `variant`, and `layer` controls. The
   composition contract now derives `REGISTERED_BLOCKS` from the complete live
-  registry and requires exact set equality with both `evals.composition`
-  constructors and each golden TSX export; every required golden prop must be
-  supplied by the constructor.
+  registry and requires exact set equality between registry props and each
+  golden TSX export. Every `evals.composition` constructor must supply all
+  required golden props and may supply no removed/unknown prop.
 - **Why:** the prior API drift test covered only four USB/RP blocks. The
   Terminal expert's compact BOOTSEL/RESET requirement had reached the reusable
   switch source, but a future planner could not select that variant because

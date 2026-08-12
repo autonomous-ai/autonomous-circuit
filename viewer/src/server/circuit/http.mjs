@@ -14,6 +14,10 @@ import { execFile } from "node:child_process";
 import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
+import {
+  authorizeFabArtifact,
+  isRegularArtifactFile,
+} from "./fab-publication.mjs";
 import { readRevisions, revisionTrend } from "./revisions.mjs";
 import {
   PHASE,
@@ -673,6 +677,31 @@ export function createCircuitServices({ env = process.env } = {}) {
     }
     if (!assetPath) {
       next();
+      return;
+    }
+    const projectMatch = /^\/projects\/([^/]+)\//.exec(requestUrl.pathname);
+    let projectRoot = null;
+    if (projectMatch) {
+      try {
+        projectRoot = projects.projectDir(decodeURIComponent(projectMatch[1]));
+      } catch {
+        projectRoot = null;
+      }
+    }
+    const fabAuthorization = projectRoot
+      ? authorizeFabArtifact({ projectDir: projectRoot, artifactPath: assetPath })
+      : { managed: false, authorized: false };
+    if (fabAuthorization.managed && !fabAuthorization.authorized) {
+      res.statusCode = 409;
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.setHeader("cache-control", "no-store");
+      res.end("Fab artifact is not authorized by a fab-ready board sidecar");
+      return;
+    }
+    if (fabAuthorization.managed && !isRegularArtifactFile(assetPath, projectRoot)) {
+      res.statusCode = 404;
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.end("Not found");
       return;
     }
     fs.stat(assetPath, (error, stats) => {

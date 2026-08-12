@@ -13,6 +13,21 @@ function tmpdir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+function readySidecar(stem = "main") {
+  return {
+    fab: { ready: true },
+    artifacts: {
+      gerbers: `${stem}_fab/gerbers.zip`,
+      bom: `${stem}_fab/bom.csv`,
+      cpl: `${stem}_fab/cpl.csv`,
+      order: `${stem}_fab/ORDER.md`,
+      glb: `${stem}_fab/board.glb`,
+      enclosure: `${stem}_fab/enclosure.json`,
+      kicadProject: `${stem}_fab/kicad-project.zip`,
+    },
+  };
+}
+
 function seedProject(dir) {
   fs.mkdirSync(path.join(dir, "boards", "main_review"), { recursive: true });
   fs.mkdirSync(path.join(dir, "boards", "main_fab"), { recursive: true });
@@ -26,7 +41,10 @@ function seedProject(dir) {
   // Hidden: json everywhere (surfaced via the board artifact / asset route).
   fs.writeFileSync(path.join(dir, "product.json"), "{}");
   fs.writeFileSync(path.join(dir, "parts.json"), "{}");
-  fs.writeFileSync(path.join(dir, "boards", "main.board.json"), "{}");
+  fs.writeFileSync(
+    path.join(dir, "boards", "main.board.json"),
+    JSON.stringify(readySidecar()),
+  );
   fs.writeFileSync(path.join(dir, "boards", "main.circuit.json"), "{}");
   // Hidden: underscore tsx, blocks/, .circuit/, inputs/.
   fs.writeFileSync(path.join(dir, "boards", "_helper.tsx"), "hidden");
@@ -111,6 +129,45 @@ test("a partially built board carries only the artifact members on disk", () => 
   const { entries } = scanProjectCatalog({ projectDir: dir, projectId: "p3" });
   assert.equal(entries.length, 1);
   assert.deepEqual(Object.keys(entries[0].artifact), ["metadataUrl"]);
+});
+
+test("catalog publishes each fab member only after literal readiness and exact declaration", () => {
+  const dir = tmpdir("circuit-cat-fab-gate-");
+  const boards = path.join(dir, "boards");
+  const fabDir = path.join(boards, "main_fab");
+  const sidecar = path.join(boards, "main.board.json");
+  const gerbers = path.join(fabDir, "gerbers.zip");
+  fs.mkdirSync(fabDir, { recursive: true });
+  fs.writeFileSync(path.join(boards, "main.tsx"), "<board />");
+  fs.writeFileSync(gerbers, "zip");
+
+  const artifact = () => scanProjectCatalog({ projectDir: dir, projectId: "p" })
+    .entries[0].artifact ?? {};
+
+  assert.equal(artifact().gerbersUrl, undefined, "missing sidecar");
+  fs.writeFileSync(sidecar, "{");
+  assert.equal(artifact().gerbersUrl, undefined, "malformed sidecar");
+  fs.writeFileSync(sidecar, JSON.stringify({ fab: { ready: false }, artifacts: {} }));
+  assert.equal(artifact().gerbersUrl, undefined, "false readiness");
+  fs.writeFileSync(sidecar, JSON.stringify({
+    fab: { ready: "true" },
+    artifacts: { gerbers: "main_fab/gerbers.zip" },
+  }));
+  assert.equal(artifact().gerbersUrl, undefined, "truthy readiness");
+  fs.writeFileSync(sidecar, JSON.stringify({
+    fab: { ready: true },
+    artifacts: { gerbers: "other_fab/gerbers.zip" },
+  }));
+  assert.equal(artifact().gerbersUrl, undefined, "manifest path mismatch");
+
+  fs.writeFileSync(sidecar, JSON.stringify(readySidecar()));
+  assert.match(artifact().gerbersUrl, /boards\/main_fab\/gerbers\.zip\?v=/);
+
+  const external = path.join(dir, "external-gerbers.zip");
+  fs.writeFileSync(external, "external");
+  fs.rmSync(gerbers);
+  fs.symlinkSync(external, gerbers);
+  assert.equal(artifact().gerbersUrl, undefined, "symlinked packet member");
 });
 
 test("cache-bust token changes when the file changes (mtimeNs-size)", async () => {

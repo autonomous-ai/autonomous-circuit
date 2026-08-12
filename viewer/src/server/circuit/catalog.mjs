@@ -18,6 +18,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { skipDirNames } from "./projects.mjs";
+import {
+  FAB_ARTIFACTS,
+  authorizeFabArtifact,
+  isRegularArtifactFile,
+} from "./fab-publication.mjs";
 
 export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md"]);
 
@@ -122,29 +127,30 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       url: url(tsx),
     };
 
-    // Contract §2 board-entry artifact members, present only when on disk.
+    // Review/IR members are diagnostic and surface when present. Manufacturing
+    // members are different: stage 5 can write them on a blocked build, so
+    // file existence is never publication authorization.
     const members = [
       ["metadataUrl", `${stem}.board.json`],
       ["circuitJsonUrl", `${stem}.circuit.json`],
       ["schematicUrl", path.join(`${stem}_review`, "_schematic.png")],
       ["pcbUrl", path.join(`${stem}_review`, "_pcb.png")],
       ["pcbBottomUrl", path.join(`${stem}_review`, "_pcb_bottom.png")],
-      ["gerbersUrl", path.join(`${stem}_fab`, "gerbers.zip")],
-      ["bomUrl", path.join(`${stem}_fab`, "bom.csv")],
-      ["cplUrl", path.join(`${stem}_fab`, "cpl.csv")],
-      ["orderUrl", path.join(`${stem}_fab`, "ORDER.md")],
-      ["glbUrl", path.join(`${stem}_fab`, "board.glb")],
-      // The enclosure brief — outline, holes, connector edges — is what Vibe
-      // reads to model the printed body, so it belongs beside the packet.
-      ["enclosureUrl", path.join(`${stem}_fab`, "enclosure.json")],
-      // The KiCad project is the only packet member a person can open in a
-      // real EDA tool, so it is offered even on a board that is not fab-ready.
-      ["kicadProjectUrl", path.join(`${stem}_fab`, "kicad-project.zip")],
     ];
     const artifact = {};
     for (const [key, absPath] of members) {
       if (fs.existsSync(absPath)) {
         artifact[key] = url(absPath);
+      }
+    }
+    for (const definition of FAB_ARTIFACTS) {
+      const absPath = path.join(`${stem}_fab`, definition.fileName);
+      const authorization = authorizeFabArtifact({
+        projectDir: rootDir,
+        artifactPath: absPath,
+      });
+      if (authorization.authorized && isRegularArtifactFile(absPath, rootDir)) {
+        artifact[definition.urlKey] = url(absPath);
       }
     }
     if (Object.keys(artifact).length) {

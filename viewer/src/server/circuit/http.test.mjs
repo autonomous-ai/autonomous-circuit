@@ -315,6 +315,10 @@ test("asset routes: content-type, immutable caching with ?v, byte ranges, traver
     fs.mkdirSync(path.join(dir, "boards", "main_fab"), { recursive: true });
     fs.writeFileSync(path.join(dir, "boards", "main_fab", "gerbers.zip"), "0123456789");
     fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
+    fs.writeFileSync(path.join(dir, "boards", "main.board.json"), JSON.stringify({
+      fab: { ready: true },
+      artifacts: { gerbers: "main_fab/gerbers.zip" },
+    }));
 
     const full = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip?v=1-1`);
     assert.equal(full.status, 200);
@@ -360,6 +364,90 @@ test("asset routes: content-type, immutable caching with ?v, byte ranges, traver
     const spa = await fetch(`${s.base}/projects/${project.id}/boards/ep001.mp4`);
     assert.equal(spa.status, 404);
     assert.equal(await spa.text(), "fallthrough");
+  } finally {
+    s.close();
+  }
+});
+
+test("fab asset routes fail closed on readiness, manifest, canonical path, and symlinks", async () => {
+  const s = await bootServer();
+  try {
+    const { body: project } = await s.post("project_create", { req: { name: "Fab gate" } });
+    const dir = path.join(s.services.projectsRoot, project.id);
+    const boards = path.join(dir, "boards");
+    const fabDir = path.join(boards, "main_fab");
+    const sidecar = path.join(boards, "main.board.json");
+    const gerbers = path.join(fabDir, "gerbers.zip");
+    fs.mkdirSync(fabDir, { recursive: true });
+    fs.writeFileSync(gerbers, "0123456789");
+    const url = `${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip`;
+
+    const assertBlocked = async (label) => {
+      const response = await fetch(url);
+      assert.equal(response.status, 409, label);
+      assert.equal(response.headers.get("cache-control"), "no-store", label);
+    };
+
+    await assertBlocked("missing sidecar");
+    fs.writeFileSync(sidecar, "{");
+    await assertBlocked("malformed sidecar");
+    fs.writeFileSync(sidecar, JSON.stringify({
+      fab: { ready: false },
+      artifacts: { gerbers: "main_fab/gerbers.zip" },
+    }));
+    await assertBlocked("false readiness");
+    fs.writeFileSync(sidecar, JSON.stringify({
+      fab: { ready: "true" },
+      artifacts: { gerbers: "main_fab/gerbers.zip" },
+    }));
+    await assertBlocked("truthy readiness");
+    fs.writeFileSync(sidecar, JSON.stringify({
+      fab: { ready: true },
+      artifacts: { gerbers: "other_fab/gerbers.zip" },
+    }));
+    await assertBlocked("manifest path mismatch");
+
+    fs.writeFileSync(sidecar, JSON.stringify({
+      fab: { ready: true },
+      artifacts: { gerbers: "main_fab/gerbers.zip" },
+    }));
+    const authorized = await fetch(url, { headers: { range: "bytes=3-6" } });
+    assert.equal(authorized.status, 206);
+    assert.equal(await authorized.text(), "3456");
+
+    const unknownPath = path.join(fabDir, "secret.zip");
+    fs.writeFileSync(unknownPath, "secret");
+    const unknown = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/secret.zip`);
+    assert.equal(unknown.status, 409);
+
+    const nestedDir = path.join(fabDir, "nested");
+    fs.mkdirSync(nestedDir);
+    fs.writeFileSync(path.join(nestedDir, "gerbers.zip"), "nested");
+    const nested = await fetch(
+      `${s.base}/projects/${project.id}/boards/main_fab/nested/gerbers.zip`,
+    );
+    assert.equal(nested.status, 409);
+
+    fs.rmSync(gerbers);
+    const missing = await fetch(url);
+    assert.equal(missing.status, 404);
+
+    const external = path.join(s.home, "external-gerbers.zip");
+    fs.writeFileSync(external, "outside");
+    fs.symlinkSync(external, gerbers);
+    const symlinked = await fetch(url);
+    assert.equal(symlinked.status, 404);
+
+    fs.rmSync(gerbers);
+    const externalSidecar = path.join(s.home, "external.board.json");
+    fs.writeFileSync(externalSidecar, JSON.stringify({
+      fab: { ready: true },
+      artifacts: { gerbers: "main_fab/gerbers.zip" },
+    }));
+    fs.rmSync(sidecar);
+    fs.symlinkSync(externalSidecar, sidecar);
+    const symlinkedSidecar = await fetch(url);
+    assert.equal(symlinkedSidecar.status, 409);
   } finally {
     s.close();
   }
