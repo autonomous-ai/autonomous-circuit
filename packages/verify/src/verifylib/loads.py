@@ -44,6 +44,14 @@ BY_LCSC: dict[str, Load] = {
     "C2040": Load(30.0, 100.0, "RP2040 datasheet 5.2: ~30mA typical, 100mA peak"),
     # W25Q128 QSPI flash during a read burst.
     "C97521": Load(4.0, 25.0, "W25Q128JV datasheet: 4mA read, 25mA program"),
+    # SN74AHCT1G125DBVR level shifter. A 3.4V TTL-high input can add 1.5mA
+    # supply current; 14pF Cpd at the 800kHz WS2812 rate adds about 0.06mA.
+    # Round up to 2mA so the USB fixed-load budget covers both terms.
+    "C7484": Load(
+        1.5,
+        2.0,
+        "TI SN74AHCT1G125 Rev P: 1.5mA max delta-Icc plus 14pF Cpd",
+    ),
     # AMS1117 quiescent only; its *output* current is accounted on the rail
     # it feeds, not here, or it would be double counted.
     "C6186": Load(5.0, 11.0, "AMS1117 datasheet: 5mA quiescent, 11mA max"),
@@ -70,6 +78,10 @@ BY_MPN: tuple[tuple[str, Load], ...] = (
     ("sk6812", Load(12.0, 36.0, "SK6812 datasheet: 3 x 12mA channels")),
     ("rp2040", Load(30.0, 100.0, "RP2040 datasheet 5.2")),
     ("w25q", Load(4.0, 25.0, "W25Q series datasheet: 25mA program")),
+    (
+        "sn74ahct1g125",
+        Load(1.5, 2.0, "TI SN74AHCT1G125 Rev P delta-Icc and Cpd"),
+    ),
     ("ams1117", Load(5.0, 11.0, "AMS1117 datasheet quiescent")),
     ("usblc6", Load(0.0, 0.001, "USBLC6 datasheet leakage")),
     ("esp32", Load(80.0, 500.0, "ESP32 module datasheet: 500mA peak TX")),

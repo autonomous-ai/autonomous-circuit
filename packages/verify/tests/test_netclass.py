@@ -142,6 +142,18 @@ def test_unknown_loads_are_reported_as_coverage_not_counted_as_zero():
     assert "U9" in blind, "an unmodelled part must be named, not silently zeroed"
 
 
+def test_exact_ahct_level_shifter_load_covers_ttl_high_and_switching_terms():
+    load = lookup(
+        lcsc="C7484",
+        mpn="SN74AHCT1G125DBVR",
+        ftype="simple_chip",
+    )
+    assert load is not None
+    assert load.typical_ma == pytest.approx(1.5)
+    assert load.peak_ma == pytest.approx(2.0)
+    assert "delta-Icc" in load.source and "14pF" in load.source
+
+
 def test_regulator_input_carries_its_output_current():
     """An LDO passes everything downstream through its input pin. Without the
     propagation V5 would look idle while 3.3V is loaded to a full amp."""

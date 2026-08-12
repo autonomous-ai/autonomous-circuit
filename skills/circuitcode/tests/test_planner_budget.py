@@ -187,16 +187,16 @@ class RegulatorHeat(unittest.TestCase):
         self.assertTrue(plan.overheats)
         self.assertFalse(plan.buildable)
 
-    def test_a_marginal_eight_pixel_direct_ams_plan_is_not_generated(self):
-        """The Harness-scale chain is below absolute maximum but leaves only
-        about 17degC of estimated headroom in a warm enclosure. The planner
-        must choose a cooler rail architecture while it still can."""
+    def test_an_eight_pixel_direct_linear_plan_is_not_generated(self):
+        """The Harness-scale chain exceeds a conservative SOT-223 board
+        model. The planner must choose a cooler rail architecture while it
+        still can; a package name is not permission to assume enhanced copper."""
         plan = board_plan(
             capabilities=["mcu", "rgb-pixels"],
             counts={"ws2812-chain": 8},
             supply_rail_overrides={"ws2812-chain": "V3_3"},
         )
-        self.assertEqual(plan.regulator["severity"], "warning")
+        self.assertEqual(plan.regulator["severity"], "error")
         self.assertTrue(plan.overheats)
         self.assertFalse(plan.buildable)
 

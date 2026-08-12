@@ -468,7 +468,9 @@ def power_budget(*, source: str, current_ma: float) -> list[dict[str, str]]:
 #: regulators come in. Datasheet figures on a 2-layer board with modest copper —
 #: the number degrades badly with less pour, which is the point of the warning.
 THETA_JA_C_PER_W = {
-    "SOT-223": 62.0,
+    # Conservative generic board-level value. A lower number is valid only
+    # when an exact regulator profile also proves its required thermal land.
+    "SOT-223": 110.0,
     "SOT-23": 250.0,
     "SOT-89": 140.0,
     "TO-252": 92.0,   # DPAK

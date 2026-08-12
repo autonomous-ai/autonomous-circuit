@@ -176,7 +176,7 @@ def test_heat_is_graded_at_the_datasheet_peak_not_the_typical():
 def test_a_thermal_table_matching_circuitlib_is_used():
     """Duplicated deliberately so this package stands alone; the two must not
     drift apart silently."""
-    assert thermal.THETA_JA_C_PER_W["SOT-223"] == 62.0
+    assert thermal.THETA_JA_C_PER_W["SOT-223"] == 110.0
     assert thermal.THETA_JA_C_PER_W["SOT-23"] == 250.0
     assert thermal.MAX_JUNCTION_C == 125.0
 

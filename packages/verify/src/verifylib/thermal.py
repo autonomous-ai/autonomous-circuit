@@ -68,7 +68,11 @@ LAND_MATCH_MM = 0.35
 #: modest copper. Same table as ``circuitlib.helpers``; duplicated because this
 #: package stands alone, and the tests assert the two agree.
 THETA_JA_C_PER_W = {
-    "SOT-223": 62.0,
+    # Package names alone do not prove an enhanced copper test board. The
+    # common AP7361C SOT-223 specifies 110C/W on FR-4 with its minimum land;
+    # use that conservative value unless a product opts into a part-specific
+    # audited thermal profile with compiled land-pattern proof.
+    "SOT-223": 110.0,
     "SOT-23": 250.0,
     "SOT-89": 140.0,
     "TO-252": 92.0,
