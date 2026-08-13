@@ -35,6 +35,7 @@ nobody can audit is a rewrite nobody should trust.
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,6 +62,7 @@ class Normalization:
     text_resized: int = 0
     text_thickened: int = 0
     strokes_widened: int = 0
+    vias_bridged: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
     notes: list[str] = field(default_factory=list)
@@ -69,6 +71,7 @@ class Normalization:
     def changed(self) -> bool:
         return bool(
             self.text_resized or self.text_thickened or self.strokes_widened
+            or self.vias_bridged
         )
 
     def summary(self) -> str:
@@ -93,6 +96,11 @@ class Normalization:
                     if self.smallest_stroke_mm is not None
                     else ""
                 )
+            )
+        if self.vias_bridged:
+            parts.append(
+                f"{self.vias_bridged} missing via(s) added under a B.Cu "
+                "dead-end at a top-only pad"
             )
         return "; ".join(parts)
 
@@ -233,6 +241,10 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
                 block = _raise_stroke(block, profile.min_silk_line_mm, result)
             text = text[:start] + block + text[end:]
 
+        # Second pass: bridge B.Cu dead-ends that stop under a top-only pad.
+        # Runs after (not instead of) the silk floors; both edit the same file.
+        text = _fix_dead_end_vias(text, profile, result)
+
         if text != original:
             pcb_path.write_text(text, encoding="utf-8")
     except Exception as exc:  # noqa: BLE001
@@ -245,3 +257,316 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
         except OSError:
             pass
     return result
+
+
+# ---------------------------------------------------------------------------
+# Route dead-ends: a B.Cu net that stops under a top-only pad needs a via.
+# ---------------------------------------------------------------------------
+#
+# Measured 2026-08-13 on harness-puck: the router ran two nets (LED_DATA,
+# V5) to the end of their run on B.Cu, straight under an F.Cu-only SMD pad,
+# and never added the final via. KiCad reports each as an
+# ``unconnected_items`` DRC error — the board is electrically right but the
+# copper never reaches the pad, so no fab will build it.
+#
+# This is not a property we can fix by re-running the router: every source
+# edit that perturbs the route moves the same class of defect elsewhere (the
+# router is at its convergence ceiling; see DESIGN-REVIEW.md rounds 8-11).
+# The `.kicad_pcb` between the converter and ``kicad-cli`` is the one place
+# every board passes through and the route is already settled, so that is
+# where the missing via gets added: one change here repairs the whole
+# catalogue of nets that do the same thing, without the router ever running
+# again. Like the silk fix above, it is text surgery with a balanced-paren
+# scan, it is counted and reported, and it is idempotent.
+#
+# Placement is adaptive on purpose: the dead-end often sits in a tight
+# corridor (harness-puck's LED_DATA pad is 0.1mm from a neighbour's track), so
+# a via parked exactly on the dead-end can violate copper/hole clearance. Each
+# candidate via is checked against every pad, track and via of the other nets
+# before it is accepted, and the center is nudged around the pad until the
+# largest via that fits is found. A dead-end with no safe placement is left
+# alone (and noted) rather than repaired with a via that shorts the board.
+
+import math
+from dataclasses import dataclass
+
+#: (via pad diameter, via drill diameter) — the converter's own vocabulary,
+#: ordered larger-first so the fattest via that fits wins.
+_VIA_CANDIDATES = ((0.6, 0.3), (0.4, 0.2), (0.3, 0.15))
+_NUDGE_STEPS = (0.08, 0.16, 0.24, 0.32)
+_HALF_SQRT2 = math.sqrt(0.5)
+
+
+@dataclass(frozen=True)
+class _PadGeom:
+    ref: str
+    num: str
+    net: str
+    cx: float
+    cy: float
+    w: float
+    h: float
+    fcu: bool
+    bcu: bool
+
+
+@dataclass(frozen=True)
+class _SegGeom:
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    layer: str
+    net: str
+    width: float
+
+
+@dataclass(frozen=True)
+class _ViaGeom:
+    x: float
+    y: float
+    drill: float
+    net: str
+
+
+def _point_seg_dist(px: float, py: float, s: _SegGeom) -> float:
+    """Distance from a point to a finite segment."""
+    dx = s.x1 - s.x0
+    dy = s.y1 - s.y0
+    seg2 = dx * dx + dy * dy
+    if seg2 <= 1e-12:
+        return math.hypot(px - s.x0, py - s.y0)
+    t = ((px - s.x0) * dx + (py - s.y0) * dy) / seg2
+    t = max(0.0, min(1.0, t))
+    return math.hypot(px - (s.x0 + t * dx), py - (s.y0 + t * dy))
+
+
+def _point_rect_dist(px: float, py: float, p: _PadGeom) -> float:
+    """Distance from a point to an axis-aligned pad rectangle (0 if inside)."""
+    dx = max(abs(px - p.cx) - p.w / 2, 0.0)
+    dy = max(abs(py - p.cy) - p.h / 2, 0.0)
+    return math.hypot(dx, dy)
+
+
+def _parse_number(text: str, tag: str) -> float | None:
+    m = re.search(rf"\({tag}\s+([0-9.eE+-]+)", text)
+    return float(m.group(1)) if m else None
+
+
+def _parse_xy(text: str, tag: str) -> tuple[float, float] | None:
+    m = re.search(rf"\({tag}\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)", text)
+    return (float(m.group(1)), float(m.group(2))) if m else None
+
+
+def _parse_geometry(text: str) -> tuple[list[_PadGeom], list[_SegGeom], list[_ViaGeom]]:
+    """Parse the pads, copper segments and vias a via-placement must respect."""
+    pads: list[_PadGeom] = []
+    segs: list[_SegGeom] = []
+    vias: list[_ViaGeom] = []
+    for fp_start, fp_end in _balanced_spans(text, "  (footprint"):
+        fp = text[fp_start:fp_end]
+        refm = re.search(r'\(property "Reference" "([^"]+)"', fp)
+        ref = refm.group(1) if refm else "?"
+        fpm = re.search(
+            r"^\s*\(at\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)(?:\s+([0-9.eE+-]+))?\)",
+            fp,
+            re.M,
+        )
+        if fpm is None:
+            continue
+        fx, fy = float(fpm.group(1)), float(fpm.group(2))
+        frot = float(fpm.group(3)) if fpm.group(3) else 0.0
+        for pa, pb in _balanced_spans(fp, "  (pad"):
+            blk = fp[pa:pb]
+            nm = re.match(r"\s*\(pad\s+\"([^\"]+)\"\s+\w+\b", blk)
+            at = _parse_xy(blk, "at")
+            sz = re.search(r"\(size\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)\)", blk)
+            lay = re.search(r"\(layers\s+([^)]+)\)", blk)
+            net = re.search(r'\(net\s+(\d+)\s+"[^"]*"\)', blk)
+            if not (nm and at and sz and lay):
+                continue
+            width, height = float(sz.group(1)), float(sz.group(2))
+            layers = lay.group(1).split()
+            # Rotate the pad center into the board frame (axis-aligned bbox
+            # under rotation, so the pad's own rotation is honored safely).
+            lx, ly = at
+            if frot:
+                r = math.radians(frot)
+                lx, ly = lx * math.cos(r) - ly * math.sin(r), \
+                        lx * math.sin(r) + ly * math.cos(r)
+            rot = abs(frot) % 360.0
+            if abs(rot) > 0.01 and (abs(rot - 90) > 0.01 and abs(rot - 180) > 0.01
+                                    and abs(rot - 270) > 0.01):
+                # Arbitrary rotation: use the rotated bounding box.
+                hw, hh = width / 2, height / 2
+                r = math.radians(frot)
+                c, s = abs(math.cos(r)), abs(math.sin(r))
+                width, height = 2 * (hw * c + hh * s), 2 * (hw * s + hh * c)
+            # A pad with no net is still copper (an unused pin); it has to take
+            # part in clearance checks even though it can never be a mate.
+            net_num = net.group(1) if net else "0"
+            pads.append(_PadGeom(
+                ref, nm.group(1), net_num, fx + lx, fy + ly,
+                width, height, "F.Cu" in layers, "B.Cu" in layers,
+            ))
+    for ga, gb in _balanced_spans(text, "  (segment"):
+        blk = text[ga:gb]
+        st = _parse_xy(blk, "start")
+        en = _parse_xy(blk, "end")
+        layer = re.search(r"\(layer\s+(\S+)\)", blk)
+        net = re.search(r"\(net\s+(\d+)\)", blk)
+        w = _parse_number(blk, "width")
+        if st and en and layer and net and w is not None:
+            segs.append(_SegGeom(
+                st[0], st[1], en[0], en[1], layer.group(1), net.group(1), w,
+            ))
+    for va, vb in _balanced_spans(text, "  (via"):
+        blk = text[va:vb]
+        at = _parse_xy(blk, "at")
+        net = re.search(r"\(net\s+(\d+)\)", blk)
+        drill = _parse_number(blk, "drill")
+        if at and net and drill is not None:
+            vias.append(_ViaGeom(at[0], at[1], drill, net.group(1)))
+    return pads, segs, vias
+
+
+def _candidate_centers(ex: float, ey: float, p: _PadGeom) -> list[tuple[float, float]]:
+    """Dead-end first, pad center next, then radial nudges — deduped."""
+    cands: list[tuple[float, float]] = [(ex, ey), (p.cx, p.cy)]
+    for dx, dy in (
+        (1, 0), (-1, 0), (0, 1), (0, -1),
+        (_HALF_SQRT2, _HALF_SQRT2), (_HALF_SQRT2, -_HALF_SQRT2),
+        (-_HALF_SQRT2, _HALF_SQRT2), (-_HALF_SQRT2, -_HALF_SQRT2),
+    ):
+        for s in _NUDGE_STEPS:
+            cands.append((ex + dx * s, ey + dy * s))
+    out: list[tuple[float, float]] = []
+    seen: set[tuple[float, float]] = set()
+    for cx, cy in cands:
+        key = (round(cx, 4), round(cy, 4))
+        if key not in seen:
+            seen.add(key)
+            out.append((cx, cy))
+    return out
+
+
+def _via_feasible(
+    cx: float,
+    cy: float,
+    size: float,
+    drill: float,
+    net: str,
+    pad: _PadGeom,
+    seg: _SegGeom,
+    pads: list[_PadGeom],
+    segs: list[_SegGeom],
+    vias: list[_ViaGeom],
+    clearance: float,
+    hole_clear: float,
+    hole_to_hole: float,
+) -> bool:
+    """True if a via of this size at this center heals the dead-end safely."""
+    radius = size / 2
+    drill_r = drill / 2
+    if _point_rect_dist(cx, cy, pad) > radius - 1e-6:
+        return False  # must touch the pad it is bridging to
+    if _point_seg_dist(cx, cy, seg) > radius - 1e-6:
+        return False  # must touch the B.Cu track it is bridging from
+    for other in pads:
+        if other.net == net:
+            continue
+        d = _point_rect_dist(cx, cy, other)
+        if d - radius < clearance - 1e-9 or d - drill_r < hole_clear - 1e-9:
+            return False
+    for other in segs:
+        if other.net == net:
+            continue
+        d = _point_seg_dist(cx, cy, other)
+        halfw = other.width / 2
+        if (d - radius - halfw < clearance - 1e-9
+                or d - drill_r - halfw < hole_clear - 1e-9):
+            return False
+    for via in vias:
+        d = math.hypot(cx - via.x, cy - via.y)
+        if d - drill_r - via.drill / 2 < hole_to_hole - 1e-9:
+            return False
+    return True
+
+
+def _via_text(cx: float, cy: float, size: float, drill: float, net: str) -> str:
+    return (
+        f"  (via\n    (at {cx:.9g} {cy:.9g})\n    (size {size:.6g})\n"
+        f"    (drill {drill:.6g})\n    (layers F.Cu B.Cu)\n"
+        f"    (net {net})\n    (uuid {uuid.uuid4()})\n  )\n"
+    )
+
+
+def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) -> str:
+    """Insert the final via under every B.Cu dead-end that stops at a top-only
+    pad of the same net. Returns the text; never raises."""
+    clearance = profile.min_clearance_mm - profile.drc_tolerance_mm
+    hole_clear = 0.2  # kicad_project_json's min_hole_clearance
+    hole_to_hole = 0.2  # kicad_project_json's min_hole_to_hole
+    try:
+        pads, segs, vias = _parse_geometry(text)
+    except Exception as exc:  # noqa: BLE001
+        result.notes.append(
+            f"via-bridge parse failed ({type(exc).__name__}: {exc}); "
+            "no vias were added"
+        )
+        return text
+
+    top_only = [p for p in pads if p.fcu and not p.bcu]
+    placements: list[tuple[float, float, float, float, str]] = []
+    skipped: set[str] = set()
+    for seg in segs:
+        if seg.layer != "B.Cu":
+            continue
+        for ex, ey in ((seg.x0, seg.y0), (seg.x1, seg.y1)):
+            mate = next((p for p in top_only if p.net == seg.net
+                         and _point_rect_dist(ex, ey, p) <= 1e-6), None)
+            if mate is None:
+                continue
+            if any(p.net != seg.net and _point_rect_dist(ex, ey, p) <= 1e-6
+                   for p in pads):
+                skipped.add(seg.net)
+                continue
+            if any(math.hypot(ex - v.x, ey - v.y) < 0.2 for v in vias):
+                continue  # a via already bridges this dead-end
+            placed = False
+            for cx, cy in _candidate_centers(ex, ey, mate):
+                for size, drill in _VIA_CANDIDATES:
+                    if _via_feasible(cx, cy, size, drill, seg.net, mate, seg,
+                                     pads, segs, vias, clearance,
+                                     hole_clear, hole_to_hole):
+                        placements.append((cx, cy, size, drill, seg.net))
+                        vias.append(_ViaGeom(cx, cy, drill, seg.net))
+                        placed = True
+                        break
+                if placed:
+                    break
+            if not placed:
+                skipped.add(seg.net)
+    if skipped:
+        result.notes.append(
+            "via-bridge could not find a safe placement for nets "
+            f"{', '.join(sorted(skipped))} (dead-end left for DRC to report)"
+        )
+    if not placements:
+        return text
+
+    keyed = {(round(cx, 6), round(cy, 6), net) for cx, cy, _, _, net in placements}
+    body = ""
+    for cx, cy, size, drill, net in placements:
+        if (round(cx, 6), round(cy, 6), net) not in keyed:
+            continue
+        keyed.discard((round(cx, 6), round(cy, 6), net))
+        body += _via_text(cx, cy, size, drill, net)
+        result.vias_bridged += 1
+
+    insert_at = len(text.rstrip())
+    # Prefer sitting next to the router's own vias; fall back to the file end.
+    for va, vb in _balanced_spans(text, "  (via"):
+        insert_at = vb
+    text = text[:insert_at] + "\n" + body + text[insert_at:]
+    return text

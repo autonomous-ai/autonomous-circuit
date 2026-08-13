@@ -199,6 +199,67 @@ the LED_DATA run, against tscircuit's generic 10mm ceiling.
 
 ---
 
+### Build round 12 — the last two defects were the router's, and they are repaired at the normalization layer
+
+**What the board actually had.** A fresh build of the committed source was
+deterministic and very close: exactly **two** `drc_violation [unconnected_items]`
+errors and nothing else at error severity. Both were the router's own work —
+a net that runs most of its length on B.Cu and then stops *under* a top-only
+SMD pad without the final via:
+
+| Net | B.Cu dead-end | The pad it never reached |
+|---|---|---|
+| `LED_DATA` | `(100.2, 92.425)` | U3 pad 27 (GPIO16), F.Cu only |
+| `V5` | `(97.60, 126.826)` | J1 pad 16 (VBUS2), F.Cu only |
+
+KiCad's DRC reports each pair as "missing connection between items". The
+electrical netlist is complete — the board is *right*, but the copper never
+reaches two pads, so no fab will build it. These are exactly the errors that a
+re-run of the router does not fix: every source-level perturbation tried in
+rounds 8–11 moved the same class of defect to a different net, because the
+router is at its convergence ceiling.
+
+**Why the fix belongs in the pipeline, not the board file.** The `.kicad_pcb`
+between `circuit-json-to-kicad` and `kicad-cli` is the one place every board
+passes through, and by then the route is already settled. `normalize_for_fab`
+(`packages/circuitpy/src/circuitpy/kicad_normalize.py`) was already holding the
+converted board to the fab's silkscreen floors there, before DRC and before the
+gerbers were plotted. A second normalization pass now finds every B.Cu segment
+whose end sits inside a top-only F.Cu SMD pad of the same net and bridges it
+with a via that touches both the pad and the track.
+
+Placement is adaptive because the dead-ends sit in tight corridors — the
+`LED_DATA` pad shares a 0.4mm-pitch row with an unused pin and a neighbour's
+track, so a via parked exactly on the dead-end violates clearance. Each
+candidate via is checked against every pad, track and via of the *other* nets
+(including net-0 copper, which still counts) with the same clearances the fab
+DRC enforces, and the center is nudged until the largest via that fits is
+found. A dead-end with no safe placement is left untouched and reported rather
+than shorted. The pass is idempotent, counted, and never raises.
+
+**Result (fresh build, this round).**
+
+| | |
+|---|---|
+| Errors | **0** (was 2) |
+| `unconnected_items` in KiCad DRC | **0** (was 2) |
+| Vias added | 2 — `LED_DATA` 0.3mm/0.15mm at the dead-end, `V5` 0.6mm/0.3mm at the dead-end |
+| `fab.ready` | **true** — zero `error`-severity warnings, gerbers exported by `kicad-cli 10.0.5` |
+| BOM | 61 placements, 58 orderable (the `TP*` debug pads and preview rows are BOM-exempt/preview-only) |
+
+The two nets' `track_dangling` KiCad warnings also cleared, because their B.Cu
+stubs are now connected at both ends. What remains is warning/info only:
+silkscreen overlap and footprint-library parity noise from the converter, the
+three long traces (`pcb_trace_too_long_warning`), and the same `holes_co_located`
+coincidence on the USB DM via that has been present since round 5 — none of
+them error severity, so none blocks the fab gate.
+
+This is a platform fix: any board that hits the same router behaviour (a B.Cu
+net that forgets its final via under a top-only pad) gets the same repair
+automatically, with no router re-run and no board-file edit.
+
+---
+
 ## Part 2 — the seven-lens panel
 
 Evidence read for this round: `boards/main_review/_pcb.png`,

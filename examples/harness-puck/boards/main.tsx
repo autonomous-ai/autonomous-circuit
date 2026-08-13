@@ -134,6 +134,37 @@ const PuckRing = () => {
   )
 }
 
+/**
+ * Debug testpoints: SWCLK/SWD/GND as 1.0mm pads at 2.54mm pitch, outboard of
+ * the flash (U4) in open copper — the location golden-blocks measures as
+ * fab.ready. Pads, not plated holes, so no drills and no BOM rows.
+ */
+const DebugPort = (props: { pcbX?: number; pcbY?: number }) => {
+  const px = props.pcbX ?? 0
+  const py = props.pcbY ?? 0
+  const nets = ["SWCLK", "SWD", "GND"]
+  const labels = ["CLK", "DIO", "GND"]
+  const pitch = 2.54
+  const diameter = 1.0
+  const first = -((nets.length - 1) * pitch) / 2
+  return (
+    <group pcbX={px} pcbY={py} pcbRotation={0} schX={30} schY={-12}>
+      {nets.flatMap((net, i) => {
+        const name = `TP${i + 1}`
+        return [
+          <testpoint key={name} name={name} footprintVariant="pad"
+            padShape="circle" padDiameter={`${diameter}mm`}
+            pcbX={first + i * pitch} pcbY={0} schX={i * 2} schY={0} />,
+          <trace key={`${name}_t`} name={`TR_${name}`}
+            from={`.${name} > .pin1`} to={`net.${net}`} />,
+          <silkscreentext key={`${name}_s`} text={labels[i] ?? net}
+            pcbX={first + i * pitch} pcbY={-1.8} fontSize={1} />,
+        ]
+      })}
+    </group>
+  )
+}
+
 export default () => (
   <board
     width="70mm"
@@ -218,6 +249,9 @@ export default () => (
     <trace name="TR_U3_leddata" from=".U3 > .GPIO16" to="net.LED_DATA" />
     <trace name="TR_U3_btngo" from=".U3 > .GPIO14" to="net.BTN_GO" />
     <trace name="TR_U3_btnmode" from=".U3 > .GPIO15" to="net.BTN_MODE" />
+
+    {/* SWD/SWCLK out to copper a probe can reach */}
+    <DebugPort pcbX={18.5} pcbY={9.5} />
 
     {/* three M2 holes at 120 degrees on a 22.8mm radius — the printed body's standoffs */}
     <MountingHole name="H1" diameter={2.2} pcbX={0} pcbY={22} />

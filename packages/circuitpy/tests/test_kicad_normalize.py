@@ -162,3 +162,80 @@ def test_a_corrupt_board_is_left_exactly_as_it_was(tmp_path):
     before = path.read_text()
     normalize_for_fab(path, PROFILE)
     assert path.read_text() == before
+
+
+# ---------------------------------------------------------------------------
+# Route dead-end vias: a B.Cu net that stops under a top-only F.Cu pad.
+# ---------------------------------------------------------------------------
+
+DEAD_END_BOARD = """  (footprint "test"
+    (property "Reference" "U1")
+    (at 100 100 0)
+    (pad "1" smd rect
+      (at 2 3 0)
+      (size 0.2 0.85)
+      (layers F.Cu F.Paste F.Mask)
+      (net 1 "V5")
+    )
+    (pad "2" smd rect
+      (at 2.6 3 0)
+      (size 0.2 0.85)
+      (layers F.Cu F.Paste F.Mask)
+      (net 2 "GND")
+    )
+  )
+  (segment
+    (start 100 102)
+    (end 102 103)
+    (width 0.15)
+    (layer B.Cu)
+    (net 1)
+  )"""
+
+
+def test_a_b_cu_dead_end_under_a_top_only_pad_gets_a_via(tmp_path):
+    """The router runs a net on B.Cu, stops it under an F.Cu-only SMD pad and
+    forgets the final via; KiCad then reports an unconnected_items DRC error.
+    The normalizer bridges the dead-end with a via touching both the pad and
+    the track, so the two connect."""
+    path = _write(tmp_path, DEAD_END_BOARD)
+    result = normalize_for_fab(path, PROFILE)
+    assert result.vias_bridged == 1
+    text = path.read_text()
+    assert _balanced(text), "the rewritten s-expression must still balance"
+    assert "(layers F.Cu B.Cu)" in text
+    assert "(net 1)" in text
+    # The via must sit at the dead-end inside the pad.
+    assert "(at 102 103)" in text
+
+
+def test_a_bridged_dead_end_is_not_bridged_twice(tmp_path):
+    path = _write(tmp_path, DEAD_END_BOARD)
+    first = normalize_for_fab(path, PROFILE)
+    after_first = path.read_text()
+    second = normalize_for_fab(path, PROFILE)
+    assert first.vias_bridged == 1
+    assert second.vias_bridged == 0
+    assert path.read_text() == after_first
+
+
+def test_a_b_cu_track_ending_in_open_space_is_left_alone(tmp_path):
+    body = DEAD_END_BOARD.replace("(end 102 103)", "(end 104 105)")
+    path = _write(tmp_path, body)
+    result = normalize_for_fab(path, PROFILE)
+    assert result.vias_bridged == 0
+    assert "F.Cu B.Cu" not in path.read_text().replace("(layers F.Cu F.Paste F.Mask)", "")
+
+
+def test_a_dead_end_with_no_room_for_a_via_is_skipped_and_noted(tmp_path):
+    """Two same-row pads whose neighbours leave 0.2mm gaps: no round via
+    clears both, so the dead-end must NOT be bridged with a shorting via, and
+    the skip is reported."""
+    body = DEAD_END_BOARD.replace(
+        '      (at 2.6 3 0)',
+        '      (at 2.1 3 0)',
+    )
+    path = _write(tmp_path, body)
+    result = normalize_for_fab(path, PROFILE)
+    assert result.vias_bridged == 0
+    assert any("could not find a safe placement" in n for n in result.notes)

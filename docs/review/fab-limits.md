@@ -27,6 +27,7 @@ our documentation.
 | `min_via_annular_mm` | 0.075 |
 | `min_via_diameter_mm` | 0.3 |
 | `min_via_drill_mm` | 0.15 |
+| `min_via_to_copper_mm` | 0.2 |
 | `standard_thickness_mm` | 1.6 |
 | `warn_clearance_mm` | 0.127 |
 | `warn_edge_clearance_mm` | 0.3 |

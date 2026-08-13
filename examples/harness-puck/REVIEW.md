@@ -1,11 +1,8 @@
 # Board sign-off — harness-puck
 
-**Not orderable — 2 blocking findings.**
+**The tool says this board is orderable:** zero error-severity findings, and gerbers independently produced by `kicad-cli` from the same file KiCad ran DRC against.
 
-- `dfm_hole_clearance` — board: a track passes 0.006mm from a plated hole at (-4.33, -27.59); the fab needs 0.28mm — route around it, the drill's own tolerance can cut a track this close
-- `drc_violation` — R11: [clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0850 mm)
-
-We already know about these, so there is nothing to approve here yet. What we want from you is whether the blocking list is **complete** — a defect we are missing is worth far more to us than one we have already found.
+That is our claim. This review is where it gets tested by someone who did not build it.
 
 ## What is in this folder
 
@@ -28,14 +25,18 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = False` · 694 findings total, 2 blocking.
+`fab.ready = True` · 683 findings total, 0 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 437 |
-| `erc_violation` | 254 |
+| `drc_violation` | 390 |
+| `erc_violation` | 265 |
+| `review_decoupling_distant` | 11 |
 | `pcb_trace_too_long_warning` | 2 |
-| `dfm_hole_clearance` | 1 |
+| `netclass_trace_width` | 2 |
+| `thermal_regulator` | 2 |
+| `dfa_edge_clearance` | 1 |
+| `dfa_pin_pitch` | 1 |
 
 Non-blocking findings are in `findings.json` here, in full. Some are noise from
 our own converter and are labelled as such — **please challenge that labelling**

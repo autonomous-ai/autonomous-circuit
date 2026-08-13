@@ -68,7 +68,7 @@ to design, at planning time, before anything is built.
 
 | Board | State |
 |---|---|
-| [harness-puck](harness-puck/REVIEW.md) | 2 blocking |
+| [harness-puck](harness-puck/REVIEW.md) | clean |
 | [hydrate-coaster](hydrate-coaster/REVIEW.md) | 6 blocking |
 | [terminal-keyboard](terminal-keyboard/REVIEW.md) | 1 blocking |
 
