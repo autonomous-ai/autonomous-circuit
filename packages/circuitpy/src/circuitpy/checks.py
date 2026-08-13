@@ -434,6 +434,72 @@ def _kicad_severity(reported: str, type_tag: str, kind: str) -> str:
     return reported
 
 
+#: A KiCad rule that fires this many times is one systemic pattern, not that
+#: many separate defects. Below it, each violation keeps its own line and its
+#: own location — a rule that fires twice really is two problems.
+KICAD_COLLAPSE_AT = 4
+
+#: How many refdes to name inside a collapsed line before saying "and N more".
+KICAD_COLLAPSE_SAMPLE = 4
+
+
+def _collapse_kicad_repeats(warnings: list[Warning]) -> list[Warning]:
+    """One line per KiCad rule that floods, keeping the count and an example.
+
+    **Why this is not filtering.** Measured on one real board: 521 warnings, of
+    which 204 ERC + 272 DRC were the same handful of converter and library
+    rules repeating, leaving about eight findings anyone could act on. An agent
+    that must read 521 lines to find 8 is an agent that misses things, and
+    adding a new check to that pile buys nothing.
+
+    Nothing is dropped and nothing is hidden: every rule still appears, with
+    how many times it fired and one worked example, which is exactly what the
+    house style asks for — the measurement goes in the detail. The per-instance
+    coordinates stay in the kicad report the pipeline already writes.
+
+    Grouping is by ``(kind, severity, [type_tag])``. Severity is part of the
+    key because collapsing an error into a group of infos would hide it, and
+    the type tag is KiCad's own name for "the same rule fired again".
+    """
+    groups: dict[tuple[str, str, str], list[Warning]] = {}
+    order: list[tuple[str, str, str]] = []
+    for warning in warnings:
+        detail = str(warning.get("detail") or "")
+        tag = detail[1:detail.index("]")] if detail.startswith("[") and "]" in detail else ""
+        key = (str(warning.get("kind")), str(warning.get("severity")), tag)
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(warning)
+
+    out: list[Warning] = []
+    for key in order:
+        members = groups[key]
+        kind, severity, tag = key
+        if not tag or len(members) < KICAD_COLLAPSE_AT:
+            out.extend(members)
+            continue
+        parts = [str(w.get("part") or "board") for w in members]
+        named = [p for p in dict.fromkeys(parts) if p != "board"]
+        where = ", ".join(named[:KICAD_COLLAPSE_SAMPLE])
+        if len(named) > KICAD_COLLAPSE_SAMPLE:
+            where += f" and {len(named) - KICAD_COLLAPSE_SAMPLE} more"
+        example = str(members[0].get("detail") or "")
+        example = example[example.index("]") + 1:].strip() if "]" in example else example
+        out.append(
+            _warning(
+                named[0] if named else "board",
+                kind,
+                f"[{tag}] x{len(members)} — {example}"
+                + (f" (on {where})" if where else "")
+                + ". Same rule every time; per-instance coordinates are in the "
+                "kicad report",
+                severity,
+            )
+        )
+    return out
+
+
 def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
     """A kicad-cli ``--format json`` ERC/DRC report -> warnings with the given
     kind (``erc_violation`` / ``drc_violation``). Accepts a dict, JSON text,
@@ -472,7 +538,7 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
             severity = _kicad_severity(severity, type_tag, kind)
             detail = f"[{type_tag}] {description}".strip() if type_tag else description
             warnings.append(_warning(part, kind, detail or "violation", severity))
-        return warnings
+        return _collapse_kicad_repeats(warnings)
     except Exception as exc:
         return [check_failed(f"kicad report parse failed ({kind}): {exc}")]
 
