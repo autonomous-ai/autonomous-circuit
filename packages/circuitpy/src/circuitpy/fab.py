@@ -217,6 +217,19 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
     # once the board is assembled, so the board can never run the firmware it
     # was designed for. "Arrives and is useless" is exactly the bar.
     "review_debug_unreachable",
+    # Ink on a solderable surface stops the joint wetting; the fab's own
+    # remedy is to clip the silk unasked, which costs the reference designator
+    # instead. Same family, same consequence and the same single-place fix as
+    # `gerber_silk_line_width` above.
+    #
+    # Escalated only once that fix existed. Measured 2026-08-13: every board
+    # this pipeline had produced carried this (13 strokes on one, 70 on
+    # another) and the board source could not clear it — those designators come
+    # from the converter, not the TSX. Blocking then would have made every
+    # board un-orderable over something no agent could fix. The gerber plot now
+    # passes `--subtract-soldermask`, boards come out with zero, and this
+    # escalation is the guard that keeps them that way.
+    "gerber_silk_over_pad",
 })
 
 #: Deliberately NOT escalated, with the reasoning recorded so the next person

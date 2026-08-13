@@ -60,6 +60,15 @@ def test_a_mask_web_inside_one_footprint_never_blocks():
         assert out[0]["severity"] == "warning", kind
 
 
+def test_silk_on_a_pad_blocks_now_that_the_plot_can_clear_it():
+    """Ink on a solderable surface stops the joint wetting. It was left
+    advisory while nothing could fix it — the designators come from the
+    converter, not the board source — and escalated only once the gerber plot
+    started passing --subtract-soldermask and boards came out with zero."""
+    out = apply_verify_policy([_finding("gerber_silk_over_pad", "warning")], PROFILE)
+    assert out[0]["severity"] == "error"
+
+
 def test_an_unclassified_kind_can_never_block():
     """The default that matters most. A check added tomorrow must not move the
     bar on its own — a bar that improves for a reason nobody chose is

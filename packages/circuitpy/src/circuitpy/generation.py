@@ -1581,8 +1581,25 @@ def build_board(
             gerber_dir = built_dir / "kicad-gerbers"
             try:
                 gerber_dir.mkdir(parents=True, exist_ok=True)
+                # --subtract-soldermask clips silkscreen wherever the mask is
+                # open, i.e. off every pad. Without it the exporter places
+                # reference designators without asking whether they land on
+                # copper, and `gerber_silk_over_pad` fires on every board this
+                # pipeline has produced: 13 strokes on one, 70 on another. Ink
+                # on a solderable surface stops the joint wetting, and the fab
+                # then clips it anyway — unasked, unrecorded, and only on the
+                # boards whose fab bothers. Doing it here makes it ours: the
+                # same clip every time, visible in the packet we verify.
+                # The board source cannot fix this. Those designators come from
+                # the converter, not the TSX, so no amount of agent effort
+                # moves them — which is exactly why it belongs in the plot
+                # command and not in a finding the model is asked to act on.
                 toolchain.run_kicad(
-                    ["pcb", "export", "gerbers", "-o", str(gerber_dir) + os.sep, str(kicad_pcb)],
+                    [
+                        "pcb", "export", "gerbers",
+                        "--subtract-soldermask",
+                        "-o", str(gerber_dir) + os.sep, str(kicad_pcb),
+                    ],
                     timeout=KICAD_TIMEOUT_S,
                 )
                 toolchain.run_kicad(

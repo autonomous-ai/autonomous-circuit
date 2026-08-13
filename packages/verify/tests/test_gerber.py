@@ -462,3 +462,64 @@ def test_a_board_that_does_have_holes_still_needs_them_drilled(tmp_path):
     assert "gerber_drill_empty" in kinds(result, "error") or "gerber_drill_missing" in kinds(
         result, "error"
     )
+
+
+# --- layer polarity -------------------------------------------------------
+
+
+def _polarity_text() -> str:
+    """Ink laid down, then a pad knocked out of it — how a plotter subtracts
+    one layer from another. KiCad's --subtract-soldermask emits exactly this
+    shape: the strokes stay, and clear-polarity flashes erase them."""
+    return (
+        "%FSLAX46Y46*%\n%MOMM*%\n%LPD*%\nG01*\n"
+        "%ADD10C,0.15*%\n"
+        "%ADD11R,1.0X1.0*%\n"
+        "D10*\n"
+        f"X{_coord(0)}Y{_coord(0)}D02*\n"
+        f"X{_coord(5)}Y{_coord(0)}D01*\n"
+        "%LPC*%\n"
+        "D11*\n"
+        f"X{_coord(2)}Y{_coord(0)}D03*\n"
+        "%LPD*%\n"
+        "D11*\n"
+        f"X{_coord(8)}Y{_coord(0)}D03*\n"
+        "M02*\n"
+    )
+
+
+def test_clear_polarity_flashes_are_read_as_removing_ink():
+    """%LPC is not an attribute to skip — it decides whether what follows adds
+    ink or takes it away. Measured on a real board: 188 of these, and a reader
+    blind to them reported 13 strokes of ink that were not there."""
+    layer = gerber.parse_gerber(_polarity_text())
+    clears = [f for f in layer.flashes if f.clear]
+    darks = [f for f in layer.flashes if not f.clear]
+    assert len(clears) == 1
+    assert len(darks) == 1
+
+
+def test_polarity_resets_to_dark_on_lpd():
+    layer = gerber.parse_gerber(_polarity_text())
+    dark = next(f for f in layer.flashes if not f.clear)
+    assert dark.x == pytest.approx(8.0)
+
+
+def test_a_stroke_drawn_in_clear_polarity_is_not_ink():
+    text = (
+        "%FSLAX46Y46*%\n%MOMM*%\n%LPD*%\nG01*\n%ADD10C,0.15*%\n"
+        "%LPC*%\nD10*\n"
+        f"X{_coord(0)}Y{_coord(0)}D02*\nX{_coord(5)}Y{_coord(0)}D01*\n"
+        "M02*\n"
+    )
+    assert gerber.parse_gerber(text).draws == []
+
+
+def test_a_plain_board_still_reads_every_stroke():
+    """The subtraction path must not cost anything on a layer that never uses
+    it — all-dark files are the normal case."""
+    text = gerber_text(
+        apertures={10: "C,0.15"},
+        draws=[(10, 0.0, 0.0, 5.0, 0.0), (10, 0.0, 1.0, 5.0, 1.0)],
+    )
+    assert len(gerber.parse_gerber(text).draws) == 2
