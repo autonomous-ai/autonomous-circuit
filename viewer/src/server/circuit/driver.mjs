@@ -1318,6 +1318,28 @@ function emitUnresolvedNote(turnId, label, remaining, onEvent) {
   });
 }
 
+/** Say which review phase is running, and how far through it is.
+ *
+ * The loop used to be silent to the user by design — it only wrote to the
+ * server log. That is fine when it takes a minute; it is not fine at ninety.
+ * A person watching a board build for an hour and a half with no phase, no
+ * round count and no idea a panel is even owed cannot tell working from hung,
+ * and the honest reading is the pessimistic one.
+ *
+ * Uses `text_delta` like :func:`emitUnresolvedNote` rather than a new event
+ * kind: the ChatEvent union is name-coupled to the client (contract §3), and a
+ * status line is not worth an edit on both sides of it.
+ */
+export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail }) {
+  const of = rounds > 1 ? ` ${round}/${rounds}` : "";
+  onEvent?.({
+    kind: "text_delta",
+    turnId,
+    text: `\n\n_Checking: ${phase}${of}${detail ? ` — ${detail}` : ""}. `
+      + "Each round rebuilds the board, so this takes a few minutes._",
+  });
+}
+
 /**
  * The silent 3-phase post-build review loop (contract §2, donor caps 2/3/2):
  *
@@ -1407,6 +1429,12 @@ export async function runReviewFixLoop({
     if (!prompt) break;
     snapshot("structure", i + 1, all);
     log(`review structure round ${i + 1}: ${blocking.length} blocking warning(s)`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "structure",
+      round: i + 1,
+      rounds: MAX_STRUCTURE_ROUNDS,
+      detail: `${blocking.length} finding(s) that stop the board being made`,
+    });
     changed = (await round(prompt)) || changed;
   }
   if (aborted() || regressed) return changed;
@@ -1427,6 +1455,12 @@ export async function runReviewFixLoop({
     if (!prompt) break;
     snapshot("electrical", i + 1, all);
     log(`review electrical round ${i + 1}: ${electrical.length} electrical warning(s)`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "electrical function",
+      round: i + 1,
+      rounds: MAX_ELECTRICAL_ROUNDS,
+      detail: `${electrical.length} thing(s) that would stop it working`,
+    });
     changed = (await round(prompt)) || changed;
   }
   if (aborted() || regressed) return changed;
@@ -1447,6 +1481,12 @@ export async function runReviewFixLoop({
     if (aborted() || regressed) return changed;
     snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "craft",
+      round: i + 1,
+      rounds: MAX_CRAFT_ROUNDS,
+      detail: "reading the schematic and PCB images",
+    });
     const roundChanged = await round(buildCraftPrompt(hints));
     changed = roundChanged || changed;
     if (!roundChanged) {
@@ -1466,6 +1506,12 @@ export async function runReviewFixLoop({
     if (workspaceFabReady(workspace) !== true) break;
     snapshot("panel", i + 1, collectBoardWarnings(workspace));
     log(`review panel round ${i + 1}`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "the expert panel",
+      round: i + 1,
+      rounds: MAX_PANEL_ROUNDS,
+      detail: "seven lenses score the board before anyone pays a fab",
+    });
     changed = (await round(buildPanelPrompt())) || changed;
   }
 

@@ -20,6 +20,7 @@ import {
   buildCommandArgs,
   buildCraftPrompt,
   buildPanelPrompt,
+  emitPhaseNote,
   MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
@@ -454,6 +455,38 @@ test("a turn that already ran the panel is told to say so rather than pay twice"
 
 test("the panel gets exactly one driver round; its own loop is bounded inside", () => {
   assert.equal(MAX_PANEL_ROUNDS, 1);
+});
+
+test("every review phase says what it is doing, because ninety minutes of silence reads as hung", () => {
+  // 2026-08-14, after watching a board for 98 minutes: "tao ngồi ko biết khi
+  // nào xong luôn. Hay ít ra nó cũng bắn tin lên là đang làm gì". The loop
+  // logged its phases to the server console and told the user nothing.
+  const seen = [];
+  const onEvent = (e) => seen.push(e);
+  emitPhaseNote("t1", onEvent, {
+    phase: "the expert panel", round: 1, rounds: 1,
+    detail: "seven lenses score the board",
+  });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].kind, "text_delta");   // no new ChatEvent kind: §3 is name-coupled
+  assert.equal(seen[0].turnId, "t1");
+  assert.ok(seen[0].text.includes("the expert panel"));
+  assert.ok(seen[0].text.includes("seven lenses"));
+  assert.ok(/takes a few minutes/.test(seen[0].text));
+});
+
+test("a phase with several rounds shows which round it is on", () => {
+  const seen = [];
+  emitPhaseNote("t1", (e) => seen.push(e), {
+    phase: "craft", round: 2, rounds: 3, detail: "reading the images",
+  });
+  assert.ok(seen[0].text.includes("craft 2/3"));
+});
+
+test("a single-round phase does not print a pointless 1/1", () => {
+  const seen = [];
+  emitPhaseNote("t1", (e) => seen.push(e), { phase: "the expert panel", round: 1, rounds: 1 });
+  assert.ok(!seen[0].text.includes("1/1"));
 });
 
 // ---------------------------------------------------------------------------
