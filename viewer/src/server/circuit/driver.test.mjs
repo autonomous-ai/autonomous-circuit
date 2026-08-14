@@ -19,6 +19,8 @@ import {
   attachmentNote,
   buildCommandArgs,
   buildCraftPrompt,
+  buildPanelPrompt,
+  MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
   collectBoardWarnings,
@@ -430,6 +432,28 @@ test("review prompts gate on their warning sets; craft prompt always builds", ()
   assert.ok(craft.includes("_pcb.png"));
   assert.ok(craft.includes("decoupling"));
   assert.ok(craft.includes("mounting"));
+});
+
+test("the panel prompt makes the last stage the driver's job, not a question", () => {
+  // 2026-08-14: a turn finished a fab-ready board and ASKED the user whether
+  // to run the panel. Two turns earlier, same wording in the skill, it ran it
+  // unprompted. The person waiting has no way to know a stage is owed, so the
+  // mandatory part moved out of prose and into the loop.
+  const panel = buildPanelPrompt();
+  assert.ok(panel.includes("design-review"));
+  assert.ok(/do not ask/i.test(panel));
+  assert.ok(panel.includes("fab-ready"));
+});
+
+test("a turn that already ran the panel is told to say so rather than pay twice", () => {
+  // A wasted panel is about half an hour, so the round asks before it spends.
+  const panel = buildPanelPrompt();
+  assert.ok(panel.includes("NO_CHANGES"));
+  assert.ok(/ALREADY ran/i.test(panel));
+});
+
+test("the panel gets exactly one driver round; its own loop is bounded inside", () => {
+  assert.equal(MAX_PANEL_ROUNDS, 1);
 });
 
 // ---------------------------------------------------------------------------
