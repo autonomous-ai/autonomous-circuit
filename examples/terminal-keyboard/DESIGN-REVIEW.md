@@ -153,3 +153,74 @@ other 25 fixed" are not the same request. The options for whoever picks this up:
 
 Nobody should pay a fab for this board until option 1, 2 or 3 lands, and until
 `sw-tact`'s pad pairing is confirmed on a first article.
+
+---
+
+## Final rounds — fab-ready
+
+What follows is the repair loop that took the board from **1 blocking error to
+0**. The error classes, in order of removal, each with the exact measured row
+that cleared it. Every build below is a full board through the real pipeline at
+`autorouterEffortLevel="5x"` (≈11–19 min each); the router is global, so each
+change re-solves the whole board and the defect count re-measures from zero.
+
+### Round 3 — decoupling row out of the QSPI corridor
+
+The top decoupling row (C4–C8, C17) sat at block `pcbY={6}` (board y≈−19),
+directly across U3's QSPI pins, which exit the QFN's **top** edge at y=−21.575.
+The router couldn't escape `U3.QSPI_SD1` without violating pad/trace clearance.
+Moved the row to block `pcbY={13}` (board y≈−12), opening a clean east-west
+corridor above the chip. Placement only; netlist untouched. Cleared the three
+`U3 QSPI_SD1` pad/via clearance errors (0.086–0.092 mm) from the baseline.
+
+### Round 4 — SWD test points
+
+Added a 3-pin SWCLK/SWD/GND testpoint header (`DebugPort`, 1.0 mm pads at
+2.54 mm pitch) in open copper east of U4 at (38,−33), copied from the
+harness-puck idiom. This satisfied `review_debug_unreachable`; the pads carry
+no BOM rows and no drills.
+
+### Round 5 — flash rotation: QSPI out of the bottom row
+
+`W25q128` shipped at rotation 0, which puts **CS / DO / WP on U4's bottom row**
+(board y=−28.53) while U3's QSPI pins sit on its **top** edge (y=−21.575). The
+CS net had to drop 7 mm past U4 and wrap through the GPIO/COL8 zone to reach
+R13–SW2 (BOOTSEL), and the router parked a via 0.021 mm from the COL8 trunk
+(`pcb_via_248`) and another −0.243 mm inside U4's CS pad region
+(`pcb_via_238`, `dfm_hole_clearance`).
+
+Rotating U4 to **270°** puts CS/DO/WP on the **left face** facing U3
+(`U4.CS` at (18.47,−23.1) vs (20.1,−28.53)), so the bus escapes sideways
+instead of through the bottom row. One change, and the board dropped from
+**8 errors → 1**: every via/trace collision above cleared, plus the two U4
+clearance flukes (0.058, 0.021) and the U3 0.085.
+
+### Round 6 — the crystal cluster's XIN via (the last one)
+
+The single remaining error was `drc_violation [clearance]` on **R11**
+(crystal XOUT series path), 0.0850 mm vs the 0.09 mm floor. KiCad DRC located
+it exactly: the XIN via `(0.015,−34.35)` — the crystal's **top-pad gap** —
+sits 0.085 mm from `Y1.pin3` (XOUT). The router reliably re-drops that via on
+every pass; the violation is stable across board and micro-builds.
+
+A keepout over the package (r=2.4) was tried and **reverted** (16 errors: it
+blocks the crystal's own GND pad traces — `pcb_trace_error … overlaps with
+pcb_keepout`). The fix that held: drop the whole crystal row (**Y1, C15, C16,
+R11**) 0.7 mm, from block `pcbY={-10.5}` to `pcbY={-11.2}`. The XIN straight
+line stays 8.6 mm — under the crystal ceiling — and the router now exits XIN
+below the part instead of threading the top-pad gap. Cleared the 0.085
+violation.
+
+### The measured result
+
+| Build | Error-severity warnings |
+|---|---|
+| round-1 (pre-fix, committed) | 7 |
+| after round 3 + 4 edits | 8 (different list — router re-solved) |
+| after round 5 (U4 rot270) | **1** |
+| after round 6 (crystal row) | **0** |
+
+`fab.ready: true` — 0 error-severity warnings, 371 non-blocking findings
+reviewed, gerbers from kicad-cli, `ORDER.md` present. BOM 137 lines / 134
+orderable. The board is now orderable by the tool's own bar.
+

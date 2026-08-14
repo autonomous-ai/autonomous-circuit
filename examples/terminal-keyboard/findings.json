@@ -1,9 +1,93 @@
 [
   {
-    "detail": "PCB trace is 13.82mm long, exceeding the 10mm maximum",
+    "detail": "PCB trace is 21.60mm long, exceeding the 10mm maximum",
     "kind": "pcb_trace_too_long_warning",
     "part": "board",
     "severity": "warning"
+  },
+  {
+    "detail": "SW2 sits 1.800mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW2",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW3 sits 1.800mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW3",
+    "severity": "warning"
+  },
+  {
+    "detail": "J1's keep-out extends 1.151mm past the board outline \u2014 intended for an edge-mounted part, confirm it on JLCPCB's placement preview",
+    "kind": "dfa_off_board",
+    "part": "J1",
+    "severity": "info"
+  },
+  {
+    "detail": "U3 sits exactly on the 0.4mm pitch floor \u2014 legal, with no margin for a footprint revision",
+    "kind": "dfa_pin_pitch",
+    "part": "U3",
+    "severity": "info"
+  },
+  {
+    "detail": "56 part(s) are in package families whose zero-rotation convention differs between EDA output and JLCPCB's library: D1, D10, D11, D12, D13, D14, D15, D16, D17, D18, D19, D2, D20, D21, D22, D23, D24, D25, D26, D27 (+36 more). Check pin-1 on each in the placement preview before paying \u2014 that screen is the only place this is catchable",
+    "kind": "dfa_rotation_watchlist",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "USB_DP routes 50.91mm and USB_DM 40.28mm \u2014 10.63mm of intra-pair skew against a 3.8mm budget (USB 2.0, ~150ps on FR-4). Length-match the pair or shorten the longer leg",
+    "kind": "netclass_pair_skew",
+    "part": "USB_DP,USB_DM",
+    "severity": "warning"
+  },
+  {
+    "detail": "every routed segment on this board is 0.2mm \u2014 the same copper for GND, V3_3, V5 as for a button signal. No net class distinguishes power from signal, so each rail carries whatever the router's default happens to be (745mA at 10degC by IPC-2221B)",
+    "kind": "netclass_uniform_width",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "U3's nearest decoupling capacitor to pin ADC_AVDD is 9.6mm away; the loop inductance is what does the work, so keep it inside 5mm (7 pin(s) are further)",
+    "kind": "review_decoupling_distant",
+    "part": "U3",
+    "severity": "info"
+  },
+  {
+    "detail": "U4's nearest decoupling capacitor to pin VCC is 9.1mm away; the loop inductance is what does the work, so keep it inside 5mm (1 pin(s) are further)",
+    "kind": "review_decoupling_distant",
+    "part": "U4",
+    "severity": "info"
+  },
+  {
+    "detail": "U2's nearest decoupling capacitor to pin VIN is 9.7mm away; the loop inductance is what does the work, so keep it inside 5mm (1 pin(s) are further)",
+    "kind": "review_decoupling_distant",
+    "part": "U2",
+    "severity": "info"
+  },
+  {
+    "detail": "2 signal(s) leave the board through J1 with no ESD clamp on them (J1.A5, J1.B5). A finger on a connector is several kilovolts",
+    "kind": "review_esd_unprotected",
+    "part": "J1",
+    "severity": "info"
+  },
+  {
+    "detail": "1 rail(s) have nowhere to put a probe (V3_3). Add a test point \u2014 nobody can diagnose a dead board over chat without one",
+    "kind": "review_no_test_point",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "U2 dissipates 0.23W at 134mA and sits about 59 degC junction, 66 degC inside the limit",
+    "kind": "thermal_regulator",
+    "part": "U2",
+    "severity": "info"
+  },
+  {
+    "detail": "the converted board was held to the fab's silkscreen floors before plotting: 191 silkscreen text(s) raised to the fab's minimum height (smallest was 0.267mm); 191 given an explicit stroke; 691 silkscreen stroke(s) widened (thinnest was 0.1000mm)",
+    "kind": "kicad_normalized",
+    "part": "board",
+    "severity": "info"
   },
   {
     "detail": "[pin_not_connected] Pin not connected",
@@ -120,6 +204,12 @@
     "severity": "info"
   },
   {
+    "detail": "[pin_not_connected] Pin not connected",
+    "kind": "erc_violation",
+    "part": "TP3",
+    "severity": "info"
+  },
+  {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Symbol GND Pin 1 [1, Passive, Line]",
@@ -146,13 +236,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0435 mm",
+    "part": "Horizontal Wire, length 0.0300 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0300 mm",
+    "part": "Horizontal Wire, length 0.0435 mm",
     "severity": "info"
   },
   {
@@ -452,13 +542,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0272 mm",
+    "part": "C1",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "C1",
+    "part": "Horizontal Wire, length 0.0272 mm",
     "severity": "info"
   },
   {
@@ -1368,18 +1458,6 @@
     "severity": "info"
   },
   {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "Global Label 'SWCLK'",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "Global Label 'SWD'",
-    "severity": "info"
-  },
-  {
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "SW14",
@@ -1772,13 +1850,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.5175 mm",
+    "part": "U4",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "U4",
+    "part": "Horizontal Wire, length 0.5175 mm",
     "severity": "info"
   },
   {
@@ -2162,6 +2240,42 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
+    "part": "TP1",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
+    "kind": "erc_violation",
+    "part": "TP1",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "TP2",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
+    "kind": "erc_violation",
+    "part": "TP2",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "TP3",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
+    "kind": "erc_violation",
+    "part": "TP3",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
     "part": "SW18",
     "severity": "info"
   },
@@ -2338,17 +2452,23 @@
     "kind": "erc_violation",
     "part": "SW59",
     "severity": "info"
-  },
-  {
-    "detail": "[hole_clearance] Hole clearance violation (board setup constraints hole clearance 0.2000 mm; actual 0.1196 mm)",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "error"
   },
   {
     "detail": "[silk_edge_clearance] Silkscreen clipped by board edge",
     "kind": "drc_violation",
     "part": "Segment on Edge.Cuts",
+    "severity": "warning"
+  },
+  {
+    "detail": "[holes_co_located] Drilled holes co-located",
+    "kind": "drc_violation",
+    "part": "Via [USB_DM_CONN] on F.Cu - B.Cu",
+    "severity": "warning"
+  },
+  {
+    "detail": "[holes_co_located] Drilled holes co-located",
+    "kind": "drc_violation",
+    "part": "Via [USB_DP_CONN] on F.Cu - B.Cu",
     "severity": "warning"
   },
   {
@@ -2360,7 +2480,7 @@
   {
     "detail": "[holes_co_located] Drilled holes co-located",
     "kind": "drc_violation",
-    "part": "K44",
+    "part": "ROW3",
     "severity": "warning"
   },
   {
@@ -3176,1993 +3296,169 @@
   {
     "detail": "[lib_footprint_issues] The current configuration does not include the footprint library 'tscircuit'",
     "kind": "drc_violation",
+    "part": "TP1",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_footprint_issues] The current configuration does not include the footprint library 'tscircuit'",
+    "kind": "drc_violation",
+    "part": "TP2",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_footprint_issues] The current configuration does not include the footprint library 'tscircuit'",
+    "kind": "drc_violation",
+    "part": "TP3",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_footprint_issues] The current configuration does not include the footprint library 'tscircuit'",
+    "kind": "drc_violation",
     "part": "Footprint <no reference designator>",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'ESC' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'FN+' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'CTL@' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "F1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "F2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "F3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "F4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'CTL' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'FN-' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'BKSP' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'Q' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'W' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'E' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'R' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'T' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'Y' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'U' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'I' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'O' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'P' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'A' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW30",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW20",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'W' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW21",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'S' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'D' on F.Silkscreen",
+    "part": "SW31",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'F' on F.Silkscreen",
+    "part": "SW32",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'G' on F.Silkscreen",
+    "part": "SW42",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'H' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'J' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'K' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'L' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'ENT' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'TAB' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'Z' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'X' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'C' on F.Silkscreen",
+    "part": "PCB text 'ESC' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'V' on F.Silkscreen",
+    "part": "SW10",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'B' on F.Silkscreen",
+    "part": "SW11",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'N' on F.Silkscreen",
+    "part": "PCB text 'FN+' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'M' on F.Silkscreen",
+    "part": "PCB text 'Q' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'PGUP' on F.Silkscreen",
+    "part": "PCB text 'TAB' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW40",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW41",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'Z' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'SHFT' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'ALT' on F.Silkscreen",
+    "part": "SW50",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'MIC' on F.Silkscreen",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'SPC' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'HOME' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'PGDN' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'END' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "PCB text 'SPR' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D5",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D5",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D6",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D6",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D7",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D7",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D8",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D8",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D9",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D9",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW18",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW18",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW19",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW19",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW20",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW20",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW21",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW21",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW22",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW22",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW23",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW23",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW24",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW24",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW25",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW25",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW26",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW26",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D18",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D18",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW27",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW27",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D19",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D19",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW28",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW28",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D20",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D20",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW29",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW29",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D21",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D21",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW30",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW30",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D22",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D22",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW31",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW31",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D23",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D23",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW32",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW32",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D24",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D24",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW33",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW33",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D25",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D25",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW34",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW34",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D26",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D26",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW35",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW35",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D27",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D27",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW36",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW36",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D28",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D28",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW37",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW37",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D29",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D29",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW38",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW38",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D30",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D30",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW39",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW39",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D31",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D31",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW40",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW40",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D32",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D32",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW41",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW41",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D33",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D33",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW42",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW42",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D34",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D34",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW43",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW43",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D35",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D35",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW44",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW44",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D36",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D36",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW45",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW45",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D37",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D37",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW46",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW46",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D38",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D38",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW47",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW47",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D39",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D39",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW48",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW48",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D40",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D40",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW49",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW49",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D41",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D41",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW50",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW50",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D42",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D42",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW51",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW51",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D43",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D43",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
+    "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "SW52",
     "severity": "info"
   },
   {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW52",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D44",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D44",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW53",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW53",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D45",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D45",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW54",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW54",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D46",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D46",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW55",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW55",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D47",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D47",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW56",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW56",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D48",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D48",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW57",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW57",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D49",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D49",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW58",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW58",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "D50",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "D50",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW59",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW59",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0417 mm)",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.3333 mm)",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0519 mm)",
-    "kind": "drc_violation",
-    "part": "U4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4153 mm)",
-    "kind": "drc_violation",
-    "part": "U4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0583 mm)",
-    "kind": "drc_violation",
-    "part": "Y1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4667 mm)",
-    "kind": "drc_violation",
-    "part": "Y1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0545 mm)",
-    "kind": "drc_violation",
-    "part": "SW3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.4361 mm)",
-    "kind": "drc_violation",
-    "part": "SW3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C12",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C13",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "J1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R4",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0373 mm)",
-    "kind": "drc_violation",
-    "part": "U1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2986 mm)",
-    "kind": "drc_violation",
-    "part": "U1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.6667 mm)",
-    "kind": "drc_violation",
-    "part": "U2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C2",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "LED1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "LED1",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_thickness] Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0333 mm)",
-    "kind": "drc_violation",
-    "part": "R20",
-    "severity": "info"
-  },
-  {
-    "detail": "[text_height] Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2667 mm)",
-    "kind": "drc_violation",
-    "part": "R20",
-    "severity": "info"
-  },
-  {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'H' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'B' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'E' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'CTL@' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW23",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "F2",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW13",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW24",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW15",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "F4",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Y' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW26",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'CTL' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW27",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW34",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'J' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'M' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'K' on F.Silkscreen",
+    "part": "SW43",
     "severity": "info"
   },
   {
@@ -5174,31 +3470,25 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW54",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'N' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'HOME' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW57",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "SW53",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'ALT' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW51",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW2",
     "severity": "info"
   },
   {
@@ -5210,13 +3500,313 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'FN+' on F.Silkscreen",
+    "part": "Y1",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW33",
+    "part": "C16",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C9",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C10",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C11",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C4",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C5",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C6",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C7",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C8",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C15",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW3",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "R12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C13",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F3",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW15",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW14",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW16",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F4",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW26",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'U' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'I' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW27",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'CTL' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW17",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'Y' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'H' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW35",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'J' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW36",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW24",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW25",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW45",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW34",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'B' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW46",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'N' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW47",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'M' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'K' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW37",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'CTL@' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F1",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW13",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW22",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'E' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW23",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'R' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'T' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -5228,115 +3818,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW32",
+    "part": "SW33",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'V' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW42",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'ALT' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'MIC' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Q' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW21",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'SHFT' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'TAB' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW10",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'A' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'S' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Z' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'FN-' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'O' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'P' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'BKSP' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'L' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'ENT' on F.Silkscreen",
+    "part": "SW44",
     "severity": "info"
   },
   {
@@ -5348,7 +3836,37 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
+    "part": "SW48",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
     "part": "PCB text 'END' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW58",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'ENT' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW49",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW59",
     "severity": "info"
   },
   {
@@ -5360,7 +3878,271 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW3",
+    "part": "PCB text 'BKSP' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D13",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D23",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D11",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D22",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D21",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D31",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D41",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D32",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D42",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D33",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D34",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D44",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D43",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D46",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D45",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D17",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D18",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D26",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D27",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D28",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D14",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D15",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D25",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D24",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D30",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D40",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D10",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D19",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D20",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D29",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D39",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D35",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D16",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D36",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D37",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D38",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D47",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D50",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D49",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D48",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "R2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "R3",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "LED1",
     "severity": "info"
   },
   {
@@ -7224,6 +6006,48 @@
     "severity": "warning"
   },
   {
+    "detail": "[footprint_symbol_mismatch] tscircuit:test_point_smtpad_circle_d1 doesn't match footprint given by symbol ()",
+    "kind": "drc_violation",
+    "part": "TP1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "TP1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_mismatch] tscircuit:test_point_smtpad_circle_d1 doesn't match footprint given by symbol ()",
+    "kind": "drc_violation",
+    "part": "TP2",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "TP2",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_mismatch] tscircuit:test_point_smtpad_circle_d1 doesn't match footprint given by symbol ()",
+    "kind": "drc_violation",
+    "part": "TP3",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "TP3",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(TP3-Pad1))",
+    "kind": "drc_violation",
+    "part": "TP3",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:USBLC6-2SC6 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U1",
@@ -7479,6 +6303,18 @@
     "detail": "[extra_footprint] Extra footprint",
     "kind": "drc_violation",
     "part": "Footprint <no reference designator>",
+    "severity": "warning"
+  },
+  {
+    "detail": "2 thin mask web(s) on mask top sit inside a single part's own land pattern (a 0402's pad gap is 0.1985mm, just under the 0.2mm rule). That is a property of the qualified footprint, which the fab builds every day \u2014 recorded, not blocked",
+    "kind": "gerber_mask_sliver_in_footprint",
+    "part": "board-F_Mask.gts",
+    "severity": "info"
+  },
+  {
+    "detail": "228 silkscreen stroke(s) on silk top land inside a solder-mask opening \u2014 ink on a solderable surface stops the joint wetting, and the fab may clip the silk instead",
+    "kind": "gerber_silk_over_pad",
+    "part": "board-F_Silkscreen.gto",
     "severity": "warning"
   }
 ]

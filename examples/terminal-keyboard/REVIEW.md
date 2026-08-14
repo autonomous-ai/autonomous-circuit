@@ -1,10 +1,8 @@
 # Board sign-off — terminal-keyboard
 
-**Not orderable — 1 blocking finding.**
+**The tool says this board is orderable:** zero error-severity findings, and gerbers independently produced by `kicad-cli` from the same file KiCad ran DRC against.
 
-- `drc_violation` — V5: [hole_clearance] Hole clearance violation (board setup constraints hole clearance 0.2000 mm; actual 0.1196 mm)
-
-We already know about these, so there is nothing to approve here yet. What we want from you is whether the blocking list is **complete** — a defect we are missing is worth far more to us than one we have already found.
+That is our claim. This review is where it gets tested by someone who did not build it.
 
 ## What is in this folder
 
@@ -27,13 +25,18 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = False` · 1247 findings total, 1 blocking.
+`fab.ready = True` · 1053 findings total, 0 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 857 |
-| `erc_violation` | 389 |
+| `drc_violation` | 642 |
+| `erc_violation` | 394 |
+| `review_decoupling_distant` | 3 |
+| `dfa_edge_clearance` | 2 |
 | `pcb_trace_too_long_warning` | 1 |
+| `dfa_off_board` | 1 |
+| `dfa_pin_pitch` | 1 |
+| `dfa_rotation_watchlist` | 1 |
 
 Non-blocking findings are in `findings.json` here, in full. Some are noise from
 our own converter and are labelled as such — **please challenge that labelling**

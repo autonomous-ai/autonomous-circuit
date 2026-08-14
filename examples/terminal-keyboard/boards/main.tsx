@@ -150,23 +150,41 @@ const matrixToMcu = () => {
   return out
 }
 
-/** Bring-up access. There is no dedicated test-point component on this board,
- *  and that is a limitation, not a choice — see README "Honest limits".
- *  tscircuit's <testpoint> always emits a source_component, and the
- *  circuit-json BOM exporter writes it into bom.csv with an empty LCSC column
- *  even with `doNotPlace` set, which the DFM gate turns into a blocking
- *  `part_not_orderable`. A <via connectsTo="net.X"> is net-tagged but the
- *  autorouter never routes to it, so it lands as a dangling via and an
- *  `unconnected_items` DRC error. Both were tried and both blocked the fab
- *  packet, so the bring-up story rides on copper that is already here:
- *    V3_3  — U2's SOT-223 tab (2.3 x 3.6mm) and C3's high pad
- *    V5    — C2's high pad and C1 beside the connector
- *    GND   — C2/C3 low pads, the four USB shell tabs, every switch row pad
- *    ROW n — pads 3/4 of any switch in that row (0.75mm, tweezer-friendly)
- *    COL n — the anode pad of any diode in that column
- *  plus LED1, which says "3V3 is up" before a meter comes out.
- *  What is genuinely missing is SWD: SWCLK/SWD only exist on QFN pins 24/25.
- *  Reflashing goes through BOOTSEL + USB mass storage instead. */
+/**
+ * Bring-up access: a 3-pin SWD header (SWCLK/SWD/GND) as 1.0mm test pads at
+ * 2.54mm pitch, in open copper east of the flash (U4). Pads, not plated
+ * holes, so no drills and no BOM rows — measured on harness-puck: a
+ * <testpoint> needs `footprintVariant="pad"` to stay out of the BOM's LCSC
+ * column (the part_not_orderable claim in the earlier README "Honest limits"
+ * is stale for this idiom). Reflash stays BOOTSEL + USB mass storage; these
+ * pads give a debugger somewhere to bite once a probe needs SWD.
+ */
+
+const DebugPort = (props: { pcbX?: number; pcbY?: number }) => {
+  const px = props.pcbX ?? 0
+  const py = props.pcbY ?? 0
+  const nets = ["SWCLK", "SWD", "GND"]
+  const labels = ["CLK", "DIO", "GND"]
+  const pitch = 2.54
+  const diameter = 1.0
+  const first = -((nets.length - 1) * pitch) / 2
+  return (
+    <group pcbX={px} pcbY={py} pcbRotation={0} schX={30} schY={-12}>
+      {nets.flatMap((net, i) => {
+        const name = `TP${i + 1}`
+        return [
+          <testpoint key={name} name={name} footprintVariant="pad"
+            padShape="circle" padDiameter={`${diameter}mm`}
+            pcbX={first + i * pitch} pcbY={0} schX={i * 2} schY={0} />,
+          <trace key={`${name}_t`} name={`TR_${name}`}
+            from={`.${name} > .pin1`} to={`net.${net}`} />,
+          <silkscreentext key={`${name}_s`} text={labels[i] ?? net}
+            pcbX={first + i * pitch} pcbY={-1.8} fontSize={1} />,
+        ]
+      })}
+    </group>
+  )
+}
 
 export default () => (
   <board
@@ -212,6 +230,9 @@ export default () => (
     {/* ---- the printed body needs something to hold: 6x M2.5 on a 105mm x
             38mm rectangle plus mid-span pairs (a 112mm board flexes under
             thumbs; the mid holes are what stop it) ---- */}
+    {/* SWD access: outboard of the flash in open copper (measured clear 2026-08-14) */}
+    <DebugPort pcbX={38} pcbY={-33} />
+
     <MountingHole name="H1" diameter={2.7} pcbX={-52.5} pcbY={41} />
     <MountingHole name="H2" diameter={2.7} pcbX={52.5} pcbY={41} />
     <MountingHole name="H3" diameter={2.7} pcbX={-52.5} pcbY={0} />

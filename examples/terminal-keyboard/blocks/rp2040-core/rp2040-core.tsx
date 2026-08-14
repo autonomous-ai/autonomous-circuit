@@ -167,7 +167,7 @@ export const Rp2040Core = (props: {
           converging on U3, and the router could not fit them (9 clearance /
           shorting errors at U4). Pushing the flash out to 22mm widens the
           corridor; the empty right third of the board pays for it. */}
-      <W25q128 name={f} pcbX={22} pcbY={0} schX={14} schY={-6} />
+      <W25q128 name={f} pcbX={22} pcbY={0} pcbRotation={270} schX={14} schY={-6} />
       {/* PROJECT-LOCAL PLACEMENT FIX (terminal-keyboard, 2026-08-10).
           Upstream v1 places Y1 at pcbX={-11}, which puts Y1.pin1 11.78mm from
           U3.XIN. tscircuit@0.0.2279 enforces a 10mm maximum on a crystal
@@ -183,7 +183,7 @@ export const Rp2040Core = (props: {
           C11 and shorted it to V3_3. Placement only: the netlist, the parts,
           the values and the XOUT series path are untouched. Report upstream. */}
       <crystal name={y} frequency="12MHz" loadCapacitance="10pF" pinVariant="four_pin"
-        footprint="crystal" pcbX={0} pcbY={-10.5} schX={-14} schY={6}
+        footprint="crystal" pcbX={0} pcbY={-11.2} schX={-14} schY={6}
         supplierPartNumbers={{ jlcpcb: ["C20625731"] }} />
 
       {/* --- Rails ------------------------------------------------------- */}
@@ -210,16 +210,16 @@ export const Rp2040Core = (props: {
 
       {/* --- Crystal: XIN direct, XOUT through 1k series ------------------ */}
       <trace name={`TR_${y}_xin`} from={`.${y} > .pin1`} to={`.${u} > .XIN`} />
-      <resistor name="R11" resistance="1k" footprint="0402" pcbX={6} pcbY={-10.5} schX={-10} schY={7}
+      <resistor name="R11" resistance="1k" footprint="0402" pcbX={6} pcbY={-11.2} schX={-10} schY={7}
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
       <trace name={`TR_${u}_xout_r`} from={`.${u} > .XOUT`} to=".R11 > .pin1" />
       <trace name={`TR_R11_${y}`} from=".R11 > .pin2" to={`.${y} > .pin3`} />
       {/* four_pin crystal: pin2/pin4 are the ground pads */}
       <trace name={`TR_${y}_gnd1`} from={`.${y} > .pin2`} to="net.GND" />
       <trace name={`TR_${y}_gnd2`} from={`.${y} > .pin4`} to="net.GND" />
-      <capacitor name="C15" capacitance="15pF" footprint="0402" pcbX={-4.5} pcbY={-10.5} schX={-16} schY={9}
+      <capacitor name="C15" capacitance="15pF" footprint="0402" pcbX={-4.5} pcbY={-11.2} schX={-16} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
-      <capacitor name="C16" capacitance="15pF" footprint="0402" pcbX={3.2} pcbY={-10.5} schX={-12} schY={9}
+      <capacitor name="C16" capacitance="15pF" footprint="0402" pcbX={3.2} pcbY={-11.2} schX={-12} schY={9}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
       <trace name={`TR_C15_xin`} from=".C15 > .pin1" to={`.${u} > .XIN`} />
       <trace name={`TR_C15_gnd`} from=".C15 > .pin2" to="net.GND" />
@@ -266,15 +266,15 @@ export const Rp2040Core = (props: {
       <trace name={`TR_SW3_p4`} from=".SW3 > .pin4" to="net.GND" />
 
       {/* --- Decoupling (design guide: 100nF per supply pin) -------------- */}
-      <capacitor name="C4" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={6} schX={-6} schY={12}
+      <capacitor name="C4" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={13} schX={-6} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C5" capacitance="100nF" footprint="0402" pcbX={-3} pcbY={6} schX={-4} schY={12}
+      <capacitor name="C5" capacitance="100nF" footprint="0402" pcbX={-3} pcbY={13} schX={-4} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C6" capacitance="100nF" footprint="0402" pcbX={0} pcbY={6} schX={-2} schY={12}
+      <capacitor name="C6" capacitance="100nF" footprint="0402" pcbX={0} pcbY={13} schX={-2} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C7" capacitance="100nF" footprint="0402" pcbX={3} pcbY={6} schX={0} schY={12}
+      <capacitor name="C7" capacitance="100nF" footprint="0402" pcbX={3} pcbY={13} schX={0} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-      <capacitor name="C8" capacitance="100nF" footprint="0402" pcbX={6} pcbY={6} schX={2} schY={12}
+      <capacitor name="C8" capacitance="100nF" footprint="0402" pcbX={6} pcbY={13} schX={2} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
       <capacitor name="C9" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={-6} schX={4} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
@@ -308,7 +308,7 @@ export const Rp2040Core = (props: {
       <trace name={`TR_C13_v`} from=".C13 > .pin1" to="net.DVDD" />
       <trace name={`TR_C13_g`} from=".C13 > .pin2" to="net.GND" />
       {/* 3.3V bulk */}
-      <capacitor name="C17" capacitance="10uF" footprint="0805" pcbX={9} pcbY={6} schX={14} schY={12}
+      <capacitor name="C17" capacitance="10uF" footprint="0805" pcbX={9} pcbY={13} schX={14} schY={12}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
       <trace name={`TR_C17_v`} from=".C17 > .pin1" to="net.V3_3" />
       <trace name={`TR_C17_g`} from=".C17 > .pin2" to="net.GND" />
