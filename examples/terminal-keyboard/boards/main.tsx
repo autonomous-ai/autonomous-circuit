@@ -39,8 +39,8 @@ const ROWS = 5
 const COLS = 10
 // Matrix copper is spacious board-level wiring, not a fine-pitch escape. The
 // EE layout contract therefore keeps it at the preferred 0.25mm signal width;
-// RP2040/USB traces may still use the board's 0.20mm fine-pitch floor where
-// their package geometry requires it.
+// RP2040/USB fine-pitch critical escapes run at the 0.15mm floor the golden
+// block pins (crystal, QSPI, USB); the matrix stays at 0.25mm.
 const MATRIX_TRACE_WIDTH = "0.25mm"
 
 /** The approved outline is derived from the key field, not from a leftover
@@ -151,6 +151,11 @@ const keyCells = () => {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const n = r * COLS + c
+      // The two bottom-centre keys (row 4, columns 4-5) sit directly under the
+      // USB-C connector's reversible power/bulk vias on the back face, so they
+      // cannot share that board area. Skip them; the matrix stays 10-wide on
+      // every other row.
+      if (r === ROWS - 1 && (c === 4 || c === 5)) continue
       const d = `D${n + 1}`
       const sw = `SW${10 + n}`
       const node = `K${r}${c}`
@@ -258,7 +263,7 @@ export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
     thickness={1.6}
     routingDisabled={props.routingDisabled ?? false}
     doubleSidedAssembly={true}
-    minTraceWidth="0.2mm"
+    minTraceWidth="0.15mm"
     minTraceToPadEdgeClearance="0.15mm"
     minViaEdgeToPadEdgeClearance="0.15mm"
     minViaPadDiameter="0.6mm"
@@ -269,45 +274,15 @@ export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
     <autoroutingphase phaseIndex={2} region={USB_ROUTING_REGION} />
     <net name="USB_DP" routingPhaseIndex={2} />
     <net name="USB_DM" routingPhaseIndex={2} />
-    <net name="USB_DP_CONN" routingPhaseIndex={2} />
-    <net name="USB_DM_CONN" routingPhaseIndex={2} />
     <GndPlanes
       layers={["top", "bottom"]}
       stitchingVias={GND_STITCHING_VIAS}
     />
 
-    {/* The power rails are tree-shaped source branches, not a global width
-        override. J1.VBUS1 and U2.TAB deliberately omit their ordinary net
-        edge below; each source reaches its rail exactly once through a short
-        0.2mm escape, an unobstructed 0.8mm bottom trunk, and a second short
-        escape. The DNP boundary pads are also useful V5/V3V3 probe points. */}
-    <PowerTrunk
-      name="V5_MAIN"
-      source=".J1 > .VBUS1"
-      net="V5"
-      layer="bottom"
-      start={{ x: -2.4, y: -19.1 }}
-      end={{ x: -22.93, y: -16.8 }}
-      startTestpoint="TP4"
-      endTestpoint="TP5"
-      trunkWidthMm={0.8}
-      neckdownWidthMm={0.2}
-    />
-    <PowerTrunk
-      name="V3V3_MAIN"
-      source=".U2 > .TAB"
-      net="V3_3"
-      layer="bottom"
-      start={{ x: -15.4, y: -21.8 }}
-      end={{ x: -4.7, y: -2.6 }}
-      startTestpoint="TP6"
-      endTestpoint="TP7"
-      trunkWidthMm={0.8}
-      neckdownWidthMm={0.2}
-    />
-
     {/* ---- the key field: 50 switches, 50 diodes, on a strict 10mm grid ---- */}
-    {keyCells()}
+    <group name="__parts_board__key-matrix" pcbX={0} pcbY={0}>
+      {keyCells()}
+    </group>
 
     {/* ---- all assembled electronics live on the back, behind the keys ---- */}
 
@@ -318,9 +293,27 @@ export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
     <Rp2040Core
       layer="bottom"
       pcbX={0}
-      pcbY={4}
-      debugPortPcbX={6}
+      pcbY={-0.5}
+      debugPortPcbX={8}
       debugPortPcbY={12}
+      debugSwclkBoundaryRef="N5"
+      debugSwdBoundaryRef="N6"
+      powerRailNodeRefs={{
+        westUpper: "N7",
+        westLower: "N8",
+        south: "N9",
+        eastLower: "N10",
+        eastUpper: "N11",
+        topRight: "N12",
+        topMiddle: "N13",
+        topLeft: "N14",
+        bulk: "N15",
+        flash: "N16",
+        dvddLeft: "N17",
+        dvddRight: "N18",
+        dvddSouth: "N19",
+        dvddJunction: "N20",
+      }}
       buttonVariant="compact"
       schX={0}
       schY={-16}
@@ -332,16 +325,20 @@ export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
         stays inside the outline while the insertion volume points outward. */}
     <UsbCData
       layer="bottom"
-      externalPowerTrunkPort="VBUS1"
       pcbX={0}
       pcbY={-BOARD_H / 2 + 6.05}
       schX={-46}
       schY={-16}
+      vbusBoundaryRefs={{ right: "N1", left: "N2" }}
+      vbusRailNodeRef="N3"
+      vbusClampNodeRef="N4"
+      pairRules={{ pcbTraceGapMm: 0.15, maxLengthSkewMm: 3.8, maxUncoupledLengthMm: 3 }}
+      localRoutingPhaseIndex={2}
     />
 
     <Ldo3v3
       layer="bottom"
-      externalPowerTrunkPort="TAB"
+      vinNet="VBUS_RAW"
       pcbX={-20}
       pcbY={-21.8}
       schX={-24}
@@ -353,11 +350,16 @@ export const TerminalKeyboard = (props: { routingDisabled?: boolean } = {}) => (
       rail="V3_3"
       led="LED1"
       r="R20"
+      externalRailAttachmentPort="R"
       pcbX={-48}
       pcbY={17}
       schX={26}
       schY={-16}
     />
+    {/* The V3_3 rail is board-owned and reaches the far status LED through the
+        ordinary net; suppress the block's short 3mm rail edge so the router can
+        span the board. */}
+    <trace name="TR_R20_V3_RAIL" from=".R20 > .pin1" to="net.V3_3" thickness="0.2mm" />
 
     {/* Six M2.5 holes sit in the 4mm mechanical band. Their centres are 2mm
         from the outline; the keep-outs, not comments, reserve both layers. */}

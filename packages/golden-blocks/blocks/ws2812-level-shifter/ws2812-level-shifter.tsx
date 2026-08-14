@@ -120,6 +120,7 @@ export const Ws2812LevelShifter = (props: {
 
   return (
     <group
+      name={`__parts_block__ws2812-level-shifter__${u}`}
       pcbX={props.pcbX ?? 0}
       pcbY={props.pcbY ?? 0}
       schX={props.schX ?? 0}

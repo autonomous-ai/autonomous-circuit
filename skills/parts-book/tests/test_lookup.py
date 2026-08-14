@@ -24,6 +24,12 @@ def _load_cli():
     spec = importlib.util.spec_from_file_location("parts_cli_under_test", CLI_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    def inventory(project, _blocks, _selected, _timeout):
+        return (
+            json.loads((project / ".test-inventory.json").read_text(encoding="utf-8")),
+            {"compiler": "deterministic-test-seam"},
+        )
+    module.INVENTORY_FN = inventory
     return module
 
 
@@ -69,7 +75,7 @@ def _no_network(cli, monkeypatch):
 
 def test_lookup_fills_stock_price_and_basic(tmp_path: Path, monkeypatch):
     project = _make_project(tmp_path)
-    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / ".cache"))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
     fake = FakeCatalog()
@@ -92,7 +98,7 @@ def test_lookup_fills_stock_price_and_basic(tmp_path: Path, monkeypatch):
 
 def test_lookup_uses_the_on_disk_cache(tmp_path: Path, monkeypatch):
     project = _make_project(tmp_path)
-    cache = tmp_path / "cache"
+    cache = tmp_path / ".cache"
     monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(cache))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
@@ -112,7 +118,7 @@ def test_lookup_uses_the_on_disk_cache(tmp_path: Path, monkeypatch):
 
 def test_stale_cache_is_refetched(tmp_path: Path, monkeypatch):
     project = _make_project(tmp_path)
-    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / ".cache"))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
     fake = FakeCatalog()
@@ -127,7 +133,7 @@ def test_lookup_degrades_gracefully_when_offline(tmp_path: Path, monkeypatch):
     """Offline is not a failure: the lock still lands as candidate slots and
     the JSON says why the numbers are missing."""
     project = _make_project(tmp_path)
-    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / ".cache"))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
 
@@ -143,12 +149,12 @@ def test_lookup_degrades_gracefully_when_offline(tmp_path: Path, monkeypatch):
     assert all(p["stock_checked"] is None for p in payload["parts"])
     on_disk = json.loads((project / "parts.json").read_text())
     assert all("stock_checked" not in part for part in on_disk.values())
-    assert all(part["source"] == "block-default" for part in on_disk.values())
+    assert all(part["source"] == "compiled-block" for part in on_disk.values())
 
 
 def test_partial_failure_keeps_the_parts_that_resolved(tmp_path: Path, monkeypatch):
     project = _make_project(tmp_path)
-    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / ".cache"))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
 
@@ -167,11 +173,10 @@ def test_partial_failure_keeps_the_parts_that_resolved(tmp_path: Path, monkeypat
     assert checked["U9"] == date.today().isoformat()
 
 
-def test_lookup_mismatch_is_recorded(tmp_path: Path, monkeypatch):
-    """The catalog answering with a different number than we asked for is a
-    fact the lock must carry, not something to smooth over."""
+def test_lookup_mismatch_is_refused_without_writing_a_lock(tmp_path: Path, monkeypatch):
+    """A catalog answer for another identity can never enrich this lock."""
     project = _make_project(tmp_path)
-    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("CIRCUIT_PARTS_CACHE_DIR", str(tmp_path / ".cache"))
     cli = _load_cli()
     _no_network(cli, monkeypatch)
 
@@ -180,6 +185,7 @@ def test_lookup_mismatch_is_recorded(tmp_path: Path, monkeypatch):
                 "is_basic": False, "stock": 10, "price": 1.0}
     cli.LOOKUP_FN = wrong
 
-    _run(cli, str(project), "--lookup")
-    parts = json.loads((project / "parts.json").read_text())
-    assert all(part["lookup_mismatch"] == "C111111" for part in parts.values())
+    payload = _run(cli, str(project), "--lookup")
+    assert payload["ok"] is False
+    assert "catalog returned C111111" in payload["error"]["message"]
+    assert not (project / "parts.json").exists()

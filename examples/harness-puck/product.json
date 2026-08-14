@@ -100,6 +100,17 @@
           "aggregateOperationalMaxMa": 280
         }
       ]
-    }
+    },
+    "regulators": [
+      {
+        "profile": "ap7361c-33e-c500795-v1",
+        "ref": "U2",
+        "inputNet": "V5",
+        "outputNet": "V3_3",
+        "inputCapRef": "C2",
+        "outputCapRef": "C3",
+        "maxAmbientC": 60.0
+      }
+    ]
   }
 }

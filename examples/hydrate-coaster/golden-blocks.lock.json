@@ -1,0 +1,36 @@
+{
+  "blocks": [
+    "ldo-3v3",
+    "rp2040-core",
+    "status-led",
+    "sw-tact",
+    "usb-c-data",
+    "usb-c-power"
+  ],
+  "files": {
+    "glue.tsx": "8d5c9fc1f199718e90e456ea6e4e1467d0b41bc2eb4c3da8790a13c957793906",
+    "ldo-3v3/BLOCK.md": "a40d21f9368fbe8d782249c617d8ab2187edea51c888b7941f28d3fa01c22800",
+    "ldo-3v3/REVIEW.md": "5097b0fa1eea96ee2683e1601591e4d06da4f15cf2e748015d4c26033cb6f06f",
+    "ldo-3v3/ldo-3v3.tsx": "fb631e500a41c0dd28e2c75150e8dcb2f951141938a5f850a60ddf4d48e795ea",
+    "rp2040-core/BLOCK.md": "0e7748b73242fa0ec4820232efd45ea939a4a915c34f10b8a276af488b20ca3f",
+    "rp2040-core/RASPBERRY_PI_MINIMAL_LICENSE.txt": "b7d06548be326cac80f52434578cc6a5e7c32e555619ee4aac3e2a03490a25a6",
+    "rp2040-core/RASPBERRY_PI_MINIMAL_REFERENCE.md": "819f8d60cfc27567da30614630edd25b418682d37e006e690d94e046dff795c7",
+    "rp2040-core/REVIEW.md": "c6ddaa34d04f55d19678302041f03239573fb785de06aa4ba5f492521603d1ed",
+    "rp2040-core/rp2040-core.tsx": "5b963bccbf5d9565cc85e8e5f4092bf8b969038817cc2bedbcb968c4d290c987",
+    "status-led/BLOCK.md": "657daeda222f0b9023cf9075ecd56f807e698a501bf25c98086c127e07f28c0c",
+    "status-led/REVIEW.md": "5919a7cab39699bbc29f3128c7a4a6f9e78914e8ae3186a3b92cf9c3b8ef4328",
+    "status-led/status-led.tsx": "b6aea2d68472a8c4f78ceab8480e0ed095f8f4962aace89d4b773604635cd58d",
+    "sw-tact/BLOCK.md": "8fbf99db5c1b77b1ae964099c1002ac1ea880543d28d3cb2da7f98a7b3eb3997",
+    "sw-tact/REVIEW.md": "1d625c77012ba55502af445e80add38684264abe185aa92b489f4dc966926742",
+    "sw-tact/sw-tact.tsx": "d818008d2ed87e0a83ff429638d989f3a4495d9f775214ed428e1e253c4b44d8",
+    "usb-c-data/BLOCK.md": "438f19751a4bd9a472b95978be6cc0f6eda73d6779a5b357de379556946b0f35",
+    "usb-c-data/REVIEW.md": "42ab0d479d1e1d5c9bd62c6f6bf99ac1c604a2b1a0b5ace40ab2bd93e69fceac",
+    "usb-c-data/usb-c-data.tsx": "e6c27b7abd43625022f7fc3d173598f3ec9435c9c8dabaa45e5829aed1040167",
+    "usb-c-power/BLOCK.md": "72ef11b4e23a7825eebc300480dacbba4dfc1e5c3b807f1d834d5c5bf5f914a2",
+    "usb-c-power/REVIEW.md": "032617ea3628ee265e9493750879f0a9c7a2b080b8ce88822b69e071ee80e70f",
+    "usb-c-power/usb-c-power.tsx": "c76640ce80fbf4929f53993e0c42fe15906f7edd822dd863b18e6de33b24b1c8"
+  },
+  "schemaVersion": 1,
+  "source": "packages/golden-blocks/blocks",
+  "treeSha256": "b61f544e518773d5fd2a15aa772dfd2dffeec464d604683538ab0bdf0250a2da"
+}

@@ -1,0 +1,1237 @@
+{
+  "C1": {
+    "lcsc": "C52923",
+    "basic": true,
+    "description": "1uF X5R",
+    "block": "usb-c-data",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C10": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C11": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C12": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C13": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C14": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C15": {
+    "lcsc": "C1548",
+    "basic": true,
+    "description": "0402CG150J500NT, 15pF C0G",
+    "block": "rp2040-core",
+    "mfr": "0402CG150J500NT",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C16": {
+    "lcsc": "C1548",
+    "basic": true,
+    "description": "0402CG150J500NT, 15pF C0G",
+    "block": "rp2040-core",
+    "mfr": "0402CG150J500NT",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C17": {
+    "lcsc": "C15850",
+    "basic": true,
+    "description": "CL21A106KAYNNNE, 10uF X5R",
+    "block": "rp2040-core",
+    "mfr": "CL21A106KAYNNNE",
+    "package": "0805",
+    "source": "compiled-block"
+  },
+  "C2": {
+    "lcsc": "C19702",
+    "basic": true,
+    "description": "CL10A106KP8NNNC, 10uF \u00b110%, X5R, 10V",
+    "block": "ldo-3v3",
+    "mfr": "CL10A106KP8NNNC",
+    "package": "0603",
+    "source": "compiled-block"
+  },
+  "C25": {
+    "lcsc": "C52923",
+    "basic": true,
+    "description": "CL05A105KA5NQNC, 1uF",
+    "block": "rp2040-core",
+    "mfr": "CL05A105KA5NQNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C26": {
+    "lcsc": "C52923",
+    "basic": true,
+    "description": "CL05A105KA5NQNC, 1uF",
+    "block": "rp2040-core",
+    "mfr": "CL05A105KA5NQNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C3": {
+    "lcsc": "C19702",
+    "basic": true,
+    "description": "CL10A106KP8NNNC, 10uF \u00b110%, X5R, 10V",
+    "block": "ldo-3v3",
+    "mfr": "CL10A106KP8NNNC",
+    "package": "0603",
+    "source": "compiled-block"
+  },
+  "C4": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C5": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C6": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C7": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C8": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "C9": {
+    "lcsc": "C1525",
+    "basic": true,
+    "description": "CL05B104KO5NNNC, 100nF X7R",
+    "block": "rp2040-core",
+    "mfr": "CL05B104KO5NNNC",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "D1": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D10": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D11": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D12": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D13": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D14": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D15": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D16": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D17": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D18": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D19": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D2": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D20": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D21": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D22": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D23": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D24": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D25": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D26": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D27": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D28": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D29": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D3": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D30": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D31": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D32": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D33": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D34": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D35": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D36": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D37": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D38": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D39": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D4": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D40": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D41": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D42": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D43": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D44": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D47": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D48": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D49": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D5": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D50": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D6": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D7": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D8": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "D9": {
+    "lcsc": "C81598",
+    "basic": true,
+    "description": "1N4148W SOD-123 switching diode",
+    "block": "board",
+    "mfr": "1N4148W",
+    "package": "sod123",
+    "source": "review-manifest",
+    "override": true
+  },
+  "J1": {
+    "lcsc": "C165948",
+    "basic": false,
+    "description": "TYPE-C-31-M-12",
+    "block": "usb-c-data",
+    "mfr": "TYPE-C-31-M-12",
+    "package": "SMD+TH hybrid",
+    "source": "compiled-block"
+  },
+  "LED1": {
+    "lcsc": "C2297",
+    "basic": true,
+    "description": "KT-0805G, green",
+    "block": "status-led",
+    "mfr": "KT-0805G",
+    "package": "0805",
+    "source": "compiled-block"
+  },
+  "R1": {
+    "lcsc": "C25905",
+    "basic": true,
+    "description": "0402WGF5101TCE, 5.1k\u03a9 \u00b11%",
+    "block": "usb-c-data",
+    "mfr": "0402WGF5101TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R11": {
+    "lcsc": "C11702",
+    "basic": true,
+    "description": "0402WGF1001TCE, 1k\u03a9",
+    "block": "rp2040-core",
+    "mfr": "0402WGF1001TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R12": {
+    "lcsc": "C25744",
+    "basic": true,
+    "description": "0402WGF1002TCE, 10k\u03a9",
+    "block": "rp2040-core",
+    "mfr": "0402WGF1002TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R13": {
+    "lcsc": "C11702",
+    "basic": true,
+    "description": "0402WGF1001TCE, 1k\u03a9",
+    "block": "rp2040-core",
+    "mfr": "0402WGF1001TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R2": {
+    "lcsc": "C25905",
+    "basic": true,
+    "description": "0402WGF5101TCE, 5.1k\u03a9 \u00b11%",
+    "block": "usb-c-data",
+    "mfr": "0402WGF5101TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R20": {
+    "lcsc": "C11702",
+    "basic": true,
+    "description": "0402WGF1001TCE, 1k\u03a9 \u00b11%",
+    "block": "status-led",
+    "mfr": "0402WGF1001TCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R3": {
+    "lcsc": "C25100",
+    "basic": false,
+    "description": "0402WGF270JTCE, 27\u03a9 \u00b15%",
+    "block": "usb-c-data",
+    "mfr": "0402WGF270JTCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "R4": {
+    "lcsc": "C25100",
+    "basic": false,
+    "description": "0402WGF270JTCE, 27\u03a9 \u00b15%",
+    "block": "usb-c-data",
+    "mfr": "0402WGF270JTCE",
+    "package": "0402",
+    "source": "compiled-block"
+  },
+  "SW10": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW11": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW12": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW13": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW14": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW15": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW16": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW17": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW18": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW19": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW2": {
+    "lcsc": "C2828561",
+    "basic": false,
+    "description": "TPT-2C1",
+    "block": "rp2040-core",
+    "mfr": "TPT-2C1",
+    "package": "SMD, 3\u00d72mm",
+    "source": "compiled-block"
+  },
+  "SW20": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW21": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW22": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW23": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW24": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW25": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW26": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW27": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW28": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW29": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW3": {
+    "lcsc": "C2828561",
+    "basic": false,
+    "description": "TPT-2C1",
+    "block": "rp2040-core",
+    "mfr": "TPT-2C1",
+    "package": "SMD, 3\u00d72mm",
+    "source": "compiled-block"
+  },
+  "SW30": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW31": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW32": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW33": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW34": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW35": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW36": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW37": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW38": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW39": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW40": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW41": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW42": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW43": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW44": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW45": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW46": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW47": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW48": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW49": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW50": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW51": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW52": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW53": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW56": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW57": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW58": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "SW59": {
+    "lcsc": "C318884",
+    "basic": true,
+    "description": "TS-1187A-B-A-B",
+    "block": "sw-tact",
+    "mfr": "TS-1187A-B-A-B",
+    "package": "SMD-4P, 5.1\u00d75.1mm",
+    "source": "compiled-block"
+  },
+  "U1": {
+    "lcsc": "C2687116",
+    "basic": false,
+    "description": "USBLC6-2SC6",
+    "block": "usb-c-data",
+    "mfr": "USBLC6-2SC6",
+    "package": "SOT-23-6",
+    "source": "compiled-block"
+  },
+  "U2": {
+    "lcsc": "C500795",
+    "basic": false,
+    "description": "AP7361C-33E-13",
+    "block": "ldo-3v3",
+    "mfr": "AP7361C-33E-13",
+    "package": "SOT-223 E",
+    "source": "compiled-block"
+  },
+  "U3": {
+    "lcsc": "C2040",
+    "basic": false,
+    "description": "RP2040",
+    "block": "rp2040-core",
+    "mfr": "RP2040",
+    "package": "LQFN-56 (7\u00d77)",
+    "source": "compiled-block"
+  },
+  "U4": {
+    "lcsc": "C97521",
+    "basic": true,
+    "description": "W25Q128JVSIQ, 128Mbit QSPI flash",
+    "block": "rp2040-core",
+    "mfr": "W25Q128JVSIQ",
+    "package": "SOIC-8-208mil",
+    "source": "compiled-block"
+  },
+  "Y1": {
+    "lcsc": "C20625731",
+    "basic": false,
+    "description": "ABM8-272-T3, 12MHz",
+    "block": "rp2040-core",
+    "mfr": "ABM8-272-T3",
+    "package": "SMD3225-4P",
+    "source": "compiled-block"
+  }
+}

@@ -4,14 +4,14 @@
    0.0,
    0.0
   ],
-  "heightMm": 90.0,
+  "heightMm": 58.0,
   "name": "main",
   "outline": "rect",
   "thicknessMm": 1.6,
-  "widthMm": 112.0
+  "widthMm": 108.0
  },
  "clearance": {
-  "bottomMm": 0.0,
+  "bottomMm": 0.8,
   "confidence": "modelled",
   "topMm": 0.8
  },
@@ -22,12 +22,12 @@
     6.498
    ],
    "edge": "bottom",
-   "edgeGapMm": 0.826,
-   "note": "needs a cutout in the bottom wall (body sits 0.826mm from the board edge)",
+   "edgeGapMm": 2.376,
+   "note": "needs a cutout in the bottom wall (body sits 2.376mm from the board edge)",
    "refdes": "J1",
    "rotationDeg": 0.0,
-   "xMm": -23.0,
-   "yMm": -40.925
+   "xMm": 0.0,
+   "yMm": -23.375
   },
   {
    "bodyMm": [
@@ -35,12 +35,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW10",
    "rotationDeg": 0.0,
-   "xMm": -45.0,
-   "yMm": 36.0
+   "xMm": -44.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -48,12 +48,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW11",
    "rotationDeg": 0.0,
-   "xMm": -35.0,
-   "yMm": 36.0
+   "xMm": -34.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -61,12 +61,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW12",
    "rotationDeg": 0.0,
-   "xMm": -25.0,
-   "yMm": 36.0
+   "xMm": -24.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -74,12 +74,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW13",
    "rotationDeg": 0.0,
-   "xMm": -15.0,
-   "yMm": 36.0
+   "xMm": -14.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -87,12 +87,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW14",
    "rotationDeg": 0.0,
-   "xMm": -5.0,
-   "yMm": 36.0
+   "xMm": -4.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -100,12 +100,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW15",
    "rotationDeg": 0.0,
-   "xMm": 5.0,
-   "yMm": 36.0
+   "xMm": 6.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -113,12 +113,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW16",
    "rotationDeg": 0.0,
-   "xMm": 15.0,
-   "yMm": 36.0
+   "xMm": 16.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -126,12 +126,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW17",
    "rotationDeg": 0.0,
-   "xMm": 25.0,
-   "yMm": 36.0
+   "xMm": 26.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -139,12 +139,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW18",
    "rotationDeg": 0.0,
-   "xMm": 35.0,
-   "yMm": 36.0
+   "xMm": 36.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
@@ -152,25 +152,25 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 6.775,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW19",
    "rotationDeg": 0.0,
-   "xMm": 45.0,
-   "yMm": 36.0
+   "xMm": 46.0,
+   "yMm": 22.275
   },
   {
    "bodyMm": [
-    7.0,
-    4.45
+    4.2,
+    1.524
    ],
-   "edge": "bottom",
-   "edgeGapMm": 2.275,
-   "note": "needs a cutout in the bottom wall (body sits 2.275mm from the board edge)",
+   "edge": null,
+   "edgeGapMm": 21.738,
+   "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW2",
    "rotationDeg": 0.0,
-   "xMm": 8.0,
-   "yMm": -40.5
+   "xMm": 11.0,
+   "yMm": 6.5
   },
   {
    "bodyMm": [
@@ -178,12 +178,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 6.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW20",
    "rotationDeg": 0.0,
-   "xMm": -45.0,
-   "yMm": 26.0
+   "xMm": -44.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -191,12 +191,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW21",
    "rotationDeg": 0.0,
-   "xMm": -35.0,
-   "yMm": 26.0
+   "xMm": -34.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -204,12 +204,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW22",
    "rotationDeg": 0.0,
-   "xMm": -25.0,
-   "yMm": 26.0
+   "xMm": -24.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -217,12 +217,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW23",
    "rotationDeg": 0.0,
-   "xMm": -15.0,
-   "yMm": 26.0
+   "xMm": -14.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -230,12 +230,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW24",
    "rotationDeg": 0.0,
-   "xMm": -5.0,
-   "yMm": 26.0
+   "xMm": -4.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -243,12 +243,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW25",
    "rotationDeg": 0.0,
-   "xMm": 5.0,
-   "yMm": 26.0
+   "xMm": 6.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -256,12 +256,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW26",
    "rotationDeg": 0.0,
-   "xMm": 15.0,
-   "yMm": 26.0
+   "xMm": 16.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -269,12 +269,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW27",
    "rotationDeg": 0.0,
-   "xMm": 25.0,
-   "yMm": 26.0
+   "xMm": 26.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -282,12 +282,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 16.775,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW28",
    "rotationDeg": 0.0,
-   "xMm": 35.0,
-   "yMm": 26.0
+   "xMm": 36.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
@@ -295,25 +295,25 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW29",
    "rotationDeg": 0.0,
-   "xMm": 45.0,
-   "yMm": 26.0
+   "xMm": 46.0,
+   "yMm": 12.275
   },
   {
    "bodyMm": [
-    7.0,
-    4.45
+    4.2,
+    1.524
    ],
-   "edge": "bottom",
-   "edgeGapMm": 2.275,
-   "note": "needs a cutout in the bottom wall (body sits 2.275mm from the board edge)",
+   "edge": null,
+   "edgeGapMm": 19.738,
+   "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW3",
    "rotationDeg": 0.0,
-   "xMm": -8.0,
-   "yMm": -40.5
+   "xMm": -9.0,
+   "yMm": -8.5
   },
   {
    "bodyMm": [
@@ -321,12 +321,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 6.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW30",
    "rotationDeg": 0.0,
-   "xMm": -45.0,
-   "yMm": 16.0
+   "xMm": -44.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -334,12 +334,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 16.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW31",
    "rotationDeg": 0.0,
-   "xMm": -35.0,
-   "yMm": 16.0
+   "xMm": -34.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -347,12 +347,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW32",
    "rotationDeg": 0.0,
-   "xMm": -25.0,
-   "yMm": 16.0
+   "xMm": -24.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -360,12 +360,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW33",
    "rotationDeg": 0.0,
-   "xMm": -15.0,
-   "yMm": 16.0
+   "xMm": -14.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -373,12 +373,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW34",
    "rotationDeg": 0.0,
-   "xMm": -5.0,
-   "yMm": 16.0
+   "xMm": -4.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -386,12 +386,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW35",
    "rotationDeg": 0.0,
-   "xMm": 5.0,
-   "yMm": 16.0
+   "xMm": 6.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -399,12 +399,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW36",
    "rotationDeg": 0.0,
-   "xMm": 15.0,
-   "yMm": 16.0
+   "xMm": 16.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -412,12 +412,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.775,
+   "edgeGapMm": 24.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW37",
    "rotationDeg": 0.0,
-   "xMm": 25.0,
-   "yMm": 16.0
+   "xMm": 26.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -425,12 +425,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW38",
    "rotationDeg": 0.0,
-   "xMm": 35.0,
-   "yMm": 16.0
+   "xMm": 36.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -438,12 +438,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW39",
    "rotationDeg": 0.0,
-   "xMm": 45.0,
-   "yMm": 16.0
+   "xMm": 46.0,
+   "yMm": 2.275
   },
   {
    "bodyMm": [
@@ -451,12 +451,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 6.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW40",
    "rotationDeg": 0.0,
-   "xMm": -45.0,
-   "yMm": 6.0
+   "xMm": -44.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -464,12 +464,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 16.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW41",
    "rotationDeg": 0.0,
-   "xMm": -35.0,
-   "yMm": 6.0
+   "xMm": -34.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -477,12 +477,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 27.5,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW42",
    "rotationDeg": 0.0,
-   "xMm": -25.0,
-   "yMm": 6.0
+   "xMm": -24.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -490,12 +490,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 36.775,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW43",
    "rotationDeg": 0.0,
-   "xMm": -15.0,
-   "yMm": 6.0
+   "xMm": -14.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -503,12 +503,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 36.775,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW44",
    "rotationDeg": 0.0,
-   "xMm": -5.0,
-   "yMm": 6.0
+   "xMm": -4.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -516,12 +516,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 36.775,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW45",
    "rotationDeg": 0.0,
-   "xMm": 5.0,
-   "yMm": 6.0
+   "xMm": 6.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -529,12 +529,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 36.775,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW46",
    "rotationDeg": 0.0,
-   "xMm": 15.0,
-   "yMm": 6.0
+   "xMm": 16.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -542,12 +542,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 27.5,
+   "edgeGapMm": 19.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW47",
    "rotationDeg": 0.0,
-   "xMm": 25.0,
-   "yMm": 6.0
+   "xMm": 26.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -555,12 +555,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 14.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW48",
    "rotationDeg": 0.0,
-   "xMm": 35.0,
-   "yMm": 6.0
+   "xMm": 36.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -568,12 +568,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW49",
    "rotationDeg": 0.0,
-   "xMm": 45.0,
-   "yMm": 6.0
+   "xMm": 46.0,
+   "yMm": -7.725
   },
   {
    "bodyMm": [
@@ -581,12 +581,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 6.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW50",
    "rotationDeg": 0.0,
-   "xMm": -45.0,
-   "yMm": -4.0
+   "xMm": -44.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -594,12 +594,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW51",
    "rotationDeg": 0.0,
-   "xMm": -35.0,
-   "yMm": -4.0
+   "xMm": -34.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -607,12 +607,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 27.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW52",
    "rotationDeg": 0.0,
-   "xMm": -25.0,
-   "yMm": -4.0
+   "xMm": -24.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -620,12 +620,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 37.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW53",
    "rotationDeg": 0.0,
-   "xMm": -15.0,
-   "yMm": -4.0
+   "xMm": -14.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -633,38 +633,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 38.775,
-   "note": "interior \u2014 reachable only with the case open",
-   "refdes": "SW54",
-   "rotationDeg": 0.0,
-   "xMm": -5.0,
-   "yMm": -4.0
-  },
-  {
-   "bodyMm": [
-    7.0,
-    4.45
-   ],
-   "edge": null,
-   "edgeGapMm": 38.775,
-   "note": "interior \u2014 reachable only with the case open",
-   "refdes": "SW55",
-   "rotationDeg": 0.0,
-   "xMm": 5.0,
-   "yMm": -4.0
-  },
-  {
-   "bodyMm": [
-    7.0,
-    4.45
-   ],
-   "edge": null,
-   "edgeGapMm": 37.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW56",
    "rotationDeg": 0.0,
-   "xMm": 15.0,
-   "yMm": -4.0
+   "xMm": 16.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -672,12 +646,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 27.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW57",
    "rotationDeg": 0.0,
-   "xMm": 25.0,
-   "yMm": -4.0
+   "xMm": 26.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -685,12 +659,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 17.5,
+   "edgeGapMm": 9.05,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW58",
    "rotationDeg": 0.0,
-   "xMm": 35.0,
-   "yMm": -4.0
+   "xMm": 36.0,
+   "yMm": -17.725
   },
   {
    "bodyMm": [
@@ -698,12 +672,428 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.5,
+   "edgeGapMm": 4.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW59",
    "rotationDeg": 0.0,
+   "xMm": 46.0,
+   "yMm": -17.725
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_0",
+   "rotationDeg": 0.0,
+   "xMm": -45.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_1",
+   "rotationDeg": 0.0,
+   "xMm": -39.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_10",
+   "rotationDeg": 0.0,
+   "xMm": 15.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_11",
+   "rotationDeg": 0.0,
+   "xMm": 21.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_12",
+   "rotationDeg": 0.0,
+   "xMm": 27.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_13",
+   "rotationDeg": 0.0,
+   "xMm": 33.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_14",
+   "rotationDeg": 0.0,
+   "xMm": 39.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_15",
+   "rotationDeg": 0.0,
    "xMm": 45.0,
-   "yMm": -4.0
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_16",
+   "rotationDeg": 0.0,
+   "xMm": -45.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_17",
+   "rotationDeg": 0.0,
+   "xMm": -35.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_18",
+   "rotationDeg": 0.0,
+   "xMm": -25.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_19",
+   "rotationDeg": 0.0,
+   "xMm": -15.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_2",
+   "rotationDeg": 0.0,
+   "xMm": -33.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_20",
+   "rotationDeg": 0.0,
+   "xMm": 15.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_21",
+   "rotationDeg": 0.0,
+   "xMm": 25.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_22",
+   "rotationDeg": 0.0,
+   "xMm": 35.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 2.7,
+   "note": "needs a cutout in the bottom wall (body sits 2.7mm from the board edge)",
+   "refdes": "pcb_component_23",
+   "rotationDeg": 0.0,
+   "xMm": 45.0,
+   "yMm": -26.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "left",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the left wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_24",
+   "rotationDeg": 0.0,
+   "xMm": -52.0,
+   "yMm": -18.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "right",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the right wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_25",
+   "rotationDeg": 0.0,
+   "xMm": 52.0,
+   "yMm": -18.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "left",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the left wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_26",
+   "rotationDeg": 0.0,
+   "xMm": -52.0,
+   "yMm": -9.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "right",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the right wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_27",
+   "rotationDeg": 0.0,
+   "xMm": 52.0,
+   "yMm": -9.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "left",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the left wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_28",
+   "rotationDeg": 0.0,
+   "xMm": -52.0,
+   "yMm": 9.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "right",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the right wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_29",
+   "rotationDeg": 0.0,
+   "xMm": 52.0,
+   "yMm": 9.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_3",
+   "rotationDeg": 0.0,
+   "xMm": -27.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "left",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the left wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_30",
+   "rotationDeg": 0.0,
+   "xMm": -52.0,
+   "yMm": 18.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "right",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the right wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_31",
+   "rotationDeg": 0.0,
+   "xMm": 52.0,
+   "yMm": 18.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_4",
+   "rotationDeg": 0.0,
+   "xMm": -21.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_5",
+   "rotationDeg": 0.0,
+   "xMm": -15.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_6",
+   "rotationDeg": 0.0,
+   "xMm": -9.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_7",
+   "rotationDeg": 0.0,
+   "xMm": -3.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_8",
+   "rotationDeg": 0.0,
+   "xMm": 3.0,
+   "yMm": 27.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": "top",
+   "edgeGapMm": 1.7,
+   "note": "needs a cutout in the top wall (body sits 1.7mm from the board edge)",
+   "refdes": "pcb_component_9",
+   "rotationDeg": 0.0,
+   "xMm": 9.0,
+   "yMm": 27.0
   }
  ],
  "entryKind": "enclosure",
@@ -713,43 +1103,43 @@
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H5",
-   "xMm": -52.5,
-   "yMm": -41.0
+   "xMm": -52.0,
+   "yMm": -27.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H3",
-   "xMm": -52.5,
+   "xMm": -52.0,
    "yMm": 0.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H1",
-   "xMm": -52.5,
-   "yMm": 41.0
+   "xMm": -52.0,
+   "yMm": 27.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H6",
-   "xMm": 52.5,
-   "yMm": -41.0
+   "xMm": 52.0,
+   "yMm": -27.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H4",
-   "xMm": 52.5,
+   "xMm": 52.0,
    "yMm": 0.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H2",
-   "xMm": 52.5,
-   "yMm": 41.0
+   "xMm": 52.0,
+   "yMm": 27.0
   }
  ],
  "notes": [

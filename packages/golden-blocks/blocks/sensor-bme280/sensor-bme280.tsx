@@ -93,7 +93,7 @@ export const SensorBme280 = (props: {
     )
   }
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__sensor-bme280__${u}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Bme280Chip name={u} layer={layer} pcbX={0} pcbY={0} schX={0} schY={0} />
       <capacitor name={cVdd} capacitance="100nF" footprint="0402"
         layer={layer} pcbX={localX(3)} pcbY={1} pcbRotation={localRotation(0)}

@@ -19,6 +19,9 @@ import hashlib
 import json
 import os
 import re
+import signal
+import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -35,10 +38,18 @@ JLCSEARCH_URL = "https://jlcsearch.tscircuit.com/api/search"
 LOOKUP_TIMEOUT_S = 90.0          # cold queries measured at 47-90s (r5 recon)
 LOOKUP_RETRIES = 2
 CACHE_MAX_AGE_DAYS = 7.0
+INVENTORY_TIMEOUT_S = 300.0
 
 # Test seam: a callable (lcsc: str) -> component dict. When set it replaces
 # every network call (the tests never touch the network).
 LOOKUP_FN = None
+
+# Test seam: a callable(project, blocks_dir, selected, timeout_s) returning
+# ``(circuit_json_elements, evidence)``.  Production always performs a fresh
+# isolated compile with the pinned toolchain.  Keeping the seam at this exact
+# boundary lets the offline unit suite exercise every fail-closed inventory
+# rule without pretending a stale repository artifact is fresh evidence.
+INVENTORY_FN = None
 
 # JSX tags that carry a pinned part.
 PART_TAGS = (
@@ -58,6 +69,14 @@ _EXACT_REF_RE = re.compile(r"^[A-Z][A-Z0-9]*$")
 _BLOCK_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PROJECT_SOURCE_SUFFIXES = {".ts", ".tsx", ".js", ".jsx"}
+_PROJECT_IMPORT_SUFFIXES = (*sorted(_PROJECT_SOURCE_SUFFIXES), ".json")
+_PROJECT_MIRROR_SUFFIXES = {*_PROJECT_SOURCE_SUFFIXES, ".json"}
+_PROJECT_SKIP_DIRS = {
+    ".cache", ".circuit", ".claude", ".git", ".tscircuit", "__pycache__", "dist",
+    "blocks", "inputs", "node_modules",
+}
+_BLOCK_OWNER_PREFIX = "__parts_block__"
+_BOARD_OWNER_PREFIX = "__parts_board__"
 
 
 class PartsBookError(ValueError):
@@ -214,6 +233,14 @@ def parse_block_md(path: Path) -> list[dict]:
         lcsc_index = header.get("lcsc")
         if ref_index is None or part_index is None or lcsc_index is None:
             raise PartsBookError(f"{path}: pinned-parts table needs Ref, Part, and LCSC")
+        required_indices = [ref_index, part_index, lcsc_index]
+        if max(required_indices) >= len(cells):
+            raise PartsBookError(f"{path}: malformed short pinned-parts row {stripped!r}")
+        lcsc_matches = _LCSC_RE.findall(cells[lcsc_index])
+        if len(lcsc_matches) > 1:
+            raise PartsBookError(
+                f"{path}: one pinned-parts row cannot name multiple LCSC identities"
+            )
         lcsc_match = _LCSC_RE.search(cells[lcsc_index])
         if lcsc_match is None:
             # DNP copper, testpoints, holes and alternate non-orderable rows do
@@ -251,36 +278,6 @@ def parse_block_md(path: Path) -> list[dict]:
     if not rows:
         raise PartsBookError(f"{path}: no populated pinned-part rows found")
     return rows
-
-
-def _expand_fixed_refs(raw: str, *, block: str) -> list[str]:
-    """Expand only finite exact groups/ranges; reject parametric notation."""
-
-    cell = _clean_markdown(raw)
-    refs: list[str] = []
-    for token in re.split(r"\s*[,/]\s*", cell):
-        token = token.strip()
-        if _EXACT_REF_RE.fullmatch(token):
-            refs.append(token)
-            continue
-        ranged = re.fullmatch(r"([A-Z]+)(\d+)\s*[\-–—]\s*([A-Z]+)?(\d+)", token)
-        if ranged:
-            left_prefix, first, right_prefix, last = ranged.groups()
-            right_prefix = right_prefix or left_prefix
-            start, stop = int(first), int(last)
-            if left_prefix != right_prefix or stop < start or stop - start > 200:
-                raise PartsBookError(
-                    f"block {block!r} has unsafe ref range {raw!r}"
-                )
-            refs.extend(f"{left_prefix}{number}" for number in range(start, stop + 1))
-            continue
-        raise PartsBookError(
-            f"block {block!r} has unresolved parametric/alternate ref {raw!r}; "
-            "lock an explicit populated instance instead of guessing"
-        )
-    if not refs or len(refs) != len(set(refs)):
-        raise PartsBookError(f"block {block!r} has an empty/duplicate ref group {raw!r}")
-    return refs
 
 
 def _sha256(path: Path) -> str:
@@ -398,7 +395,15 @@ def _project_source_graph(project: Path) -> list[Path]:
         raise PartsBookError(f"project needs one regular board entry at {entry}")
     pending = [entry.resolve()]
     seen: set[Path] = set()
-    import_re = re.compile(r"(?:from\s*|import\s*)[\"'](?P<path>\.\.?/[^\"']+)[\"']")
+    dependency_res = (
+        re.compile(r"(?:from\s*|import\s*)[\"'](?P<path>\.\.?/[^\"']+)[\"']"),
+        re.compile(r"require\s*\(\s*[\"'](?P<path>\.\.?/[^\"']+)[\"']\s*\)"),
+        re.compile(r"import\s*\(\s*[\"'](?P<path>\.\.?/[^\"']+)[\"']\s*\)"),
+    )
+    unsafe_specifier_res = (
+        re.compile(r"(?:from\s*|import\s*)[\"'](?P<path>(?:/|file:)[^\"']+)[\"']"),
+        re.compile(r"(?:require|import)\s*\(\s*[\"'](?P<path>(?:/|file:)[^\"']+)[\"']\s*\)"),
+    )
     while pending:
         source = pending.pop(0)
         if source in seen:
@@ -411,17 +416,40 @@ def _project_source_graph(project: Path) -> list[Path]:
             raise PartsBookError(f"project source is missing or a symlink: {source}")
         seen.add(source)
         text = _strip_comments(source.read_text(encoding="utf-8"))
-        for match in import_re.finditer(text):
+        if source.suffix == ".json":
+            continue
+        unsafe = [
+            match.group("path")
+            for pattern in unsafe_specifier_res
+            for match in pattern.finditer(text)
+        ]
+        if unsafe:
+            raise PartsBookError(
+                f"project source {relative.as_posix()} uses absolute/file import "
+                f"{unsafe[0]!r}; inventory inputs must be self-contained"
+            )
+        matches = [
+            match
+            for pattern in dependency_res
+            for match in pattern.finditer(text)
+        ]
+        for match in sorted(matches, key=lambda found: found.start()):
             candidate = (source.parent / match.group("path")).resolve()
             try:
                 imported_relative = candidate.relative_to(project.resolve())
-            except ValueError:
-                continue
+            except ValueError as exc:
+                raise PartsBookError(
+                    f"project-local import {match.group('path')!r} escapes the project root"
+                ) from exc
             if imported_relative.parts and imported_relative.parts[0] == "blocks":
                 continue
+            if imported_relative.as_posix() == PARTS_FILE:
+                raise PartsBookError(
+                    "board composition may not import parts.json while regenerating it"
+                )
             choices = [
                 candidate,
-                *(candidate.with_suffix(suffix) for suffix in _PROJECT_SOURCE_SUFFIXES),
+                *(candidate.with_suffix(suffix) for suffix in _PROJECT_IMPORT_SUFFIXES),
                 *(candidate / f"index{suffix}" for suffix in _PROJECT_SOURCE_SUFFIXES),
             ]
             resolved = next((choice for choice in choices if choice.is_file()), None)
@@ -432,6 +460,409 @@ def _project_source_graph(project: Path) -> list[Path]:
                 )
             pending.append(resolved.resolve())
     return sorted(seen)
+
+
+def _project_mirror_files(project: Path) -> dict[str, Path]:
+    """Match CircuitPy's build mirror source universe, minus ``parts.json``."""
+
+    files: dict[str, Path] = {}
+    for root, dirs, names in os.walk(project):
+        root_path = Path(root)
+        dirs[:] = [
+            name
+            for name in dirs
+            if name not in _PROJECT_SKIP_DIRS
+            and not name.endswith("_review")
+            and not name.endswith("_fab")
+        ]
+        for name in names:
+            path = root_path / name
+            if path.suffix not in _PROJECT_MIRROR_SUFFIXES:
+                continue
+            if (
+                name == PARTS_FILE
+                or name.startswith(".parts-")
+                or name.endswith(".circuit.json")
+                or name.endswith(".board.json")
+            ):
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise PartsBookError(f"inventory source must be one regular file: {path}")
+            relative = path.relative_to(project).as_posix()
+            files[relative] = path
+    return dict(sorted(files.items()))
+
+
+def _composition_files(
+    project: Path, blocks_dir: Path, selected: list[str]
+) -> dict[str, Path]:
+    """The exact compiler inputs, deliberately excluding ``parts.json``.
+
+    The lock being generated cannot be allowed to authenticate itself.  The
+    final circuit build includes ``parts.json`` in its normal source hash and
+    independently reconciles the resulting BOM; this preflight fingerprint
+    instead binds the board composition that *produces* the populated set.
+    """
+
+    files: dict[str, Path] = {}
+    for name in (PRODUCT_FILE, BLOCK_LOCK_FILE):
+        path = project / name
+        if path.is_symlink() or not path.is_file():
+            raise PartsBookError(f"inventory input must be one regular file: {path}")
+        files[name] = path
+    # The production compiler discovers these at the project root. Copy/hash
+    # them when present; an inventory that silently ignores a real config is
+    # not the same composition. Package manifests are copied for dependency
+    # boundary parity, never to install or execute scripts.
+    for name in (
+        "tsconfig.json",
+        "tscircuit.config.json",
+        "tscircuit.config.ts",
+        "tscircuit.config.js",
+        "tscircuit.config.mjs",
+        "tscircuit.config.cjs",
+        "package.json",
+        "package-lock.json",
+    ):
+        path = project / name
+        if path.exists():
+            if path.is_symlink() or not path.is_file():
+                raise PartsBookError(f"inventory config must be one regular file: {path}")
+            files[name] = path
+    # Parse the reachable graph for unsafe/escaping/self-authenticating imports,
+    # then mirror CircuitPy's complete TS/JS/JSON source universe. This also
+    # binds literal fs reads and configuration inputs that import regexes cannot
+    # discover.
+    _project_source_graph(project)
+    files.update(_project_mirror_files(project))
+    for relative in _snapshot_files(blocks_dir, selected):
+        files[f"blocks/{relative}"] = blocks_dir / relative
+    for relative, path in files.items():
+        if path.suffix not in _PROJECT_SOURCE_SUFFIXES:
+            continue
+        raw = path.read_text(encoding="utf-8")
+        forbidden = {
+            "parts.json": "the output lock",
+            "process.env": "ambient process environment",
+            "import.meta.env": "ambient module environment",
+            "Math.random": "nondeterministic randomness",
+            "Date.now": "wall-clock time",
+            "node:fs": "ambient filesystem access",
+            "'fs'": "ambient filesystem access",
+            '"fs"': "ambient filesystem access",
+            "'fs/promises'": "ambient filesystem access",
+            '"fs/promises"': "ambient filesystem access",
+            "process.getBuiltinModule": "ambient builtin-module access",
+        }
+        for token, meaning in forbidden.items():
+            if token in raw:
+                raise PartsBookError(
+                    f"inventory source {relative} references {meaning} via {token!r}; "
+                    "populated composition must be deterministic and self-contained"
+                )
+        if re.search(r"(?:require|import)\s*\(\s*(?![\"'])", raw):
+            raise PartsBookError(
+                f"inventory source {relative} uses a nonliteral dynamic import/require"
+            )
+    return dict(sorted(files.items()))
+
+
+def _composition_fingerprint(
+    project: Path, blocks_dir: Path, selected: list[str]
+) -> tuple[str, dict[str, Path]]:
+    files = _composition_files(project, blocks_dir, selected)
+    digest = hashlib.sha256()
+    for relative, path in files.items():
+        if path.is_symlink() or not path.is_file():
+            raise PartsBookError(f"inventory input changed or became unsafe: {path}")
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(path.read_bytes()).hexdigest().encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest(), files
+
+
+def _staged_composition_fingerprint(stage: Path, relatives: Sequence[str]) -> str:
+    """Hash the isolated compiler inputs with the production relative names."""
+
+    digest = hashlib.sha256()
+    for relative in sorted(relatives):
+        path = stage / relative
+        if path.is_symlink() or not path.is_file():
+            raise PartsBookError(f"staged inventory input is missing or unsafe: {path}")
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(path.read_bytes()).hexdigest().encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _resolve_toolchain(project: Path) -> Path:
+    override = os.environ.get("CIRCUIT_TOOLCHAIN", "").strip()
+    candidates: list[Path] = []
+    if override:
+        candidates.append(Path(override).expanduser())
+    for origin in (project.resolve(), Path(__file__).resolve()):
+        candidates.extend(parent / "toolchain" for parent in (origin, *origin.parents))
+    seen: set[Path] = set()
+    for raw in candidates:
+        candidate = raw.resolve()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if (candidate / "package.json").is_file():
+            return candidate
+    raise PartsBookError(
+        "pinned tscircuit toolchain not found; set CIRCUIT_TOOLCHAIN to the "
+        "installed toolchain directory (never use npx tsci)"
+    )
+
+
+def _toolchain_identity(toolchain: Path, node: Path) -> dict:
+    """Merkle-bind every installed byte the offline Node compiler can load."""
+
+    roots = [toolchain / "package.json", toolchain / "package-lock.json"]
+    node_modules = toolchain / "node_modules"
+    if not node_modules.is_dir():
+        raise PartsBookError(
+            f"pinned toolchain is incomplete: missing {node_modules}; run setup-toolchain"
+        )
+    entries: list[Path] = []
+    for path in roots:
+        if path.is_symlink() or not path.is_file():
+            raise PartsBookError(f"pinned toolchain input is missing/unsafe: {path}")
+        entries.append(path)
+    for root, dirs, files in os.walk(node_modules, followlinks=False):
+        root_path = Path(root)
+        for name in list(dirs):
+            candidate = root_path / name
+            if candidate.is_symlink():
+                entries.append(candidate)
+                dirs.remove(name)
+        entries.extend(root_path / name for name in files)
+
+    digest = hashlib.sha256()
+    byte_count = 0
+    file_count = 0
+    resolved_toolchain = toolchain.resolve()
+    for path in sorted(entries, key=lambda item: item.relative_to(toolchain).as_posix()):
+        relative = path.relative_to(toolchain).as_posix()
+        metadata = path.lstat()
+        executable = stat.S_IMODE(metadata.st_mode) & 0o111
+        if stat.S_ISLNK(metadata.st_mode):
+            target = os.readlink(path)
+            resolved = path.resolve(strict=True)
+            try:
+                resolved.relative_to(resolved_toolchain)
+            except ValueError as exc:
+                raise PartsBookError(
+                    f"pinned toolchain symlink escapes its tree: {relative} -> {target}"
+                ) from exc
+            payload = target.encode("utf-8")
+            kind = b"L"
+        elif stat.S_ISREG(metadata.st_mode):
+            payload = path.read_bytes()
+            kind = b"F"
+            byte_count += len(payload)
+        else:
+            raise PartsBookError(f"pinned toolchain contains special file {relative}")
+        file_count += 1
+        digest.update(relative.encode("utf-8") + b"\0" + kind + b"\0")
+        digest.update(str(executable).encode("ascii") + b"\0")
+        digest.update(str(len(payload)).encode("ascii") + b"\0")
+        digest.update(hashlib.sha256(payload).hexdigest().encode("ascii") + b"\n")
+
+    resolved_node = node.resolve(strict=True)
+    if not resolved_node.is_file():
+        raise PartsBookError(f"resolved Node executable is not a regular file: {resolved_node}")
+    node_env = {
+        "PATH": str(resolved_node.parent) + os.pathsep + "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    }
+    version_proc = subprocess.run(
+        [str(resolved_node), "--version"],
+        capture_output=True,
+        text=True,
+        env=node_env,
+        timeout=15,
+    )
+    version = (version_proc.stdout or "").strip()
+    if version_proc.returncode != 0 or not re.fullmatch(r"v\d+\.\d+\.\d+", version):
+        raise PartsBookError("could not bind the resolved Node executable/version")
+    return {
+        "schemaVersion": 1,
+        "treeSha256": digest.hexdigest(),
+        "fileCount": file_count,
+        "byteCount": byte_count,
+        "node": {
+            "version": version,
+            "sha256": _sha256(resolved_node),
+        },
+    }
+
+
+def _copy_inventory_inputs(stage: Path, files: dict[str, Path]) -> None:
+    for relative, source in files.items():
+        target = stage / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target, follow_symlinks=False)
+    # The CLI walks upward to choose an output root.  An isolated anchor keeps
+    # its newly-created artifact inside this invocation's empty temp tree.
+    anchor = stage / "package.json"
+    if not anchor.exists():
+        anchor.write_text(
+            '{"name":"parts-inventory","private":true,"version":"0.0.0"}\n',
+            encoding="utf-8",
+        )
+
+
+def _compile_inventory(
+    project: Path,
+    blocks_dir: Path,
+    selected: list[str],
+    timeout_s: float,
+) -> tuple[list[dict], dict]:
+    """Compile an offline placement inventory in a fresh private tree.
+
+    This intentionally invokes Node + the pinned CLI main module directly.
+    The public ``tscircuit-cli`` shim shells out to ``tsx`` and has historically
+    exited zero without producing anything when ``tsx`` was absent; direct
+    invocation removes that false-success path.  The artifact is still the
+    gate, never the process status.
+    """
+
+    if not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+        raise PartsBookError("inventory timeout must be a positive number")
+    before, files = _composition_fingerprint(project, blocks_dir, selected)
+    toolchain = _resolve_toolchain(project)
+    node_name = shutil.which("node")
+    if not node_name:
+        raise PartsBookError("node is missing from PATH; the pinned compiler cannot run")
+    node = Path(node_name).resolve(strict=True)
+    toolchain_identity = _toolchain_identity(toolchain, node)
+    loader = toolchain / "node_modules/tsx/dist/loader.mjs"
+    cli_main = toolchain / "node_modules/@tscircuit/cli/dist/cli/main.js"
+    bin_dir = toolchain / "node_modules/.bin"
+    base_env = {
+        "PATH": str(bin_dir) + os.pathsep + str(node.parent) + os.pathsep + "/usr/bin:/bin",
+        "NODE_PATH": str(toolchain / "node_modules"),
+        "CIRCUIT_PARTS_ENGINE": "off",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    }
+    command = [
+        node,
+        "--import",
+        str(loader),
+        str(cli_main),
+        "build",
+        "boards/main.tsx",
+        "--routing-disabled",
+        "--disable-parts-engine",
+        "--ignore-errors",
+        "--concurrency",
+        "1",
+    ]
+    try:
+        with tempfile.TemporaryDirectory(prefix="parts-book-inventory-") as temp:
+            stage = Path(temp)
+            _copy_inventory_inputs(stage, files)
+            private_home = stage / ".home"
+            private_tmp = stage / ".tmp"
+            private_home.mkdir()
+            private_tmp.mkdir()
+            env = {
+                **base_env,
+                "HOME": str(private_home),
+                "TMPDIR": str(private_tmp),
+            }
+            if _staged_composition_fingerprint(stage, files) != before:
+                raise PartsBookError(
+                    "project composition changed while staging the fresh parts inventory"
+                )
+            started_ns = time.time_ns()
+            proc = subprocess.Popen(
+                command,
+                cwd=stage,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                stdout, stderr = proc.communicate(timeout=float(timeout_s))
+            except subprocess.TimeoutExpired as exc:
+                os.killpg(proc.pid, signal.SIGKILL)
+                stdout, stderr = proc.communicate()
+                raise PartsBookError(
+                    f"fresh parts inventory compile exceeded {timeout_s:g}s; "
+                    "its process group was terminated"
+                ) from exc
+            output = (stdout or "") + (stderr or "")
+            artifact = stage / "dist/boards/main/circuit.json"
+            if artifact.is_symlink() or not artifact.is_file():
+                raise PartsBookError(
+                    "pinned compiler produced no fresh dist/boards/main/circuit.json "
+                    f"(exit {proc.returncode}; tail: {output.strip()[-600:] or 'none'})"
+                )
+            if artifact.stat().st_mtime_ns + 1_000_000_000 < started_ns:
+                raise PartsBookError("parts inventory artifact predates this invocation")
+            try:
+                artifact_bytes = artifact.read_bytes()
+                elements = json.loads(artifact_bytes)
+            except (OSError, ValueError) as exc:
+                raise PartsBookError(f"fresh parts inventory is unreadable: {exc}") from exc
+            if not isinstance(elements, list) or not all(
+                isinstance(element, dict) for element in elements
+            ):
+                raise PartsBookError("fresh parts inventory must be a circuit element array")
+            errors = sorted(
+                str(element.get("type"))
+                for element in elements
+                if str(element.get("type") or "").endswith("_error")
+            )
+            if errors:
+                summary = ", ".join(
+                    f"{kind} x{errors.count(kind)}" for kind in sorted(set(errors))
+                )
+                raise PartsBookError(
+                    "fresh routing-disabled inventory contains serialized errors: " + summary
+                )
+            if re.search(r"(?:Async effect error|Fatal error|Unhandled rejection)", output):
+                raise PartsBookError(
+                    "compiler logged an unrepresented asynchronous/fatal failure: "
+                    + (output.strip()[-600:] or "unknown failure")
+                )
+            if proc.returncode != 0:
+                raise PartsBookError(
+                    "pinned compiler returned nonzero despite emitting an artifact "
+                    f"(exit {proc.returncode}; tail: {output.strip()[-600:] or 'none'})"
+                )
+            artifact_sha = hashlib.sha256(artifact_bytes).hexdigest()
+    except OSError as exc:
+        raise PartsBookError(f"could not run the pinned parts inventory: {exc}") from exc
+    after, _ = _composition_fingerprint(project, blocks_dir, selected)
+    if after != before:
+        raise PartsBookError(
+            "project composition changed during parts inventory; discard and rerun"
+        )
+    if _toolchain_identity(toolchain, node) != toolchain_identity:
+        raise PartsBookError(
+            "pinned toolchain or Node executable changed during parts inventory"
+        )
+    return elements, {
+        "compositionSha256": before,
+        "circuitSha256": artifact_sha,
+        "toolchain": toolchain_identity,
+        "routingDisabled": True,
+        "partsEngine": "off",
+        "returnCode": 0,
+        "command": command[4:],
+    }
 
 
 def _imported_instances(project: Path, selected: list[str]) -> list[dict]:
@@ -519,85 +950,587 @@ def _default_ref_props(path: Path) -> dict[str, str]:
     return mapping
 
 
-def _resolve_ref(default_ref: str, prop: str | None, attrs: str, *, block: str) -> str:
-    if re.search(r"\{\s*\.\.\.", attrs):
-        raise PartsBookError(
-            f"block {block!r} uses a JSX prop spread; exact ref overrides cannot "
-            "be proven statically"
-        )
-    if prop is None:
-        return default_ref
-    matches = list(re.finditer(
-        rf"(?:^|\s){re.escape(prop)}\s*=\s*(?:"
-        r'\"(?P<double>[^\"]+)\"|\'(?P<single>[^\']+)\'|'
-        r"\{\s*[\"'](?P<braced>[^\"']+)[\"']\s*\}|(?P<dynamic>\{[^}]*\}))",
-        attrs,
-        re.S,
-    ))
-    if not matches:
-        return default_ref
-    if len(matches) != 1:
-        raise PartsBookError(
-            f"block {block!r} prop {prop!r} is assigned more than once"
-        )
-    match = matches[0]
-    value = match.group("double") or match.group("single") or match.group("braced")
-    if value is None or not _EXACT_REF_RE.fullmatch(value):
-        raise PartsBookError(
-            f"block {block!r} prop {prop!r} is dynamic/non-exact; cannot prove "
-            f"the populated ref derived from {default_ref}"
-        )
-    return value
+def _direct_block_imports(project: Path, selected: list[str]) -> set[str]:
+    selected_set = set(selected)
+    found: set[str] = set()
+    pattern = re.compile(r"(?:^|/)blocks/([a-z0-9][a-z0-9-]*)/")
+    for source in _project_source_graph(project):
+        if source.suffix == ".json":
+            continue
+        text = _strip_comments(source.read_text(encoding="utf-8"))
+        for block in pattern.findall(text):
+            if block not in selected_set:
+                raise PartsBookError(
+                    f"{source}: imports unselected golden block {block!r}"
+                )
+            found.add(block)
+    return found
 
 
-def collect_candidates(project: Path, blocks_dir: Path) -> list[dict]:
-    """Resolve one record per populated fixed ref from selected block instances."""
+def _documented_ref_rules(raw: str, overridable: set[str]) -> list[dict]:
+    """Turn BLOCK.md notation into ownership rules, never population.
 
-    selected = read_selected_blocks(project, blocks_dir)
-    instances = _imported_instances(project, selected)
-    pinned_lcsc: set[str] = set()
-    for block in selected:
-        for source in sorted((blocks_dir / block).rglob("*.tsx")):
-            pinned_lcsc.update(scan_block_tsx(source))
-    candidates: dict[str, dict] = {}
-    for instance in instances:
-        block = instance["block"]
+    The compiler owns the actual ref set.  These rules merely reconcile each
+    compiled identity with the selected frozen block contract.  Exact/range
+    rules outrank parametric notation, which outranks a block's explicit
+    ref-prop override surface (e.g. ``SwTact name={sw}``).
+    """
+
+    rules: list[dict] = []
+    cell = re.sub(r"[*]", "", raw).strip()
+    for raw_token in re.split(r"\s*[,/]\s*", cell):
+        token = raw_token.strip()
+        exact_head = re.fullmatch(r"([A-Z]+\d+)", _clean_markdown(token))
+        if exact_head:
+            ref = exact_head.group(1)
+            rules.append({"kind": "exact", "value": ref, "specificity": 3})
+            if ref in overridable:
+                prefix = re.match(r"^[A-Z]+", ref).group(0)  # type: ignore[union-attr]
+                rules.append(
+                    {"kind": "regex", "value": rf"{prefix}\d+", "specificity": 1}
+                )
+            continue
+        ranged = re.fullmatch(
+            r"([A-Z]+)(\d+)\s*[\-–—]\s*([A-Z]+)?(\d+)",
+            _clean_markdown(token),
+        )
+        if ranged:
+            left, first, right, last = ranged.groups()
+            right = right or left
+            if left != right or int(last) < int(first) or int(last) - int(first) > 1000:
+                raise PartsBookError(f"unsafe documented ref range {raw!r}")
+            rules.extend(
+                {"kind": "exact", "value": f"{left}{number}", "specificity": 3}
+                for number in range(int(first), int(last) + 1)
+            )
+            continue
+        compact = _clean_markdown(token).replace(" ", "")
+        parametric = re.fullmatch(r"([A-Z]+)(\d*)n", compact)
+        if parametric:
+            prefix, fixed_digits = parametric.groups()
+            rules.append(
+                {
+                    "kind": "regex",
+                    "value": rf"{prefix}{fixed_digits}\d+",
+                    "specificity": 2,
+                }
+            )
+            continue
+        plus = re.fullmatch(r"([A-Z]+)(\d+)\+", compact)
+        if plus:
+            prefix, first = plus.groups()
+            rules.append(
+                {
+                    "kind": "at_least",
+                    "value": (prefix, int(first)),
+                    "specificity": 2,
+                }
+            )
+            continue
+    if not rules:
+        raise PartsBookError(
+            f"frozen populated ref notation {raw!r} is not a supported exact, "
+            "finite-range, parametric-n, or start+ ownership contract"
+        )
+    return rules
+
+
+def _rule_matches(rule: dict, ref: str) -> bool:
+    kind = rule["kind"]
+    if kind == "exact":
+        return ref == rule["value"]
+    if kind == "regex":
+        return re.fullmatch(str(rule["value"]), ref) is not None
+    if kind == "at_least":
+        prefix, first = rule["value"]
+        match = re.fullmatch(rf"{re.escape(prefix)}(\d+)", ref)
+        return match is not None and int(match.group(1)) >= first
+    return False
+
+
+def _block_metadata_rows(
+    project: Path, blocks_dir: Path, selected: list[str]
+) -> list[dict]:
+    active = _direct_block_imports(project, selected)
+    rows: list[dict] = []
+    for block in sorted(active):
         block_source = blocks_dir / block / f"{block}.tsx"
         if not block_source.is_file():
             raise PartsBookError(f"selected block source missing: {block_source}")
+        pinned: set[str] = set()
+        for source in sorted((blocks_dir / block).rglob("*.tsx")):
+            pinned.update(scan_block_tsx(source))
         ref_props = _default_ref_props(block_source)
         for row in parse_block_md(blocks_dir / block / "BLOCK.md"):
-            if row["lcsc"] not in pinned_lcsc:
+            if row["lcsc"] not in pinned:
                 raise PartsBookError(
-                    f"block {block!r} documents {row['lcsc']} but the selected "
+                    f"block {block!r} documents {row['lcsc']} but its selected "
                     "frozen source does not pin it"
                 )
-            for default_ref in _expand_fixed_refs(row["ref_cell"], block=block):
-                ref = _resolve_ref(
-                    default_ref,
-                    ref_props.get(default_ref),
-                    instance["attrs"],
-                    block=block,
+            copied = dict(row)
+            copied["block"] = block
+            copied["rules"] = _documented_ref_rules(
+                row["ref_cell"], set(ref_props)
+            )
+            rows.append(copied)
+    return rows
+
+
+def _require_block_owner_markers(
+    project: Path, blocks_dir: Path, selected: list[str]
+) -> tuple[set[str], set[str]]:
+    project_sources = [
+        path
+        for path in _project_mirror_files(project).values()
+        if path.suffix in _PROJECT_SOURCE_SUFFIXES
+    ]
+    allowed_board_markers: set[str] = set()
+    for source in project_sources:
+        if source.suffix not in _PROJECT_SOURCE_SUFFIXES:
+            continue
+        text = source.read_text(encoding="utf-8")
+        if _BLOCK_OWNER_PREFIX in text:
+            raise PartsBookError(
+                f"project-owned source {source} uses reserved compiled block-owner "
+                f"marker {_BLOCK_OWNER_PREFIX!r}; only frozen block roots may own it"
+            )
+        board_marker = re.compile(
+            rf"<group\b(?:(?!>).)*\bname\s*=\s*[\"']"
+            rf"{re.escape(_BOARD_OWNER_PREFIX)}[a-z0-9][a-z0-9-]*[\"']"
+            rf"(?:(?!>).)*>",
+            re.S,
+        )
+        raw_count = text.count(_BOARD_OWNER_PREFIX)
+        structured = board_marker.findall(_strip_comments(text))
+        structured_count = len(structured)
+        if raw_count != structured_count:
+            raise PartsBookError(
+                f"project-owned source {source} has an unstructured/spoofed "
+                f"{_BOARD_OWNER_PREFIX!r} marker"
+            )
+        for match in board_marker.finditer(_strip_comments(text)):
+            name_match = re.search(
+                rf"{re.escape(_BOARD_OWNER_PREFIX)}[a-z0-9][a-z0-9-]*",
+                match.group(0),
+            )
+            if name_match is None or name_match.group(0) in allowed_board_markers:
+                raise PartsBookError(
+                    f"project parts-owner marker is duplicate or malformed in {source}"
                 )
-                if ref in candidates:
-                    previous = candidates[ref]
-                    raise PartsBookError(
-                        f"ambiguous duplicate populated ref {ref}: block {previous['block']} "
-                        f"pins {previous['lcsc']} and block {block} pins {row['lcsc']}"
-                    )
-                candidates[ref] = {
-                    "ref": ref,
-                    "lcsc": row["lcsc"],
-                    "basic": row["basic"],
-                    "description": row["description"],
-                    "block": block,
-                    "mfr": row["mfr"],
-                    "package": row["package"],
-                    "source": "block-default",
-                }
-    if not candidates:
-        raise PartsBookError("selected block instances resolved no populated parts")
-    return [candidates[ref] for ref in sorted(candidates)]
+            allowed_board_markers.add(name_match.group(0))
+    instances = _imported_instances(project, selected)
+    expected_compiled_roots: set[str] = set()
+    for block in sorted(_direct_block_imports(project, selected)):
+        source = blocks_dir / block / f"{block}.tsx"
+        raw_sources = {
+            path: path.read_text(encoding="utf-8")
+            for path in sorted((blocks_dir / block).rglob("*"))
+            if path.is_file() and path.suffix in _PROJECT_SOURCE_SUFFIXES
+        }
+        reserved = [
+            (path, prefix)
+            for path, raw in raw_sources.items()
+            for prefix in (_BLOCK_OWNER_PREFIX, _BOARD_OWNER_PREFIX)
+            for _ in range(raw.count(prefix))
+        ]
+        expected = [
+            item
+            for item in reserved
+            if item == (source, _BLOCK_OWNER_PREFIX)
+        ]
+        if len(reserved) != 1 or len(expected) != 1:
+            details = ", ".join(
+                f"{path.relative_to(blocks_dir).as_posix()}:{prefix}"
+                for path, prefix in reserved
+            ) or "none"
+            raise PartsBookError(
+                f"selected block {block!r} must reserve exactly its own one root "
+                f"parts marker (found {details})"
+            )
+        text = _strip_comments(raw_sources[source])
+        marker = re.compile(
+            rf"<group\b(?P<attrs>(?:(?!>).)*)\bname\s*=\s*\{{\s*`"
+            rf"{re.escape(_BLOCK_OWNER_PREFIX + block + '__')}"
+            rf"\$\{{[A-Za-z_$][\w$]*\}}`\s*\}}(?:(?!>).)*>", re.S
+        )
+        matches = list(marker.finditer(text))
+        if len(matches) != 1:
+            raise PartsBookError(
+                f"selected block {block!r} needs exactly one structured root-group "
+                f"marker {_BLOCK_OWNER_PREFIX}{block}__${{instance}} (found {len(matches)})"
+            )
+        marker_start = matches[0].start()
+        return_at = text.rfind("return", 0, marker_start)
+        arrow_at = text.rfind("=>", 0, marker_start)
+        boundary = max(return_at, arrow_at)
+        intervening = text[boundary + 2 : marker_start] if boundary >= 0 else text[:marker_start]
+        if boundary < 0 or re.search(r"<\s*(?:group|chip|resistor|capacitor|led|connector|pushbutton)\b", intervening):
+            raise PartsBookError(
+                f"selected block {block!r} parts-owner marker is not its returned root group"
+            )
+        declarations = re.findall(
+            r"export\s+(?:default\s+)?const\s+([A-Za-z_$][\w$]*)\s*=",
+            text[:marker_start],
+        )
+        if not declarations:
+            raise PartsBookError(
+                f"selected block {block!r} marker is not inside an exported root component"
+            )
+        root_symbol = declarations[-1]
+        if any(
+            instance["block"] == block and instance["symbol"] == root_symbol
+            for instance in instances
+        ):
+            expected_compiled_roots.add(block)
+    return expected_compiled_roots, allowed_board_markers
+
+
+def _compiled_description(element: dict) -> str:
+    mfr = str(element.get("manufacturer_part_number") or "").strip()
+    if mfr:
+        return mfr
+    for key in (
+        "display_resistance",
+        "display_capacitance",
+        "display_inductance",
+        "display_frequency",
+    ):
+        value = str(element.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _metadata_for_compiled_ref(
+    ref: str,
+    lcsc: str,
+    element: dict,
+    rows: list[dict],
+    *,
+    owner: str,
+) -> dict:
+    if owner == "board":
+        return {
+            "basic": None,
+            "description": _compiled_description(element),
+            "block": "board",
+            "mfr": str(element.get("manufacturer_part_number") or ""),
+            "package": "",
+            "source": "compiled-board",
+        }
+    matched: list[tuple[int, dict]] = []
+    for row in rows:
+        if row["block"] != owner:
+            continue
+        for rule in row["rules"]:
+            if _rule_matches(rule, ref):
+                matched.append((int(rule["specificity"]), row))
+    if not matched:
+        raise PartsBookError(
+            f"compiled {ref}/{lcsc} belongs to frozen block {owner!r} but no "
+            "BLOCK.md ref rule covers it"
+        )
+    specificity = max(score for score, _row in matched)
+    strongest = [row for score, row in matched if score == specificity]
+    same_identity = [row for row in strongest if row["lcsc"] == lcsc]
+    if not same_identity:
+        expected = ", ".join(
+            sorted({f"{row['block']}:{row['lcsc']}" for row in strongest})
+        )
+        raise PartsBookError(
+            f"compiled {ref} pins {lcsc} but its strongest frozen block "
+            f"contract pins {expected}"
+        )
+    owners = {row["block"] for row in same_identity}
+    if len(owners) != 1:
+        raise PartsBookError(
+            f"compiled {ref}/{lcsc} has ambiguous frozen block ownership: "
+            + ", ".join(sorted(owners))
+        )
+    normalized = {
+        (row["description"], row["basic"], row["mfr"], row["package"])
+        for row in same_identity
+    }
+    if len(normalized) != 1:
+        raise PartsBookError(
+            f"compiled {ref}/{lcsc} matches conflicting frozen metadata"
+        )
+    row = same_identity[0]
+    return {
+        "basic": row["basic"],
+        "description": row["description"],
+        "block": row["block"],
+        "mfr": row["mfr"],
+        "package": row["package"],
+        "source": "compiled-block",
+    }
+
+
+def _compiled_block_owners(
+    elements: list[dict], selected: set[str], expected_roots: set[str],
+    allowed_board_markers: set[str],
+) -> tuple[dict[str, str], set[str]]:
+    groups: dict[str, dict] = {}
+    for element in elements:
+        if element.get("type") != "source_group":
+            continue
+        group_id = str(element.get("source_group_id") or "")
+        if not group_id or group_id in groups:
+            raise PartsBookError(
+                f"compiled inventory has duplicate/empty source_group_id {group_id!r}"
+            )
+        groups[group_id] = element
+    owners: dict[str, str] = {}
+    marker_owners: dict[str, str] = {}
+    marker_names: set[str] = set()
+    for group_id, group in groups.items():
+        name = str(group.get("name") or "")
+        if not (
+            name.startswith(_BLOCK_OWNER_PREFIX)
+            or name.startswith(_BOARD_OWNER_PREFIX)
+        ):
+            continue
+        if group.get("was_automatically_named") is not False:
+            raise PartsBookError(
+                f"compiled parts-owner marker must be explicitly named: {name!r}"
+            )
+        block_match = re.fullmatch(
+            rf"{re.escape(_BLOCK_OWNER_PREFIX)}"
+            rf"(?P<block>[a-z0-9][a-z0-9-]*)__"
+            rf"(?P<instance>[A-Z][A-Z0-9]*)",
+            name,
+        )
+        board_match = re.fullmatch(
+            rf"{re.escape(_BOARD_OWNER_PREFIX)}[a-z0-9][a-z0-9-]*",
+            name,
+        )
+        if block_match is None and board_match is None:
+            raise PartsBookError(f"compiled parts-owner marker is unsafe: {name!r}")
+        block = block_match.group("block") if block_match else "board"
+        if board_match is not None and name not in allowed_board_markers:
+            raise PartsBookError(
+                f"compiled board parts-owner marker was not declared by project source: {name!r}"
+            )
+        if block != "board" and block not in selected:
+            raise PartsBookError(
+                f"compiled owner marker {name!r} claims unselected block {block!r}"
+            )
+        if name in marker_names:
+            raise PartsBookError(f"compiled block-owner marker is duplicated: {name!r}")
+        marker_names.add(name)
+        marker_owners[group_id] = block
+    for group_id in groups:
+        cursor = group_id
+        seen: set[str] = set()
+        found: list[str] = []
+        while cursor:
+            if cursor in seen:
+                raise PartsBookError(f"compiled source-group ancestry cycles at {cursor}")
+            seen.add(cursor)
+            group = groups.get(cursor)
+            if group is None:
+                raise PartsBookError(
+                    f"compiled source-group ancestry references missing {cursor}"
+                )
+            block = marker_owners.get(cursor)
+            if block is not None:
+                found.append(block)
+            cursor = str(group.get("parent_source_group_id") or "")
+        block_found = [owner for owner in found if owner != "board"]
+        board_count = found.count("board")
+        if len(block_found) > 1 or (not block_found and board_count > 1):
+            raise PartsBookError(
+                f"compiled source group {group_id} is nested under multiple parts owners: "
+                + ", ".join(found)
+            )
+        if block_found:
+            owners[group_id] = block_found[0]
+        elif board_count == 1:
+            owners[group_id] = "board"
+    compiled_block_roots = set(marker_owners.values()) - {"board"}
+    missing_roots = sorted(expected_roots - compiled_block_roots)
+    if missing_roots:
+        raise PartsBookError(
+            "fresh compiler emitted no owner marker for active frozen root block(s): "
+            + ", ".join(missing_roots)
+        )
+    compiled_board_markers = {
+        name for name in marker_names if name.startswith(_BOARD_OWNER_PREFIX)
+    }
+    missing_board_markers = sorted(allowed_board_markers - compiled_board_markers)
+    if missing_board_markers:
+        raise PartsBookError(
+            "fresh compiler emitted no board parts-owner marker(s): "
+            + ", ".join(missing_board_markers)
+        )
+    return owners, set(groups)
+
+
+def _records_from_inventory(
+    elements: list[dict], rows: list[dict], selected: list[str], expected_roots: set[str],
+    allowed_board_markers: set[str],
+) -> list[dict]:
+    selected_set = set(selected)
+    owners, group_ids = _compiled_block_owners(
+        elements, selected_set, expected_roots, allowed_board_markers
+    )
+    source_elements: dict[str, dict] = {}
+    refs: set[str] = set()
+    for element in elements:
+        if element.get("type") != "source_component":
+            continue
+        source_id = str(element.get("source_component_id") or "")
+        ref = str(element.get("name") or "")
+        group_id = str(element.get("source_group_id") or "")
+        if not source_id or source_id in source_elements or not _EXACT_REF_RE.fullmatch(ref):
+            raise PartsBookError(
+                f"compiled populated component has duplicate/unsafe ref/source "
+                f"identity {ref!r}/{source_id!r}"
+            )
+        if ref in refs:
+            raise PartsBookError(f"compiled inventory contains duplicate component ref {ref}")
+        if not group_id or group_id not in group_ids:
+            raise PartsBookError(
+                f"compiled {ref}/{source_id} has missing or unknown source_group_id "
+                f"{group_id!r}"
+            )
+        refs.add(ref)
+        source_elements[source_id] = element
+
+    synthetic_sources: set[str] = set()
+    for element in elements:
+        if element.get("type") != "source_manually_placed_via":
+            continue
+        synthetic_id = str(element.get("source_manually_placed_via_id") or "")
+        if not synthetic_id or synthetic_id in synthetic_sources or synthetic_id in source_elements:
+            raise PartsBookError(
+                f"compiled inventory has duplicate/empty synthetic via identity {synthetic_id!r}"
+            )
+        synthetic_sources.add(synthetic_id)
+
+    pcb_by_source: dict[str, list[dict]] = {}
+    copper_by_component: set[str] = set()
+    pcb_ids: set[str] = set()
+    copper_ids: set[str] = set()
+    for element in elements:
+        if element.get("type") == "pcb_component":
+            pcb_id = str(element.get("pcb_component_id") or "")
+            if not pcb_id or pcb_id in pcb_ids:
+                raise PartsBookError(
+                    f"compiled inventory has duplicate/empty pcb_component_id {pcb_id!r}"
+                )
+            pcb_ids.add(pcb_id)
+            source_id = str(element.get("source_component_id") or "")
+            if not source_id:
+                raise PartsBookError(
+                    f"compiled PCB component {pcb_id} has no source-component identity"
+                )
+            if source_id in source_elements:
+                pcb_by_source.setdefault(source_id, []).append(element)
+            elif source_id not in synthetic_sources:
+                raise PartsBookError(
+                    f"compiled PCB component {pcb_id} references unknown source owner "
+                    f"{source_id!r}"
+                )
+        if element.get("type") in {"pcb_smtpad", "pcb_plated_hole"}:
+            id_key = (
+                "pcb_smtpad_id"
+                if element.get("type") == "pcb_smtpad"
+                else "pcb_plated_hole_id"
+            )
+            copper_id = str(element.get(id_key) or "")
+            if not copper_id or copper_id in copper_ids:
+                raise PartsBookError(
+                    f"compiled inventory has duplicate/empty physical land ID {copper_id!r}"
+                )
+            copper_ids.add(copper_id)
+            component_id = str(element.get("pcb_component_id") or "")
+            if component_id:
+                copper_by_component.add(component_id)
+    unknown_land_owners = sorted(copper_by_component - pcb_ids)
+    if unknown_land_owners:
+        raise PartsBookError(
+            "compiled physical lands reference unknown PCB components: "
+            + ", ".join(unknown_land_owners[:10])
+        )
+    records: dict[str, dict] = {}
+    for source_id, element in source_elements.items():
+        ref = str(element.get("name") or "")
+        joined = pcb_by_source.get(source_id, [])
+        if len(joined) != 1:
+            raise PartsBookError(
+                f"compiled {ref} must join exactly one pcb_component (found {len(joined)})"
+            )
+        pcb = joined[0]
+        pcb_id = str(pcb.get("pcb_component_id") or "")
+        if not pcb_id or pcb_id not in copper_by_component:
+            raise PartsBookError(
+                f"compiled ref {ref} has no physical SMT/PTH copper land"
+            )
+        dnp = pcb.get("do_not_place")
+        if dnp is True:
+            continue
+        if dnp is not False:
+            raise PartsBookError(
+                f"compiled {ref} has no literal populated/DNP assembly state"
+            )
+        supplier = element.get("supplier_part_numbers")
+        jlc = supplier.get("jlcpcb") if isinstance(supplier, dict) else None
+        if (
+            not isinstance(jlc, list)
+            or len(jlc) != 1
+            or not isinstance(jlc[0], str)
+            or not _EXACT_LCSC_RE.fullmatch(jlc[0])
+        ):
+            raise PartsBookError(
+                f"compiled populated ref {ref} needs exactly one JLCPCB C-number"
+            )
+        lcsc = jlc[0]
+        source_group_id = str(element.get("source_group_id") or "")
+        owner = owners.get(source_group_id)
+        if owner is None:
+            raise PartsBookError(
+                f"compiled {ref} has no explicit frozen-block or board parts-owner marker"
+            )
+        metadata = _metadata_for_compiled_ref(
+            ref, lcsc, element, rows, owner=owner
+        )
+        records[ref] = {"ref": ref, "lcsc": lcsc, **metadata}
+    if not records:
+        raise PartsBookError("fresh compiler inventory resolved no populated parts")
+    return [records[ref] for ref in sorted(records)]
+
+
+def collect_candidates(
+    project: Path, blocks_dir: Path, *, timeout_s: float = INVENTORY_TIMEOUT_S
+) -> tuple[list[dict], dict]:
+    """Resolve the exact populated set from a fresh compiler artifact."""
+
+    selected = read_selected_blocks(project, blocks_dir)
+    expected_roots, allowed_board_markers = _require_block_owner_markers(
+        project, blocks_dir, selected
+    )
+    before, _ = _composition_fingerprint(project, blocks_dir, selected)
+    compiler = INVENTORY_FN or _compile_inventory
+    elements, evidence = compiler(project, blocks_dir, selected, timeout_s)
+    if not isinstance(elements, list) or not isinstance(evidence, dict):
+        raise PartsBookError("parts inventory compiler returned malformed evidence")
+    after, _ = _composition_fingerprint(project, blocks_dir, selected)
+    if after != before:
+        raise PartsBookError(
+            "project composition changed during the fresh populated-parts inventory"
+        )
+    recorded = evidence.get("compositionSha256")
+    if recorded not in (None, before):
+        raise PartsBookError(
+            "parts inventory evidence does not match the current project composition"
+        )
+    evidence = dict(evidence)
+    evidence["compositionSha256"] = before
+    rows = _block_metadata_rows(project, blocks_dir, selected)
+    return _records_from_inventory(
+        elements, rows, selected, expected_roots, allowed_board_markers
+    ), evidence
 
 
 # --------------------------------------------------------------------------
@@ -707,9 +1640,22 @@ def lookup_lcsc(lcsc: str, *, timeout: float = LOOKUP_TIMEOUT_S,
 def apply_component(record: dict, component: dict) -> None:
     """Fold a jlcsearch component onto a part record."""
     number = component.get("lcsc")
-    if number is not None and f"C{number}" != record["lcsc"]:
-        record["lookup_mismatch"] = f"C{number}"
+    returned = (
+        number
+        if isinstance(number, str) and number.startswith("C")
+        else f"C{number}"
+    )
+    if returned != record["lcsc"]:
+        raise PartsBookError(
+            f"catalog returned {returned} while resolving exact identity {record['lcsc']}"
+        )
+    if not isinstance(component.get("is_basic"), bool):
+        raise PartsBookError(
+            f"catalog returned no literal Basic/Extended classification for {record['lcsc']}"
+        )
     record["mfr"] = component.get("mfr") or record.get("mfr", "")
+    if not str(record.get("description") or "").strip() and record["mfr"]:
+        record["description"] = str(record["mfr"])
     record["package"] = component.get("package") or record.get("package", "")
     record["basic"] = bool(component.get("is_basic"))
     record["preferred"] = bool(component.get("is_preferred"))
@@ -729,9 +1675,6 @@ def apply_component(record: dict, component: dict) -> None:
 
 
 _CATALOG_FIELDS = (
-    "basic",
-    "mfr",
-    "package",
     "stock",
     "unit_price_usd",
     "stock_checked",
@@ -797,6 +1740,23 @@ def read_existing(path: Path) -> tuple[dict[str, dict], dict[str, dict]]:
             raise PartsBookError(
                 "existing parts.json contains a record without one exact LCSC number"
             )
+        if "basic" in record and not isinstance(record.get("basic"), bool):
+            raise PartsBookError("existing parts.json has non-boolean Basic classification")
+        for key in ("description", "mfr", "package"):
+            if key in record and (
+                not isinstance(record[key], str) or not record[key].strip()
+            ):
+                raise PartsBookError(
+                    f"existing parts.json has non-string/empty reviewed {key} metadata"
+                )
+        for key in ("stock", "unit_price_usd"):
+            if key in record and not isinstance(record[key], (int, float)):
+                raise PartsBookError(f"existing parts.json has non-numeric {key}")
+        if "stock_checked" in record and (
+            not isinstance(record["stock_checked"], str)
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", record["stock_checked"])
+        ):
+            raise PartsBookError("existing parts.json has invalid stock_checked date")
         grouped.setdefault(str(record["lcsc"]), []).append(record)
     by_lcsc: dict[str, dict] = {}
     for lcsc, records in grouped.items():
@@ -806,6 +1766,13 @@ def read_existing(path: Path) -> tuple[dict[str, dict], dict[str, dict]]:
             value = _consistent_value(records, key, lcsc)
             if value is not None:
                 snapshot[key] = value
+        descriptions = {
+            record["description"].strip()
+            for record in records
+            if isinstance(record.get("description"), str) and record["description"].strip()
+        }
+        if len(descriptions) == 1:
+            snapshot["description"] = descriptions.pop()
         for key in ("stock", "unit_price_usd", "stock_checked"):
             if latest.get(key) not in (None, ""):
                 snapshot[key] = latest[key]
@@ -826,6 +1793,10 @@ def carry_forward(record: dict, previous_lcsc: dict, previous_ref: dict) -> None
         # profile/BOM gate. Preserve that reviewed classification offline;
         # --lookup can deliberately refresh it from the catalog.
         record["basic"] = previous_ref["basic"]
+    if same_exact_identity:
+        for key in ("description", "mfr", "package"):
+            if record.get(key) in (None, "") and previous_ref.get(key) not in (None, ""):
+                record[key] = previous_ref[key]
     for key in _CATALOG_FIELDS:
         if key == "basic" and same_exact_identity:
             continue
@@ -833,7 +1804,7 @@ def carry_forward(record: dict, previous_lcsc: dict, previous_ref: dict) -> None
             record[key] = previous_lcsc[key]
     if (
         previous_lcsc.get("source") == "jlcsearch"
-        and record.get("source") == "block-default"
+        and record.get("source") in {"block-default", "compiled-block", "compiled-board"}
     ):
         record["source"] = "jlcsearch-cached"
     if same_exact_identity:
@@ -847,7 +1818,10 @@ def finalize(record: dict) -> dict:
 
     ref = str(record.get("ref") or "")
     lcsc = str(record.get("lcsc") or "")
-    description = str(record.get("description") or "").strip()
+    raw_description = record.get("description")
+    if not isinstance(raw_description, str):
+        raise PartsBookError(f"{ref or 'component'} has non-string reviewed description")
+    description = raw_description.strip()
     block = str(record.get("block") or "").strip()
     if not _EXACT_REF_RE.fullmatch(ref):
         raise PartsBookError(f"resolved component ref {ref!r} is not exact uppercase")
@@ -883,11 +1857,15 @@ def finalize(record: dict) -> dict:
         "lookup_mismatch",
     ):
         if record.get(key) not in (None, ""):
+            if key in {"mfr", "package"} and not isinstance(record[key], str):
+                raise PartsBookError(f"{ref}/{lcsc} has non-string reviewed {key}")
             out[key] = record[key]
     return out
 
 
-def write_parts_json(path: Path, parts: dict[str, dict]) -> None:
+def write_parts_json(
+    path: Path, parts: dict[str, dict], *, precommit=None
+) -> None:
     """Atomically replace the whole exact-ref lock; no wrapper metadata."""
 
     payload = json.dumps(dict(sorted(parts.items())), indent=2) + "\n"
@@ -900,10 +1878,68 @@ def write_parts_json(path: Path, parts: dict[str, dict]) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     try:
+        if precommit is not None:
+            precommit()
         os.replace(staged, path)
     finally:
         if staged.exists():
             staged.unlink()
+
+
+def _assert_inventory_composition_current(
+    project: Path, blocks_dir: Path, expected_sha256: str, parts_path: Path,
+    expected_parts_sha256: str | None,
+) -> None:
+    selected = read_selected_blocks(project, blocks_dir)
+    actual, _ = _composition_fingerprint(project, blocks_dir, selected)
+    if actual != expected_sha256:
+        raise PartsBookError(
+            "project composition changed after parts inventory; refusing a stale parts.json"
+        )
+    current_parts_sha256 = _sha256(parts_path) if parts_path.is_file() else None
+    if current_parts_sha256 != expected_parts_sha256:
+        raise PartsBookError(
+            "parts.json changed concurrently; refusing to overwrite another review"
+        )
+
+
+def _read_review_manifest(path: Path) -> dict[str, dict]:
+    """Reviewed metadata for compiler-proven board-owned refs, atomically."""
+
+    if path.is_symlink() or not path.is_file():
+        raise PartsBookError(f"review manifest must be one regular JSON file: {path}")
+    payload = _load_json_no_duplicates(path)
+    if not isinstance(payload, dict):
+        raise PartsBookError("review manifest must be an exact ref -> entry object")
+    allowed = {"lcsc", "basic", "description", "mfr", "package"}
+    reviewed: dict[str, dict] = {}
+    for ref, entry in payload.items():
+        if not _EXACT_REF_RE.fullmatch(str(ref)) or not isinstance(entry, dict):
+            raise PartsBookError(f"review manifest has unsafe exact ref {ref!r}")
+        if set(entry) - allowed:
+            raise PartsBookError(
+                f"review manifest {ref} has unsupported fields: "
+                + ", ".join(sorted(set(entry) - allowed))
+            )
+        if (
+            not _EXACT_LCSC_RE.fullmatch(str(entry.get("lcsc") or ""))
+            or not isinstance(entry.get("basic"), bool)
+            or not isinstance(entry.get("description"), str)
+            or not entry["description"].strip()
+            or any(
+                key in entry
+                and (
+                    not isinstance(entry[key], str)
+                    or not entry[key].strip()
+                )
+                for key in ("mfr", "package")
+            )
+        ):
+            raise PartsBookError(
+                f"review manifest {ref} needs exact lcsc, boolean basic, and description"
+            )
+        reviewed[str(ref)] = dict(entry)
+    return reviewed
 
 
 # --------------------------------------------------------------------------
@@ -927,18 +1963,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--blocks", type=Path, default=None,
                    help="Frozen blocks directory (default: <project>/blocks); "
                         "its bytes must match golden-blocks.lock.json.")
+    p.add_argument(
+        "--inventory-timeout",
+        type=float,
+        default=INVENTORY_TIMEOUT_S,
+        help="Seconds allowed for the fresh offline routing-disabled inventory compile.",
+    )
+    p.add_argument(
+        "--review-file",
+        type=Path,
+        default=None,
+        help=(
+            "Atomic exact-ref metadata for compiler-proven board-owned parts; "
+            "never adds population absent from the fresh inventory."
+        ),
+    )
     mutation = p.add_mutually_exclusive_group()
     mutation.add_argument("--add", metavar="REF", default=None,
                    help="Add one exact board-owned glue ref (requires --lcsc "
                         "and --description).")
     mutation.add_argument("--swap", metavar="REF", default=None,
                    help="Point one exact populated ref at a different orderable "
-                        "number (requires --lcsc).")
+                        "number (requires --lcsc, --description, and --package).")
     p.add_argument("--lcsc", default=None, help="Exact LCSC number, e.g. C6186.")
     p.add_argument("--mfr", default=None)
     p.add_argument("--package", default=None)
     p.add_argument("--description", default=None,
-                   help="Reviewed part description (required by --add; optional on swap).")
+                   help="Reviewed part description (required by --add and --swap).")
     classification = p.add_mutually_exclusive_group()
     classification.add_argument("--basic", action="store_true",
                                 help="Record a reviewed JLC Basic classification.")
@@ -981,29 +2032,108 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.add and not str(args.description or "").strip():
             raise PartsBookError("--add requires a reviewed --description")
         manual_basic = True if args.basic else False if args.extended else None
+        mutation_selected = bool(args.add or args.swap)
+        manual_values = {
+            "--lcsc": args.lcsc,
+            "--mfr": args.mfr,
+            "--package": args.package,
+            "--description": args.description,
+            "--basic/--extended": manual_basic,
+        }
+        if not mutation_selected and any(value is not None for value in manual_values.values()):
+            used = ", ".join(name for name, value in manual_values.items() if value is not None)
+            raise PartsBookError(f"{used} require exactly one of --add or --swap")
+        if mutation_selected and manual_basic is None:
+            raise PartsBookError("--add/--swap require exactly one of --basic or --extended")
+        if args.lookup and (mutation_selected or args.review_file is not None):
+            raise PartsBookError(
+                "--lookup cannot be combined with manual/review mutations; "
+                "refresh catalog facts in a separate run"
+            )
+        if args.review_file is not None and mutation_selected:
+            raise PartsBookError("--review-file cannot be combined with --add/--swap")
         blocks_dir = args.blocks or (project / "blocks")
         if not blocks_dir.is_dir():
             raise PartsBookError(f"frozen blocks directory does not exist: {blocks_dir}")
 
-        records = collect_candidates(project, blocks_dir)
+        parts_path = project / PARTS_FILE
+        initial_parts_sha256 = _sha256(parts_path) if parts_path.is_file() else None
+        records, inventory_evidence = collect_candidates(
+            project, blocks_dir, timeout_s=args.inventory_timeout
+        )
         by_ref = {record["ref"]: record for record in records}
+        previous_lcsc, previous_ref = read_existing(parts_path)
+        for record in records:
+            carry_forward(
+                record,
+                previous_lcsc.get(record["lcsc"], {}),
+                previous_ref.get(record["ref"], {}),
+            )
         notes: list[str] = []
-        if args.add:
-            if args.add in by_ref:
-                raise PartsBookError(
-                    f"populated ref {args.add} already exists; use --swap to repoint it"
+        if args.review_file is not None:
+            reviewed_manifest = _read_review_manifest(args.review_file)
+            unresolved_board_refs = {
+                ref
+                for ref, record in by_ref.items()
+                if record["block"] == "board"
+                and (
+                    not isinstance(record.get("basic"), bool)
+                    or not str(record.get("description") or "").strip()
                 )
-            by_ref[args.add] = {
-                "ref": args.add,
-                "lcsc": args.lcsc,
-                "basic": manual_basic,
-                "description": str(args.description).strip(),
-                "block": "board",
-                "mfr": args.mfr or "",
-                "package": args.package or "",
-                "source": "manual",
-                "override": True,
             }
+            if set(reviewed_manifest) != unresolved_board_refs:
+                missing = sorted(unresolved_board_refs - set(reviewed_manifest))
+                extra = sorted(set(reviewed_manifest) - unresolved_board_refs)
+                detail = [*(f"missing {ref}" for ref in missing)]
+                detail.extend(f"unexpected {ref}" for ref in extra)
+                raise PartsBookError(
+                    "--review-file must exactly cover every unresolved compiled "
+                    "board-owned ref: " + "; ".join(detail)
+                )
+            for ref, reviewed in reviewed_manifest.items():
+                record = by_ref.get(ref)
+                if record is None:
+                    raise PartsBookError(
+                        f"review manifest ref {ref} is absent from the fresh populated inventory"
+                    )
+                if record["lcsc"] != reviewed["lcsc"]:
+                    raise PartsBookError(
+                        f"review manifest {ref} pins {reviewed['lcsc']} but the fresh "
+                        f"compiler pins {record['lcsc']}"
+                    )
+                if record["block"] != "board":
+                    raise PartsBookError(
+                        f"review manifest {ref} cannot override frozen block "
+                        f"{record['block']!r}; update its BLOCK.md/source instead"
+                    )
+                record.update(reviewed)
+                record["source"] = "review-manifest"
+                record["override"] = True
+        if args.add:
+            record = by_ref.get(args.add)
+            if record is None:
+                raise PartsBookError(
+                    f"--add ref {args.add} is absent from the fresh populated inventory"
+                )
+            if record["block"] != "board":
+                raise PartsBookError(
+                    f"--add cannot override frozen block-owned ref {args.add}"
+                )
+            if record["lcsc"] != args.lcsc:
+                raise PartsBookError(
+                    f"--add {args.add} pins {args.lcsc} but the fresh compiler pins "
+                    f"{record['lcsc']}"
+                )
+            record.update(
+                {
+                    "basic": manual_basic,
+                    "description": str(args.description).strip(),
+                    "mfr": args.mfr or record.get("mfr", ""),
+                    "package": args.package or record.get("package", ""),
+                    "source": "manual",
+                    "override": True,
+                }
+            )
         swap_note = None
         if args.swap:
             record = by_ref.get(args.swap)
@@ -1011,6 +2141,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise PartsBookError(
                     f"no populated ref {args.swap} to swap (have: "
                     f"{', '.join(sorted(by_ref)) or 'none'})"
+                )
+            if not str(args.description or "").strip() or not str(args.package or "").strip():
+                raise PartsBookError(
+                    "--swap requires reviewed --description and --package for the new identity"
                 )
             old_lcsc = record["lcsc"]
             old_package = record.get("package", "")
@@ -1027,16 +2161,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "datasheet_url": _lcsc_url(args.lcsc),
                 }
             )
-            if args.description is not None:
-                record["description"] = args.description.strip()
+            record["description"] = args.description.strip()
             if args.mfr is not None:
                 record["mfr"] = args.mfr
-            new_package = args.package if args.package is not None else old_package
+            new_package = args.package
             record["package"] = new_package
-            if old_package and new_package and new_package != old_package:
+            if not old_package or new_package != old_package:
                 record["footprint_risk"] = True
                 swap_note = (
-                    f"FOOTPRINT CHANGE: {args.swap} moved {old_lcsc} ({old_package}) "
+                    f"FOOTPRINT CHANGE/UNVERIFIED: {args.swap} moved {old_lcsc} "
+                    f"({old_package or 'unknown old package'}) "
                     f"-> {args.lcsc} ({new_package}). This invalidates the LAYOUT, "
                     "not just the BOM — re-author the block land pattern and rebuild "
                     "every board before ordering."
@@ -1047,15 +2181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
 
         records = [by_ref[ref] for ref in sorted(by_ref)]
-        parts_path = project / PARTS_FILE
-        previous_lcsc, previous_ref = read_existing(parts_path)
         failures: list[str] = []
-        for record in records:
-            carry_forward(
-                record,
-                previous_lcsc.get(record["lcsc"], {}),
-                previous_ref.get(record["ref"], {}),
-            )
         if args.lookup:
             refreshed: dict[str, dict] = {}
             for lcsc in sorted({record["lcsc"] for record in records}):
@@ -1075,9 +2201,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     apply_component(record, component)
 
         final = {record["ref"]: finalize(record) for record in records}
-        write_parts_json(parts_path, final)
+        expected_composition = str(inventory_evidence["compositionSha256"])
+        write_parts_json(
+            parts_path,
+            final,
+            precommit=lambda: _assert_inventory_composition_current(
+                project, blocks_dir, expected_composition, parts_path,
+                initial_parts_sha256,
+            ),
+        )
         out: dict = {
             "ok": True,
+            "inventory": inventory_evidence,
             "parts": [
                 {
                     "ref": ref,

@@ -130,7 +130,7 @@ export const Ldo3v3 = (props: {
     throw new Error("Ldo3v3 needs finite positive rail/neck dimensions with neck <= rail")
   }
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0}
+    <group name={`__parts_block__ldo-3v3__${u}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0}
       schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Ap7361c_33 name={u} layer={layer} pcbX={localX(0)} pcbY={0}
         pcbRotation={localRotation(0)} schX={0} schY={0} />

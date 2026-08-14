@@ -1,66 +1,75 @@
-# ldo-3v3 — 3.3V logic rail from 5V
+# ldo-3v3 — audited protected 3.3V rail
 
-**Function:** rail conversion. An AMS1117-3.3 linear regulator with 10uF input
-and output bulk, turning `net.V5` (from `usb-c-power` / `usb-c-data`) into the
-`net.V3_3` logic rail every digital block on the board runs on.
+**Function:** convert protected `net.V5` into `net.V3_3` with the exact Diodes
+AP7361C-33E-13 (`C500795`) and two Samsung 10uF X5R 10V capacitors
+(`C19702`). The selected fixed-output E package has four physical contacts:
+pin 1 `VIN`, pin 2 `GND1`, pin 3 `VOUT`, and broad tab/pin 4 `GND2`.
+It has no EN or NC pin, and its tab is never a 3V3 output.
 
-**Status:** v1. Compile-verified against tscircuit@0.0.2279; not yet
-hardware-verified (first article pending).
+**Status:** v2. Compile- and artifact-verified against tscircuit@0.0.2279 on
+top and bottom; not hardware-verified (first article pending).
 
-## Pin contract (what the block exposes)
+## Composition contract
 
 | Net | Meaning |
 |---|---|
-| `net.V5` (default; `vinNet` prop overrides) | 5V input — the rail to regulate |
-| `net.V3_3` (default; `voutNet` prop overrides) | 3.3V logic rail out |
-| `net.GND` | ground |
+| `net.V5` (`vinNet` overrides) | protected 5V input |
+| `net.V3_3` (`voutNet` overrides) | regulated 3.3V output |
+| `net.GND` | both pin 2 and broad tab/pin 4 |
 
-The SOT-223 tab (`TAB`, pin 4) is tied to `VOUT` — it is the package's output
-pad, not a thermal-only pad, so it carries rail current and must be poured, not
-just stitched.
+U2.VIN reaches C2.pin1 through an authored 0.2mm, same-face, no-via branch.
+U2.VOUT reaches C3.pin1 through an authored 0.8mm, same-face, no-via branch.
+Each pad-edge gap is 0.525mm and each routed centerline length is 1.725mm,
+below the 2mm block limit. Both physical regulator GND contacts and both cap
+grounds terminate in the solved face pour.
 
-For a wide board-level 3V3 rail, set
-`externalPowerTrunkPort="VOUT"` (or `TAB`) and use that exact U2 pad as golden
-`PowerTrunk.source`. The selected pad's ordinary source-to-rail edge is omitted
-so the trunk owns one acyclic branch; the other package output pad remains tied
-to `net.V3_3`.
+For a board-owned V5 tree, set `externalInputPowerTrunkPort="VIN"` and attach
+at `.<cin> > .pin1`; only the named V5 boundary is suppressed. For a
+board-owned 3V3 tree, set `externalPowerTrunkPort="VOUT"` and start at
+`.<u> > .VOUT`; only the named V3_3 boundary is suppressed. There is no TAB
+alias. A cross-face board tree owns an explicit off-pad 0.8/0.5mm transition;
+the block-local capacitor branches remain on the component face.
 
-## Rail budget
+`layer="bottom"` mirrors local X and complements rotations. The compiled
+bottom artifact is the exact X/layer transform of the top artifact: endpoints,
+1.725mm paths, widths, cap locality, and both material GND contacts are
+preserved.
 
-Input 5V, output 3.3V — the regulator burns `(5 − 3.3) × I` as heat. At 300mA
-that is **0.51W** on a SOT-223 tab; at 500mA it is 0.85W (both derived from the
-rail table, not measured). Budget **≤500mA continuous** on a JLC 1oz 2-layer
-board with a poured tab, and treat anything above that as needing a switcher
-block rather than a bigger copper pour. The AMS1117 family is rated 1A with a
-~1.3V dropout at full load (datasheet figure — **not re-verified today**);
-dropout is irrelevant from a 5V source but decides whether this block can ever
-run from a battery (it cannot — that is the sealed battery block's job).
+## Audited operating envelope
 
-## Parts (pinned; verified 2026-08-10 via jlcsearch)
+- input operating range 2.2–6V; protected-USB verification uses 5.25V worst
+  case and 3.3V output;
+- product ceiling: **150mA continuous**, not the part headline current;
+- maximum ground current: 0.08mA;
+- AP7361C SOT-223 theta-JA: 110 C/W, conditional on the manufacturer land;
+- at 150mA, 5.25V input, 60 C ambient: 0.29292W, junction 92.2212 C,
+  leaving 32.7788 C to the 125 C design limit (required margin >=30 C);
+- manufacturer requires at least 1uF input and 2.2uF ceramic output; the exact
+  10uF X5R C19702 parts provide margin on both sides.
 
-| Refdes | Part | LCSC | Package | Basic | Note |
-|---|---|---|---|---|---|
-| U2 | AMS1117-3.3 | C6186 | SOT-223 | yes | $0.15, 1.49M stock |
-| C2 | CL21A106KAYNNNE, 10uF X5R | C15850 | 0805 | yes | $0.009 — input bulk |
-| C3 | CL21A106KAYNNNE, 10uF X5R | C15850 | 0805 | yes | $0.009 — output bulk |
+## Pinned parts
 
-## Design-rule notes
+| Ref | Exact part | LCSC | Package | Note |
+|---|---|---|---|---|
+| U2 | AP7361C-33E-13 | C500795 | SOT-223 E | Extended/MSL1; revalidate live availability at order time |
+| C2/C3 | CL10A106KP8NNNC, 10uF ±10%, X5R, 10V | C19702 | 0603 | Basic; audited input/output ceramic |
 
-- Both bulk caps are required: the AMS1117 needs output capacitance for loop
-  stability, and the input cap keeps the USB inrush edge off the regulator.
-- The exposed tab is `VOUT` — a copper pour on the tab is the heatsink and it
-  is at 3.3V, so keep it clear of GND fill.
-- One instance per board. A second 3V3 source fighting this one on the same net
-  is a latent short; give a second domain its own net name via `voutNet`.
-- Default refdes U2/C2/C3 are the global v1 allocation.
+## Land and provenance
 
-## Provenance
+The exact C500795 EasyEDA record pins identity, pin numbering, and 3D model.
+Its imported copper is intentionally replaced by Diodes DS37274 Rev. 5-2
+(Oct 2020), page 21 recommended land, rotated into block-local X:
 
-- Land pattern for C6186: exact EasyEDA footprint, imported 2026-08-10 via
-  `tscircuit-cli import C6186 --jlcpcb`, committed inline (zero network at
-  build time).
-- Pin map (1 GND, 2 VOUT, 3 VIN, 4 TAB/VOUT) from the AMS1117 datasheet
-  SOT-223 pinout; the tab-is-VOUT rule is why `TAB` is traced to the output
-  rather than left floating.
-- Part choice (Basic, high stock) follows the r5 recon rule: prefer JLC Basic
-  parts — every extended line adds a ~$3 loading fee.
+- three lead pads 1.20 x 1.60mm on 2.30mm pitch;
+- broad GND tab 3.30 x 1.60mm;
+- lead/tab row centers 6.40mm apart; total outer span 8.00mm.
+
+The EasyEDA copper used 2.4649938 x 1.0500106mm leads at 5.715mm row-center
+spacing and a 2.4649938 x 3.539998mm tab. Although it has more aggregate area,
+it does not implement the manufacturer's recommended dimensions and therefore
+cannot support the reviewed 110 C/W thermal model. Tests freeze both the
+selected-part provenance and the intentional land delta.
+
+The datasheet is still marked ADVANCE INFORMATION; lifecycle and orderability
+must be revalidated for each purchasing run. Stock counts are deliberately not
+part of this frozen contract because they are volatile.

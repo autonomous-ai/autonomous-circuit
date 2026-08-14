@@ -53,9 +53,9 @@ import {
  * only the genuinely inter-block signals use their own narrow corridors. */
 const RP_CLOCK_ROUTING_REGION = { minX: -24, maxX: -16, minY: -38, maxY: -12 } as const
 const RP_QSPI_ROUTING_REGION = { minX: -24.5, maxX: -16, minY: -38, maxY: -23.5 } as const
-const USB_CC_ROUTING_REGION = { minX: -6, maxX: 3, minY: -34, maxY: -25 } as const
-const USB_DP_LOCAL_ROUTING_REGION = { minX: -3, maxX: 5, minY: -33, maxY: -22 } as const
-const USB_DM_LOCAL_ROUTING_REGION = { minX: -3, maxX: 5, minY: -33, maxY: -22 } as const
+const USB_CC_ROUTING_REGION = { minX: -8, maxX: 8, minY: -38, maxY: -16 } as const
+const USB_DP_LOCAL_ROUTING_REGION = { minX: -8, maxX: 8, minY: -38, maxY: -16 } as const
+const USB_DM_LOCAL_ROUTING_REGION = { minX: -8, maxX: 8, minY: -38, maxY: -16 } as const
 const VBUS_ROUTING_REGION = { minX: -4, maxX: 19, minY: -33, maxY: -14 } as const
 const RP_POWER_ROUTING_REGION = { minX: -28, maxX: 20, minY: -38, maxY: -14 } as const
 const RP_DEBUG_RESET_ROUTING_REGION = { minX: -34, maxX: -2, minY: -20, maxY: -10 } as const
@@ -190,28 +190,32 @@ export default () => (
         { x: 34, y: -4 },
       ]}
     />
+
     {/* ---- power entry: USB-C on the bottom edge, 5V + the USB 2.0 pair ---- */}
     <UsbCData
       pcbX={0}
       pcbY={-34}
       schX={-46}
       schY={0}
+      vbusNet="V5"
+      vbusBoundaryRefs={{ right: "N1", left: "N2" }}
+      vbusRailNodeRef="N3"
+      vbusClampNodeRef="N4"
+      pairRules={{ pcbTraceGapMm: 0.15, maxLengthSkewMm: 3.8, maxUncoupledLengthMm: 3 }}
       localRoutingPhaseIndex={2}
       dmConnectorRoutingPhaseIndex={3}
       dpConnectorRoutingPhaseIndex={4}
-      externalPowerTrunkPort="VBUS1"
+      criticalSignalWidthMm={0.15}
+      signalTraceWidthMm={0.25}
     />
-    <PowerTrunk
-      name="V5_ENTRY"
-      source=".J1 > .VBUS1"
-      net="V5"
-      start={{ x: 4.5, y: -30 }}
-      end={{ x: 9.5, y: -22 }}
-      startTestpoint="TP4"
-      endTestpoint="TP5"
-      trunkWidthMm={0.8}
-      neckdownWidthMm={0.2}
-    />
+
+    {/* Raw 5V arrives on net V5 from the USB block's VBUS tree (single
+        authored boundary TR_J1_vbus_boundary). The LDO suppresses its own V5
+        net boundary (externalInputPowerTrunkPort="VIN"), so this board-wide
+        0.8mm feed from the USB rail node N3 to the LDO input cap C2 is the
+        one tap that completes the rail without a second net boundary. */}
+    <trace name="TR_V5_FEED" from=".N3 > .pin1" to=".C2 > .pin1"
+      thickness="0.8mm" routingPhaseIndex={5} />
 
     {/* ---- logic rail: V5 -> V3_3 ----------------------------------------
         Rotating the regulator puts VIN on the connector-facing lower-left and
@@ -224,6 +228,10 @@ export default () => (
         schX={-46}
         schY={22}
         externalPowerTrunkPort="VOUT"
+        externalInputPowerTrunkPort="VIN"
+        railWidthMm={0.8}
+        pinNeckdownWidthMm={0.2}
+        maxPinNeckdownLengthMm={2}
       />
     </group>
     <PowerTrunk
@@ -247,10 +255,36 @@ export default () => (
         schY={0}
         debugPortPcbX={-14}
         debugPortPcbY={-6}
-        debugSwclkEscapeRef="TP8"
-        debugSwdEscapeRef="TP9"
-        powerLocalRoutingPhaseIndex={6}
-        debugResetRoutingPhaseIndex={8}
+        debugSwclkBoundaryRef="N5"
+        debugSwdBoundaryRef="N6"
+        powerRailNodeRefs={{
+          westUpper: "N20",
+          westLower: "N21",
+          south: "N22",
+          eastLower: "N23",
+          eastUpper: "N24",
+          topRight: "N25",
+          topMiddle: "N26",
+          topLeft: "N27",
+          bulk: "N28",
+          flash: "N29",
+          dvddLeft: "N30",
+          dvddRight: "N31",
+          dvddSouth: "N32",
+          dvddJunction: "N33",
+        }}
+        localPowerRoutingPhaseIndex={6}
+        powerRoutingPhaseIndices={{
+          westSouthBranches: 6,
+          eastBranches: 6,
+          northFlashBranches: 6,
+          dvddLocalBranches: 6,
+          railNecks: 7,
+          railTrunks: 7,
+          dvddTrunk: 7,
+        }}
+        controlRoutingPhaseIndex={8}
+        emitUsbNetLeaves={false}
       />
     </group>
     <trace name="TR_USB_DP" from=".U3 > .USB_DP" to="net.USB_DP" />
@@ -268,6 +302,11 @@ export default () => (
         the two sense nets then had to climb the crowded left half of the
         corridor. The price of x = +/-8 is one sliver of plate copper cut off
         by R32's exit trace -- see DESIGN-REVIEW.md, layout lens. */}
+    {/* Board-owned resistors are all cup-sense glue. Group them under a
+        structured parts-owner marker so parts-book attributes R30-R33 to this
+        board (not to a frozen block). pcbX/pcbY=0 keeps the group exactly at
+        the origin so the explicit component coordinates are unchanged. */}
+    <group name="__parts_board__cup-sense" pcbX={0} pcbY={0}>
     <resistor name="R30" resistance="1M" footprint="0402" pcbX={-2} pcbY={-6} schX={30} schY={10}
       supplierPartNumbers={{ jlcpcb: ["C26083"] }} />
     <resistor name="R31" resistance="1M" footprint="0402" pcbX={2} pcbY={-6} schX={30} schY={-2}
@@ -276,6 +315,7 @@ export default () => (
       supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
     <resistor name="R33" resistance="1k" footprint="0402" pcbX={8} pcbY={2} schX={40} schY={0}
       supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
+    </group>
 
     <trace name="TR_CAPDRV" from=".U3 > .GPIO2" to="net.CAP_DRIVE" thickness="0.25mm" />
     <trace name="TR_R30_drv" from=".R30 > .pin1" to="net.CAP_DRIVE" thickness="0.25mm" />
@@ -329,15 +369,15 @@ export default () => (
         LED1 is hard-wired to the rail: proof of life the firmware cannot lie
         about. LED2 is the agent's own light, on GPIO0. */}
     <StatusLed led="LED1" r="R20" rail="V3_3" pcbX={-11} pcbY={-35.5} schX={30} schY={22}
-      localRoutingPhaseIndex={12} railTraceThicknessMm={0.2} />
+      railTraceWidthMm={0.2} signalTraceWidthMm={0.25} maxRailNeckdownLengthMm={20} />
     <StatusLed led="LED2" r="R21" rail="LED_NUDGE" pcbX={-25} pcbY={-35.5} schX={38} schY={22}
-      localRoutingPhaseIndex={12} railTraceThicknessMm={0.25} />
+      driveKind="signal" signalTraceWidthMm={0.25} maxSeriesTraceLengthMm={5} />
     <trace name="TR_LED_NUDGE" from=".U3 > .GPIO0" to="net.LED_NUDGE" thickness="0.25mm" />
 
     {/* ---- the shut-up button, front-right corner, clear of the mug -------
         Active low into GPIO1 with the RP2040's internal pull-up. */}
     <SwTact name="SW1" signal="BTN_MUTE" pcbX={29} pcbY={-24} schX={30} schY={-14}
-      localRoutingPhaseIndex={12} signalTraceThicknessMm={0.25} />
+      signalTraceWidthMm={0.25} />
     <trace name="TR_BTN_MUTE" from=".U3 > .GPIO1" to="net.BTN_MUTE" thickness="0.25mm" />
 
     {/* ---- mechanics: M3 on a 64 x 64 square, one at each corner ---------- */}

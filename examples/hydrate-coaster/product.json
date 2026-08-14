@@ -1,91 +1,93 @@
 {
-  "name": "hydrate-coaster",
-  "description": "USB-C desk coaster that senses how full the cup on it is, so its agent knows whether you actually drank",
-  "power": "usb-c-5v",
-  "envelopeMm": [
-    82,
-    82
+ "name": "hydrate-coaster",
+ "description": "USB-C desk coaster that senses how full the cup on it is, so its agent knows whether you actually drank",
+ "power": "usb-c-5v",
+ "envelopeMm": [
+  82,
+  82
+ ],
+ "layers": 2,
+ "fab": "jlcpcb",
+ "assembly": true,
+ "layout": {
+  "boardSizeMm": [
+   80,
+   80
   ],
-  "layers": 2,
-  "fab": "jlcpcb",
-  "assembly": true,
-  "layout": {
-    "boardSizeMm": [
-      80,
-      80
+  "boardSizeToleranceMm": 0.01,
+  "minCopperClearanceMm": 0.15,
+  "componentSides": [
+   {
+    "match": "*",
+    "side": "top"
+   }
+  ],
+  "edgeConnectors": [
+   {
+    "ref": "J1",
+    "edge": "bottom",
+    "alignment": "center",
+    "edgeToleranceMm": 1.0,
+    "centerToleranceMm": 0.1
+   }
+  ],
+  "groundPlanes": {
+   "layers": [
+    "top",
+    "bottom"
+   ],
+   "maxRoutedLengthMm": 30,
+   "maxFanoutLengthMm": 2.0,
+   "stitchingPitchMm": 10
+  },
+  "decoupling": {
+   "maxDistanceMm": 2.0,
+   "exclude": [
+    "U1"
+   ]
+  },
+  "netClasses": [
+   {
+    "name": "POWER",
+    "nets": [
+     "V5",
+     "V3_3"
     ],
-    "boardSizeToleranceMm": 0.01,
-    "minCopperClearanceMm": 0.15,
-    "componentSides": [
-      {
-        "match": "*",
-        "side": "top"
-      }
+    "minTrunkWidthMm": 0.8,
+    "minNeckdownWidthMm": 0.2,
+    "maxNeckdownLengthMm": 3,
+    "minViaOuterDiameterMm": 0.8,
+    "minViaHoleDiameterMm": 0.5
+   },
+   {
+    "name": "CONTROL_SIGNAL",
+    "nets": [
+     "LED_NUDGE",
+     "BTN_MUTE",
+     "SWCLK",
+     "SWD",
+     "USB_POWER_FAULT",
+     "CAP_DRIVE",
+     "CAP_A_SENSE",
+     "CAP_B_SENSE"
     ],
-    "edgeConnectors": [
-      {
-        "ref": "J1",
-        "edge": "bottom",
-        "alignment": "center",
-        "edgeToleranceMm": 1.0,
-        "centerToleranceMm": 0.1
-      }
-    ],
-    "groundPlanes": {
-      "layers": [
-        "top",
-        "bottom"
-      ],
-      "maxRoutedLengthMm": 30,
-      "maxFanoutLengthMm": 2.0,
-      "stitchingPitchMm": 10
-    },
-    "decoupling": {
-      "maxDistanceMm": 2.0,
-      "exclude": [
-        "U1"
-      ]
-    },
-    "netClasses": [
-      {
-        "name": "POWER",
-        "nets": [
-          "V5",
-          "V3_3"
-        ],
-        "minTrunkWidthMm": 0.8,
-        "minNeckdownWidthMm": 0.2,
-        "maxNeckdownLengthMm": 3,
-        "minViaOuterDiameterMm": 0.8,
-        "minViaHoleDiameterMm": 0.5
-      },
-      {
-        "name": "USB_ATTACH_POWER",
-        "nets": [
-          "VBUS_RAW"
-        ],
-        "minTrunkWidthMm": 0.8,
-        "minNeckdownWidthMm": 0.2,
-        "maxNeckdownLengthMm": 3,
-        "minViaOuterDiameterMm": 0.8,
-        "minViaHoleDiameterMm": 0.5
-      },
-      {
-        "name": "CONTROL_SIGNAL",
-        "nets": [
-          "LED_NUDGE",
-          "BTN_MUTE",
-          "SWCLK",
-          "SWD",
-          "USB_POWER_FAULT",
-          "CAP_DRIVE",
-          "CAP_A_SENSE",
-          "CAP_B_SENSE"
-        ],
-        "minTrunkWidthMm": 0.25,
-        "minNeckdownWidthMm": 0.15,
-        "maxNeckdownLengthMm": 1
-      }
-    ]
-  }
+    "minTrunkWidthMm": 0.25,
+    "minNeckdownWidthMm": 0.15,
+    "maxNeckdownLengthMm": 1
+   }
+  ]
+ },
+ "powerBudget": {
+  "regulators": [
+   {
+    "profile": "ap7361c-33e-c500795-v1",
+    "ref": "U2",
+    "inputNet": "V5",
+    "outputNet": "V3_3",
+    "inputCapRef": "C2",
+    "outputCapRef": "C3",
+    "maxAmbientC": 60.0
+   }
+  ]
+ }
 }

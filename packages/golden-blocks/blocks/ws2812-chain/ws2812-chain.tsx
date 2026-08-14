@@ -198,7 +198,7 @@ export const Ws2812Chain = (props: {
   }
 
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__ws2812-chain__${r}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       {/* The chain runs toward negative local X so each DOUT->DIN edge crosses
           only the gap between adjacent packages. This avoids the reversed-pad
           braid created by placing identical WS2812 footprints left-to-right. */}

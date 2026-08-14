@@ -22,12 +22,18 @@
  * Default refdes: D10..D10+n, C40..C40+n, R30 (the series resistor).
  */
 
-import { GndFanoutTrace } from "../glue"
+import { GndFanoutTrace, MaskedCopperNode } from "../glue"
 
 const PIXEL_PITCH_MM = 7
+const FIRST_RESISTOR_X_MM = 4.5
+const CAP_PIN1_X_MM = -2.475
+const CAP_PIN1_Y_MM = 3.4
+const CAP_PIN1_FROM_BODY_X_MM = -0.51
+const RAIL_NODE_Y_MM = 5.2
 
 export const Ws2812Pixel = (props: {
   name: string
+  layer?: "top" | "bottom"
   pcbX?: number
   pcbY?: number
   pcbRotation?: number | string
@@ -74,6 +80,28 @@ export const Ws2812Pixel = (props: {
   />
 )
 
+const Ws2812RailEdge = (props: {
+  name: string
+  from: string
+  to: string
+  widthMm: number
+  phaseIndex?: number
+  deltaX: number
+}) => (
+  <trace
+    name={props.name}
+    from={props.from}
+    to={props.to}
+    thickness={`${props.widthMm}mm`}
+    routingPhaseIndex={props.phaseIndex}
+    pcbPathRelativeTo={props.from}
+    pcbPath={[
+      { x: 0, y: 0 },
+      { x: props.deltaX, y: 0 },
+    ]}
+  />
+)
+
 export const Ws2812Chain = (props: {
   /** how many pixels in the chain */
   count?: number
@@ -86,6 +114,25 @@ export const Ws2812Chain = (props: {
   pitch?: number
   /** Ordinary board-level data width; power is governed by its rail class. */
   signalTraceWidthMm?: number
+  /** Fine escape from each pixel supply pad to its own bypass capacitor. */
+  localPowerWidthMm?: number
+  /** Width presented to the board-level pixel-supply backbone. */
+  railTrunkWidthMm?: number
+  /** Maximum routed pin-to-bypass path, not merely component-centre spacing. */
+  maxDecouplingLengthMm?: number
+  /** Maximum short bypass-capacitor escape before the wide V5 backbone. */
+  maxRailNeckLengthMm?: number
+  /**
+   * One collision-free hidden copper ref per pixel. Defaults to N30.. in the
+   * common single-chain composition; boards with more than one chain pass an
+   * explicit disjoint allocation.
+   */
+  railNodeRefs?: readonly string[]
+  /** Optional board-owned phase for the named V5 attachment. */
+  railRoutingPhaseIndex?: number
+  /** Optional count-aware ordered phases, one for each direct data hop. */
+  dataRoutingPhaseIndices?: readonly number[]
+  layer?: "top" | "bottom"
   r?: string
   pcbX?: number
   pcbY?: number
@@ -98,45 +145,167 @@ export const Ws2812Chain = (props: {
   const start = props.startIndex ?? 10
   const pitch = props.pitch ?? PIXEL_PITCH_MM
   const signalTraceWidthMm = props.signalTraceWidthMm ?? 0.25
+  const localPowerWidthMm = props.localPowerWidthMm ?? 0.2
+  const railTrunkWidthMm = props.railTrunkWidthMm ?? 0.8
+  const maxDecouplingLengthMm = props.maxDecouplingLengthMm ?? 2
+  const maxRailNeckLengthMm = props.maxRailNeckLengthMm ?? 3
+  const layer = props.layer ?? "top"
+  // Mirror the complete authored block-local geometry for bottom placement;
+  // mirroring footprints alone reverses pad offsets but strands their parts.
+  const localX = (x: number) => layer === "bottom" ? -x : x
+  const localRotation = (degrees: number) =>
+    layer === "bottom" ? (360 - degrees) % 360 : degrees
   const r = props.r ?? "R30"
   const pixels = Array.from({ length: count }, (_, i) => i)
+  const railNodeRefs = props.railNodeRefs
+    ? [...props.railNodeRefs]
+    : pixels.map((i) => `N${30 + i}`)
+  const dataRoutingPhaseIndices = props.dataRoutingPhaseIndices
+    ? [...props.dataRoutingPhaseIndices]
+    : undefined
+  if (
+    !Number.isInteger(count) || count <= 0 ||
+    ![pitch, signalTraceWidthMm, localPowerWidthMm, railTrunkWidthMm,
+      maxDecouplingLengthMm, maxRailNeckLengthMm]
+      .every((value) => Number.isFinite(value) && value > 0) ||
+    localPowerWidthMm > railTrunkWidthMm
+  ) {
+    throw new Error(
+      "Ws2812Chain needs a positive integer count, positive dimensions, and local power <= rail trunk",
+    )
+  }
+  if (
+    dataRoutingPhaseIndices && (
+      dataRoutingPhaseIndices.length !== count ||
+      dataRoutingPhaseIndices.some(
+        (phase) => !Number.isInteger(phase) || phase < 0,
+      ) ||
+      new Set(dataRoutingPhaseIndices).size !== dataRoutingPhaseIndices.length
+    )
+  ) {
+    throw new Error(
+      "Ws2812Chain dataRoutingPhaseIndices must contain one unique non-negative integer per direct data hop",
+    )
+  }
+  if (
+    railNodeRefs.length !== count ||
+    railNodeRefs.some((ref) => !/^N[1-9][0-9]*$/.test(ref)) ||
+    new Set(railNodeRefs).size !== railNodeRefs.length
+  ) {
+    throw new Error(
+      "Ws2812Chain railNodeRefs must contain exactly one unique non-probe N reference per pixel",
+    )
+  }
 
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
-      {/* series damping resistor on the first hop only */}
+    <group name={`__parts_block__ws2812-chain__${r}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+      {/* The chain runs toward negative local X so each DOUT->DIN edge crosses
+          only the gap between adjacent packages. This avoids the reversed-pad
+          braid created by placing identical WS2812 footprints left-to-right. */}
       <resistor name={r} resistance="330" footprint="0402"
-        pcbX={-pitch} pcbY={0} schX={-3} schY={0}
+        layer={layer}
+        pcbX={localX(FIRST_RESISTOR_X_MM)} pcbY={1.6}
+        pcbRotation={localRotation(180)}
+        schX={-3} schY={0}
         supplierPartNumbers={{ jlcpcb: ["C25104"] }} />
       <trace name={`TR_${r}_in`} from={`.${r} > .pin1`} to={`net.${din}`}
         thickness={`${signalTraceWidthMm}mm`} />
-      <trace name={`TR_${r}_out`} from={`.${r} > .pin2`} to={`net.PX_${start}_DIN`}
-        thickness={`${signalTraceWidthMm}mm`} />
+      <trace name={`TR_${r}_out`} from={`.${r} > .pin2`} to={`.D${start} > .DIN`}
+        thickness={`${signalTraceWidthMm}mm`}
+        routingPhaseIndex={dataRoutingPhaseIndices?.[0]} />
 
       {pixels.map((i) => {
         const d = `D${start + i}`
         const c = `C${40 + i}`
-        const x = i * pitch
+        const node = railNodeRefs[i]
+        const x = -i * pitch
         return (
           // Explicit coordinates on the group: an unpositioned group triggers
           // auto-layout, which stacks the pixels instead of spacing them.
-          <group key={d} pcbX={x} pcbY={0} schX={i * 4} schY={0}>
-            <Ws2812Pixel name={d} pcbX={0} pcbY={0} schX={0} schY={0} />
-            {/* The VDD pad is at (-2.475,+1.6). Put its bypass directly
-                beyond that pad, not beside the opposite-side GND pad. */}
+          <group key={d} pcbX={localX(x)} pcbY={0} schX={i * 4} schY={0}>
+            <Ws2812Pixel name={d} layer={layer} pcbX={0} pcbY={0} schX={0} schY={0} />
+            {/* The VDD pad is at (-2.475,+1.6). Pin 1 of the horizontal
+                0402 lands at x=-2.475 when its body centre is x=-1.965,
+                giving the supply escape a straight 1.8mm path. */}
             <capacitor name={c} capacitance="100nF" footprint="0402"
-              pcbX={-2.475} pcbY={3.8} schX={0} schY={-2.5} schRotation="90deg"
+              layer={layer} pcbX={localX(-1.965)} pcbY={3.4}
+              pcbRotation={localRotation(0)}
+              schX={0} schY={-2.5} schRotation="90deg"
               supplierPartNumbers={{ jlcpcb: ["C1525"] }} />
-            <trace name={`TR_${d}_vdd`} from={`.${d} > .VDD`} to={`net.${rail}`} />
+            <MaskedCopperNode
+              name={node}
+              diameterMm={railTrunkWidthMm}
+              layer={layer}
+              pcbX={localX(CAP_PIN1_X_MM)}
+              pcbY={RAIL_NODE_Y_MM}
+              schX={0}
+              schY={-4}
+            />
+            <trace name={`TR_${d}_vdd`} from={`.${d} > .VDD`} to={`.${c} > .pin1`}
+              thickness={`${localPowerWidthMm}mm`}
+              maxLength={`${maxDecouplingLengthMm}mm`}
+              pcbPath={[
+                { x: localX(-2.475), y: 1.6 },
+                { x: localX(-2.475), y: 3.4 },
+              ]} />
+            <trace
+              name={`TR_${c}_${rail}_NECK`}
+              from={`.${c} > .pin1`}
+              to={`.${node} > .pin1`}
+              thickness={`${localPowerWidthMm}mm`}
+              maxLength={`${maxRailNeckLengthMm}mm`}
+              pcbPath={[
+                { x: localX(CAP_PIN1_FROM_BODY_X_MM), y: 0 },
+                {
+                  x: localX(CAP_PIN1_FROM_BODY_X_MM),
+                  y: RAIL_NODE_Y_MM - CAP_PIN1_Y_MM,
+                },
+              ]}
+            />
             <GndFanoutTrace name={`TR_${d}_gnd`} from={`.${d} > .GND`} />
-            <trace name={`TR_${c}_v`} from={`.${c} > .pin1`} to={`net.${rail}`} />
             <GndFanoutTrace name={`TR_${c}_g`} from={`.${c} > .pin2`} />
-            <trace name={`TR_${d}_din`} from={`.${d} > .DIN`} to={`net.PX_${start + i}_DIN`}
-              thickness={`${signalTraceWidthMm}mm`} />
-            <trace name={`TR_${d}_dout`} from={`.${d} > .DOUT`} to={`net.PX_${start + i + 1}_DIN`}
-              thickness={`${signalTraceWidthMm}mm`} />
+            {i < count - 1 ? (
+              <trace
+                name={`TR_${d}_dout`}
+                from={`.${d} > .DOUT`}
+                to={`.D${start + i + 1} > .DIN`}
+                thickness={`${signalTraceWidthMm}mm`}
+                routingPhaseIndex={dataRoutingPhaseIndices?.[i + 1]}
+              />
+            ) : (
+              <trace
+                name={`TR_${d}_dout`}
+                from={`.${d} > .DOUT`}
+                to={`net.PX_${start + count}_DIN`}
+                thickness={`${signalTraceWidthMm}mm`}
+              />
+            )}
           </group>
         )
       })}
+      {pixels.slice(0, -1).map((i) => {
+        const fromNode = railNodeRefs[i]
+        const toNode = railNodeRefs[i + 1]
+        return (
+          <Ws2812RailEdge
+            key={`rail-${i}`}
+            name={`TR_${rail}_CHAIN_${start + i}_${start + i + 1}`}
+            from={`.${fromNode} > .pin1`}
+            to={`.${toNode} > .pin1`}
+            widthMm={railTrunkWidthMm}
+            phaseIndex={props.railRoutingPhaseIndex}
+            deltaX={localX(-pitch)}
+          />
+        )
+      })}
+      <trace
+        name={`TR_${rail}_CHAIN_ESCAPE`}
+        from={`.${railNodeRefs[count - 1]} > .pin1`}
+        to={`net.${rail}`}
+        thickness={`${railTrunkWidthMm}mm`}
+        routingPhaseIndex={props.railRoutingPhaseIndex}
+        authoredNetTreeBoundary
+      />
     </group>
   )
 }

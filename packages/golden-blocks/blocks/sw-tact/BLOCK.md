@@ -30,7 +30,7 @@ job; there is no RC in this block.
 | Refdes | Part | LCSC | Package | Basic | Note |
 |---|---|---|---|---|---|
 | SW1 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | $0.018, 918k stock |
-| SW1 (`variant="compact"`) | TPT-2C1 | C2828561 | SMD, 3×2mm | no | Extended; 15.2k JLC stock on 2026-08-11 |
+| SW1 | TPT-2C1 | C2828561 | SMD, 3×2mm | no | compact option (`variant="compact"`); Extended; 15.2k JLC stock on 2026-08-11 |
 
 ## Design-rule notes
 

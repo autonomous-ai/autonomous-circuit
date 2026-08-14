@@ -16,6 +16,24 @@ hardware-verified (first article pending).
 
 Order is fixed: `rail → R20.pin1`, `R20.pin2 → LED1.anode`, `LED1.cathode →
 GND`. The resistor is on the high side so the LED never sees the rail directly.
+Set `driveKind="signal"` whenever `rail` names a GPIO/control net. The block
+then compiles both signal edges at the ordinary 0.25mm board width. Rail drive
+uses an explicit, at-most-3mm 0.2mm neck into R20; the local R20→LED1 edge is
+0.25mm and at most 3mm. `railTraceWidthMm`, `signalTraceWidthMm`, and the two
+maximum-length props exist for a board with an explicitly measured exception;
+they are not a reason to lower the board-wide signal class.
+
+`layer="bottom"` preserves polarity and is an exact block-local X mirror.
+LED1, R20, their pads, and both routed endpoints remain on the selected face;
+the rail neck and resistor-to-anode edge retain their 0.2/0.25mm widths and
+3mm bounds.
+
+When a board-wide authored V3_3 tree already owns the only named-net boundary,
+set `externalRailAttachmentPort="R"` and attach that tree at
+`.R20 > .pin1` (or the overridden `r` ref). This removes only the ordinary
+`TR_R20_rail` leaf; the resistor-to-LED polarity, 0.25mm local series path,
+and GND fanout remain frozen. Do not set the prop without adding that explicit
+board connection.
 
 ## Rail budget
 
@@ -39,7 +57,7 @@ GPIO the same 1.2mA is far inside any MCU's per-pin limit.
   checks are worst at catching.
 - Instantiate twice by overriding `led` and `r` (e.g. `LED2` / `R21`); the
   default LED1/R20 refdes are the global v1 allocation.
-- Driving from a GPIO: pass `rail="GPIO_NET_NAME"`. The LED is then active-high;
+- Driving from a GPIO: pass `rail="GPIO_NET_NAME" driveKind="signal"`. The LED is then active-high;
   an active-low arrangement needs the block flipped, which is a block change.
 - 1kΩ is deliberately conservative. A brighter indicator is a resistor value
   change inside the block, not a board-level override.

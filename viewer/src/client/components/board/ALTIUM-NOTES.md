@@ -277,6 +277,29 @@ wording: **unverified**.
 
 ---
 
+## 6a. Placement is an editing loop, not a one-shot render
+
+Both reference tools let the engineer correct placement directly on the board. In KiCad,
+**Move** (`M`) relocates the selected footprint, **Drag** (`D`) moves it while preserving
+attached track geometry, `R` rotates, and `F` flips it to the other board face; the editor
+also exposes exact/relative positioning and align/distribute commands. Altium likewise
+supports direct component dragging, `Space` rotation while moving, snap grids/guides, and
+interactive clearance feedback. The important shared idea is not a particular shortcut:
+placement remains editable after the first automatic result.
+([KiCad PCB Editor](https://docs.kicad.org/master/en/pcbnew/pcbnew.html),
+[Altium component placement](https://www.altium.com/documentation/altium-designer/pcb/component-placement))
+
+> **What we built.** **Move** makes a component draggable on the PCB canvas. Click and
+> drag, or use the arrow keys for a 0.25mm nudge (`Shift` = 10×). The ghost footprint,
+> live ratsnest, nearby-part clearance, and board-edge warning update before the edit is
+> sent. Sending it stages an exact source-component/group identity and requested board
+> coordinate in chat; the agent changes TSX, reroutes, and reruns all gates. We never
+> mutate `circuit.json`, because it is a checked build artifact. Rotation, layer flipping,
+> multi-selection, and align/distribute are intentionally still future work rather than
+> pretend controls.
+
+---
+
 ## 7. 2D/3D and the numeric view keys
 
 | Key | Action |

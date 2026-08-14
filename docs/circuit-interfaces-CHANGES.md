@@ -1850,4 +1850,84 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / skills (re-vendor) / docs (§1 stage table
   when the freeze lifts).
 
+## 2026-08-12 — Plane-terminated fanout preserves each source trace's hard width
+- **Change:** a plane-terminated one-port connection now carries its exact
+  source/declared bus width through plane-bus construction, fanout assignment,
+  collision scoring, and emitted copper. Fresh and cached route output passes
+  an independent exact-source-identity gate before reinsertion; thinner copper
+  is a blocking autorouting error. The cache descriptor includes the literal
+  `planeFanoutConnectionWidths: "per-connection-v1"`.
+- **Why:** the compact RP local-rail fixture supplied three exact widths
+  (`0.20`, `0.40`, and `0.15mm`) in one fanout phase, but the old solver emitted
+  every dogbone at the phase-global `0.15mm`. The general source-trace width
+  checker did not cover these one-port routes, so parsed-clean output silently
+  undercut two authored power contracts.
+- **Backward compatible:** yes for source/API shape. Existing `<trace
+  thickness>` and bus `pcbTraceWidth` declarations begin working for plane
+  fanout; connections without either declaration retain the board/phase
+  default. Boards whose requested width cannot fit now fail closed rather than
+  exporting thin copper. Existing route caches miss once by design.
+- **Mechanism:** guarded `CORE_PLANE_FANOUT_CONNECTION_WIDTH_PATCH` in
+  `scripts/build/apply-toolchain-patches.mjs`; mixed-width positive, exact
+  top/bottom mirror, explicit-bus, unchanged-via, exact-DRC, invalid-width,
+  tampered-output, and cache-key cases in
+  `scripts/tests/plane-fanout-trace-width.test.mjs`. Installed core bundle:
+  `0b42847da834ec61f03b54583f1c514d9b3c4fe5310d543e0d8fd7a15a18f3ce`.
+- **Tracks affected:** pinned toolchain / router cache / docs. No circuitpy or
+  skill-runtime re-vendor is required.
+
+## 2026-08-12 — Gerber truth preserves explicitly mask-covered routing pads
+- **Change:** Circuit JSON ingestion preserves the literal
+  `pcb_smtpad.is_covered_with_solder_mask === true` distinction through the
+  independent Gerber model. Reconciliation still requires that pad's copper,
+  but does not require a solder-mask opening or paste aperture because the pad
+  is a hidden routing feature rather than an assembly landing.
+- **Why:** losing the flag produced six false blocking Gerber findings on the
+  generated protected starter. The plotted packet correctly kept those
+  one-port nodes under mask, while the evidence model incorrectly described
+  them as missing solderable apertures.
+- **Backward compatible:** yes for source and artifact schemas. The change
+  removes false findings only when the Circuit JSON flag is literally boolean
+  `true`. DNP status, component naming, absent apertures, and other truthy
+  values do not grant an exemption; ordinary SMD pads still require copper,
+  mask, and assembly paste.
+- **Mechanism:** commit `80d0cd0`; `covered_with_solder_mask` in
+  `verifylib.model.Pad`; exact mask/paste branching in
+  `verifylib.gerber_truth`; positive/copper-negative regression
+  `test_an_explicit_mask_covered_routing_node_needs_copper_but_not_mask_or_paste`.
+  The full verify suite passed 187 tests and real starter Gerber blockers fell
+  from six to zero.
+- **Tracks affected:** independent verification / publication evidence. The
+  verify runtime must be re-vendored wherever its package bytes are copied.
+
+## 2026-08-12 — Parts locks are exact populated-ref evidence, not inventories
+- **Change:** a present `parts.json` is now one exact uppercase component
+  reference to object map. The spec boundary rejects legacy
+  `{version, summary, parts:[...]}` wrappers, top-level lists, non-object
+  entries, and empty/lowercase/group/range/metadata keys before any toolchain
+  process. After the compiled DNP set is removed, the BOM gate reconciles every
+  remaining lock ref against the populated compiled BOM even when that BOM is
+  empty. `part_lock_stale`, `part_lock_ambiguous`, and supplier `part_drift`
+  block assembly; bare-PCB builds retain advisory severity.
+- **Why:** the generated starter could retain a removed selected part in its
+  lock without a blocking finding. The legacy example schema was worse: the
+  loader silently dropped the `parts` list and treated its `summary` object as
+  a part, so neither supplier identity nor stale refs were being checked.
+  Grouped keys cannot be accepted either: `R1/R2` is a mini-language, not one
+  BOM identity, and could hide different populated supplier parts.
+- **Backward compatible:** yes for absent locks and valid exact-ref maps. This
+  intentionally rejects previously tolerated malformed and legacy list-form
+  locks; regenerate them into exact refs before rebuilding. Fixed refs need
+  not end in a number (`RDM` is valid), but must match `^[A-Z][A-Z0-9]*$`.
+  A compiled DNP entry is stale because an assembly lock describes populated
+  supplier identities, not every source component.
+- **Mechanism:** strict `_read_parts_lock` in `circuitpy.spec`; unconditional
+  `parts_lock=parts` reconciliation in stage 4b after compiled DNP filtering;
+  `part_lock_stale`/`part_lock_ambiguous` in `circuitpy.checks`; focused spec
+  and BOM cases for list/wrapper/entry/key/fixed-ref, exact/stale/bare/DNP,
+  drift, and ambiguity boundaries. Stale-lock behavior landed in `5444fd3`.
+- **Tracks affected:** pipeline / product locks / skills. Regenerate the
+  vendored circuitpy runtime and migrate legacy example locks before claiming
+  fresh product evidence.
+
 (No further entries yet.)

@@ -1,7 +1,7 @@
 # sw-tact — one tactile button
 
-**Function:** user input. A 4-pad SMD tactile switch that shorts a signal net to
-ground when pressed. Active-low by convention: pull the signal side up (the
+**Function:** user input. An orderable SMD tactile switch that shorts a signal
+net to ground when pressed. Active-low by convention: pull the signal side up (the
 RP2040 and ESP32-S3 internal pull-ups are enough — no external resistor is part
 of this block).
 
@@ -15,8 +15,9 @@ hardware-verified (first article pending — see the pad-pairing note below).
 | `net.BTN1` (default; `signal` prop overrides) | the switched signal — pull it up |
 | `net.GND` (default; `to` prop overrides) | the other terminal |
 
-Both pads of each internal terminal are tied: pins 1+2 → `signal`, pins 3+4 →
-`to`. A single cracked joint therefore never opens the circuit.
+The default 4-pad part ties both pads of each internal terminal: pins 1+2 →
+`signal`, pins 3+4 → `to`. The `variant="compact"` 3×2mm part has one pad per
+terminal: pin1 → `signal`, pin2 → `to`.
 
 ## Rail budget
 
@@ -29,6 +30,7 @@ job; there is no RC in this block.
 | Refdes | Part | LCSC | Package | Basic | Note |
 |---|---|---|---|---|---|
 | SW1 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | $0.018, 918k stock |
+| SW1 | TPT-2C1 | C2828561 | SMD, 3×2mm | no | compact option (`variant="compact"`); Extended; 15.2k JLC stock on 2026-08-11 |
 
 ## Design-rule notes
 
@@ -42,6 +44,9 @@ job; there is no RC in this block.
   (BOOTSEL) and SW3 (RESET) — do not reuse them.
 - Buttons that the user must reach belong on the enclosure edge or under a
   printed cap; the enclosure interface is declared in the board brief, not here.
+- The compact part is for area-constrained reset/BOOTSEL/bring-up controls. It
+  has a 0.4mm-high actuator and needs enclosure tooling or direct access; do not
+  silently substitute it across a user key field.
 
 ## Provenance
 
@@ -51,3 +56,7 @@ job; there is no RC in this block.
 - Part choice from the r5 recon sourcing pass: TS-1187A is the JLC Basic tactile
   switch; MX/Choc hotswap sockets are v1.1 (no registry package, needs its own
   sourcing pass).
+- Compact variant: ROCPU TPT-2C1, JLCPCB C2828561, listed for Economic and
+  Standard SMT assembly. The pinned importer returned
+  `res_p3.1999mm_pw1mm_ph1.524mm` at 100.00% copper IoU on 2026-08-11; the
+  compiled variant regression proves two ports, topology, body bounds and BOM.

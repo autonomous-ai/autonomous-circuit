@@ -122,6 +122,68 @@ type FanoutDirection =
 export const GND_FANOUT_PHASE_INDEX = 10
 
 /**
+ * A hidden, mask-covered copper boundary for authored routing topology.
+ *
+ * This is deliberately not a test point: it has no paste, no silkscreen, no
+ * exposed copper, and an N-prefixed identity that debug-access checks cannot
+ * mistake for a probe.  Use it only as an internal trace-width/topology node.
+ */
+export const MaskedCopperNode = (props: {
+  name: string
+  layer?: "top" | "bottom"
+  diameterMm?: number
+  pcbX: number
+  pcbY: number
+  schX?: number
+  schY?: number
+}) => {
+  const diameter = props.diameterMm ?? 0.25
+  if (!/^N[1-9][0-9]*$/.test(props.name)) {
+    throw new Error("MaskedCopperNode name must use a non-probe N reference such as N1")
+  }
+  if (
+    !Number.isFinite(props.pcbX) ||
+    !Number.isFinite(props.pcbY) ||
+    !Number.isFinite(diameter) ||
+    diameter <= 0
+  ) {
+    throw new Error("MaskedCopperNode needs finite coordinates and a positive diameter")
+  }
+  return (
+    <chip
+      name={props.name}
+      pinLabels={{ pin1: ["NODE"] }}
+      // This is an electrically-polymorphic routing node rather than an IC.
+      // Marking the sole copper terminal as both rail-capable roles keeps the
+      // generic chip pin checker from inventing missing-power/ground warnings;
+      // no schematic or net semantics are added by these attributes.
+      pinAttributes={{
+        NODE: { requiresPower: true, requiresGround: true },
+      }}
+      manufacturerPartNumber="MASKED_COPPER_NODE"
+      noSchematicRepresentation={true}
+      doNotPlace={true}
+      layer={props.layer ?? "top"}
+      pcbX={props.pcbX}
+      pcbY={props.pcbY}
+      schX={props.schX}
+      schY={props.schY}
+      footprint={
+        <footprint>
+          <smtpad
+            portHints={["pin1"]}
+            shape="circle"
+            radius={`${diameter / 2}mm`}
+            coveredWithSolderMask={true}
+            solderPasteMargin={`${-diameter / 2}mm`}
+          />
+        </footprint>
+      }
+    />
+  )
+}
+
+/**
  * One source pad's short drop to a poured plane in the reserved GND phase.
  *
  * Use this only for a one-port-to-net connection. A deliberate local GND tie
@@ -135,6 +197,7 @@ export const GndFanoutTrace = (props: {
   from: string
   net?: string
   thicknessMm?: number
+  maxLengthMm?: number
 }) => (
   <trace
     name={props.name}
@@ -143,6 +206,9 @@ export const GndFanoutTrace = (props: {
     routingPhaseIndex={GND_FANOUT_PHASE_INDEX}
     thickness={
       props.thicknessMm === undefined ? undefined : `${props.thicknessMm}mm`
+    }
+    maxLength={
+      props.maxLengthMm === undefined ? undefined : `${props.maxLengthMm}mm`
     }
   />
 )
@@ -299,6 +365,16 @@ export const GndPlanes = (props: {
  * declare the same widths in `product.json.layout.netClasses`; parsed DRC and
  * the layout-intent gate are what prove the result. The pads intentionally
  * remain exposed so the boundary nodes double as useful rail probe points.
+ *
+ * A trunk may change faces exactly once. Cross-layer mode is deliberately
+ * explicit: the source pad's physical point and layer, the trunk layer, and
+ * one off-pad via point are supplied together. The source neck is then a
+ * fixed, bounded path owned by the board-side start pad; the wide trunk runs
+ * from that pad to the via on `sourceLayer`, through the declared .8/.5mm
+ * transition, and onward to the end pad on `trunkLayer`. Keeping the fixed
+ * path relative to the board-owned pad avoids applying a transformed source
+ * block's local coordinates a second time.
+ *
  * The source block must therefore omit its ordinary source-to-net trace while
  * this helper owns the branch. `UsbCData`/`UsbCPower` and `Ldo3v3` expose an
  * `external-trunk` mode for exactly that purpose. Test-point names are explicit
@@ -314,14 +390,43 @@ export const PowerTrunk = (props: {
   end: PcbPoint
   startTestpoint: string
   endTestpoint: string
+  /** Legacy same-face layer. In cross-layer mode it may only repeat trunkLayer. */
   layer?: "top" | "bottom"
+  /** Source-pad and start-probe face. Requires every cross-layer point/layer prop. */
+  sourceLayer?: "top" | "bottom"
+  /** Wide-trunk and end-probe face. Requires every cross-layer point/layer prop. */
+  trunkLayer?: "top" | "bottom"
+  /** Board-absolute physical centre of `source`; cross-layer mode only. */
+  sourcePoint?: PcbPoint
+  /** Board-absolute, off-pad layer-transition point; cross-layer mode only. */
+  trunkVia?: PcbPoint
   trunkWidthMm?: number
   neckdownWidthMm?: number
+  /** Maximum straight/dogleg length from sourcePoint to start. Defaults to 2mm. */
+  maxNeckdownLengthMm?: number
   padDiameterMm?: number
+  /** Cross-layer via copper and finished-hole diameters. Defaults to .8/.5mm. */
+  viaOuterDiameterMm?: number
+  viaHoleDiameterMm?: number
+  /** Required via-edge to either boundary-pad edge gap. Defaults to .15mm. */
+  minViaEdgeToPadEdgeClearanceMm?: number
 }) => {
   const trunkWidth = props.trunkWidthMm ?? 0.8
   const neckdownWidth = props.neckdownWidthMm ?? 0.2
   const padDiameter = props.padDiameterMm ?? Math.max(1.2, trunkWidth + 0.4)
+  const crossLayerFields = [
+    props.sourceLayer,
+    props.trunkLayer,
+    props.sourcePoint,
+    props.trunkVia,
+  ]
+  const crossLayerOptionPresent =
+    crossLayerFields.some((value) => value !== undefined) ||
+    props.maxNeckdownLengthMm !== undefined ||
+    props.viaOuterDiameterMm !== undefined ||
+    props.viaHoleDiameterMm !== undefined ||
+    props.minViaEdgeToPadEdgeClearanceMm !== undefined
+  const crossLayerMode = crossLayerFields.every((value) => value !== undefined)
   const finitePoint = (point: PcbPoint) =>
     Number.isFinite(point.x) && Number.isFinite(point.y)
   if (!props.name || !props.source || !props.net) {
@@ -357,6 +462,155 @@ export const PowerTrunk = (props: {
   ) {
     throw new Error(
       "PowerTrunk widths must be positive, neckdown <= trunk, and pad >= trunk",
+    )
+  }
+
+  if (crossLayerOptionPresent && !crossLayerMode) {
+    throw new Error(
+      "PowerTrunk cross-layer mode requires sourceLayer, trunkLayer, sourcePoint, and trunkVia together",
+    )
+  }
+
+  if (crossLayerMode) {
+    const sourceLayer = props.sourceLayer!
+    const trunkLayer = props.trunkLayer!
+    const sourcePoint = props.sourcePoint!
+    const trunkVia = props.trunkVia!
+    const maxNeckdownLength = props.maxNeckdownLengthMm ?? 2
+    const viaOuterDiameter = props.viaOuterDiameterMm ?? 0.8
+    const viaHoleDiameter = props.viaHoleDiameterMm ?? 0.5
+    const minViaPadClearance =
+      props.minViaEdgeToPadEdgeClearanceMm ?? 0.15
+    const distance = (a: PcbPoint, b: PcbPoint) =>
+      Math.hypot(a.x - b.x, a.y - b.y)
+
+    if (sourceLayer === trunkLayer) {
+      throw new Error(
+        "PowerTrunk cross-layer sourceLayer and trunkLayer must be different",
+      )
+    }
+    if (props.layer !== undefined && props.layer !== trunkLayer) {
+      throw new Error(
+        "PowerTrunk layer must equal trunkLayer when both are supplied",
+      )
+    }
+    if (!finitePoint(sourcePoint) || !finitePoint(trunkVia)) {
+      throw new Error(
+        "PowerTrunk sourcePoint and trunkVia coordinates must be finite",
+      )
+    }
+    if (
+      !Number.isFinite(maxNeckdownLength) ||
+      !Number.isFinite(viaOuterDiameter) ||
+      !Number.isFinite(viaHoleDiameter) ||
+      !Number.isFinite(minViaPadClearance) ||
+      maxNeckdownLength <= 0 ||
+      viaOuterDiameter <= 0 ||
+      viaHoleDiameter <= 0 ||
+      viaHoleDiameter >= viaOuterDiameter ||
+      viaOuterDiameter < trunkWidth ||
+      minViaPadClearance <= 0
+    ) {
+      throw new Error(
+        "PowerTrunk cross-layer dimensions require a positive max neck and via clearance, outer >= trunk, and 0 < hole < outer",
+      )
+    }
+    if (distance(sourcePoint, props.start) > maxNeckdownLength + 1e-9) {
+      throw new Error(
+        "PowerTrunk sourcePoint-to-start neck exceeds maxNeckdownLengthMm",
+      )
+    }
+    const minimumViaPadCenterDistance =
+      padDiameter / 2 + viaOuterDiameter / 2 + minViaPadClearance
+    if (
+      distance(trunkVia, props.start) + 1e-9 <
+        minimumViaPadCenterDistance ||
+      distance(trunkVia, props.end) + 1e-9 < minimumViaPadCenterDistance
+    ) {
+      throw new Error(
+        "PowerTrunk trunkVia must clear both boundary-pad edges by minViaEdgeToPadEdgeClearanceMm",
+      )
+    }
+
+    const startSelector = `.${props.startTestpoint} > .pin1`
+    const endSelector = `.${props.endTestpoint} > .pin1`
+    const pad = (
+      name: string,
+      point: PcbPoint,
+      padLayer: "top" | "bottom",
+    ) => (
+      <testpoint
+        name={name}
+        footprintVariant="pad"
+        padShape="circle"
+        padDiameter={`${padDiameter}mm`}
+        doNotPlace={true}
+        layer={padLayer}
+        pcbX={point.x}
+        pcbY={point.y}
+      />
+    )
+    const viaOffset = {
+      x: trunkVia.x - props.start.x,
+      y: trunkVia.y - props.start.y,
+    }
+
+    return (
+      <>
+        {pad(props.startTestpoint, props.start, sourceLayer)}
+        {pad(props.endTestpoint, props.end, trunkLayer)}
+        <trace
+          name={`TR_${props.name}_IN`}
+          from={startSelector}
+          to={props.source}
+          thickness={`${neckdownWidth}mm`}
+          maxLength={`${maxNeckdownLength}mm`}
+          pcbPathRelativeTo={startSelector}
+          pcbPath={[
+            { x: 0, y: 0 },
+            {
+              x: sourcePoint.x - props.start.x,
+              y: sourcePoint.y - props.start.y,
+            },
+          ]}
+        />
+        <group
+          pcbStyle={{
+            viaPadDiameter: `${viaOuterDiameter}mm`,
+            viaHoleDiameter: `${viaHoleDiameter}mm`,
+          }}
+        >
+          <trace
+            name={`TR_${props.name}_TRUNK`}
+            from={startSelector}
+            to={endSelector}
+            thickness={`${trunkWidth}mm`}
+            pcbPathRelativeTo={startSelector}
+            pcbPath={[
+              { x: 0, y: 0 },
+              viaOffset,
+              {
+                ...viaOffset,
+                via: true,
+                fromLayer: sourceLayer,
+                toLayer: trunkLayer,
+              },
+              viaOffset,
+              {
+                x: props.end.x - props.start.x,
+                y: props.end.y - props.start.y,
+              },
+            ]}
+          />
+        </group>
+        <trace
+          name={`TR_${props.name}_OUT`}
+          from={endSelector}
+          to={`net.${props.net}`}
+          thickness={`${trunkWidth}mm`}
+          authoredNetTreeBoundary
+        />
+      </>
     )
   }
 
@@ -409,7 +663,8 @@ export const PowerTrunk = (props: {
         name={`TR_${props.name}_OUT`}
         from={endSelector}
         to={`net.${props.net}`}
-        thickness={`${neckdownWidth}mm`}
+        thickness={`${trunkWidth}mm`}
+        authoredNetTreeBoundary
       />
     </>
   )
@@ -443,6 +698,8 @@ export const DebugPort = (props: {
   swdNet?: string
   gndNet?: string
   signalTraceWidthMm?: number
+  /** Board-owned phase for the two outboard debug-signal routes. */
+  routingPhaseIndex?: number
 }) => {
   const swclkName = props.swclkName ?? "TP1"
   const swdName = props.swdName ?? "TP2"
@@ -451,7 +708,11 @@ export const DebugPort = (props: {
   const swdNet = props.swdNet ?? "SWD"
   const gndNet = props.gndNet ?? "GND"
   const signalTraceWidthMm = props.signalTraceWidthMm ?? 0.25
-  const pad = (name: string, pcbX: number, schX: number) => (
+  const layer = props.layer ?? "top"
+  const localX = (x: number) => layer === "bottom" ? -x : x
+  const schX = props.schX ?? 0
+  const schY = props.schY ?? 0
+  const pad = (name: string, pcbOffsetX: number, schOffsetX: number) => (
     <testpoint
       name={name}
       footprintVariant="through_hole"
@@ -459,20 +720,21 @@ export const DebugPort = (props: {
       padDiameter="1.5mm"
       holeDiameter="0.8mm"
       doNotPlace={true}
-      layer={props.layer ?? "top"}
-      pcbX={pcbX}
-      pcbY={0}
-      schX={schX}
-      schY={0}
+      layer={layer}
+      pcbX={props.pcbX + localX(pcbOffsetX)}
+      pcbY={props.pcbY}
+      schX={schX + schOffsetX}
+      schY={schY}
     />
   )
+  // DebugPort is commonly nested in a translated board block.  A positioned
+  // inner group remains eligible for child packing in the pinned core: its
+  // own anchor compiles correctly while the three testpoints drift away from
+  // it.  Emit explicit child coordinates in a fragment so the parent applies
+  // exactly one transform.  Bottom ports mirror the physical 2.54mm pitch
+  // around the same anchor; schematic ordering is intentionally unchanged.
   return (
-    <group
-      pcbX={props.pcbX}
-      pcbY={props.pcbY}
-      schX={props.schX ?? 0}
-      schY={props.schY ?? 0}
-    >
+    <>
       {pad(swclkName, -2.54, -2)}
       {pad(swdName, 0, 0)}
       {pad(gndName, 2.54, 2)}
@@ -481,19 +743,21 @@ export const DebugPort = (props: {
         from={`.${swclkName} > .pin1`}
         to={`net.${swclkNet}`}
         thickness={`${signalTraceWidthMm}mm`}
+        routingPhaseIndex={props.routingPhaseIndex}
       />
       <trace
         name={`TR_${swdName}`}
         from={`.${swdName} > .pin1`}
         to={`net.${swdNet}`}
         thickness={`${signalTraceWidthMm}mm`}
+        routingPhaseIndex={props.routingPhaseIndex}
       />
       <GndFanoutTrace
         name={`TR_${gndName}`}
         from={`.${gndName} > .pin1`}
         net={gndNet}
       />
-    </group>
+    </>
   )
 }
 

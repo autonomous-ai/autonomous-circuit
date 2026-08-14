@@ -6,8 +6,9 @@ description: Synchronize a board project's exact populated component references 
 # Parts Book
 
 Own `parts.json` wholly. Read the project's frozen golden-block snapshot and
-concrete board composition, then write one exact populated ref per entry.
-Never write TSX or run the board generator.
+concrete board composition, run one fresh offline/routing-disabled inventory
+compile with the pinned tscircuit toolchain, then write one exact populated
+ref per entry. Never write TSX or run the fab board generator.
 
 ## Exact on-disk contract
 
@@ -50,13 +51,25 @@ partial lock.
    `blocks/` snapshot before changing the lock.
 2. Validate every frozen file and the lock's tree SHA-256. Never infer block
    ownership from every block present in a catalog.
-3. Resolve only block symbols concretely imported and instantiated by the
-   project. Apply literal exact ref overrides. Refuse dynamic overrides,
-   duplicate populated refs, and unresolved parametric refs.
-4. Use `BLOCK.md` for the reviewed ref/LCSC/description/package/Basic record
-   and frozen TSX for the supplier pin. A documentation/source disagreement is
-   a refusal.
-5. Carry stock, unit price, and checked date forward by exact LCSC identity.
+3. Compile the exact source graph in a new temporary tree with the pinned CLI,
+   `--routing-disabled`, `--disable-parts-engine`, and no copied artifacts.
+   Require the newly-created Circuit JSON, reject every serialized error, and
+   require the source fingerprint to be unchanged before/after compilation.
+4. Extract the exact populated source-component/PCB-component join. Skip only
+   literal DNP parts; require one physical land and exactly one JLCPCB C-number.
+   This resolves bounded loops, dynamic ref overrides, and board-owned parts
+   without trusting a stale artifact or guessing counts.
+5. Use `BLOCK.md` for reviewed block-owned description/package/Basic metadata
+   and frozen TSX for allowed supplier identities. A compiled/frozen contract
+   disagreement is a refusal. Parametric documentation is ownership metadata,
+   never the source of population.
+6. Board-owned parts must already exist in the compiled inventory. Review all
+   of them atomically with `--review-file`, or one at a time with `--add`; these
+   flags can never invent population. Existing exact metadata may carry
+   forward only when the compiler pins the same ref/LCSC.
+7. Carry only catalog-wide stock, unit price, and checked date forward by
+   exact LCSC identity. Basic/package/description review belongs to the exact
+   compiled ref+LCSC and never transfers from a different ref.
    Legacy wrapper output may supply those migration facts, but never owns the
    new ref identities.
 6. Run catalog lookup only when asked for freshness or when a selected block
@@ -76,6 +89,10 @@ python ~/.claude/skills/parts-book/scripts/parts /absolute/project \
   --add J9 --lcsc C158012 --description "S2B-PH-K-S connector" \
   --mfr S2B-PH-K-S --package JST-PH --extended
 
+# Review several already-compiled board-owned parts atomically.
+python ~/.claude/skills/parts-book/scripts/parts /absolute/project \
+  --review-file /absolute/project/parts.review.json
+
 # Repoint one populated exact ref. This intentionally produces part_drift
 # until the owning block source pins the same LCSC identity.
 python ~/.claude/skills/parts-book/scripts/parts /absolute/project \
@@ -86,6 +103,9 @@ Options:
 
 - `--blocks DIR`: alternate frozen-block location; bytes must still match the
   project's `golden-blocks.lock.json`.
+- `--inventory-timeout S`: ceiling for the fresh offline placement compile.
+- `--review-file FILE`: atomic exact-ref metadata for compiler-proven
+  board-owned parts; it cannot add a ref absent from the inventory.
 - `--lookup`: refresh catalog facts.
 - `--add REF`, `--swap REF`, `--lcsc C123`: manual exact-ref operations.
 - `--description`, `--mfr`, `--package`: reviewed manual identity fields.
@@ -114,7 +134,9 @@ do not hand-edit around it.
 - Never call `--lookup` in a build loop. Cold requests were measured at
   **47–90s**; refresh once before fab export.
 - Never invent a ref, part number, Basic flag, stock, price, ownership, or
-  count. Missing proof is a refusal.
+  count. Missing proof is a refusal. A pre-existing `*.circuit.json`, process
+  exit code, parametric BLOCK row, or AST loop expansion is not population
+  evidence.
 - This skill never orders parts.
 
 ## Final response

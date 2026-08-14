@@ -27,7 +27,7 @@ export const I2cBus = (props: {
   const scl = props.sclNet ?? "SCL"
   const rail = props.rail ?? "V3_3"
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__i2c-bus__${rSda}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <resistor name={rSda} resistance="4.7k" footprint="0402" pcbX={0} pcbY={0} schX={0} schY={0}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C25900"] }} />
       <resistor name={rScl} resistance="4.7k" footprint="0402" pcbX={2} pcbY={0} schX={1.5} schY={0}

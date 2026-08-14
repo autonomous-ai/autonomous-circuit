@@ -3,6 +3,10 @@ import { cn } from "@/ui/utils";
 import { boxIsReal, hitTestPcb, inflateBox, pcbElementBox } from "@/lib/boardIndex.js";
 import { LABEL_CHAR_PX, LABEL_PAD_PX, roomOverlay } from "@/lib/boardRegions.js";
 import {
+  PLACEMENT_GRID_MM,
+  previewComponentPlacement,
+} from "@/lib/boardPlacement.js";
+import {
   copperColor,
   elementColor,
   maskedColor,
@@ -62,6 +66,7 @@ const TEXT_BASELINE = {
  *   · ⌘/Ctrl+click   select + jump (zoom the other pane to it)
  *   · ⇧+click        select the whole net under the cursor
  *   · measure mode   drag to measure, live readout
+ *   · move mode      drag a component to stage a source-backed placement edit
  */
 export default function PcbCanvas({
   index,
@@ -76,6 +81,9 @@ export default function PcbCanvas({
   maskLevel = 3,
   units = "mm",
   measuring = false,
+  placementMode = false,
+  placementDraft = null,
+  placementGridMm = PLACEMENT_GRID_MM,
   showGrid = true,
   regions = null,
   showRegions = false,
@@ -84,6 +92,7 @@ export default function PcbCanvas({
   onSelect,
   onHoverChange,
   onMeasureChange,
+  onMoveComponent,
   onViewChange,
   className,
   viewRef: externalViewRef,
@@ -97,6 +106,7 @@ export default function PcbCanvas({
   const [hover, setHover] = useState(null);
   const [cursor, setCursor] = useState(null);
   const [measure, setMeasure] = useState(null);
+  const [placementPreview, setPlacementPreview] = useState(null);
   const [deltaOrigin, setDeltaOrigin] = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
   const viewStateRef = useRef(view);
@@ -202,6 +212,12 @@ export default function PcbCanvas({
     if (!measuring) setMeasure(null);
   }, [measuring]);
 
+  // A preview is transient while the pointer is down. The parent-owned draft
+  // remains after drop so the board shows what is waiting in the chat composer.
+  useEffect(() => {
+    if (!placementMode) setPlacementPreview(null);
+  }, [placementMode]);
+
   // --- wheel zoom (native, non-passive so the page never scrolls)
   useEffect(() => {
     const node = stageRef.current;
@@ -246,6 +262,33 @@ export default function PcbCanvas({
       if (event.button !== 0) return;
       const point = boardPointFromEvent(event);
       event.currentTarget.setPointerCapture?.(event.pointerId);
+      if (placementMode && point && index) {
+        const tolerance = 4 / Math.max(1, viewStateRef.current.scale);
+        const hit = hitTestPcb(index, point.x, point.y, { visibleLayers: layerFilter, tolerance });
+        const component = hit?.componentKey ? index.componentBySourceId?.get(hit.componentKey) : null;
+        const originalCenter = component?.pcb?.center;
+        if (component && originalCenter) {
+          const preview = previewComponentPlacement(
+            index,
+            component.key,
+            { x: NUM(originalCenter.x), y: NUM(originalCenter.y) },
+            { gridMm: placementGridMm },
+          );
+          dragRef.current = {
+            mode: "placement",
+            componentKey: component.key,
+            from: point,
+            originalCenter: { x: NUM(originalCenter.x), y: NUM(originalCenter.y) },
+            preview,
+            startX: event.clientX,
+            startY: event.clientY,
+            moved: false,
+          };
+          setPlacementPreview(preview);
+          onSelect?.({ kind: "component", key: component.key }, { jump: false, source: "pcb" });
+          return;
+        }
+      }
       if (measuring && point) {
         // The anchor lives on the drag ref, not in state: a pointermove can
         // arrive before React has re-rendered with the new state, and reading a
@@ -262,7 +305,15 @@ export default function PcbCanvas({
         moved: false,
       };
     },
-    [boardPointFromEvent, measuring],
+    [
+      boardPointFromEvent,
+      index,
+      layerFilter,
+      measuring,
+      onSelect,
+      placementGridMm,
+      placementMode,
+    ],
   );
 
   const onPointerMove = useCallback(
@@ -280,6 +331,28 @@ export default function PcbCanvas({
         onHoverChange?.({
           point,
           delta: { x: point.x - next.from.x, y: point.y - next.from.y },
+          scale: viewStateRef.current.scale,
+        });
+        return;
+      }
+      if (drag?.mode === "placement" && point) {
+        const screenDx = event.clientX - drag.startX;
+        const screenDy = event.clientY - drag.startY;
+        if (Math.abs(screenDx) > CLICK_SLOP_PX || Math.abs(screenDy) > CLICK_SLOP_PX) drag.moved = true;
+        if (!drag.moved) return;
+        const requestedCenter = {
+          x: drag.originalCenter.x + point.x - drag.from.x,
+          y: drag.originalCenter.y + point.y - drag.from.y,
+        };
+        const next = previewComponentPlacement(index, drag.componentKey, requestedCenter, {
+          gridMm: placementGridMm,
+        });
+        drag.preview = next;
+        setPlacementPreview(next);
+        onHoverChange?.({
+          componentKey: drag.componentKey,
+          point,
+          delta: next?.delta || { x: 0, y: 0 },
           scale: viewStateRef.current.scale,
         });
         return;
@@ -302,7 +375,7 @@ export default function PcbCanvas({
       const delta = { x: point.x - origin.x, y: point.y - origin.y };
       onHoverChange?.({ ...(hit || {}), point, delta, scale: viewStateRef.current.scale });
     },
-    [boardPointFromEvent, index, layerFilter, onHoverChange, onMeasureChange],
+    [boardPointFromEvent, index, layerFilter, onHoverChange, onMeasureChange, placementGridMm],
   );
 
   const onPointerUp = useCallback(
@@ -311,6 +384,14 @@ export default function PcbCanvas({
       dragRef.current = null;
       if (!drag) return;
       if (drag.mode === "measure") return;
+      if (drag.mode === "placement") {
+        setPlacementPreview(null);
+        const preview = drag.preview;
+        if (drag.moved && preview && (Math.abs(preview.delta.x) > 1e-9 || Math.abs(preview.delta.y) > 1e-9)) {
+          onMoveComponent?.(preview);
+        }
+        return;
+      }
       if (drag.moved) return;
 
       // A click that did not pan is a selection.
@@ -328,15 +409,18 @@ export default function PcbCanvas({
       else if (hit.componentKey) onSelect?.({ kind: "component", key: hit.componentKey }, { jump, source: "pcb" });
       else onSelect?.(null, { jump: false, source: "pcb" });
     },
-    [boardPointFromEvent, index, layerFilter, onSelect],
+    [boardPointFromEvent, index, layerFilter, onMoveComponent, onSelect],
   );
 
   const endDrag = useCallback(() => {
     dragRef.current = null;
+    setPlacementPreview(null);
   }, []);
 
   const onPointerLeave = useCallback(() => {
-    dragRef.current = null;
+    // Pointer capture keeps a placement/measurement drag alive outside the
+    // pane. A pan may end here; cancelling an edit at the edge feels broken.
+    if (!dragRef.current || dragRef.current.mode === "pan") dragRef.current = null;
     setHover(null);
     setCursor(null);
     onHoverChange?.(null);
@@ -617,6 +701,28 @@ export default function PcbCanvas({
     return { a, b };
   }, [measure, view]);
 
+  const activePlacement = placementPreview || placementDraft;
+  const placementItems = useMemo(() => {
+    if (!activePlacement?.elementIds) return [];
+    return drawList.filter((item) => activePlacement.elementIds.has(item.id));
+  }, [activePlacement, drawList]);
+
+  const placementScreen = useMemo(() => {
+    if (!activePlacement || !boxIsReal(activePlacement.movedBox)) return null;
+    return {
+      rect: boxToScreenRect(view, inflateBox(activePlacement.movedBox, 0.12)),
+      nearby: (activePlacement.nearby || [])
+        .filter((item) => boxIsReal(item.box))
+        .map((item) => ({ ...item, rect: boxToScreenRect(view, inflateBox(item.box, 0.08)) })),
+      ratlines: (activePlacement.ratlines || []).map((line) => ({
+        ...line,
+        a: boardToScreen(view, line.from.x, line.from.y),
+        b: boardToScreen(view, line.to.x, line.to.y),
+      })),
+      anchor: boardToScreen(view, activePlacement.center.x, activePlacement.center.y),
+    };
+  }, [activePlacement, view]);
+
   const hasGeometry = Boolean(index && index.pcbDrawables.length);
 
   // Rooms — a named rectangle per area of the board. Altium draws exactly this
@@ -635,7 +741,11 @@ export default function PcbCanvas({
       data-slot="pcb-canvas"
       className={cn(
         "relative min-h-0 flex-1 touch-none select-none overflow-hidden",
-        measuring ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
+        placementMode
+          ? "cursor-move"
+          : measuring
+            ? "cursor-crosshair"
+            : "cursor-grab active:cursor-grabbing",
         className,
       )}
       style={{ backgroundColor: colors.background }}
@@ -690,7 +800,25 @@ export default function PcbCanvas({
                 opacity={0.95}
               />
             ) : null}
-            {drawList.map(paint)}
+            {drawList.map((item) => {
+              const node = paint(item);
+              if (!activePlacement?.elementIds?.has(item.id)) return node;
+              return (
+                <g key={`placement-origin-${item.key}`} opacity={0.18}>
+                  {node}
+                </g>
+              );
+            })}
+            {activePlacement && placementItems.length ? (
+              <g
+                data-slot="pcb-placement-ghost"
+                transform={`translate(${activePlacement.delta.x} ${activePlacement.delta.y})`}
+                opacity={0.82}
+                style={{ pointerEvents: "none" }}
+              >
+                {placementItems.map(paint)}
+              </g>
+            ) : null}
           </g>
 
           {/* Screen-space overlays: constant stroke width at any zoom. */}
@@ -751,6 +879,58 @@ export default function PcbCanvas({
               opacity={0.9}
               data-slot="pcb-selection-outline"
             />
+          ) : null}
+          {placementScreen ? (
+            <g data-slot="pcb-placement-preview" style={{ pointerEvents: "none" }}>
+              {placementScreen.ratlines.map((line) => (
+                <line
+                  key={line.key}
+                  x1={line.a.x}
+                  y1={line.a.y}
+                  x2={line.b.x}
+                  y2={line.b.y}
+                  stroke={line.power ? colors.roomText : colors.selection}
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  opacity={line.power ? 0.28 : 0.62}
+                  data-net={line.netName}
+                />
+              ))}
+              {placementScreen.nearby.map((item) => (
+                <rect
+                  key={item.key}
+                  x={item.rect.x}
+                  y={item.rect.y}
+                  width={item.rect.width}
+                  height={item.rect.height}
+                  fill="none"
+                  stroke={colors.drcError}
+                  strokeWidth={1}
+                  strokeDasharray="2 2"
+                  opacity={0.7}
+                  data-nearby-component={item.refdes}
+                />
+              ))}
+              <rect
+                x={placementScreen.rect.x}
+                y={placementScreen.rect.y}
+                width={placementScreen.rect.width}
+                height={placementScreen.rect.height}
+                fill="none"
+                stroke={activePlacement.outsideBoard || activePlacement.nearby?.length ? colors.drcError : colors.selection}
+                strokeWidth={1.5}
+                strokeDasharray="5 3"
+                opacity={0.95}
+              />
+              <circle
+                cx={placementScreen.anchor.x}
+                cy={placementScreen.anchor.y}
+                r={3}
+                fill={colors.background}
+                stroke={activePlacement.outsideBoard || activePlacement.nearby?.length ? colors.drcError : colors.selection}
+                strokeWidth={1.25}
+              />
+            </g>
           ) : null}
           {hoverRect && !measuring ? (
             <rect
@@ -813,6 +993,26 @@ export default function PcbCanvas({
           }}
         >
           {formatMeasure(measure, units)}
+        </div>
+      ) : null}
+      {placementScreen ? (
+        <div
+          data-slot="pcb-placement-readout"
+          className="pointer-events-none absolute rounded border border-white/20 bg-black/85 px-2 py-1 font-mono text-[11px] tabular-nums text-white/90 shadow-lg"
+          style={{
+            left: Math.min(placementScreen.anchor.x + 12, Math.max(0, size.width - 235)),
+            top: Math.max(0, placementScreen.anchor.y - 42),
+          }}
+        >
+          <span className="font-semibold">{activePlacement.refdes}</span>
+          {` ${activePlacement.center.x.toFixed(3)}, ${activePlacement.center.y.toFixed(3)} mm`}
+          <span className="ml-2 text-white/55">
+            {`Δ ${activePlacement.delta.x >= 0 ? "+" : ""}${activePlacement.delta.x.toFixed(3)}, ${activePlacement.delta.y >= 0 ? "+" : ""}${activePlacement.delta.y.toFixed(3)}`}
+          </span>
+          {activePlacement.outsideBoard ? <span className="ml-2 text-red-300">outside board</span> : null}
+          {activePlacement.nearby?.length ? (
+            <span className="ml-2 text-amber-300">near {activePlacement.nearby.map((item) => item.refdes).join(", ")}</span>
+          ) : null}
         </div>
       ) : null}
     </div>

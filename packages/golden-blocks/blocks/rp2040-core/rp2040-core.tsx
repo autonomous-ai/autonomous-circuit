@@ -349,7 +349,7 @@ export const Rp2040Core = (props: {
     </>
   )
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__rp2040-core__${u}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Rp2040Chip name={u} layer={layer} pcbX={0} pcbY={0} schX={0} schY={0} />
       {/* Bring-up is part of the reusable block contract, not board-author
           advice. Placement is deliberately required from the board: a
@@ -433,10 +433,19 @@ export const Rp2040Core = (props: {
       {/* --- BOOTSEL: QSPI_SS -> 1k -> button -> GND ---------------------- */}
       <resistor name="R13" resistance="1k" footprint="0402" layer={layer} pcbX={localX(-4.7)} pcbY={7.4} pcbRotation={localRotation(180)} schX={10} schY={-10}
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
-      <TactileButton name="SW2"
-        variant={buttonVariant}
-        layer={layer}
-        pcbX={localX(-11)} pcbY={7} schX={14} schY={-10} />
+      {buttonVariant === "compact" ? (
+        <TactileButton name="SW2"
+          variant="compact"
+          supplierPartNumbers={{ jlcpcb: ["C2828561"] }}
+          layer={layer}
+          pcbX={localX(-11)} pcbY={7} schX={14} schY={-10} />
+      ) : (
+        <TactileButton name="SW2"
+          variant="standard"
+          supplierPartNumbers={{ jlcpcb: ["C318884"] }}
+          layer={layer}
+          pcbX={localX(-11)} pcbY={7} schX={14} schY={-10} />
+      )}
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`}
         routingPhaseIndex={controlRoutingPhaseIndex} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1"
@@ -455,10 +464,19 @@ export const Rp2040Core = (props: {
       {/* --- RUN: 10k pull-up + reset button ------------------------------ */}
       <resistor name="R12" resistance="10k" footprint="0402" layer={layer} pcbX={localX(6)} pcbY={-4} pcbRotation={localRotation(180)} schX={-10} schY={-8}
         supplierPartNumbers={{ jlcpcb: ["C25744"] }} />
-      <TactileButton name="SW3"
-        variant={buttonVariant}
-        layer={layer}
-        pcbX={localX(9)} pcbY={-8} schX={-14} schY={-10} />
+      {buttonVariant === "compact" ? (
+        <TactileButton name="SW3"
+          variant="compact"
+          supplierPartNumbers={{ jlcpcb: ["C2828561"] }}
+          layer={layer}
+          pcbX={localX(9)} pcbY={-8} schX={-14} schY={-10} />
+      ) : (
+        <TactileButton name="SW3"
+          variant="standard"
+          supplierPartNumbers={{ jlcpcb: ["C318884"] }}
+          layer={layer}
+          pcbX={localX(9)} pcbY={-8} schX={-14} schY={-10} />
+      )}
       <trace name={`TR_R12_run`} from=".R12 > .pin2" to={`.${u} > .RUN`}
         routingPhaseIndex={controlRoutingPhaseIndex} />
       <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to={`.${u} > .RUN`}

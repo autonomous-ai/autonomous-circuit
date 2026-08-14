@@ -144,6 +144,7 @@ export const UsbPowerEntry = (props: {
 
   return (
     <group
+      name={`__parts_block__usb-power-entry__${u}`}
       pcbX={props.pcbX ?? 0}
       pcbY={props.pcbY ?? 0}
       schX={props.schX ?? 0}

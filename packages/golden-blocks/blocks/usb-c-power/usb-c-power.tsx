@@ -46,6 +46,8 @@ export const UsbCConnector = (props: {
   pcbRotation?: number | string
   schX?: number
   schY?: number
+  /** Optional explicit pin; defaults to this block's canonical LCSC. */
+  supplierPartNumbers?: { jlcpcb?: string[] }
 }) => {
   const { ncPins, ...rest } = props
   const pinAttributes: Record<string, object> = {
@@ -60,7 +62,7 @@ export const UsbCConnector = (props: {
     {...rest}
     pinLabels={usbcPinLabels}
     pinAttributes={pinAttributes}
-    supplierPartNumbers={{ jlcpcb: ["C165948"] }}
+    supplierPartNumbers={props.supplierPartNumbers ?? { jlcpcb: ["C165948"] }}
     manufacturerPartNumber="TYPE-C-31-M-12"
     schPinArrangement={{
       rightSide: {
@@ -139,6 +141,8 @@ export const Usblc6 = (props: {
   pcbRotation?: number | string
   schX?: number
   schY?: number
+  /** Optional explicit pin; defaults to this block's canonical LCSC. */
+  supplierPartNumbers?: { jlcpcb?: string[] }
 }) => (
   <chip
     {...props}
@@ -148,7 +152,7 @@ export const Usblc6 = (props: {
       VBUS: { requiresPower: true },
       GND: { requiresGround: true },
     }}
-    supplierPartNumbers={{ jlcpcb: ["C2687116"] }}
+    supplierPartNumbers={props.supplierPartNumbers ?? { jlcpcb: ["C2687116"] }}
     manufacturerPartNumber="USBLC6-2SC6"
     footprint="sot23_6"
   />
@@ -389,9 +393,10 @@ export const UsbCPower = (props: {
     throw new Error("UsbCPower signalTraceWidthMm must be finite and positive")
   }
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__usb-c-power__${j}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <UsbCConnector name={j} layer={layer} pcbX={localX(0)} pcbY={0}
         pcbRotation={localRotation(0)} schX={0} schY={0}
+        supplierPartNumbers={{ jlcpcb: ["C165948"] }}
         ncPins={["DP1", "DM1", "DP2", "DM2", "SBU1", "SBU2"]} />
       <resistor name={r1} resistance="5.1k" footprint="0402"
         pcbX={localX(-3)} pcbY={7} pcbRotation={localRotation(0)} schX={3} schY={-2.5}
@@ -400,7 +405,8 @@ export const UsbCPower = (props: {
         pcbX={localX(3)} pcbY={7} pcbRotation={localRotation(0)} schX={3} schY={-3.5}
         layer={layer} supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
       <Usblc6 name={u} layer={layer} pcbX={localX(0)} pcbY={14.5}
-        pcbRotation={localRotation(0)} schX={6} schY={-1} />
+        pcbRotation={localRotation(0)} schX={6} schY={-1}
+        supplierPartNumbers={{ jlcpcb: ["C2687116"] }} />
       <capacitor name={c} capacitance="1uF" footprint="0402"
         pcbX={localX(-1.4)} pcbY={12} pcbRotation={localRotation(0)} schX={6} schY={2}
         layer={layer} supplierPartNumbers={{ jlcpcb: ["C52923"] }} />

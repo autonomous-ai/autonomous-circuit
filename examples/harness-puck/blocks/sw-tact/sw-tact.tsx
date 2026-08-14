@@ -39,8 +39,36 @@ export const TactileButton = (props: {
   pcbY?: number
   schX?: number
   schY?: number
+  /** Optional board-owned pin; defaults to the active variant's canonical LCSC. */
+  supplierPartNumbers?: { jlcpcb?: string[] }
 }) => {
   const variant = props.variant ?? "standard"
+  if (props.supplierPartNumbers) {
+    return (
+      <pushbutton
+        name={props.name}
+        supplierPartNumbers={props.supplierPartNumbers}
+        pinLabels={
+          variant === "compact"
+            ? ({ pin1: ["pin1"], pin2: ["pin2"] } as const)
+            : undefined
+        }
+        manufacturerPartNumber={
+          variant === "compact" ? "TPT-2C1" : "TS-1187A-B-A-B"
+        }
+        footprint={
+          variant === "compact"
+            ? "res_p3.1999mm_pw1mm_ph1.524mm"
+            : "dfn4_p3.6998mm_w7mm_pw0.75mm"
+        }
+        layer={props.layer ?? "top"}
+        pcbX={props.pcbX ?? 0}
+        pcbY={props.pcbY ?? 0}
+        schX={props.schX ?? 0}
+        schY={props.schY ?? 0}
+      />
+    )
+  }
   if (variant === "compact") {
     return (
       <pushbutton
@@ -91,7 +119,7 @@ export const SwTact = (props: {
   const variant = props.variant ?? "standard"
   const layer = props.layer ?? "top"
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__sw-tact__${sw}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <TactileButton
         name={sw}
         variant={variant}

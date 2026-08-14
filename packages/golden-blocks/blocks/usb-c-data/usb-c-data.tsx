@@ -187,9 +187,10 @@ export const UsbCData = (props: {
   }
   validatePairRules(props.pairRules, "UsbCData")
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group name={`__parts_block__usb-c-data__${j}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <UsbCConnector name={j} layer={layer} pcbX={localX(0)} pcbY={0}
         pcbRotation={localRotation(0)} schX={0} schY={0}
+        supplierPartNumbers={{ jlcpcb: ["C165948"] }}
         ncPins={["SBU1", "SBU2"]} />
       <resistor name={r1} resistance="5.1k" footprint="0402"
         pcbX={localX(-5.2)} pcbY={10.5} pcbRotation={localRotation(0)} schX={3} schY={-2.5}
@@ -208,7 +209,8 @@ export const UsbCData = (props: {
           section physically pairable instead of forcing two independent
           routes around a vertically stacked SOT-23 pin field. */}
       <Usblc6 name={u} layer={layer} pcbX={localX(0)} pcbY={6.15}
-        pcbRotation={localRotation(90)} schX={7} schY={-1} />
+        pcbRotation={localRotation(90)} schX={7} schY={-1}
+        supplierPartNumbers={{ jlcpcb: ["C2687116"] }} />
       <capacitor name={c} capacitance="1uF" footprint="0402"
         pcbX={localX(-4.4)} pcbY={9.15} pcbRotation={localRotation(180)} schX={7} schY={2}
         layer={layer} supplierPartNumbers={{ jlcpcb: ["C52923"] }} />

@@ -77,7 +77,7 @@ parts when the board needs the smaller footprint; omission retains the Basic
 | R13 | 0402WGF1001TCE, 1kΩ | C11702 | 0402 | yes | BOOTSEL series into QSPI_SS |
 | SW2 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | BOOTSEL |
 | SW3 | TS-1187A-B-A-B | C318884 | SMD-4P, 5.1×5.1mm | yes | RESET (pulls RUN low) |
-| SW2/SW3 compact option | TPT-2C1 | C2828561 | SMD, 3×2mm | no | `buttonVariant="compact"`; Extended |
+| SW2, SW3 | TPT-2C1 | C2828561 | SMD, 3×2mm | no | compact option (`buttonVariant="compact"`); Extended |
 | TP1–TP3 | SWCLK / SWD / GND bring-up pads | — | 1.5mm PTH, 0.8mm drill, 2.54mm pitch | — | DNP copper feature; no part to source |
 | C4–C11 | CL05B104KO5NNNC, 100nF X7R | C1525 | 0402 | yes | 3V3 decoupling, 8 places |
 | C12 | CL05B104KO5NNNC, 100nF | C1525 | 0402 | yes | DVDD2 local bypass |

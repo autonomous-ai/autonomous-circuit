@@ -48,12 +48,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 8.5,
+   "edgeGapMm": 8.775,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW2",
    "rotationDeg": 180.0,
-   "xMm": -28.0,
-   "yMm": -10.0
+   "xMm": -9.0,
+   "yMm": -29.0
   },
   {
    "bodyMm": [
@@ -61,12 +61,428 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 24.5,
+   "edgeGapMm": 7.5,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW3",
    "rotationDeg": 180.0,
+   "xMm": -29.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_0",
+   "rotationDeg": 0.0,
+   "xMm": -34.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_1",
+   "rotationDeg": 0.0,
+   "xMm": -24.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_10",
+   "rotationDeg": 0.0,
    "xMm": -12.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_11",
+   "rotationDeg": 0.0,
+   "xMm": -4.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_12",
+   "rotationDeg": 0.0,
+   "xMm": 6.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_13",
+   "rotationDeg": 0.0,
+   "xMm": 16.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_14",
+   "rotationDeg": 0.0,
+   "xMm": 22.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_15",
+   "rotationDeg": 0.0,
+   "xMm": 34.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_16",
+   "rotationDeg": 0.0,
+   "xMm": -34.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_17",
+   "rotationDeg": 0.0,
+   "xMm": -24.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 25.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_18",
+   "rotationDeg": 0.0,
+   "xMm": -14.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 25.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_19",
+   "rotationDeg": 0.0,
+   "xMm": -4.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_2",
+   "rotationDeg": 0.0,
+   "xMm": -14.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 25.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_20",
+   "rotationDeg": 0.0,
+   "xMm": 6.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 19.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_21",
+   "rotationDeg": 0.0,
+   "xMm": 20.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_22",
+   "rotationDeg": 0.0,
+   "xMm": 34.0,
+   "yMm": -14.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 9.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_23",
+   "rotationDeg": 0.0,
+   "xMm": 30.0,
    "yMm": -10.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_24",
+   "rotationDeg": 0.0,
+   "xMm": -34.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 15.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_25",
+   "rotationDeg": 0.0,
+   "xMm": -24.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 25.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_26",
+   "rotationDeg": 0.0,
+   "xMm": -14.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 35.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_27",
+   "rotationDeg": 0.0,
+   "xMm": -4.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 33.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_28",
+   "rotationDeg": 0.0,
+   "xMm": 6.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 23.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_29",
+   "rotationDeg": 0.0,
+   "xMm": 16.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_3",
+   "rotationDeg": 0.0,
+   "xMm": -6.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 13.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_30",
+   "rotationDeg": 0.0,
+   "xMm": 26.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_31",
+   "rotationDeg": 0.0,
+   "xMm": 34.0,
+   "yMm": -4.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_4",
+   "rotationDeg": 0.0,
+   "xMm": 6.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_5",
+   "rotationDeg": 0.0,
+   "xMm": 16.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_6",
+   "rotationDeg": 0.0,
+   "xMm": 26.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_7",
+   "rotationDeg": 0.0,
+   "xMm": 34.0,
+   "yMm": -34.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 5.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_8",
+   "rotationDeg": 0.0,
+   "xMm": -34.0,
+   "yMm": -24.0
+  },
+  {
+   "bodyMm": [
+    0.6,
+    0.6
+   ],
+   "edge": null,
+   "edgeGapMm": 9.7,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "pcb_component_9",
+   "rotationDeg": 0.0,
+   "xMm": -30.0,
+   "yMm": -24.0
   }
  ],
  "entryKind": "enclosure",

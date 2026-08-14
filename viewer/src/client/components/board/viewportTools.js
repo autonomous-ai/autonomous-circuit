@@ -21,6 +21,7 @@ export const ZOOM_STEP = 1.35;
 /**
  * The rail, in render order. Groups are separated by a divider in the UI:
  *   view    — camera
+ *   edit    — source-backed board changes
  *   inspect — tools that change what a click does or what you can read
  *   layers  — what is drawn
  *   out     — getting the drawing out of the app
@@ -32,6 +33,7 @@ export const VIEWPORT_TOOLS = Object.freeze([
   { id: "fit", group: "view", label: "Zoom to fit", icon: "fit", key: "F", state: "action" },
   { id: "zoom-out", group: "view", label: "Zoom out", icon: "minus", key: "−", state: "action" },
   { id: "zoom-in", group: "view", label: "Zoom in", icon: "plus", key: "+", state: "action" },
+  { id: "move", group: "edit", label: "Move component", icon: "move", key: "D", state: "toggle" },
   { id: "measure", group: "inspect", label: "Measure", icon: "ruler", key: "⌘M", state: "toggle" },
   { id: "hud", group: "inspect", label: "Coordinates", icon: "crosshair", key: "⇧H", state: "toggle" },
   { id: "grid", group: "inspect", label: "Grid", icon: "grid", key: "", state: "toggle" },
@@ -68,6 +70,8 @@ export function toolsForSurface(surface) {
  */
 export function toolState(tool, ctx = {}) {
   switch (tool.id) {
+    case "move":
+      return { active: Boolean(ctx.placementMode), value: "" };
     case "measure":
       return { active: Boolean(ctx.measuring), value: "" };
     case "hud":
@@ -120,6 +124,10 @@ export function dispatchViewportTool(id, ctx = {}) {
     case "zoom-out":
       if (!view?.zoomBy) return false;
       view.zoomBy(1 / ZOOM_STEP);
+      return true;
+    case "move":
+      if (!ctx.onTogglePlacement) return false;
+      ctx.onTogglePlacement();
       return true;
     case "measure":
       if (!ctx.onToggleMeasure) return false;

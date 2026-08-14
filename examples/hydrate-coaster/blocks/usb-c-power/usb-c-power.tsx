@@ -2,9 +2,10 @@
  * golden-block: usb-c-power (v1)
  * dialect: tscircuit@0.0.2279 (pinned — repo toolchain/package.json)
  *
- * USB-C 5V power input: TYPE-C-31-M-12 receptacle (LCSC C165948), 5.1k CC
- * pulldowns (UFP sink advertisement), USBLC6-2SC6 ESD array on the CC lines,
- * 10uF VBUS bulk. Exposes rails: net.V5 (VBUS), net.GND.
+ * USB-C 5V raw power input: TYPE-C-31-M-12 receptacle (LCSC C165948), 5.1k
+ * CC pulldowns (UFP sink advertisement), USBLC6-2SC6 ESD on the CC lines,
+ * and 1uF attach capacitance. Exposes net.VBUS_RAW and net.GND; pair with
+ * usb-power-entry before the LDO or any downstream bulk capacitance.
  *
  * Land pattern: exact EasyEDA footprint for C165948, imported once at
  * authoring time (tscircuit-cli import C165948 --jlcpcb, 2026-08-10) —
@@ -14,7 +15,7 @@
  * See BLOCK.md for the pin contract and provenance.
  */
 
-import { GndFanoutTrace } from "../glue"
+import { GndFanoutTrace, MaskedCopperNode } from "../glue"
 
 const usbcPinLabels = {
   pin1: ["EH2", "SHELL2"],
@@ -45,6 +46,8 @@ export const UsbCConnector = (props: {
   pcbRotation?: number | string
   schX?: number
   schY?: number
+  /** Optional explicit pin; defaults to this block's canonical LCSC. */
+  supplierPartNumbers?: { jlcpcb?: string[] }
 }) => {
   const { ncPins, ...rest } = props
   const pinAttributes: Record<string, object> = {
@@ -59,7 +62,7 @@ export const UsbCConnector = (props: {
     {...rest}
     pinLabels={usbcPinLabels}
     pinAttributes={pinAttributes}
-    supplierPartNumbers={{ jlcpcb: ["C165948"] }}
+    supplierPartNumbers={props.supplierPartNumbers ?? { jlcpcb: ["C165948"] }}
     manufacturerPartNumber="TYPE-C-31-M-12"
     schPinArrangement={{
       rightSide: {
@@ -78,35 +81,19 @@ export const UsbCConnector = (props: {
       <footprint>
         <hole pcbX="-2.899918mm" pcbY="0.9055672mm" diameter="0.5999988mm" />
         <hole pcbX="2.899918mm" pcbY="0.9055672mm" diameter="0.5999988mm" />
-        {/* The receptacle's belly is a routing keepout, and it is part of the
-            footprint on purpose — it rotates and moves with J1, so a composer
-            cannot place this connector wrongly.
-
-            Why it has to exist: the two NPTH alignment holes above sit in the
-            middle of an otherwise empty 7.3 x 1.2mm pocket, and the autorouter
-            has no model of hole-to-copper clearance at all. Left alone it runs
-            the shortest GND path straight through the pocket — measured
-            0.115mm and 0.123mm from a 0.6mm drill where JLC needs 0.20mm
-            (jlcpcb.com/capabilities). A drill lands inside its own positional
-            tolerance of that gap, so some boards in a batch come back with the
-            track cut and some do not. This one defect blocked all three
-            example boards.
-
-            The numbers. Hole centres (+/-2.899918, 0.9055672), r = 0.30.
-            * Top edge 1.515 — 0.009mm under the pad row at y = 1.5240, so the
-              keepout touches no pad, and a track that rides the edge still
-              clears the drill by 1.515 + 0.10 - 0.9056 - 0.40 = 0.31mm.
-            * Bottom edge 0.285 — same clearance on the south side.
-            * Half-width 3.65 — the outer edge stops 0.075mm short of the pin-1
-              shell pad at x = 3.725, which closes the 0.525mm channel between
-              drill and shell that the router used to thread. Nothing legal
-              fits there: a track would need x >= 3.50 for the drill and
-              x <= 3.525 for the shell pad's own 0.28mm PTH rule.
-            A keepout is the right tool only at this size. Sized to the holes
-            instead (r = 0.65 circles) it swallows the GND pads' own corners at
-            0.6186mm and every J1 tie becomes a violation; that is the trap the
-            first two attempts fell into. */}
-        <keepout shape="rect" pcbX="0mm" pcbY="0.90mm" width="7.30mm" height="1.23mm" layers={["top", "bottom"]} />
+        {/* The autorouter does not model NPTH drill-to-copper clearance, so
+            each 0.6mm alignment drill carries its own component-local guard.
+            A 1.02mm square extends 0.21mm beyond the 0.30mm drill radius on
+            every cardinal edge, exceeding the 0.20mm fabrication rule while
+            remaining 0.108mm below the closest imported pad copper. Keeping
+            these guards local to the drills preserves the legal central
+            routing pocket; a single footprint-wide rectangle incorrectly
+            erased that pocket and made the reversible USB data trees
+            non-planar. */}
+        <keepout shape="rect" pcbX="-2.899918mm" pcbY="0.9055672mm"
+          width="1.02mm" height="1.02mm" layers={["top", "bottom"]} />
+        <keepout shape="rect" pcbX="2.899918mm" pcbY="0.9055672mm"
+          width="1.02mm" height="1.02mm" layers={["top", "bottom"]} />
         <platedhole portHints={["pin2"]} pcbX="4.325112mm" pcbY="-2.7741308mm" holeWidth="0.7999984mm" holeHeight="1.3999972mm" outerWidth="1.1999976mm" outerHeight="1.7999964mm" shape="pill" />
         <platedhole portHints={["pin1"]} pcbX="4.325112mm" pcbY="1.4056932mm" holeWidth="0.7999984mm" holeHeight="1.5999968mm" outerWidth="1.1999976mm" outerHeight="1.999996mm" shape="pill" />
         <platedhole portHints={["pin4"]} pcbX="-4.325112mm" pcbY="1.4056932mm" holeWidth="0.7999984mm" holeHeight="1.5999968mm" outerWidth="1.1999976mm" outerHeight="1.999996mm" shape="pill" />
@@ -154,22 +141,219 @@ export const Usblc6 = (props: {
   pcbRotation?: number | string
   schX?: number
   schY?: number
+  /** Optional explicit pin; defaults to this block's canonical LCSC. */
+  supplierPartNumbers?: { jlcpcb?: string[] }
 }) => (
   <chip
     {...props}
     pinLabels={esdPinLabels}
+    internallyConnectedPins={[["IO1", "IO1B"], ["IO2", "IO2B"]]}
     pinAttributes={{
       VBUS: { requiresPower: true },
       GND: { requiresGround: true },
     }}
-    supplierPartNumbers={{ jlcpcb: ["C2687116"] }}
+    supplierPartNumbers={props.supplierPartNumbers ?? { jlcpcb: ["C2687116"] }}
     manufacturerPartNumber="USBLC6-2SC6"
     footprint="sot23_6"
   />
 )
 
+export type UsbVbusBoundaryRefs = {
+  /** Hidden node beside connector pad VBUS1 (the +X pad). */
+  right: string
+  /** Hidden node beside connector pad VBUS2 (the -X pad). */
+  left: string
+}
+
 /**
- * The composed power-input block. Rails out: net.V5, net.GND.
+ * Reversible USB-C VBUS pads joined by a measured power tree.
+ *
+ * Each 0.6mm-wide connector pad leaves through a short 0.2mm neck into a
+ * mask-covered 1mm node.  A 0.8/0.5mm via at each node carries the 0.8mm
+ * trunk onto the opposite copper face, below the interleaved signal pads,
+ * then returns to the connector face.  Exactly one marked boundary attaches
+ * the complete local tree to VBUS_RAW.  This avoids both the former long
+ * narrow crossover and the two redundant connector-pad-to-net aggregates.
+ */
+export const UsbRawVbusTree = (props: {
+  j: string
+  net: string
+  boundaryRefs: UsbVbusBoundaryRefs
+  railNodeRef: string
+  railNode: { x: number; y: number }
+  layer?: "top" | "bottom"
+  routingPhaseIndex?: number
+  trunkWidthMm?: number
+  neckdownWidthMm?: number
+  viaPadDiameterMm?: number
+  viaHoleDiameterMm?: number
+  maxNeckdownLengthMm?: number
+  /**
+   * Optional top-authored block-local via pair for the rail edge.  Use this
+   * when the connector face has no legal 0.8mm corridor between the left
+   * reversible node and the rail node.  The helper mirrors both X coordinates
+   * and reverses the physical layer transition for a bottom-side block, so
+   * both endpoints always return to the component face.
+   */
+  railLayerTransition?: {
+    startVia: { x: number; y: number }
+    endVia: { x: number; y: number }
+  }
+}) => {
+  const layer = props.layer ?? "top"
+  const oppositeLayer = layer === "top" ? "bottom" : "top"
+  // Bottom footprints mirror their pad offsets, so mirror the authored
+  // block-local tree as well.  The caller continues to provide one stable
+  // top-authored coordinate set for either face.
+  const localX = (x: number) => layer === "bottom" ? -x : x
+  const trunkWidthMm = props.trunkWidthMm ?? 0.8
+  const neckdownWidthMm = props.neckdownWidthMm ?? 0.2
+  const viaPadDiameterMm = props.viaPadDiameterMm ?? 0.8
+  const viaHoleDiameterMm = props.viaHoleDiameterMm ?? 0.5
+  const maxNeckdownLengthMm = props.maxNeckdownLengthMm ?? 2
+  const refs = [props.boundaryRefs?.right, props.boundaryRefs?.left, props.railNodeRef]
+  if (
+    refs.some((ref) => !/^N[1-9][0-9]*$/.test(ref ?? "")) ||
+    new Set(refs).size !== 3
+  ) {
+    throw new Error("UsbRawVbusTree needs three distinct hidden N boundary refs")
+  }
+  const railLayerTransition = props.railLayerTransition
+  if (
+    railLayerTransition &&
+    [
+      railLayerTransition.startVia.x,
+      railLayerTransition.startVia.y,
+      railLayerTransition.endVia.x,
+      railLayerTransition.endVia.y,
+    ].some((value) => !Number.isFinite(value))
+  ) {
+    throw new Error("UsbRawVbusTree rail-layer transition points must be finite")
+  }
+  if (!Number.isFinite(props.railNode?.x) || !Number.isFinite(props.railNode?.y)) {
+    throw new Error("UsbRawVbusTree rail-node coordinates must be finite")
+  }
+  if (
+    ![trunkWidthMm, neckdownWidthMm, viaPadDiameterMm, viaHoleDiameterMm,
+      maxNeckdownLengthMm].every((value) => Number.isFinite(value) && value > 0) ||
+    neckdownWidthMm > trunkWidthMm ||
+    viaHoleDiameterMm >= viaPadDiameterMm ||
+    viaPadDiameterMm > 1
+  ) {
+    throw new Error(
+      "UsbRawVbusTree dimensions must be positive with neck <= trunk and hole < via pad <= node",
+    )
+  }
+
+  const rightRef = props.boundaryRefs.right
+  const leftRef = props.boundaryRefs.left
+  const railRef = props.railNodeRef
+  const rightNode = `.${rightRef} > .pin1`
+  const leftNode = `.${leftRef} > .pin1`
+  const railNode = `.${railRef} > .pin1`
+  // Keep the two VBUS nodes outside the interleaved signal-pad escapes.
+  // x=+/-3.2 leaves a routable .15mm clearance corridor around each 0.8mm
+  // node. The necks dogleg first above the adjacent GND pad, staying about
+  // 1.78mm long and safely inside the 2mm contract.
+  const right = { x: localX(3.2), y: 3.4 }
+  const left = { x: localX(-3.2), y: 3.4 }
+  const rail = { x: localX(props.railNode.x), y: props.railNode.y }
+  const railStartVia = railLayerTransition && {
+    x: localX(railLayerTransition.startVia.x),
+    y: railLayerTransition.startVia.y,
+  }
+  const railEndVia = railLayerTransition && {
+    x: localX(railLayerTransition.endVia.x),
+    y: railLayerTransition.endVia.y,
+  }
+  return (
+    <>
+      <MaskedCopperNode name={rightRef} layer={layer} diameterMm={viaPadDiameterMm}
+        pcbX={right.x} pcbY={right.y} />
+      <MaskedCopperNode name={leftRef} layer={layer} diameterMm={viaPadDiameterMm}
+        pcbX={left.x} pcbY={left.y} />
+      <MaskedCopperNode name={railRef} layer={layer} diameterMm={viaPadDiameterMm}
+        pcbX={rail.x} pcbY={rail.y} />
+      <trace name={`TR_${props.j}_vbus1_neck`}
+        from={`.${props.j} > .VBUS1`} to={rightNode}
+        thickness={`${neckdownWidthMm}mm`}
+        maxLength={`${maxNeckdownLengthMm}mm`}
+        routingPhaseIndex={props.routingPhaseIndex}
+        pcbPath={[
+          { x: localX(2.4), y: 3.1 },
+          { x: right.x, y: right.y },
+        ]} />
+      <group pcbStyle={{
+        viaPadDiameter: `${viaPadDiameterMm}mm`,
+        viaHoleDiameter: `${viaHoleDiameterMm}mm`,
+      }}>
+        <trace name={`TR_${props.j}_vbus_trunk`}
+          from={rightNode} to={leftNode}
+          thickness={`${trunkWidthMm}mm`}
+          routingPhaseIndex={props.routingPhaseIndex}
+          pcbPathRelativeTo={rightNode}
+          pcbPath={[
+            { x: 0, y: 0 },
+            { x: localX(1), y: 0 },
+            { x: localX(1), y: 0, via: true, fromLayer: layer, toLayer: oppositeLayer },
+            { x: localX(1), y: 0 },
+            { x: localX(1), y: 1.6 },
+            { x: left.x - right.x - localX(1), y: left.y - right.y + 1.6 },
+            { x: left.x - right.x - localX(1), y: left.y - right.y },
+            { x: left.x - right.x - localX(1), y: left.y - right.y,
+              via: true, fromLayer: oppositeLayer, toLayer: layer },
+            { x: left.x - right.x - localX(1), y: left.y - right.y },
+            { x: left.x - right.x, y: left.y - right.y },
+          ]} />
+      </group>
+      <trace name={`TR_${props.j}_vbus2_neck`}
+        from={`.${props.j} > .VBUS2`} to={leftNode}
+        thickness={`${neckdownWidthMm}mm`}
+        maxLength={`${maxNeckdownLengthMm}mm`}
+        routingPhaseIndex={props.routingPhaseIndex}
+        pcbPath={[
+          { x: localX(-2.4), y: 3.1 },
+          { x: left.x, y: left.y },
+        ]} />
+      {railStartVia && railEndVia ? (
+        <group pcbStyle={{
+          viaPadDiameter: `${viaPadDiameterMm}mm`,
+          viaHoleDiameter: `${viaHoleDiameterMm}mm`,
+        }}>
+          <trace name={`TR_${props.j}_vbus_rail`}
+            from={leftNode} to={railNode}
+            thickness={`${trunkWidthMm}mm`}
+            routingPhaseIndex={props.routingPhaseIndex}
+            pcbPathRelativeTo={leftNode}
+            pcbPath={[
+              { x: 0, y: 0 },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y, via: true,
+                fromLayer: layer, toLayer: oppositeLayer },
+              { x: railStartVia.x - left.x, y: railStartVia.y - left.y },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y, via: true,
+                fromLayer: oppositeLayer, toLayer: layer },
+              { x: railEndVia.x - left.x, y: railEndVia.y - left.y },
+              { x: rail.x - left.x, y: rail.y - left.y },
+            ]} />
+        </group>
+      ) : (
+        <trace name={`TR_${props.j}_vbus_rail`}
+          from={leftNode} to={railNode}
+          thickness={`${trunkWidthMm}mm`}
+          routingPhaseIndex={props.routingPhaseIndex} />
+      )}
+      <trace name={`TR_${props.j}_vbus_boundary`}
+        from={railNode} to={`net.${props.net}`}
+        thickness={`${trunkWidthMm}mm`}
+        authoredNetTreeBoundary />
+    </>
+  )
+}
+
+/**
+ * The composed connector block. Rails out: net.VBUS_RAW, net.GND.
  * CC lines run through the USBLC6's two ESD channels (ch1 = IO1/IO1B,
  * ch2 = IO2/IO2B) so the externally exposed CC pins are protected.
  */
@@ -180,6 +364,15 @@ export const UsbCPower = (props: {
   u?: string
   c?: string
   vbusNet?: string
+  /** Globally unique hidden nodes for the reversible VBUS power tree. */
+  vbusBoundaryRefs: UsbVbusBoundaryRefs
+  /** Globally unique hidden endpoint for the raw rail and local clamp/cap leaves. */
+  vbusRailNodeRef: string
+  /** Board-owned phase for the connector-local VBUS and CC copper. */
+  localRoutingPhaseIndex?: number
+  /** Ordinary board-signal width for the protected CC lines. */
+  signalTraceWidthMm?: number
+  layer?: "top" | "bottom"
   pcbX?: number
   pcbY?: number
   schX?: number
@@ -190,22 +383,38 @@ export const UsbCPower = (props: {
   const r2 = props.r2 ?? "R2"
   const u = props.u ?? "U1"
   const c = props.c ?? "C1"
-  const vbus = props.vbusNet ?? "V5"
+  const vbus = props.vbusNet ?? "VBUS_RAW"
+  const layer = props.layer ?? "top"
+  const localX = (x: number) => layer === "bottom" ? -x : x
+  const localRotation = (degrees: number) =>
+    layer === "bottom" ? (360 - degrees) % 360 : degrees
+  const signalTraceWidthMm = props.signalTraceWidthMm ?? 0.25
+  if (!Number.isFinite(signalTraceWidthMm) || signalTraceWidthMm <= 0) {
+    throw new Error("UsbCPower signalTraceWidthMm must be finite and positive")
+  }
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
-      <UsbCConnector name={j} pcbX={0} pcbY={0} schX={0} schY={0}
+    <group name={`__parts_block__usb-c-power__${j}`} pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+      <UsbCConnector name={j} layer={layer} pcbX={localX(0)} pcbY={0}
+        pcbRotation={localRotation(0)} schX={0} schY={0}
+        supplierPartNumbers={{ jlcpcb: ["C165948"] }}
         ncPins={["DP1", "DM1", "DP2", "DM2", "SBU1", "SBU2"]} />
-      <resistor name={r1} resistance="5.1k" footprint="0402" pcbX={-3} pcbY={7} schX={3} schY={-2.5}
-        supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
-      <resistor name={r2} resistance="5.1k" footprint="0402" pcbX={3} pcbY={7} schX={3} schY={-3.5}
-        supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
-      <Usblc6 name={u} pcbX={0} pcbY={9} schX={6} schY={-1} />
-      <capacitor name={c} capacitance="10uF" footprint="0805" pcbX={7} pcbY={7} schX={6} schY={2}
-        supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
+      <resistor name={r1} resistance="5.1k" footprint="0402"
+        pcbX={localX(-3)} pcbY={7} pcbRotation={localRotation(0)} schX={3} schY={-2.5}
+        layer={layer} supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
+      <resistor name={r2} resistance="5.1k" footprint="0402"
+        pcbX={localX(3)} pcbY={7} pcbRotation={localRotation(0)} schX={3} schY={-3.5}
+        layer={layer} supplierPartNumbers={{ jlcpcb: ["C25905"] }} />
+      <Usblc6 name={u} layer={layer} pcbX={localX(0)} pcbY={14.5}
+        pcbRotation={localRotation(0)} schX={6} schY={-1}
+        supplierPartNumbers={{ jlcpcb: ["C2687116"] }} />
+      <capacitor name={c} capacitance="1uF" footprint="0402"
+        pcbX={localX(-1.4)} pcbY={12} pcbRotation={localRotation(0)} schX={6} schY={2}
+        layer={layer} supplierPartNumbers={{ jlcpcb: ["C52923"] }} />
 
-      {/* Rails */}
-      <trace name={`TR_${j}_vbus1`} from={`.${j} > .VBUS1`} to={`net.${vbus}`} />
-      <trace name={`TR_${j}_vbus2`} from={`.${j} > .VBUS2`} to={`net.${vbus}`} />
+      {/* Reversible connector VBUS pads form one authored power tree. */}
+      <UsbRawVbusTree j={j} net={vbus} boundaryRefs={props.vbusBoundaryRefs}
+        railNodeRef={props.vbusRailNodeRef} railNode={{ x: 0.5, y: 12.2 }}
+        layer={layer} routingPhaseIndex={props.localRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${j}_gnd1`} from={`.${j} > .GND1`} />
       <GndFanoutTrace name={`TR_${j}_gnd2`} from={`.${j} > .GND2`} />
       <GndFanoutTrace name={`TR_${j}_sh1`} from={`.${j} > .SHELL1`} />
@@ -213,22 +422,25 @@ export const UsbCPower = (props: {
       <GndFanoutTrace name={`TR_${j}_sh3`} from={`.${j} > .SHELL3`} />
       <GndFanoutTrace name={`TR_${j}_sh4`} from={`.${j} > .SHELL4`} />
 
-      {/* CC pulldowns: 5.1k to GND advertises a UFP sink (USB-C spec §4.5.1.2) */}
-      <trace name={`TR_${j}_cc1r`} from={`.${j} > .CC1`} to={`.${r1} > .pin1`} />
+      {/* CC flow-through: connector enters one USBLC6 channel pad and exits
+          the internally common mate into the 5.1k UFP pulldown. */}
+      <trace name={`TR_${j}_cc1_esd`} from={`.${j} > .CC1`} to={`.${u} > .IO1`}
+        thickness={`${signalTraceWidthMm}mm`} routingPhaseIndex={props.localRoutingPhaseIndex} />
+      <trace name={`TR_${u}_cc1_r`} from={`.${u} > .IO1B`} to={`.${r1} > .pin1`}
+        thickness={`${signalTraceWidthMm}mm`} routingPhaseIndex={props.localRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${r1}_gnd`} from={`.${r1} > .pin2`} />
-      <trace name={`TR_${j}_cc2r`} from={`.${j} > .CC2`} to={`.${r2} > .pin1`} />
+      <trace name={`TR_${j}_cc2_esd`} from={`.${j} > .CC2`} to={`.${u} > .IO2`}
+        thickness={`${signalTraceWidthMm}mm`} routingPhaseIndex={props.localRoutingPhaseIndex} />
+      <trace name={`TR_${u}_cc2_r`} from={`.${u} > .IO2B`} to={`.${r2} > .pin1`}
+        thickness={`${signalTraceWidthMm}mm`} routingPhaseIndex={props.localRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${r2}_gnd`} from={`.${r2} > .pin2`} />
-
-      {/* ESD: CC1 through channel 1, CC2 through channel 2 */}
-      <trace name={`TR_${u}_cc1a`} from={`.${u} > .IO1`} to={`.${j} > .CC1`} />
-      <trace name={`TR_${u}_cc1b`} from={`.${u} > .IO1B`} to={`.${j} > .CC1`} />
-      <trace name={`TR_${u}_cc2a`} from={`.${u} > .IO2`} to={`.${j} > .CC2`} />
-      <trace name={`TR_${u}_cc2b`} from={`.${u} > .IO2B`} to={`.${j} > .CC2`} />
-      <trace name={`TR_${u}_vbus`} from={`.${u} > .VBUS`} to={`net.${vbus}`} />
+      <trace name={`TR_${u}_vbus`} from={`.${u} > .VBUS`} to={`.${props.vbusRailNodeRef} > .pin1`}
+        thickness="0.2mm" maxLength="3mm" routingPhaseIndex={props.localRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${u}_gnd`} from={`.${u} > .GND`} />
 
-      {/* VBUS bulk (10uF cap keeps inrush inside the USB 2.0 limit) */}
-      <trace name={`TR_${c}_vbus`} from={`.${c} > .pin1`} to={`net.${vbus}`} />
+      {/* Raw attach cap; downstream bulk belongs after UsbPowerEntry. */}
+      <trace name={`TR_${c}_vbus`} from={`.${c} > .pin1`} to={`.${props.vbusRailNodeRef} > .pin1`}
+        thickness="0.2mm" maxLength="3mm" routingPhaseIndex={props.localRoutingPhaseIndex} />
       <GndFanoutTrace name={`TR_${c}_gnd`} from={`.${c} > .pin2`} />
     </group>
   )

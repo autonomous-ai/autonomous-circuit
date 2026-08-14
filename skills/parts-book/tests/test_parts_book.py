@@ -24,7 +24,7 @@ BLOCK_TSX = '''export const DemoBlock = (props: {
   const r2 = props.r2 ?? "R91"
   const c = props.c ?? "C90"
   return (
-    <group>
+    <group name={`__parts_block__demo-block__${u}`}>
       <chip name={u} supplierPartNumbers={{ jlcpcb: ["C6186"] }}
         manufacturerPartNumber="AMS1117-3.3" footprint="sot223" />
       <resistor name={r1} resistance="4.7k" footprint="0402"
@@ -89,6 +89,113 @@ def _write_lock(project: Path, selected: tuple[str, ...]) -> None:
     )
 
 
+def _inventory_elements(
+    identities: list[tuple[str, str]] | None = None,
+    *,
+    dnp: set[str] | None = None,
+    extra: list[dict] | None = None,
+    block_owned: bool = True,
+    board_owned_refs: set[str] | None = None,
+) -> list[dict]:
+    identities = identities or [
+        ("U9", "C6186"),
+        ("R90", "C25900"),
+        ("R91", "C25900"),
+        ("C90", "C15850"),
+    ]
+    dnp = dnp or set()
+    board_owned_refs = board_owned_refs or set()
+    out: list[dict] = []
+    group_id = "source_group_demo_block"
+    board_group_id = "source_group_board"
+    if block_owned:
+        out.append(
+            {
+                "type": "source_group",
+                "source_group_id": group_id,
+                "name": "__parts_block__demo-block__U9",
+                "was_automatically_named": False,
+            }
+        )
+    if board_owned_refs or not block_owned:
+        out.append(
+            {
+                "type": "source_group",
+                "source_group_id": board_group_id,
+                "name": "__parts_board__test-parts",
+                "was_automatically_named": False,
+            }
+        )
+    for index, (ref, lcsc) in enumerate(identities):
+        sid = f"source_component_{index}"
+        pid = f"pcb_component_{index}"
+        out.extend(
+            [
+                {
+                    "type": "source_component",
+                    "source_component_id": sid,
+                    "name": ref,
+                    "manufacturer_part_number": f"MPN-{lcsc}",
+                    "supplier_part_numbers": {"jlcpcb": [lcsc]},
+                    "source_group_id": (
+                        group_id
+                        if block_owned and ref not in board_owned_refs
+                        else board_group_id
+                    ),
+                },
+                {
+                    "type": "pcb_component",
+                    "pcb_component_id": pid,
+                    "source_component_id": sid,
+                    "do_not_place": ref in dnp,
+                },
+                {
+                    "type": "pcb_smtpad",
+                    "pcb_smtpad_id": f"pcb_smtpad_{index}",
+                    "pcb_component_id": pid,
+                },
+            ]
+        )
+    out.extend(extra or [])
+    return out
+
+
+def _write_fake_toolchain(project: Path) -> Path:
+    toolchain = project / ".test-toolchain"
+    files = {
+        "package.json": '{"private":true}\n',
+        "package-lock.json": "{}\n",
+        "node_modules/@tscircuit/cli/package.json": '{"type":"module"}\n',
+        "node_modules/@tscircuit/cli/dist/cli/main.js": """
+import fs from "node:fs"
+import path from "node:path"
+const source = path.resolve(".test-inventory.json")
+if (!fs.existsSync(source)) throw new Error("staged .test-inventory.json is required")
+if (process.env.CIRCUIT_PARTS_ENGINE !== "off") {
+  throw new Error("CIRCUIT_PARTS_ENGINE must be off")
+}
+const expected = [
+  "build", "boards/main.tsx", "--routing-disabled", "--disable-parts-engine",
+  "--ignore-errors", "--concurrency", "1",
+]
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(expected)) {
+  throw new Error(`unexpected compiler argv: ${JSON.stringify(process.argv.slice(2))}`)
+}
+const target = path.resolve("dist/boards/main/circuit.json")
+fs.mkdirSync(path.dirname(target), { recursive: true })
+fs.copyFileSync(source, target)
+""",
+        "node_modules/@tscircuit/core/dist/index.js": "// fake core\n",
+        "node_modules/@tscircuit/props/dist/index.js": "// fake props\n",
+        "node_modules/tsx/dist/loader.mjs": "export {}\n",
+    }
+    for relative, contents in files.items():
+        path = toolchain / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents, encoding="utf-8")
+    return toolchain
+
+
 def _make_project(
     tmp_path: Path,
     *,
@@ -96,6 +203,7 @@ def _make_project(
     block_tsx: str = BLOCK_TSX,
     block_md: str = BLOCK_MD,
     extra_blocks: dict[str, tuple[str, str]] | None = None,
+    inventory: list[dict] | None = None,
 ) -> Path:
     (tmp_path / "product.json").write_text(
         '{"name":"test-board","assembly":true}', encoding="utf-8"
@@ -116,12 +224,20 @@ def _make_project(
         (folder / f"{block_id}.tsx").write_text(source, encoding="utf-8")
         (folder / "BLOCK.md").write_text(docs, encoding="utf-8")
     _write_lock(tmp_path, tuple(sorted(["demo-block", *(extra_blocks or {})])))
+    (tmp_path / ".test-inventory.json").write_text(
+        json.dumps(inventory if inventory is not None else _inventory_elements()),
+        encoding="utf-8",
+    )
+    _write_fake_toolchain(tmp_path)
     return tmp_path
 
 
 def _run(*args: str, cwd: Path | None = None) -> tuple[dict, str]:
     env = dict(os.environ)
     env.setdefault("CIRCUIT_PARTS_CACHE_DIR", str(Path(args[0]) / ".cache"))
+    project = Path(args[0])
+    env["CIRCUIT_TOOLCHAIN"] = str(project / ".test-toolchain")
+    env["PARTS_BOOK_FAKE_INVENTORY"] = str(project / ".test-inventory.json")
     proc = subprocess.run(
         [sys.executable, str(PARTS_TOOL), *args],
         capture_output=True,
@@ -157,7 +273,7 @@ def test_offline_sync_writes_only_exact_ref_entries(tmp_path: Path) -> None:
         "block": "demo-block",
         "mfr": "AMS1117-3.3",
         "package": "SOT-223",
-        "source": "block-default",
+        "source": "compiled-block",
     }
     assert on_disk["R90"]["lcsc"] == on_disk["R91"]["lcsc"] == "C25900"
     assert "TP9" not in on_disk
@@ -218,52 +334,84 @@ def test_literal_ref_overrides_are_resolved(tmp_path: Path) -> None:
     board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
 export default () => <board><DemoBlock u="U8" r1="R8" r2={"R9"} c="C8" /></board>
 '''
-    project = _make_project(tmp_path, board=board)
+    project = _make_project(
+        tmp_path,
+        board=board,
+        inventory=_inventory_elements(
+            [("U8", "C6186"), ("R8", "C25900"), ("R9", "C25900"), ("C8", "C15850")]
+        ),
+    )
     payload, _ = _run(str(project))
     assert payload["ok"] is True
     assert set(_parts(project)) == {"C8", "R8", "R9", "U8"}
 
 
-def test_dynamic_ref_override_fails_closed(tmp_path: Path) -> None:
+def test_dynamic_ref_override_is_resolved_by_fresh_compiler(tmp_path: Path) -> None:
     board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
 const chosen = "U8"
 export default () => <board><DemoBlock u={chosen} /></board>
 '''
-    project = _make_project(tmp_path, board=board)
+    project = _make_project(
+        tmp_path,
+        board=board,
+        inventory=_inventory_elements(
+            [("U8", "C6186"), ("R90", "C25900"), ("R91", "C25900"), ("C90", "C15850")]
+        ),
+    )
     payload, _ = _run(str(project))
-    assert payload["ok"] is False
-    assert "dynamic/non-exact" in payload["error"]["message"]
-    assert not (project / "parts.json").exists()
+    assert payload["ok"] is True
+    assert set(_parts(project)) == {"U8", "R90", "R91", "C90"}
 
 
-def test_jsx_prop_spread_that_could_override_refs_fails_closed(tmp_path: Path) -> None:
+def test_jsx_prop_spread_is_resolved_by_fresh_compiler(tmp_path: Path) -> None:
     board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
 const refs = { u: "U8" }
 export default () => <board><DemoBlock {...refs} /></board>
 '''
-    project = _make_project(tmp_path, board=board)
+    project = _make_project(
+        tmp_path,
+        board=board,
+        inventory=_inventory_elements(
+            [("U8", "C6186"), ("R90", "C25900"), ("R91", "C25900"), ("C90", "C15850")]
+        ),
+    )
     payload, _ = _run(str(project))
-    assert payload["ok"] is False
-    assert "JSX prop spread" in payload["error"]["message"]
+    assert payload["ok"] is True
+    assert "U8" in _parts(project)
 
 
-def test_parametric_documented_ref_fails_closed(tmp_path: Path) -> None:
+def test_parametric_documented_ref_is_reconciled_to_compiled_refs(tmp_path: Path) -> None:
     docs = BLOCK_MD.replace("R90/R91", "R`n`")
     project = _make_project(tmp_path, block_md=docs)
     payload, _ = _run(str(project))
-    assert payload["ok"] is False
-    assert "unresolved parametric" in payload["error"]["message"]
-    assert not (project / "parts.json").exists()
+    assert payload["ok"] is True
+    assert _parts(project)["R90"]["block"] == "demo-block"
 
 
 def test_duplicate_populated_ref_from_two_instances_is_refused(tmp_path: Path) -> None:
     board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
 export default () => <board><DemoBlock /><DemoBlock /></board>
 '''
-    project = _make_project(tmp_path, board=board)
+    inventory = _inventory_elements()
+    duplicate = _inventory_elements([("U9", "C6186")])
+    duplicate = [
+        element
+        for element in duplicate
+        if element.get("type") != "source_group"
+    ]
+    for element in duplicate:
+        for key in (
+            "source_component_id",
+            "pcb_component_id",
+            "pcb_smtpad_id",
+        ):
+            if key in element:
+                element[key] = f"{element[key]}_duplicate"
+    inventory.extend(duplicate)
+    project = _make_project(tmp_path, board=board, inventory=inventory)
     payload, _ = _run(str(project))
     assert payload["ok"] is False
-    assert "ambiguous duplicate populated ref" in payload["error"]["message"]
+    assert "duplicate component ref U9" in payload["error"]["message"]
 
 
 def test_dependency_selected_by_lock_is_not_mistaken_for_owner(tmp_path: Path) -> None:
@@ -338,7 +486,23 @@ def test_duplicate_json_ref_key_is_refused_without_rewrite(tmp_path: Path) -> No
 
 
 def test_add_requires_exact_ref_reviewed_description_and_classification(tmp_path: Path) -> None:
-    project = _make_project(tmp_path)
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+export default () => <board><group name="__parts_board__test-parts"><DemoBlock /></group></board>
+'''
+    project = _make_project(
+        tmp_path,
+        board=board,
+        inventory=_inventory_elements(
+            [
+                ("U9", "C6186"),
+                ("R90", "C25900"),
+                ("R91", "C25900"),
+                ("C90", "C15850"),
+                ("J9", "C158012"),
+            ],
+            board_owned_refs={"J9"},
+        ),
+    )
     payload, _ = _run(
         str(project),
         "--add",
@@ -391,6 +555,8 @@ def test_footprint_changing_swap_warns_and_keeps_exact_ref(tmp_path: Path) -> No
         "C90",
         "--lcsc",
         "C15525",
+        "--description",
+        "replacement capacitor",
         "--package",
         "0603",
         "--basic",
@@ -405,7 +571,10 @@ def test_footprint_changing_swap_warns_and_keeps_exact_ref(tmp_path: Path) -> No
 
 def test_swap_unknown_ref_is_refused(tmp_path: Path) -> None:
     project = _make_project(tmp_path)
-    payload, _ = _run(str(project), "--swap", "U99", "--lcsc", "C6186", "--basic")
+    payload, _ = _run(
+        str(project), "--swap", "U99", "--lcsc", "C6186",
+        "--description", "replacement", "--package", "SOT-223", "--basic",
+    )
     assert payload["ok"] is False
     assert "no populated ref U99" in payload["error"]["message"]
 
@@ -414,3 +583,186 @@ def test_missing_product_json_is_refused(tmp_path: Path) -> None:
     payload, _ = _run(str(tmp_path))
     assert payload["ok"] is False
     assert "product.json" in payload["error"]["message"]
+
+
+def test_serialized_compiler_error_refuses_without_rewriting(tmp_path: Path) -> None:
+    inventory = _inventory_elements(extra=[{"type": "source_trace_not_connected_error"}])
+    project = _make_project(tmp_path, inventory=inventory)
+    previous = '{"SAFE":{"lcsc":"C1","basic":true,"description":"keep","block":"board"}}\n'
+    (project / "parts.json").write_text(previous, encoding="utf-8")
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "serialized errors" in payload["error"]["message"]
+    assert (project / "parts.json").read_text(encoding="utf-8") == previous
+
+
+def test_dnp_is_owned_and_physical_but_needs_no_supplier(tmp_path: Path) -> None:
+    inventory = _inventory_elements([("U9", "C6186"), ("TP9", "C999")], dnp={"TP9"})
+    tp = next(item for item in inventory if item.get("type") == "source_component" and item.get("name") == "TP9")
+    tp.pop("supplier_part_numbers")
+    project = _make_project(tmp_path, inventory=inventory)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is True
+    assert set(_parts(project)) == {"U9"}
+
+
+def test_dnp_duplicate_ref_and_missing_land_are_refused(tmp_path: Path) -> None:
+    inventory = _inventory_elements([("U9", "C6186"), ("TP9", "C999")], dnp={"TP9"})
+    duplicate = _inventory_elements([("TP9", "C999")], dnp={"TP9"})
+    duplicate = [item for item in duplicate if item.get("type") != "source_group"]
+    for item in duplicate:
+        for key in ("source_component_id", "pcb_component_id", "pcb_smtpad_id"):
+            if key in item:
+                item[key] += "_other"
+    project = _make_project(tmp_path, inventory=[*inventory, *duplicate])
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "duplicate component ref TP9" in payload["error"]["message"]
+
+    inventory = _inventory_elements([("U9", "C6186"), ("TP9", "C999")], dnp={"TP9"})
+    inventory = [
+        item for item in inventory
+        if not (item.get("type") == "pcb_smtpad" and item.get("pcb_component_id") == "pcb_component_1")
+    ]
+    project = _make_project(tmp_path / "missing-land", inventory=inventory)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "TP9 has no physical" in payload["error"]["message"]
+
+
+def test_populated_supplier_identity_must_be_one_exact_jlc_number(tmp_path: Path) -> None:
+    mutations = (
+        None,
+        {"digikey": ["123"]},
+        {"jlcpcb": []},
+        {"jlcpcb": ["C1", "C2"]},
+        {"jlcpcb": ["bad"]},
+    )
+    for index, supplier in enumerate(mutations):
+        inventory = _inventory_elements()
+        source = next(item for item in inventory if item.get("type") == "source_component")
+        if supplier is None:
+            source.pop("supplier_part_numbers")
+        else:
+            source["supplier_part_numbers"] = supplier
+        project = _make_project(tmp_path / str(index), inventory=inventory)
+        payload, _ = _run(str(project))
+        assert payload["ok"] is False
+        assert "exactly one JLCPCB" in payload["error"]["message"]
+
+
+def test_inventory_requires_real_group_and_bijective_physical_join(tmp_path: Path) -> None:
+    cases: list[tuple[str, list[dict], str]] = []
+    missing_group = _inventory_elements()
+    next(item for item in missing_group if item.get("type") == "source_component")["source_group_id"] = "missing"
+    cases.append(("group", missing_group, "unknown source_group_id"))
+    two_pcb = _inventory_elements()
+    duplicate_pcb = dict(next(item for item in two_pcb if item.get("type") == "pcb_component"))
+    duplicate_pcb["pcb_component_id"] = "pcb_component_extra"
+    two_pcb.append(duplicate_pcb)
+    cases.append(("join", two_pcb, "exactly one pcb_component"))
+    orphan = _inventory_elements(extra=[{
+        "type": "pcb_component", "pcb_component_id": "pcb_orphan",
+        "source_component_id": "arbitrary_owner", "do_not_place": False,
+    }])
+    cases.append(("orphan", orphan, "unknown source owner"))
+    for folder, inventory, message in cases:
+        project = _make_project(tmp_path / folder, inventory=inventory)
+        payload, _ = _run(str(project))
+        assert payload["ok"] is False
+        assert message in payload["error"]["message"]
+
+
+def test_known_manual_via_is_not_an_assembly_part(tmp_path: Path) -> None:
+    inventory = _inventory_elements(extra=[
+        {
+            "type": "source_manually_placed_via",
+            "source_manually_placed_via_id": "source_manually_placed_via_0",
+            "source_group_id": "source_group_demo_block",
+        },
+        {
+            "type": "pcb_component", "pcb_component_id": "pcb_via_component",
+            "source_component_id": "source_manually_placed_via_0",
+        },
+    ])
+    project = _make_project(tmp_path, inventory=inventory)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is True
+    assert set(_parts(project)) == {"C90", "R90", "R91", "U9"}
+
+
+def test_owner_marker_spoofs_and_missing_compiled_marker_are_refused(tmp_path: Path) -> None:
+    board = BOARD_TSX.replace(
+        "export default", 'const fake = "__parts_block__demo-block__U9"\nexport default'
+    )
+    project = _make_project(tmp_path / "spoof", board=board)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "reserved compiled block-owner" in payload["error"]["message"]
+
+    inventory = [
+        item for item in _inventory_elements()
+        if item.get("type") != "source_group"
+    ]
+    inventory.insert(0, {
+        "type": "source_group", "source_group_id": "source_group_demo_block",
+        "name": "ordinary", "was_automatically_named": False,
+    })
+    project = _make_project(tmp_path / "missing", inventory=inventory)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "no owner marker for active" in payload["error"]["message"]
+
+
+def test_board_owner_marker_is_explicit_and_compiler_reconciled(tmp_path: Path) -> None:
+    board = '''import { DemoBlock } from "../blocks/demo-block/demo-block"
+export default () => <board><group name="__parts_board__glue"><DemoBlock /></group></board>
+'''
+    inventory = _inventory_elements(board_owned_refs={"J9"}, identities=[
+        ("U9", "C6186"), ("R90", "C25900"), ("R91", "C25900"),
+        ("C90", "C15850"), ("J9", "C158012"),
+    ])
+    group = next(item for item in inventory if item.get("name") == "__parts_board__test-parts")
+    group["name"] = "__parts_board__other"
+    project = _make_project(tmp_path, board=board, inventory=inventory)
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "not declared by project source" in payload["error"]["message"]
+
+
+def test_deterministic_source_contract_refuses_ambient_population_inputs(tmp_path: Path) -> None:
+    mutations = (
+        'import fs from "node:fs"\n',
+        'import fs from "fs"\n',
+        'const enabled = process.env.FEATURE\n',
+        'const p = "./feature"; import (p)\n',
+        'const prior = "parts.json"\n',
+    )
+    for index, prefix in enumerate(mutations):
+        project = _make_project(tmp_path / str(index), board=prefix + BOARD_TSX)
+        payload, _ = _run(str(project))
+        assert payload["ok"] is False
+        assert "deterministic" in payload["error"]["message"] or "nonliteral" in payload["error"]["message"]
+
+
+def test_malformed_existing_review_metadata_is_refused(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    (project / "parts.json").write_text(json.dumps({
+        "U9": {"lcsc": "C6186", "basic": True, "description": {"bad": True}, "block": "demo-block"}
+    }), encoding="utf-8")
+    payload, _ = _run(str(project))
+    assert payload["ok"] is False
+    assert "non-string/empty reviewed description" in payload["error"]["message"]
+
+
+def test_swap_requires_new_identity_metadata(tmp_path: Path) -> None:
+    for args in (
+        ("--package", "0603"),
+        ("--description", "replacement"),
+    ):
+        project = _make_project(tmp_path / str(len(args[0])))
+        payload, _ = _run(
+            str(project), "--swap", "C90", "--lcsc", "C15525", *args, "--basic"
+        )
+        assert payload["ok"] is False
+        assert "requires reviewed --description and --package" in payload["error"]["message"]

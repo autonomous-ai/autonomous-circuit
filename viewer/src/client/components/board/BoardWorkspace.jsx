@@ -11,6 +11,13 @@ import {
 import { boardStatus, boardStem, selectBoardEntries } from "@/lib/boardModel.js";
 import { buildBoardIndex, resolveSelection } from "@/lib/boardIndex.js";
 import { boardRegions } from "@/lib/boardRegions.js";
+import {
+  PLACEMENT_GRID_MM,
+  nudgePlacementPoint,
+  placementContextNote,
+  placementRequestText,
+  previewComponentPlacement,
+} from "@/lib/boardPlacement.js";
 import { buildMessages } from "@/lib/boardViolations.js";
 import { groupFindings, partPlainName } from "@/lib/plainLanguage.js";
 import { defaultObjectClasses, nextHighlightMethod, nextSingleLayerMode } from "@/lib/boardPalette.js";
@@ -130,6 +137,8 @@ export default function BoardWorkspace({
   const [maskLevel, setMaskLevel] = useState(3);
   const [units, setUnits] = useState("mm");
   const [measuring, setMeasuring] = useState(false);
+  const [placementMode, setPlacementMode] = useState(false);
+  const [placementDraft, setPlacementDraft] = useState(null);
   const [hudVisible, setHudVisible] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [messagesOpen, setMessagesOpen] = useState(true);
@@ -139,6 +148,13 @@ export default function BoardWorkspace({
 
   const pcbRef = useRef(null);
   const schematicRef = useRef(null);
+
+  // A staged placement belongs to one exact compiled board. Once another
+  // artifact lands (normally after the chat-driven rebuild), the build is the
+  // authority and the old ghost must disappear.
+  useEffect(() => {
+    setPlacementDraft(null);
+  }, [circuit, selectedFile]);
 
   useEffect(() => {
     onModelsSidebarChange?.(false, 0);
@@ -471,6 +487,29 @@ export default function BoardWorkspace({
     prefillChatInput(text);
   }, []);
 
+  const handleMoveComponent = useCallback(
+    (preview) => {
+      if (!preview) return;
+      setPlacementDraft(preview);
+      setSelection({ kind: "component", key: preview.componentKey });
+      setPendingViewContext(
+        [
+          buildViewContextNote({
+            board: selectedStem,
+            tab: "pcb",
+            selection: { kind: "component", key: preview.componentKey },
+            index,
+          }),
+          placementContextNote(preview, { board: selectedStem }),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      prefillChatInput(placementRequestText(preview, { board: selectedStem }));
+    },
+    [index, selectedStem],
+  );
+
   // --- navigator callbacks
   const boardStatusOf = useCallback(
     (entry) => boardStatus(entry, { activity: artifactActivity }),
@@ -545,6 +584,7 @@ export default function BoardWorkspace({
         return pcbRef.current;
       },
       measuring,
+      placementMode,
       hudVisible,
       showGrid,
       showRegions: regionsVisible,
@@ -553,7 +593,14 @@ export default function BoardWorkspace({
       maskLevel,
       units,
       onFit: fitAll,
-      onToggleMeasure: () => setMeasuring((value) => !value),
+      onTogglePlacement: () => {
+        setPlacementMode((value) => !value);
+        setMeasuring(false);
+      },
+      onToggleMeasure: () => {
+        setMeasuring((value) => !value);
+        setPlacementMode(false);
+      },
       onToggleHud: () => setHudVisible((value) => !value),
       onToggleGrid: () => setShowGrid((value) => !value),
       onToggleRegions: () => setRegionsVisible((value) => !value),
@@ -566,11 +613,14 @@ export default function BoardWorkspace({
         setSingleLayerMode("off");
         setHiddenLayers(new Set());
         setMeasuring(false);
+        setPlacementMode(false);
+        setPlacementDraft(null);
         fitAll();
       },
     }),
     [
       measuring,
+      placementMode,
       hudVisible,
       showGrid,
       regionsVisible,
@@ -613,16 +663,43 @@ export default function BoardWorkspace({
       if (key === "Escape") {
         setSelection(null);
         setMeasuring(false);
+        setPlacementMode(false);
+        setPlacementDraft(null);
         return;
       }
       if (event.metaKey || event.ctrlKey) {
         if (key.toLowerCase() === "m") {
           event.preventDefault();
           setMeasuring((value) => !value);
+          setPlacementMode(false);
         }
         if (key === "PageDown") {
           event.preventDefault();
           fitAll();
+        }
+        return;
+      }
+      if (
+        placementMode &&
+        selection?.kind === "component" &&
+        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)
+      ) {
+        const component = index?.componentBySourceId?.get(selection.key);
+        const compiledCenter = component?.pcb?.center;
+        const current =
+          placementDraft?.componentKey === selection.key
+            ? placementDraft.center
+            : compiledCenter;
+        if (current) {
+          event.preventDefault();
+          const requested = nudgePlacementPoint(current, key, {
+            gridMm: PLACEMENT_GRID_MM,
+            steps: event.shiftKey ? 10 : 1,
+          });
+          const preview = previewComponentPlacement(index, selection.key, requested, {
+            gridMm: PLACEMENT_GRID_MM,
+          });
+          if (preview) handleMoveComponent(preview);
         }
         return;
       }
@@ -648,6 +725,11 @@ export default function BoardWorkspace({
         case "f":
         case "F":
           fitAll();
+          break;
+        case "d":
+        case "D":
+          setPlacementMode((value) => !value);
+          setMeasuring(false);
           break;
         case "q":
         case "Q":
@@ -677,7 +759,15 @@ export default function BoardWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode]);
+  }, [
+    fitAll,
+    handleMoveComponent,
+    index,
+    placementDraft,
+    placementMode,
+    selection,
+    singleLayerMode,
+  ]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";
@@ -733,16 +823,38 @@ export default function BoardWorkspace({
         maskLevel={maskLevel}
         units={units}
         measuring={measuring}
+        placementMode={placementMode}
+        placementDraft={placementDraft}
         showGrid={showGrid}
         regions={regions}
         showRegions={regionsVisible}
         flash={flash}
         fallbackSrc={String(artifact.pcbUrl || "")}
         onSelect={handleSelect}
+        onMoveComponent={handleMoveComponent}
         onHoverChange={setHover}
         onViewChange={setPcbView}
         viewRef={pcbRef}
       />
+      {placementDraft ? (
+        <div
+          data-slot="placement-draft-banner"
+          className="absolute left-2 top-2 z-20 flex items-center gap-2 rounded-md border border-sky-400/30 bg-black/80 px-2 py-1 text-[11px] text-white/85 shadow-lg backdrop-blur"
+        >
+          <span>
+            <span className="font-mono font-semibold">{placementDraft.refdes}</span>
+            {` move staged at ${placementDraft.center.x.toFixed(3)}, ${placementDraft.center.y.toFixed(3)} mm`}
+          </span>
+          <span className="text-white/45">arrows nudge · Shift 10x · send chat to apply + rebuild</span>
+          <button
+            type="button"
+            onClick={() => setPlacementDraft(null)}
+            className="rounded border border-white/15 px-1.5 py-0.5 text-white/65 hover:bg-white/10 hover:text-white"
+          >
+            discard
+          </button>
+        </div>
+      ) : null}
       <ViewportToolRail surface="pcb" context={pcbToolContext} />
       {/* Lifted clear of the rail rather than parked beside it — the same call
           drei's viewcube makes with `margin={[60, 120]}`. In Split the PCB pane
