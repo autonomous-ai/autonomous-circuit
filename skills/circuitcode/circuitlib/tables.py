@@ -53,6 +53,12 @@ MIN_PAD_HOLE_TO_HOLE_MM = 0.45
 MIN_NPTH_MM = 0.50
 MIN_COPPER_TO_EDGE_MM = 0.30
 MIN_BOARD_EDGE_MM = 3.0
+# --- JLCPCB fab economics (measured 2026-08-15; ledger #30) ----------------
+# The sample subsidy is a price cliff, not a curve: 5 boards at <=100x100mm
+# 2-layer cost $2; terminal-keyboard's 112x90 quoted $8.90 — 4.5x for 12mm.
+# The planner targets the tier unless the design cannot fit.
+JLC_SAMPLE_TIER_MM = (100.0, 100.0)
+JLC_SAMPLE_TIER_USD = 2.0
 BOARD_THICKNESS_MM = 1.6          # set explicitly: the toolchain default is 1.4
 BOARD_THICKNESS_RANGE_MM = (0.4, 4.5)
 WARN_SILK_LINE_MM = 0.15

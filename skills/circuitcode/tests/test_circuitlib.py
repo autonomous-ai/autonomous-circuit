@@ -252,6 +252,35 @@ class Layout(unittest.TestCase):
         with self.assertRaises(ValueError):
             extent("flux-capacitor")
 
+    def test_price_tier_names_the_money_over_the_cliff(self) -> None:
+        """Ledger #30: the planner must know the $2 sample tier exists."""
+        from circuitlib.layout import price_tier_warnings
+
+        warnings = price_tier_warnings(112.0, 90.0)
+        self.assertEqual([w["kind"] for w in warnings], ["price_tier"])
+        self.assertEqual(warnings[0]["severity"], "warning")
+        self.assertIn("12mm", warnings[0]["detail"])
+        self.assertIn("$2", warnings[0]["detail"])
+
+    def test_price_tier_silent_inside_the_subsidy(self) -> None:
+        from circuitlib.layout import price_tier_warnings
+
+        self.assertEqual(price_tier_warnings(100.0, 100.0), [])
+        # Either orientation fits.
+        self.assertEqual(price_tier_warnings(80.0, 100.0), [])
+
+    def test_place_board_plans_inside_the_tier_for_v1_blocks(self) -> None:
+        """The whole v1 catalog on one board still fits the subsidy — the
+        planner only leaves the tier when the design cannot fit."""
+        from circuitlib.layout import place_board
+
+        plan = place_board([
+            "usb-c-data", "ldo-3v3", "rp2040-core", "status-led", "sw-tact",
+        ])
+        self.assertEqual(
+            [w for w in plan["warnings"] if w["kind"] == "price_tier"], []
+        )
+
     def test_place_row_does_not_collide_with_itself(self) -> None:
         from circuitlib.layout import overlap_warnings, place_row
 

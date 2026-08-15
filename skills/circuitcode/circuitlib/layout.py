@@ -280,6 +280,7 @@ def place_board(
     )
     warnings += overlap_warnings(placements, gap=gap)
     warnings += _hole_clearance_warnings(holes, placements)
+    warnings += price_tier_warnings(width, height)
     return {
         "width_mm": width,
         "height_mm": height,
@@ -287,6 +288,46 @@ def place_board(
         "holes": holes,
         "warnings": warnings,
     }
+
+
+def price_tier_warnings(width_mm: float, height_mm: float) -> list[dict[str, str]]:
+    """Name the money when a plan misses the fab's sample subsidy (ledger #30).
+
+    The EE review found terminal-keyboard 12mm over a price cliff nobody in
+    the plan knew existed: 5 sample boards at <=100x100mm cost $2, its 112x90
+    quoted $8.90. The planner's target is the tier — a board should only leave
+    it because the design cannot fit, and that choice should be made knowing
+    the price. Never raises.
+    """
+    out: list[dict[str, str]] = []
+    try:
+        tier_w, tier_h = tables.JLC_SAMPLE_TIER_MM
+        fits = (width_mm <= tier_w and height_mm <= tier_h) or (
+            height_mm <= tier_w and width_mm <= tier_h
+        )
+        if not fits:
+            # Shortfall in the friendlier orientation: both dimensions must
+            # fit, so an orientation's overage is its worse axis.
+            over = min(
+                max(width_mm - tier_w, height_mm - tier_h, 0.0),
+                max(height_mm - tier_w, width_mm - tier_h, 0.0),
+            )
+            out.append({
+                "part": "board",
+                "kind": "price_tier",
+                "severity": "warning",
+                "detail": (
+                    f"{width_mm:g}x{height_mm:g}mm misses the "
+                    f"{tier_w:g}x{tier_h:g}mm ${tables.JLC_SAMPLE_TIER_USD:g} "
+                    f"sample tier by {over:g}mm — the subsidy is a cliff "
+                    "(112x90 quoted $8.90 for 5, measured 2026-08-15). Fit "
+                    "the tier unless the design cannot"
+                ),
+            })
+    except Exception as exc:  # pragma: no cover - advisory must never break
+        out.append({"part": "board", "kind": "check_failed", "severity": "warning",
+                    "detail": f"price_tier: {exc}"})
+    return out
 
 
 def _hole_clearance_warnings(

@@ -41,7 +41,17 @@ const PITCH = 10
  *  90mm tall rather than 84: the last blocking errors are all crowding in the
  *  MCU escape, and 6mm more strip is the only lever left that adds room
  *  without moving a key. The spare margin lands at the top, under the screen
- *  bezel, where nothing else needs it. */
+ *  bezel, where nothing else needs it.
+ *
+ *  Why 112 wide, 12mm over the <=100x100mm $2 sample tier (5 boards quoted
+ *  $8.90 — ledger #30): measured on the built board, content spans 107.7mm —
+ *  the key field's copper alone is ~98mm (switch lands at colX 0..9), the
+ *  diode column hangs to -50.2mm, and the six M2.5 mounting-hole bosses sit
+ *  at x=+-52.5 because the printed body screws into them there. No margin
+ *  trim reaches 100mm; fitting the tier means moving the enclosure's screw
+ *  bosses inboard and tucking the diodes under the switches — a physical
+ *  body change, not a board-margin change, so it is Dee's call, not a
+ *  layout tweak. */
 const BOARD_W = 112
 const BOARD_H = 90
 
