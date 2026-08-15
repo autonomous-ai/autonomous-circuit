@@ -149,6 +149,82 @@ class SchematicTruth(unittest.TestCase):
         self.assertIsInstance(warnings, list)
 
 
+def _routed_rail(
+    *,
+    net: str = "V5",
+    width: float = 0.2,
+    is_power: bool = True,
+    is_ground: bool = False,
+    poured: bool = False,
+) -> list[dict]:
+    """One rail net + one signal net, each routed at ``width``."""
+    elements: list[dict] = [
+        {"type": "source_net", "source_net_id": "source_net_1", "name": net,
+         "is_power": is_power, "is_ground": is_ground},
+        {"type": "source_net", "source_net_id": "source_net_2", "name": "BTN1",
+         "is_power": False, "is_ground": False},
+        {"type": "source_trace", "source_trace_id": "source_trace_1",
+         "connected_source_net_ids": ["source_net_1"]},
+        {"type": "source_trace", "source_trace_id": "source_trace_2",
+         "connected_source_net_ids": ["source_net_2"]},
+        {"type": "pcb_trace", "source_trace_id": "source_trace_1",
+         "route": [{"width": width}, {"width": 0.8}]},
+        {"type": "pcb_trace", "source_trace_id": "source_trace_2",
+         "route": [{"width": width}]},
+    ]
+    if poured:
+        elements.append(
+            {"type": "pcb_copper_pour", "pcb_copper_pour_id": "pcb_copper_pour_1",
+             "source_net_id": "source_net_1"}
+        )
+    return elements
+
+
+class PowerWidthFloor(unittest.TestCase):
+    """Ledger #31: power at signal width warns; a signal at signal width is fine."""
+
+    def test_rail_at_signal_width_warns_once(self) -> None:
+        warnings = checks.power_width_warnings(_routed_rail(), PROFILE)
+        self.assertEqual([w["kind"] for w in warnings], ["dfm_power_trace_width"])
+        self.assertEqual(warnings[0]["part"], "V5")
+        self.assertEqual(warnings[0]["severity"], "warning")
+        self.assertIn("0.2mm", warnings[0]["detail"])
+        self.assertIn("0.5mm", warnings[0]["detail"])
+
+    def test_rail_at_the_floor_is_silent(self) -> None:
+        warnings = checks.power_width_warnings(_routed_rail(width=0.5), PROFILE)
+        self.assertEqual(warnings, [])
+
+    def test_signal_net_never_flagged(self) -> None:
+        warnings = checks.power_width_warnings(
+            _routed_rail(net="LED_DATA", is_power=False), PROFILE
+        )
+        self.assertEqual(warnings, [])
+
+    def test_name_marks_a_rail_when_flags_are_absent(self) -> None:
+        warnings = checks.power_width_warnings(
+            _routed_rail(net="VCC", is_power=False), PROFILE
+        )
+        self.assertEqual(len(warnings), 1)
+
+    def test_routed_ground_warns(self) -> None:
+        warnings = checks.power_width_warnings(
+            _routed_rail(net="GND", is_power=False, is_ground=True), PROFILE
+        )
+        self.assertEqual(len(warnings), 1)
+
+    def test_poured_ground_is_exempt(self) -> None:
+        warnings = checks.power_width_warnings(
+            _routed_rail(net="GND", is_power=False, is_ground=True, poured=True),
+            PROFILE,
+        )
+        self.assertEqual(warnings, [])
+
+    def test_never_raises_on_garbage(self) -> None:
+        warnings = checks.power_width_warnings([{"type": None}, "junk"], PROFILE)  # type: ignore[list-item]
+        self.assertIsInstance(warnings, list)
+
+
 class IoUBands(unittest.TestCase):
     def _element(self, iou: float) -> dict:
         return {
@@ -278,6 +354,29 @@ class DfmGate(unittest.TestCase):
             },
         ]
         self.assertEqual(checks.dfm_warnings(cj, _product(), PROFILE), [])
+
+    def test_board_over_the_sample_tier_names_the_money(self) -> None:
+        # Ledger #30: 112x90 misses the $2 tier by 12mm and quoted $8.90.
+        cj = [self._board(width=112, height=90)]
+        warnings = [w for w in checks.dfm_warnings(cj, _product(envelope=(112, 90)), PROFILE)
+                    if w["kind"] == "dfm_price_tier"]
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["severity"], "warning")
+        self.assertIn("12mm", warnings[0]["detail"])
+        self.assertIn("$2", warnings[0]["detail"])
+        self.assertIn("$8.90", warnings[0]["detail"])
+
+    def test_board_inside_the_tier_is_silent(self) -> None:
+        cj = [self._board(width=100, height=100)]
+        warnings = [w for w in checks.dfm_warnings(cj, _product(envelope=(100, 100)), PROFILE)
+                    if w["kind"] == "dfm_price_tier"]
+        self.assertEqual(warnings, [])
+
+    def test_tier_fit_counts_either_orientation(self) -> None:
+        cj = [self._board(width=80, height=100)]
+        warnings = [w for w in checks.dfm_warnings(cj, _product(envelope=(80, 100)), PROFILE)
+                    if w["kind"] == "dfm_price_tier"]
+        self.assertEqual(warnings, [])
 
     def test_thin_trace_blocks(self) -> None:
         cj = [

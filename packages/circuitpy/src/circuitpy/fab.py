@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,13 +41,22 @@ class FabProfile:
     order_name: str = "ORDER.md"
     glb_name: str = "board.glb"
     bom_columns: tuple[str, ...] = ("Comment", "Designator", "Footprint", "LCSC Part #")
-    cpl_columns: tuple[str, ...] = ("Designator", "Mid X", "Mid Y", "Layer", "Rotation")
+    # JLC's documented CPL order (the KiCad help article): Rotation before
+    # Layer. The exporter emits Layer first; write_cpl_csv reorders.
+    cpl_columns: tuple[str, ...] = ("Designator", "Mid X", "Mid Y", "Rotation", "Layer")
     # DFM limits (mm) — conservative cheap-tier encodings of JLC's caps table.
     # Two bands everywhere: block at the fab's real floor, warn at what we
     # would rather see. A blocking gate set to a preference flags legal boards,
     # and a gate that cries wolf is one everyone learns to skip.
     min_trace_mm: float = 0.10           # JLC 1oz floor
     warn_trace_mm: float = 0.15          # our cheap-tier preference
+    # Power nets get their own floor (EE review 2026-08-15, ledger #31): 5V
+    # and 3V3 shipped at 0.2mm, same as a button signal — legal by the
+    # current maths on that board, wrong as a habit. The current-driven check
+    # (`netclass_trace_width`) still blocks a genuine overload; this is the
+    # habit line, and it is warn-band on purpose — an EE moves it here, in
+    # one place, without touching a check.
+    warn_power_trace_mm: float = 0.5
     min_clearance_mm: float = 0.10       # JLC 1oz floor
     warn_clearance_mm: float = 0.127
     #: Slack when handing our floors to a *different* geometry engine. The
@@ -107,9 +117,24 @@ class FabProfile:
     iou_error_below: float = 0.5
     iou_warning_below: float = 0.65
     iou_info_below: float = 0.85
+    # Fab price tiers (EE review 2026-08-15, ledger #30). The sample subsidy
+    # is a price cliff, not a curve — measured 2026-08-15: 5 boards at
+    # <=100x100mm 2-layer cost $2; terminal-keyboard's 112x90 quoted $8.90,
+    # 4.5x for 12mm. (max_w_mm, max_h_mm, usd_per_5, label); a board fits a
+    # tier in either orientation. The stage-4 check names the money when a
+    # board misses every tier.
+    price_tiers: tuple[tuple[float, float, float, str], ...] = (
+        (100.0, 100.0, 2.0, "sample subsidy"),
+    )
+    price_tier_evidence: str = (
+        "112x90mm quoted $8.90/5pcs against $2.00 inside the tier "
+        "(measured 2026-08-15)"
+    )
     # Cost model lines for ORDER.md (verified ranges, 2026-08).
     cost_lines: tuple[str, ...] = (
-        "PCB only, 5x 2-layer: $2 + shipping (~$4-20 all-in, 24-48h fab).",
+        "PCB only, 5x 2-layer <=100x100mm: $2 + shipping (~$4-20 all-in, "
+        "24-48h fab); over 100x100 the subsidy is gone — 112x90 quoted "
+        "$8.90 (2026-08-15).",
         "Assembled, 5x ESP32-class: ~$75-110 all-in, ~1-2 weeks to door.",
         "Extended parts add a ~$3/line loading fee; Basic parts avoid it.",
     )
@@ -211,6 +236,10 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #:   the check raises its own error.
 #: * `review_decoupling_missing` — the board usually works. Real, and worth a
 #:   human's attention, but not worth refusing to let anyone order the board.
+#: * `netclass_pair_coupling` (EE review 2026-08-15, finding 3) — report-only
+#:   by design: the router has no net-class concept, so a blocking finding
+#:   here would make every USB board permanently un-orderable until the v2
+#:   route stage exists. The check makes the gap visible; the fix is v2's.
 
 _JLCPCB = FabProfile(
     id="jlcpcb",
@@ -307,13 +336,55 @@ def merge_parts_lock(rows: list[dict], parts: dict[str, dict]) -> list[dict]:
     return merged
 
 
+def group_bom_rows(rows: list[dict]) -> list[dict]:
+    """One BOM line per *part*, designators grouped — JLC's own sample shape
+    (EE review 2026-08-15, ledger #32: ours emitted one row per placement, so
+    50 identical switches arrived as 50 lines).
+
+    Identity is (comment, value, footprint, lcsc). A row with no identity at
+    all (no part number, no comment, no footprint) stays its own line — two
+    unknowns are not the same part. Designators keep natural order (SW9 before
+    SW10); groups keep first-appearance order. Each group carries ``qty`` and
+    the first row's lock."""
+    def _natural(designator: str) -> tuple:
+        return tuple(
+            int(token) if token.isdigit() else token.lower()
+            for token in re.findall(r"\d+|\D+", designator)
+        )
+
+    groups: dict[tuple, dict] = {}
+    order: list[tuple] = []
+    for index, row in enumerate(rows):
+        comment = row.get("comment") or row.get("value") or ""
+        identity = (comment, row.get("footprint") or "", row.get("lcsc") or "")
+        key = identity if any(identity) else ("", "", "", index)
+        if key not in groups:
+            groups[key] = dict(row, designators=[row["designator"]], qty=1)
+            order.append(key)
+        else:
+            groups[key]["designators"].append(row["designator"])
+            groups[key]["qty"] += 1
+    out: list[dict] = []
+    for key in order:
+        group = groups[key]
+        group["designators"] = sorted(group["designators"], key=_natural)
+        group["designator"] = ",".join(group["designators"])
+        out.append(group)
+    return out
+
+
 def bom_summary(rows: list[dict]) -> dict[str, object]:
     """The sidecar's ``bom`` block: lines, orderable, basicParts, and the
     best-effort cost estimate from locked unit prices (omitted when no row
-    carries a price — never fabricate a zero)."""
-    lines = len(rows)
-    orderable = sum(1 for row in rows if row.get("lcsc"))
-    basic = sum(1 for row in rows if (row.get("lock") or {}).get("basic") is True)
+    carries a price — never fabricate a zero).
+
+    ``lines``/``orderable``/``basicParts`` count *grouped* BOM lines — what
+    JLC's parts-match table will actually show — while the cost estimate sums
+    per placement (fifty switches cost fifty times one switch)."""
+    grouped = group_bom_rows(rows)
+    lines = len(grouped)
+    orderable = sum(1 for row in grouped if row.get("lcsc"))
+    basic = sum(1 for row in grouped if (row.get("lock") or {}).get("basic") is True)
     summary: dict[str, object] = {
         "lines": lines,
         "orderable": orderable,
@@ -337,11 +408,16 @@ def bom_summary(rows: list[dict]) -> dict[str, object]:
 
 
 def write_bom_csv(rows: list[dict], path: Path, profile: FabProfile) -> Path:
+    """The shipping BOM, in JLC's documented sample shape (ledger #32):
+    ``Comment,Designator,Footprint,LCSC Part #``, one line per part with
+    designators grouped (``SW10,SW11,…``) — the format the article at
+    jlcpcb.com/help/article/how-to-generate-the-bom-and-centroid-file-from-kicad
+    tells KiCad users to hand-rename their export into."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(profile.bom_columns)
-        for row in rows:
+        for row in group_bom_rows(rows):
             comment = row.get("comment") or row.get("value") or ""
             writer.writerow(
                 [comment, row["designator"], row.get("footprint") or "", row.get("lcsc") or ""]
@@ -351,7 +427,9 @@ def write_bom_csv(rows: list[dict], path: Path, profile: FabProfile) -> Path:
 
 def write_cpl_csv(exporter_cpl_text: str, path: Path, profile: FabProfile) -> Path:
     """Re-emit the exporter's pick_and_place.csv through the profile columns
-    (they already match JLC's — this normalizes header order + quoting)."""
+    (JLC's documented order — ``Designator,Mid X,Mid Y,Rotation,Layer``; the
+    exporter emits Layer before Rotation, so this reorders as well as
+    normalizing quoting)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     reader = csv.DictReader(io.StringIO(exporter_cpl_text))
     with path.open("w", encoding="utf-8", newline="") as handle:

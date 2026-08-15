@@ -752,6 +752,105 @@ def _hole_to_copper_warnings(
     return warnings
 
 
+#: Net names that mark a rail even when the compiler's ``is_power`` flag is
+#: absent (a net brought in purely by name). Mirrors verifylib's rail table.
+_POWER_NET_RE = re.compile(
+    r"^(v?bus|v_?bus|vusb|\+?5v|v_?5v?|\+?3v?3|v_?3_?3|3_?3v|\+?1v?8|v_?1_?8"
+    r"|vcc|vdd|vin|vsys|vbat)$",
+    re.I,
+)
+_GROUND_NET_RE = re.compile(r"^(gnd|agnd|dgnd|vss|ground)$", re.I)
+
+
+def power_width_warnings(
+    circuit_json: Sequence[dict], profile: FabProfile
+) -> list[Warning]:
+    """Ledger #31: a power net routed at signal width should say so.
+
+    The EE review found 5V and 3V3 at 0.2mm — fine for a keyboard's current,
+    wrong as a habit, and invisible: the current-driven check
+    (``netclass_trace_width``) is satisfied whenever the maths squeaks by, so
+    nothing distinguished a power net from a button signal. This holds power
+    and ground nets to ``profile.warn_power_trace_mm`` (warn-band: the fab
+    builds 0.2mm happily, so blocking would be a gate set to a preference).
+
+    Ground that is *poured* rather than routed is exempt — the pour is the
+    current path and its routed stubs are not what carries the rail.
+    """
+    try:
+        warnings: list[Warning] = []
+        net_name: dict[str, str] = {}
+        is_rail: dict[str, bool] = {}
+        poured: set[str] = set()
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            etype = element.get("type")
+            if etype == "source_net":
+                nid = str(element.get("source_net_id") or "")
+                name = str(element.get("name") or "")
+                if not nid or not name:
+                    continue
+                net_name[nid] = name
+                is_rail[nid] = bool(
+                    element.get("is_power")
+                    or element.get("is_ground")
+                    or _POWER_NET_RE.match(name)
+                    or _GROUND_NET_RE.match(name)
+                )
+            elif etype == "pcb_copper_pour":
+                nid = element.get("source_net_id")
+                if isinstance(nid, str):
+                    poured.add(nid)
+        trace_nets: dict[str, tuple[str, ...]] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "source_trace":
+                continue
+            tid = str(element.get("source_trace_id") or "")
+            nets = tuple(
+                nid
+                for nid in (element.get("connected_source_net_ids") or [])
+                if isinstance(nid, str) and is_rail.get(nid) and nid not in poured
+            )
+            if tid and nets:
+                trace_nets[tid] = nets
+        narrowest: dict[str, float] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "pcb_trace":
+                continue
+            nets = trace_nets.get(str(element.get("source_trace_id") or ""))
+            if not nets:
+                continue
+            for segment in element.get("route") or []:
+                if not isinstance(segment, dict):
+                    continue
+                width = segment.get("width")
+                if not isinstance(width, (int, float)) or width <= 0:
+                    continue
+                for nid in nets:
+                    if nid not in narrowest or width < narrowest[nid]:
+                        narrowest[nid] = float(width)
+        floor = profile.warn_power_trace_mm
+        for nid, width in sorted(narrowest.items(), key=lambda kv: net_name.get(kv[0], "")):
+            if width >= floor - 1e-9:
+                continue
+            warnings.append(
+                _warning(
+                    net_name.get(nid, nid),
+                    "dfm_power_trace_width",
+                    f"power net {net_name.get(nid, nid)} is routed at "
+                    f"{width:g}mm — the same copper as a signal. The current "
+                    "maths may pass on this board, but power at signal width "
+                    "is the wrong habit; the profile's power floor is "
+                    f"{floor:g}mm (warn_power_trace_mm — an EE moves the "
+                    "line there)",
+                )
+            )
+        return warnings
+    except Exception as exc:
+        return [check_failed(f"power width scan raised {type(exc).__name__}: {exc}")]
+
+
 def _hole_floor(hole: dict, profile: FabProfile) -> float:
     """JLC publishes three drill-to-track figures, not one: 0.20mm for a via
     hole, 0.28mm for a component plated hole, 0.20mm for a non-plated one."""
@@ -772,6 +871,7 @@ def dfm_warnings(
         names = _component_names(circuit_json)
         warnings: list[Warning] = []
         warnings.extend(_hole_to_copper_warnings(circuit_json, names, profile))
+        warnings.extend(power_width_warnings(circuit_json, profile))
         board = next(
             (
                 e
@@ -799,6 +899,30 @@ def dfm_warnings(
                         "error",
                     )
                 )
+            if width and height and profile.price_tiers:
+                # Ledger #30: the fab's sample subsidy is a price cliff and
+                # the plan should only leave it knowingly. Name the money.
+                fits_tier = any(
+                    (width <= tw and height <= th)
+                    or (height <= tw and width <= th)
+                    for tw, th, _, _ in profile.price_tiers
+                )
+                if not fits_tier:
+                    tw, th, usd, label = profile.price_tiers[0]
+                    over = min(
+                        max(width - tw, height - th, 0.0),
+                        max(height - tw, width - th, 0.0),
+                    )
+                    warnings.append(
+                        _warning(
+                            "board",
+                            "dfm_price_tier",
+                            f"board {width:g}x{height:g}mm misses the "
+                            f"{tw:g}x{th:g}mm ${usd:g} {label} tier by "
+                            f"{over:g}mm — {profile.price_tier_evidence}. "
+                            "Fit the tier unless the design cannot",
+                        )
+                    )
             if product.envelope_mm is not None and width and height:
                 env_w, env_h = product.envelope_mm
                 if width > env_w + 1e-9 or height > env_h + 1e-9:
