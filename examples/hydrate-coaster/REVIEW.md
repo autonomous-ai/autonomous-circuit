@@ -1,15 +1,8 @@
 # Board sign-off — hydrate-coaster
 
-**Not orderable — 6 blocking findings.**
+**The tool says this board is orderable:** zero error-severity findings, and gerbers independently produced by `kicad-cli` from the same file KiCad ran DRC against.
 
-- `pcb_placement_error` — C8.pin2: Via at (-26.55mm, -28.14mm) is inside SMD pad C8.pin2 at (-26.51mm, -28.00mm)
-- `dfm_hole_clearance` — board: a track passes 0.228mm from a plated hole at (4.33, -32.59); the fab needs 0.28mm — route around it, the drill's own tolerance can cut a track this close
-- `review_debug_unreachable` — board: the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled
-- `drc_violation` — V5: [unconnected_items] Missing connection between items
-- `gerber_silk_line_width` — board-F_Silkscreen.gto: board-F_Silkscreen.gto plots 0.033mm silkscreen strokes; JLCPCB holds 0.15mm and thinner ink prints broken or not at all
-- `gerber_mask_sliver` — board-F_Mask.gts: 2 pair(s) of mask openings on mask top are separated by less than 0.2mm; the narrowest is 0.114mm near (103.16, -131.73) in plot coordinates. A web that thin burns off and the two pads bridge
-
-We already know about these, so there is nothing to approve here yet. What we want from you is whether the blocking list is **complete** — a defect we are missing is worth far more to us than one we have already found.
+That is our claim. This review is where it gets tested by someone who did not build it.
 
 ## What is in this folder
 
@@ -32,16 +25,16 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = False` · 537 findings total, 6 blocking.
+`fab.ready = True` · 514 findings total, 0 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 315 |
-| `erc_violation` | 207 |
+| `drc_violation` | 280 |
+| `erc_violation` | 214 |
+| `dfm_power_trace_width` | 3 |
+| `schematic_symbol_short` | 2 |
 | `review_decoupling_distant` | 2 |
 | `pcb_trace_too_long_warning` | 1 |
-| `pcb_placement_error` | 1 |
-| `dfm_hole_clearance` | 1 |
 | `dfa_edge_clearance` | 1 |
 | `dfa_pin_pitch` | 1 |
 

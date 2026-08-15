@@ -9,9 +9,18 @@ It is deliberately the **simple** one of the three reference boards: an RP2040, 
 port, two copper plates, four resistors and two LEDs. The point is to take a small board
 all the way — routed, checked, costed, reviewed — not to see how much fits on one.
 
-**It is not orderable.** Two DFM errors remain at the USB-C receptacle and `fab.ready`
-is `false`. What they are, what was tried, and why the fix is not a board-file edit are
-in `DESIGN-REVIEW.md`. A board that says so beats a board that pretends otherwise.
+**It is orderable.** `fab.ready: true` as of the 2026-08-16 build: zero error-severity
+findings, and gerbers produced by `kicad-cli` from the same file KiCad ran DRC against.
+An independent from-scratch `kicad-cli pcb drc` on the shipped `kicad-project.zip`
+reports **0 error violations and 0 unconnected items**.
+
+The last thing blocking it was not a defect in the board. `pcb_placement_error` said a
+via sat inside J1's VBUS pad; the via's center is **0.3009mm above that pad's top edge**,
+and no via on the board is inside any pad (108 vias, 174 pads, measured). One redundant
+vertex in the USB-C footprint's polygon pads — the closing vertex every geometry format
+writes — gave the pad a zero-length edge, and the upstream via-in-pad check treats every
+point in the plane as lying on a zero-length segment. Ledger #33; the ring is open at
+source now and the pipeline opens any that arrive closed.
 
 ---
 
@@ -89,8 +98,8 @@ gaps beside Y1, which produced the last clearance errors of the previous revisio
 | | |
 |---|---|
 | Board | **80 × 80 mm** squircle, corner radius 16 mm, 1.6 mm, 2 layers |
-| Warning state | **2 blocking, 4 advisory, 334 info** (+182 converter artifacts — see below) |
-| Orderable | **No.** `fab.ready: false`. Two `hole_clearance` errors at the USB-C receptacle |
+| Warning state | **0 blocking, 210 warning, 304 info** — of which 494 are tscircuit→KiCad converter artifacts (see below) |
+| Orderable | **Yes.** `fab.ready: true` (2026-08-16). Independent kicad-cli DRC: 0 error violations, 0 unconnected |
 | Envelope in `product.json` | 82 × 82 mm — inside it |
 | Placed parts | **41** |
 | Unique BOM lines | **17** (12 JLC Basic, **5 extended**) |
@@ -112,25 +121,31 @@ project's snapshot but this board does not use — they are not on the BOM.
 
 ### Warning state, honestly
 
-`ok: true`, **2 error / 186 warning / 334 info**, `fab.ready: false`.
+`ok: true`, **0 error / 210 warning / 304 info**, `fab.ready: true` (build 2026-08-16
+03:39, `autorouterEffortLevel="10x"`, one attempt).
 
-The two errors are both `hole_clearance` at `J1`: a GND track 0.115 mm and a V5 conductor
-0.133 mm from a drill, against KiCad's 0.2 mm default. **Do not order this board.** What
-was tried against them, and why the fix is not a board-file edit, is in `DESIGN-REVIEW.md`.
+**494 of the 514 findings are `drc_violation` / `erc_violation` from the tscircuit→KiCad
+converter** — `net_conflict`, `footprint_symbol_mismatch`, off-grid schematic endpoints,
+missing symbol libraries. They fire identically on a four-component probe board, so they
+say nothing about this design. The twenty that do:
 
-Of the 186 warnings, **182 are tscircuit→KiCad converter artifacts** — `net_conflict` ×94,
-`footprint_symbol_mismatch` ×42, `footprint_symbol_field_mismatch` ×40, and six
-missing/extra/duplicate-footprint notes. They fire identically on a four-component probe
-board, so they say nothing about this design. The four that do:
-
-| Warning | What it means here |
+| Finding | What it means here |
 |---|---|
-| `isolated_copper` on zone `CAP_A` | R32's exit trace slices a sliver of floating copper off electrode A |
-| `holes_co_located` ×2 | two vias drilled at the same coordinate (`V3_3`, `GND`) |
-| `pcb_trace_too_long_warning` | the crystal net routes 12.81 mm against tscircuit's 10 mm crystal rule |
+| `netclass_pair_skew` (warn) | USB_DP 51.71 mm against USB_DM 37.80 mm — 13.91 mm of skew on a 3.8 mm budget |
+| `netclass_pair_coupling` (warn) | the pair travels together for only 7% of its run |
+| `dfm_power_trace_width` ×3 (warn) | GND, V3_3 and V5 routed at 0.15 mm — signal copper on power nets (ledger #31) |
+| `pcb_trace_too_long_warning` (warn) | the crystal net routes 14.84 mm against tscircuit's 10 mm crystal rule |
+| `schematic_symbol_short` ×2 (warn) | SW2/SW3 draw a wire across the switch symbol — copper is right, the drawing is not (ledger #29) |
+| `gerber_silk_over_pad` (warn) | 30 silk strokes land inside a mask opening (ledger #16, created by the silk-floor fix) |
+| `gerber_drill_extra` (warn) | one drill hit in the packet with no matching hole in the design, at (85.31, −135.01) |
+| `review_esd_unprotected` (info) | J1.A5/J1.B5 (the CC pins) leave the board with no clamp |
+| `review_decoupling_distant` ×2 (info) | U2's nearest cap is 9.7 mm from VIN, U3's is 6.1 mm from IOVDD3 |
+| `dfa_edge_clearance` (info) | J1 sits 0.349 mm from the edge; an assembly line wants 1 mm — it is a connector, so this is the design |
+| `thermal_regulator` (info) | U2 at 0.23 W, ~59 °C junction, 66 °C inside the limit |
 
-The 334 info items are KiCad ERC/DRC noise from the same converter: off-grid schematic
-endpoints, missing symbol/footprint libraries, silk text below KiCad's 0.8 mm default.
+None of these is error severity, so none blocks the order. The two that would change the
+board on a revision are the USB pair (skew and coupling) and the power-net widths; both
+are open ledger entries whose fix is the v2 route stage, not a board-file edit.
 
 ## Enclosure interface
 
@@ -194,12 +209,10 @@ Stated plainly, because a review that hides these is worse than no review.
    does not place. Deliberate; revisit if bring-up goes badly.
 6. **Thermals, EMI and signal integrity are modelled, not simulated.** 0.18 W in a
    SOT-223 is far inside its envelope by arithmetic, not by measurement.
-7. **Two DFM errors are open and we could not close them.** Fifteen builds; the best
-   measured result is the one committed here. Moving the regulator, the LEDs, the pour
-   anchors, tightening the router's clearance tolerances and going to four layers each
-   made it worse, not better. The three fixes that would work — widening the C165948
-   land pattern, four layers, or a hand-routed connector escape — are all outside the
-   board file.
+7. **The board is fab-ready; it has never been fabricated.** Zero error findings and a
+   clean independent DRC mean the packet is *orderable*, not that the board *works* —
+   that is the two-bar doctrine in `projects/circuit/north-star.md`, and the second bar
+   is decided by a first article. Everything in this list is why.
 8. **Cost and current are estimates.** Prices are LCSC catalogue figures read on
    2026-08-10; the current budget is the blocks' planning figures, not a meter.
 

@@ -53,7 +53,7 @@
    "refdes": "SW2",
    "rotationDeg": 180.0,
    "xMm": -28.0,
-   "yMm": -10.0
+   "yMm": -6.5
   },
   {
    "bodyMm": [
@@ -66,7 +66,7 @@
    "refdes": "SW3",
    "rotationDeg": 180.0,
    "xMm": -12.0,
-   "yMm": -10.0
+   "yMm": -6.5
   }
  ],
  "entryKind": "enclosure",
