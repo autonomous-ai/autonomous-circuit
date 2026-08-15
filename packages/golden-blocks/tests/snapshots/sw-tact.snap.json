@@ -16,7 +16,6 @@
   "pcb_silkscreen_text": 1,
   "pcb_smtpad": 4,
   "pcb_solder_paste": 4,
-  "pcb_trace": 2,
   "schematic_component": 1,
   "schematic_group": 2,
   "schematic_net_label": 2,
@@ -29,11 +28,11 @@
   "source_net": 2,
   "source_port": 4,
   "source_project_metadata": 1,
-  "source_trace": 4
+  "source_trace": 2
  },
  "nets": [
   "BTN1",
   "GND"
  ],
- "traceCount": 4
+ "traceCount": 2
 }

@@ -237,6 +237,15 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
         internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-15.5} schX={14} schY={-10} />
+      {/* Copper stays 4-tie here ON MEASUREMENT (2026-08-15): the diagonal
+          rewire (pin 1 in, pin 4 out — see sw-tact) reshuffled this block's
+          route and landed a via 0.0787mm from the Y1→XIN crystal trace
+          against the 0.09 floor, 5/5 gauntlet runs, identical to the micron;
+          the 4-tie shape routes clean. Same-group ties are safe under the
+          confirmed {1,2}/{3,4} pairing (LCSC symbol for C318884, 2026-08-15;
+          first-article continuity is still the final check), and the
+          declared internallyConnectedPins keeps the schematic truthful —
+          the ties fold into the symbol instead of drawing as a short. */}
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1" />
       <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to=".SW2 > .pin1" />

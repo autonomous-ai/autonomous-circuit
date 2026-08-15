@@ -133,14 +133,22 @@ class CircuitGraph:
             for e in elements
             if e["type"] == "source_component"
         }
-        # Union-find over port ids + net ids via source_trace membership.
+        # Union-find over port ids + net ids via source_trace membership,
+        # plus declared component-internal ties (`internallyConnectedPins` →
+        # source_component_internal_connection). A switch's two same-terminal
+        # pads are permanently bonded inside the part, so they are one
+        # electrical group whether or not board copper visits both — which is
+        # exactly the diagonal-wiring shape sw-tact ships (ledger #29).
         self._parent: dict[str, str] = {}
         for e in elements:
-            if e["type"] != "source_trace":
+            if e["type"] == "source_trace":
+                members = list(e.get("connected_source_port_ids") or []) + [
+                    f"net:{nid}" for nid in (e.get("connected_source_net_ids") or [])
+                ]
+            elif e["type"] == "source_component_internal_connection":
+                members = list(e.get("source_port_ids") or [])
+            else:
                 continue
-            members = list(e.get("connected_source_port_ids") or []) + [
-                f"net:{nid}" for nid in (e.get("connected_source_net_ids") or [])
-            ]
             for m in members[1:]:
                 self._union(members[0], m)
 

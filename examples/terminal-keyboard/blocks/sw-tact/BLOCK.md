@@ -5,8 +5,10 @@ ground when pressed. Active-low by convention: pull the signal side up (the
 RP2040 and ESP32-S3 internal pull-ups are enough — no external resistor is part
 of this block).
 
-**Status:** v1. Compile-verified against tscircuit@0.0.2279; not yet
-hardware-verified (first article pending — see the pad-pairing note below).
+**Status:** v1.1 (2026-08-15, from the first human EE review). Diagonal
+wiring + declared internal pairing; compile-verified against
+tscircuit@0.0.2279; not yet hardware-verified (first article pending — see
+the pad-pairing note below).
 
 ## Pin contract (what the block exposes)
 
@@ -15,8 +17,13 @@ hardware-verified (first article pending — see the pad-pairing note below).
 | `net.BTN1` (default; `signal` prop overrides) | the switched signal — pull it up |
 | `net.GND` (default; `to` prop overrides) | the other terminal |
 
-Both pads of each internal terminal are tied: pins 1+2 → `signal`, pins 3+4 →
-`to`. A single cracked joint therefore never opens the circuit.
+Wiring is **diagonal**: `signal` → pin 1, pin 4 → `to`. Pins 1 and 4 are on
+opposite terminals under either side-pairing a 4-pad tact switch can have, so
+the block is correct even if the pairing evidence below is wrong. The internal
+pairing itself is declared on the component (`internallyConnectedPins`), which
+is what makes every schematic export draw a working switch instead of a
+same-net tie looping across the symbol (ledger #29 — the first human EE review
+read that loop as "every key is dead").
 
 ## Rail budget
 
@@ -32,10 +39,14 @@ job; there is no RC in this block.
 
 ## Design-rule notes
 
-- **Pad pairing (1+2 / 3+4) is the standard TS-1187A arrangement but is not yet
-  hardware-verified** — confirm on the first article before a key-grid board
-  goes out. If the real pairing is 1+3 / 2+4, the block's tie traces become a
-  permanent short and every board using it is scrap.
+- **Pad pairing evidence (2026-08-15):** LCSC's own schematic symbol for
+  C318884 (EasyEDA API) draws internal bars joining pins 1–2 and 3–4 with the
+  actuator between the rows — the standard TS-1187A arrangement. That is
+  strong evidence, not a measurement: **first-article continuity remains the
+  final check.** The stakes are lower than they were: since v1.1 the copper is
+  diagonal (pin 1 → pin 4), which is correct under either side-pairing, so a
+  wrong pairing no longer scraps the board — it only makes the declared
+  `internallyConnectedPins` symbol annotation wrong on paper.
 - Instantiate per key by overriding `name` (SW10, SW11, … for grids) and
   `signal` (one net per key, or a row/column net for a matrix).
 - Default refdes SW1 is the global v1 allocation; `rp2040-core` already uses SW2

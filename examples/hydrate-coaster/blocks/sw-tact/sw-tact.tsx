@@ -11,9 +11,14 @@
  * wire looping across the switch — which is exactly what the first human EE
  * review read as "every key is shorted" (ledger #29).
  *
- * Wiring: `signal` net → pins 1/2, pins 3/4 → `to` net (default GND).
- * Active-low with a pull-up on the signal side (MCU internal pull-ups
- * suffice on RP2040/ESP32).
+ * Wiring: **diagonal** — `signal` net → pin 1, pin 4 → `to` net (default
+ * GND). Pins 1 and 4 sit on opposite terminals under either of the two
+ * side-pairings a 4-pad tact switch can have ({1,2}/{3,4} or {1,3}/{2,4}),
+ * so the block works even if the pairing evidence is wrong; the old
+ * both-pads tie would short the switch permanently under the other pairing
+ * (the "every board is scrap" bet BLOCK.md used to carry). Active-low with
+ * a pull-up on the signal side (MCU internal pull-ups suffice on
+ * RP2040/ESP32).
  *
  * Land pattern: footprinter "dfn4_p3.6998mm_w7mm_pw0.75mm" — 98.81% copper
  * IoU against the EasyEDA pattern (tscircuit-cli import C318884, 2026-08-10).
@@ -47,8 +52,6 @@ export const SwTact = (props: {
         schY={0}
       />
       <trace name={`TR_${sw}_p1`} from={`.${sw} > .pin1`} to={`net.${signal}`} />
-      <trace name={`TR_${sw}_p2`} from={`.${sw} > .pin2`} to={`net.${signal}`} />
-      <trace name={`TR_${sw}_p3`} from={`.${sw} > .pin3`} to={`net.${to}`} />
       <trace name={`TR_${sw}_p4`} from={`.${sw} > .pin4`} to={`net.${to}`} />
     </group>
   )
