@@ -96,18 +96,32 @@ the column trace runs down; below about 9.5 mm the channel closes and the
 switch courtyards touch. Real thumb keyboards live at 9–12 mm, so 10 mm is
 inside the band, at the tight end.
 
-The diode sits 3.4 mm left and 4.4 mm below its switch. The 4.4 mm is measured,
+The diode sits 1.4 mm left and 4.4 mm below its switch. The 4.4 mm is measured,
 not guessed: at 3.6 mm the SOD-123 courtyard (4.7 × 2.3 mm) overlapped the
 switch courtyard (7.5 × 5.4 mm) by 0.25 mm and the build returned 100
-`pcb_courtyard_overlap_error`s.
+`pcb_courtyard_overlap_error`s. The 1.4 mm is measured too, and it used to be
+3.4 mm: at 3.4 mm the diode reached 2.0 mm past its own switch's left pad, so
+column 0's five diodes hung 0.75 mm off a 100 mm board. Tucked to 1.4 mm the
+diode's copper sits inside the switch's own 7.0 mm land, and the channel
+between columns at the diode row opens from 2.1 mm split around an anode pad
+to a clear 3.0 mm.
 
-**Board: 112 × 90 mm, 2 layers, 1.6 mm.** Ten columns at 10 mm is 100 mm of key
-field on its own; 112 mm adds edge margin plus the column of mounting holes.
-The key field occupies the top 48 mm and the electronics live in a 29 mm strip
-underneath. It is a big board — a landscape two-thumb handheld, not a
-palm-sized one — and that size is a direct consequence of the switch land
-pattern. A smaller Terminal needs a smaller switch, which is a new golden
-block and a sourcing pass, not a layout change.
+**Board: 100 × 90 mm, 2 layers, 1.6 mm.** Ten columns at 10 mm is 100 mm of key
+field measured centre to centre of the outer columns' *keycaps*; the copper is
+97 mm and the board wraps it in 1.5 mm of margin a side. The key field occupies
+the top 48 mm and the electronics live in a 29 mm strip underneath. It is a big
+board — a landscape two-thumb handheld, not a palm-sized one — and that size is
+a direct consequence of the switch land pattern. A smaller Terminal needs a
+smaller switch, which is a new golden block and a sourcing pass, not a layout
+change.
+
+It was 112 mm until 2026-08-16, and the 12 mm was a screw column, not circuit.
+JLCPCB's $2 sample price stops at 100 × 100 mm; 112 × 90 quoted **$8.90 for
+five bare boards**, 4.5× for margin (EE review 2026-08-15, finding 5). Measured
+on the built board, the switch pads span 97.00 mm and all copper spans
+99.00 mm — but the M2.5 drills spanned 107.70 mm and their keepouts 108.20 mm,
+because the six screws sat outboard of the keycaps at x = ±52.5. The circuit
+always fitted; the mounting did not.
 
 The height started at 84 mm and grew to 90 mm for one reason, recorded because
 it is the kind of trade that usually goes undocumented: the last blocking
@@ -116,11 +130,46 @@ only lever left that added room without moving a key. It took the board from
 **3 blocking errors to 1**. The spare margin lands at the top of the board,
 under the screen bezel, where nothing else needs it.
 
-**Mechanical:** six M2.5 clearance holes (2.7 mm) at x = ±52.5, y = +41 / 0 /
-−41. The mid-span pair is not decoration — a 112 mm board flexes under thumbs,
-and those two screws are what stop the middle of the key field from moving.
-USB-C is on the **bottom edge** at x = −23, so the cable runs down and away
-from the hands, out from under the screen.
+**Mechanical:** six M2.5 clearance holes (2.7 mm) at x = −47 / 0 / +47,
+y = ±42 — three along the top rail, three along the bottom rail. They used to
+be six in the two *side* rails at x = ±52.5, and the shrink evicted them: a
+2.7 mm drill carries a 1.6 mm keepout and the switch copper reaches
+4.5 × pitch + 3.5, so a flank screw needs x ≥ 4.5 × pitch + 5.1 while the board
+allows x ≤ 48.4. Those cross at a 9.62 mm pitch, with the keepout touching both
+the copper and the edge. **Nothing above a 9.6 mm pitch has a flank screw on a
+100 mm board**, so this is a body change, not a margin trim — see *What the
+printed body has to change* below. The mid-span pair moved from the middle of
+the side edges to the middle of the top and bottom edges, which is the right
+swap now that 100 mm is the long span: a thumb press at the centre of the key
+field is 42 mm from a screw instead of 63 mm. USB-C is on the **bottom edge**
+at x = −23, so the cable runs down and away from the hands, out from under the
+screen.
+
+### What the printed body has to change
+
+| | was | is |
+|---|---|---|
+| Board outline | 112 × 90 × 1.6 mm | **100 × 90 × 1.6 mm** |
+| Screw positions | x = ±52.5, y = +41 / 0 / −41 | **x = −47 / 0 / +47, y = ±42** |
+| Which rails carry screws | the two side rails | **the top and bottom rails** |
+| LED pipe | x = −48 | **x = −45.8** |
+
+Three consequences the body owner has to design for, stated as numbers because
+none of them is checkable from the board file:
+
+- **The side rails lose their bosses entirely.** There is nowhere to put one:
+  copper reaches x = ±48.500 and courtyards ±48.750, leaving 1.25 mm of flank.
+  The stiffness those two mid-span screws bought has to come from the body
+  pressing on the bare underside instead — all 137 parts are top-side, so the
+  whole bottom face is available for a rib. That is a first-principles claim,
+  not an FEA result: nobody has simulated it.
+- **A boss on the top or bottom rail has 1.65 mm of board outboard of its
+  drill** (drill edge at |y| = 43.35, board edge at 45). It wants a flat washer
+  face, not a countersink.
+- **Top-row keycaps must not reach above y = +40.65**, where the top drills
+  start. On a 10 mm pitch that is a cap no taller than **9.3 mm**. The cap
+  dimension is not in this repo, so this is the one number the mechanical side
+  has to confirm rather than read.
 
 ## Parts and cost
 
@@ -137,18 +186,23 @@ feeder fees). Parts are roughly **$5.70 a board** at LCSC list
 (RP2040 $0.99, flash $2.45, 50 switches $0.90, 50 diodes ≈ $0.50, crystal
 $0.33, the rest under a dollar), so about **$59 for five boards, ≈ $12 each**.
 
-Two honest corrections to that number. The `$2.00` PCB line is JLCPCB's flat
-prototype price, which applies to boards up to 100 × 100 mm — this one is
-112 × 90 mm and falls outside it, so budget **$15–25** for the bare boards and
-about **$75–85 all-in for five**, which is the profile's own
-`cost_band_assembled_5x_usd` of $75–110. And every number here is *modelled*,
-not quoted: nobody has put this board through a real JLC cart.
+The `$2.00` PCB line is JLCPCB's flat prototype price for boards up to
+100 × 100 mm, and **as of 2026-08-16 this board earns it**. At 112 × 90 it did
+not: five bare boards quoted **$8.90**, so the modelled line under-reported by
+4.5× and the honest figures were $15–25 bare and $75–85 assembled. Shrinking to
+100 × 90 puts the sample order back at **$2.00 for five bare boards** — the
+whole point of the change, and worth more than it looks, because it is the
+number a person sees first when they try to make one.
+
+Still true: every number here is *modelled*, not quoted. Nobody has put this
+board through a real JLC cart, and the $8.90 above is the one figure that came
+from a real quote (2026-08-15).
 
 ## Building it yourself
 
 ```bash
-CIRCUIT_PARTS_ENGINE=off python3.12 skills/circuitcode/scripts/circuit \
-  /abs/path/examples/terminal-keyboard/boards/main.tsx --wall-clock-s 2400
+python3.12 skills/circuitcode/scripts/circuit \
+  /abs/path/examples/terminal-keyboard/boards/main.tsx --wall-clock-s 5400
 ```
 
 Budget **~17 minutes** per build: the source sets
@@ -177,30 +231,53 @@ orderable, and that error is documented below rather than papered over.
 ## Honest limits
 
 **This board is not fab-ready. `fab.ready` is `false` on exactly one blocking
-error, and the reason is routing, not sourcing.** Final state:
+error, and the reason is routing, not sourcing.** State as of 2026-08-16, from
+two consecutive builds of the 100 × 90 source that produced byte-identical
+gerbers (comments and creation dates stripped):
 
 | | |
 |---|---|
-| blocking (`error`) | **1** — a V5 track 0.1196 mm from one of J1's plated legs, against a 0.2 mm hole-clearance rule |
-| `warning` | 358 — of which 267 are kicad-converter noise (`footprint_symbol_mismatch` ×134, `footprint_symbol_field_mismatch` ×133) and 80 are `net_conflict` pad-vs-schematic naming from the same converter |
-| `info` | 888 |
+| blocking (`error`) | **1** — `dfm_hole_clearance`: one of U4's pads passes 0.130 mm from a via at (10.12, −20.90), against a 0.20 mm rule. 0.07 mm short. |
+| `warning` | 418 — of which 377 are `drc_violation` and 369 of those are kicad-converter noise (`footprint_symbol_mismatch` ×139, `footprint_symbol_field_mismatch` ×137, `net_conflict` ×93) |
+| `info` | 742 |
 | `fab.ready` | **false** — one error stands, so `ORDER.md` is not written |
 | gerber source | `kicad-cli` 10.0.5 — the shipping exporter, not the fallback |
-| BOM | 134 lines, **134 orderable**, every row with an LCSC number |
+| BOM | 20 grouped lines, **17 orderable** (JLC's own format, ledger #32) |
+| route | 252 PCB traces, 213 vias, **zero** errors in the compiled circuit.json |
 
-All 134 BOM lines carry an LCSC number and the 50-key matrix routes clean —
-**zero errors anywhere in the key field**. The one blocking warning, and every
-warning that matters, sits in a roughly 30 × 20 mm patch around the MCU and the
-USB connector. Details, with numbers, below.
+**The shrink to 100 × 90 took this from 12 blocking to 1.** Measured on the
+same pipeline and the same command: the 112 × 90 source rebuilt on 2026-08-16
+returns **12** blocking — four `shorting_items`, four `solder_mask_bridge`, two
+`clearance`, one `hole_clearance` and one `dfm_hole_clearance` — because the
+route it lands is incomplete in the key field. Tucking the diodes under their
+switches opens the inter-column channel from 2.1 mm to 3.0 mm, and the same
+252 traces come back clean there. (The stale `fab.ready: true` you may find in
+an older commit of `main.board.json` predates the EE-review pipeline changes;
+it is not a number this source ever reaches today.)
+
+The 50-key matrix routes clean — **zero errors anywhere in the key field**. The
+one blocking error, and every warning that matters, sits in a roughly
+30 × 20 mm patch around the MCU and the USB connector. It is ledger #11's open
+class: the router has no repair for a via it parks too close to a pad, and
+nothing in the board source moves it. Details, with numbers, below.
+
+One more thing an EE will spot in the packet: `board.drl` carries **228 drill
+hits against 225 holes and vias in the design**. The three extras are real and
+ours — `kicad_normalize` bridges B.Cu dead-ends that stop under a top-only pad,
+and it added three vias after `circuit.json` was written. Two of them drill
+0.15 mm and 0.20 mm, under the `minViaHoleDiameter="0.3mm"` this board
+declares. Legal at JLCPCB, not what the board asked for; recorded as ledger
+#37.
 
 ### How the router actually behaved
 
 The claim that tscircuit's default router "degrades past roughly 50 traces" is
-not what happened here. This board has **424 source traces, 349 routed PCB
-traces and 259 vias**, and the router placed all of them — the 50-key matrix,
-500 switch-pad connections, 100 diode connections and the fifteen matrix nets
-fanning into the QFN — in about **four and a half minutes**, with **zero
-unrouted nets**. Scale was not the problem.
+not what happened here. This board has **327 source traces, 252 routed PCB
+traces and 213 vias** (2026-08-16; it was 424/349/259 before `sw-tact` went
+diagonal and dropped 100 redundant tie traces), and the router placed all of
+them — the 50-key matrix, 500 switch-pad connections, 100 diode connections and
+the fifteen matrix nets fanning into the QFN — with **zero unrouted nets and
+zero errors in the compiled circuit.json**. Scale was not the problem.
 
 Density was. Every remaining error lives in the electronics strip:
 
@@ -222,13 +299,21 @@ Four things were tried and measured. Blocking-error counts, same board:
 | + crystal cluster given room (a block fix) | **3** | 16:40 |
 | + board 84 → 90 mm, strip moved down 3 mm | **1** | 17:10 |
 | + one more placement fix on the last error | **26** | 17:00 |
+| 2026-08-16 pipeline, unchanged 112 × 90 source | **12** | ~18:00 |
+| + board 112 → 100 mm, diodes tucked 3.4 → 1.4 mm | **1** | ~18:00 |
 
-The last row is the important one and it is why this stopped at 1: fixing the
-final error by moving the VBUS bulk cap re-solved the whole board and produced
-26 different errors, including two phantom `Track [<no net>]` segments, one
-21.2 mm long and sitting 0.000 mm from a drill. It was reverted. At 2 layers
-and 0.2 mm, "fix this error" and "keep the other 25 fixed" are not the same
-request.
+The seventh row is the one that taught the most: fixing the final error by
+moving the VBUS bulk cap re-solved the whole board and produced 26 different
+errors, including two phantom `Track [<no net>]` segments, one 21.2 mm long and
+sitting 0.000 mm from a drill. It was reverted. At 2 layers and 0.2 mm, "fix
+this error" and "keep the other 25 fixed" are not the same request.
+
+The last two rows are the 2026-08-16 shrink, measured the same way. The
+unchanged 112 × 90 source no longer reaches 1 on the current pipeline — it
+returns 12, mostly shorts in the key field — and the narrower board with the
+diodes tucked returns to 1. That is the opposite of the intuition that a
+smaller board is a harder route: the tuck moved 50 parts *out* of the
+inter-column channels, and the channel is where the column traces run.
 
 1. **Raising the clearance floor made it worse.** Setting
    `minTraceToPadEdgeClearance` / `minViaEdgeToPadEdgeClearance` to 0.15 mm did
@@ -294,7 +379,7 @@ matrix, which is the part it is good at.
   straight buses means `pcbRouteHints` on fifteen nets, which is a real next
   step and was not taken here.
 - **There is no ground pour.** `main.circuit.json` contains zero copper zones:
-  GND on this 112 × 90 mm board is a web of 0.2 mm traces serving 134 parts.
+  GND on this 100 × 90 mm board is a web of 0.2 mm traces serving 134 parts.
   At ~150 mA total the DC drop does not matter; the return path and the loop
   area do, and neither is modelled by anything in this pipeline.
 - **`bom.csv` ships with empty `Comment` and `Footprint` columns.** Only

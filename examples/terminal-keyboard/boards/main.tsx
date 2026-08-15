@@ -9,7 +9,7 @@
  * Blocks used: rp2040-core, usb-c-data, ldo-3v3, status-led, sw-tact (x50)
  * Glue:        50x 1N4148W (SOD-123, LCSC C81598), 6x M2.5 mounting holes
  * Rails:       V5 (USB VBUS) -> V3_3 (ldo-3v3)
- * Envelope:    112 x 90 mm, 2 layers, 1.6mm — matches product.json
+ * Envelope:    100 x 90 mm, 2 layers, 1.6mm — matches product.json
  *
  * Matrix wiring is COL2ROW: net.COL<c> -> D<n> anode, D<n> cathode -> the
  * per-key node net K<r><c>, node -> SW<n> -> net.ROW<r>. Firmware drives one
@@ -36,23 +36,45 @@ import { MountingHole } from "../blocks/glue"
  *  leaving a 2.1mm channel between columns for the column trace. */
 const PITCH = 10
 
-/** Board outline. 10 columns x 10mm = 100mm of key field, plus edge margin
- *  and the mounting-hole column; the electronics strip lives below the keys.
- *  90mm tall rather than 84: the last blocking errors are all crowding in the
- *  MCU escape, and 6mm more strip is the only lever left that adds room
- *  without moving a key. The spare margin lands at the top, under the screen
- *  bezel, where nothing else needs it.
+/** Board outline. 10 columns x 10mm = 100mm of key field, plus edge margin;
+ *  the electronics strip lives below the keys. 90mm tall rather than 84: the
+ *  last blocking errors are all crowding in the MCU escape, and 6mm more
+ *  strip is the only lever left that adds room without moving a key. The
+ *  spare margin lands at the top, under the screen bezel, where nothing else
+ *  needs it.
  *
- *  Why 112 wide, 12mm over the <=100x100mm $2 sample tier (5 boards quoted
- *  $8.90 — ledger #30): measured on the built board, content spans 107.7mm —
- *  the key field's copper alone is ~98mm (switch lands at colX 0..9), the
- *  diode column hangs to -50.2mm, and the six M2.5 mounting-hole bosses sit
- *  at x=+-52.5 because the printed body screws into them there. No margin
- *  trim reaches 100mm; fitting the tier means moving the enclosure's screw
- *  bosses inboard and tucking the diodes under the switches — a physical
- *  body change, not a board-margin change, so it is Dee's call, not a
- *  layout tweak. */
-const BOARD_W = 112
+ *  Why 100 wide, and what it cost. 112x90 missed the <=100x100mm $2 sample
+ *  tier by 12mm and quoted $8.90 for five bare boards — 4.5x, for margin
+ *  (ledger #30, EE review 2026-08-15 finding 5). Dee approved the physical
+ *  change on 2026-08-16; it is landed here and the printed body changes with
+ *  it. What 112 was actually made of, measured on the built board rather
+ *  than estimated:
+ *
+ *      switch pads      -48.500 .. +48.500   97.00mm
+ *      all copper       -50.500 .. +48.500   99.00mm  (diode column is the -x end)
+ *      M2.5 drills      -53.850 .. +53.850  107.70mm
+ *      drill keepouts   -54.100 .. +54.100  108.20mm
+ *
+ *  Read that table again: the widest thing on the board was a screw. The
+ *  circuit fitted under 100mm all along; the mounting column did not. 112 is
+ *  2 x (52.5 screw centre + 3.5 to the edge), and 52.5 is 7.5mm outboard of
+ *  the last key centre — a screw column parked beside the keycaps. The
+ *  earlier note here said content spans 107.7mm and treated that as a wall;
+ *  107.7 IS the mounting holes.
+ *
+ *  And no screw goes back beside the key field at this size. A 2.7mm drill
+ *  carries a 1.6mm keepout, the switch copper reaches 4.5*PITCH + 3.5, so a
+ *  flank screw needs x >= 4.5*PITCH + 5.1 and the board allows x <= 48.4.
+ *  Those cross at PITCH = 9.62 — and that is with the keepout touching both
+ *  the copper and the board edge. Nothing above a 9.6mm pitch has a flank
+ *  screw on a 100mm board, so this was never a margin trim.
+ *
+ *  Three moves get to 100x90 with the 10mm pitch untouched: the diodes tuck
+ *  2.0mm right (below), the status LED shifts 2.2mm east (below), and all six
+ *  screws leave the side rails for the top and bottom rails (below). Copper
+ *  now stops at +-48.500 and courtyards at +-48.750, so the board keeps
+ *  1.50mm of copper-to-edge and 1.25mm of body-to-edge on each flank. */
+const BOARD_W = 100
 const BOARD_H = 90
 
 const colX = (c: number) => -45 + PITCH * c
@@ -94,14 +116,21 @@ const keyCells = () => {
       // <group>. A group with no pcbX/pcbY hands the board to the auto-pack
       // solver, which throws away every coordinate computed here.
       out.push(
-        /* COL2ROW: column -> anode, cathode -> the per-key node */
+        /* COL2ROW: column -> anode, cathode -> the per-key node.
+           x - 1.4, not x - 3.4: at -3.4 the SOD-123 body reached 2.0mm past
+           its own switch's left pad, so column 0's five diodes hung 0.75mm
+           off a 100mm board. Tucked to -1.4 the diode's copper (x -3.5 ..
+           x +0.7) sits inside the switch's own 7.0mm land, so the flank is
+           set by the switches alone. The channel between columns at the
+           diode row goes from 2.1mm split around an anode pad to a clear
+           3.0mm, which is the routing the tuck buys back. */
         <diode
           key={`d${n}`}
           name={d}
           footprint="sod123"
           supplierPartNumbers={{ jlcpcb: ["C81598"] }}
           manufacturerPartNumber="1N4148W"
-          pcbX={x - 3.4}
+          pcbX={x - 1.4}
           pcbY={y - 4.4}
           schX={sx - 3}
           schY={sy}
@@ -234,27 +263,69 @@ export default () => (
         and out of the USB pair's lane; V3_3 leaves as one wide net eastward. */}
     <Ldo3v3 pcbX={-40} pcbY={-27} schX={-24} schY={-16} />
 
-    {/* proof of life, next to the port so it shows through the body's LED pipe */}
-    <StatusLed rail="V3_3" led="LED1" r="R20" pcbX={-48} pcbY={-32} schX={26} schY={-16} />
+    {/* proof of life, next to the port so it shows through the body's LED pipe.
+        x=-45.8, not -48: at -48 LED1's courtyard reached -49.680, which is
+        0.320mm from a 100mm edge — inside JLCPCB's 1.0mm conveyor rail. 2.2mm
+        east puts it at -47.480, clear of the 2.5mm body-to-edge band, and
+        still leaves 0.44mm of courtyard between R20 and the LDO. The body's
+        LED pipe moves 2.2mm with it. */}
+    <StatusLed rail="V3_3" led="LED1" r="R20" pcbX={-45.8} pcbY={-32} schX={26} schY={-16} />
 
-    {/* ---- the printed body needs something to hold: 6x M2.5 on a 105mm x
-            38mm rectangle plus mid-span pairs (a 112mm board flexes under
-            thumbs; the mid holes are what stop it) ---- */}
     {/* SWD access: outboard of the flash in open copper (measured clear 2026-08-14) */}
     <DebugPort pcbX={38} pcbY={-33} />
 
-    <MountingHole name="H1" diameter={2.7} pcbX={-52.5} pcbY={41} />
-    <MountingHole name="H2" diameter={2.7} pcbX={52.5} pcbY={41} />
-    <MountingHole name="H3" diameter={2.7} pcbX={-52.5} pcbY={0} />
-    <MountingHole name="H4" diameter={2.7} pcbX={52.5} pcbY={0} />
-    <MountingHole name="H5" diameter={2.7} pcbX={-52.5} pcbY={-41} />
-    <MountingHole name="H6" diameter={2.7} pcbX={52.5} pcbY={-41} />
+    {/* ---- the printed body needs something to hold: 6x M2.5, all six now on
+            the top and bottom rails. THIS CHANGES THE PRINTED BODY. The
+            screws used to live in the two side rails at x=+-52.5 (y=+41/0/-41);
+            on a 100mm board there is no side rail left to put them in. The key
+            field's copper already reaches +-48.500, and a 2.7mm drill needs
+            1.6mm of keepout, so the innermost legal screw centre beside the
+            keys is x=50.35 — 0.35mm outside a 100mm board. That is true at
+            every pitch above 9.40mm, so this is not a margin trim: the side
+            bosses are gone and the body carries that load on the bare
+            underside instead.
 
+            Where they went, and how much clear board each one has, measured
+            on the post-shrink placement (keepout edge to the nearest pad or
+            courtyard; the router's own vias are excluded because it replaces
+            them every build):
+
+              (-47, +42)  1.70mm    (0, +42)  1.93mm    (+47, +42)  1.70mm
+              (-47, -42)  7.11mm    (0, -42)  2.50mm    (+47, -42)  8.78mm
+
+            Every drill keeps 1.65mm of FR4 to the board edge on both axes,
+            and 1.40mm from its keepout. The mid-span pair moved from the
+            middle of the side edges to the middle of the top and bottom
+            edges, which is the right swap now that 100mm is the long span:
+            a thumb press at the centre of the key field is 42mm from a screw
+            instead of 63mm.
+
+            Two things the mechanical side has to hold, because the board
+            cannot check them: the top row's keycaps must not reach above
+            y=+40.65 (the top drills start there), which on a 10mm pitch means
+            a cap no taller than 9.3mm; and a boss on the top or bottom rail
+            has 1.65mm of board outboard of its drill, so it wants a washer
+            face, not a countersink.
+
+            Declare them in H-number order. A <hole>'s name never reaches
+            circuit.json, so enclosure.json numbers the holes by the order
+            they appear in the file — write them out of order and the body's
+            H3 is a different screw from this file's H3. ---- */}
+    <MountingHole name="H1" diameter={2.7} pcbX={-47} pcbY={42} />
+    <MountingHole name="H2" diameter={2.7} pcbX={0} pcbY={42} />
+    <MountingHole name="H3" diameter={2.7} pcbX={47} pcbY={42} />
+    <MountingHole name="H4" diameter={2.7} pcbX={-47} pcbY={-42} />
+    <MountingHole name="H5" diameter={2.7} pcbX={0} pcbY={-42} />
+    <MountingHole name="H6" diameter={2.7} pcbX={47} pcbY={-42} />
+
+    {/* moved off centre: H5's drill now occupies y -43.35 .. -41.15 at x=0,
+        which is where this line used to sit. x=24 is the empty stretch of the
+        bottom rail between H5 and H6. */}
     <silkscreentext
       text="AUTONOMOUS TERMINAL KEYBOARD"
       layer="top"
-      pcbX={0}
-      pcbY={-43.4}
+      pcbX={24}
+      pcbY={-42.6}
       fontSize="1.4mm"
       anchorAlignment="center"
     />

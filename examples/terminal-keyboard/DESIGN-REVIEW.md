@@ -12,6 +12,15 @@ gauntlet, so the twelve builds circuitcode spent getting from
 its own repair loop, and they are recorded in README → *How the router actually
 behaved*. Round 1 below is the first time the panel scored anything.
 
+**Stale geometry below, kept as the record of what was scored.** Round 1 read a
+112 × 90 mm board. On 2026-08-16 the board became **100 × 90 mm** so it fits
+JLCPCB's $2 sample tier — the diodes tucked 2.0 mm right, the status LED moved
+2.2 mm east, and all six M2.5 holes left the side rails for the top and bottom
+rails at x = −47 / 0 / +47, y = ±42. That answers the *cost* note on the board
+outline and rewrites the *product-fit* note on H1–H6; it does not touch the
+`sw-tact` pairing risk, the test-point gap or the routing note. See
+`boards/main.tsx` and README → *What the printed body has to change*.
+
 ---
 
 ## Round 1 — board 112 × 90 mm, 1 blocking error
