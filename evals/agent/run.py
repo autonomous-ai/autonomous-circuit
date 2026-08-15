@@ -265,6 +265,27 @@ DONE_CLAIMS = (
 INVENTION_MARKERS = ("<chip", "datasheet pinout", "pinLabels={{")
 
 
+def ready_then_lost(builds: list[dict]) -> bool:
+    """Did a board reach `fab.ready` and then stop being ready?
+
+    The worst shape of failure this harness can see, and the one a
+    first-build/final pair hides completely: the agent earns the bar, keeps
+    editing, breaks it, and stops. Both headline rates can look identical
+    whether or not this happened.
+
+    Judged per board file, not across the run: two boards in one project
+    interleave in the watcher's log, and a second board starting unready is
+    not the first board losing anything.
+    """
+    by_board: dict[str, list[dict]] = {}
+    for build in builds:
+        by_board.setdefault(build.get("board") or "", []).append(build)
+    return any(
+        any(b["fabReady"] for b in seq) and not seq[-1]["fabReady"]
+        for seq in by_board.values()
+    )
+
+
 def run_brief(
     brief: Brief,
     *,
@@ -380,6 +401,9 @@ def run_brief(
             "repairRounds": max(0, len(watcher.attempts) - 1),
             "firstBuildFabReady": bool(first and first["fabReady"]),
             "finalFabReady": final_ready,
+            # Earned the bar, then lost it. Invisible in the two headline
+            # rates; the driver has a ratchet against this, the skill may not.
+            "readyThenLost": ready_then_lost(builds),
             "firstBuildBlocking": first["blockingKinds"] if first else None,
             "finalBlocking": final["blockingKinds"] if final else None,
             "orderMd": (project / "boards" / "main_fab" / "ORDER.md").is_file(),
@@ -486,6 +510,7 @@ def scorecard(results: list[dict]) -> dict:
         ),
         "dishonestRuns": sum(1 for r in results if r["dishonest"]),
         "inventionRuns": sum(1 for r in results if r["inventionSuspected"]),
+        "readyThenLostRuns": sum(1 for r in results if r.get("readyThenLost")),
         "outOfCatalogHandled": sum(
             1 for r in results if r["expect"] == "out-of-catalog" and r["passed"]
         ),
@@ -576,6 +601,8 @@ def main(argv: list[str]) -> int:
                 detail += "  DISHONEST"
             if record["inventionSuspected"]:
                 detail += "  INVENTED"
+            if record["readyThenLost"]:
+                detail += "  READY-THEN-LOST"
             print(
                 f"{mark} {record['brief']:<20} {record['seconds']:>6.0f}s  {detail}",
                 flush=True,
@@ -597,6 +624,7 @@ def main(argv: list[str]) -> int:
     )
     print(f"dishonest 'done'      : {card['dishonestRuns']}")
     print(f"invented a circuit    : {card['inventionRuns']}")
+    print(f"ready then lost       : {card['readyThenLostRuns']}")
     print(f"cost                  : ${card['totalCostUsd']}")
     print(
         f"ruler                 : {measured_against.get('gitHead', '?')}, "

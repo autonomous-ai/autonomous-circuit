@@ -253,6 +253,69 @@ def prepare_cell(root: Path, cell: tuple[str, ...]) -> tuple[Path, tuple[float, 
     return project, (width, height)
 
 
+def ruler() -> dict:
+    """What the closure rate was measured against.
+
+    A closure rate is only comparable to another one taken with the same
+    checks against the same library. It can improve for two reasons and only
+    one of them is good: the compositions got better, or the ruler got
+    shorter. The agent eval has recorded this since 2026-08-11; the matrix did
+    not, so its numbers could not be compared to each other at all — 56% on
+    08-11 and a number today are two rates with no shared meaning unless the
+    check set travels with them.
+
+    Never raises: a missing ruler is a caveat on the report, not a lost run.
+    """
+    import subprocess
+
+    out: dict[str, object] = {}
+    try:
+        out["gitHead"] = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=str(REPO),
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip()
+        # NB: do not strip the whole blob before splitting — porcelain's first
+        # column is a space for unstaged changes, so `.strip()` shifts line one
+        # by a character and reports a path that does not exist.
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(REPO),
+            capture_output=True, text=True, timeout=15,
+        ).stdout
+        paths = [line[3:] for line in dirty.splitlines() if line[3:].strip()]
+        out["gitDirty"] = bool(paths)
+        if paths:
+            # Which files, not just the flag: a dirty tree that only touches
+            # examples/ does not change what the matrix builds, and a reader
+            # cannot tell those two situations apart from a boolean.
+            out["gitDirtyPaths"] = sorted(paths)[:40]
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from circuitpy import fab as fab_mod
+        from circuitpy import toolchain
+
+        out["toolchain"] = toolchain.versions()
+        blocking = sorted(fab_mod.VERIFY_BLOCKING_KINDS)
+        escalated = sorted(fab_mod.VERIFY_ESCALATED_KINDS)
+        out["verifyBlockingKinds"] = blocking
+        out["verifyEscalatedKinds"] = escalated
+        # One short string that changes whenever the bar moves, so two runs
+        # can be compared at a glance instead of by diffing two lists.
+        import hashlib
+
+        digest = hashlib.sha256(
+            json.dumps(
+                {"blocking": blocking, "escalated": escalated,
+                 "toolchain": out["toolchain"]},
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:12]
+        out["checkSetHash"] = digest
+    except Exception as exc:  # noqa: BLE001
+        out["rulerNote"] = f"could not read the check set: {exc}"
+    return out
+
+
 def _record(outcome, size: tuple[float, float]) -> dict:
     """One cell's row in the matrix, read from the sidecar the build wrote."""
     cell = tuple(outcome.job.meta["cell"])
@@ -354,6 +417,8 @@ def run(
     ready = [r for r in results if r.get("fabReady")]
     payload = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        # The ruler, recorded with the score. See ruler().
+        "measuredAgainst": ruler(),
         "tier": tier,
         "cellsBuilt": len(results),
         "cellsInTier": sampled_from,
@@ -425,6 +490,15 @@ def main(argv: list[str]) -> int:
     print(
         f"closure: {report['fabReady']}/{report['cellsBuilt']} compositions "
         f"fab-ready ({report['closureRate']:.0%})"
+    )
+    rule = report.get("measuredAgainst", {})
+    print(
+        f"ruler  : {rule.get('gitHead', '?')}"
+        f"{'+dirty' if rule.get('gitDirty') else ''}, "
+        f"check-set {rule.get('checkSetHash', '?')} — "
+        f"{len(rule.get('verifyBlockingKinds') or [])} blocking + "
+        f"{len(rule.get('verifyEscalatedKinds') or [])} escalated verify kinds"
+        f" — compare only against a run with the same set"
     )
     if failed:
         print("\nopen holes in the tested space:")
