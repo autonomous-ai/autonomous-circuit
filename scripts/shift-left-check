@@ -196,6 +196,78 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/src/circuitpy/generation.py",
         r"checks\.schematic_truth_warnings",
     ),
+    (
+        29,
+        "sw-tact wires diagonally, correct under either side-pairing",
+        "packages/golden-blocks/blocks/sw-tact/sw-tact.tsx",
+        r"diagonal",
+    ),
+    (
+        29,
+        "the golden-block netlist graph honours declared internal ties",
+        "packages/golden-blocks/tests/conftest.py",
+        r"source_component_internal_connection",
+    ),
+    (
+        31,
+        "the fab profile owns the power-net width floor, warn-band",
+        "packages/circuitpy/src/circuitpy/fab.py",
+        r"warn_power_trace_mm",
+    ),
+    (
+        31,
+        "stage 4 holds every routed rail to that floor (poured ground exempt)",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def power_width_warnings",
+    ),
+    (
+        30,
+        "the planner knows the sample-subsidy cliff and names the money",
+        "skills/circuitcode/circuitlib/layout.py",
+        r"def price_tier_warnings",
+    ),
+    (
+        30,
+        "the number has one owner on the skill side",
+        "skills/circuitcode/circuitlib/tables.py",
+        r"JLC_SAMPLE_TIER_MM",
+    ),
+    (
+        30,
+        "the fab profile carries the tier table and stage 4 names the overage",
+        "packages/circuitpy/src/circuitpy/fab.py",
+        r"price_tiers",
+    ),
+    (
+        30,
+        "a board over every tier is told the money at stage 4",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"dfm_price_tier",
+    ),
+    (
+        32,
+        "the BOM ships one line per part, designators grouped, JLC's shape",
+        "packages/circuitpy/src/circuitpy/fab.py",
+        r"def group_bom_rows",
+    ),
+    (
+        32,
+        "a golden-file test pins the exact BOM bytes JLC receives",
+        "packages/circuitpy/tests/test_fab.py",
+        r"test_bom_golden_file_jlc_sample_shape",
+    ),
+    (
+        32,
+        "the CPL follows JLC's documented column order",
+        "packages/circuitpy/tests/test_fab.py",
+        r"test_cpl_golden_file_jlc_sample_shape",
+    ),
+    (
+        12,
+        "every board reports how much of a diff pair runs as a pair",
+        "packages/verify/src/verifylib/netclass.py",
+        r"def _diff_pair_coupling",
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)
@@ -207,6 +279,13 @@ BANNED_LITERALS: list[tuple[int, str, str, str]] = [
         "the pour margin is never a copied literal — one owner, POUR_CUTOUT_MARGIN_MM",
         "**/*.tsx",
         r'cutoutMargin="0\.\d+mm"',
+    ),
+    (
+        29,
+        "no board or block ties both pads of a switch terminal — the diagonal "
+        "shape is what makes a wrong pad-pairing survivable",
+        "**/sw-tact/sw-tact.tsx",
+        r"TR_\$\{sw\}_p[23]",
     ),
 ]
 
