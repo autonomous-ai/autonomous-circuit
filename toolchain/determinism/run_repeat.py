@@ -137,23 +137,41 @@ def declared_efforts(work: Path) -> list[str]:
 
 
 def route_health(circuit_json: Path) -> dict[str, object]:
-    """Did this build actually produce a route, and did it complain?
+    """Did this build actually produce a route, did it complain, and did the
+    network answer it the same way?
 
-    The guard that stops the ruler reporting on an empty board.
+    The guard that stops the ruler reporting on an empty board — and the one
+    that stops a network problem being read as a toolchain problem. Measured
+    2026-08-16 on terminal-keyboard, which carries no ``parts.json``: two
+    builds of one source came back with **47 and 17** ``HTTP 429`` rate-limit
+    failures from the supplier catalogue, so a different subset of parts
+    resolved each time and the files differed by 5459 against 5441 elements.
+    No seed and no canonical order can fix that; the two builds are not builds
+    of the same board. hydrate-coaster, whose 19 parts are pinned in
+    ``parts.json``, took zero 429s and is byte-identical.
     """
-    data = json.loads(circuit_json.read_text(encoding="utf-8"))
+    text = circuit_json.read_text(encoding="utf-8")
+    data = json.loads(text)
     kinds: dict[str, int] = {}
     messages: list[str] = []
+    unresolved = 0
     for element in data:
         if not isinstance(element, dict):
             continue
         kind = str(element.get("type", ""))
+        if kind == "source_part_not_found_warning":
+            unresolved += 1
         if kind.endswith("_error"):
             kinds[kind] = kinds.get(kind, 0) + 1
             message = element.get("message")
             if isinstance(message, str) and len(messages) < 4:
                 messages.append(message)
-    return {"error_kinds": kinds, "error_messages": messages}
+    return {
+        "error_kinds": kinds,
+        "error_messages": messages,
+        "parts_unresolved": unresolved,
+        "supplier_rate_limited": text.count("HTTP 429"),
+    }
 
 
 def loadavg() -> list[float]:
@@ -399,8 +417,27 @@ def main() -> int:
             "autorouter_effort": efforts,
             "effort_forced_to": args.effort or None,
             "loadavg": [r["loadavg_at_start"] for r in runs],
+            "parts_unresolved": [r["parts_unresolved"] for r in runs],
+            "supplier_rate_limited": [r["supplier_rate_limited"] for r in runs],
             "detail": runs,
         }
+        # A byte difference the network caused is not a byte difference the
+        # toolchain caused, and reading it as one sends the next agent after
+        # the wrong bug. Say which it was.
+        varying_inputs = (
+            len({r["parts_unresolved"] for r in runs}) > 1
+            or len({r["supplier_rate_limited"] for r in runs}) > 1
+        )
+        report["inputs_varied_between_runs"] = varying_inputs
+        if varying_inputs:
+            report["inputs_varied_note"] = (
+                "the supplier catalogue answered these runs differently "
+                f"(unresolved parts {[r['parts_unresolved'] for r in runs]}, "
+                f"HTTP 429s {[r['supplier_rate_limited'] for r in runs]}) — "
+                "these are not builds of the same board, and no seed can make "
+                "them equal. Pin the parts in parts.json, or build with "
+                "CIRCUIT_PARTS_ENGINE=off."
+            )
         if args.mode == "pipeline":
             # Which packet files are the same in every run, and which are not.
             names = sorted({n for r in runs for n in r.get("packet", {})})
@@ -440,6 +477,8 @@ def main() -> int:
             f"whole file {'IDENTICAL' if report['deterministic_bytes'] else 'DIFFERS'}",
             file=sys.stderr,
         )
+        if varying_inputs:
+            print(f"  ! {report['inputs_varied_note']}", file=sys.stderr)
         ok = bool(report["deterministic_route_bytes"])
         if matched_reference is not None:
             print(
