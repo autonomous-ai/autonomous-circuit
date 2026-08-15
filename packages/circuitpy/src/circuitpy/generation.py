@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -69,9 +70,85 @@ FAB_ENV = "CIRCUIT_FAB"
 FORCE_ENV = "CIRCUIT_FORCE_REGEN"
 PARTS_ENGINE_ENV = "CIRCUIT_PARTS_ENGINE"
 
-DEFAULT_BUILD_TIMEOUT_S = 600.0
+# ---------------------------------------------------------------------------
+# Wall clock is a safety valve, never a budget.
+# ---------------------------------------------------------------------------
+#
+# This number used to be 600s, and at 600s the machine decided the board.
+# Measured on hydrate-coaster at ``autorouterEffortLevel="1x"``, three runs
+# each, by ``toolchain/determinism/run_repeat.py``:
+#
+#   2026-08-15, 24 busy processes: 102.6 / 106.1 / 104.0s quiet against
+#                                  526.7 / 573.1 / 545.6s loaded — 5.2x
+#   2026-08-16, 16 busy processes:  95.9 /  95.5 /  97.6s quiet against
+#                                  291.9 / 273.9 / 288.7s loaded — 2.9x
+#
+# The multiple depends on how busy the machine is, which is the point: it is
+# not a property of the board. The board ships at "10x", several times this.
+# A budget a loaded machine blows through turns "did this board build" into
+# "was the machine free", which is the same defect as a lucky route wearing a
+# different hat.
+#
+# North-star's exchange rate settles what to do about it: a fab round trip is
+# two weeks and ~$85, so hours of compute are free. The timeout stays only to
+# stop a hung process holding a slot forever, and it is sized for the worst
+# case we have measured (terminal-keyboard at "5x", ~17 minutes quiet, times
+# the 5.2x load factor, times a margin) rather than for the good case.
+DEFAULT_BUILD_TIMEOUT_S = 5400.0
 EXPORT_TIMEOUT_S = 180.0
 KICAD_TIMEOUT_S = 120.0
+
+# ---------------------------------------------------------------------------
+# Determinism: the same board source must produce the same bytes.
+# ---------------------------------------------------------------------------
+#
+# What the router does is already reproducible, and the wall-clock diagnosis
+# is wrong. Reading first: ``tscircuit-cli`` executes a single 25.9 MB bundle
+# (``@tscircuit/cli/dist/cli/main.js``) that requires nothing from
+# node_modules, so the standalone ``@tscircuit/capacity-autorouter`` package —
+# where the ``performance.now()`` and ``Date.now()`` calls were counted — is
+# never loaded at all. Inside the bundle every solver loop is
+# ``for(;!this.solved&&!this.failed;)this.step()`` against MAX_ITERATIONS, and
+# each clock read around it feeds ``timeToSolve`` or an iterations-per-second
+# progress event. Exactly one real time budget exists in the whole bundle: a
+# ``step()``-until-elapsed wrapper around PackSolver2, whose budget comes from
+# ``platform.pcbPackSolverTimeoutMs`` — a name that appears once, with nothing
+# assigning it, so the wrapper degenerates to a plain ``solve()``.
+#
+# Then measurement, which is what actually settles it. hydrate-coaster at
+# "1x", six builds: three quiet at ~96s and three at ~285s with 16 busy
+# processes alongside — a 2.9x wall-clock change — returned the byte-identical
+# route (``pcb_trace`` + ``pcb_via`` elements, ids included) all six times.
+# Slowing the machine down by a factor of three does not move one trace.
+# ``test_determinism.py`` pins the reading half so a toolchain bump cannot
+# quietly reintroduce a clock budget.
+#
+# What is *not* reproducible is everything the parts engine touches. It
+# resolves supplier parts concurrently, appends one
+# ``supplier_footprint_mismatch_warning`` per part **in network-completion
+# order**, and stamps each with a random 10-character id. On hydrate-coaster
+# that is 27 of 1812 elements, and they are the only elements in the file
+# whose id is not a counter — which is why all six builds above agreed on the
+# route and disagreed on the file, six times out of six. Nothing downstream
+# could be cached, diffed or golden-filed against a file that never repeats.
+#
+# Two fixes, because neither covers the other:
+#
+# * ``toolchain/determinism/deterministic-run.mjs`` seeds ``Math.random`` from
+#   the board's own source fingerprint, so every minted id is a function of
+#   the board. This kills the randomness at its source.
+# * ``_canonicalise_race_order`` below puts the racing elements in content
+#   order inside the slots they already occupy. Seeding cannot do this: the id
+#   *stream* is fixed but which warning gets which id still depends on who
+#   answered the network first.
+DETERMINISM_ENV = "CIRCUIT_DETERMINISM"
+SEED_ENV = "CIRCUIT_DETERMINISTIC_SEED"
+PRELOAD_REL = ("determinism", "deterministic-run.mjs")
+#: The line the preload writes to stderr when it actually seeds. Kept in step
+#: with ``DETERMINISM_MARKER`` in ``deterministic-run.mjs``; a test pins that
+#: the two agree, because a marker that drifts turns the effect check into a
+#: permanent "not seeded".
+DETERMINISM_MARKER = "[determinism] Math.random seeded"
 
 OUTPUT_SUFFIX = ".circuit.json"
 
@@ -134,8 +211,15 @@ ROUTING_ESCALATION_ENV = "CIRCUIT_ROUTING_ESCALATION"
 #: One rung. 10x/100x exist but the measured 5x gain is where the curve bends,
 #: and the time cost past it is not something a chat loop can absorb.
 ROUTING_ESCALATION_EFFORT = "5x"
-#: Bounded: 5x on the largest board we have takes ~17 minutes.
-ROUTING_ESCALATION_TIMEOUT_S = 1500.0
+#: Bounded, but bounded as a safety valve rather than as a budget. At 1500s
+#: this was the second place the machine decided the board: terminal-keyboard
+#: at "5x" is ~17 minutes (1020s) on a quiet machine, and the measured load
+#: factor on this hardware is 5.2x (see DEFAULT_BUILD_TIMEOUT_S) — so on a busy
+#: machine the retry was killed, the escalation reported "did not finish", and
+#: the cheaper default-effort board shipped. Same source, same effort setting,
+#: different board, decided by what else was running. Sized for the worst case
+#: now, which costs nothing when the retry finishes early.
+ROUTING_ESCALATION_TIMEOUT_S = 5400.0
 
 #: Errors whose fix is "route it differently" — the only class a harder router
 #: pass can address. A placement overlap or a missing footprint is not here:
@@ -226,6 +310,318 @@ def _routing_blockers(warnings: Sequence[dict]) -> list[dict]:
         w for w in warnings
         if w.get("severity") == "error" and _is_routing_class(w)
     ]
+
+
+# ---------------------------------------------------------------------------
+# Determinism helpers.
+# ---------------------------------------------------------------------------
+
+
+def _determinism_off() -> bool:
+    return (os.environ.get(DETERMINISM_ENV) or "").strip().lower() in {
+        "off",
+        "0",
+        "false",
+        "no",
+    }
+
+
+def _preload_path() -> Path | None:
+    """The seeded-``Math.random`` preload, or None when it is not installed.
+
+    Never raises and never blocks a build: a missing preload costs byte
+    stability, not a board.
+    """
+    try:
+        candidate = toolchain.toolchain_dir().joinpath(*PRELOAD_REL)
+    except RuntimeError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+@contextmanager
+def _deterministic_env(seed: str):
+    """Seed the CLI subprocess, then put the environment back.
+
+    ``toolchain.subprocess_env()`` copies ``os.environ``, so this is the only
+    seam a caller has into the Node process without owning that module.
+    ``NODE_OPTIONS`` is appended to rather than replaced — a user or a wrapper
+    may already have set it, and stamping over that would be a silent change
+    to how their Node runs.
+    """
+    preload = _preload_path()
+    if not seed or preload is None or _determinism_off():
+        yield False
+        return
+    previous: dict[str, str | None]
+    previous = {key: os.environ.get(key) for key in ("NODE_OPTIONS", SEED_ENV)}
+    existing = (previous["NODE_OPTIONS"] or "").strip()
+    flag = f"--import {preload.as_uri()}"
+    os.environ["NODE_OPTIONS"] = f"{existing} {flag}".strip() if existing else flag
+    os.environ[SEED_ENV] = seed
+    try:
+        yield True
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+#: An id the toolchain minted with ``Math.random``: ten characters from
+#: ``[A-Za-z0-9]``, appended to the element's own type. circuit-json's
+#: ``getZodPrefixedIdWithDefault`` is the only thing in the bundle that makes
+#: ids this shape; counter ids (``pcb_via_0``, ``source_net_16_0``) do not
+#: match, so canonicalisation cannot touch an element the toolchain numbered
+#: itself.
+_MINTED_ID_RE = re.compile(r"^[a-z0-9_]+_[A-Za-z0-9]{10}$")
+
+
+def _canonicalise_race_order(elements: list) -> dict[str, int]:
+    """Put concurrently-produced elements in content order, in place.
+
+    The parts engine resolves suppliers concurrently and appends one warning
+    per part as each answer lands, so the *set* of elements is stable and the
+    *sequence* is not. Measured on a four-part fixture, 2026-08-15: two builds
+    produced the same four ``supplier_footprint_mismatch_warning`` elements in
+    two different orders, and that alone made the file bytes differ.
+
+    The rewrite is deliberately the smallest one that fixes it:
+
+    * only element types every one of whose members carries a minted random
+      id are eligible — a counter id means the toolchain already ordered them
+      and we must not second-guess it;
+    * an eligible group is skipped entirely if any of its ids appears anywhere
+      else in the document, because then something references it and reseating
+      the id would break that reference;
+    * members are sorted by their content with their own id removed, and
+      written back into **the slots they already occupied**, so no element
+      changes position relative to any element of another type. The ids of the
+      group are sorted and re-paired to the sorted members, which invents no
+      new id and cannot collide.
+
+    Byte stability needs the seeded ``Math.random`` as well: this function
+    makes the *order* canonical, the seed makes the *id strings* reproducible.
+    Returns ``{type: count}`` for what it reordered — empty when nothing did.
+    """
+    by_type: dict[str, list[int]] = {}
+    for index, element in enumerate(elements):
+        if not isinstance(element, dict):
+            continue
+        kind = element.get("type")
+        if isinstance(kind, str):
+            by_type.setdefault(kind, []).append(index)
+
+    # How many times each string appears anywhere in the document. An id that
+    # appears exactly once is only its own definition; anything higher means
+    # something points at it and the group is off limits. Counted once for the
+    # whole file rather than once per type.
+    seen: dict[str, int] = {}
+
+    def _count(value: object) -> None:
+        if isinstance(value, dict):
+            for sub in value.values():
+                _count(sub)
+        elif isinstance(value, list):
+            for sub in value:
+                _count(sub)
+        elif isinstance(value, str):
+            seen[value] = seen.get(value, 0) + 1
+
+    _count(elements)
+
+    reordered: dict[str, int] = {}
+    for kind, slots in by_type.items():
+        if len(slots) < 2:
+            continue
+        id_key = f"{kind}_id"
+        ids: list[str] = []
+        for slot in slots:
+            value = elements[slot].get(id_key)
+            if not isinstance(value, str) or not _MINTED_ID_RE.match(value):
+                ids = []
+                break
+            ids.append(value)
+        if not ids or any(seen.get(i, 0) != 1 for i in ids):
+            continue
+
+        members = [dict(elements[slot]) for slot in slots]
+        for member in members:
+            member.pop(id_key, None)
+        keys = [
+            json.dumps(member, sort_keys=True, separators=(",", ":"))
+            for member in members
+        ]
+        order = sorted(range(len(members)), key=keys.__getitem__)
+        changed = False
+        for position, (slot, minted) in enumerate(zip(slots, sorted(ids))):
+            member = members[order[position]]
+            member[id_key] = minted
+            if member != elements[slot]:
+                changed = True
+            elements[slot] = member
+        if changed:
+            reordered[kind] = len(slots)
+    return reordered
+
+
+def _split_top_level_blocks(text: str) -> list[tuple[int, int]] | None:
+    """``(start, end)`` of each top-level element in a circuit.json array.
+
+    A depth scan that understands strings and escapes — not a JSON parser, and
+    not a regex. It exists so canonicalisation can move an element without
+    re-serialising the file: ``JSON.stringify`` and ``json.dumps`` disagree on
+    float exponents (``1e-7`` against ``1e-07``, ``0.00001`` against
+    ``1e-05``), so a Python round-trip would rewrite numbers on every board it
+    touched. Returns None on anything unexpected, and the caller then leaves
+    the file exactly as the toolchain wrote it.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    start: int | None = None
+    blocks: list[tuple[int, int]] = []
+    for index, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "[{":
+            depth += 1
+            if depth == 2 and start is None:
+                start = index
+        elif ch in "]}":
+            depth -= 1
+            if depth == 1 and start is not None:
+                blocks.append((start, index + 1))
+                start = None
+            elif depth == 0:
+                return blocks if not in_string and start is None else None
+    return None
+
+
+def _canonicalise_file(path: Path) -> dict[str, int]:
+    """Rewrite ``path`` so concurrently-produced elements land in a fixed order.
+
+    Byte-conservative by construction: every element that does not move keeps
+    the exact bytes the toolchain wrote, and an element that does move keeps
+    its own bytes apart from its id token. Any surprise — a block count that
+    disagrees with the element count, a block that does not re-parse to the
+    element it should be, an id token that is not unique inside its block —
+    abandons the rewrite and leaves the file untouched. Returns ``{type:
+    count}`` describing what moved.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+        elements = json.loads(text)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(elements, list):
+        return {}
+
+    before = [
+        json.dumps(e, sort_keys=True, separators=(",", ":")) if isinstance(e, dict) else None
+        for e in elements
+    ]
+    canonical = [dict(e) if isinstance(e, dict) else e for e in elements]
+    reordered = _canonicalise_race_order(canonical)
+    if not reordered:
+        return {}
+
+    blocks = _split_top_level_blocks(text)
+    if blocks is None or len(blocks) != len(elements):
+        return {}
+
+    # Where did each slot's new content come from? Content is unchanged apart
+    # from the id, so match on the id-free body.
+    def _body(element: object) -> str | None:
+        if not isinstance(element, dict):
+            return None
+        kind = element.get("type")
+        stripped = {k: v for k, v in element.items() if k != f"{kind}_id"}
+        return json.dumps(stripped, sort_keys=True, separators=(",", ":"))
+
+    source_of: dict[int, int] = {}
+    for slot, (old, new) in enumerate(zip(elements, canonical)):
+        if before[slot] == json.dumps(new, sort_keys=True, separators=(",", ":")):
+            continue
+        wanted = _body(new)
+        origin = next(
+            (i for i, e in enumerate(elements) if _body(e) == wanted and i not in source_of.values()),
+            None,
+        )
+        if origin is None:
+            return {}
+        source_of[slot] = origin
+
+    pieces = [text[s:e] for s, e in blocks]
+    rewritten = list(pieces)
+    for slot, origin in source_of.items():
+        kind = canonical[slot].get("type")
+        id_key = f"{kind}_id"
+        old_id = elements[origin].get(id_key)
+        new_id = canonical[slot].get(id_key)
+        piece = pieces[origin]
+        if not isinstance(old_id, str) or not isinstance(new_id, str):
+            return {}
+        if piece.count(f'"{old_id}"') != 1:
+            return {}
+        rewritten[slot] = piece.replace(f'"{old_id}"', f'"{new_id}"')
+
+    out = list(text)
+    for (start, end), piece in zip(reversed(blocks), reversed(rewritten)):
+        out[start:end] = piece
+    new_text = "".join(out)
+
+    # The rewrite must be a permutation, never an edit: same elements, same
+    # count, only the arrangement changed.
+    try:
+        check = json.loads(new_text)
+    except ValueError:
+        return {}
+    if sorted(
+        json.dumps(e, sort_keys=True, separators=(",", ":")) for e in check
+    ) != sorted(
+        json.dumps(e, sort_keys=True, separators=(",", ":")) for e in canonical
+    ):
+        return {}
+    try:
+        path.write_text(new_text, encoding="utf-8")
+    except OSError:
+        return {}
+    return reordered
+
+
+#: 1980-01-01 00:00:00 — the earliest timestamp the zip format can hold, and
+#: the value every reproducible-build toolchain settled on for the same reason.
+_ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
+
+
+def _zip_deterministic(dest: Path, members: Sequence[tuple[Path, str]]) -> None:
+    """Write a zip whose bytes depend only on its contents.
+
+    ``ZipFile.write`` stamps each entry with the source file's mtime and
+    permission bits, so two packets built from identical geometry an hour apart
+    are different files. That is the same defect as a lucky route one layer
+    out: it defeats caching, it defeats a golden-file test on the packet, and
+    it makes "did this change?" unanswerable for the artifact a customer
+    actually receives.
+
+    Entries are written in name order with a fixed timestamp and fixed mode.
+    """
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for source, arcname in sorted(members, key=lambda m: m[1]):
+            info = zipfile.ZipInfo(arcname, date_time=_ZIP_EPOCH)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            bundle.writestr(info, source.read_bytes())
 
 
 _EFFORT_RE = re.compile(r'autorouterEffortLevel\s*=\s*"([^"]+)"')
@@ -348,17 +744,34 @@ def _mirror_project(project_root: Path, work: Path) -> None:
 
 
 def _cli_export(
-    work: Path, circuit_json_path: Path, fmt: str, out_name: str
+    work: Path, circuit_json_path: Path, fmt: str, out_name: str, seed: str = ""
 ) -> Path:
     """``tscircuit-cli export`` writes ``-o`` **next to the input file** (a
     verified CLI behavior — absolute paths get mangled), so we pass a bare
-    filename and collect the artifact from the input's directory."""
-    result = toolchain.run_cli(
-        ["export", str(circuit_json_path), "-f", fmt, "-o", out_name],
-        cwd=work,
-        timeout=EXPORT_TIMEOUT_S,
-        check=False,
-    )
+    filename and collect the artifact from the input's directory.
+
+    Seeded with the same board fingerprint the compile uses, so that every
+    Node process in a build draws from the same stream rather than some of
+    them being seeded and some not.
+
+    **This does not make the KiCad export reproducible, and it was measured
+    rather than assumed.** Two exports of one byte-identical circuit.json
+    differ in exactly 1364 uuid tokens in the ``.kicad_pcb`` (663 in the
+    ``.kicad_sch``) and in nothing else — renaming each uuid to its
+    first-appearance index makes the two files byte-identical, and seeding
+    ``Math.random`` changes neither hash, so those uuids come from
+    ``crypto``, not from ``Math.random``. Closing that is a separate job
+    (ledger #35's open half) because the packet's other zip, the gerbers,
+    carries a ``%TF.CreationDate`` per file and needs the same treatment in
+    an exporter this module does not own.
+    """
+    with _deterministic_env(seed):
+        result = toolchain.run_cli(
+            ["export", str(circuit_json_path), "-f", fmt, "-o", out_name],
+            cwd=work,
+            timeout=EXPORT_TIMEOUT_S,
+            check=False,
+        )
     produced = circuit_json_path.parent / out_name
     if not produced.is_file():
         tail = result.output.strip()[-800:]
@@ -465,19 +878,39 @@ def build_board(
     built_dir = work / "dist" / rel_entry.parent / rel_entry.stem
     built_circuit_json = built_dir / "circuit.json"
 
+    #: Filled in by the compile: whether the seeded RNG was in force, and what
+    #: canonicalisation had to move. Reported in the sidecar so a byte-unstable
+    #: build is visible rather than mysterious.
+    determinism_block: dict[str, object] = {"seeded": False, "canonicalised": {}}
+
     #: One entry per compile attempt, so the attempt the build *keeps* is the
     #: one whose repair gets reported. Escalation can throw an attempt away.
     circuit_normalizations: list[circuit_normalize.CircuitNormalization] = []
 
     def _compile_once(timeout_s: float) -> list:
-        try:
-            build_result = toolchain.run_cli(
-                build_args, cwd=work, timeout=timeout_s, check=False
+        with _deterministic_env(identity.source_fingerprint) as requested:
+            try:
+                build_result = toolchain.run_cli(
+                    build_args, cwd=work, timeout=timeout_s, check=False
+                )
+            except TimeoutError as exc:
+                raise ToolchainError(str(exc)) from exc
+            except RuntimeError as exc:
+                raise ToolchainError(str(exc)) from exc
+        # Observed, never assumed. `NODE_OPTIONS` is a Node mechanism and
+        # `node_modules/.bin/tscircuit-cli` runs under bun instead whenever bun
+        # is on PATH — in which case the preload is ignored, silently, and the
+        # ids go back to being random while we still claim to seed them. The
+        # preload announces itself on stderr (captured here, `stderr=STDOUT`),
+        # so this flag reports what reached the process that did the work.
+        determinism_block["seeded"] = bool(
+            requested and DETERMINISM_MARKER in build_result.output
+        )
+        if requested and not determinism_block["seeded"]:
+            determinism_block["seed_not_applied"] = (
+                "the preload did not run in the CLI process — NODE_OPTIONS is "
+                "ignored when tscircuit-cli picks bun as its runner"
             )
-        except TimeoutError as exc:
-            raise ToolchainError(str(exc)) from exc
-        except RuntimeError as exc:
-            raise ToolchainError(str(exc)) from exc
 
         if not built_circuit_json.is_file():
             tail = build_result.output.strip()[-800:]
@@ -497,12 +930,20 @@ def build_board(
                 f"tscircuit eval failed for {rel_entry.as_posix()} "
                 f"(exit {build_result.returncode}): {tail or 'no output'}"
             )
-        # Stage 0a: open any polygon pad whose ring is closed, before
-        # anything reads the file. A repeated closing vertex is a zero-length
-        # edge, and the upstream via-in-pad check reports "inside" for *every*
-        # point in the plane against a zero-length edge — so one redundant
-        # vertex on a USB-C pad blocks the board over a via 0.3mm outside it.
-        # No closed ring, no rewrite.
+        # Before anything reads it. Every later stage — the checks, the KiCad
+        # conversion, the export cache key, the artifact of record itself —
+        # takes this file, so the canonical order has to exist here or not at
+        # all.
+        moved = _canonicalise_file(built_circuit_json)
+        for kind, count in moved.items():
+            existing = determinism_block["canonicalised"]
+            assert isinstance(existing, dict)
+            existing[kind] = count
+        # Stage 0a: open any polygon pad whose ring is closed. A repeated
+        # closing vertex is a zero-length edge, and the upstream via-in-pad
+        # check reports "inside" for *every* point in the plane against a
+        # zero-length edge — so one redundant vertex on a USB-C pad blocks the
+        # board over a via 0.3mm outside it. No closed ring, no rewrite.
         circuit_normalizations.append(
             circuit_normalize.normalize_circuit_json(built_circuit_json)
         )
@@ -629,6 +1070,11 @@ def build_board(
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
         "blockingByAttempt": blocking_by_attempt,
+        # Whether this board's bytes are reproducible, and what it took.
+        # `seeded: false` means the preload was missing or switched off, and
+        # the ids in this artifact are random — the file will not compare
+        # equal to another build of the same source.
+        "determinism": dict(determinism_block),
     }
 
     tool_versions = toolchain.versions()
@@ -646,7 +1092,9 @@ def build_board(
             target = built_circuit_json.parent / out_name
             shutil.copy2(hit, target)
             return target
-        produced = _cli_export(work, built_circuit_json, fmt, out_name)
+        produced = _cli_export(
+            work, built_circuit_json, fmt, out_name, identity.source_fingerprint
+        )
         export_cache.store(project_root, key, suffix, produced)
         return produced
 
@@ -910,13 +1358,13 @@ def build_board(
         try:
             kicad_zip_path = fab_dir / "kicad-project.zip"
             fab_dir.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(kicad_zip_path, "w", zipfile.ZIP_DEFLATED) as bundle:
-                bundle.write(kicad_pcb, f"{stem}.kicad_pcb")
-                project_file = kicad_pcb.with_suffix(".kicad_pro")
-                if project_file.is_file():
-                    bundle.write(project_file, f"{stem}.kicad_pro")
-                if kicad_sch is not None and kicad_sch.is_file():
-                    bundle.write(kicad_sch, f"{stem}.kicad_sch")
+            members: list[tuple[Path, str]] = [(kicad_pcb, f"{stem}.kicad_pcb")]
+            project_file = kicad_pcb.with_suffix(".kicad_pro")
+            if project_file.is_file():
+                members.append((project_file, f"{stem}.kicad_pro"))
+            if kicad_sch is not None and kicad_sch.is_file():
+                members.append((kicad_sch, f"{stem}.kicad_sch"))
+            _zip_deterministic(kicad_zip_path, members)
         except (OSError, zipfile.BadZipFile) as exc:
             kicad_zip_path = None
             warnings.append(

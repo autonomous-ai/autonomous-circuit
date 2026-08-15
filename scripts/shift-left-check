@@ -313,6 +313,46 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/tests/test_kicad_schematic.py",
         r"def test_internal_units_multiply_the_way_kicad_multiplies",
     ),
+    (
+        35,
+        "the CLI's Math.random is seeded from the board's own source, so a "
+        "minted id is a function of the board",
+        "toolchain/determinism/deterministic-run.mjs",
+        r"Math\.random = function seededRandom",
+    ),
+    (
+        35,
+        "stage 0 actually canonicalises, before anything reads the file",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"_canonicalise_file\(built_circuit_json\)",
+    ),
+    (
+        35,
+        "the pipeline records whether the seed *reached* the CLI, not whether "
+        "it asked for one — NODE_OPTIONS is ignored under bun",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"DETERMINISM_MARKER in build_result\.output",
+    ),
+    (
+        35,
+        "the ruler refuses to call an empty route reproducible",
+        "toolchain/determinism/run_repeat.py",
+        r"no route to compare",
+    ),
+    (
+        35,
+        "wall clock is a safety valve, not a budget — both timeouts are sized "
+        "for a loaded machine",
+        "packages/circuitpy/tests/test_determinism.py",
+        r"def test_build_timeouts_are_sized_for_a_loaded_machine",
+    ),
+    (
+        35,
+        "a toolchain bump cannot quietly reintroduce a wall-clock budget in "
+        "the router",
+        "packages/circuitpy/tests/test_determinism.py",
+        r"def test_the_router_search_is_bounded_by_iterations_not_by_the_clock",
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)
