@@ -1,0 +1,1116 @@
+{
+  "generatedAt": "2026-08-15T13:14:48",
+  "measuredAgainst": {
+    "gitHead": "f9f2d4b",
+    "gitDirty": true,
+    "gitDirtyPaths": [
+      "examples/hydrate-coaster/boards/main.board.json",
+      "examples/hydrate-coaster/boards/main.circuit.json",
+      "examples/hydrate-coaster/boards/main.tsx",
+      "examples/hydrate-coaster/boards/main_fab/board.glb",
+      "examples/hydrate-coaster/boards/main_fab/bom.csv",
+      "examples/hydrate-coaster/boards/main_fab/cpl.csv",
+      "examples/hydrate-coaster/boards/main_fab/gerbers.zip",
+      "examples/hydrate-coaster/boards/main_fab/kicad-project.zip",
+      "examples/hydrate-coaster/boards/main_review/_pcb.png",
+      "examples/hydrate-coaster/boards/main_review/_pcb.svg",
+      "examples/hydrate-coaster/boards/main_review/_schematic.png",
+      "examples/hydrate-coaster/boards/main_review/_schematic.svg",
+      "work/"
+    ],
+    "toolchain": {
+      "tscircuit": "0.0.2279",
+      "checks": "0.0.152",
+      "kicadCli": "10.0.5"
+    },
+    "verifyBlockingKinds": [
+      "dc_led_current",
+      "dc_rail_overload",
+      "dfa_board_size",
+      "dfa_bottom_side",
+      "dfa_courtyard_overlap",
+      "dfa_off_board",
+      "dfa_pin_pitch",
+      "gerber_drill_empty",
+      "gerber_drill_missing",
+      "gerber_drill_plating_mismatch",
+      "gerber_drill_size_mismatch",
+      "gerber_missing_layer",
+      "gerber_outline_empty",
+      "gerber_outline_mismatch",
+      "gerber_pad_masked_over",
+      "gerber_pad_missing",
+      "gerber_scale_mismatch",
+      "gerber_trace_width",
+      "gerber_unreadable",
+      "netclass_trace_width",
+      "thermal_resistor_power"
+    ],
+    "verifyEscalatedKinds": [
+      "gerber_silk_line_width",
+      "review_debug_unreachable"
+    ],
+    "checkSetHash": "e73558f0fc6f"
+  },
+  "tier": "default",
+  "cellsBuilt": 41,
+  "cellsInTier": 41,
+  "sampled": false,
+  "clean": 29,
+  "fabReady": 29,
+  "closureRate": 0.707,
+  "computeMinutes": 75.3,
+  "wallMinutes": 19.5,
+  "speedup": 3.9,
+  "workers": 4,
+  "summary": "29/41 fab-ready (12 built-not-ready, 0 crashed) \u2014 75 min of compute in 19 min of waiting, 3.9x on 4 workers",
+  "knownUnsupported": {
+    "usb-c-data + usb-c-power": "usb-c-data is a superset of usb-c-power and reuses the same refdes block (J1/R1/R2/U1/C1). Two USB-C entries on one board is a design error, not a layout problem \u2014 circuitlib.blocks says so in the usb-c-power notes, and helpers.board_plan never picks both."
+  },
+  "cells": [
+    {
+      "cell": [
+        "i2c-bus",
+        "ldo-3v3"
+      ],
+      "blocks": 2,
+      "seconds": 90.7,
+      "boardMm": [
+        37.0,
+        17.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 5,
+      "blocking": [],
+      "warningCount": 83
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "rp2040-core"
+      ],
+      "blocks": 2,
+      "seconds": 140.4,
+      "boardMm": [
+        53.9,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        1
+      ],
+      "bomLines": 24,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "U3",
+          "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0783 mm)"
+        }
+      ],
+      "warningCount": 316
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "sensor-bme280"
+      ],
+      "blocks": 2,
+      "seconds": 90.7,
+      "boardMm": [
+        34.0,
+        10.4
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 5,
+      "blocking": [],
+      "warningCount": 85
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "status-led"
+      ],
+      "blocks": 2,
+      "seconds": 90.7,
+      "boardMm": [
+        29.2,
+        11.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 4,
+      "blocking": [],
+      "warningCount": 61
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "sw-tact"
+      ],
+      "blocks": 2,
+      "seconds": 89.7,
+      "boardMm": [
+        33.4,
+        12.5
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 3,
+      "blocking": [],
+      "warningCount": 45
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 101.0,
+      "boardMm": [
+        36.0,
+        27.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 9,
+      "blocking": [],
+      "warningCount": 133
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 96.3,
+      "boardMm": [
+        34.2,
+        22.1
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 7,
+      "blocking": [],
+      "warningCount": 112
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 97.7,
+      "boardMm": [
+        58.4,
+        14.3
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 11,
+      "blocking": [],
+      "warningCount": 128
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "rp2040-core"
+      ],
+      "blocks": 2,
+      "seconds": 171.1,
+      "boardMm": [
+        61.0,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        1
+      ],
+      "bomLines": 25,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "C6",
+          "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0633 mm)"
+        }
+      ],
+      "warningCount": 342
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "sensor-bme280"
+      ],
+      "blocks": 2,
+      "seconds": 88.8,
+      "boardMm": [
+        41.0,
+        17.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 6,
+      "blocking": [],
+      "warningCount": 112
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "status-led"
+      ],
+      "blocks": 2,
+      "seconds": 87.2,
+      "boardMm": [
+        36.3,
+        17.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 5,
+      "blocking": [],
+      "warningCount": 84
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "sw-tact"
+      ],
+      "blocks": 2,
+      "seconds": 84.2,
+      "boardMm": [
+        40.4,
+        17.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 4,
+      "blocking": [],
+      "warningCount": 73
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 98.5,
+      "boardMm": [
+        36.0,
+        36.5
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 10,
+      "blocking": [],
+      "warningCount": 153
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 95.2,
+      "boardMm": [
+        34.2,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 8,
+      "blocking": [],
+      "warningCount": 132
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 101.2,
+      "boardMm": [
+        65.5,
+        17.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 12,
+      "blocking": [],
+      "warningCount": 152
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "sensor-bme280"
+      ],
+      "blocks": 2,
+      "seconds": 151.0,
+      "boardMm": [
+        57.9,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        1
+      ],
+      "bomLines": 25,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 324
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "status-led"
+      ],
+      "blocks": 2,
+      "seconds": 116.3,
+      "boardMm": [
+        53.2,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        1
+      ],
+      "bomLines": 24,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 304
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "sw-tact"
+      ],
+      "blocks": 2,
+      "seconds": 119.7,
+      "boardMm": [
+        57.4,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        2
+      ],
+      "bomLines": 23,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 301
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 214.9,
+      "boardMm": [
+        48.4,
+        51.4
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        2,
+        2
+      ],
+      "bomLines": 29,
+      "blocking": [
+        {
+          "kind": "dfm_hole_clearance",
+          "part": "U4",
+          "detail": "a pad passes 0.063mm from a via at (7.49, 11.50); the fab needs 0.2mm \u2014 route around it, the drill's own tolerance can cut a track this close"
+        },
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 378
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 186.0,
+      "boardMm": [
+        48.4,
+        45.9
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        26,
+        26
+      ],
+      "bomLines": 27,
+      "blocking": [
+        {
+          "kind": "pcb_trace_error",
+          "part": "board",
+          "detail": "Trace too close to board edge (0.210mm < 0.300mm required, margin: 0.2mm)"
+        },
+        {
+          "kind": "pcb_trace_error",
+          "part": "board",
+          "detail": "Trace too close to board edge (0.055mm < 0.300mm required, margin: 0.2mm)"
+        },
+        {
+          "kind": "pcb_trace_error",
+          "part": "board",
+          "detail": "Trace too close to board edge (0.000mm < 0.300mm required, margin: 0.2mm)"
+        },
+        {
+          "kind": "pcb_trace_error",
+          "part": "board",
+          "detail": "Trace too close to board edge (0.092mm < 0.300mm required, margin: 0.2mm)"
+        },
+        {
+          "kind": "pcb_trace_error",
+          "part": "board",
+          "detail": "Trace too close to board edge (0.103mm < 0.300mm required, margin: 0.2mm)"
+        },
+        {
+          "kind": "pcb_placement_error",
+          "part": "board",
+          "detail": "Via pcb_via[#pcb_via_42] is outside or crossing the board boundary"
+        },
+        {
+          "kind": "pcb_placement_error",
+          "part": "board",
+          "detail": "Via pcb_via[#pcb_via_43] is outside or crossing the board boundary"
+        },
+        {
+          "kind": "pcb_placement_error",
+          "part": "R12.pin2",
+          "detail": "Via at (-9.76mm, 6.37mm) is inside SMD pad R12.pin2 at (-9.76mm, 6.25mm)"
+        },
+        {
+          "kind": "dfm_edge_clearance",
+          "part": "board",
+          "detail": "copper is -0.392mm from the board edge (fab minimum 0.2mm)"
+        },
+        {
+          "kind": "dfm_edge_clearance",
+          "part": "board",
+          "detail": "copper is -0.862mm from the board edge (fab minimum 0.2mm)"
+        },
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "Segment on Edge.Cuts",
+          "detail": "[copper_edge_clearance] Board edge clearance violation (board setup constraints edge clearance 0.1900 mm; actual 0.1101 mm)"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "Segment on Edge.Cuts",
+          "detail": "[copper_edge_clearance] Board edge clearance violation (board setup constraints edge clearance 0.1900 mm; actual 0.0000 mm)"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "Segment on Edge.Cuts",
+          "detail": "[copper_edge_clearance] Board edge clearance violation (board setup constraints edge clearance 0.1900 mm; actual 0.0030 mm)"
+        }
+      ],
+      "warningCount": 374
+    },
+    {
+      "cell": [
+        "rp2040-core",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 169.7,
+      "boardMm": [
+        82.4,
+        32.5
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        3,
+        3
+      ],
+      "bomLines": 31,
+      "blocking": [
+        {
+          "kind": "pcb_placement_error",
+          "part": "D12.DOUT",
+          "detail": "Via at (18.67mm, -0.75mm) is inside SMD pad D12.DOUT at (18.06mm, -0.75mm)"
+        },
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 375
+    },
+    {
+      "cell": [
+        "sensor-bme280",
+        "status-led"
+      ],
+      "blocks": 2,
+      "seconds": 94.2,
+      "boardMm": [
+        33.2,
+        11.6
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 5,
+      "blocking": [],
+      "warningCount": 99
+    },
+    {
+      "cell": [
+        "sensor-bme280",
+        "sw-tact"
+      ],
+      "blocks": 2,
+      "seconds": 91.2,
+      "boardMm": [
+        37.4,
+        12.5
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 4,
+      "blocking": [],
+      "warningCount": 84
+    },
+    {
+      "cell": [
+        "sensor-bme280",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 135.8,
+      "boardMm": [
+        36.0,
+        29.3
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 10,
+      "blocking": [
+        {
+          "kind": "drc_violation",
+          "part": "Via [USB_DM_CONN] on F.Cu - B.Cu",
+          "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0417 mm)"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "J1",
+          "detail": "[hole_clearance] Hole clearance violation (board setup constraints hole clearance 0.2000 mm; actual 0.1917 mm)"
+        }
+      ],
+      "warningCount": 164
+    },
+    {
+      "cell": [
+        "sensor-bme280",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 110.4,
+      "boardMm": [
+        34.2,
+        23.8
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 8,
+      "blocking": [],
+      "warningCount": 141
+    },
+    {
+      "cell": [
+        "sensor-bme280",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 111.4,
+      "boardMm": [
+        62.4,
+        14.3
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 12,
+      "blocking": [],
+      "warningCount": 165
+    },
+    {
+      "cell": [
+        "status-led",
+        "sw-tact"
+      ],
+      "blocks": 2,
+      "seconds": 99.9,
+      "boardMm": [
+        32.7,
+        12.5
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 3,
+      "blocking": [],
+      "warningCount": 52
+    },
+    {
+      "cell": [
+        "status-led",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 103.3,
+      "boardMm": [
+        36.0,
+        30.5
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 9,
+      "blocking": [],
+      "warningCount": 138
+    },
+    {
+      "cell": [
+        "status-led",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 100.9,
+      "boardMm": [
+        34.2,
+        25.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 7,
+      "blocking": [],
+      "warningCount": 114
+    },
+    {
+      "cell": [
+        "status-led",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 99.9,
+      "boardMm": [
+        57.7,
+        14.3
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 11,
+      "blocking": [],
+      "warningCount": 132
+    },
+    {
+      "cell": [
+        "sw-tact",
+        "usb-c-data"
+      ],
+      "blocks": 2,
+      "seconds": 126.0,
+      "boardMm": [
+        36.0,
+        31.4
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        2,
+        2
+      ],
+      "bomLines": 8,
+      "blocking": [
+        {
+          "kind": "pcb_trace_error",
+          "part": "J1",
+          "detail": "PCB trace trace[.J1 > port.GND1, .J1 > port.GND2] is too close to pcb_keepout \"pcb_keepout[#pcb_keepout_0]\" (gap: 0.078mm)"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "J1",
+          "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0679 mm)"
+        }
+      ],
+      "warningCount": 117
+    },
+    {
+      "cell": [
+        "sw-tact",
+        "usb-c-power"
+      ],
+      "blocks": 2,
+      "seconds": 92.4,
+      "boardMm": [
+        34.2,
+        25.9
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 6,
+      "blocking": [],
+      "warningCount": 91
+    },
+    {
+      "cell": [
+        "sw-tact",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 90.9,
+      "boardMm": [
+        61.9,
+        14.3
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 10,
+      "blocking": [],
+      "warningCount": 119
+    },
+    {
+      "cell": [
+        "usb-c-data",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 119.7,
+      "boardMm": [
+        52.9,
+        33.2
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        2,
+        2
+      ],
+      "bomLines": 16,
+      "blocking": [
+        {
+          "kind": "pcb_trace_error",
+          "part": "J1",
+          "detail": "PCB trace trace[.J1 > port.GND1, .J1 > port.GND2] is too close to pcb_keepout \"pcb_keepout[#pcb_keepout_0]\" (gap: 0.078mm)"
+        },
+        {
+          "kind": "drc_violation",
+          "part": "V5",
+          "detail": "[clearance] Clearance violation ( clearance 0.0900 mm; actual 0.0535 mm)"
+        }
+      ],
+      "warningCount": 212
+    },
+    {
+      "cell": [
+        "usb-c-power",
+        "ws2812-chain"
+      ],
+      "blocks": 2,
+      "seconds": 92.0,
+      "boardMm": [
+        52.9,
+        27.7
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 14,
+      "blocking": [],
+      "warningCount": 188
+    },
+    {
+      "cell": [
+        "i2c-bus",
+        "ldo-3v3",
+        "usb-c-power"
+      ],
+      "blocks": 3,
+      "seconds": 85.2,
+      "boardMm": [
+        37.0,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 10,
+      "blocking": [],
+      "warningCount": 150
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "rp2040-core",
+        "usb-c-power"
+      ],
+      "blocks": 3,
+      "seconds": 146.2,
+      "boardMm": [
+        61.0,
+        45.9
+      ],
+      "status": "blocked",
+      "fabReady": false,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 30,
+      "blocking": [
+        {
+          "kind": "review_debug_unreachable",
+          "part": "board",
+          "detail": "the debug interface (SWCLK, SWD) reaches no connector or test point, so the board cannot be programmed or halted once it is assembled"
+        }
+      ],
+      "warningCount": 401
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "sensor-bme280",
+        "usb-c-power"
+      ],
+      "blocks": 3,
+      "seconds": 94.8,
+      "boardMm": [
+        41.0,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 11,
+      "blocking": [],
+      "warningCount": 179
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "status-led",
+        "usb-c-power"
+      ],
+      "blocks": 3,
+      "seconds": 90.5,
+      "boardMm": [
+        36.3,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 10,
+      "blocking": [],
+      "warningCount": 151
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "sw-tact",
+        "usb-c-power"
+      ],
+      "blocks": 3,
+      "seconds": 81.5,
+      "boardMm": [
+        40.4,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 9,
+      "blocking": [],
+      "warningCount": 140
+    },
+    {
+      "cell": [
+        "ldo-3v3",
+        "usb-c-power",
+        "ws2812-chain"
+      ],
+      "blocks": 3,
+      "seconds": 69.3,
+      "boardMm": [
+        65.5,
+        31.0
+      ],
+      "status": "clean",
+      "fabReady": true,
+      "autorouterEffort": "default",
+      "blockingByAttempt": [
+        0
+      ],
+      "bomLines": 17,
+      "blocking": [],
+      "warningCount": 226
+    }
+  ]
+}
