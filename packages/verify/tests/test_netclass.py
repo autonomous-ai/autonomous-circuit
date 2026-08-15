@@ -205,6 +205,58 @@ def test_a_skewed_pair_is_caught_with_both_lengths():
     assert "30.00mm" in detail and "48.00mm" in detail and "18.00mm" in detail
 
 
+# --- pair coupling (EE review 2026-08-15, finding 3; report-only) ---------
+
+
+def _coupling_board(n_points: list[tuple[float, float]]) -> Board:
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP"))
+    elements.append(fixtures.net(1, "USB_DM"))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    elements.append(fixtures.trace_on("tn", 1, n_points, width=0.15))
+    return Board(elements)
+
+
+def test_a_pair_that_travels_together_passes():
+    # N runs 0.4mm away for the whole length — inside 4x the 0.15mm trace.
+    result = netclass.check(_coupling_board([(0, 1.6), (30, 1.6)]))
+    assert "netclass_pair_coupling" not in kinds(result)
+
+
+def test_a_diverging_pair_is_reported_with_the_fraction():
+    # N leaves the pair a third of the way along and wanders off.
+    result = netclass.check(
+        _coupling_board([(0, 1.6), (10, 1.6), (30, 15.0)])
+    )
+    assert "netclass_pair_coupling" in kinds(result)
+    detail = next(
+        f["detail"] for f in result.findings
+        if f["kind"] == "netclass_pair_coupling"
+    )
+    assert "travel together" in detail
+    assert "%" in detail
+
+
+def test_coupling_is_report_level_not_an_error():
+    result = netclass.check(
+        _coupling_board([(0, 1.6), (10, 1.6), (30, 15.0)])
+    )
+    severities = {
+        f["severity"] for f in result.findings
+        if f["kind"] == "netclass_pair_coupling"
+    }
+    assert severities == {"warning"}
+
+
+def test_an_unrouted_pair_is_not_judged_for_coupling():
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP"))
+    elements.append(fixtures.net(1, "USB_DM"))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    result = netclass.check(Board(elements))
+    assert "netclass_pair_coupling" not in kinds(result)
+
+
 # --- the plain observation ------------------------------------------------
 
 

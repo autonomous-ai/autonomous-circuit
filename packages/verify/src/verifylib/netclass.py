@@ -61,6 +61,20 @@ _VOUT_HINTS = ("vout", "out", "vo")
 #: USB 2.0 intra-pair skew budget. 150ps at ~6.7ps/mm on FR-4 microstrip.
 USB_SKEW_BUDGET_MM = 3.8
 
+#: Differential-pair coupling (EE review 2026-08-15, finding 3). Skew is the
+#: length story; this is the geometry story: D+/D- must *travel together* —
+#: parallel, constant gap, over the reference plane. The router has no
+#: net-class concept, so it cannot be made to comply yet (the v2 route
+#: stage's job); until then every board reports how much of the pair actually
+#: runs as a pair. "Together" = centrelines within this many trace-widths;
+#: below the fraction floor the pair is reported. Judgment thresholds, not a
+#: spec — a routed pair sits at 2-3x width, a diverging one at tens.
+DIFF_PAIR_GAP_WIDTHS = 4.0
+DIFF_PAIR_MIN_COUPLED = 0.7
+#: Sampling step along the P leg, mm. Fine enough that a gap spike shorter
+#: than a pad cannot hide between samples.
+_COUPLING_STEP_MM = 0.5
+
 #: A plated via's barrel is a thin tube, not a slab. Cross-section for a 0.3mm
 #: drill with JLCPCB's 25um plating: pi * 0.3 * 0.025 = 0.0236 mm^2. Fed through
 #: IPC-2221's *internal* constant, because a barrel is surrounded by laminate.
@@ -295,42 +309,118 @@ def _via_bottlenecks(board: Board, loads: _Loads) -> list[Finding]:
     return out
 
 
-@never_raises
-def _diff_pair_skew(board: Board) -> list[Finding]:
-    """USB 2.0 intra-pair skew, from routed length. Length arithmetic, not
-    simulation — the same thing KiCad's ``skew`` constraint does."""
-    out: list[Finding] = []
+def _diff_pairs(board: Board) -> list[tuple[Net, Net]]:
+    """Every named P/N pair on the board (…DP/…DM, …D+/…D-)."""
+    pairs: list[tuple[Net, Net]] = []
     by_name = {n.name: n for n in board.nets if n.name}
     for name, net in sorted(by_name.items()):
         upper = name.upper()
-        if not (upper.endswith("_DP") or upper.endswith("DP") or upper.endswith("D+")):
-            continue
         for suffix_p, suffix_n in (("_DP", "_DM"), ("DP", "DM"), ("D+", "D-")):
             if not upper.endswith(suffix_p):
                 continue
             partner_name = name[: len(name) - len(suffix_p)] + suffix_n
             partner = by_name.get(partner_name) or by_name.get(partner_name.lower())
-            if partner is None:
-                break
-            length_p = sum(t.length for t in board.traces_on(net))
-            length_n = sum(t.length for t in board.traces_on(partner))
-            if length_p <= 0 or length_n <= 0:
-                break
-            skew = abs(length_p - length_n)
-            if skew <= USB_SKEW_BUDGET_MM:
-                break
-            out.append(
-                finding(
-                    f"{net.label},{partner.label}",
-                    "netclass_pair_skew",
-                    f"{net.label} routes {length_p:.2f}mm and {partner.label} "
-                    f"{length_n:.2f}mm — {skew:.2f}mm of intra-pair skew against "
-                    f"a {USB_SKEW_BUDGET_MM:g}mm budget (USB 2.0, ~150ps on FR-4). "
-                    "Length-match the pair or shorten the longer leg",
-                    "warning",
-                )
-            )
+            if partner is not None:
+                pairs.append((net, partner))
             break
+    return pairs
+
+
+@never_raises
+def _diff_pair_skew(board: Board) -> list[Finding]:
+    """USB 2.0 intra-pair skew, from routed length. Length arithmetic, not
+    simulation — the same thing KiCad's ``skew`` constraint does."""
+    out: list[Finding] = []
+    for net, partner in _diff_pairs(board):
+        length_p = sum(t.length for t in board.traces_on(net))
+        length_n = sum(t.length for t in board.traces_on(partner))
+        if length_p <= 0 or length_n <= 0:
+            continue
+        skew = abs(length_p - length_n)
+        if skew <= USB_SKEW_BUDGET_MM:
+            continue
+        out.append(
+            finding(
+                f"{net.label},{partner.label}",
+                "netclass_pair_skew",
+                f"{net.label} routes {length_p:.2f}mm and {partner.label} "
+                f"{length_n:.2f}mm — {skew:.2f}mm of intra-pair skew against "
+                f"a {USB_SKEW_BUDGET_MM:g}mm budget (USB 2.0, ~150ps on FR-4). "
+                "Length-match the pair or shorten the longer leg",
+                "warning",
+            )
+        )
+    return out
+
+
+def _seg_distance(px: float, py: float, seg) -> float:
+    """Distance from a point to a finite segment's centreline."""
+    dx = seg.x1 - seg.x0
+    dy = seg.y1 - seg.y0
+    seg2 = dx * dx + dy * dy
+    if seg2 <= 1e-12:
+        return math.hypot(px - seg.x0, py - seg.y0)
+    t = ((px - seg.x0) * dx + (py - seg.y0) * dy) / seg2
+    t = max(0.0, min(1.0, t))
+    return math.hypot(px - (seg.x0 + t * dx), py - (seg.y0 + t * dy))
+
+
+@never_raises
+def _diff_pair_coupling(board: Board) -> list[Finding]:
+    """How much of the pair actually runs as a pair (EE finding 3, report-only).
+
+    Samples the P leg every ``_COUPLING_STEP_MM`` and asks how far the nearest
+    N copper is; "coupled" means within ``DIFF_PAIR_GAP_WIDTHS`` trace-widths.
+    Report-level on purpose: the router cannot route net classes yet, so this
+    cannot gate — it makes the gap visible on every board until the v2 route
+    stage can fix it.
+    """
+    out: list[Finding] = []
+    for net, partner in _diff_pairs(board):
+        segs_p = [s for t in board.traces_on(net) for s in t.segments]
+        segs_n = [s for t in board.traces_on(partner) for s in t.segments]
+        if not segs_p or not segs_n:
+            continue
+        widths = [s.width for s in segs_p if s.width > 0]
+        width = min(widths) if widths else 0.2
+        budget = DIFF_PAIR_GAP_WIDTHS * width
+        total = 0.0
+        coupled = 0.0
+        worst = 0.0
+        for seg in segs_p:
+            length = seg.length
+            if length <= 0:
+                continue
+            steps = max(1, int(length / _COUPLING_STEP_MM))
+            piece = length / steps
+            for i in range(steps):
+                t = (i + 0.5) / steps
+                px = seg.x0 + (seg.x1 - seg.x0) * t
+                py = seg.y0 + (seg.y1 - seg.y0) * t
+                gap = min(_seg_distance(px, py, s) for s in segs_n)
+                total += piece
+                if gap <= budget:
+                    coupled += piece
+                elif gap > worst:
+                    worst = gap
+        if total <= 0:
+            continue
+        fraction = coupled / total
+        if fraction >= DIFF_PAIR_MIN_COUPLED:
+            continue
+        out.append(
+            finding(
+                f"{net.label},{partner.label}",
+                "netclass_pair_coupling",
+                f"{net.label}/{partner.label} run within "
+                f"{budget:.2f}mm of each other ({DIFF_PAIR_GAP_WIDTHS:g}x the "
+                f"{width:g}mm trace) for only {fraction:.0%} of the run — a "
+                f"differential pair should travel together (widest gap "
+                f"{worst:.2f}mm). The router cannot hold a pair yet, so this "
+                "is reported, not fixed: review the pair before ordering",
+                "warning",
+            )
+        )
     return out
 
 
@@ -356,6 +446,7 @@ def check(board: Board) -> CheckResult:
     findings += _width_findings(board, loads)
     findings += _via_bottlenecks(board, loads)
     findings += _diff_pair_skew(board)
+    findings += _diff_pair_coupling(board)
     findings += _uniform_width(board)
 
     notes = [
