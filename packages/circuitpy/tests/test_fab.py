@@ -120,12 +120,69 @@ class PacketWriters(unittest.TestCase):
         self.assertEqual(parsed[0], list(PROFILE.bom_columns))
         self.assertEqual(parsed[1], ["1k", "R1", "0402", "C11702"])
 
+    def test_bom_golden_file_jlc_sample_shape(self) -> None:
+        """Ledger #32 golden file: the exact bytes JLC's parts-match table is
+        given. Same-part designators grouped on one line, natural-sorted
+        (SW9 before SW10); a part with no identity stays its own line."""
+        rows = [
+            {"designator": "SW10", "comment": "TS-1187A", "value": "",
+             "footprint": "SMD-4P", "lcsc": "C318884"},
+            {"designator": "R1", "comment": "1k", "value": "",
+             "footprint": "0402", "lcsc": "C11702"},
+            {"designator": "SW9", "comment": "TS-1187A", "value": "",
+             "footprint": "SMD-4P", "lcsc": "C318884"},
+            {"designator": "SW11", "comment": "TS-1187A", "value": "",
+             "footprint": "SMD-4P", "lcsc": "C318884"},
+            {"designator": "TP1", "comment": "", "value": "",
+             "footprint": "", "lcsc": ""},
+            {"designator": "TP2", "comment": "", "value": "",
+             "footprint": "", "lcsc": ""},
+        ]
+        path = fab.write_bom_csv(rows, self.dir / "bom.csv", PROFILE)
+        self.assertEqual(
+            path.read_bytes(),
+            b"Comment,Designator,Footprint,LCSC Part #\r\n"
+            b'TS-1187A,"SW9,SW10,SW11",SMD-4P,C318884\r\n'
+            b"1k,R1,0402,C11702\r\n"
+            b",TP1,,\r\n"
+            b",TP2,,\r\n",
+        )
+
     def test_cpl_csv_columns_exact(self) -> None:
         path = fab.write_cpl_csv(EXPORTER_CPL, self.dir / "cpl.csv", PROFILE)
         parsed = list(csv.reader(io.StringIO(path.read_text())))
         self.assertEqual(parsed[0], list(PROFILE.cpl_columns))
         self.assertEqual(parsed[1][0], "R1")
         self.assertEqual(len(parsed), 3)
+
+    def test_cpl_golden_file_jlc_sample_shape(self) -> None:
+        """Ledger #32: JLC documents Rotation before Layer; the exporter
+        emits Layer first. The shipped file follows the document."""
+        path = fab.write_cpl_csv(EXPORTER_CPL, self.dir / "cpl.csv", PROFILE)
+        self.assertEqual(
+            path.read_bytes(),
+            b"Designator,Mid X,Mid Y,Rotation,Layer\r\n"
+            b"R1,-5.000,0.000,0,top\r\n"
+            b"LED1,5.000,0.000,0,top\r\n",
+        )
+
+    def test_bom_grouping_summary_agrees_with_the_file(self) -> None:
+        """ORDER.md quotes lines/orderable from bom_summary; those numbers
+        must describe the grouped file JLC sees, not the per-placement rows."""
+        rows = [
+            {"designator": "SW1", "comment": "sw", "footprint": "SMD-4P",
+             "lcsc": "C318884", "lock": {"basic": True, "price": 0.018}},
+            {"designator": "SW2", "comment": "sw", "footprint": "SMD-4P",
+             "lcsc": "C318884", "lock": {"basic": True, "price": 0.018}},
+            {"designator": "U1", "comment": "mcu", "footprint": "QFN",
+             "lcsc": "C2040", "lock": {"basic": False, "price": 1.0}},
+        ]
+        summary = fab.bom_summary(rows)
+        self.assertEqual(summary["lines"], 2)
+        self.assertEqual(summary["orderable"], 2)
+        self.assertEqual(summary["basicParts"], 1)
+        # Cost stays per placement: two switches cost two switches.
+        self.assertEqual(summary["estimatedCostUsd"], 1.04)
 
     def test_repackage_keeps_only_gerber_members(self) -> None:
         source = self.dir / "src.zip"
