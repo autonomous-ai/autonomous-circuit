@@ -37,6 +37,7 @@ from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
+from circuitpy import kicad_schematic
 from circuitpy import review as review_mod
 from circuitpy import spec as spec_mod
 from circuitpy import status as status_mod
@@ -732,6 +733,42 @@ def build_board(
             for note in normalization.notes:
                 warnings.append(checks.check_failed(note))
         if kicad_sch is not None:
+            # Stage 3b: hold the converted *schematic* to the design's own
+            # netlist before anyone reads it, the same posture as 3a for the
+            # board. `circuit-json-to-kicad` draws no symbol at all for a part
+            # whose `symbol_name` is null — every USB-C receptacle we ship —
+            # so KiCad puts all 16 pins on the origin and reads VBUS, GND, D+
+            # and D- as one net; and the schematic router drops wires, which
+            # is why the first human EE review met two dead pushbuttons.
+            # Measured on the 2026-08-15 exports: 65/118/72 of 354/220/168
+            # pins disagreed with the design on the three boards, 0 after, in
+            # 6-12 seconds each, idempotent on all three.
+            truth_pass = kicad_schematic.normalize_schematic_truth(
+                kicad_sch,
+                circuit_json,
+                read_netlist=kicad_schematic.kicad_netlist,
+            )
+            if truth_pass.measured:
+                warnings.append(
+                    {
+                        "part": "board",
+                        "kind": "schematic_truth_normalized",
+                        "detail": (
+                            "the exported schematic was held to the design's "
+                            f"netlist: {truth_pass.summary()}"
+                        ),
+                        "severity": (
+                            "warning" if truth_pass.wrong_after else "info"
+                        ),
+                    }
+                )
+            for line in truth_pass.remaining:
+                warnings.append(checks.check_failed(
+                    f"exported schematic still disagrees with the design: {line}"
+                ))
+            for note in truth_pass.notes:
+                warnings.append(checks.check_failed(note))
+
             erc_json = built_dir / "erc.json"
             try:
                 toolchain.run_kicad(

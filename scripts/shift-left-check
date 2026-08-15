@@ -287,6 +287,32 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/tests/test_circuit_normalize.py",
         r"def test_a_via_genuinely_inside_the_pad_keeps_its_error",
     ),
+    (
+        34,
+        "the exported schematic is held to the design's own netlist",
+        "packages/circuitpy/src/circuitpy/kicad_schematic.py",
+        r"def normalize_schematic_truth",
+    ),
+    (
+        34,
+        "stage 3b actually calls it, on every board kicad-cli can read",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"kicad_schematic\.normalize_schematic_truth",
+    ),
+    (
+        34,
+        "a drawn pin's identity is its name, not its number — the crystal "
+        "runs num 1..4 against name 4,2,1,3",
+        "packages/circuitpy/tests/test_kicad_schematic.py",
+        r"def test_crystal_pin_name_beats_pin_number",
+    ),
+    (
+        34,
+        "internal units are reached the way KiCad reaches them, by "
+        "multiplying — dividing is off by 100nm and bonds nothing",
+        "packages/circuitpy/tests/test_kicad_schematic.py",
+        r"def test_internal_units_multiply_the_way_kicad_multiplies",
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)
