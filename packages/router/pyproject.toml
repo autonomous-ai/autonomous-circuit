@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "routerlib"
+version = "0.1.0"
+description = "Autonomous Circuit routing contract: RoutingProblem/RoutingSolution, a benchmark of real placed boards, and the lexicographic scorer the router tournament runs on."
+requires-python = ">=3.10"
+# One dependency, and it is deliberate: circuitpy owns every DFM number and
+# every geometry primitive this package measures with. A scorer that disagrees
+# with the pipeline is worse than no scorer, so the scorer calls the pipeline.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]

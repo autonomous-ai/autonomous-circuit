@@ -1,0 +1,202 @@
+{
+ "schema": "routerlib/instance@1",
+ "id": "matrix-status-led",
+ "source": {
+  "gitHead": "806561d",
+  "gitDirty": true,
+  "extractedAt": "2026-08-15T23:43:44",
+  "kind": "composition-cell",
+  "cell": [
+   "status-led"
+  ]
+ },
+ "placementHash": "e064ea715d46",
+ "rules": {
+  "profile": "jlcpcb",
+  "layerCount": 2,
+  "viaDrillMm": 0.3,
+  "viaPadMm": 0.6
+ },
+ "board": {
+  "widthMm": 23.7,
+  "heightMm": 11.6,
+  "center": [
+   0.0,
+   0.0
+  ],
+  "layerCount": 2,
+  "thicknessMm": 1.6,
+  "outline": []
+ },
+ "pads": [
+  {
+   "id": "pcb_smtpad_0",
+   "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net1",
+   "x": -0.9125,
+   "y": -1.02,
+   "w": 1.025,
+   "h": 1.4,
+   "layers": [
+    "top"
+   ],
+   "kind": "smd",
+   "shape": "rect",
+   "component": "LED1",
+   "portId": "pcb_port_0",
+   "drillId": null,
+   "rot": 0.0
+  },
+  {
+   "id": "pcb_smtpad_1",
+   "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net2",
+   "x": 0.9125,
+   "y": -1.02,
+   "w": 1.025,
+   "h": 1.4,
+   "layers": [
+    "top"
+   ],
+   "kind": "smd",
+   "shape": "rect",
+   "component": "LED1",
+   "portId": "pcb_port_1",
+   "drillId": null,
+   "rot": 0.0
+  },
+  {
+   "id": "pcb_smtpad_2",
+   "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net0",
+   "x": -0.51,
+   "y": 1.48,
+   "w": 0.54,
+   "h": 0.64,
+   "layers": [
+    "top"
+   ],
+   "kind": "smd",
+   "shape": "rect",
+   "component": "R20",
+   "portId": "pcb_port_2",
+   "drillId": null,
+   "rot": 0.0
+  },
+  {
+   "id": "pcb_smtpad_3",
+   "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net1",
+   "x": 0.51,
+   "y": 1.48,
+   "w": 0.54,
+   "h": 0.64,
+   "layers": [
+    "top"
+   ],
+   "kind": "smd",
+   "shape": "rect",
+   "component": "R20",
+   "portId": "pcb_port_3",
+   "drillId": null,
+   "rot": 0.0
+  }
+ ],
+ "drills": [
+  {
+   "id": "pcb_hole_0",
+   "x": -8.65,
+   "y": -2.6,
+   "w": 3.2,
+   "h": 3.2,
+   "plated": false,
+   "net": null,
+   "component": "",
+   "padId": null,
+   "rot": 0.0
+  },
+  {
+   "id": "pcb_hole_1",
+   "x": 8.65,
+   "y": 2.6,
+   "w": 3.2,
+   "h": 3.2,
+   "plated": false,
+   "net": null,
+   "component": "",
+   "padId": null,
+   "rot": 0.0
+  }
+ ],
+ "keepouts": [],
+ "planes": [],
+ "nets": [
+  {
+   "id": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net2",
+   "name": "GND",
+   "class": "ground",
+   "pads": [
+    "pcb_smtpad_1"
+   ],
+   "minWidthMm": 0.5,
+   "sourceNetId": "source_net_1",
+   "diffPartner": null,
+   "priority": 10
+  },
+  {
+   "id": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net0",
+   "name": "V3_3",
+   "class": "power",
+   "pads": [
+    "pcb_smtpad_2"
+   ],
+   "minWidthMm": 0.5,
+   "sourceNetId": "source_net_0",
+   "diffPartner": null,
+   "priority": 20
+  },
+  {
+   "id": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net1",
+   "name": "net1",
+   "class": "signal",
+   "pads": [
+    "pcb_smtpad_0",
+    "pcb_smtpad_3"
+   ],
+   "minWidthMm": 0.2,
+   "sourceNetId": null,
+   "diffPartner": null,
+   "priority": 100
+  }
+ ],
+ "features": {
+  "net_count": 3,
+  "routable_net_count": 1,
+  "terminal_count": 2,
+  "pad_count": 4,
+  "smd_pad_count": 4,
+  "plated_hole_count": 0,
+  "drill_count": 2,
+  "component_count": 2,
+  "keepout_count": 0,
+  "board_width_mm": 23.7,
+  "board_height_mm": 11.6,
+  "board_area_mm2": 274.92,
+  "pad_density_per_cm2": 1.455,
+  "avg_net_degree": 2.0,
+  "max_net_degree": 2,
+  "finest_pin_pitch_mm": 1.02,
+  "diff_pair_count": 0,
+  "power_net_count": 1,
+  "ground_net_count": 1,
+  "ground_pad_count": 1,
+  "has_plane": false,
+  "mst_length_mm": 2.876,
+  "routing_demand_per_mm2": 0.01046,
+  "repeat_ratio": 0.0,
+  "grid_score": 0.0,
+  "regular": false
+ },
+ "baseline": {
+  "errors": 0,
+  "warnings": 0,
+  "byKind": {},
+  "boardFindings": []
+ }
+}

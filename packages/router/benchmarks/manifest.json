@@ -1,0 +1,816 @@
+{
+ "schema": "routerlib/manifest@1",
+ "generatedAt": "2026-08-15T23:43:44",
+ "measuredAgainst": {
+  "gitHead": "806561d",
+  "gitDirty": true,
+  "extractedAt": "2026-08-15T23:43:44"
+ },
+ "instances": [
+  {
+   "id": "harness-puck",
+   "file": "harness-puck.json",
+   "placementHash": "ef45db724309",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "example",
+    "path": "/Users/d/code/autonomous-circuit/examples/harness-puck/boards/main.circuit.json"
+   },
+   "features": {
+    "net_count": 37,
+    "routable_net_count": 36,
+    "terminal_count": 194,
+    "pad_count": 228,
+    "smd_pad_count": 224,
+    "plated_hole_count": 4,
+    "drill_count": 9,
+    "component_count": 61,
+    "keepout_count": 4,
+    "board_width_mm": 70.0,
+    "board_height_mm": 70.0,
+    "board_area_mm2": 3848.446,
+    "pad_density_per_cm2": 5.924,
+    "avg_net_degree": 5.389,
+    "max_net_degree": 61,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 3,
+    "ground_net_count": 1,
+    "ground_pad_count": 61,
+    "has_plane": false,
+    "mst_length_mm": 1175.391,
+    "routing_demand_per_mm2": 0.30542,
+    "repeat_ratio": 0.836,
+    "grid_score": 0.279,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "hydrate-coaster-plane",
+   "file": "hydrate-coaster-plane.json",
+   "placementHash": "639e6cbc1e83",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "example",
+    "path": "/Users/d/code/autonomous-circuit/examples/hydrate-coaster/boards/main.circuit.json",
+    "variant": "synthetic ground plane, bottom layer"
+   },
+   "features": {
+    "net_count": 32,
+    "routable_net_count": 32,
+    "terminal_count": 145,
+    "pad_count": 174,
+    "smd_pad_count": 170,
+    "plated_hole_count": 4,
+    "drill_count": 10,
+    "component_count": 44,
+    "keepout_count": 5,
+    "board_width_mm": 80.0,
+    "board_height_mm": 80.0,
+    "board_area_mm2": 6180.243,
+    "pad_density_per_cm2": 2.815,
+    "avg_net_degree": 4.531,
+    "max_net_degree": 40,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 40,
+    "has_plane": true,
+    "mst_length_mm": 771.288,
+    "routing_demand_per_mm2": 0.1248,
+    "repeat_ratio": 0.727,
+    "grid_score": 0.25,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "hydrate-coaster",
+   "file": "hydrate-coaster.json",
+   "placementHash": "639e6cbc1e83",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "example",
+    "path": "/Users/d/code/autonomous-circuit/examples/hydrate-coaster/boards/main.circuit.json"
+   },
+   "features": {
+    "net_count": 32,
+    "routable_net_count": 32,
+    "terminal_count": 145,
+    "pad_count": 174,
+    "smd_pad_count": 170,
+    "plated_hole_count": 4,
+    "drill_count": 10,
+    "component_count": 44,
+    "keepout_count": 5,
+    "board_width_mm": 80.0,
+    "board_height_mm": 80.0,
+    "board_area_mm2": 6180.243,
+    "pad_density_per_cm2": 2.815,
+    "avg_net_degree": 4.531,
+    "max_net_degree": 40,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 40,
+    "has_plane": false,
+    "mst_length_mm": 771.288,
+    "routing_demand_per_mm2": 0.1248,
+    "repeat_ratio": 0.727,
+    "grid_score": 0.25,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-i2c-bus",
+   "file": "matrix-i2c-bus.json",
+   "placementHash": "b833adeafa3c",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "i2c-bus"
+    ]
+   },
+   "features": {
+    "net_count": 3,
+    "routable_net_count": 1,
+    "terminal_count": 2,
+    "pad_count": 4,
+    "smd_pad_count": 4,
+    "plated_hole_count": 0,
+    "drill_count": 2,
+    "component_count": 2,
+    "keepout_count": 0,
+    "board_width_mm": 24.4,
+    "board_height_mm": 8.7,
+    "board_area_mm2": 212.28,
+    "pad_density_per_cm2": 1.884,
+    "avg_net_degree": 2.0,
+    "max_net_degree": 2,
+    "finest_pin_pitch_mm": 1.02,
+    "diff_pair_count": 0,
+    "power_net_count": 1,
+    "ground_net_count": 0,
+    "ground_pad_count": 0,
+    "has_plane": false,
+    "mst_length_mm": 2.0,
+    "routing_demand_per_mm2": 0.00942,
+    "repeat_ratio": 0.0,
+    "grid_score": 0.0,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "file": "matrix-i2c-bus__ldo-3v3__usb-c-power.json",
+   "placementHash": "f560c84c2481",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "i2c-bus",
+     "ldo-3v3",
+     "usb-c-power"
+    ]
+   },
+   "features": {
+    "net_count": 7,
+    "routable_net_count": 5,
+    "terminal_count": 32,
+    "pad_count": 40,
+    "smd_pad_count": 36,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 10,
+    "keepout_count": 1,
+    "board_width_mm": 37.0,
+    "board_height_mm": 31.0,
+    "board_area_mm2": 1147.0,
+    "pad_density_per_cm2": 3.487,
+    "avg_net_degree": 6.4,
+    "max_net_degree": 13,
+    "finest_pin_pitch_mm": 0.4996,
+    "diff_pair_count": 0,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 13,
+    "has_plane": false,
+    "mst_length_mm": 118.2,
+    "routing_demand_per_mm2": 0.10305,
+    "repeat_ratio": 0.4,
+    "grid_score": 0.2,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "file": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane.json",
+   "placementHash": "218dc144c9c0",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "ldo-3v3",
+     "rp2040-core",
+     "usb-c-power"
+    ],
+    "variant": "synthetic ground plane, bottom layer"
+   },
+   "features": {
+    "net_count": 21,
+    "routable_net_count": 17,
+    "terminal_count": 107,
+    "pad_count": 147,
+    "smd_pad_count": 143,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 30,
+    "keepout_count": 1,
+    "board_width_mm": 61.0,
+    "board_height_mm": 45.9,
+    "board_area_mm2": 2799.9,
+    "pad_density_per_cm2": 5.25,
+    "avg_net_degree": 6.294,
+    "max_net_degree": 36,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 1,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 36,
+    "has_plane": true,
+    "mst_length_mm": 456.63,
+    "routing_demand_per_mm2": 0.16309,
+    "repeat_ratio": 0.733,
+    "grid_score": 0.3,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "file": "matrix-ldo-3v3__rp2040-core__usb-c-power.json",
+   "placementHash": "218dc144c9c0",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "ldo-3v3",
+     "rp2040-core",
+     "usb-c-power"
+    ]
+   },
+   "features": {
+    "net_count": 21,
+    "routable_net_count": 17,
+    "terminal_count": 107,
+    "pad_count": 147,
+    "smd_pad_count": 143,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 30,
+    "keepout_count": 1,
+    "board_width_mm": 61.0,
+    "board_height_mm": 45.9,
+    "board_area_mm2": 2799.9,
+    "pad_density_per_cm2": 5.25,
+    "avg_net_degree": 6.294,
+    "max_net_degree": 36,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 1,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 36,
+    "has_plane": false,
+    "mst_length_mm": 456.63,
+    "routing_demand_per_mm2": 0.16309,
+    "repeat_ratio": 0.733,
+    "grid_score": 0.3,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "file": "matrix-ldo-3v3__sensor-bme280__usb-c-power.json",
+   "placementHash": "7c1624bfa745",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "ldo-3v3",
+     "sensor-bme280",
+     "usb-c-power"
+    ]
+   },
+   "features": {
+    "net_count": 7,
+    "routable_net_count": 5,
+    "terminal_count": 40,
+    "pad_count": 48,
+    "smd_pad_count": 44,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 11,
+    "keepout_count": 1,
+    "board_width_mm": 41.0,
+    "board_height_mm": 31.0,
+    "board_area_mm2": 1271.0,
+    "pad_density_per_cm2": 3.777,
+    "avg_net_degree": 8.0,
+    "max_net_degree": 18,
+    "finest_pin_pitch_mm": 0.4996,
+    "diff_pair_count": 0,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 18,
+    "has_plane": false,
+    "mst_length_mm": 143.016,
+    "routing_demand_per_mm2": 0.11252,
+    "repeat_ratio": 0.364,
+    "grid_score": 0.182,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-ldo-3v3__usb-c-power",
+   "file": "matrix-ldo-3v3__usb-c-power.json",
+   "placementHash": "7669e2c4a705",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "ldo-3v3",
+     "usb-c-power"
+    ]
+   },
+   "features": {
+    "net_count": 5,
+    "routable_net_count": 5,
+    "terminal_count": 30,
+    "pad_count": 36,
+    "smd_pad_count": 32,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 8,
+    "keepout_count": 1,
+    "board_width_mm": 34.2,
+    "board_height_mm": 31.0,
+    "board_area_mm2": 1060.2,
+    "pad_density_per_cm2": 3.396,
+    "avg_net_degree": 6.0,
+    "max_net_degree": 13,
+    "finest_pin_pitch_mm": 0.4996,
+    "diff_pair_count": 0,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 13,
+    "has_plane": false,
+    "mst_length_mm": 111.321,
+    "routing_demand_per_mm2": 0.105,
+    "repeat_ratio": 0.0,
+    "grid_score": 0.0,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "file": "matrix-ldo-3v3__usb-c-power__ws2812-chain.json",
+   "placementHash": "01f75a1daea6",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "ldo-3v3",
+     "usb-c-power",
+     "ws2812-chain"
+    ]
+   },
+   "features": {
+    "net_count": 11,
+    "routable_net_count": 9,
+    "terminal_count": 54,
+    "pad_count": 62,
+    "smd_pad_count": 58,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 17,
+    "keepout_count": 1,
+    "board_width_mm": 65.5,
+    "board_height_mm": 31.0,
+    "board_area_mm2": 2030.5,
+    "pad_density_per_cm2": 3.053,
+    "avg_net_degree": 6.0,
+    "max_net_degree": 21,
+    "finest_pin_pitch_mm": 0.4996,
+    "diff_pair_count": 0,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 21,
+    "has_plane": false,
+    "mst_length_mm": 264.281,
+    "routing_demand_per_mm2": 0.13016,
+    "repeat_ratio": 0.647,
+    "grid_score": 0.529,
+    "regular": true
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-rp2040-core__sw-tact",
+   "file": "matrix-rp2040-core__sw-tact.json",
+   "placementHash": "cece97b72c3b",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "rp2040-core",
+     "sw-tact"
+    ]
+   },
+   "features": {
+    "net_count": 19,
+    "routable_net_count": 14,
+    "terminal_count": 78,
+    "pad_count": 115,
+    "smd_pad_count": 115,
+    "plated_hole_count": 0,
+    "drill_count": 2,
+    "component_count": 23,
+    "keepout_count": 0,
+    "board_width_mm": 57.4,
+    "board_height_mm": 32.5,
+    "board_area_mm2": 1865.5,
+    "pad_density_per_cm2": 6.165,
+    "avg_net_degree": 5.571,
+    "max_net_degree": 24,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 1,
+    "power_net_count": 1,
+    "ground_net_count": 1,
+    "ground_pad_count": 24,
+    "has_plane": false,
+    "mst_length_mm": 321.116,
+    "routing_demand_per_mm2": 0.17213,
+    "repeat_ratio": 0.696,
+    "grid_score": 0.391,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-rp2040-core__usb-c-data",
+   "file": "matrix-rp2040-core__usb-c-data.json",
+   "placementHash": "264e0c1d024a",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "rp2040-core",
+     "usb-c-data"
+    ]
+   },
+   "features": {
+    "net_count": 23,
+    "routable_net_count": 21,
+    "terminal_count": 109,
+    "pad_count": 143,
+    "smd_pad_count": 139,
+    "plated_hole_count": 4,
+    "drill_count": 8,
+    "component_count": 29,
+    "keepout_count": 1,
+    "board_width_mm": 48.4,
+    "board_height_mm": 51.4,
+    "board_area_mm2": 2487.76,
+    "pad_density_per_cm2": 5.748,
+    "avg_net_degree": 5.19,
+    "max_net_degree": 33,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 33,
+    "has_plane": false,
+    "mst_length_mm": 479.003,
+    "routing_demand_per_mm2": 0.19254,
+    "repeat_ratio": 0.69,
+    "grid_score": 0.241,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-status-led",
+   "file": "matrix-status-led.json",
+   "placementHash": "e064ea715d46",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "status-led"
+    ]
+   },
+   "features": {
+    "net_count": 3,
+    "routable_net_count": 1,
+    "terminal_count": 2,
+    "pad_count": 4,
+    "smd_pad_count": 4,
+    "plated_hole_count": 0,
+    "drill_count": 2,
+    "component_count": 2,
+    "keepout_count": 0,
+    "board_width_mm": 23.7,
+    "board_height_mm": 11.6,
+    "board_area_mm2": 274.92,
+    "pad_density_per_cm2": 1.455,
+    "avg_net_degree": 2.0,
+    "max_net_degree": 2,
+    "finest_pin_pitch_mm": 1.02,
+    "diff_pair_count": 0,
+    "power_net_count": 1,
+    "ground_net_count": 1,
+    "ground_pad_count": 1,
+    "has_plane": false,
+    "mst_length_mm": 2.876,
+    "routing_demand_per_mm2": 0.01046,
+    "repeat_ratio": 0.0,
+    "grid_score": 0.0,
+    "regular": false
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "matrix-status-led__ws2812-chain",
+   "file": "matrix-status-led__ws2812-chain.json",
+   "placementHash": "f3284c0e4256",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "composition-cell",
+    "cell": [
+     "status-led",
+     "ws2812-chain"
+    ]
+   },
+   "features": {
+    "net_count": 9,
+    "routable_net_count": 7,
+    "terminal_count": 28,
+    "pad_count": 30,
+    "smd_pad_count": 30,
+    "plated_hole_count": 0,
+    "drill_count": 2,
+    "component_count": 11,
+    "keepout_count": 0,
+    "board_width_mm": 57.7,
+    "board_height_mm": 14.3,
+    "board_area_mm2": 825.11,
+    "pad_density_per_cm2": 3.636,
+    "avg_net_degree": 4.0,
+    "max_net_degree": 9,
+    "finest_pin_pitch_mm": 1.02,
+    "diff_pair_count": 0,
+    "power_net_count": 1,
+    "ground_net_count": 1,
+    "ground_pad_count": 9,
+    "has_plane": false,
+    "mst_length_mm": 140.021,
+    "routing_demand_per_mm2": 0.1697,
+    "repeat_ratio": 0.909,
+    "grid_score": 0.818,
+    "regular": true
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": []
+   }
+  },
+  {
+   "id": "terminal-keyboard-plane",
+   "file": "terminal-keyboard-plane.json",
+   "placementHash": "289487d0ece3",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "example",
+    "path": "/Users/d/code/autonomous-circuit/examples/terminal-keyboard/boards/main.circuit.json",
+    "variant": "synthetic ground plane, bottom layer"
+   },
+   "features": {
+    "net_count": 89,
+    "routable_net_count": 89,
+    "terminal_count": 341,
+    "pad_count": 458,
+    "smd_pad_count": 454,
+    "plated_hole_count": 4,
+    "drill_count": 12,
+    "component_count": 137,
+    "keepout_count": 7,
+    "board_width_mm": 112.0,
+    "board_height_mm": 90.0,
+    "board_area_mm2": 10080.0,
+    "pad_density_per_cm2": 4.544,
+    "avg_net_degree": 3.831,
+    "max_net_degree": 38,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 38,
+    "has_plane": true,
+    "mst_length_mm": 2353.484,
+    "routing_demand_per_mm2": 0.23348,
+    "repeat_ratio": 0.934,
+    "grid_score": 0.832,
+    "regular": true
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": [
+     {
+      "kind": "dfm_price_tier",
+      "severity": "warning",
+      "detail": "board 112x90mm misses the 100x100mm $2 sample subsidy tier by 12mm \u2014 112x90mm quoted $8.90/5pcs against $2.00 inside the tier (measured 2026-08-15). Fit the tier unless the design cannot",
+      "layer": "",
+      "at": [
+       0.0,
+       0.0
+      ],
+      "items": [
+       "board"
+      ],
+      "source": "circuitpy.checks"
+     }
+    ]
+   }
+  },
+  {
+   "id": "terminal-keyboard",
+   "file": "terminal-keyboard.json",
+   "placementHash": "289487d0ece3",
+   "source": {
+    "gitHead": "806561d",
+    "gitDirty": true,
+    "extractedAt": "2026-08-15T23:43:44",
+    "kind": "example",
+    "path": "/Users/d/code/autonomous-circuit/examples/terminal-keyboard/boards/main.circuit.json"
+   },
+   "features": {
+    "net_count": 89,
+    "routable_net_count": 89,
+    "terminal_count": 341,
+    "pad_count": 458,
+    "smd_pad_count": 454,
+    "plated_hole_count": 4,
+    "drill_count": 12,
+    "component_count": 137,
+    "keepout_count": 7,
+    "board_width_mm": 112.0,
+    "board_height_mm": 90.0,
+    "board_area_mm2": 10080.0,
+    "pad_density_per_cm2": 4.544,
+    "avg_net_degree": 3.831,
+    "max_net_degree": 38,
+    "finest_pin_pitch_mm": 0.4,
+    "diff_pair_count": 2,
+    "power_net_count": 2,
+    "ground_net_count": 1,
+    "ground_pad_count": 38,
+    "has_plane": false,
+    "mst_length_mm": 2353.484,
+    "routing_demand_per_mm2": 0.23348,
+    "repeat_ratio": 0.934,
+    "grid_score": 0.832,
+    "regular": true
+   },
+   "baseline": {
+    "errors": 0,
+    "warnings": 0,
+    "byKind": {},
+    "boardFindings": [
+     {
+      "kind": "dfm_price_tier",
+      "severity": "warning",
+      "detail": "board 112x90mm misses the 100x100mm $2 sample subsidy tier by 12mm \u2014 112x90mm quoted $8.90/5pcs against $2.00 inside the tier (measured 2026-08-15). Fit the tier unless the design cannot",
+      "layer": "",
+      "at": [
+       0.0,
+       0.0
+      ],
+      "items": [
+       "board"
+      ],
+      "source": "circuitpy.checks"
+     }
+    ]
+   }
+  }
+ ]
+}

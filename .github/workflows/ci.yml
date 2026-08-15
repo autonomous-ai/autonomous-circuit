@@ -36,6 +36,23 @@ jobs:
       - name: Run circuitpy tests
         run: python -m pytest packages/circuitpy/tests -q
 
+  router:
+    name: routing contract
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: pip install pytest
+      # No toolchain: routerlib reads DFM numbers and geometry primitives out of
+      # circuitpy as plain Python. The one test that needs kicad-cli skips.
+      # Run from the package so its pytest.ini supplies the import paths.
+      - name: Run routing contract, benchmark and scorer tests
+        working-directory: packages/router
+        run: python -m pytest -q
+
   golden-blocks:
     name: golden blocks
     runs-on: ubuntu-22.04

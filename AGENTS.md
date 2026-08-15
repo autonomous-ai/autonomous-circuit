@@ -34,5 +34,6 @@ no runtime dependency on the donor's drama stack.
 Run only the checks relevant to the change.
 
 - circuitpy: `cd packages/circuitpy && python3.12 -m pytest -q`
+- routerlib: `cd packages/router && python3.12 -m pytest -q` (routing contract, benchmark, scorer)
 - viewer (client + server): `npm --prefix viewer test && npm --prefix viewer run build`
 - skills: `cd skills/circuitcode && python3.12 -m pytest tests/ -q`
