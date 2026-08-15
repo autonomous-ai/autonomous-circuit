@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from circuitpy import checks
+from circuitpy import circuit_normalize
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
 from circuitpy import fab as fab_mod
@@ -463,6 +464,10 @@ def build_board(
     built_dir = work / "dist" / rel_entry.parent / rel_entry.stem
     built_circuit_json = built_dir / "circuit.json"
 
+    #: One entry per compile attempt, so the attempt the build *keeps* is the
+    #: one whose repair gets reported. Escalation can throw an attempt away.
+    circuit_normalizations: list[circuit_normalize.CircuitNormalization] = []
+
     def _compile_once(timeout_s: float) -> list:
         try:
             build_result = toolchain.run_cli(
@@ -491,6 +496,15 @@ def build_board(
                 f"tscircuit eval failed for {rel_entry.as_posix()} "
                 f"(exit {build_result.returncode}): {tail or 'no output'}"
             )
+        # Stage 0a: open any polygon pad whose ring is closed, before
+        # anything reads the file. A repeated closing vertex is a zero-length
+        # edge, and the upstream via-in-pad check reports "inside" for *every*
+        # point in the plane against a zero-length edge — so one redundant
+        # vertex on a USB-C pad blocks the board over a via 0.3mm outside it.
+        # No closed ring, no rewrite.
+        circuit_normalizations.append(
+            circuit_normalize.normalize_circuit_json(built_circuit_json)
+        )
         try:
             elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
@@ -534,6 +548,7 @@ def build_board(
         sum(1 for w in warnings if w.get("severity") == "error")
     ]
     escalation_note: dict | None = None
+    kept_attempt = 0
     if _routing_blockers(warnings) and not _routing_escalation_off():
         entry_copy = work / rel_entry
         if _set_autorouter_effort(entry_copy, ROUTING_ESCALATION_EFFORT):
@@ -578,6 +593,7 @@ def build_board(
                 circuit_json = retry_json  # type: ignore[assignment]
                 warnings = retry_warnings
                 routing_effort = ROUTING_ESCALATION_EFFORT
+                kept_attempt = len(circuit_normalizations) - 1
                 shutil.rmtree(kept, ignore_errors=True)
             else:
                 # Escalation may never make a board worse: put attempt 1's
@@ -588,6 +604,25 @@ def build_board(
     progress.stage("dfm")
     if escalation_note is not None:
         warnings.append(escalation_note)
+
+    # What stage 0a had to repair on the attempt this build actually keeps.
+    if circuit_normalizations:
+        normalized = circuit_normalizations[min(kept_attempt,
+                                                len(circuit_normalizations) - 1)]
+        if normalized.changed:
+            warnings.append(
+                {
+                    "part": "board",
+                    "kind": "circuit_normalized",
+                    "detail": (
+                        "the compiled board was repaired before it was judged: "
+                        f"{normalized.summary()}"
+                    ),
+                    "severity": "info",
+                }
+            )
+        for note in normalized.notes:
+            warnings.append(checks.check_failed(note))
 
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,

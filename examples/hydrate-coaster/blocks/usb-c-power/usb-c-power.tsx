@@ -116,10 +116,25 @@ export const UsbCConnector = (props: {
         <smtpad portHints={["pin10"]} pcbX="0.750062mm" pcbY="2.1740432mm" width="0.2999994mm" height="1.2999974mm" shape="rect" />
         <smtpad portHints={["pin11"]} pcbX="1.24968mm" pcbY="2.1740432mm" width="0.2999994mm" height="1.2999974mm" shape="rect" />
         <smtpad portHints={["pin12"]} pcbX="1.75006mm" pcbY="2.1740432mm" width="0.2999994mm" height="1.2999974mm" shape="rect" />
-        <smtpad portHints={["pin13"]} points={[{ x: "-2.8999688mm", y: "1.524108mm" }, { x: "-2.8999688mm", y: "2.8241308mm" }, { x: "-3.1999682mm", y: "2.8241308mm" }, { x: "-3.1999682mm", y: "2.8239784mm" }, { x: "-3.4999422mm", y: "2.8239784mm" }, { x: "-3.4999422mm", y: "1.5239556mm" }, { x: "-3.1999428mm", y: "1.5239556mm" }, { x: "-3.1999428mm", y: "1.524108mm" }, { x: "-2.8999688mm", y: "1.524108mm" }]} shape="polygon" />
-        <smtpad portHints={["pin14"]} points={[{ x: "2.8999942mm", y: "2.8241308mm" }, { x: "2.8999942mm", y: "1.5241588mm" }, { x: "3.1999936mm", y: "1.5241588mm" }, { x: "3.5000184mm", y: "1.5241588mm" }, { x: "3.5000184mm", y: "2.8241308mm" }, { x: "3.200019mm", y: "2.8241308mm" }, { x: "2.8999942mm", y: "2.8241308mm" }]} shape="polygon" />
-        <smtpad portHints={["pin15"]} points={[{ x: "2.7001724mm", y: "1.5241588mm" }, { x: "2.7001724mm", y: "2.8241308mm" }, { x: "2.400173mm", y: "2.8241308mm" }, { x: "2.1001482mm", y: "2.8241308mm" }, { x: "2.1001482mm", y: "1.5241588mm" }, { x: "2.4001476mm", y: "1.5241588mm" }, { x: "2.7001724mm", y: "1.5241588mm" }]} shape="polygon" />
-        <smtpad portHints={["pin16"]} points={[{ x: "-2.0999704mm", y: "1.5240064mm" }, { x: "-2.0999704mm", y: "2.8239784mm" }, { x: "-2.3999952mm", y: "2.8239784mm" }, { x: "-2.6999438mm", y: "2.823953mm" }, { x: "-2.6999438mm", y: "1.523981mm" }, { x: "-2.399919mm", y: "1.523981mm" }, { x: "-2.0999704mm", y: "1.5240064mm" }]} shape="polygon" />
+        {/* The four wide power/GND pads are polygons, and their point lists
+            must stay **open** — the last vertex may never repeat the first.
+            A closed ring carries a zero-length edge, and `@tscircuit/checks`
+            resolves "is this via inside this pad" with an `isPointOnSegment`
+            shortcut that answers **true for every point in the plane** when
+            the segment has zero length (dot product 0, squared length 0, so
+            `0 <= 0 + 1e-9` passes). The pad then swallows the whole board and
+            whichever via the spatial index reaches first is reported as being
+            inside it. Measured 2026-08-16 on hydrate-coaster: one repeated
+            vertex on pin15 blocked the board with
+            "Via at (2.40mm, -30.88mm) is inside SMD pad J1.B4A9" over a via
+            0.3009mm *outside* the pad's top edge; deleting the four repeats
+            took runAllChecks from 2 findings to 1, and no via on that board
+            was inside any pad. The copper is identical either way — an open
+            ring and a closed one describe the same polygon. Ledger #11. */}
+        <smtpad portHints={["pin13"]} points={[{ x: "-2.8999688mm", y: "1.524108mm" }, { x: "-2.8999688mm", y: "2.8241308mm" }, { x: "-3.1999682mm", y: "2.8241308mm" }, { x: "-3.1999682mm", y: "2.8239784mm" }, { x: "-3.4999422mm", y: "2.8239784mm" }, { x: "-3.4999422mm", y: "1.5239556mm" }, { x: "-3.1999428mm", y: "1.5239556mm" }, { x: "-3.1999428mm", y: "1.524108mm" }]} shape="polygon" />
+        <smtpad portHints={["pin14"]} points={[{ x: "2.8999942mm", y: "2.8241308mm" }, { x: "2.8999942mm", y: "1.5241588mm" }, { x: "3.1999936mm", y: "1.5241588mm" }, { x: "3.5000184mm", y: "1.5241588mm" }, { x: "3.5000184mm", y: "2.8241308mm" }, { x: "3.200019mm", y: "2.8241308mm" }]} shape="polygon" />
+        <smtpad portHints={["pin15"]} points={[{ x: "2.7001724mm", y: "1.5241588mm" }, { x: "2.7001724mm", y: "2.8241308mm" }, { x: "2.400173mm", y: "2.8241308mm" }, { x: "2.1001482mm", y: "2.8241308mm" }, { x: "2.1001482mm", y: "1.5241588mm" }, { x: "2.4001476mm", y: "1.5241588mm" }]} shape="polygon" />
+        <smtpad portHints={["pin16"]} points={[{ x: "-2.0999704mm", y: "1.5240064mm" }, { x: "-2.0999704mm", y: "2.8239784mm" }, { x: "-2.3999952mm", y: "2.8239784mm" }, { x: "-2.6999438mm", y: "2.823953mm" }, { x: "-2.6999438mm", y: "1.523981mm" }, { x: "-2.399919mm", y: "1.523981mm" }]} shape="polygon" />
         <silkscreenpath route={[{ x: -4.4689776, y: -1.6757586 }, { x: -4.4689776, y: 0.1871536 }]} />
         <silkscreenpath route={[{ x: 4.4710096, y: -5.3941408 }, { x: -4.4689776, y: -5.3941408 }, { x: -4.4689776, y: -3.9128382 }]} />
         <silkscreenpath route={[{ x: 4.4710096, y: -1.6761142 }, { x: 4.4710096, y: 0.1875092 }]} />
