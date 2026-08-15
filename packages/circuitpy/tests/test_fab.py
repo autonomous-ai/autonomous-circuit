@@ -258,3 +258,71 @@ class FabReady(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BomEnrichment(unittest.TestCase):
+    """Ledger #32, second half: JLC's format with JLC's content.
+
+    The exporter ships Comment and Footprint empty. JLC's parts-match table
+    uses both to cross-check the part number against what the designer thought
+    they were ordering, so a bare LCSC number removes the fab's only check.
+    """
+
+    def _design(self):
+        return [
+            {"type": "source_component", "source_component_id": "s1", "name": "R1",
+             "ftype": "simple_resistor", "display_resistance": "1kΩ"},
+            {"type": "source_component", "source_component_id": "s2", "name": "C1",
+             "ftype": "simple_capacitor", "display_capacitance": "100nF"},
+            {"type": "source_component", "source_component_id": "s3", "name": "Y1",
+             "ftype": "simple_crystal", "frequency": 12000000},
+            {"type": "source_component", "source_component_id": "s4", "name": "U1",
+             "ftype": "simple_chip", "manufacturer_part_number": "RP2040"},
+            {"type": "source_component", "source_component_id": "s5", "name": "SW1",
+             "ftype": "simple_push_button"},
+        ]
+
+    def test_comment_comes_from_the_design(self) -> None:
+        d = fab.describe_components(self._design())
+        self.assertEqual(d["R1"]["comment"], "1kΩ")
+        self.assertEqual(d["C1"]["comment"], "100nF")
+        self.assertEqual(d["U1"]["comment"], "RP2040")
+
+    def test_a_crystal_is_named_by_its_frequency(self) -> None:
+        self.assertEqual(fab.describe_components(self._design())["Y1"]["comment"], "12MHz")
+
+    def test_a_part_with_no_value_still_says_what_it_is(self) -> None:
+        # Better a human word than an empty cell the fab cannot check.
+        self.assertEqual(
+            fab.describe_components(self._design())["SW1"]["comment"], "push button"
+        )
+
+    def test_package_is_never_guessed_from_geometry(self) -> None:
+        """The first attempt measured copper and read every 0402 as an 0603.
+
+        Land patterns are larger than the bodies they name, so a geometric
+        guess is confidently wrong — worse than blank, because JLC's matcher
+        flags a mismatch that does not exist. describe_components must not
+        return a footprint at all; packages come from the catalog by LCSC.
+        """
+        for entry in fab.describe_components(self._design()).values():
+            self.assertNotIn("footprint", entry)
+
+    def test_catalog_packages_are_authoritative_and_optional(self) -> None:
+        packages = fab._catalog_packages()
+        self.assertIsInstance(packages, dict)
+        if "C1525" in packages:  # the 100nF 0402 every board uses
+            self.assertEqual(packages["C1525"], "0402")
+
+    def test_a_grouped_row_is_described_by_its_first_designator(self) -> None:
+        import tempfile
+        rows = [{"designator": "R1,R2,R3", "comment": "", "value": "",
+                 "footprint": "", "lcsc": "C25104"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = fab.write_bom_csv(
+                rows, Path(tmp) / "bom.csv", fab.get_profile("jlcpcb"),
+                described={"R1": {"comment": "1kΩ"}},
+            )
+            body = out.read_text()
+        self.assertIn("1kΩ", body, "the line must carry the value it shares")
+        self.assertIn("R1,R2,R3", body)

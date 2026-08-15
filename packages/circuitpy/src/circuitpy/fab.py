@@ -407,7 +407,83 @@ def bom_summary(rows: list[dict]) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-def write_bom_csv(rows: list[dict], path: Path, profile: FabProfile) -> Path:
+
+def _catalog_packages() -> dict[str, str]:
+    """LCSC number -> package string, from the local JLCPCB catalog mirror.
+
+    Authoritative, unlike inferring a package from copper. Missing catalog is
+    not an error — the columns simply stay blank, which is the honest answer.
+    """
+    root = Path(__file__).resolve().parents[4] / "packages" / "parts-catalog" / "catalog"
+    out: dict[str, str] = {}
+    try:
+        files = sorted(root.glob("*.json"))
+    except OSError:
+        return out
+    for file in files:
+        try:
+            data = json.loads(file.read_text())
+        except (OSError, ValueError):
+            continue
+        rows = data if isinstance(data, list) else data.get("parts") or data.get("items") or []
+        for row in rows:
+            if isinstance(row, dict) and row.get("lcsc") and row.get("package"):
+                out.setdefault(str(row["lcsc"]).strip(), str(row["package"]).strip())
+    return out
+
+
+def describe_components(circuit_json: "Sequence[dict]") -> dict[str, dict]:
+    """Per-refdes ``{comment}`` recovered from the circuit JSON.
+
+    The upstream exporter ships `Comment` and `Footprint` **empty** on every
+    BOM line (measured 2026-08-15 on all three examples). JLC's parts-match
+    table uses those columns to sanity-check the part number against what the
+    designer believed they were buying, so an LCSC number with nothing beside
+    it removes the fab's only cross-check — and the reviewer's. The first human
+    EE review asked for JLC's sample format; format without content is half the
+    ask.
+
+    Comment comes from the design itself: `display_resistance`,
+    `display_capacitance`, `manufacturer_part_number`, crystal frequency.
+
+    **Package deliberately does not come from geometry.** The first attempt
+    measured the placed footprint's copper and quantised it, which read every
+    0402 as an 0603 — land patterns are larger than the bodies they name. A
+    confidently wrong package is worse than a blank one, because JLC's matcher
+    would flag a mismatch that does not exist. Package is looked up by LCSC
+    number in the catalog mirror instead, and stays empty when unknown.
+    """
+    sources = {
+        e["source_component_id"]: e
+        for e in circuit_json
+        if isinstance(e, dict) and e.get("type") == "source_component"
+    }
+    out: dict[str, dict] = {}
+    for src in sources.values():
+        name = src.get("name")
+        if not name:
+            continue
+        comment = (
+            src.get("display_resistance")
+            or src.get("display_capacitance")
+            or src.get("display_inductance")
+            or src.get("manufacturer_part_number")
+            or ""
+        )
+        if not comment and src.get("frequency"):
+            comment = f"{float(src['frequency']) / 1e6:g}MHz"
+        if not comment:
+            comment = str(src.get("ftype") or "").replace("simple_", "").replace("_", " ")
+        out[name] = {"comment": str(comment)}
+    return out
+
+
+def write_bom_csv(
+    rows: list[dict],
+    path: Path,
+    profile: FabProfile,
+    described: dict[str, dict] | None = None,
+) -> Path:
     """The shipping BOM, in JLC's documented sample shape (ledger #32):
     ``Comment,Designator,Footprint,LCSC Part #``, one line per part with
     designators grouped (``SW10,SW11,…``) — the format the article at
@@ -417,11 +493,16 @@ def write_bom_csv(rows: list[dict], path: Path, profile: FabProfile) -> Path:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(profile.bom_columns)
+        described = described or {}
+        packages = _catalog_packages()
         for row in group_bom_rows(rows):
-            comment = row.get("comment") or row.get("value") or ""
-            writer.writerow(
-                [comment, row["designator"], row.get("footprint") or "", row.get("lcsc") or ""]
-            )
+            # A grouped row's designators are all the same part, so the first
+            # one describes the line.
+            first = row["designator"].split(",")[0].strip()
+            extra = described.get(first, {})
+            comment = row.get("comment") or row.get("value") or extra.get("comment") or ""
+            footprint = row.get("footprint") or packages.get(row.get("lcsc") or "", "")
+            writer.writerow([comment, row["designator"], footprint, row.get("lcsc") or ""])
     return path
 
 

@@ -808,7 +808,12 @@ def build_board(
                 ts_gerbers_zip, fab_dir / profile.zip_name
             )
         if bom_rows:
-            bom_path = fab_mod.write_bom_csv(bom_rows, fab_dir / profile.bom_name, profile)
+            bom_path = fab_mod.write_bom_csv(
+                bom_rows,
+                fab_dir / profile.bom_name,
+                profile,
+                described=fab_mod.describe_components(circuit_json),
+            )
         if product.assembly and cpl_text:
             cpl_path = fab_mod.write_cpl_csv(cpl_text, fab_dir / profile.cpl_name, profile)
     except OSError as exc:
