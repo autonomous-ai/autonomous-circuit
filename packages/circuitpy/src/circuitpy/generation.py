@@ -34,12 +34,14 @@ from typing import Callable, Sequence
 
 from circuitpy import checks
 from circuitpy import circuit_normalize
+from circuitpy import diffpair
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
 from circuitpy import kicad_schematic
 from circuitpy import review as review_mod
+from circuitpy import router_bridge
 from circuitpy import spec as spec_mod
 from circuitpy import status as status_mod
 from circuitpy import toolchain
@@ -143,6 +145,10 @@ KICAD_TIMEOUT_S = 120.0
 #   answered the network first.
 DETERMINISM_ENV = "CIRCUIT_DETERMINISM"
 SEED_ENV = "CIRCUIT_DETERMINISTIC_SEED"
+#: Stage 0c, the differential-pair route pass (`diffpair.py`). Off-switchable
+#: the same way the other stages are, because a pass that cannot be turned off
+#: cannot be measured against its own absence.
+DIFFPAIR_ENV = "CIRCUIT_DIFFPAIR"
 PRELOAD_REL = ("determinism", "deterministic-run.mjs")
 #: The line the preload writes to stderr when it actually seeds. Kept in step
 #: with ``DETERMINISM_MARKER`` in ``deterministic-run.mjs``; a test pins that
@@ -315,6 +321,15 @@ def _routing_blockers(warnings: Sequence[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Determinism helpers.
 # ---------------------------------------------------------------------------
+
+
+def _diffpair_off() -> bool:
+    return (os.environ.get(DIFFPAIR_ENV) or "").strip().lower() in {
+        "off",
+        "0",
+        "false",
+        "no",
+    }
 
 
 def _determinism_off() -> bool:
@@ -886,6 +901,10 @@ def build_board(
     #: One entry per compile attempt, so the attempt the build *keeps* is the
     #: one whose repair gets reported. Escalation can throw an attempt away.
     circuit_normalizations: list[circuit_normalize.CircuitNormalization] = []
+    diffpair_results: list[diffpair.DiffPairResult] = []
+    #: Stage 0b, one entry per compile attempt. Empty engine="off" rows are
+    #: dropped from the sidecar; a stage that did nothing should not be noise.
+    router_reports: list[dict] = []
 
     def _compile_once(timeout_s: float) -> list:
         with _deterministic_env(identity.source_fingerprint) as requested:
@@ -947,6 +966,38 @@ def build_board(
         circuit_normalizations.append(
             circuit_normalize.normalize_circuit_json(built_circuit_json)
         )
+        # Stage 0b: hand the whole board to our own router, if asked. Off by
+        # default — `routerlib` knows rules the shipped autorouter cannot
+        # represent (drill clearance, a plane as a net, net classes) and does
+        # not yet match it on completeness, so it is measured before it is
+        # switched on. `CIRCUIT_ROUTER=portfolio` keeps our copper only when it
+        # connects at least as many nets; `portfolio-force` always keeps it.
+        # Before stage 0c, so the pair pass can still improve what we laid
+        # down, and so the two stages compose in the same order either way.
+        router_reports.append(
+            router_bridge.route_board(built_circuit_json, profile)
+        )
+        # Stage 0c: route every two-terminal differential pair as a pair.
+        # The autorouter solves D+ and D- as two unrelated nets, which is what
+        # the first human EE review called out (2026-08-15, finding 3). This
+        # replaces that copper with one coupled pair, in the space the
+        # autorouter's own detour frees, and refuses rather than regress —
+        # see `diffpair.py` for why it cannot run *before* the autorouter.
+        if not _diffpair_off():
+            def _grade(elements: list, at: Path) -> list[dict]:
+                """The same gate the board is judged by, handed to the pair
+                pass so it is graded by our ruler and not by its own model."""
+                found: list[dict] = []
+                found.extend(checks.harvest_circuit_json(elements))
+                found.extend(checks.run_tscircuit_checks(at))
+                found.extend(checks.dfm_warnings(elements, product, profile))
+                return found
+
+            diffpair_results.append(
+                diffpair.route_diff_pairs(
+                    built_circuit_json, profile, grade=_grade
+                )
+            )
         try:
             elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
@@ -1066,6 +1117,58 @@ def build_board(
         for note in normalized.notes:
             warnings.append(checks.check_failed(note))
 
+    # What our own router did to the attempt this build keeps. A stage that
+    # ran and declined has to say so: "we routed this board ourselves" and "we
+    # tried and kept the autorouter's answer" are different boards.
+    kept_router = (
+        router_reports[min(kept_attempt, len(router_reports) - 1)]
+        if router_reports
+        else {"engine": "off"}
+    )
+    if kept_router.get("engine") != "off":
+        after = kept_router.get("after") or {}
+        before = kept_router.get("before") or {}
+        warnings.append({
+            "part": "board",
+            "kind": "router_applied" if kept_router.get("applied")
+            else "router_declined",
+            "detail": (
+                f"{kept_router.get('engine')} "
+                f"{'routed' if kept_router.get('applied') else 'did not route'} "
+                f"this board: {after.get('connectedNets')}/"
+                f"{after.get('routableNets')} nets against the autorouter's "
+                f"{before.get('connectedNets')}"
+                + (f" — {kept_router['reason']}" if kept_router.get("reason") else "")
+            ),
+            "severity": "info",
+        })
+
+    # What the pair pass did to the attempt this build keeps, in the same
+    # place and the same shape. A pair it refused is reported too: silence
+    # would read as "there was nothing to do".
+    if diffpair_results:
+        paired = diffpair_results[min(kept_attempt, len(diffpair_results) - 1)]
+        if paired.changed:
+            warnings.append({
+                "part": "board",
+                "kind": "diffpair_routed",
+                "detail": paired.summary(),
+                "severity": "info",
+            })
+        for pair in paired.pairs:
+            if pair.status == "refused":
+                warnings.append({
+                    "part": f"{pair.net_p},{pair.net_n}",
+                    "kind": "diffpair_not_routed",
+                    "detail": (
+                        "this pair kept the autorouter's copper: "
+                        f"{pair.reason}"
+                    ),
+                    "severity": "info",
+                })
+        for note in paired.notes:
+            warnings.append(checks.check_failed(note))
+
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
@@ -1076,6 +1179,12 @@ def build_board(
         # equal to another build of the same source.
         "determinism": dict(determinism_block),
     }
+    if kept_router.get("engine") != "off":
+        build_block["router"] = kept_router
+    if diffpair_results:
+        build_block["diffPair"] = diffpair_results[
+            min(kept_attempt, len(diffpair_results) - 1)
+        ].as_dict()
 
     tool_versions = toolchain.versions()
     circuit_json_sha = export_cache.sha256_file(built_circuit_json)

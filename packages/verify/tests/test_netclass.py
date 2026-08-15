@@ -280,3 +280,93 @@ def test_a_check_that_raises_becomes_a_finding_not_a_crash():
     board = Board([{"type": "pcb_board", "width": "not a number"}])
     result = netclass.check(board)
     assert isinstance(result.findings, list)
+
+
+# --- the two blind spots the pair checks had ------------------------------
+
+
+def test_the_connector_side_pair_is_measured_too():
+    """``USB_DP_CONN``/``USB_DM_CONN`` is a pair. The end-anchored token match
+    this replaced saw ``USB_DP``/``USB_DM`` and nothing else, so the run from
+    the receptacle through the ESD diode — the half closest to the cable —
+    was unmeasured on all three example boards."""
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP_CONN"))
+    elements.append(fixtures.net(1, "USB_DM_CONN"))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    elements.append(fixtures.trace_on("tn", 1, [(0, -2), (12, -2)], width=0.15))
+    result = netclass.check(Board(elements))
+    assert "netclass_pair_skew" in kinds(result)
+    assert "netclass_pair_coupling" in kinds(result)
+
+
+def test_a_pair_is_claimed_once_even_when_two_tokens_match():
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "DP"))
+    elements.append(fixtures.net(1, "DM"))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    elements.append(fixtures.trace_on("tn", 1, [(0, -2), (12, -2)], width=0.15))
+    result = netclass.check(Board(elements))
+    skews = [f for f in result.findings if f["kind"] == "netclass_pair_skew"]
+    assert len(skews) == 1
+
+
+def _reference_board(*, ground_under: bool) -> Board:
+    """A pair on top, with or without ground copper on the bottom under it."""
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP"))
+    elements.append(fixtures.net(1, "USB_DM"))
+    elements.append(fixtures.net(2, "GND", is_ground=True))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    elements.append(fixtures.trace_on("tn", 1, [(0, 1.6), (30, 1.6)], width=0.15))
+    if ground_under:
+        elements.append(
+            fixtures.trace_on("tg", 2, [(0, 2), (30, 2)], width=2.0,
+                              layer="bottom")
+        )
+    return Board(elements)
+
+
+def test_a_pair_with_no_return_plane_is_reported():
+    """The third clause of the EE's finding: parallel and matched is not
+    enough if there is nothing underneath. All three example boards measure
+    0%."""
+    result = netclass.check(_reference_board(ground_under=False))
+    assert "netclass_pair_reference" in kinds(result)
+    detail = next(
+        f["detail"] for f in result.findings
+        if f["kind"] == "netclass_pair_reference"
+    )
+    assert "0%" in detail
+
+
+def test_a_pair_over_ground_is_not_reported():
+    result = netclass.check(_reference_board(ground_under=True))
+    assert "netclass_pair_reference" not in kinds(result)
+
+
+def test_the_reference_check_reads_a_ground_pour_not_only_traces():
+    """A poured plane is the normal way to hold a reference, and a check that
+    only reads traces would report every properly-planed board as bare."""
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP"))
+    elements.append(fixtures.net(1, "USB_DM"))
+    elements.append(fixtures.net(2, "GND", is_ground=True))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (30, 2)], width=0.15))
+    elements.append(fixtures.trace_on("tn", 1, [(0, 1.6), (30, 1.6)], width=0.15))
+    elements.append({
+        "type": "pcb_copper_pour",
+        "pcb_copper_pour_id": "pour_0",
+        "shape": "brep",
+        "layer": "bottom",
+        "source_net_id": "source_net_2",
+        "brep_shape": {
+            "outer_ring": {"vertices": [
+                {"x": -5, "y": -5}, {"x": 35, "y": -5},
+                {"x": 35, "y": 10}, {"x": -5, "y": 10},
+            ]},
+            "inner_rings": [],
+        },
+    })
+    result = netclass.check(Board(elements))
+    assert "netclass_pair_reference" not in kinds(result)

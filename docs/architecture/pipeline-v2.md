@@ -103,6 +103,26 @@ Three passes, not one:
 
 **Gate:** DRC clean, or a named list of what is not.
 
+**Pass 2 exists today, at the wrong end of the pipeline, and the gap between
+where it is and where it belongs is measured** (2026-08-16, ledger #38).
+`circuitpy.diffpair` routes D+/D- as one coupled pair — a single centreline, two
+offsets, one via per leg at a layer change, a staggered-via crossover when the
+pair must swap sides — and refuses rather than regress. On hydrate-coaster it
+takes coupling from **7% to 95%** and skew from **13.91mm to 1.95mm**, with the
+worst clearance going *up* from 0.115mm to 0.128mm.
+
+It runs *after* the autorouter because tscircuit will not let it run before:
+the pre-route hook (`pcbPath`) pins a trace's copper, but the subcircuit
+autorouter builds obstacles from components, pads, plated holes, holes, vias
+and cutouts — `pcb_trace` is not in that list — so pre-routed copper is copper
+the autorouter drives straight through.
+
+**That is the whole argument for this stage.** Running last, the pair can only
+use what the autorouter left over, and on two of three boards there is nothing
+left: harness-puck needs 0.96mm of clear corridor for a pair at via pitch and
+does not have it anywhere. Running second — after the plane, before the rest —
+the corridor exists because nothing has taken it yet.
+
 ### 6. Repair — a ratchet, never a rewrite
 
 Already landed in the driver: a round may leave the board no worse than it

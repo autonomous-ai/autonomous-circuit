@@ -71,6 +71,14 @@ USB_SKEW_BUDGET_MM = 3.8
 #: spec — a routed pair sits at 2-3x width, a diverging one at tens.
 DIFF_PAIR_GAP_WIDTHS = 4.0
 DIFF_PAIR_MIN_COUPLED = 0.7
+
+#: The reference-plane half of the same review finding. A sample of the pair
+#: counts as referenced when ground copper on the *other* layer passes within
+#: this distance of it — half a millimetre is about the width of the field a
+#: 0.15mm microstrip 1.6mm above its return actually uses on FR-4, so it is a
+#: generous test rather than a strict one.
+DIFF_PAIR_REFERENCE_MM = 0.5
+DIFF_PAIR_MIN_REFERENCE = 0.7
 #: Sampling step along the P leg, mm. Fine enough that a gap spike shorter
 #: than a pad cannot hide between samples.
 _COUPLING_STEP_MM = 0.5
@@ -309,19 +317,41 @@ def _via_bottlenecks(board: Board, loads: _Loads) -> list[Finding]:
     return out
 
 
+#: The name tokens that make two nets a pair, longest first so ``USB_DP`` is
+#: never read as a bare ``…P``.
+_PAIR_TOKENS: tuple[tuple[str, str], ...] = (("_DP", "_DM"), ("D+", "D-"),
+                                             ("DP", "DM"))
+
+
 def _diff_pairs(board: Board) -> list[tuple[Net, Net]]:
-    """Every named P/N pair on the board (…DP/…DM, …D+/…D-)."""
+    """Every named P/N pair on the board (…DP/…DM, …D+/…D-).
+
+    The token is matched **wherever it sits in the name**, not only at the end.
+    The end-anchored version this replaces missed ``USB_DP_CONN`` /
+    ``USB_DM_CONN`` on all three boards — the connector-side half of the pair,
+    the run from the USB-C receptacle through the ESD diode to the series
+    resistors, which is the half closest to the cable and was never measured.
+    """
     pairs: list[tuple[Net, Net]] = []
     by_name = {n.name: n for n in board.nets if n.name}
-    for name, net in sorted(by_name.items()):
+    claimed: set[str] = set()
+    for name in sorted(by_name):
+        if name in claimed:
+            continue
         upper = name.upper()
-        for suffix_p, suffix_n in (("_DP", "_DM"), ("DP", "DM"), ("D+", "D-")):
-            if not upper.endswith(suffix_p):
+        for token_p, token_n in _PAIR_TOKENS:
+            index = upper.rfind(token_p)
+            if index < 0:
                 continue
-            partner_name = name[: len(name) - len(suffix_p)] + suffix_n
-            partner = by_name.get(partner_name) or by_name.get(partner_name.lower())
-            if partner is not None:
-                pairs.append((net, partner))
+            wanted = (name[:index] + token_n + name[index + len(token_p):]).upper()
+            partner_name = next(
+                (other for other in sorted(by_name) if other.upper() == wanted),
+                None,
+            )
+            if partner_name is not None and partner_name not in claimed:
+                pairs.append((by_name[name], by_name[partner_name]))
+                claimed.add(name)
+                claimed.add(partner_name)
             break
     return pairs
 
@@ -416,8 +446,126 @@ def _diff_pair_coupling(board: Board) -> list[Finding]:
                 f"{budget:.2f}mm of each other ({DIFF_PAIR_GAP_WIDTHS:g}x the "
                 f"{width:g}mm trace) for only {fraction:.0%} of the run — a "
                 f"differential pair should travel together (widest gap "
-                f"{worst:.2f}mm). The router cannot hold a pair yet, so this "
-                "is reported, not fixed: review the pair before ordering",
+                f"{worst:.2f}mm). The pipeline's pair pass "
+                "(circuitpy.diffpair) either could not route this pair or was "
+                "switched off; its report says which. Review the pair before "
+                "ordering",
+                "warning",
+            )
+        )
+    return out
+
+
+def _ground_shapes(board: Board) -> tuple[list, list]:
+    """Ground copper, per layer: (trace segments, pour polygons).
+
+    Pours are read here rather than through the shared model because this is
+    the only check that needs their outline, and a reference-plane number
+    computed without them would be wrong on exactly the boards that have one.
+    """
+    ground = board.ground
+    segments = []
+    if ground is not None:
+        for trace in board.traces_on(ground):
+            for segment in trace.segments:
+                segments.append(segment)
+    pours: list[tuple[str, list[tuple[float, float]]]] = []
+    names = {
+        str(e.get("source_net_id")): e
+        for e in board.of_type("source_net")
+        if e.get("source_net_id")
+    }
+    for pour in board.of_type("pcb_copper_pour"):
+        meta = names.get(str(pour.get("source_net_id") or ""))
+        if not meta or not meta.get("is_ground"):
+            continue
+        brep = pour.get("brep_shape") or {}
+        ring = brep.get("outer_ring")
+        vertices = ring.get("vertices") if isinstance(ring, dict) else ring
+        if not isinstance(vertices, list) or len(vertices) < 3:
+            continue
+        points = []
+        for vertex in vertices:
+            try:
+                points.append((float(vertex["x"]), float(vertex["y"])))
+            except (KeyError, TypeError, ValueError):
+                points = []
+                break
+        if points:
+            pours.append((str(pour.get("layer") or "top"), points))
+    return segments, pours
+
+
+def _inside(points: list[tuple[float, float]], px: float, py: float) -> bool:
+    inside = False
+    for i in range(len(points)):
+        x0, y0 = points[i]
+        x1, y1 = points[(i + 1) % len(points)]
+        if (y0 > py) != (y1 > py):
+            if px < x0 + (py - y0) * (x1 - x0) / (y1 - y0):
+                inside = not inside
+    return inside
+
+
+@never_raises
+def _diff_pair_reference(board: Board) -> list[Finding]:
+    """How much of the pair runs over ground (EE review 2026-08-15, finding 3).
+
+    The review asked for three things and this is the third: *"with a proper
+    GND reference."* Coupling and skew are about the two tracks; this is about
+    what is underneath them. A pair with no return plane beneath it has no
+    defined impedance and returns its current through whatever is nearest.
+
+    Measured, not asserted: sample the P leg, and at each sample look on the
+    **other** layer for ground copper within ``DIFF_PAIR_REFERENCE_MM``. Pours
+    and routed ground both count. Report-only — the fix is a ground plane on
+    the board template, which is a design change, not a repair.
+    """
+    segments, pours = _ground_shapes(board)
+    out: list[Finding] = []
+    for net, partner in _diff_pairs(board):
+        legs = [s for t in board.traces_on(net) for s in t.segments]
+        if not legs:
+            continue
+        total = covered = 0.0
+        for seg in legs:
+            length = seg.length
+            if length <= 0:
+                continue
+            other = "bottom" if (seg.layer or "top") == "top" else "top"
+            steps = max(1, int(length / _COUPLING_STEP_MM))
+            piece = length / steps
+            for i in range(steps):
+                t = (i + 0.5) / steps
+                px = seg.x0 + (seg.x1 - seg.x0) * t
+                py = seg.y0 + (seg.y1 - seg.y0) * t
+                total += piece
+                near = any(
+                    layer == other and _inside(points, px, py)
+                    for layer, points in pours
+                )
+                if not near:
+                    near = any(
+                        (g.layer or "top") == other
+                        and _seg_distance(px, py, g) <= DIFF_PAIR_REFERENCE_MM
+                        for g in segments
+                    )
+                if near:
+                    covered += piece
+        if total <= 0:
+            continue
+        fraction = covered / total
+        if fraction >= DIFF_PAIR_MIN_REFERENCE:
+            continue
+        out.append(
+            finding(
+                f"{net.label},{partner.label}",
+                "netclass_pair_reference",
+                f"{fraction:.0%} of {net.label}'s run has ground copper on the "
+                f"opposite layer within {DIFF_PAIR_REFERENCE_MM:g}mm. A "
+                "differential pair needs a continuous return path under it or "
+                "its impedance is undefined and its return current goes "
+                "wherever it can. Pour ground on the free layer under the pair",
                 "warning",
             )
         )
@@ -439,7 +587,8 @@ def check(board: Board) -> CheckResult:
             f"{net.label if net else key}: no datasheet load for "
             f"{', '.join(sorted(set(names))[:4])} — its current is not in the total"
         )
-    coverage.skip("copper pours (a poured net reads as its thinnest routed trace)")
+    coverage.skip("copper pours (a poured net reads as its thinnest routed trace) "
+                  "— except in the pair reference-plane check, which reads them")
     coverage.skip("off-board loads through a connector")
 
     findings: list[Finding] = []
@@ -447,6 +596,7 @@ def check(board: Board) -> CheckResult:
     findings += _via_bottlenecks(board, loads)
     findings += _diff_pair_skew(board)
     findings += _diff_pair_coupling(board)
+    findings += _diff_pair_reference(board)
     findings += _uniform_width(board)
 
     notes = [

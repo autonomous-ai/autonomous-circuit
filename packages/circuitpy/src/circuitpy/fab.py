@@ -237,9 +237,17 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #: * `review_decoupling_missing` — the board usually works. Real, and worth a
 #:   human's attention, but not worth refusing to let anyone order the board.
 #: * `netclass_pair_coupling` (EE review 2026-08-15, finding 3) — report-only
-#:   by design: the router has no net-class concept, so a blocking finding
-#:   here would make every USB board permanently un-orderable until the v2
-#:   route stage exists. The check makes the gap visible; the fix is v2's.
+#:   by design. Stage 0c (`circuitpy.diffpair`) now *routes* the pair where it
+#:   can, but it refuses rather than regress, and on a congested board there is
+#:   sometimes no corridor a pair fits through. Blocking here would make those
+#:   boards permanently un-orderable over a defect the pipeline has already
+#:   tried to fix and reported honestly.
+#: * `netclass_pair_reference` (the same finding's third clause) — a pair with
+#:   no ground under it has undefined impedance, and all three example boards
+#:   measure **0%**. It is a warning and not an error because the fix is a
+#:   ground pour on the board template, which is a design change nobody can
+#:   make from inside a repair pass; escalating it would block every board the
+#:   tool has ever produced over something no check can repair.
 
 _JLCPCB = FabProfile(
     id="jlcpcb",
