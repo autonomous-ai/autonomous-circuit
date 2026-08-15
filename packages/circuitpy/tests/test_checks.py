@@ -73,6 +73,82 @@ class HarvestCircuitJson(unittest.TestCase):
         self.assertIsInstance(warnings, list)
 
 
+def _switch_schematic(
+    *,
+    ftype: str = "simple_push_button",
+    same_component: bool = True,
+    loop: bool = True,
+) -> list[dict]:
+    """Minimal circuit.json slice: one (or two) components with a schematic
+    wire between two ports. Mirrors the real element shapes measured on
+    terminal-keyboard (a schematic_trace whose source_trace_id names the two
+    ports it bridges)."""
+    owner_b = "schematic_component_1" if same_component else "schematic_component_2"
+    elements: list[dict] = [
+        {"type": "source_component", "source_component_id": "source_component_1",
+         "name": "SW1", "ftype": ftype},
+        {"type": "source_component", "source_component_id": "source_component_2",
+         "name": "J1", "ftype": "simple_chip"},
+        {"type": "schematic_component", "schematic_component_id": "schematic_component_1",
+         "source_component_id": "source_component_1"},
+        {"type": "schematic_component", "schematic_component_id": "schematic_component_2",
+         "source_component_id": "source_component_2"},
+        {"type": "schematic_port", "schematic_port_id": "schematic_port_1",
+         "schematic_component_id": "schematic_component_1",
+         "source_port_id": "source_port_1"},
+        {"type": "schematic_port", "schematic_port_id": "schematic_port_2",
+         "schematic_component_id": owner_b, "source_port_id": "source_port_2"},
+    ]
+    if loop:
+        elements.append(
+            {"type": "schematic_trace", "schematic_trace_id": "schematic_trace_1",
+             "source_trace_id": "schematic_port_2-schematic_port_1", "edges": []}
+        )
+    return elements
+
+
+class SchematicTruth(unittest.TestCase):
+    """Ledger #29: a wire looping across a switch symbol is a drawn short."""
+
+    def test_switch_self_loop_fires(self) -> None:
+        warnings = checks.schematic_truth_warnings(_switch_schematic())
+        self.assertEqual([w["kind"] for w in warnings], ["schematic_symbol_short"])
+        self.assertEqual(warnings[0]["part"], "SW1")
+        self.assertEqual(warnings[0]["severity"], "warning")
+
+    def test_wire_between_two_components_is_fine(self) -> None:
+        warnings = checks.schematic_truth_warnings(
+            _switch_schematic(same_component=False)
+        )
+        self.assertEqual(warnings, [])
+
+    def test_connector_tie_is_not_flagged(self) -> None:
+        # USB-C's DP1/DP2 tie is real copper and must keep drawing as a wire.
+        warnings = checks.schematic_truth_warnings(
+            _switch_schematic(ftype="simple_chip")
+        )
+        self.assertEqual(warnings, [])
+
+    def test_no_loop_no_warning(self) -> None:
+        warnings = checks.schematic_truth_warnings(_switch_schematic(loop=False))
+        self.assertEqual(warnings, [])
+
+    def test_fires_on_terminal_keyboard_class_fixture(self) -> None:
+        # The real defect: 50 keys, each drawn shorted. One warning per key,
+        # not one per redundant tie.
+        elements = _switch_schematic()
+        elements.append(
+            {"type": "schematic_trace", "schematic_trace_id": "schematic_trace_2",
+             "source_trace_id": "schematic_port_1-schematic_port_2", "edges": []}
+        )
+        warnings = checks.schematic_truth_warnings(elements)
+        self.assertEqual(len(warnings), 1)
+
+    def test_never_raises_on_garbage(self) -> None:
+        warnings = checks.schematic_truth_warnings([{"type": None}, "junk", 42])  # type: ignore[list-item]
+        self.assertIsInstance(warnings, list)
+
+
 class IoUBands(unittest.TestCase):
     def _element(self, iou: float) -> dict:
         return {

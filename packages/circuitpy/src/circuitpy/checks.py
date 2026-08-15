@@ -130,6 +130,96 @@ def harvest_circuit_json(circuit_json: Sequence[dict]) -> list[Warning]:
         return [check_failed(f"circuit.json scan raised {type(exc).__name__}: {exc}")]
 
 
+#: Component ftypes drawn as a two-terminal actuator symbol. A wire drawn
+#: between two pins of one of these reads as a permanent short across the
+#: actuator — whatever the copper does.
+_ACTUATOR_FTYPES = ("simple_push_button", "simple_switch")
+
+_PORT_PAIR_RE = re.compile(r"^(schematic_port_\d+)-(schematic_port_\d+)$")
+
+
+def schematic_truth_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
+    """A review artifact that misrepresents the design (ledger #29).
+
+    The first human EE review read terminal-keyboard's schematic as "every
+    key is shorted": the 4-pad pushbutton renders as a 2-pin symbol, and the
+    block's redundant same-net tie (pins 1+2 both on the signal net) was drawn
+    as a wire looping from one symbol terminal to the other. The copper was
+    right; the artifact lied, and expert review time — the scarcest input this
+    project has — went into debunking a phantom.
+
+    The structural fix is on the component: declaring
+    ``internallyConnectedPins`` folds same-terminal pins onto one symbol
+    terminal and the loop is never drawn. This check is the smoke alarm that
+    keeps that fix honest: it fires on any schematic wire whose two endpoints
+    are pins of the *same* switch-symbol component. Scoped to actuator
+    symbols on purpose — a same-net tie between two pins of a connector
+    (USB-C's DP1/DP2) is real, intended copper and must keep drawing as a
+    wire.
+    """
+    try:
+        warnings: list[Warning] = []
+        port_owner: dict[str, str] = {}
+        port_source: dict[str, str] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            if element.get("type") == "schematic_port":
+                pid = str(element.get("schematic_port_id") or "")
+                if pid:
+                    port_owner[pid] = str(element.get("schematic_component_id") or "")
+                    port_source[pid] = str(element.get("source_port_id") or "")
+        component_source: dict[str, str] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            if element.get("type") == "schematic_component":
+                component_source[str(element.get("schematic_component_id") or "")] = str(
+                    element.get("source_component_id") or ""
+                )
+        source_meta: dict[str, tuple[str, str]] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            if element.get("type") == "source_component":
+                source_meta[str(element.get("source_component_id") or "")] = (
+                    str(element.get("name") or "?"),
+                    str(element.get("ftype") or ""),
+                )
+        flagged: set[str] = set()
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "schematic_trace":
+                continue
+            match = _PORT_PAIR_RE.match(str(element.get("source_trace_id") or ""))
+            if match is None:
+                continue
+            owner_a = port_owner.get(match.group(1))
+            owner_b = port_owner.get(match.group(2))
+            if not owner_a or owner_a != owner_b or owner_a in flagged:
+                continue
+            source_id = component_source.get(owner_a, "")
+            name, ftype = source_meta.get(source_id, ("?", ""))
+            if ftype not in _ACTUATOR_FTYPES:
+                continue
+            flagged.add(owner_a)
+            warnings.append(
+                _warning(
+                    name,
+                    "schematic_symbol_short",
+                    f"the schematic draws a wire between two pins of {name} — "
+                    "on paper that is a permanent short across the switch, and "
+                    "a reviewer has to read it as a dead button. If the pins "
+                    "are one internal terminal, declare the pairing with "
+                    "internallyConnectedPins so it folds into the symbol "
+                    "instead of drawing as a wire; if they are not, the design "
+                    "itself shorts the switch",
+                )
+            )
+        return warnings
+    except Exception as exc:
+        return [check_failed(f"schematic truth scan raised {type(exc).__name__}: {exc}")]
+
+
 def iou_warnings(
     circuit_json: Sequence[dict], profile: FabProfile
 ) -> list[Warning]:

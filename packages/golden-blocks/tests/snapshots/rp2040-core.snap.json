@@ -76,6 +76,18 @@
    "ftype": "simple_push_button",
    "lcsc": "C318884"
   },
+  "TP1": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
+  "TP2": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
+  "TP3": {
+   "ftype": "simple_test_point",
+   "lcsc": null
+  },
   "U3": {
    "ftype": "simple_chip",
    "lcsc": "C2040"
@@ -90,31 +102,34 @@
   }
  },
  "elementCounts": {
-  "cad_component": 22,
+  "cad_component": 25,
   "pcb_board": 1,
-  "pcb_component": 22,
+  "pcb_component": 25,
   "pcb_courtyard_outline": 2,
   "pcb_courtyard_rect": 20,
-  "pcb_group": 1,
-  "pcb_port": 111,
+  "pcb_group": 2,
+  "pcb_port": 114,
   "pcb_silkscreen_path": 38,
-  "pcb_silkscreen_text": 22,
-  "pcb_smtpad": 111,
-  "pcb_solder_paste": 103,
-  "schematic_component": 22,
-  "schematic_group": 2,
+  "pcb_silkscreen_text": 28,
+  "pcb_smtpad": 114,
+  "pcb_solder_paste": 106,
+  "pcb_trace": 66,
+  "pcb_trace_too_long_warning": 1,
+  "pcb_via": 52,
+  "schematic_component": 25,
+  "schematic_group": 3,
   "schematic_net_label": 40,
-  "schematic_port": 107,
+  "schematic_port": 114,
   "schematic_text": 6,
-  "schematic_trace": 45,
+  "schematic_trace": 46,
   "source_board": 1,
-  "source_component": 22,
-  "source_component_internal_connection": 1,
-  "source_group": 2,
+  "source_component": 25,
+  "source_component_internal_connection": 5,
+  "source_group": 3,
   "source_net": 7,
-  "source_port": 111,
+  "source_port": 114,
   "source_project_metadata": 1,
-  "source_trace": 70
+  "source_trace": 73
  },
  "nets": [
   "DVDD",
@@ -125,5 +140,5 @@
   "USB_DP",
   "V3_3"
  ],
- "traceCount": 70
+ "traceCount": 73
 }

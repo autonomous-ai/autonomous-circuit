@@ -171,6 +171,31 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/tests/test_failure_corpus.py",
         r"checks\.iou_warnings\(elements, PROFILE\)",
     ),
+    (
+        29,
+        "the pushbutton declares its internal pairing, so the schematic folds "
+        "same-terminal pins instead of drawing a short across the switch",
+        "packages/golden-blocks/blocks/sw-tact/sw-tact.tsx",
+        r"internallyConnectedPins",
+    ),
+    (
+        29,
+        "rp2040-core's BOOTSEL/RESET buttons declare the same pairing",
+        "packages/golden-blocks/blocks/rp2040-core/rp2040-core.tsx",
+        r"internallyConnectedPins",
+    ),
+    (
+        29,
+        "a wire drawn between two pins of a switch symbol is flagged on every board",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def schematic_truth_warnings",
+    ),
+    (
+        29,
+        "stage 1 actually runs the schematic-truth scan",
+        "packages/circuitpy/src/circuitpy/generation.py",
+        r"checks\.schematic_truth_warnings",
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)

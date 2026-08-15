@@ -3,9 +3,13 @@
  * dialect: tscircuit@0.0.2279 (pinned — repo toolchain/package.json)
  *
  * Tactile switch: TS-1187A-B-A-B (LCSC C318884, JLC Basic, $0.018).
- * 4-pad SMD; pads 1+2 are one internal terminal, 3+4 the other (standard
- * TS-1187A pairing — hardware-verify on first article). The block ties each
- * pair so a single cracked joint never opens the circuit.
+ * 4-pad SMD; pads 1+2 are one internal terminal, 3+4 the other (LCSC's own
+ * symbol for C318884 draws the internal bars — EasyEDA API, 2026-08-15;
+ * first-article continuity remains the final check). The pairing is declared
+ * via `internallyConnectedPins`, so every schematic export folds pins 1/2 and
+ * 3/4 onto the symbol's two terminals instead of drawing a same-net tie as a
+ * wire looping across the switch — which is exactly what the first human EE
+ * review read as "every key is shorted" (ledger #29).
  *
  * Wiring: `signal` net → pins 1/2, pins 3/4 → `to` net (default GND).
  * Active-low with a pull-up on the signal side (MCU internal pull-ups
@@ -35,6 +39,7 @@ export const SwTact = (props: {
       <pushbutton
         name={sw}
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
+        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm"
         pcbX={0}
         pcbY={0}

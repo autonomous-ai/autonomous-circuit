@@ -235,6 +235,7 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
       <pushbutton name="SW2"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
+        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-15.5} schX={14} schY={-10} />
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1" />
@@ -247,6 +248,7 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C25744"] }} />
       <pushbutton name="SW3"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
+        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-15.5} schX={-14} schY={-10} />
       <trace name={`TR_R12_v`} from=".R12 > .pin1" to="net.V3_3" />
       <trace name={`TR_R12_run`} from=".R12 > .pin2" to={`.${u} > .RUN`} />

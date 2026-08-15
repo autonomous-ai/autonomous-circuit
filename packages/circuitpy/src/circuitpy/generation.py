@@ -507,6 +507,7 @@ def build_board(
         and therefore everything the escalation decision can be based on."""
         found: list[dict] = []
         found.extend(checks.harvest_circuit_json(elements))
+        found.extend(checks.schematic_truth_warnings(elements))
         found.extend(checks.run_tscircuit_checks(built_circuit_json))
         found.extend(checks.iou_warnings(elements, profile))
         found.extend(checks.dfm_warnings(elements, product, profile))
