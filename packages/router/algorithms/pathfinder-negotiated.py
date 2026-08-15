@@ -192,6 +192,19 @@ DEFAULT_MAX_ROUNDS = 20
 #: Rounds in a row a net may fail before it is set aside until the endgame.
 MAX_FAIL_RETRIES = 3
 
+#: Share of the node budget the negotiation rounds may spend; the rest is held
+#: for the endgame. Negotiation that cannot pay for its own cleanup wastes the
+#: rounds it bought: with no reserve, terminal-keyboard spent everything on
+#: rounds, legalisation had nothing left to route with, and **ten nets routed on
+#: the grid were dropped at final verification** because nobody had moved off
+#: the cells they were sharing.
+#:
+#: The size of the reserve is measured and it is not "more is better".
+#: terminal-keyboard finished 86.5% at a 35% reserve, 88.8% at none, and 89.9%
+#: at 15% — with 107 vias instead of 134 and no width warnings. Rounds are worth
+#: more than cleanup right up to the point where there is no cleanup at all.
+NEGOTIATION_BUDGET_SHARE = 0.85
+
 #: Self-imposed ceilings, below the harness defaults, because the harness
 #: default of 20M expanded nodes is a number for a compiled router.
 DEFAULT_NODE_BUDGET = 12_000_000
@@ -887,7 +900,7 @@ class PathFinderNegotiatedRouter:
                 # a net ripped up loses a route that was already paid for, which
                 # is how a starved run came back with 28% of a board it had
                 # routed 69% of.
-                if self._spent():
+                if self._spent(NEGOTIATION_BUDGET_SHARE):
                     break
                 self._rip_up(plan)
                 self._route_net(plan, present)
@@ -910,7 +923,7 @@ class PathFinderNegotiatedRouter:
             if not shared:
                 converged = True
                 break
-            if self._spent():
+            if self._spent(NEGOTIATION_BUDGET_SHARE):
                 self._notes.append(
                     f"stopped after {rounds} round(s) on the "
                     f"{meter.stop_reason or 'node'} budget, not on convergence"
@@ -947,8 +960,11 @@ class PathFinderNegotiatedRouter:
 
     # -- endgame ---------------------------------------------------------
 
-    def _spent(self) -> bool:
-        return self._meter.exhausted or self._meter.nodes >= self._node_budget
+    def _spent(self, share: float = 1.0) -> bool:
+        return (
+            self._meter.exhausted
+            or self._meter.nodes >= self._node_budget * share
+        )
 
     def _standing(self, plans: Sequence[_NetPlan]) -> tuple[int, int, int]:
         """How good the board is right now. More closed nets first, then fewer
