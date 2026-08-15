@@ -41,7 +41,7 @@ import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
 import { StatusLed } from "../blocks/status-led/status-led"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
-import { MountingHole } from "../blocks/glue"
+import { MountingHole, POUR_CUTOUT_MARGIN_MM } from "../blocks/glue"
 
 export default () => (
   <board
@@ -49,6 +49,12 @@ export default () => (
     height="80mm"
     thickness={1.6}
     borderRadius={16}
+    /* 5x (the SKILL.md floor) cleared 14/16 errors but left the USB-C
+       data-pair fanout with a via inside J1.B4A9's pad and one at 0.07mm —
+       the 5x router's ceiling on a 16-pin 0.5mm-pitch connector. 10x per the
+       idiom doc ("go to 10x while the router is still missing its own
+       clearances") to clear the last two. */
+    autorouterEffortLevel="10x"
     minTraceWidth="0.15mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
@@ -111,7 +117,7 @@ export default () => (
       connectsTo="net.CAP_A"
       coveredWithSolderMask
       boardEdgeMargin="1mm"
-      cutoutMargin="0.25mm"
+      cutoutMargin={`${POUR_CUTOUT_MARGIN_MM}mm`}
       outline={[
         { x: -29, y: -2 },
         { x: -4, y: -2 },
@@ -127,7 +133,7 @@ export default () => (
       connectsTo="net.CAP_B"
       coveredWithSolderMask
       boardEdgeMargin="1mm"
-      cutoutMargin="0.25mm"
+      cutoutMargin={`${POUR_CUTOUT_MARGIN_MM}mm`}
       outline={[
         { x: 4, y: -2 },
         { x: 29, y: -2 },
