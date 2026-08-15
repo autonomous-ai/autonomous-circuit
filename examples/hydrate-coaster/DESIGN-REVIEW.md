@@ -31,6 +31,36 @@ carry no information about this design. The four that do: `holes_co_located` ×2
 
 ---
 
+## Closed, 2026-08-16 — `fab.ready: true`
+
+Everything above is the record of the rounds, kept as written. The state it ends on is
+superseded: **0 error / 210 warning / 304 info, `fab.ready: true`**, one attempt at
+`10x`, and `ORDER.md` released.
+
+The `hole_clearance` pair that drove rounds 4–15 was closed earlier by ledger #1/#23/#24
+(a keepout inside the footprint, slot drills measured as slots, and the hole rule
+exempting a pad's own net). The last finding standing after that was
+`pcb_placement_error` — "a via inside J1's VBUS pad" — and it was **not a defect in this
+board at all**. The via named in the message sits 0.3009mm *above* the pad named in the
+message; no via on this board is inside any pad (108 vias × 174 pads, measured). One
+redundant closing vertex in the USB-C footprint's polygon pads gave the pad a zero-length
+edge, and the upstream via-in-pad check treats every point in the plane as lying on a
+zero-length segment. Ledger #33.
+
+Nothing about the copper changed to close it. The proof that the copper was never the
+problem: the *pre-fix* packet already passed an independent from-scratch
+`kicad-cli pcb drc` with **0 error violations and 0 unconnected items** — the same result
+the fixed packet gives — while our gate called the board unorderable.
+
+Two rounds of effort escalation on this board (5x → 10x) were spent chasing that phantom;
+the `10x` in `main.tsx` still cites it. Ledger #28 measured `5x` as the better setting
+here (1 blocking against 2) and the skeleton ships `5x`. Re-measuring it is a real open
+item and a deliberate one: the determinism seed is the board's source *fingerprint*, so
+even editing a comment in `main.tsx` re-rolls the route. A proven-clean board is not
+worth churning for a setting; do it as its own change, with the counts recorded.
+
+---
+
 ## Panel — round 1
 
 Evidence read: `boards/main_review/_pcb.png`, `boards/main_review/_schematic.png`,
