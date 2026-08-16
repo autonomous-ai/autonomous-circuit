@@ -75,10 +75,40 @@ export const MountingHole = (props: {
 }
 
 /**
- * A ground plane on one layer, with a pour margin that survives the solver's
- * 32-gon (see `POUR_CUTOUT_MARGIN_MM`). Prefer this over a bare
- * `<copperpour>` on any board that has a hole in it — which is every board
- * with a USB-C receptacle or a mounting point.
+ * How far a pour keeps from copper it does not own, from a drill, and from
+ * the board edge.
+ *
+ * **Every one of these has to be set explicitly, and the default is not
+ * enough.** Measured 2026-08-16: `<copperpour>` with only `cutoutMargin` set
+ * put terminal-keyboard and harness-puck straight into KiCad DRC — *zone
+ * clearance 0.1500mm, actual 0.1016mm*, one at **0.0000mm** (touching), and
+ * hole clearance 0.1486mm against a 0.2mm rule. `cutoutMargin` governs board
+ * cutouts; other-net copper is `clearance`/`padMargin`/`traceMargin` and
+ * drills fall under `clearance`, and leaving those at their defaults fills
+ * closer than the zone's own declared clearance.
+ *
+ * 0.3mm clears every rule the profile carries with room to spare: 0.15mm zone
+ * clearance, 0.20mm via-hole-to-copper, 0.28mm plated-hole-to-copper, and the
+ * solver's 32-gon, which measures `R * 0.995185` at the chord midpoints. A
+ * ground plane loses a little copper to this and loses nothing that matters —
+ * a fragmented plane is still a plane, and a shorted one is a scrap board.
+ */
+export const POUR_COPPER_MARGIN_MM = 0.3
+
+/**
+ * A ground plane on one layer, with every margin set — see
+ * `POUR_COPPER_MARGIN_MM` for why "every" is the operative word, and
+ * `POUR_CUTOUT_MARGIN_MM` for the 32-gon.
+ *
+ * Prefer this over a bare `<copperpour>` on any board that has a hole in it —
+ * which is every board with a USB-C receptacle or a mounting point.
+ *
+ * **Pour ground on any two-layer board with a differential pair or an MCU.**
+ * Three separate findings in the first human EE review (2026-08-15) were this
+ * one absence wearing different clothes: ground returning through 0.2mm track
+ * instead of a plane, a USB pair with 0% reference under it, and copper that
+ * reads as tangled because every return path is one more line competing for
+ * the same channels.
  */
 export const GndPour = (props: {
   layer?: "top" | "bottom" | "inner1" | "inner2"
@@ -88,6 +118,10 @@ export const GndPour = (props: {
   <copperpour
     layer={props.layer ?? "bottom"}
     connectsTo={`net.${props.net ?? "GND"}`}
+    clearance={`${POUR_COPPER_MARGIN_MM}mm`}
+    padMargin={`${POUR_COPPER_MARGIN_MM}mm`}
+    traceMargin={`${POUR_COPPER_MARGIN_MM}mm`}
+    boardEdgeMargin={`${POUR_COPPER_MARGIN_MM}mm`}
     cutoutMargin={`${POUR_CUTOUT_MARGIN_MM}mm`}
   />
 )

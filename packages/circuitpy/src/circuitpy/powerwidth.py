@@ -475,11 +475,21 @@ def _widen_route(
         # join copper to a pad that is somewhere else. Width never goes down:
         # this pass widens or leaves alone, it does not narrow.
         emitted: list[dict] = []
+        #: Parallel to `emitted`: whether this pass invented the point. Tracked
+        #: explicitly, because every emitted point is a *copy* of its source —
+        #: the first version tested `id(point) in {id(p) for p in run}` and got
+        #: False for all of them, so the merge below treated real corners as
+        #: removable and deleted them. Two segments meeting at a corner then
+        #: became one straight segment across it, and the trace cut through
+        #: whatever the corner was going round: measured on hydrate-coaster,
+        #: a rail ended up **-0.275mm** from another net, i.e. shorted.
+        invented: list[bool] = []
         first = dict(run[0])
         first["width"] = round(
             max(allowed_at[0], diffpair._f(run[0].get("width"), 0.15) or 0.15), 4
         )
         emitted.append(first)
+        invented.append(False)
         for i, piece in enumerate(pieces):
             existing = diffpair._f((piece["end"] or {}).get("width"), 0.0) or 0.0
             width = round(max(allowed_at[i + 1], existing), 4)
@@ -492,18 +502,21 @@ def _widen_route(
                     "x": round(piece["x"], 6), "y": round(piece["y"], 6),
                 }
             emitted.append(point)
+            invented.append(piece["end"] is None)
 
         # Merge back. Splitting is a measuring device, not a design decision:
         # an invented point between two pieces of equal width describes copper
         # a single point already describes, and leaving hundreds of them in
-        # would bloat the artifact, the diff and the gerbers for nothing. Only
-        # invented points are ever dropped — an original point may carry a
-        # port id, and the pieces are collinear by construction.
-        invented = {id(p) for p in emitted} - {id(p) for p in run}
+        # would bloat the artifact, the diff and the gerbers for nothing.
+        #
+        # Only invented points may be dropped. An original point is a corner or
+        # carries a port id, and both are load-bearing — the invented ones are
+        # collinear with their neighbours by construction, so removing one
+        # changes no geometry at all.
         merged: list[dict] = [emitted[0]]
         for i in range(1, len(emitted) - 1):
             point = emitted[i]
-            if (id(point) in invented
+            if (invented[i]
                     and point.get("width") == merged[-1].get("width")
                     and point.get("width") == emitted[i + 1].get("width")):
                 continue

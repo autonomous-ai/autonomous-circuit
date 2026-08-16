@@ -237,6 +237,46 @@ class PowerWidthTests(unittest.TestCase):
         powerwidth.widen_power_traces(path, PROFILE)
         self.assertGreaterEqual(min(_widths(path)), 0.3)
 
+    def test_it_never_moves_copper_only_widens_it(self) -> None:
+        """The whole premise: this pass changes widths, never geometry. The bug
+        this pins shipped a rail **-0.275mm** from another net on
+        hydrate-coaster — an actual short. Splitting a segment adds points, and
+        the step that merges the redundant ones back identified them by object
+        identity (`id(p) in {id(q) for q in run}`) — but every emitted point is
+        a *copy*, so that test was False for all of them and real corners were
+        dropped. Two segments meeting at a corner became one straight segment
+        across it, and the trace cut through what the corner was avoiding.
+
+        Comparing the polyline rather than the point list is what makes this
+        test right: the pass is *allowed* to add and remove collinear points,
+        and is not allowed to change the shape they describe.
+        """
+        corner = [
+            {"route_type": "wire", "x": -10, "y": 0, "width": 0.2, "layer": "top"},
+            {"route_type": "wire", "x": 0, "y": 0, "width": 0.2, "layer": "top"},
+            {"route_type": "wire", "x": 0, "y": 10, "width": 0.2, "layer": "top"},
+        ]
+        elements = _board()
+        for element in elements:
+            if element.get("type") == "pcb_trace":
+                element["route"] = corner
+        path = _write(self.tmp, elements)
+        powerwidth.widen_power_traces(path, PROFILE)
+
+        route = [
+            p for e in json.loads(path.read_text(encoding="utf-8"))
+            if e.get("type") == "pcb_trace" for p in e["route"]
+        ]
+        # Every emitted point lies on the original polyline, and both corners
+        # survive: a path that skipped (0, 0) would be a different wire.
+        self.assertIn((-10.0, 0.0), [(p["x"], p["y"]) for p in route])
+        self.assertIn((0.0, 0.0), [(p["x"], p["y"]) for p in route])
+        self.assertIn((0.0, 10.0), [(p["x"], p["y"]) for p in route])
+        for p in route:
+            on_leg_a = p["y"] == 0 and -10 <= p["x"] <= 0
+            on_leg_b = p["x"] == 0 and 0 <= p["y"] <= 10
+            self.assertTrue(on_leg_a or on_leg_b, f"{p} is off the original path")
+
     def test_widths_land_on_the_grid(self) -> None:
         pad = {
             "type": "pcb_smtpad", "pcb_smtpad_id": "pad_odd", "shape": "rect",
