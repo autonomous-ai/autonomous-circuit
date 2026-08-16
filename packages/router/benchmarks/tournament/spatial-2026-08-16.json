@@ -52,8 +52,9 @@
    "harnessErrors": 0,
    "harnessErrorsWithUniqueIds": 0,
    "deterministic": 16,
+   "runs": 2,
    "collidingCopperIds": 0,
-   "totalSeconds": 172.1
+   "totalSeconds": 132.4
   },
   "spatial-tight": {
    "arm": "spatial-tight",
@@ -119,10 +120,10 @@
    "cleanInstancesWithUniqueIds": 8,
    "harnessErrors": 0,
    "harnessErrorsWithUniqueIds": 0,
-   "deterministic": null,
-   "runs": 1,
+   "deterministic": 16,
+   "runs": 2,
    "collidingCopperIds": 0,
-   "totalSeconds": 743.3
+   "totalSeconds": 571.5
   },
   "spatial-shuffled": {
    "arm": "spatial-shuffled",
@@ -7090,8 +7091,9 @@
    {
     "instance": "harness-puck",
     "arm": "spatial-flat",
-    "wallClockS": 31.525,
+    "wallClockS": 24.191,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "harness-puck",
@@ -7131,7 +7133,7 @@
      "iterations": 24,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 3320219,
-     "wallClockS": 30.274,
+     "wallClockS": 23.096,
      "fingerprint": "f690c07a12799927f5b3c138a55539df4817b84d0f59b381c4fe1fc9ec2396f5",
      "claimedComplete": false,
      "claimHonest": true,
@@ -7157,7 +7159,7 @@
        "completeness": 0.472222,
        "vias": 51,
        "copper_mm": 1132.1927,
-       "seconds": 15.977
+       "seconds": 11.057
       },
       {
        "stage": "r1",
@@ -7168,7 +7170,7 @@
        "completeness": 0.555556,
        "vias": 53,
        "copper_mm": 1186.717,
-       "seconds": 3.183
+       "seconds": 2.695
       },
       {
        "stage": "r4",
@@ -7179,7 +7181,7 @@
        "completeness": 0.555556,
        "vias": 53,
        "copper_mm": 1186.717,
-       "seconds": 8.432
+       "seconds": 7.083
       },
       {
        "stage": "r3",
@@ -7190,7 +7192,7 @@
        "completeness": 0.583333,
        "vias": 55,
        "copper_mm": 1194.1476,
-       "seconds": 0.662
+       "seconds": 0.564
       },
       {
        "stage": "r2",
@@ -7201,7 +7203,7 @@
        "completeness": 0.611111,
        "vias": 55,
        "copper_mm": 1197.3147,
-       "seconds": 0.714
+       "seconds": 0.558
       },
       {
        "stage": "r5",
@@ -7212,7 +7214,7 @@
        "completeness": 0.638889,
        "vias": 57,
        "copper_mm": 1215.3512,
-       "seconds": 0.62
+       "seconds": 0.575
       },
       {
        "stage": "r0",
@@ -7223,7 +7225,7 @@
        "completeness": 0.666667,
        "vias": 59,
        "copper_mm": 1233.372,
-       "seconds": 0.702
+       "seconds": 0.581
       }
      ],
      "notes": [],
@@ -7401,8 +7403,9 @@
    {
     "instance": "hydrate-coaster-plane",
     "arm": "spatial-flat",
-    "wallClockS": 14.477,
+    "wallClockS": 11.488,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "hydrate-coaster-plane",
@@ -7438,7 +7441,7 @@
      "iterations": 44,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 1639026,
-     "wallClockS": 14.032,
+     "wallClockS": 11.101,
      "fingerprint": "ae0d7d08a5b9437d35001eb817464875c97cb84e552d07e7ef43eaca46cccc02",
      "claimedComplete": false,
      "claimHonest": true,
@@ -7464,7 +7467,7 @@
        "completeness": 0.40625,
        "vias": 45,
        "copper_mm": 401.1301,
-       "seconds": 11.583
+       "seconds": 8.584
       },
       {
        "stage": "r0",
@@ -7475,7 +7478,7 @@
        "completeness": 0.5,
        "vias": 55,
        "copper_mm": 488.0567,
-       "seconds": 1.142
+       "seconds": 1.243
       },
       {
        "stage": "r5",
@@ -7486,7 +7489,7 @@
        "completeness": 0.5,
        "vias": 55,
        "copper_mm": 488.0567,
-       "seconds": 0.327
+       "seconds": 0.332
       },
       {
        "stage": "r3",
@@ -7497,7 +7500,7 @@
        "completeness": 0.5625,
        "vias": 55,
        "copper_mm": 494.2206,
-       "seconds": 0.314
+       "seconds": 0.308
       },
       {
        "stage": "r1",
@@ -7508,7 +7511,7 @@
        "completeness": 0.625,
        "vias": 57,
        "copper_mm": 514.4321,
-       "seconds": 0.332
+       "seconds": 0.307
       },
       {
        "stage": "r4",
@@ -7519,7 +7522,7 @@
        "completeness": 0.6875,
        "vias": 57,
        "copper_mm": 537.6665,
-       "seconds": 0.345
+       "seconds": 0.339
       }
      ],
      "notes": [],
@@ -7723,8 +7726,9 @@
    {
     "instance": "hydrate-coaster",
     "arm": "spatial-flat",
-    "wallClockS": 15.152,
+    "wallClockS": 13.805,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "hydrate-coaster",
@@ -7764,7 +7768,7 @@
      "iterations": 44,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 1807692,
-     "wallClockS": 14.551,
+     "wallClockS": 13.213,
      "fingerprint": "e94770297123043cb329d5a845011ef58ddc4d09357db6de4c33beb4c4234e36",
      "claimedComplete": false,
      "claimHonest": true,
@@ -7790,7 +7794,7 @@
        "completeness": 0.4375,
        "vias": 39,
        "copper_mm": 668.9191,
-       "seconds": 10.921
+       "seconds": 9.959
       },
       {
        "stage": "r0",
@@ -7801,7 +7805,7 @@
        "completeness": 0.46875,
        "vias": 41,
        "copper_mm": 720.0821,
-       "seconds": 2.196
+       "seconds": 1.833
       },
       {
        "stage": "r5",
@@ -7812,7 +7816,7 @@
        "completeness": 0.46875,
        "vias": 41,
        "copper_mm": 720.0821,
-       "seconds": 0.356
+       "seconds": 0.308
       },
       {
        "stage": "r3",
@@ -7823,7 +7827,7 @@
        "completeness": 0.53125,
        "vias": 43,
        "copper_mm": 728.7103,
-       "seconds": 0.36
+       "seconds": 0.321
       },
       {
        "stage": "r1",
@@ -7834,7 +7838,7 @@
        "completeness": 0.5625,
        "vias": 45,
        "copper_mm": 744.1144,
-       "seconds": 0.379
+       "seconds": 0.416
       },
       {
        "stage": "r4",
@@ -7845,7 +7849,7 @@
        "completeness": 0.625,
        "vias": 45,
        "copper_mm": 767.3326,
-       "seconds": 0.351
+       "seconds": 0.389
       }
      ],
      "notes": [],
@@ -8049,8 +8053,9 @@
    {
     "instance": "matrix-i2c-bus",
     "arm": "spatial-flat",
-    "wallClockS": 0.014,
+    "wallClockS": 0.013,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-i2c-bus",
@@ -8075,7 +8080,7 @@
      "iterations": 1,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 23,
-     "wallClockS": 0.013,
+     "wallClockS": 0.011,
      "fingerprint": "0c15615a320afdf66ef51d98689ce3c6b4fd842f932778da34f0e87ce01cc404",
      "claimedComplete": true,
      "claimHonest": true,
@@ -8101,7 +8106,7 @@
        "completeness": 1.0,
        "vias": 0,
        "copper_mm": 3.5122,
-       "seconds": 0.013
+       "seconds": 0.011
       }
      ],
      "notes": [
@@ -8150,8 +8155,9 @@
    {
     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
     "arm": "spatial-flat",
-    "wallClockS": 0.397,
+    "wallClockS": 0.378,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
@@ -8179,7 +8185,7 @@
      "iterations": 7,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 10986,
-     "wallClockS": 0.32,
+     "wallClockS": 0.317,
      "fingerprint": "c468a4706e8b55f8f19db4da679e5f1bbff6c2a985e2949616556c338311b767",
      "claimedComplete": false,
      "claimHonest": true,
@@ -8205,7 +8211,7 @@
        "completeness": 0.4,
        "vias": 2,
        "copper_mm": 93.5285,
-       "seconds": 0.146
+       "seconds": 0.152
       },
       {
        "stage": "r1",
@@ -8216,7 +8222,7 @@
        "completeness": 0.4,
        "vias": 2,
        "copper_mm": 93.5285,
-       "seconds": 0.064
+       "seconds": 0.069
       },
       {
        "stage": "r0",
@@ -8227,7 +8233,7 @@
        "completeness": 0.6,
        "vias": 2,
        "copper_mm": 129.2539,
-       "seconds": 0.113
+       "seconds": 0.097
       }
      ],
      "notes": [],
@@ -8301,8 +8307,9 @@
    {
     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
     "arm": "spatial-flat",
-    "wallClockS": 5.866,
+    "wallClockS": 4.755,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
@@ -8334,7 +8341,7 @@
      "iterations": 22,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 693484,
-     "wallClockS": 5.683,
+     "wallClockS": 4.585,
      "fingerprint": "c635057315c5bd4410a1e1795f4046fd03771f214ce4b15b72833b90ff98248c",
      "claimedComplete": false,
      "claimHonest": true,
@@ -8360,7 +8367,7 @@
        "completeness": 0.705882,
        "vias": 19,
        "copper_mm": 351.2989,
-       "seconds": 5.298
+       "seconds": 4.226
       },
       {
        "stage": "r1",
@@ -8371,7 +8378,7 @@
        "completeness": 0.705882,
        "vias": 19,
        "copper_mm": 351.2989,
-       "seconds": 0.191
+       "seconds": 0.167
       },
       {
        "stage": "r4",
@@ -8382,7 +8389,7 @@
        "completeness": 0.764706,
        "vias": 21,
        "copper_mm": 365.8172,
-       "seconds": 0.198
+       "seconds": 0.195
       }
      ],
      "notes": [],
@@ -8534,8 +8541,9 @@
    {
     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
     "arm": "spatial-flat",
-    "wallClockS": 3.726,
+    "wallClockS": 3.338,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
@@ -8567,7 +8575,7 @@
      "iterations": 22,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 367688,
-     "wallClockS": 3.408,
+     "wallClockS": 3.063,
      "fingerprint": "72fb9487cfd9e365c4f99b6c6ce4a723b8d7e413dbcafefdb26046b12bc36062",
      "claimedComplete": false,
      "claimHonest": true,
@@ -8593,7 +8601,7 @@
        "completeness": 0.705882,
        "vias": 32,
        "copper_mm": 518.2244,
-       "seconds": 2.933
+       "seconds": 2.638
       },
       {
        "stage": "r1",
@@ -8604,7 +8612,7 @@
        "completeness": 0.705882,
        "vias": 32,
        "copper_mm": 518.2244,
-       "seconds": 0.229
+       "seconds": 0.2
       },
       {
        "stage": "r4",
@@ -8615,7 +8623,7 @@
        "completeness": 0.764706,
        "vias": 34,
        "copper_mm": 532.3753,
-       "seconds": 0.25
+       "seconds": 0.228
       }
      ],
      "notes": [],
@@ -8767,8 +8775,9 @@
    {
     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
     "arm": "spatial-flat",
-    "wallClockS": 0.518,
+    "wallClockS": 0.624,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
@@ -8798,7 +8807,7 @@
      "iterations": 7,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 24075,
-     "wallClockS": 0.445,
+     "wallClockS": 0.531,
      "fingerprint": "7f4bba11c13ca53f8d6d17e14fd30c9db8b1982c9ef3fcf39b7fb2606a2539c8",
      "claimedComplete": false,
      "claimHonest": true,
@@ -8824,7 +8833,7 @@
        "completeness": 0.4,
        "vias": 2,
        "copper_mm": 118.0274,
-       "seconds": 0.231
+       "seconds": 0.255
       },
       {
        "stage": "r1",
@@ -8846,7 +8855,7 @@
        "completeness": 0.6,
        "vias": 5,
        "copper_mm": 159.4311,
-       "seconds": 0.145
+       "seconds": 0.208
       }
      ],
      "notes": [],
@@ -8920,8 +8929,9 @@
    {
     "instance": "matrix-ldo-3v3__usb-c-power",
     "arm": "spatial-flat",
-    "wallClockS": 0.349,
+    "wallClockS": 0.399,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__usb-c-power",
@@ -8948,7 +8958,7 @@
      "iterations": 6,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 27241,
-     "wallClockS": 0.32,
+     "wallClockS": 0.37,
      "fingerprint": "a58766bc249dc3ffafdaf7ed6995445929fca12e2eb5f5afeffe54a92ca75e66",
      "claimedComplete": false,
      "claimHonest": true,
@@ -8974,7 +8984,7 @@
        "completeness": 0.8,
        "vias": 7,
        "copper_mm": 130.1682,
-       "seconds": 0.321
+       "seconds": 0.37
       }
      ],
      "notes": [
@@ -9023,8 +9033,9 @@
    {
     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
     "arm": "spatial-flat",
-    "wallClockS": 1.626,
+    "wallClockS": 1.289,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
@@ -9052,7 +9063,7 @@
      "iterations": 7,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 133337,
-     "wallClockS": 1.496,
+     "wallClockS": 1.171,
      "fingerprint": "e7557cf102b8d7bf5f5d01afd7b2634744a1d5a42a3e7c8a73f0dc7d1dfb5291",
      "claimedComplete": false,
      "claimHonest": true,
@@ -9078,7 +9089,7 @@
        "completeness": 0.333333,
        "vias": 6,
        "copper_mm": 223.4207,
-       "seconds": 0.556
+       "seconds": 0.443
       },
       {
        "stage": "r2",
@@ -9089,7 +9100,7 @@
        "completeness": 0.333333,
        "vias": 6,
        "copper_mm": 223.4207,
-       "seconds": 0.797
+       "seconds": 0.587
       },
       {
        "stage": "r0",
@@ -9100,7 +9111,7 @@
        "completeness": 0.777778,
        "vias": 12,
        "copper_mm": 275.4931,
-       "seconds": 0.145
+       "seconds": 0.143
       }
      ],
      "notes": [],
@@ -9200,8 +9211,9 @@
    {
     "instance": "matrix-rp2040-core__sw-tact",
     "arm": "spatial-flat",
-    "wallClockS": 1.78,
+    "wallClockS": 1.759,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-rp2040-core__sw-tact",
@@ -9234,7 +9246,7 @@
      "iterations": 23,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 110541,
-     "wallClockS": 1.535,
+     "wallClockS": 1.507,
      "fingerprint": "cd835418fbdde3a4b1f6b3d91d2b42bb7d32e1775e688e65783d556ed1eef0ba",
      "claimedComplete": false,
      "claimHonest": true,
@@ -9260,7 +9272,7 @@
        "completeness": 0.428571,
        "vias": 16,
        "copper_mm": 275.8685,
-       "seconds": 0.998
+       "seconds": 0.959
       },
       {
        "stage": "r1",
@@ -9271,7 +9283,7 @@
        "completeness": 0.5,
        "vias": 18,
        "copper_mm": 311.0085,
-       "seconds": 0.22
+       "seconds": 0.221
       },
       {
        "stage": "r2",
@@ -9282,7 +9294,7 @@
        "completeness": 0.571429,
        "vias": 18,
        "copper_mm": 323.5969,
-       "seconds": 0.158
+       "seconds": 0.163
       },
       {
        "stage": "r3",
@@ -9293,7 +9305,7 @@
        "completeness": 0.642857,
        "vias": 20,
        "copper_mm": 341.2526,
-       "seconds": 0.164
+       "seconds": 0.167
       }
      ],
      "notes": [],
@@ -9419,8 +9431,9 @@
    {
     "instance": "matrix-rp2040-core__usb-c-data",
     "arm": "spatial-flat",
-    "wallClockS": 12.726,
+    "wallClockS": 9.649,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-rp2040-core__usb-c-data",
@@ -9459,7 +9472,7 @@
      "iterations": 28,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 1589151,
-     "wallClockS": 12.466,
+     "wallClockS": 9.47,
      "fingerprint": "241660b117152844c965bef98d24248deb9c74296e293487a1fd41c2b76a1334",
      "claimedComplete": false,
      "claimHonest": true,
@@ -9485,7 +9498,7 @@
        "completeness": 0.238095,
        "vias": 8,
        "copper_mm": 259.9449,
-       "seconds": 0.736
+       "seconds": 0.725
       },
       {
        "stage": "r1",
@@ -9496,7 +9509,7 @@
        "completeness": 0.428571,
        "vias": 22,
        "copper_mm": 372.4298,
-       "seconds": 11.187
+       "seconds": 8.379
       },
       {
        "stage": "r2",
@@ -9507,7 +9520,7 @@
        "completeness": 0.428571,
        "vias": 22,
        "copper_mm": 372.4298,
-       "seconds": 0.293
+       "seconds": 0.191
       },
       {
        "stage": "r0",
@@ -9518,7 +9531,7 @@
        "completeness": 0.47619,
        "vias": 24,
        "copper_mm": 406.3775,
-       "seconds": 0.254
+       "seconds": 0.178
       }
      ],
      "notes": [],
@@ -9618,8 +9631,9 @@
    {
     "instance": "matrix-status-led",
     "arm": "spatial-flat",
-    "wallClockS": 0.014,
+    "wallClockS": 0.009,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-status-led",
@@ -9644,7 +9658,7 @@
      "iterations": 1,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 12,
-     "wallClockS": 0.012,
+     "wallClockS": 0.008,
      "fingerprint": "49828b75ee12f306f0e63ec89fb15458c0111742a80b29d72de01e5e6ee89e48",
      "claimedComplete": true,
      "claimHonest": true,
@@ -9670,7 +9684,7 @@
        "completeness": 1.0,
        "vias": 0,
        "copper_mm": 3.0407,
-       "seconds": 0.012
+       "seconds": 0.008
       }
      ],
      "notes": [
@@ -9719,8 +9733,9 @@
    {
     "instance": "matrix-status-led__ws2812-chain",
     "arm": "spatial-flat",
-    "wallClockS": 0.406,
+    "wallClockS": 0.293,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-status-led__ws2812-chain",
@@ -9745,7 +9760,7 @@
      "iterations": 8,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 18327,
-     "wallClockS": 0.332,
+     "wallClockS": 0.237,
      "fingerprint": "510194979b2e1feade9cbc34a3c61a2aed93b974b38a5dadad2e81b318165a00",
      "claimedComplete": true,
      "claimHonest": true,
@@ -9771,7 +9786,7 @@
        "completeness": 0.428571,
        "vias": 2,
        "copper_mm": 117.4147,
-       "seconds": 0.18
+       "seconds": 0.125
       },
       {
        "stage": "r1",
@@ -9782,7 +9797,7 @@
        "completeness": 0.714286,
        "vias": 6,
        "copper_mm": 145.5288,
-       "seconds": 0.076
+       "seconds": 0.06
       },
       {
        "stage": "r0",
@@ -9793,7 +9808,7 @@
        "completeness": 1.0,
        "vias": 8,
        "copper_mm": 158.2051,
-       "seconds": 0.077
+       "seconds": 0.053
       }
      ],
      "notes": [],
@@ -9867,8 +9882,9 @@
    {
     "instance": "terminal-keyboard-plane",
     "arm": "spatial-flat",
-    "wallClockS": 47.04,
+    "wallClockS": 32.452,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "terminal-keyboard-plane",
@@ -9920,7 +9936,7 @@
      "iterations": 52,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 4591076,
-     "wallClockS": 45.146,
+     "wallClockS": 31.079,
      "fingerprint": "808abcfdb31023a37a05f7dc6fa3efcb53abba4eaed8dc6084cf640fb2d9cc0a",
      "claimedComplete": false,
      "claimHonest": true,
@@ -9946,7 +9962,7 @@
        "completeness": 0.191011,
        "vias": 87,
        "copper_mm": 1536.2423,
-       "seconds": 31.967
+       "seconds": 21.602
       },
       {
        "stage": "r4",
@@ -9957,7 +9973,7 @@
        "completeness": 0.258427,
        "vias": 103,
        "copper_mm": 1699.2244,
-       "seconds": 8.191
+       "seconds": 5.708
       },
       {
        "stage": "r2",
@@ -9968,7 +9984,7 @@
        "completeness": 0.314607,
        "vias": 112,
        "copper_mm": 1789.2984,
-       "seconds": 0.993
+       "seconds": 0.746
       },
       {
        "stage": "r0",
@@ -9979,7 +9995,7 @@
        "completeness": 0.426966,
        "vias": 116,
        "copper_mm": 1858.5121,
-       "seconds": 0.613
+       "seconds": 0.472
       },
       {
        "stage": "r5",
@@ -9990,7 +10006,7 @@
        "completeness": 0.539326,
        "vias": 122,
        "copper_mm": 1926.9119,
-       "seconds": 0.7
+       "seconds": 0.495
       },
       {
        "stage": "r1",
@@ -10001,7 +10017,7 @@
        "completeness": 0.606742,
        "vias": 124,
        "copper_mm": 1968.8419,
-       "seconds": 0.617
+       "seconds": 0.48
       },
       {
        "stage": "r6",
@@ -10012,7 +10028,7 @@
        "completeness": 0.674157,
        "vias": 132,
        "copper_mm": 2013.0526,
-       "seconds": 0.703
+       "seconds": 0.514
       },
       {
        "stage": "r3",
@@ -10023,7 +10039,7 @@
        "completeness": 0.775281,
        "vias": 142,
        "copper_mm": 2078.0838,
-       "seconds": 0.713
+       "seconds": 0.545
       },
       {
        "stage": "r7",
@@ -10034,7 +10050,7 @@
        "completeness": 0.876404,
        "vias": 154,
        "copper_mm": 2143.1999,
-       "seconds": 0.686
+       "seconds": 0.542
       }
      ],
      "notes": [],
@@ -10264,8 +10280,9 @@
    {
     "instance": "terminal-keyboard",
     "arm": "spatial-flat",
-    "wallClockS": 36.435,
+    "wallClockS": 27.98,
     "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "terminal-keyboard",
@@ -10325,7 +10342,7 @@
      "iterations": 25,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 3146736,
-     "wallClockS": 34.162,
+     "wallClockS": 26.376,
      "fingerprint": "b2ca55d6aaa813fd6feadc187efb43fcf0f682e67d945ac10eed8dbdcf4f152e",
      "claimedComplete": false,
      "claimHonest": true,
@@ -10351,7 +10368,7 @@
        "completeness": 0.179775,
        "vias": 61,
        "copper_mm": 1639.2463,
-       "seconds": 27.188
+       "seconds": 21.688
       },
       {
        "stage": "r4",
@@ -10362,7 +10379,7 @@
        "completeness": 0.202247,
        "vias": 65,
        "copper_mm": 1659.8139,
-       "seconds": 0.75
+       "seconds": 0.559
       },
       {
        "stage": "r2",
@@ -10373,7 +10390,7 @@
        "completeness": 0.247191,
        "vias": 76,
        "copper_mm": 1741.2029,
-       "seconds": 1.146
+       "seconds": 0.893
       },
       {
        "stage": "r0",
@@ -10384,7 +10401,7 @@
        "completeness": 0.359551,
        "vias": 84,
        "copper_mm": 1810.0249,
-       "seconds": 1.093
+       "seconds": 0.564
       },
       {
        "stage": "r5",
@@ -10395,7 +10412,7 @@
        "completeness": 0.47191,
        "vias": 92,
        "copper_mm": 1879.4479,
-       "seconds": 0.946
+       "seconds": 0.566
       },
       {
        "stage": "r1",
@@ -10406,7 +10423,7 @@
        "completeness": 0.539326,
        "vias": 94,
        "copper_mm": 1921.3779,
-       "seconds": 0.819
+       "seconds": 0.504
       },
       {
        "stage": "r6",
@@ -10417,7 +10434,7 @@
        "completeness": 0.606742,
        "vias": 104,
        "copper_mm": 1966.2402,
-       "seconds": 0.87
+       "seconds": 0.528
       },
       {
        "stage": "r3",
@@ -10428,7 +10445,7 @@
        "completeness": 0.707865,
        "vias": 116,
        "copper_mm": 2031.2714,
-       "seconds": 0.691
+       "seconds": 0.551
       },
       {
        "stage": "r7",
@@ -10439,7 +10456,7 @@
        "completeness": 0.808989,
        "vias": 128,
        "copper_mm": 2096.3875,
-       "seconds": 0.699
+       "seconds": 0.552
       }
      ],
      "notes": [],
@@ -24813,9 +24830,9 @@
    {
     "instance": "harness-puck",
     "arm": "spatial-best",
-    "wallClockS": 97.624,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 97.578,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "harness-puck",
@@ -24845,7 +24862,7 @@
      "iterations": 141048,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 10506238,
-     "wallClockS": 96.328,
+     "wallClockS": 96.523,
      "fingerprint": "cb1fea5cdc1a337eac2297b2c7de27f299f214a408dcf5081ff7ad43af496c57",
      "claimedComplete": false,
      "claimHonest": true,
@@ -24871,7 +24888,7 @@
        "completeness": 0.25,
        "vias": 6,
        "copper_mm": 171.3473,
-       "seconds": 0.655
+       "seconds": 0.713
       },
       {
        "stage": "r4",
@@ -24882,7 +24899,7 @@
        "completeness": 0.333333,
        "vias": 8,
        "copper_mm": 200.527,
-       "seconds": 0.406
+       "seconds": 0.46
       },
       {
        "stage": "crossing",
@@ -24893,7 +24910,7 @@
        "completeness": 0.666667,
        "vias": 29,
        "copper_mm": 748.1879,
-       "seconds": 31.256
+       "seconds": 38.215
       },
       {
        "stage": "r3",
@@ -24904,7 +24921,7 @@
        "completeness": 0.722222,
        "vias": 31,
        "copper_mm": 768.2173,
-       "seconds": 0.535
+       "seconds": 0.438
       },
       {
        "stage": "r2",
@@ -24915,7 +24932,7 @@
        "completeness": 0.75,
        "vias": 31,
        "copper_mm": 771.3844,
-       "seconds": 0.476
+       "seconds": 0.464
       },
       {
        "stage": "r5",
@@ -24926,7 +24943,7 @@
        "completeness": 0.777778,
        "vias": 33,
        "copper_mm": 789.4209,
-       "seconds": 0.487
+       "seconds": 0.49
       },
       {
        "stage": "r0",
@@ -24937,7 +24954,7 @@
        "completeness": 0.805556,
        "vias": 33,
        "copper_mm": 807.7828,
-       "seconds": 0.433
+       "seconds": 0.453
       },
       {
        "stage": "residue[maze-astar]",
@@ -24948,7 +24965,7 @@
        "completeness": 0.944444,
        "vias": 96,
        "copper_mm": 1427.0469,
-       "seconds": 18.309
+       "seconds": 18.352
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -24959,7 +24976,7 @@
        "completeness": 0.944444,
        "vias": 96,
        "copper_mm": 1427.0469,
-       "seconds": 24.112
+       "seconds": 20.011
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -24970,7 +24987,7 @@
        "completeness": 0.944444,
        "vias": 96,
        "copper_mm": 1427.0469,
-       "seconds": 19.802
+       "seconds": 17.055
       }
      ],
      "notes": [],
@@ -25148,9 +25165,9 @@
    {
     "instance": "hydrate-coaster-plane",
     "arm": "spatial-best",
-    "wallClockS": 69.757,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 57.086,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "hydrate-coaster-plane",
@@ -25182,7 +25199,7 @@
      "iterations": 76727,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 8380410,
-     "wallClockS": 68.933,
+     "wallClockS": 56.361,
      "fingerprint": "887f2001d8c2b66ada9d6d0706526bae52b22cf131df2d0f58b82d33a3623c68",
      "claimedComplete": false,
      "claimHonest": true,
@@ -25208,7 +25225,7 @@
        "completeness": 0.125,
        "vias": 4,
        "copper_mm": 76.0079,
-       "seconds": 0.579
+       "seconds": 0.508
       },
       {
        "stage": "r5",
@@ -25219,7 +25236,7 @@
        "completeness": 0.1875,
        "vias": 4,
        "copper_mm": 98.8318,
-       "seconds": 0.235
+       "seconds": 0.207
       },
       {
        "stage": "crossing",
@@ -25230,7 +25247,7 @@
        "completeness": 0.59375,
        "vias": 45,
        "copper_mm": 487.7935,
-       "seconds": 19.013
+       "seconds": 15.62
       },
       {
        "stage": "r3",
@@ -25241,7 +25258,7 @@
        "completeness": 0.65625,
        "vias": 45,
        "copper_mm": 493.9574,
-       "seconds": 0.3
+       "seconds": 0.269
       },
       {
        "stage": "r1",
@@ -25252,7 +25269,7 @@
        "completeness": 0.71875,
        "vias": 47,
        "copper_mm": 513.7445,
-       "seconds": 0.302
+       "seconds": 0.275
       },
       {
        "stage": "r4",
@@ -25263,7 +25280,7 @@
        "completeness": 0.78125,
        "vias": 47,
        "copper_mm": 536.9514,
-       "seconds": 0.306
+       "seconds": 0.269
       },
       {
        "stage": "residue[maze-astar]",
@@ -25274,7 +25291,7 @@
        "completeness": 0.875,
        "vias": 69,
        "copper_mm": 709.6095,
-       "seconds": 21.502
+       "seconds": 16.745
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -25285,7 +25302,7 @@
        "completeness": 0.875,
        "vias": 69,
        "copper_mm": 709.6095,
-       "seconds": 16.906
+       "seconds": 13.889
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -25296,7 +25313,7 @@
        "completeness": 0.875,
        "vias": 69,
        "copper_mm": 709.6095,
-       "seconds": 9.908
+       "seconds": 8.682
       }
      ],
      "notes": [],
@@ -25500,9 +25517,9 @@
    {
     "instance": "hydrate-coaster",
     "arm": "spatial-best",
-    "wallClockS": 79.854,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 62.774,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "hydrate-coaster",
@@ -25535,7 +25552,7 @@
      "iterations": 140514,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 8110535,
-     "wallClockS": 78.928,
+     "wallClockS": 61.982,
      "fingerprint": "78fb754b38f5f57e1d7930f4518393b05590a669ed5e38eb57b9284fe4d75714",
      "claimedComplete": false,
      "claimHonest": true,
@@ -25561,7 +25578,7 @@
        "completeness": 0.125,
        "vias": 4,
        "copper_mm": 76.0079,
-       "seconds": 0.619
+       "seconds": 0.5
       },
       {
        "stage": "r5",
@@ -25572,7 +25589,7 @@
        "completeness": 0.1875,
        "vias": 4,
        "copper_mm": 98.8318,
-       "seconds": 0.24
+       "seconds": 0.204
       },
       {
        "stage": "crossing",
@@ -25583,7 +25600,7 @@
        "completeness": 0.625,
        "vias": 45,
        "copper_mm": 690.3159,
-       "seconds": 25.212
+       "seconds": 19.053
       },
       {
        "stage": "r3",
@@ -25594,7 +25611,7 @@
        "completeness": 0.6875,
        "vias": 47,
        "copper_mm": 698.9976,
-       "seconds": 0.328
+       "seconds": 0.298
       },
       {
        "stage": "r1",
@@ -25605,7 +25622,7 @@
        "completeness": 0.71875,
        "vias": 49,
        "copper_mm": 712.1324,
-       "seconds": 1.632
+       "seconds": 1.389
       },
       {
        "stage": "r4",
@@ -25616,7 +25633,7 @@
        "completeness": 0.78125,
        "vias": 49,
        "copper_mm": 735.3393,
-       "seconds": 0.35
+       "seconds": 0.284
       },
       {
        "stage": "residue[maze-astar]",
@@ -25627,7 +25644,7 @@
        "completeness": 0.84375,
        "vias": 73,
        "copper_mm": 915.9395,
-       "seconds": 16.877
+       "seconds": 13.092
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -25638,7 +25655,7 @@
        "completeness": 0.84375,
        "vias": 73,
        "copper_mm": 915.9395,
-       "seconds": 14.413
+       "seconds": 11.265
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -25649,7 +25666,7 @@
        "completeness": 0.84375,
        "vias": 73,
        "copper_mm": 915.9395,
-       "seconds": 19.396
+       "seconds": 16.013
       }
      ],
      "notes": [],
@@ -25853,9 +25870,9 @@
    {
     "instance": "matrix-i2c-bus",
     "arm": "spatial-best",
-    "wallClockS": 0.014,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.012,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-i2c-bus",
@@ -25880,7 +25897,7 @@
      "iterations": 1,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 23,
-     "wallClockS": 0.011,
+     "wallClockS": 0.01,
      "fingerprint": "0c15615a320afdf66ef51d98689ce3c6b4fd842f932778da34f0e87ce01cc404",
      "claimedComplete": true,
      "claimHonest": true,
@@ -25906,7 +25923,7 @@
        "completeness": 1.0,
        "vias": 0,
        "copper_mm": 3.5122,
-       "seconds": 0.011
+       "seconds": 0.01
       }
      ],
      "notes": [
@@ -25955,9 +25972,9 @@
    {
     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
     "arm": "spatial-best",
-    "wallClockS": 0.449,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.358,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
@@ -25982,7 +25999,7 @@
      "iterations": 6,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 24042,
-     "wallClockS": 0.383,
+     "wallClockS": 0.303,
      "fingerprint": "ae1e6a52625257045961f437887e7275eb2853f9def65ffe05d10649616b14f7",
      "claimedComplete": true,
      "claimHonest": true,
@@ -26008,7 +26025,7 @@
        "completeness": 0.4,
        "vias": 0,
        "copper_mm": 22.6848,
-       "seconds": 0.05
+       "seconds": 0.044
       },
       {
        "stage": "crossing",
@@ -26019,7 +26036,7 @@
        "completeness": 0.8,
        "vias": 7,
        "copper_mm": 113.7233,
-       "seconds": 0.224
+       "seconds": 0.176
       },
       {
        "stage": "r0",
@@ -26030,7 +26047,7 @@
        "completeness": 1.0,
        "vias": 7,
        "copper_mm": 149.4487,
-       "seconds": 0.112
+       "seconds": 0.086
       }
      ],
      "notes": [],
@@ -26104,9 +26121,9 @@
    {
     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
     "arm": "spatial-best",
-    "wallClockS": 10.17,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 5.986,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
@@ -26135,7 +26152,7 @@
      "iterations": 3982,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 696331,
-     "wallClockS": 9.372,
+     "wallClockS": 5.565,
      "fingerprint": "e0cd8046d811c31f9f30c2c82537103f733113d52833b8f882b9edebf3cd4451",
      "claimedComplete": false,
      "claimHonest": true,
@@ -26161,7 +26178,7 @@
        "completeness": 0.117647,
        "vias": 0,
        "copper_mm": 22.6848,
-       "seconds": 0.122
+       "seconds": 0.1
       },
       {
        "stage": "crossing",
@@ -26172,7 +26189,7 @@
        "completeness": 0.823529,
        "vias": 21,
        "copper_mm": 375.2171,
-       "seconds": 5.983
+       "seconds": 3.608
       },
       {
        "stage": "r4",
@@ -26183,7 +26200,7 @@
        "completeness": 0.882353,
        "vias": 23,
        "copper_mm": 389.7354,
-       "seconds": 0.276
+       "seconds": 0.155
       },
       {
        "stage": "residue[maze-astar]",
@@ -26194,7 +26211,7 @@
        "completeness": 0.941176,
        "vias": 55,
        "copper_mm": 403.6788,
-       "seconds": 0.711
+       "seconds": 0.348
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -26205,7 +26222,7 @@
        "completeness": 0.941176,
        "vias": 55,
        "copper_mm": 403.6788,
-       "seconds": 1.108
+       "seconds": 0.558
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -26216,7 +26233,7 @@
        "completeness": 0.941176,
        "vias": 55,
        "copper_mm": 403.6788,
-       "seconds": 1.293
+       "seconds": 0.867
       }
      ],
      "notes": [],
@@ -26368,9 +26385,9 @@
    {
     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
     "arm": "spatial-best",
-    "wallClockS": 4.952,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 3.198,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
@@ -26397,7 +26414,7 @@
      "iterations": 24,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 390149,
-     "wallClockS": 4.438,
+     "wallClockS": 2.864,
      "fingerprint": "593b429028a2a9669534bfc364c8fbb55f0ba6808b6ce2651b25a567216dc28c",
      "claimedComplete": true,
      "claimHonest": true,
@@ -26423,7 +26440,7 @@
        "completeness": 0.117647,
        "vias": 0,
        "copper_mm": 22.6848,
-       "seconds": 0.147
+       "seconds": 0.098
       },
       {
        "stage": "crossing",
@@ -26434,7 +26451,7 @@
        "completeness": 0.823529,
        "vias": 38,
        "copper_mm": 535.4888,
-       "seconds": 3.651
+       "seconds": 2.319
       },
       {
        "stage": "r4",
@@ -26445,7 +26462,7 @@
        "completeness": 0.882353,
        "vias": 40,
        "copper_mm": 549.6397,
-       "seconds": 0.254
+       "seconds": 0.184
       },
       {
        "stage": "residue[maze-astar]",
@@ -26456,7 +26473,7 @@
        "completeness": 1.0,
        "vias": 44,
        "copper_mm": 578.3395,
-       "seconds": 0.398
+       "seconds": 0.269
       }
      ],
      "notes": [],
@@ -26608,9 +26625,9 @@
    {
     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
     "arm": "spatial-best",
-    "wallClockS": 0.773,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.509,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
@@ -26637,7 +26654,7 @@
      "iterations": 7,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 45357,
-     "wallClockS": 0.665,
+     "wallClockS": 0.444,
      "fingerprint": "f08c03c50d39ea46a471d95128d3b45143fd84f4a3731ea92484ec191ab06ce2",
      "claimedComplete": true,
      "claimHonest": true,
@@ -26663,7 +26680,7 @@
        "completeness": 0.4,
        "vias": 0,
        "copper_mm": 22.5195,
-       "seconds": 0.064
+       "seconds": 0.047
       },
       {
        "stage": "crossing",
@@ -26674,7 +26691,7 @@
        "completeness": 0.8,
        "vias": 6,
        "copper_mm": 140.1186,
-       "seconds": 0.416
+       "seconds": 0.282
       },
       {
        "stage": "r0",
@@ -26685,7 +26702,7 @@
        "completeness": 1.0,
        "vias": 9,
        "copper_mm": 181.5223,
-       "seconds": 0.19
+       "seconds": 0.118
       }
      ],
      "notes": [],
@@ -26759,9 +26776,9 @@
    {
     "instance": "matrix-ldo-3v3__usb-c-power",
     "arm": "spatial-best",
-    "wallClockS": 0.566,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.372,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__usb-c-power",
@@ -26786,7 +26803,7 @@
      "iterations": 9,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 28406,
-     "wallClockS": 0.475,
+     "wallClockS": 0.311,
      "fingerprint": "88cfaad94b034e3c9584d35b35fb3c1f73d92ee592607a473f6281952e7ea29e",
      "claimedComplete": true,
      "claimHonest": true,
@@ -26812,7 +26829,7 @@
        "completeness": 0.8,
        "vias": 7,
        "copper_mm": 130.1682,
-       "seconds": 0.35
+       "seconds": 0.23
       },
       {
        "stage": "residue[maze-astar]",
@@ -26823,7 +26840,7 @@
        "completeness": 1.0,
        "vias": 7,
        "copper_mm": 141.0965,
-       "seconds": 0.127
+       "seconds": 0.085
       }
      ],
      "notes": [
@@ -26872,9 +26889,9 @@
    {
     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
     "arm": "spatial-best",
-    "wallClockS": 1.045,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.721,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
@@ -26899,7 +26916,7 @@
      "iterations": 10,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 70669,
-     "wallClockS": 0.898,
+     "wallClockS": 0.627,
      "fingerprint": "27ac4f90016aa83ed568984259c44d6a186b932b26a2edef7af04af200de96dd",
      "claimedComplete": true,
      "claimHonest": true,
@@ -26925,7 +26942,7 @@
        "completeness": 0.222222,
        "vias": 0,
        "copper_mm": 22.5136,
-       "seconds": 0.087
+       "seconds": 0.061
       },
       {
        "stage": "crossing",
@@ -26936,7 +26953,7 @@
        "completeness": 0.555556,
        "vias": 11,
        "copper_mm": 244.9831,
-       "seconds": 0.616
+       "seconds": 0.429
       },
       {
        "stage": "r0",
@@ -26947,7 +26964,7 @@
        "completeness": 1.0,
        "vias": 17,
        "copper_mm": 298.2373,
-       "seconds": 0.2
+       "seconds": 0.14
       }
      ],
      "notes": [],
@@ -27047,9 +27064,9 @@
    {
     "instance": "matrix-rp2040-core__sw-tact",
     "arm": "spatial-best",
-    "wallClockS": 12.668,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 7.152,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-rp2040-core__sw-tact",
@@ -27079,7 +27096,7 @@
      "iterations": 1262,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 956938,
-     "wallClockS": 11.96,
+     "wallClockS": 6.682,
      "fingerprint": "5c71cc0a31aa8f3ea71238886e6ea6d8c85ff381a4e8bc13eda84307e3b7426a",
      "claimedComplete": false,
      "claimHonest": true,
@@ -27105,7 +27122,7 @@
        "completeness": 0.428571,
        "vias": 16,
        "copper_mm": 275.8685,
-       "seconds": 1.109
+       "seconds": 0.754
       },
       {
        "stage": "r1",
@@ -27116,7 +27133,7 @@
        "completeness": 0.5,
        "vias": 18,
        "copper_mm": 311.0085,
-       "seconds": 0.217
+       "seconds": 0.199
       },
       {
        "stage": "r2",
@@ -27127,7 +27144,7 @@
        "completeness": 0.571429,
        "vias": 18,
        "copper_mm": 323.5969,
-       "seconds": 0.166
+       "seconds": 0.124
       },
       {
        "stage": "r3",
@@ -27138,7 +27155,7 @@
        "completeness": 0.642857,
        "vias": 20,
        "copper_mm": 341.2526,
-       "seconds": 0.184
+       "seconds": 0.131
       },
       {
        "stage": "residue[maze-astar]",
@@ -27149,7 +27166,7 @@
        "completeness": 0.714286,
        "vias": 22,
        "copper_mm": 358.6858,
-       "seconds": 5.922
+       "seconds": 2.933
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -27160,7 +27177,7 @@
        "completeness": 0.857143,
        "vias": 26,
        "copper_mm": 394.3792,
-       "seconds": 4.075
+       "seconds": 2.331
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -27171,7 +27188,7 @@
        "completeness": 0.857143,
        "vias": 26,
        "copper_mm": 394.3792,
-       "seconds": 0.379
+       "seconds": 0.274
       }
      ],
      "notes": [],
@@ -27297,9 +27314,9 @@
    {
     "instance": "matrix-rp2040-core__usb-c-data",
     "arm": "spatial-best",
-    "wallClockS": 77.15,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 50.749,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-rp2040-core__usb-c-data",
@@ -27331,7 +27348,7 @@
      "iterations": 144261,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 4720337,
-     "wallClockS": 76.451,
+     "wallClockS": 50.261,
      "fingerprint": "6f8e0d3b8a3eca31657dac67f7515d88359b5e7f812eb3017539e2609133c20a",
      "claimedComplete": false,
      "claimHonest": true,
@@ -27357,7 +27374,7 @@
        "completeness": 0.142857,
        "vias": 4,
        "copper_mm": 53.161,
-       "seconds": 0.491
+       "seconds": 0.318
       },
       {
        "stage": "crossing",
@@ -27368,7 +27385,7 @@
        "completeness": 0.380952,
        "vias": 15,
        "copper_mm": 317.1242,
-       "seconds": 1.076
+       "seconds": 0.71
       },
       {
        "stage": "r1",
@@ -27379,7 +27396,7 @@
        "completeness": 0.52381,
        "vias": 22,
        "copper_mm": 404.9426,
-       "seconds": 5.269
+       "seconds": 3.616
       },
       {
        "stage": "r0",
@@ -27390,7 +27407,7 @@
        "completeness": 0.571429,
        "vias": 24,
        "copper_mm": 419.8067,
-       "seconds": 0.19
+       "seconds": 0.146
       },
       {
        "stage": "residue[maze-astar]",
@@ -27401,7 +27418,7 @@
        "completeness": 0.761905,
        "vias": 46,
        "copper_mm": 597.5347,
-       "seconds": 19.177
+       "seconds": 11.988
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -27412,7 +27429,7 @@
        "completeness": 0.809524,
        "vias": 52,
        "copper_mm": 618.0133,
-       "seconds": 20.46
+       "seconds": 12.316
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -27423,7 +27440,7 @@
        "completeness": 0.809524,
        "vias": 54,
        "copper_mm": 651.7611,
-       "seconds": 29.902
+       "seconds": 21.248
       }
      ],
      "notes": [],
@@ -27523,9 +27540,9 @@
    {
     "instance": "matrix-status-led",
     "arm": "spatial-best",
-    "wallClockS": 0.012,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.009,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-status-led",
@@ -27550,7 +27567,7 @@
      "iterations": 1,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 12,
-     "wallClockS": 0.01,
+     "wallClockS": 0.007,
      "fingerprint": "49828b75ee12f306f0e63ec89fb15458c0111742a80b29d72de01e5e6ee89e48",
      "claimedComplete": true,
      "claimHonest": true,
@@ -27576,7 +27593,7 @@
        "completeness": 1.0,
        "vias": 0,
        "copper_mm": 3.0407,
-       "seconds": 0.01
+       "seconds": 0.008
       }
      ],
      "notes": [
@@ -27625,9 +27642,9 @@
    {
     "instance": "matrix-status-led__ws2812-chain",
     "arm": "spatial-best",
-    "wallClockS": 0.392,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 0.289,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "matrix-status-led__ws2812-chain",
@@ -27652,7 +27669,7 @@
      "iterations": 8,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 18327,
-     "wallClockS": 0.304,
+     "wallClockS": 0.227,
      "fingerprint": "510194979b2e1feade9cbc34a3c61a2aed93b974b38a5dadad2e81b318165a00",
      "claimedComplete": true,
      "claimHonest": true,
@@ -27678,7 +27695,7 @@
        "completeness": 0.428571,
        "vias": 2,
        "copper_mm": 117.4147,
-       "seconds": 0.162
+       "seconds": 0.121
       },
       {
        "stage": "r1",
@@ -27689,7 +27706,7 @@
        "completeness": 0.714286,
        "vias": 6,
        "copper_mm": 145.5288,
-       "seconds": 0.076
+       "seconds": 0.058
       },
       {
        "stage": "r0",
@@ -27700,7 +27717,7 @@
        "completeness": 1.0,
        "vias": 8,
        "copper_mm": 158.2051,
-       "seconds": 0.07
+       "seconds": 0.049
       }
      ],
      "notes": [],
@@ -27774,9 +27791,9 @@
    {
     "instance": "terminal-keyboard-plane",
     "arm": "spatial-best",
-    "wallClockS": 196.303,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 125.913,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "terminal-keyboard-plane",
@@ -27826,7 +27843,7 @@
      "iterations": 185661,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 16181179,
-     "wallClockS": 193.25,
+     "wallClockS": 123.837,
      "fingerprint": "f11428cce94a6e23f13016f5d81b798d4608199316ccd679f002b5064f816940",
      "claimedComplete": false,
      "claimHonest": true,
@@ -27852,7 +27869,7 @@
        "completeness": 0.123596,
        "vias": 12,
        "copper_mm": 213.7511,
-       "seconds": 2.631
+       "seconds": 1.883
       },
       {
        "stage": "r2",
@@ -27863,7 +27880,7 @@
        "completeness": 0.168539,
        "vias": 16,
        "copper_mm": 293.1447,
-       "seconds": 0.711
+       "seconds": 0.48
       },
       {
        "stage": "crossing",
@@ -27874,7 +27891,7 @@
        "completeness": 0.325843,
        "vias": 105,
        "copper_mm": 1686.5794,
-       "seconds": 67.178
+       "seconds": 39.142
       },
       {
        "stage": "r0",
@@ -27885,7 +27902,7 @@
        "completeness": 0.438202,
        "vias": 109,
        "copper_mm": 1755.1049,
-       "seconds": 0.593
+       "seconds": 0.463
       },
       {
        "stage": "r5",
@@ -27896,7 +27913,7 @@
        "completeness": 0.550562,
        "vias": 117,
        "copper_mm": 1823.6014,
-       "seconds": 0.608
+       "seconds": 0.478
       },
       {
        "stage": "r1",
@@ -27907,7 +27924,7 @@
        "completeness": 0.617978,
        "vias": 117,
        "copper_mm": 1864.5257,
-       "seconds": 0.597
+       "seconds": 0.464
       },
       {
        "stage": "r6",
@@ -27918,7 +27935,7 @@
        "completeness": 0.685393,
        "vias": 123,
        "copper_mm": 1907.3407,
-       "seconds": 0.702
+       "seconds": 0.481
       },
       {
        "stage": "r3",
@@ -27929,7 +27946,7 @@
        "completeness": 0.786517,
        "vias": 129,
        "copper_mm": 1970.4043,
-       "seconds": 0.707
+       "seconds": 0.5
       },
       {
        "stage": "r7",
@@ -27940,7 +27957,7 @@
        "completeness": 0.88764,
        "vias": 137,
        "copper_mm": 2034.5772,
-       "seconds": 0.842
+       "seconds": 0.509
       },
       {
        "stage": "residue[maze-astar]",
@@ -27951,7 +27968,7 @@
        "completeness": 0.910112,
        "vias": 155,
        "copper_mm": 2418.0164,
-       "seconds": 42.936
+       "seconds": 25.527
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -27962,7 +27979,7 @@
        "completeness": 0.921348,
        "vias": 157,
        "copper_mm": 2456.9183,
-       "seconds": 46.745
+       "seconds": 31.399
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -27973,7 +27990,7 @@
        "completeness": 0.921348,
        "vias": 157,
        "copper_mm": 2456.9183,
-       "seconds": 29.224
+       "seconds": 22.703
       }
      ],
      "notes": [],
@@ -28203,9 +28220,9 @@
    {
     "instance": "terminal-keyboard",
     "arm": "spatial-best",
-    "wallClockS": 191.594,
-    "deterministic": null,
-    "runs": 1,
+    "wallClockS": 158.833,
+    "deterministic": true,
+    "runs": 2,
     "collidingCopperIds": 0,
     "score": {
      "instance": "terminal-keyboard",
@@ -28257,7 +28274,7 @@
      "iterations": 177285,
      "iterationsUnit": "family-defined",
      "nodesExpanded": 20528784,
-     "wallClockS": 188.985,
+     "wallClockS": 156.368,
      "fingerprint": "3df228be5e340fa49b60c90bcb60753ca5651000d0d5eb8540e2d50b9f20054e",
      "claimedComplete": false,
      "claimHonest": true,
@@ -28283,7 +28300,7 @@
        "completeness": 0.123596,
        "vias": 12,
        "copper_mm": 213.7511,
-       "seconds": 2.408
+       "seconds": 1.817
       },
       {
        "stage": "r2",
@@ -28294,7 +28311,7 @@
        "completeness": 0.168539,
        "vias": 16,
        "copper_mm": 293.1447,
-       "seconds": 0.563
+       "seconds": 0.479
       },
       {
        "stage": "crossing",
@@ -28305,7 +28322,7 @@
        "completeness": 0.314607,
        "vias": 88,
        "copper_mm": 1855.6977,
-       "seconds": 61.997
+       "seconds": 50.041
       },
       {
        "stage": "r0",
@@ -28316,7 +28333,7 @@
        "completeness": 0.426966,
        "vias": 92,
        "copper_mm": 1924.2233,
-       "seconds": 0.522
+       "seconds": 0.489
       },
       {
        "stage": "r5",
@@ -28327,7 +28344,7 @@
        "completeness": 0.539326,
        "vias": 100,
        "copper_mm": 1992.7198,
-       "seconds": 0.567
+       "seconds": 0.521
       },
       {
        "stage": "r1",
@@ -28338,7 +28355,7 @@
        "completeness": 0.606742,
        "vias": 100,
        "copper_mm": 2033.6441,
-       "seconds": 0.552
+       "seconds": 0.69
       },
       {
        "stage": "r6",
@@ -28349,7 +28366,7 @@
        "completeness": 0.674157,
        "vias": 104,
        "copper_mm": 2075.8075,
-       "seconds": 0.547
+       "seconds": 0.522
       },
       {
        "stage": "r3",
@@ -28360,7 +28377,7 @@
        "completeness": 0.775281,
        "vias": 110,
        "copper_mm": 2139.1094,
-       "seconds": 0.602
+       "seconds": 0.541
       },
       {
        "stage": "r7",
@@ -28371,7 +28388,7 @@
        "completeness": 0.876404,
        "vias": 118,
        "copper_mm": 2203.2822,
-       "seconds": 0.621
+       "seconds": 0.524
       },
       {
        "stage": "residue[maze-astar]",
@@ -28382,7 +28399,7 @@
        "completeness": 0.88764,
        "vias": 138,
        "copper_mm": 2563.5145,
-       "seconds": 46.687
+       "seconds": 37.325
       },
       {
        "stage": "residue[plane-and-classes]",
@@ -28393,7 +28410,7 @@
        "completeness": 0.898876,
        "vias": 142,
        "copper_mm": 2602.1726,
-       "seconds": 48.101
+       "seconds": 39.236
       },
       {
        "stage": "residue[exact-and-structured]",
@@ -28404,7 +28421,7 @@
        "completeness": 0.898876,
        "vias": 142,
        "copper_mm": 2602.1726,
-       "seconds": 26.043
+       "seconds": 24.382
       }
      ],
      "notes": [],

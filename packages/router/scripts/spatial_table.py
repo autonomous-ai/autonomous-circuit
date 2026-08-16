@@ -25,7 +25,16 @@ def main(argv: list[str] | None = None) -> int:
     rulers = set()
     for path in args.files:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        runs[data["summary"]["arm"]] = data
+        arm = data["summary"]["arm"]
+        # Two files can carry the same arm — a one-run pass and a two-run
+        # determinism pass. Keep the one that actually measured determinism,
+        # whatever order the shell globbed them in.
+        seen = runs.get(arm)
+        if seen and (seen["summary"].get("runs") or 1) >= (
+            data["summary"].get("runs") or 1
+        ):
+            continue
+        runs[arm] = data
         rulers.add(data["measuredAgainst"]["rulerHashBefore"])
         rulers.add(data["measuredAgainst"]["rulerHashAfter"])
     if len(rulers) != 1:
