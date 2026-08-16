@@ -65,6 +65,12 @@ ARMS = (
     # expert map, escapes before crossings, and the relay's chain on the
     # residue. Four routers, so it is the like-for-like against ``relay``.
     "spatial-best",
+    # The control that decides whether the *geometry* of the seam matters at
+    # all: the same number of groups, the same group sizes, the same staging,
+    # nets assigned to groups by a deterministic shuffle instead of by
+    # position. If this scores like ``spatial-flat``, the partition is doing
+    # nothing and only the staging is visible in the number.
+    "spatial-shuffled",
 )
 
 #: ``spatial-tight``'s partition. Measured on the fixtures with no routing:
@@ -123,6 +129,42 @@ def uniquified(solution):
     )
 
 
+def shuffled(part, seed: int = 0):
+    """The same partition shape with the nets dealt out by hash, not position.
+
+    Region ids, region count, interior-net counts and the crossing count are
+    all preserved exactly; only *which* net lands in which group changes. It is
+    the null hypothesis for the whole module — a spatial decomposition whose
+    seams carry no information scores the same as this.
+    """
+    import dataclasses
+    import hashlib
+
+    every = sorted(
+        [n for r in part.regions for n in r.interior_nets] + list(part.crossing_nets)
+    )
+    order = sorted(
+        every,
+        key=lambda n: hashlib.sha256(f"{seed}:{n}".encode()).hexdigest(),
+    )
+    at = 0
+    crossing = tuple(sorted(order[: len(part.crossing_nets)]))
+    at = len(part.crossing_nets)
+    regions = []
+    for region in part.regions:
+        take = len(region.interior_nets)
+        regions.append(
+            dataclasses.replace(region, interior_nets=tuple(sorted(order[at: at + take])))
+        )
+        at += take
+    return dataclasses.replace(
+        part,
+        regions=tuple(regions),
+        crossing_nets=crossing,
+        why=part.why + f" [nets shuffled, seed {seed} — control]",
+    )
+
+
 def run_one(arm: str, problem, budget, registry):
     """One instance, one arm. Returns ``(solution, detail_dict)``."""
     from routerlib import portfolio
@@ -151,6 +193,10 @@ def run_one(arm: str, problem, budget, registry):
     if arm == "spatial-best":
         options["escape_first"] = True
         options["residue"] = FOLLOWERS
+    if arm == "spatial-shuffled":
+        options["given"] = shuffled(
+            spatial.partition(problem, experts={}), seed=budget.seed
+        )
     result = spatial.route(problem, budget, registry, **options)
     return result.solution, {"spatial": result.as_dict()}
 
