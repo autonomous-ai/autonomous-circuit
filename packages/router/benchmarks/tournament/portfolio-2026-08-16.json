@@ -1,0 +1,1266 @@
+{
+ "measuredAt": "2026-08-16",
+ "measuredAgainst": {
+  "gitHead": "08fc6878ff4fb7ac9418a6ad3cf947cc12c036a7",
+  "gitDirty": true,
+  "tournament": "results-2026-08-16.json",
+  "rulerHash": "b3c77d55b171"
+ },
+ "mode": "relay",
+ "budgetClass": "thorough",
+ "chain": [
+  "pathfinder-negotiated",
+  "maze-astar",
+  "plane-and-classes",
+  "exact-and-structured"
+ ],
+ "budget": {
+  "maxIterations": 2000000,
+  "maxNodes": 20000000,
+  "seed": 0
+ },
+ "summary": {
+  "instances": 16,
+  "meanCompleteness": 0.9798,
+  "meanBestSingleCompleteness": 0.9574,
+  "harnessCleanInstances": 8,
+  "harnessErrors": 0,
+  "deterministic": 16,
+  "totalSeconds": 262.4
+ },
+ "perInstance": [
+  {
+   "instance": "harness-puck",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 36,
+     "added_nets": 33,
+     "completeness": 0.916667,
+     "vias": 70,
+     "copper_mm": 1425.7514,
+     "seconds": 16.214
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 3,
+     "added_nets": 2,
+     "completeness": 0.972222,
+     "vias": 76,
+     "copper_mm": 1480.0309,
+     "seconds": 3.549
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.972222,
+     "vias": 76,
+     "copper_mm": 1480.0309,
+     "seconds": 4.245
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.972222,
+     "vias": 76,
+     "copper_mm": 1480.0309,
+     "seconds": 0.479
+    }
+   ],
+   "completeness": 0.972222,
+   "bestSingleCompleteness": 0.916667,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 76,
+   "copperMm": 1480.0309,
+   "deterministic": true,
+   "wallClockS": 24.868,
+   "pipelineRealBoard": null
+  },
+  {
+   "instance": "hydrate-coaster",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 32,
+     "added_nets": 28,
+     "completeness": 0.875,
+     "vias": 70,
+     "copper_mm": 918.0458,
+     "seconds": 10.164
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 4,
+     "added_nets": 3,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 2.87
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 3.8
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 0.24
+    }
+   ],
+   "completeness": 0.96875,
+   "bestSingleCompleteness": 0.875,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 76,
+   "copperMm": 1011.1742,
+   "deterministic": true,
+   "wallClockS": 17.353,
+   "pipelineRealBoard": null
+  },
+  {
+   "instance": "hydrate-coaster-plane",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 32,
+     "added_nets": 27,
+     "completeness": 0.84375,
+     "vias": 59,
+     "copper_mm": 640.075,
+     "seconds": 8.366
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 5,
+     "added_nets": 3,
+     "completeness": 0.9375,
+     "vias": 79,
+     "copper_mm": 814.0128,
+     "seconds": 4.596
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 2,
+     "added_nets": 1,
+     "completeness": 0.96875,
+     "vias": 79,
+     "copper_mm": 841.8214,
+     "seconds": 3.881
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.96875,
+     "vias": 79,
+     "copper_mm": 841.8214,
+     "seconds": 0.392
+    }
+   ],
+   "completeness": 0.96875,
+   "bestSingleCompleteness": 0.875,
+   "harnessErrors": 0,
+   "harnessWarnings": 1,
+   "vias": 79,
+   "copperMm": 841.8214,
+   "deterministic": true,
+   "wallClockS": 17.449,
+   "pipelineRealBoard": null
+  },
+  {
+   "instance": "matrix-i2c-bus",
+   "chain": [
+    "baseline-pattern"
+   ],
+   "stages": [
+    {
+     "router": "baseline-pattern",
+     "asked_nets": 1,
+     "added_nets": 1,
+     "completeness": 1.0,
+     "vias": 2,
+     "copper_mm": 3.634,
+     "seconds": 0.002
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 2,
+   "copperMm": 3.634,
+   "deterministic": true,
+   "wallClockS": 0.003,
+   "pipelineRealBoard": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 0,
+    "kicadKinds": {
+     "lib_footprint_issues": 4
+    }
+   }
+  },
+  {
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "chain": [
+    "pathfinder-negotiated"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 5,
+     "added_nets": 5,
+     "completeness": 1.0,
+     "vias": 5,
+     "copper_mm": 150.4175,
+     "seconds": 0.213
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 5,
+   "copperMm": 150.4175,
+   "deterministic": true,
+   "wallClockS": 0.229,
+   "pipelineRealBoard": {
+    "kicadCopper": 3,
+    "tscircuitRouting": 8,
+    "kicadKinds": {
+     "clearance": 3,
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 12,
+     "silk_overlap": 12
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 17,
+     "added_nets": 15,
+     "completeness": 0.882353,
+     "vias": 39,
+     "copper_mm": 577.6777,
+     "seconds": 3.276
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 2,
+     "added_nets": 1,
+     "completeness": 0.941176,
+     "vias": 43,
+     "copper_mm": 599.2902,
+     "seconds": 0.252
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.941176,
+     "vias": 43,
+     "copper_mm": 599.2902,
+     "seconds": 0.608
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.941176,
+     "vias": 43,
+     "copper_mm": 599.2902,
+     "seconds": 0.076
+    }
+   ],
+   "completeness": 0.941176,
+   "bestSingleCompleteness": 0.941176,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 43,
+   "copperMm": 599.2902,
+   "deterministic": true,
+   "wallClockS": 4.403,
+   "pipelineRealBoard": {
+    "kicadCopper": 16,
+    "tscircuitRouting": 11,
+    "kicadKinds": {
+     "clearance": 8,
+     "shorting_items": 2,
+     "hole_clearance": 4,
+     "solder_mask_bridge": 2,
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 32,
+     "silk_overlap": 48,
+     "unconnected_items": 1
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 17,
+     "added_nets": 15,
+     "completeness": 0.882353,
+     "vias": 48,
+     "copper_mm": 428.3639,
+     "seconds": 1.797
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 2,
+     "added_nets": 1,
+     "completeness": 0.941176,
+     "vias": 50,
+     "copper_mm": 437.9054,
+     "seconds": 0.194
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.941176,
+     "vias": 50,
+     "copper_mm": 437.9054,
+     "seconds": 0.494
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.941176,
+     "vias": 50,
+     "copper_mm": 437.9054,
+     "seconds": 0.066
+    }
+   ],
+   "completeness": 0.941176,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 1,
+   "vias": 50,
+   "copperMm": 437.9054,
+   "deterministic": true,
+   "wallClockS": 2.697,
+   "pipelineRealBoard": null
+  },
+  {
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "chain": [
+    "pathfinder-negotiated"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 5,
+     "added_nets": 5,
+     "completeness": 1.0,
+     "vias": 8,
+     "copper_mm": 182.5064,
+     "seconds": 0.307
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 8,
+   "copperMm": 182.5064,
+   "deterministic": true,
+   "wallClockS": 0.332,
+   "pipelineRealBoard": {
+    "kicadCopper": 6,
+    "tscircuitRouting": 7,
+    "kicadKinds": {
+     "clearance": 6,
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 13,
+     "silk_overlap": 17
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "chain": [
+    "pathfinder-negotiated"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 5,
+     "added_nets": 5,
+     "completeness": 1.0,
+     "vias": 6,
+     "copper_mm": 139.6781,
+     "seconds": 0.252
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 6,
+   "copperMm": 139.6781,
+   "deterministic": true,
+   "wallClockS": 0.27,
+   "pipelineRealBoard": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 5,
+    "kicadKinds": {
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 10,
+     "silk_overlap": 12
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "chain": [
+    "pathfinder-negotiated"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 9,
+     "added_nets": 9,
+     "completeness": 1.0,
+     "vias": 14,
+     "copper_mm": 309.1629,
+     "seconds": 0.604
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 14,
+   "copperMm": 309.1629,
+   "deterministic": true,
+   "wallClockS": 0.636,
+   "pipelineRealBoard": {
+    "kicadCopper": 5,
+    "tscircuitRouting": 8,
+    "kicadKinds": {
+     "clearance": 3,
+     "shorting_items": 1,
+     "solder_mask_bridge": 1,
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 19,
+     "silk_overlap": 20,
+     "silk_over_copper": 16
+    }
+   }
+  },
+  {
+   "instance": "matrix-rp2040-core__sw-tact",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 14,
+     "added_nets": 13,
+     "completeness": 0.928571,
+     "vias": 33,
+     "copper_mm": 392.053,
+     "seconds": 1.315
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.928571,
+     "vias": 33,
+     "copper_mm": 392.053,
+     "seconds": 0.129
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 1,
+     "completeness": 1.0,
+     "vias": 37,
+     "copper_mm": 416.1304,
+     "seconds": 0.311
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 37,
+   "copperMm": 416.1304,
+   "deterministic": true,
+   "wallClockS": 1.868,
+   "pipelineRealBoard": {
+    "kicadCopper": 18,
+    "tscircuitRouting": 5,
+    "kicadKinds": {
+     "shorting_items": 6,
+     "clearance": 2,
+     "hole_clearance": 4,
+     "solder_mask_bridge": 6,
+     "lib_footprint_issues": 25,
+     "silk_overlap": 38
+    }
+   }
+  },
+  {
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 21,
+     "added_nets": 18,
+     "completeness": 0.857143,
+     "vias": 47,
+     "copper_mm": 591.0772,
+     "seconds": 4.185
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 3,
+     "added_nets": 2,
+     "completeness": 0.952381,
+     "vias": 51,
+     "copper_mm": 618.9322,
+     "seconds": 6.667
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.952381,
+     "vias": 51,
+     "copper_mm": 618.9322,
+     "seconds": 3.479
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.952381,
+     "vias": 51,
+     "copper_mm": 618.9322,
+     "seconds": 0.476
+    }
+   ],
+   "completeness": 0.952381,
+   "bestSingleCompleteness": 0.857143,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 51,
+   "copperMm": 618.9322,
+   "deterministic": true,
+   "wallClockS": 15.009,
+   "pipelineRealBoard": {
+    "kicadCopper": 11,
+    "tscircuitRouting": 10,
+    "kicadKinds": {
+     "shorting_items": 3,
+     "clearance": 5,
+     "solder_mask_bridge": 3,
+     "silk_edge_clearance": 2,
+     "lib_footprint_issues": 31,
+     "silk_overlap": 46,
+     "unconnected_items": 2
+    }
+   }
+  },
+  {
+   "instance": "matrix-status-led",
+   "chain": [
+    "baseline-pattern"
+   ],
+   "stages": [
+    {
+     "router": "baseline-pattern",
+     "asked_nets": 1,
+     "added_nets": 1,
+     "completeness": 1.0,
+     "vias": 0,
+     "copper_mm": 2.8764,
+     "seconds": 0.0
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 0,
+   "copperMm": 2.8764,
+   "deterministic": true,
+   "wallClockS": 0.001,
+   "pipelineRealBoard": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 0,
+    "kicadKinds": {
+     "lib_footprint_issues": 4,
+     "silk_overlap": 3,
+     "silk_over_copper": 2
+    }
+   }
+  },
+  {
+   "instance": "matrix-status-led__ws2812-chain",
+   "chain": [
+    "pathfinder-negotiated"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 7,
+     "added_nets": 7,
+     "completeness": 1.0,
+     "vias": 6,
+     "copper_mm": 164.8433,
+     "seconds": 0.259
+    }
+   ],
+   "completeness": 1.0,
+   "bestSingleCompleteness": 1.0,
+   "harnessErrors": 0,
+   "harnessWarnings": 0,
+   "vias": 6,
+   "copperMm": 164.8433,
+   "deterministic": true,
+   "wallClockS": 0.274,
+   "pipelineRealBoard": {
+    "kicadCopper": 7,
+    "tscircuitRouting": 5,
+    "kicadKinds": {
+     "shorting_items": 1,
+     "clearance": 5,
+     "solder_mask_bridge": 1,
+     "lib_footprint_issues": 13,
+     "silk_overlap": 11,
+     "silk_over_copper": 18
+    }
+   }
+  },
+  {
+   "instance": "terminal-keyboard",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 89,
+     "added_nets": 80,
+     "completeness": 0.898876,
+     "vias": 107,
+     "copper_mm": 2220.8511,
+     "seconds": 69.917
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 9,
+     "added_nets": 4,
+     "completeness": 0.94382,
+     "vias": 141,
+     "copper_mm": 2724.5531,
+     "seconds": 18.748
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 5,
+     "added_nets": 1,
+     "completeness": 0.955056,
+     "vias": 161,
+     "copper_mm": 2934.4582,
+     "seconds": 17.895
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 4,
+     "added_nets": 0,
+     "completeness": 0.955056,
+     "vias": 161,
+     "copper_mm": 2934.4582,
+     "seconds": 8.734
+    }
+   ],
+   "completeness": 0.955056,
+   "bestSingleCompleteness": 0.898876,
+   "harnessErrors": 0,
+   "harnessWarnings": 2,
+   "vias": 161,
+   "copperMm": 2934.4582,
+   "deterministic": true,
+   "wallClockS": 115.797,
+   "pipelineRealBoard": null
+  },
+  {
+   "instance": "terminal-keyboard-plane",
+   "chain": [
+    "pathfinder-negotiated",
+    "maze-astar",
+    "plane-and-classes",
+    "exact-and-structured"
+   ],
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 89,
+     "added_nets": 85,
+     "completeness": 0.955056,
+     "vias": 150,
+     "copper_mm": 2604.6244,
+     "seconds": 51.854
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 4,
+     "added_nets": 1,
+     "completeness": 0.966292,
+     "vias": 164,
+     "copper_mm": 2738.9625,
+     "seconds": 3.461
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 3,
+     "added_nets": 1,
+     "completeness": 0.977528,
+     "vias": 168,
+     "copper_mm": 2756.6252,
+     "seconds": 4.762
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 2,
+     "added_nets": 0,
+     "completeness": 0.977528,
+     "vias": 168,
+     "copper_mm": 2756.6252,
+     "seconds": 0.581
+    }
+   ],
+   "completeness": 0.977528,
+   "bestSingleCompleteness": 0.955056,
+   "harnessErrors": 0,
+   "harnessWarnings": 1,
+   "vias": 168,
+   "copperMm": 2756.6252,
+   "deterministic": true,
+   "wallClockS": 61.197,
+   "pipelineRealBoard": null
+  }
+ ],
+ "verifiedOnRebuiltCells": {
+  "cells": [
+   "matrix-i2c-bus",
+   "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "matrix-ldo-3v3__usb-c-power",
+   "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "matrix-rp2040-core__sw-tact",
+   "matrix-rp2040-core__usb-c-data",
+   "matrix-status-led",
+   "matrix-status-led__ws2812-chain"
+  ],
+  "byRouter": {
+   "baseline-pattern": {
+    "meanCompleteness": 0.6275,
+    "kicadCopper": 10,
+    "copperMm": 1821.9,
+    "connectedNets": 36,
+    "errPer100mm": 0.55
+   },
+   "exact-and-structured": {
+    "meanCompleteness": 0.8403,
+    "kicadCopper": 13,
+    "copperMm": 1219.1,
+    "connectedNets": 63,
+    "errPer100mm": 1.07
+   },
+   "topological-graph": {
+    "meanCompleteness": 0.8381,
+    "kicadCopper": 37,
+    "copperMm": 1648.5,
+    "connectedNets": 65,
+    "errPer100mm": 2.24
+   },
+   "meta-genetic": {
+    "meanCompleteness": 0.8631,
+    "kicadCopper": 201,
+    "copperMm": 2180.4,
+    "connectedNets": 71,
+    "errPer100mm": 9.22
+   },
+   "meta-anneal": {
+    "meanCompleteness": 0.856,
+    "kicadCopper": 184,
+    "copperMm": 2141.1,
+    "connectedNets": 70,
+    "errPer100mm": 8.59
+   },
+   "ripup-reroute": {
+    "meanCompleteness": 0.9243,
+    "kicadCopper": 58,
+    "copperMm": 2407.2,
+    "connectedNets": 74,
+    "errPer100mm": 2.41
+   },
+   "plane-and-classes": {
+    "meanCompleteness": 0.9351,
+    "kicadCopper": 350,
+    "copperMm": 1911.7,
+    "connectedNets": 78,
+    "errPer100mm": 18.31
+   },
+   "maze-astar": {
+    "meanCompleteness": 0.9727,
+    "kicadCopper": 132,
+    "copperMm": 2156.0,
+    "connectedNets": 80,
+    "errPer100mm": 6.12
+   },
+   "pathfinder-negotiated": {
+    "meanCompleteness": 0.9668,
+    "kicadCopper": 48,
+    "copperMm": 2513.6,
+    "connectedNets": 79,
+    "errPer100mm": 1.91
+   },
+   "portfolio-relay": {
+    "meanCompleteness": 0.9894,
+    "kicadCopper": 66,
+    "copperMm": 2587.5,
+    "connectedNets": 83,
+    "errPer100mm": 2.55
+   }
+  }
+ },
+ "againstShippedAutorouter": {
+  "harness-puck": {
+   "commit": "08fc6878ff4fb7ac9418a6ad3cf947cc12c036a7",
+   "poursStripped": 0,
+   "selection": {
+    "router": "pathfinder-negotiated",
+    "rule": "dominant-default",
+    "why": "at or tied with the best completeness on 12 of 16 instances (next best 11), the lowest unrouted total on the 12 real boards (13 of 216 nets), and 0.57 real DRC errors per connected net \u2014 on a par with the do-nothing baseline while connecting 2.3x as many nets",
+    "fallback": "baseline-pattern",
+    "candidates": [
+     "pathfinder-negotiated",
+     "maze-astar",
+     "plane-and-classes",
+     "exact-and-structured"
+    ],
+    "mode": "relay",
+    "expectation": {
+     "difficulty": "beyond",
+     "completes": "no",
+     "evidence": "36 routable nets; no family finished any of the 6 benchmark instances with >= 21 nets (best 85.7-95.5%)"
+    },
+    "evidence": "tournament 2026-08-16, ruler b3c77d55b171, 16 instances x 9 families"
+   },
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 36,
+     "added_nets": 33,
+     "completeness": 0.916667,
+     "vias": 71,
+     "copper_mm": 1400.5395,
+     "seconds": 9.069
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 3,
+     "added_nets": 2,
+     "completeness": 0.972222,
+     "vias": 79,
+     "copper_mm": 1446.5804,
+     "seconds": 3.234
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.972222,
+     "vias": 79,
+     "copper_mm": 1446.5804,
+     "seconds": 4.159
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.972222,
+     "vias": 79,
+     "copper_mm": 1446.5804,
+     "seconds": 0.471
+    }
+   ],
+   "portfolioSeconds": 17.4,
+   "incumbent": {
+    "completeness": 0.944444,
+    "connectedNets": 34,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 4,
+    "byKind": {
+     "dfm_power_trace_width": 4
+    },
+    "vias": 125,
+    "copperMm": 1624.5,
+    "diffPairCoupling": 0.07124262837202172,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 7,
+     "tscircuitRouting": 0
+    },
+    "kicadKinds": {
+     "holes_co_located": 7,
+     "lib_footprint_issues": 64,
+     "silk_overlap": 112,
+     "silk_over_copper": 44
+    }
+   },
+   "portfolio": {
+    "completeness": 0.972222,
+    "connectedNets": 35,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "byKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 79,
+    "copperMm": 1446.6,
+    "diffPairCoupling": 0.2955295236571351,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 35,
+     "tscircuitRouting": 16
+    },
+    "kicadKinds": {
+     "clearance": 14,
+     "shorting_items": 7,
+     "hole_clearance": 6,
+     "solder_mask_bridge": 7,
+     "via_dangling": 1,
+     "lib_footprint_issues": 64,
+     "silk_overlap": 112,
+     "silk_over_copper": 44,
+     "unconnected_items": 1
+    }
+   },
+   "control": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 0
+   }
+  },
+  "hydrate-coaster": {
+   "commit": "08fc6878ff4fb7ac9418a6ad3cf947cc12c036a7",
+   "poursStripped": 2,
+   "selection": {
+    "router": "pathfinder-negotiated",
+    "rule": "dominant-default",
+    "why": "at or tied with the best completeness on 12 of 16 instances (next best 11), the lowest unrouted total on the 12 real boards (13 of 216 nets), and 0.57 real DRC errors per connected net \u2014 on a par with the do-nothing baseline while connecting 2.3x as many nets",
+    "fallback": "baseline-pattern",
+    "candidates": [
+     "pathfinder-negotiated",
+     "maze-astar",
+     "plane-and-classes",
+     "exact-and-structured"
+    ],
+    "mode": "relay",
+    "expectation": {
+     "difficulty": "beyond",
+     "completes": "no",
+     "evidence": "32 routable nets; no family finished any of the 6 benchmark instances with >= 21 nets (best 85.7-95.5%)"
+    },
+    "evidence": "tournament 2026-08-16, ruler b3c77d55b171, 16 instances x 9 families"
+   },
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 32,
+     "added_nets": 28,
+     "completeness": 0.875,
+     "vias": 70,
+     "copper_mm": 918.0458,
+     "seconds": 10.182
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 4,
+     "added_nets": 3,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 2.911
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 3.979
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 1,
+     "added_nets": 0,
+     "completeness": 0.96875,
+     "vias": 76,
+     "copper_mm": 1011.1742,
+     "seconds": 0.235
+    }
+   ],
+   "portfolioSeconds": 17.7,
+   "incumbent": {
+    "completeness": 1.0,
+    "connectedNets": 32,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 3,
+    "byKind": {
+     "dfm_power_trace_width": 3
+    },
+    "vias": 108,
+    "copperMm": 1152.4,
+    "diffPairCoupling": 0.09411395696303562,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 7,
+     "tscircuitRouting": 0
+    },
+    "kicadKinds": {
+     "holes_co_located": 7,
+     "lib_footprint_issues": 48,
+     "silk_overlap": 63,
+     "silk_over_copper": 9
+    }
+   },
+   "portfolio": {
+    "completeness": 0.96875,
+    "connectedNets": 31,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "byKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 76,
+    "copperMm": 1011.2,
+    "diffPairCoupling": 0.034216047575647335,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 12,
+     "tscircuitRouting": 10
+    },
+    "kicadKinds": {
+     "clearance": 4,
+     "shorting_items": 3,
+     "hole_clearance": 2,
+     "solder_mask_bridge": 3,
+     "lib_footprint_issues": 48,
+     "silk_overlap": 63,
+     "silk_over_copper": 9,
+     "unconnected_items": 1
+    }
+   },
+   "control": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 0
+   }
+  },
+  "terminal-keyboard": {
+   "commit": "08fc6878ff4fb7ac9418a6ad3cf947cc12c036a7",
+   "poursStripped": 0,
+   "selection": {
+    "router": "pathfinder-negotiated",
+    "rule": "dominant-default",
+    "why": "at or tied with the best completeness on 12 of 16 instances (next best 11), the lowest unrouted total on the 12 real boards (13 of 216 nets), and 0.57 real DRC errors per connected net \u2014 on a par with the do-nothing baseline while connecting 2.3x as many nets",
+    "fallback": "baseline-pattern",
+    "candidates": [
+     "pathfinder-negotiated",
+     "maze-astar",
+     "plane-and-classes",
+     "exact-and-structured"
+    ],
+    "mode": "relay",
+    "expectation": {
+     "difficulty": "beyond",
+     "completes": "no",
+     "evidence": "89 routable nets; no family finished any of the 6 benchmark instances with >= 21 nets (best 85.7-95.5%)"
+    },
+    "evidence": "tournament 2026-08-16, ruler b3c77d55b171, 16 instances x 9 families"
+   },
+   "stages": [
+    {
+     "router": "pathfinder-negotiated",
+     "asked_nets": 89,
+     "added_nets": 78,
+     "completeness": 0.876404,
+     "vias": 110,
+     "copper_mm": 2394.9156,
+     "seconds": 64.767
+    },
+    {
+     "router": "maze-astar",
+     "asked_nets": 11,
+     "added_nets": 5,
+     "completeness": 0.932584,
+     "vias": 136,
+     "copper_mm": 2729.2895,
+     "seconds": 17.218
+    },
+    {
+     "router": "plane-and-classes",
+     "asked_nets": 6,
+     "added_nets": 1,
+     "completeness": 0.94382,
+     "vias": 138,
+     "copper_mm": 2821.3255,
+     "seconds": 17.544
+    },
+    {
+     "router": "exact-and-structured",
+     "asked_nets": 5,
+     "added_nets": 0,
+     "completeness": 0.94382,
+     "vias": 138,
+     "copper_mm": 2821.3255,
+     "seconds": 8.323
+    }
+   ],
+   "portfolioSeconds": 108.5,
+   "incumbent": {
+    "completeness": 0.988764,
+    "connectedNets": 88,
+    "routableNets": 89,
+    "errors": 2,
+    "warnings": 3,
+    "byKind": {
+     "dfm_hole_clearance": 1,
+     "dfm_power_trace_width": 3,
+     "via_in_pad": 1
+    },
+    "vias": 213,
+    "copperMm": 2838.8,
+    "diffPairCoupling": 0.0908242361685997,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 3,
+     "tscircuitRouting": 0
+    },
+    "kicadKinds": {
+     "silk_edge_clearance": 12,
+     "holes_co_located": 3,
+     "lib_footprint_issues": 143,
+     "silk_overlap": 199,
+     "silk_over_copper": 83
+    }
+   },
+   "portfolio": {
+    "completeness": 0.94382,
+    "connectedNets": 84,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 2,
+    "byKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 138,
+    "copperMm": 2821.3,
+    "diffPairCoupling": 0.02521589016542842,
+    "rulerHash": "b3c77d55b171",
+    "pipeline": {
+     "kicadCopper": 27,
+     "tscircuitRouting": 24
+    },
+    "kicadKinds": {
+     "clearance": 17,
+     "shorting_items": 3,
+     "hole_clearance": 4,
+     "solder_mask_bridge": 3,
+     "silk_edge_clearance": 12,
+     "lib_footprint_issues": 143,
+     "silk_overlap": 199,
+     "silk_over_copper": 83,
+     "unconnected_items": 8
+    }
+   },
+   "control": {
+    "kicadCopper": 0,
+    "tscircuitRouting": 0
+   }
+  }
+ },
+ "method": {
+  "relay": "the lead router routes the board; each follower is asked ONLY for the nets still unconnected, with the copper already down as obstacles (existing_traces / existing_vias)",
+  "harness": "routerlib.scoring.score \u2014 the same scorer the tournament used, with the same known inscribed-stadium pad-model blind spot",
+  "pipelineRealBoard": "the portfolio's copper dropped into the rebuilt composition-cell board via routerlib.adapters.apply_solution, then @tscircuit/checks and kicad-cli pcb drc; an empty-solution control runs on every board and is subtracted",
+  "againstShippedAutorouter": "packages/router/scripts/ab_incumbent.py \u2014 the board taken from a named git revision, pours stripped, the problem derived from that same file so the placement matches by construction, and three copper sets (control, incumbent, portfolio) through one checker",
+  "reproduce": [
+   "python3.12 packages/router/portfolio.py suite --mode relay --budget-class thorough --runs 2 --out work/portfolio/relay-thorough",
+   "python3.12 packages/router/scripts/verify_real_board.py --board <cell> --circuit-json <rebuilt board> --tournament work/tournament --routers portfolio-relay",
+   "python3.12 packages/router/scripts/ab_incumbent.py --board <example> --rev <commit>"
+  ]
+ }
+}

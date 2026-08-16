@@ -297,6 +297,36 @@ horizontal bar overlapping its neighbours. Measured on hydrate-coaster
 field because a benchmark cannot run on invented findings; the pipeline's own
 hole-clearance check still has the blind spot and should be fixed there.
 
+## The portfolio
+
+Nine families, and the per-instance winner varies — so the last stage is
+`routerlib.portfolio`: features in, algorithm out, with the rule that fired.
+
+```bash
+python3.12 packages/router/portfolio.py rules
+python3.12 packages/router/portfolio.py select --instance harness-puck
+python3.12 packages/router/portfolio.py suite --mode relay --budget-class thorough
+```
+
+Two findings shape it, and the first is negative. **Feature-based selection
+loses to a constant**: every single-threshold rule over 21 features, leave-one-
+out cross-validated, leaves 17 nets unrouted and 202 real DRC errors against 13
+and 80 for "always `pathfinder-negotiated`". One family is at or tied with the
+best completeness on 12 of 16 instances, and the hindsight oracle beats it by
+two nets out of 216. So there are two rules — one for the ≤ 2-net instances,
+one default — and a `REJECTED_RULES` list carrying the measurement that killed
+each intuition, pinned by a test.
+
+The win is in composing, not picking. `mode=relay` runs the lead router, then
+hands each follower **only the nets still unconnected** with the copper already
+down as obstacles: 98.0% mean completeness against the best single family's
+94.0% and the oracle's 95.7%, 16/16 deterministic, 262s for the whole suite.
+Verified through KiCad it also carries a third more violations per millimetre,
+and it clears the same 3 of 10 boards at the fab-ready bar.
+
+`docs/architecture/routing.md` has all of it, including the A/B against the
+shipped autorouter, which the shipped autorouter still wins.
+
 ## Layout
 
 ```
@@ -310,11 +340,16 @@ src/routerlib/
   scoring.py       the lexicographic score, the ruler, the determinism check
   bench.py         instance format, measured features, the suite runner
   baseline.py      the floor
+  portfolio.py     features in, algorithm out; single / best-of-n / relay
   cli.py           extract / list / run / score
+portfolio.py       the portfolio CLI: select / rules / run / suite
+algorithms/*.py    the nine tournament families, loaded by path
 benchmarks/
   instances/*.json committed fixtures
   manifest.json    what is on disk, with features and baselines
+  tournament/      results-2026-08-16.json, portfolio-2026-08-16.json
 scripts/build_instances.py
+scripts/ab_incumbent.py   our copper vs the shipped autorouter, same board
 ```
 
 ## Running it
