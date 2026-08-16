@@ -92,7 +92,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{instance:<44}{cells}")
 
     # Where did the regions actually do work?
-    spatial_runs = [a for a in order if a.startswith("spatial")]
+    # The best-scoring spatial arm, because that is the configuration anyone
+    # would run; the others are in the record.
+    spatial_runs = sorted(
+        (a for a in order if a.startswith("spatial")),
+        key=lambda a: -runs[a]["summary"]["meanCompleteness"],
+    )
     if spatial_runs:
         arm = spatial_runs[0]
         print(f"\nper-region assignment and completeness ({arm})")
