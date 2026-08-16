@@ -119,6 +119,85 @@ class NetClassification(unittest.TestCase):
         self.assertEqual(classes, {"a": "power", "b": "ground"})
 
 
+class WidthSurvivesTheRoundTrip(unittest.TestCase):
+    """A route that changes width mid-way must not come back all one width.
+
+    This is not a nicety. ``ab_incumbent`` re-emits the shipped autorouter's own
+    copper through this reader to score it, so a reader that widens a trace
+    charges the incumbent for clearance violations that are not on the board.
+    It did: hydrate-coaster's copper scored 0 harness errors while the board was
+    uniformly 0.15mm and 130 — 42 of them shorts — the day the boards gained
+    per-net rail widths, with the copper byte-identical across both.
+    """
+
+    def _one_trace(self, widths):
+        elements = [
+            {
+                "type": "pcb_board",
+                "pcb_board_id": "b",
+                "center": {"x": 5.0, "y": 0.0},
+                "width": 20.0,
+                "height": 20.0,
+                "num_layers": 2,
+            },
+            {
+                "type": "pcb_trace",
+                "pcb_trace_id": "t1",
+                "route": [
+                    {"route_type": "wire", "layer": "top", "x": float(i),
+                     "y": 0.0, "width": w}
+                    for i, w in enumerate(widths)
+                ],
+            },
+        ]
+        problem = problem_from_circuit_json(
+            elements, problem_id="w", strip_routes=False
+        )
+        return problem.existing_traces
+
+    def test_a_constant_width_route_is_one_trace(self):
+        traces = self._one_trace([0.15, 0.15, 0.15])
+        self.assertEqual(len(traces), 1)
+        self.assertAlmostEqual(traces[0].width_mm, 0.15)
+
+    def test_a_widening_route_is_split_not_flattened(self):
+        traces = self._one_trace([0.15, 0.15, 0.5, 0.5])
+        self.assertEqual([round(t.width_mm, 3) for t in traces], [0.15, 0.5])
+        # The polyline stays continuous: the second run starts where the first
+        # ended, so no copper is dropped at the seam.
+        self.assertEqual(traces[0].points[-1], traces[1].points[0])
+
+    def test_no_segment_is_reported_narrower_than_it_is(self):
+        """The joining segment takes the wider of the two, never the narrower."""
+        for widths in ([0.15, 0.5], [0.5, 0.15], [0.2, 0.4, 0.2]):
+            traces = self._one_trace(widths)
+            self.assertTrue(traces, widths)
+            for trace in traces:
+                self.assertLessEqual(trace.width_mm, max(widths))
+            self.assertAlmostEqual(
+                max(t.width_mm for t in traces), max(widths), places=6
+            )
+
+    def test_the_real_board_round_trips_at_its_own_widths(self):
+        elements = _example()
+        problem = problem_from_circuit_json(
+            elements, problem_id="h", strip_routes=False, strip_planes=True
+        )
+        on_disk = {
+            round(float(p.get("width") or 0), 3)
+            for element in elements
+            if element.get("type") == "pcb_trace"
+            for p in element.get("route") or []
+            if p.get("route_type") != "via" and p.get("width")
+        }
+        read_back = {round(t.width_mm, 3) for t in problem.existing_traces}
+        self.assertTrue(on_disk, "the fixture board has no trace widths")
+        self.assertTrue(
+            read_back <= on_disk,
+            f"reader invented widths the board does not have: {read_back - on_disk}",
+        )
+
+
 class Writing(unittest.TestCase):
     def setUp(self):
         self.elements = _example()

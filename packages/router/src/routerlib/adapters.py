@@ -452,7 +452,39 @@ def _existing_copper(
                     index += 1
                 run = []
             layer = point_layer
-            width = _num(point.get("width"), width) or width
+            # A route may change width part-way along — a 0.5mm rail narrowing
+            # into a 0.15mm pad entry is one ``pcb_trace`` carrying two widths.
+            # A ``Trace`` holds exactly one, so the run is cut where the width
+            # changes. Carrying the last point's width across the whole run
+            # instead *widened copper nobody had touched*: re-reading
+            # hydrate-coaster's own 113 traces scored 0 harness errors while
+            # every point was 0.15mm and 130 the day the boards gained per-net
+            # rail widths, 42 of them shorts that are not on the board.
+            #
+            # The segment that spans the change is claimed by whichever side is
+            # wider, so copper is over-reported at the seam and never
+            # under-reported. A clearance check that has to err must err that
+            # way.
+            point_width = _num(point.get("width"), width) or width
+            if run and point_width != width:
+                if point_width < width:
+                    run.append(Point(x, y))
+                    if len(run) >= 2:
+                        traces.append(
+                            Trace(f"{trace_id}#{index}", net or "", layer,
+                                  tuple(run), width)
+                        )
+                        index += 1
+                    run = [Point(x, y)]
+                    width = point_width
+                    continue
+                if len(run) >= 2:
+                    traces.append(
+                        Trace(f"{trace_id}#{index}", net or "", layer, tuple(run), width)
+                    )
+                    index += 1
+                run = [run[-1]]
+            width = point_width
             run.append(Point(x, y))
         if len(run) >= 2:
             traces.append(Trace(f"{trace_id}#{index}", net or "", layer, tuple(run), width))
