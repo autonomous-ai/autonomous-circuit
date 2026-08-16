@@ -61,6 +61,10 @@ ARMS = (
     # class where both routers fail: a 0.4mm escape has one or two channels
     # out, and a crossing net can detour round the whole package.
     "spatial-escape-first",
+    # Everything the single-variable arms argued for, at once: the constant
+    # expert map, escapes before crossings, and the relay's chain on the
+    # residue. Four routers, so it is the like-for-like against ``relay``.
+    "spatial-best",
 )
 
 #: ``spatial-tight``'s partition. Measured on the fixtures with no routing:
@@ -70,6 +74,16 @@ TIGHT = {"max_depth": 2, "max_cut_ratio": 0.5}
 
 #: The relay's chain, so ``spatial-residue`` and ``relay`` run four routers each.
 FOLLOWERS = ("maze-astar", "plane-and-classes", "exact-and-structured")
+
+#: The region-expert table this module was built to test, kept as an arm after
+#: it was refuted. Every arm names its expert map explicitly rather than
+#: inheriting ``spatial.EXPERTS``, so a change to the module default cannot
+#: silently redefine what an arm measured.
+HYPOTHESIS_EXPERTS = {
+    "lattice": "exact-and-structured",
+    "fine-pitch": "exact-and-structured",
+    "open": "pathfinder-negotiated",
+}
 
 
 def _git(*args: str) -> str:
@@ -122,9 +136,10 @@ def run_one(arm: str, problem, budget, registry):
         )
         return result.solution, {"portfolio": result.as_dict()}
 
-    options: dict = {}
-    if arm == "spatial-flat":
-        options["experts"] = {}
+    # Every spatial arm is explicit about its expert map. ``spatial`` is the
+    # refuted hypothesis; everything else routes every region with the global
+    # router, which is what the A/B said to do.
+    options: dict = {"experts": {} if arm != "spatial" else HYPOTHESIS_EXPERTS}
     if arm == "spatial-residue":
         options["residue"] = FOLLOWERS
     if arm == "spatial-tight":
@@ -133,7 +148,9 @@ def run_one(arm: str, problem, budget, registry):
         options["crossing_chain"] = FOLLOWERS
     if arm == "spatial-escape-first":
         options["escape_first"] = True
-        options["experts"] = {}
+    if arm == "spatial-best":
+        options["escape_first"] = True
+        options["residue"] = FOLLOWERS
     result = spatial.route(problem, budget, registry, **options)
     return result.solution, {"spatial": result.as_dict()}
 

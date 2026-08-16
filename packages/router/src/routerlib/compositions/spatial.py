@@ -41,21 +41,26 @@ What this module does, in the order that works
 4. **Optionally hand the residue to a follower chain**, which is the relay
    applied to whatever the regions could not finish.
 
-What is measured and what is a hypothesis
------------------------------------------
+What the seam is worth, and what the experts are not
+----------------------------------------------------
 
 The partition is measured: :func:`partition` reports, per instance, how many
-nets end up interior to a region and how many cross. **A board with no useful
-seam is a real outcome** and is reported as one — :attr:`Partition.seam` is
-False with a reason, and the composition then degenerates to its global router
-by construction rather than by accident.
+nets end up interior to a region and how many cross. On the 16 benchmark
+instances that is 44-78% interior on the four large boards, 18% on
+``matrix-ldo-3v3__rp2040-core__usb-c-power``, and **no seam at all** on three
+small cells. A board with no useful seam is a real outcome, not a failure to
+report: :attr:`Partition.seam` is False with a reason and the composition
+degenerates to its global router by construction, so this arm can never
+quietly turn into per-board selection.
 
-The expert *table* is a hypothesis until the A/B runs. The board-level
-tournament already refuted the two intuitions it is built on — "regular matrix
--> the structured router" and "small and dense -> exact on windows" both rank
-``exact-and-structured`` 7th or 8th of nine — so the same claim at region level
-has to earn its place against the same partition routed entirely by the global
-router. :data:`REJECTED_ASSIGNMENTS` records what has already failed.
+**The expert table lost.** The whole point of decomposing was to hand the key
+matrix to the structured router and the QFN escape to the exact solver, and on
+the identical partition, region order and budget, routing every region with
+``pathfinder-negotiated`` instead connects *more* nets in both classes — 114
+against 94 on lattice regions, 28 against 22 on fine-pitch. So the default
+mapping is the constant, the two hypotheses are recorded in
+:data:`REJECTED_ASSIGNMENTS`, and the module keeps the partition rather than
+the assignment. The value of a seam here is **ordering**, not specialisation.
 """
 
 from __future__ import annotations
@@ -92,21 +97,39 @@ from routerlib.bench import _regularity as _regularity_of
 #: single region.
 GLOBAL_EXPERT = "pathfinder-negotiated"
 
-#: Region character -> family. **A hypothesis, not a measurement.** The
-#: A/B that decides whether it stays is this table against
-#: ``{c: GLOBAL_EXPERT}`` on the same partition; if the table does not win,
-#: it moves to :data:`REJECTED_ASSIGNMENTS` and the default becomes the
-#: constant, exactly as the board-level selector did.
+#: Region character -> family. **It is the constant, and that is a
+#: measurement, not a placeholder.** The table this module was built to test —
+#: lattice and fine-pitch to ``exact-and-structured`` — was run against
+#: ``{c: GLOBAL_EXPERT}`` on the *identical* partition, the identical region
+#: order and the identical budget, and lost on every region class it touched.
+#: A caller who wants the table back passes ``experts=`` explicitly; the
+#: default does not carry a hypothesis the data refuted.
 EXPERTS: Mapping[str, str] = {
-    "lattice": "exact-and-structured",
-    "fine-pitch": "exact-and-structured",
-    "open": "pathfinder-negotiated",
+    "lattice": GLOBAL_EXPERT,
+    "fine-pitch": GLOBAL_EXPERT,
+    "open": GLOBAL_EXPERT,
 }
 
 #: Assignments tried and false, with the measurement that killed them. Kept
 #: rather than deleted: a tried-and-failed rule is worth more than an untried
 #: one, and this benchmark is small enough that a guess looks like a finding.
-REJECTED_ASSIGNMENTS: tuple[tuple[str, str], ...] = ()
+#: A test fails if this list shrinks.
+REJECTED_ASSIGNMENTS: tuple[tuple[str, str], ...] = (
+    (
+        "lattice region -> exact-and-structured",
+        "the same 123 interior nets across 8 lattice regions on 16 instances: "
+        "exact-and-structured connects 94, pathfinder-negotiated connects 114. "
+        "The region-level version of the rule the board-level tournament "
+        "already refuted, and it fails the same way",
+    ),
+    (
+        "fine-pitch region -> exact-and-structured",
+        "88 interior nets across the fine-pitch regions: exact-and-structured "
+        "connects 22, pathfinder-negotiated connects 28. Both are bad — this "
+        "is the worst region class either router faces — but the specialist is "
+        "the worse of the two",
+    ),
+)
 
 #: Character thresholds. Measured off the region, never off a part name.
 LATTICE_GRID_SCORE = 0.5
