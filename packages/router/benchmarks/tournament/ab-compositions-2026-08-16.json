@@ -1,0 +1,246 @@
+{
+ "schema": "routerlib/ab-compositions@1",
+ "measuredAt": "2026-08-16",
+ "what": "ab_compositions.py: the shipped tscircuit autorouter against the relay, spatial-best, netclass:pairs and recombination-with-relay on the three example boards at 5e44d52. Pours stripped, empty-solution control subtracted, one ruler for all three boards.",
+ "boardsAt": "5e44d52",
+ "rulerHash": "e1ee2a5623d0",
+ "incumbentRowsFrom": "a second run after routerlib.adapters stopped carrying one width across a route that changes width; the composition rows are from the first run and route from a stripped board, so nothing is parsed",
+ "rows": [
+  {
+   "board": "hydrate-coaster",
+   "arm": "incumbent",
+   "routed": 1.0,
+   "left": 0,
+   "harnessErrors": 0,
+   "kicadCopper": 7,
+   "kinds": {
+    "holes_co_located": 7
+   },
+   "vias": 108,
+   "copperMm": 1139.0,
+   "coupling": 0.6589397871577526,
+   "seconds": null,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "hydrate-coaster",
+   "arm": "relay",
+   "routed": 0.9375,
+   "left": 2,
+   "harnessErrors": 0,
+   "kicadCopper": 0,
+   "kinds": {},
+   "vias": 76,
+   "copperMm": 1007.3,
+   "coupling": 0.0677251306628882,
+   "seconds": 20.6,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "hydrate-coaster",
+   "arm": "spatial-best",
+   "routed": 0.875,
+   "left": 4,
+   "harnessErrors": 0,
+   "kicadCopper": 2,
+   "kinds": {
+    "track_dangling": 2
+   },
+   "vias": 70,
+   "copperMm": 901.2,
+   "coupling": 0.0,
+   "seconds": 81.1,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "hydrate-coaster",
+   "arm": "netclass:pairs",
+   "routed": 0.8125,
+   "left": 6,
+   "harnessErrors": 0,
+   "kicadCopper": 0,
+   "kinds": {},
+   "vias": 56,
+   "copperMm": 727.1,
+   "coupling": 0.456817880766385,
+   "seconds": 23.6,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "hydrate-coaster",
+   "arm": "recombine",
+   "routed": 0.96875,
+   "left": 1,
+   "harnessErrors": 0,
+   "kicadCopper": 0,
+   "kinds": {},
+   "vias": 71,
+   "copperMm": 984.8,
+   "coupling": 0.04303849054476965,
+   "seconds": 291.8,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "harness-puck",
+   "arm": "incumbent",
+   "routed": 0.972222,
+   "left": 1,
+   "harnessErrors": 0,
+   "kicadCopper": 4,
+   "kinds": {
+    "holes_co_located": 4
+   },
+   "vias": 122,
+   "copperMm": 1530.7,
+   "coupling": 0.1013196871890762,
+   "seconds": null,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "harness-puck",
+   "arm": "relay",
+   "routed": 0.888889,
+   "left": 4,
+   "harnessErrors": 0,
+   "kicadCopper": 5,
+   "kinds": {
+    "shorting_items": 1,
+    "hole_clearance": 2,
+    "solder_mask_bridge": 1,
+    "via_dangling": 1
+   },
+   "vias": 82,
+   "copperMm": 1431.3,
+   "coupling": 0.15335224714192408,
+   "seconds": 127.2,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "harness-puck",
+   "arm": "spatial-best",
+   "routed": 0.916667,
+   "left": 3,
+   "harnessErrors": 0,
+   "kicadCopper": 1,
+   "kinds": {
+    "track_dangling": 1
+   },
+   "vias": 97,
+   "copperMm": 1407.0,
+   "coupling": 0.11021337404360916,
+   "seconds": 374.4,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "harness-puck",
+   "arm": "netclass:pairs",
+   "routed": 0.805556,
+   "left": 7,
+   "harnessErrors": 0,
+   "kicadCopper": 1,
+   "kinds": {
+    "copper_sliver": 1
+   },
+   "vias": 65,
+   "copperMm": 1226.2,
+   "coupling": 0.529635980438016,
+   "seconds": 73.6,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "harness-puck",
+   "arm": "recombine",
+   "routed": 0.888889,
+   "left": 4,
+   "harnessErrors": 0,
+   "kicadCopper": 5,
+   "kinds": {
+    "shorting_items": 1,
+    "hole_clearance": 2,
+    "solder_mask_bridge": 1,
+    "via_dangling": 1
+   },
+   "vias": 73,
+   "copperMm": 1274.7,
+   "coupling": 0.14198920142999613,
+   "seconds": 863.1,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "terminal-keyboard",
+   "arm": "incumbent",
+   "routed": 0.988764,
+   "left": 1,
+   "harnessErrors": 1,
+   "kicadCopper": 3,
+   "kinds": {
+    "holes_co_located": 3
+   },
+   "vias": 213,
+   "copperMm": 2838.8,
+   "coupling": 0.0908242364950293,
+   "seconds": null,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "terminal-keyboard",
+   "arm": "relay",
+   "routed": 0.932584,
+   "left": 6,
+   "harnessErrors": 0,
+   "kicadCopper": 1,
+   "kinds": {
+    "track_dangling": 1
+   },
+   "vias": 144,
+   "copperMm": 2760.2,
+   "coupling": 0.0036501409067646166,
+   "seconds": 647.0,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "terminal-keyboard",
+   "arm": "spatial-best",
+   "routed": 0.921348,
+   "left": 7,
+   "harnessErrors": 0,
+   "kicadCopper": 3,
+   "kinds": {
+    "hole_to_hole": 3
+   },
+   "vias": 144,
+   "copperMm": 2741.6,
+   "coupling": 0.0,
+   "seconds": 323.1,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "terminal-keyboard",
+   "arm": "netclass:pairs",
+   "routed": 0.831461,
+   "left": 15,
+   "harnessErrors": 0,
+   "kicadCopper": 0,
+   "kinds": {},
+   "vias": 82,
+   "copperMm": 1972.2,
+   "coupling": 0.37700451636782717,
+   "seconds": 78.0,
+   "ruler": "e1ee2a5623d0"
+  },
+  {
+   "board": "terminal-keyboard",
+   "arm": "recombine",
+   "routed": 0.94382,
+   "left": 5,
+   "harnessErrors": 0,
+   "kicadCopper": 0,
+   "kinds": {},
+   "vias": 108,
+   "copperMm": 2336.6,
+   "coupling": 0.0,
+   "seconds": 1259.0,
+   "ruler": "e1ee2a5623d0"
+  }
+ ]
+}

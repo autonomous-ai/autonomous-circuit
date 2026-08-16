@@ -11,6 +11,17 @@ buys almost nothing; composing several buys 4 percentage points of
 completeness — and neither gets a board to the fab-ready bar, where the shipped
 autorouter still beats us on all three example boards.**
 
+> **Where this stands after the compositions were judged, 2026-08-16.** Four
+> compositions now exist and all four beat the relay on the benchmark; the best
+> of them, recombination with the relay as an input, finishes **9 of 16** boards
+> against the relay's 5. On the three real boards it closes the completeness gap
+> from **13 unconnected nets to 10** against the incumbent's 2 — narrower, still
+> a loss — and it costs five KiCad findings on `harness-puck` where every arm
+> used to score zero, one of them a real short our own harness does not see. The
+> two judged sections are at the end of this document and in
+> `routing-moe.md`; everything between here and there is the record of how the
+> instrument got trustworthy enough for those numbers to mean anything.
+
 > **Read the ruler before the numbers.** Everything in this document below
 > *The pad model* was measured against ruler `b3c77d55b171`, which modelled
 > every rectangular pad and keepout as its inscribed stadium. That model was
@@ -106,6 +117,15 @@ that is the finding:
 
 So the ranking changed twice over: once because the ruler was fixed, and again
 because two of the three leaders respond to the truth completely differently.
+
+> **Correction, 2026-08-16.** `pathfinder-negotiated`'s **81.2%** in that table
+> is a fifteen-instance mean printed in a sixteen-instance column. Re-run cell
+> by cell at the same ruler, the mean over all sixteen is **81.50%**, and
+> **81.19%** is exactly what is left when `harness-puck` is dropped — the
+> instance this section says two paragraphs down that it dropped, because its
+> before and after were measured on two different placements. The other two
+> rows are sixteen-instance means and reproduce to the digit (92.51%, 75.73%).
+> The column is now three numbers about two different sets.
 
 **Zero harness errors is not the same claim as a clean board**, because these
 routers ask `Workspace` for permission with the same shape model the scorer
@@ -912,3 +932,87 @@ round produced four of the same kind, and they are worth as much as the relay:
   `pathfinder-negotiated`'s 71.4% one, the merge takes the sparser board and
   finishes at 100%. Completeness bought with vias is completeness that costs the
   next stage its room.
+
+---
+
+## Judged again, 2026-08-16: the compositions against the incumbent
+
+Everything above this line was measured board-by-board on boards that have since
+been rebuilt, and on three different rulers. This section is one run:
+`scripts/ab_compositions.py`, all three boards at **`5e44d52`**, one ruler
+**`e1ee2a5623d0`**, pours stripped, empty-solution control subtracted. The
+compositions are the winners of the benchmark judged in
+`routing-moe.md` — the relay, `spatial-best`, `netclass:pairs`, and
+recombination with the relay as a tenth input.
+
+**Read the boards before the numbers.** `6205ad6` rebuilt all three and
+`aff429b` moved `harness-puck`'s SW1 before it, so these are not the boards the
+table above measured. Completeness on a board that changed is a different
+question, and the incumbent's row was re-measured for the same reason.
+
+| board | | routed | nets left | KiCad copper | what kind | vias | pair coupling |
+|---|---|---|---|---|---|---|---|
+| hydrate-coaster | incumbent | **100.0%** | 0 | 7 | 7× `holes_co_located` | 108 | 66% |
+| | relay of 4 | 93.8% | 2 | **0** | — | 76 | 7% |
+| | `spatial-best` | 87.5% | 4 | 2 | 2× `track_dangling` | 70 | 0% |
+| | `netclass:pairs` | 81.2% | 6 | **0** | — | 56 | 46% |
+| | **recombine + relay** | 96.9% | 1 | **0** | — | 71 | 4% |
+| harness-puck | incumbent | **97.2%** | 1 | 4 | 4× `holes_co_located` | 122 | 10% |
+| | relay of 4 | 88.9% | 4 | 5 | 1× `shorting_items`, 2× `hole_clearance`, 1× `solder_mask_bridge`, 1× `via_dangling` | 82 | 15% |
+| | `spatial-best` | 91.7% | 3 | 1 | 1× `track_dangling` | 97 | 11% |
+| | `netclass:pairs` | 80.6% | 7 | 1 | 1× `copper_sliver` | 65 | **53%** |
+| | **recombine + relay** | 88.9% | 4 | 5 | same five as the relay | 73 | 14% |
+| terminal-keyboard | incumbent | **98.9%** | 1 | 3 | 3× `holes_co_located` | 213 | 9% |
+| | relay of 4 | 93.3% | 6 | 1 | 1× `track_dangling` | 144 | 0% |
+| | `spatial-best` | 92.1% | 7 | 3 | 3× `hole_to_hole` | 144 | 0% |
+| | `netclass:pairs` | 83.1% | 15 | **0** | — | 82 | 38% |
+| | **recombine + relay** | 94.4% | 5 | **0** | — | 108 | 0% |
+
+### The gap narrowed. It did not close, and we gave some legality back
+
+One configuration across all three boards, which is the only fair way to read
+it — picking the best arm per board is hindsight nobody has at build time:
+
+| | nets left, 3 boards | KiCad copper, 3 boards |
+|---|---|---|
+| incumbent | **2** | 14, every one `holes_co_located` |
+| **recombine + relay** | **10** | **5** |
+| relay of 4 | 12 | 6 |
+| `spatial-best` | 14 | 6 |
+| `netclass:pairs` | 28 | 1 |
+| relay, previous boards (the table above) | 13 | 0 |
+
+**Composition bought three nets and cost five findings.** The relay left 13 nets
+open across the old boards; recombination leaves 10 across the new ones. Against
+the same incumbent at 2. That is a narrower gap and still a loss, and it is a
+loss of the same kind: **a board missing five nets does not work, and a
+duplicate drill is a fab email.**
+
+The legality column moved the wrong way and it is worth being exact about where.
+On the old boards every arm scored 0 KiCad copper findings on all three. On
+these boards `harness-puck` produces five for the relay — and recombination
+inherits all five, because it anchors on the relay's board there. One of them is
+a **short between `PX_14_DIN` and `GND`**, with two hole-clearance findings at
+`actual 0.0000 mm` beside it: a via sitting exactly on top of another hole.
+**Our harness scores that board at zero errors.** Harness-vs-KiCad agreement was
+the thing the pad-model fix bought, and on this board it is gone again. That is
+the first thing to chase, ahead of any further completeness work: a composition
+we cannot grade is a composition we cannot ship.
+
+`spatial-best`'s findings are a different and smaller class — `track_dangling`
+and `hole_to_hole`, copper that ends in nothing — and `netclass:pairs` is the
+cleanest arm on the real boards at one finding across three, while being the
+least complete by a distance. It is also the only arm that routes the
+differential pair as a pair: **53% coupling on `harness-puck` and 38% on
+`terminal-keyboard`**, against 0–15% for everything else.
+
+### What is still not measured
+
+- **Nothing here went through the fab-ready gate.** These are copper scores with
+  a control subtracted, not `ORDER.md`. Neither side clears 100% routed and zero
+  blocking findings, so no arm is `fab.ready` on any board.
+- **Wall clock is not comparable and is not quoted.** The machine ran other
+  agents' board builds throughout, load average between 7 and 113. The
+  recombination arm pays for ten finished boards before it merges anything —
+  292s on `hydrate-coaster` at load 20 — and that cost is real even though the
+  number is not.

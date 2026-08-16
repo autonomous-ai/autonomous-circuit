@@ -354,3 +354,92 @@ as a pair, and nothing else here does that.
 - **Any general router other than `maze-astar` in the catch-all.** The plane stage's verdict
   is specifically against a plane-aware general family and would likely flip against one that
   is not.
+
+---
+
+## Judged: every family and every composition, one ruler, 2026-08-16
+
+The three compositions above were built by three agents in parallel, each reporting its own
+numbers against its own run. This is all of them re-run together by an agent that wrote none
+of them: nine families, the relay, seven net-class plans, six spatial arms and four
+recombination arms, same benchmark, same budget (`2M iterations / 20M nodes / seed 0`), same
+ruler **`e1ee2a5623d0`**, in a **git worktree pinned at `5e44d52`** so nothing moved during
+the run. The working tree in the main checkout was not used: another agent's edit to
+`circuitpy/checks.py` had already moved the ruler there to `55ebf3dd9e58`, and a score taken
+against that is not comparable to anything in this document.
+
+Two columns, because the two disagree and both get quoted: `mean` is the mean of per-instance
+completeness, `nets` is the pooled count over all 380 routable nets. **`clean` is the column
+the fab-ready bar reads** — a board at 100% routed with zero harness errors.
+
+| arm | mean | nets | clean | vias | det |
+|---|---|---|---|---|---|
+| **recombine + the relay as a tenth input** | **97.3%** | **360/380** | **9/16** | 640 | 16/16 |
+| recombine + repair, 9 inputs | 95.3% | 350/380 | 8/16 | 538 | 16/16 |
+| recombine, merge only, 9 inputs | 94.6% | 345/380 | 8/16 | 545 | 16/16 |
+| `spatial-best` — escapes first + the relay's chain | 94.3% | 346/380 | 8/16 | 764 | 16/16 |
+| `maze-astar` — best single family | 92.5% | 325/380 | 7/16 | 565 | 16/16 |
+| `netclass:monolithic` — one router, the control | 92.5% | 325/380 | 7/16 | 565 | 16/16 |
+| `netclass:pairs` | 92.4% | 327/380 | 7/16 | 576 | 16/16 |
+| **relay of 4 — the previous best** | 90.6% | 350/380 | 5/16 | 736 | 16/16 |
+| `plane-and-classes` | 89.1% | 320/380 | 7/16 | 565 | 16/16 |
+| `spatial-escape-first` | 86.9% | 319/380 | 6/16 | 539 | n/m |
+| `meta-genetic` | 86.6% | 304/380 | 6/16 | 734 | 16/16 |
+| `meta-anneal` | 85.6% | 302/380 | 6/16 | 732 | 16/16 |
+| `pathfinder-negotiated` | 81.5% | 320/380 | 3/16 | 565 | 16/16 |
+| `spatial-shuffled` — the null control | 79.8% | 286/380 | 4/16 | 350 | n/m |
+| recombine, free merge, no repair | 78.9% | 269/380 | 6/16 | 424 | 16/16 |
+| `topological-graph` | 77.9% | 274/380 | 3/16 | 240 | 16/16 |
+| `ripup-reroute` | 77.4% | 229/380 | 5/16 | 869 | 16/16 |
+| `exact-and-structured` | 75.7% | 263/380 | 4/16 | 170 | 16/16 |
+| `netclass:brief` — plane → power → pair → general | 74.7% | 278/380 | 3/16 | 507 | 16/16 |
+| `spatial` — regions to specialists, the brief | 70.9% | 261/380 | 3/16 | 503 | n/m |
+| `baseline-pattern` | 57.5% | 199/380 | 2/16 | 869 | 16/16 |
+
+**Every arm scores 0 harness errors.** Legality stopped separating these families when the pad
+model was corrected; completeness is the only axis left on this benchmark.
+
+### All three compositions beat the relay, and one of them beats everything
+
+| | beats relay on finished boards? | beats the best single family? |
+|---|---|---|
+| recombine + relay | **yes**, 9 against 5 | **yes**, 9 against 7 |
+| spatial-best | **yes**, 8 against 5 | **yes**, 8 against 7 |
+| netclass:pairs | **yes**, 7 against 5 | no — ties `maze-astar` at 7 |
+
+The relay's 350 pooled nets is still the second-highest number in the table and it finishes
+the fewest boards of the four compositions. That is the whole argument for reading the
+`clean` column: the relay connects a lot of nets on boards it does not finish, and a board
+with one net missing is not a board.
+
+`netclass:pairs` is not here for completeness. It ties the control net for net and earns its
+place on one quality number: **27.5% mean differential-pair coupling against 3.1%** — 53.0% on
+`harness-puck`, 45.7% on `hydrate-coaster`, 37.7% on `terminal-keyboard`, 30.7% on
+`matrix-rp2040-core__usb-c-data`, all reproduced exactly. Nothing else in the table routes a
+pair as a pair.
+
+### The judged numbers agree with the authors', in 21 arms out of 22
+
+Re-derived from the per-cell records rather than read out of anyone's summary. Every headline
+reproduced to the digit: the relay at 350/380 and 5/16 clean, best-of-nine at 343, merge-only
+at 345 / 8 / 545 vias, merge+repair at 350 / 538, merge+relay at 360 / 9 / 640, free merge at
+269 / 6 / 424, and the whole spatial ladder — 81.5 / 70.9 / 79.8 / 86.9 / 94.3 with 3 / 3 / 4 /
+6 / 8 boards finished.
+
+**One cell did not reproduce**, and it is a reporting slip rather than a measurement one.
+`routing.md` prints `pathfinder-negotiated` at **81.2%** in a table of sixteen instances; the
+sixteen-instance mean is **81.50%** and **81.19%** is the mean over the *fifteen* instances
+with `harness-puck` removed — the instance that section says elsewhere it dropped. The number
+is right about a set of 15 and printed against a set of 16.
+
+### What is still not measured here
+
+- **Determinism of four spatial arms.** `single`, `spatial`, `spatial-escape-first` and
+  `spatial-shuffled` were routed once here, so their column is `n/m` rather than a vacuous
+  `true`; their two-run verdicts are in the spatial record above. The relay does not need
+  that caveat any more: `relay_baseline.py` was run twice end to end and the two runs are
+  **16/16 byte-identical**, which is the first time the relay's own determinism has been
+  measured rather than inherited from the families in its chain.
+- **The compositions' wall clock is not comparable.** The machine ran other agents' board
+  builds throughout, load average between 7 and 30. Seconds are an order of magnitude, and
+  the counted budget is what makes the copper reproducible anyway.
