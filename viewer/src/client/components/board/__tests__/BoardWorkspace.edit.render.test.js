@@ -417,3 +417,30 @@ test("Spacebar turns the part being dragged — Altium's own gesture", async () 
     w.close();
   }
 });
+
+test("move mode outlines everything the file can move, so nothing has to be guessed at", async () => {
+  // Asked from the outside, in these words: "I can drag some components, some
+  // can't be dragged?" Both true — a part inside a block moves with the block,
+  // a part placed by a `for` loop has no literal to change, and copper belongs
+  // to the router — and until now the difference was invisible until you
+  // pressed on something and nothing happened.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const outlines = () => [...w.ui.container.querySelectorAll('[data-slot="pcb-editable-outlines"] rect')];
+    assert.equal(
+      outlines().length,
+      w.placements.byId.size,
+      "the outlines and the bound placements are the same set or the drawing is lying",
+    );
+    // The strip's own count is the same number, said in words.
+    assert.match(w.text('[data-slot="placement-edit-count"]'), new RegExp(`^${w.placements.byId.size} parts`));
+
+    // Leaving move mode takes them away: they are an affordance for an action
+    // that is no longer available.
+    click(w.find('[data-slot="placement-edit-close"]'));
+    await w.settle();
+    assert.equal(outlines().length, 0, "the outlines outlived move mode");
+  } finally {
+    w.close();
+  }
+});

@@ -1037,6 +1037,39 @@ export default function PcbCanvas({
     });
   }, [move, moveDelta?.dx, moveDelta?.dy, view]);
 
+  /**
+   * Every part the file can move, outlined, for as long as move mode is on.
+   *
+   * The hover outline below says "this one"; this says "these ones", which is
+   * the question that actually gets asked first — reported from outside as "I
+   * can drag some components, some can't be dragged?". Both are true and the
+   * difference was invisible until you pressed and nothing happened.
+   *
+   * What ends up here is exactly what `usePlacementEditor` bound: a top-level
+   * element in `boards/<stem>.tsx` with `pcbX`/`pcbY` literals. A part inside a
+   * block is not here (the block is, and it carries all of them), nor is one
+   * placed by a `for` loop, nor copper the router owns. Locked ones ARE here,
+   * dashed, because "you may not move this" is different from "this is not a
+   * thing".
+   */
+  const editableRects = useMemo(() => {
+    if (!editing || !placements?.byId) return [];
+    const out = [];
+    for (const placement of placements.byId.values()) {
+      if (!boxIsReal(placement.box)) continue;
+      const { dx = 0, dy = 0 } = placement.offset || {};
+      const box = placement.box;
+      const rect = boxToScreenRect(view, {
+        minX: box.minX + dx,
+        minY: box.minY + dy,
+        maxX: box.maxX + dx,
+        maxY: box.maxY + dy,
+      });
+      if (rect) out.push({ id: placement.id, locked: Boolean(placement.locked), rect });
+    }
+    return out;
+  }, [editing, placements, view]);
+
   // What the pointer would pick up if it were pressed now. Editing without
   // this is a guessing game: most of a board is copper nobody can drag.
   const hoverPlacement = useMemo(() => (move ? null : placementForHit(hover)), [move, hover, placementForHit]);
@@ -1196,6 +1229,26 @@ export default function PcbCanvas({
                     </>
                   ) : null}
                 </g>
+              ))}
+            </g>
+          ) : null}
+          {editableRects.length ? (
+            <g data-slot="pcb-editable-outlines" pointerEvents="none">
+              {editableRects.map((one) => (
+                <rect
+                  key={one.id}
+                  x={one.rect.x}
+                  y={one.rect.y}
+                  width={one.rect.width}
+                  height={one.rect.height}
+                  fill="none"
+                  stroke={one.locked ? colors.drcError : colors.measure}
+                  strokeWidth={0.75}
+                  strokeDasharray={one.locked ? "2 2" : "3 3"}
+                  opacity={0.35}
+                  data-placement={one.id}
+                  data-locked={one.locked ? "true" : "false"}
+                />
               ))}
             </g>
           ) : null}
