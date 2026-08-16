@@ -20,32 +20,61 @@ The measurement that says there is something here
 
 Split the copper already on disk by net and ask, of each net's routing *in
 isolation*, whether it connects the net and whether it is legal against the
-fixed board. Over the 16 benchmark instances, with the three families re-run
-against the corrected pad model:
+fixed board. Over the 16 benchmark instances, all nine families re-run against
+the corrected pad model:
 
 ===============================  ==========  =======
                                  nets        of 380
 ===============================  ==========  =======
-best single family per instance  342         90.0%
-union over the three families    367         96.6%
-of those, legal in isolation     367         96.6%
+best single family per instance  343         90.3%
+union over the nine families     380         100.0%
+of those, legal in isolation     380         100.0%
 ===============================  ==========  =======
 
-Twenty-five nets are routed by *somebody* and not by the per-instance winner,
-and not one of them is lost to its own illegality — every one of those routings
-is clean against the pads, drills, keepouts and board edge. So the whole
-question is co-existence, and 96.6% is the ceiling: no merge connects a net
-nobody routed.
+**Every net on the benchmark is routed by somebody, legally, in isolation.** Not
+one is lost to its own geometry. So the entire remaining gap is co-existence —
+whether two families' copper can share a board — and 100% is the ceiling this
+module is measured against rather than a target it will reach.
+
+What it does reach, same 16 instances, ruler ``e1ee2a5623d0``:
+
+==============================  ======  =======  ====  =====  ====
+arm                             nets    percent  err   clean  vias
+==============================  ======  =======  ====  =====  ====
+best of nine, per board         343     90.3%    0     —      —
+relay of four                   350     92.1%    0     5/16   736
+recombine, merge only           345     90.8%    0     8/16   545
+recombine + repair              350     92.1%    0     8/16   538
+**+ the relay as a tenth input  360     94.7%    0     9/16   640**
+recombine, free merge           269     70.8%    0     6/16   424
+==============================  ======  =======  ====  =====  ====
+
+Against nine families it **ties** the relay and beats it on everything else —
+538 vias against 736, eight harness-clean boards against five. A tie is not a
+win and it is reported as one.
+
+**The win comes from treating the relay as an input rather than as a rival.** A
+relay's board is as coherent as any family's, so it is admissible as a base, and
+then the merge cannot lose to it: 360 nets against 350, better on **7 of 16
+boards and worse on none**, at 13% fewer vias. ``matrix-rp2040-core__usb-c-data``
+reaches 100% — no family exceeds 85.7% on it and the relay reaches 95.2%.
+
+Where the nets come from is worth keeping separate, because only the last one is
+recombination. Best-of-N supplies 343; free-lane transplants add 2; the repair
+adds 5; and having the relay in the pool adds 10 more, half of them by
+transplanting into a *sparser* base than the relay's. Without the repair the
+composition is best-of-N wearing a merge's clothes.
 
 Free merging destroys coherence — measured, not assumed
 --------------------------------------------------------
 
 The obvious algorithm is *rank every net's candidates, greedily take the best
 non-conflicting one, re-route the rest*. It is :data:`FREE` here and it is a
-**loss**: over three instances it connected 48 of 62 nets where the best single
-input connected 54, and on ``matrix-rp2040-core__usb-c-data`` it fell to 57.1%
-against ``maze-astar``'s 85.7%. Eleven nets had a viable routing that no
-ordering could fit.
+**loss of nineteen and a half points**: 269 of 380 nets against the best single
+input's 343, over all sixteen instances and nine families. On
+``matrix-rp2040-core__usb-c-data`` it falls to 47.6% against ``maze-astar``'s
+85.7%. A hundred and eleven nets had a viable routing that no ordering could
+fit.
 
 The reason is not the ordering and not the ranking — all three rankings scored
 identically, and a single-family merge reproduces that family net for net with
@@ -66,12 +95,15 @@ transplant runs no router.
 Anchoring alone is still not enough — and that is the second measurement
 -------------------------------------------------------------------------
 
-Anchored, with no repair, transplants **zero** nets on every instance measured.
-Not one. The reason is one line long and it is the same line as before: the
+Anchored, with no repair, transplants **two nets across sixteen boards** — one
+on ``harness-puck`` and one on ``terminal-keyboard``, out of thirty-seven
+available. The reason is one line long and it is the same line as before: the
 nets a base fails are the nets its own copper blocks, so the other families'
 routings for exactly those nets land on exactly the occupied space. Measured
-blocking sets, three families: 1, 1, 2, 2, 6 nets on ``harness-puck``, 9 on
-``matrix-rp2040-core__usb-c-data``, up to 7 on ``hydrate-coaster``.
+blocking sets: 1, 1, 2, 2 and 6 nets on ``harness-puck``, 9 on
+``matrix-rp2040-core__usb-c-data``, up to 7 on ``hydrate-coaster``. Anchoring
+without a repair is best-of-N wearing a merge's clothes, and it scores like it:
+345 nets against best-of-N's 343.
 
 That is why :func:`recombine` has a repair, and why the repair is allowed to
 call a router. **Evict** the nets standing in a transplant's way, put the
@@ -84,6 +116,18 @@ and it has never once worked, for the same reason the transplant did not.
 What is left after that goes to a residual router with the accepted copper as
 obstacles. That part *is* relay, deliberately, because relay works — but seeded
 with a board that already carries other families' answers.
+
+A denser base is not a better base
+-----------------------------------
+
+The base with the most nets is not the base that wins. On
+``matrix-rp2040-core__usb-c-data`` the relay is the most complete input at 95.2%
+and the merge does not anchor on it: it anchors on ``pathfinder-negotiated`` at
+71.4%, transplants six nets and repairs one, and finishes the board at 100%. The
+relay bought its extra nets with via density, and that density is exactly what a
+transplant needs room in. So :func:`recombine` scores every base by what its
+*assembly* reaches rather than by what the base itself connects, and the two
+answers differ.
 
 Two honest possibilities, and both are results
 ----------------------------------------------
@@ -138,8 +182,9 @@ MODES: tuple[str, ...] = (ANCHORED, FREE)
 #:     the way the board will be ranked.
 #: ``source``
 #:     Candidate-list order, so the first family named wins every tie. The
-#:     control: when this scores the same as the other two, the ranking is not
-#:     what is doing the work, and on the first measured run it did.
+#:     control — and it says the ranking is not what is doing the work: all
+#:     three scored the same completeness on the first measured run, differing
+#:     only in which family supplied a net that any of them could have.
 RANKINGS: tuple[str, ...] = ("obstruction", "scorer", "source")
 
 

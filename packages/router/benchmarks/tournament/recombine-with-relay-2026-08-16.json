@@ -1,0 +1,4152 @@
+{
+ "schema": "routerlib/recombine-matrix@1",
+ "set": "work/recombine/inputs",
+ "rulerHash": "e1ee2a5623d0",
+ "rows": [
+  {
+   "instance": "harness-puck",
+   "routableNets": 36,
+   "inputs": {
+    "baseline-pattern": 0.361111,
+    "exact-and-structured": 0.611111,
+    "maze-astar": 0.805556,
+    "meta-anneal": 0.777778,
+    "meta-genetic": 0.805556,
+    "pathfinder-negotiated": 0.861111,
+    "plane-and-classes": 0.805556,
+    "relay": 0.944444,
+    "ripup-reroute": 0.694444,
+    "topological-graph": 0.694444
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "pathfinder-negotiated",
+     "baseScores": [
+      [
+       "pathfinder-negotiated",
+       0.944444
+      ],
+      [
+       "relay",
+       0.944444
+      ],
+      [
+       "maze-astar",
+       0.805556
+      ],
+      [
+       "meta-genetic",
+       0.805556
+      ],
+      [
+       "plane-and-classes",
+       0.805556
+      ],
+      [
+       "meta-anneal",
+       0.777778
+      ],
+      [
+       "topological-graph",
+       0.75
+      ],
+      [
+       "exact-and-structured",
+       0.722222
+      ],
+      [
+       "baseline-pattern",
+       0.694444
+      ],
+      [
+       "ripup-reroute",
+       0.694444
+      ]
+     ],
+     "completeness": 0.944444,
+     "ceiling": 1.0,
+     "bestInput": 0.944444,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "pathfinder-negotiated": 31,
+      "relay": 3
+     },
+     "transplanted": 3,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": false,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net21",
+      "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net4"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net21",
+      "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net4"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net5",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net1",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net6",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net7",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net24",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net0",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net19",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net10",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net12",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net17",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net13",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net35",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net23",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net18",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net11",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net16",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net34",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net14",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net3",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net9",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net25",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net32",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net26",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net28",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net29",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net30",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net27",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net31",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net22",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net15",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net36",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net8",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 2,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net20",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 6,
+       "rejectedByConflict": [
+        "plane-and-classes: blocked by 6 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net2",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 9,
+       "rejectedByConflict": [
+        "maze-astar: blocked by 1 net(s)",
+        "ripup-reroute: blocked by 1 net(s)",
+        "exact-and-structured: blocked by 1 net(s)"
+       ]
+      }
+     ],
+     "seconds": 28.22,
+     "notes": [
+      "2 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.944444,
+      "errors": 0,
+      "warnings": 2,
+      "errorKinds": {},
+      "vias": 85,
+      "copperMm": 1449.3617,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "hydrate-coaster-plane",
+   "routableNets": 32,
+   "inputs": {
+    "baseline-pattern": 0.46875,
+    "exact-and-structured": 0.59375,
+    "maze-astar": 0.84375,
+    "meta-anneal": 0.75,
+    "meta-genetic": 0.75,
+    "pathfinder-negotiated": 0.78125,
+    "plane-and-classes": 0.71875,
+    "relay": 0.96875,
+    "ripup-reroute": 0.65625,
+    "topological-graph": 0.65625
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "relay",
+     "baseScores": [
+      [
+       "relay",
+       0.96875
+      ],
+      [
+       "pathfinder-negotiated",
+       0.96875
+      ],
+      [
+       "maze-astar",
+       0.84375
+      ],
+      [
+       "meta-anneal",
+       0.75
+      ],
+      [
+       "meta-genetic",
+       0.75
+      ],
+      [
+       "exact-and-structured",
+       0.71875
+      ],
+      [
+       "baseline-pattern",
+       0.71875
+      ],
+      [
+       "plane-and-classes",
+       0.71875
+      ],
+      [
+       "topological-graph",
+       0.65625
+      ],
+      [
+       "ripup-reroute",
+       0.65625
+      ]
+     ],
+     "completeness": 0.96875,
+     "ceiling": 1.0,
+     "bestInput": 0.96875,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "relay": 31
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net4"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net4"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net8",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net5",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net6",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net9",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net22",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net1",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net26",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net17",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net19",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net18",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net31",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net27",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net7",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net11",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net10",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net12",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net20",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net13",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net3",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net15",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net16",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net29",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net23",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net24",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net0",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net21",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net25",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net2",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net14",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net30",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net28",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 6.717,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one",
+      "1 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.96875,
+      "errors": 0,
+      "warnings": 1,
+      "errorKinds": {},
+      "vias": 82,
+      "copperMm": 802.4456,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "hydrate-coaster",
+   "routableNets": 32,
+   "inputs": {
+    "baseline-pattern": 0.3125,
+    "exact-and-structured": 0.59375,
+    "maze-astar": 0.84375,
+    "meta-anneal": 0.75,
+    "meta-genetic": 0.78125,
+    "pathfinder-negotiated": 0.78125,
+    "plane-and-classes": 0.8125,
+    "relay": 0.875,
+    "ripup-reroute": 0.5625,
+    "topological-graph": 0.6875
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "relay",
+     "baseScores": [
+      [
+       "relay",
+       0.875
+      ],
+      [
+       "pathfinder-negotiated",
+       0.875
+      ],
+      [
+       "maze-astar",
+       0.84375
+      ],
+      [
+       "plane-and-classes",
+       0.8125
+      ],
+      [
+       "meta-genetic",
+       0.78125
+      ],
+      [
+       "exact-and-structured",
+       0.75
+      ],
+      [
+       "meta-anneal",
+       0.75
+      ],
+      [
+       "topological-graph",
+       0.71875
+      ],
+      [
+       "baseline-pattern",
+       0.625
+      ],
+      [
+       "ripup-reroute",
+       0.5625
+      ]
+     ],
+     "completeness": 0.90625,
+     "ceiling": 1.0,
+     "bestInput": 0.875,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 1,
+      "relay": 27,
+      "rerouted": 1
+     },
+     "transplanted": 1,
+     "evictions": 1,
+     "repairs": 1,
+     "singleSource": false,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net22",
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net4",
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net8"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net22",
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net4",
+      "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net8"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net9",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net5",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net1",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net27",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net6",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net7",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net19",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net18",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net20",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net11",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net26",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net10",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net16",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net23",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net17",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net3",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net12",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net13",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net0",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net2",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net15",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net21",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net24",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net25",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net14",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net30",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net28",
+       "source": "relay",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net29",
+       "source": "maze-astar",
+       "stage": "repair",
+       "viableCandidates": 6,
+       "rejectedByConflict": [
+        "evicted unnamedsubcircuitsubcircuit_source_group_11_connectivity_net31"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net31",
+       "source": "rerouted",
+       "stage": "rerouted",
+       "viableCandidates": 6,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 24.785,
+     "notes": [
+      "3 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.90625,
+      "errors": 0,
+      "warnings": 1,
+      "errorKinds": {},
+      "vias": 57,
+      "copperMm": 826.4453,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-i2c-bus",
+   "routableNets": 1,
+   "inputs": {
+    "baseline-pattern": 1.0,
+    "exact-and-structured": 1.0,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 1.0,
+    "plane-and-classes": 1.0,
+    "relay": 1.0,
+    "ripup-reroute": 1.0,
+    "topological-graph": 1.0
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "ripup-reroute",
+       1.0
+      ],
+      [
+       "pathfinder-negotiated",
+       1.0
+      ],
+      [
+       "relay",
+       1.0
+      ],
+      [
+       "exact-and-structured",
+       1.0
+      ],
+      [
+       "topological-graph",
+       1.0
+      ],
+      [
+       "baseline-pattern",
+       1.0
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 1
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net0",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.014,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 0,
+      "copperMm": 2.5198,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "routableNets": 5,
+   "inputs": {
+    "baseline-pattern": 0.8,
+    "exact-and-structured": 1.0,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 0.6,
+    "plane-and-classes": 1.0,
+    "relay": 0.8,
+    "ripup-reroute": 0.8,
+    "topological-graph": 1.0
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "topological-graph",
+     "baseScores": [
+      [
+       "topological-graph",
+       1.0
+      ],
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "exact-and-structured",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "pathfinder-negotiated",
+       0.8
+      ],
+      [
+       "relay",
+       0.8
+      ],
+      [
+       "ripup-reroute",
+       0.8
+      ],
+      [
+       "baseline-pattern",
+       0.8
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "topological-graph": 5
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net6",
+       "source": "topological-graph",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net4",
+       "source": "topological-graph",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net3",
+       "source": "topological-graph",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net5",
+       "source": "topological-graph",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
+       "source": "topological-graph",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.28,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 7,
+      "copperMm": 169.6004,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "routableNets": 17,
+   "inputs": {
+    "baseline-pattern": 0.470588,
+    "exact-and-structured": 0.647059,
+    "maze-astar": 0.941176,
+    "meta-anneal": 0.823529,
+    "meta-genetic": 0.764706,
+    "pathfinder-negotiated": 0.764706,
+    "plane-and-classes": 0.941176,
+    "relay": 0.823529,
+    "ripup-reroute": 0.882353,
+    "topological-graph": 0.764706
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "plane-and-classes",
+     "baseScores": [
+      [
+       "plane-and-classes",
+       0.941176
+      ],
+      [
+       "maze-astar",
+       0.941176
+      ],
+      [
+       "meta-anneal",
+       0.882353
+      ],
+      [
+       "ripup-reroute",
+       0.882353
+      ],
+      [
+       "meta-genetic",
+       0.823529
+      ],
+      [
+       "topological-graph",
+       0.823529
+      ],
+      [
+       "exact-and-structured",
+       0.823529
+      ],
+      [
+       "pathfinder-negotiated",
+       0.823529
+      ],
+      [
+       "relay",
+       0.823529
+      ],
+      [
+       "baseline-pattern",
+       0.647059
+      ]
+     ],
+     "completeness": 0.941176,
+     "ceiling": 1.0,
+     "bestInput": 0.941176,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "plane-and-classes": 16
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net1",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net3",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net15",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net13",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net16",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net14",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net8",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net19",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net20",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net18",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net11",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net12",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net9",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net17",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net10",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.869,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one",
+      "1 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.941176,
+      "errors": 0,
+      "warnings": 2,
+      "errorKinds": {},
+      "vias": 29,
+      "copperMm": 356.2996,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "routableNets": 17,
+   "inputs": {
+    "baseline-pattern": 0.235294,
+    "exact-and-structured": 0.647059,
+    "maze-astar": 0.941176,
+    "meta-anneal": 0.764706,
+    "meta-genetic": 0.764706,
+    "pathfinder-negotiated": 0.764706,
+    "plane-and-classes": 0.941176,
+    "relay": 0.882353,
+    "ripup-reroute": 0.823529,
+    "topological-graph": 0.764706
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       0.941176
+      ],
+      [
+       "plane-and-classes",
+       0.941176
+      ],
+      [
+       "relay",
+       0.882353
+      ],
+      [
+       "pathfinder-negotiated",
+       0.882353
+      ],
+      [
+       "meta-anneal",
+       0.823529
+      ],
+      [
+       "meta-genetic",
+       0.823529
+      ],
+      [
+       "ripup-reroute",
+       0.823529
+      ],
+      [
+       "exact-and-structured",
+       0.764706
+      ],
+      [
+       "topological-graph",
+       0.764706
+      ],
+      [
+       "baseline-pattern",
+       0.647059
+      ]
+     ],
+     "completeness": 0.941176,
+     "ceiling": 1.0,
+     "bestInput": 0.941176,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 16
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net1"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net1"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net3",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net14",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net8",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net16",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net9",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net19",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net15",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net13",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net12",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net20",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net18",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net11",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net17",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net10",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 1.086,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one",
+      "1 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.941176,
+      "errors": 0,
+      "warnings": 1,
+      "errorKinds": {},
+      "vias": 29,
+      "copperMm": 410.3463,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "routableNets": 5,
+   "inputs": {
+    "baseline-pattern": 0.4,
+    "exact-and-structured": 0.8,
+    "maze-astar": 1.0,
+    "meta-anneal": 0.6,
+    "meta-genetic": 0.8,
+    "pathfinder-negotiated": 0.6,
+    "plane-and-classes": 0.6,
+    "relay": 0.6,
+    "ripup-reroute": 0.8,
+    "topological-graph": 0.8
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "topological-graph",
+       0.8
+      ],
+      [
+       "meta-anneal",
+       0.8
+      ],
+      [
+       "meta-genetic",
+       0.8
+      ],
+      [
+       "exact-and-structured",
+       0.8
+      ],
+      [
+       "ripup-reroute",
+       0.8
+      ],
+      [
+       "baseline-pattern",
+       0.6
+      ],
+      [
+       "pathfinder-negotiated",
+       0.6
+      ],
+      [
+       "relay",
+       0.6
+      ],
+      [
+       "plane-and-classes",
+       0.6
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 5
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net1",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net5",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net6",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.334,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 1,
+      "errorKinds": {},
+      "vias": 10,
+      "copperMm": 138.5924,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "routableNets": 5,
+   "inputs": {
+    "baseline-pattern": 0.8,
+    "exact-and-structured": 1.0,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 0.8,
+    "plane-and-classes": 1.0,
+    "relay": 1.0,
+    "ripup-reroute": 1.0,
+    "topological-graph": 0.8
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "pathfinder-negotiated",
+     "baseScores": [
+      [
+       "pathfinder-negotiated",
+       1.0
+      ],
+      [
+       "relay",
+       1.0
+      ],
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "exact-and-structured",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "ripup-reroute",
+       1.0
+      ],
+      [
+       "topological-graph",
+       0.8
+      ],
+      [
+       "baseline-pattern",
+       0.8
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "pathfinder-negotiated": 4,
+      "relay": 1
+     },
+     "transplanted": 1,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": false,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net0",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net1",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net4",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net3",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 9,
+       "rejectedByConflict": [
+        "maze-astar: blocked by 2 net(s)"
+       ]
+      }
+     ],
+     "seconds": 0.275,
+     "notes": [],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 7,
+      "copperMm": 141.0965,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "routableNets": 9,
+   "inputs": {
+    "baseline-pattern": 0.777778,
+    "exact-and-structured": 0.777778,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 0.777778,
+    "plane-and-classes": 1.0,
+    "relay": 0.777778,
+    "ripup-reroute": 1.0,
+    "topological-graph": 0.666667
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "ripup-reroute",
+       1.0
+      ],
+      [
+       "exact-and-structured",
+       0.777778
+      ],
+      [
+       "pathfinder-negotiated",
+       0.777778
+      ],
+      [
+       "relay",
+       0.777778
+      ],
+      [
+       "baseline-pattern",
+       0.777778
+      ],
+      [
+       "topological-graph",
+       0.666667
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 9
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net3",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net1",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net0",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net4",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net2",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net9",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net8",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net7",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_7_connectivity_net6",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.476,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 2,
+      "errorKinds": {},
+      "vias": 9,
+      "copperMm": 270.7703,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-rp2040-core__sw-tact",
+   "routableNets": 14,
+   "inputs": {
+    "baseline-pattern": 0.214286,
+    "exact-and-structured": 0.571429,
+    "maze-astar": 0.928571,
+    "meta-anneal": 0.857143,
+    "meta-genetic": 0.857143,
+    "pathfinder-negotiated": 0.785714,
+    "plane-and-classes": 1.0,
+    "relay": 1.0,
+    "ripup-reroute": 0.642857,
+    "topological-graph": 0.642857
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "plane-and-classes",
+     "baseScores": [
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "pathfinder-negotiated",
+       1.0
+      ],
+      [
+       "relay",
+       1.0
+      ],
+      [
+       "maze-astar",
+       0.928571
+      ],
+      [
+       "meta-genetic",
+       0.857143
+      ],
+      [
+       "meta-anneal",
+       0.857143
+      ],
+      [
+       "exact-and-structured",
+       0.785714
+      ],
+      [
+       "topological-graph",
+       0.785714
+      ],
+      [
+       "ripup-reroute",
+       0.642857
+      ],
+      [
+       "baseline-pattern",
+       0.571429
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "plane-and-classes": 14
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net0",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net13",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net7",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net14",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net12",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net1",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net8",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net17",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net10",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net11",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net15",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net16",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net9",
+       "source": "plane-and-classes",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.768,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 2,
+      "errorKinds": {},
+      "vias": 31,
+      "copperMm": 372.4955,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "routableNets": 21,
+   "inputs": {
+    "baseline-pattern": 0.190476,
+    "exact-and-structured": 0.52381,
+    "maze-astar": 0.857143,
+    "meta-anneal": 0.809524,
+    "meta-genetic": 0.761905,
+    "pathfinder-negotiated": 0.714286,
+    "plane-and-classes": 0.761905,
+    "relay": 0.952381,
+    "ripup-reroute": 0.571429,
+    "topological-graph": 0.666667
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "pathfinder-negotiated",
+     "baseScores": [
+      [
+       "pathfinder-negotiated",
+       0.952381
+      ],
+      [
+       "relay",
+       0.952381
+      ],
+      [
+       "maze-astar",
+       0.857143
+      ],
+      [
+       "meta-anneal",
+       0.809524
+      ],
+      [
+       "plane-and-classes",
+       0.809524
+      ],
+      [
+       "meta-genetic",
+       0.761905
+      ],
+      [
+       "topological-graph",
+       0.666667
+      ],
+      [
+       "baseline-pattern",
+       0.619048
+      ],
+      [
+       "exact-and-structured",
+       0.571429
+      ],
+      [
+       "ripup-reroute",
+       0.571429
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 0.952381,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 1,
+      "pathfinder-negotiated": 13,
+      "relay": 5,
+      "rerouted": 2
+     },
+     "transplanted": 6,
+     "evictions": 2,
+     "repairs": 1,
+     "singleSource": false,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net14",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net4",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net17",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net10",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net3",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net12",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net15",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net8",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net13",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net16",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net9",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net20",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net0",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 2,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net21",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 2,
+       "rejectedByConflict": [
+        "plane-and-classes: blocked by 2 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net1",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 5,
+       "rejectedByConflict": [
+        "meta-genetic: blocked by 4 net(s)",
+        "maze-astar: blocked by 6 net(s)",
+        "plane-and-classes: blocked by 5 net(s)",
+        "exact-and-structured: blocked by 6 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net11",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 7,
+       "rejectedByConflict": [
+        "plane-and-classes: blocked by 4 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net7",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 7,
+       "rejectedByConflict": [
+        "maze-astar: blocked by 2 net(s)",
+        "meta-anneal: blocked by 2 net(s)",
+        "meta-genetic: blocked by 2 net(s)",
+        "exact-and-structured: blocked by 4 net(s)",
+        "topological-graph: blocked by 3 net(s)",
+        "plane-and-classes: blocked by 2 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net19",
+       "source": "maze-astar",
+       "stage": "repair",
+       "viableCandidates": 7,
+       "rejectedByConflict": [
+        "evicted unnamedsubcircuitsubcircuit_source_group_2_connectivity_net18",
+        "evicted unnamedsubcircuitsubcircuit_source_group_2_connectivity_net22"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net22",
+       "source": "rerouted",
+       "stage": "rerouted",
+       "viableCandidates": 7,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net18",
+       "source": "rerouted",
+       "stage": "rerouted",
+       "viableCandidates": 9,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 1.627,
+     "notes": [],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 2,
+      "errorKinds": {},
+      "vias": 52,
+      "copperMm": 678.8311,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-status-led",
+   "routableNets": 1,
+   "inputs": {
+    "baseline-pattern": 1.0,
+    "exact-and-structured": 1.0,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 1.0,
+    "plane-and-classes": 1.0,
+    "relay": 1.0,
+    "ripup-reroute": 1.0,
+    "topological-graph": 1.0
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "baseline-pattern",
+       1.0
+      ],
+      [
+       "exact-and-structured",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "ripup-reroute",
+       1.0
+      ],
+      [
+       "topological-graph",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "pathfinder-negotiated",
+       1.0
+      ],
+      [
+       "relay",
+       1.0
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 1
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_1_connectivity_net1",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.009,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 0,
+      "copperMm": 2.1965,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "matrix-status-led__ws2812-chain",
+   "routableNets": 7,
+   "inputs": {
+    "baseline-pattern": 0.857143,
+    "exact-and-structured": 0.857143,
+    "maze-astar": 1.0,
+    "meta-anneal": 1.0,
+    "meta-genetic": 1.0,
+    "pathfinder-negotiated": 1.0,
+    "plane-and-classes": 1.0,
+    "relay": 1.0,
+    "ripup-reroute": 1.0,
+    "topological-graph": 0.857143
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "maze-astar",
+     "baseScores": [
+      [
+       "maze-astar",
+       1.0
+      ],
+      [
+       "plane-and-classes",
+       1.0
+      ],
+      [
+       "pathfinder-negotiated",
+       1.0
+      ],
+      [
+       "relay",
+       1.0
+      ],
+      [
+       "meta-anneal",
+       1.0
+      ],
+      [
+       "meta-genetic",
+       1.0
+      ],
+      [
+       "ripup-reroute",
+       1.0
+      ],
+      [
+       "topological-graph",
+       0.857143
+      ],
+      [
+       "exact-and-structured",
+       0.857143
+      ],
+      [
+       "baseline-pattern",
+       0.857143
+      ]
+     ],
+     "completeness": 1.0,
+     "ceiling": 1.0,
+     "bestInput": 1.0,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 7
+     },
+     "transplanted": 0,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": true,
+     "unassigned": [],
+     "lostToConflict": [],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net0",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net5",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net2",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net6",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net7",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net4",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_6_connectivity_net1",
+       "source": "maze-astar",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 0.24,
+     "notes": [
+      "no net was transplanted \u2014 this is the base family plus a residual stage, which is a relay, and must be reported as one"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 1.0,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 2,
+      "copperMm": 141.0624,
+      "clean": true
+     }
+    }
+   }
+  },
+  {
+   "instance": "terminal-keyboard-plane",
+   "routableNets": 89,
+   "inputs": {
+    "baseline-pattern": 0.662921,
+    "exact-and-structured": 0.752809,
+    "maze-astar": 0.820225,
+    "meta-anneal": 0.775281,
+    "meta-genetic": 0.797753,
+    "pathfinder-negotiated": 0.898876,
+    "plane-and-classes": 0.831461,
+    "relay": 0.932584,
+    "ripup-reroute": 0.786517,
+    "topological-graph": 0.707865
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "pathfinder-negotiated",
+     "baseScores": [
+      [
+       "pathfinder-negotiated",
+       0.932584
+      ],
+      [
+       "relay",
+       0.932584
+      ],
+      [
+       "maze-astar",
+       0.831461
+      ],
+      [
+       "plane-and-classes",
+       0.831461
+      ],
+      [
+       "meta-genetic",
+       0.808989
+      ],
+      [
+       "meta-anneal",
+       0.786517
+      ],
+      [
+       "ripup-reroute",
+       0.786517
+      ],
+      [
+       "baseline-pattern",
+       0.775281
+      ],
+      [
+       "exact-and-structured",
+       0.764045
+      ],
+      [
+       "topological-graph",
+       0.707865
+      ]
+     ],
+     "completeness": 0.932584,
+     "ceiling": 1.0,
+     "bestInput": 0.932584,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "pathfinder-negotiated": 80,
+      "relay": 3
+     },
+     "transplanted": 3,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": false,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net3",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net44",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net65",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net69",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net79",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net86"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net3",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net44",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net65",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net69",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net79",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net86"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net22",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net33",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net66",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net87",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net2",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net19",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net67",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net0",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net71",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net70",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net68",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net77",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net17",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net55",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net5",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net7",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net83",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net82",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net78",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net76",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net73",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net15",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net13",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net11",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net75",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net72",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net10",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net14",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net18",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net23",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net36",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net58",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net60",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net61",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net81",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net47",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net74",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net84",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net48",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net49",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net52",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net63",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net64",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net16",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net45",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net56",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net59",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net62",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net46",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net50",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net51",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net57",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net25",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net8",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net30",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net1",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net12",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net20",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net21",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net24",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net26",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net27",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net28",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net29",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net31",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net32",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net34",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net35",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net37",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net38",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net39",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net4",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net40",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net41",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net42",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net43",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net53",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net54",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net6",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net88",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net9",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 5,
+       "rejectedByConflict": [
+        "maze-astar: blocked by 3 net(s)",
+        "meta-genetic: blocked by 6 net(s)",
+        "plane-and-classes: blocked by 9 net(s)",
+        "ripup-reroute: blocked by 9 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net80",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 7,
+       "rejectedByConflict": [
+        "maze-astar: blocked by 1 net(s)"
+       ]
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net85",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 8,
+       "rejectedByConflict": [
+        "meta-anneal: blocked by 3 net(s)",
+        "meta-genetic: blocked by 2 net(s)",
+        "maze-astar: blocked by 2 net(s)",
+        "plane-and-classes: blocked by 2 net(s)",
+        "ripup-reroute: blocked by 2 net(s)"
+       ]
+      }
+     ],
+     "seconds": 29.706,
+     "notes": [
+      "6 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.932584,
+      "errors": 0,
+      "warnings": 0,
+      "errorKinds": {},
+      "vias": 127,
+      "copperMm": 2210.358,
+      "clean": false
+     }
+    }
+   }
+  },
+  {
+   "instance": "terminal-keyboard",
+   "routableNets": 89,
+   "inputs": {
+    "baseline-pattern": 0.651685,
+    "exact-and-structured": 0.741573,
+    "maze-astar": 0.820225,
+    "meta-anneal": 0.786517,
+    "meta-genetic": 0.775281,
+    "pathfinder-negotiated": 0.910112,
+    "plane-and-classes": 0.842697,
+    "relay": 0.932584,
+    "ripup-reroute": 0.157303,
+    "topological-graph": 0.752809
+   },
+   "dropped": [],
+   "rankings": {
+    "anchored/obstruction": {
+     "mode": "anchored",
+     "base": "pathfinder-negotiated",
+     "baseScores": [
+      [
+       "pathfinder-negotiated",
+       0.932584
+      ],
+      [
+       "relay",
+       0.932584
+      ],
+      [
+       "maze-astar",
+       0.842697
+      ],
+      [
+       "plane-and-classes",
+       0.842697
+      ],
+      [
+       "meta-anneal",
+       0.786517
+      ],
+      [
+       "topological-graph",
+       0.775281
+      ],
+      [
+       "meta-genetic",
+       0.775281
+      ],
+      [
+       "exact-and-structured",
+       0.764045
+      ],
+      [
+       "baseline-pattern",
+       0.752809
+      ],
+      [
+       "ripup-reroute",
+       0.741573
+      ]
+     ],
+     "completeness": 0.932584,
+     "ceiling": 1.0,
+     "bestInput": 0.932584,
+     "ranking": "obstruction",
+     "clearanceMm": 0.1,
+     "sources": {
+      "maze-astar": 1,
+      "pathfinder-negotiated": 81,
+      "relay": 1
+     },
+     "transplanted": 2,
+     "evictions": 0,
+     "repairs": 0,
+     "singleSource": false,
+     "unassigned": [
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net44",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net67",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net69",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net76",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net82",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net86"
+     ],
+     "lostToConflict": [
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net44",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net67",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net69",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net76",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net82",
+      "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net86"
+     ],
+     "assignments": [
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net22",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net2",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net33",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net3",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net66",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net19",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net87",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net55",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net0",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net5",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net7",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net71",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net68",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net77",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net73",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net15",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net13",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net75",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net70",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net17",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net9",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net83",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net79",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net78",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net85",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net11",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net80",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net81",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net41",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net58",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net84",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net48",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net49",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net52",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net63",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net47",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net60",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net64",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net45",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net56",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net59",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net62",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net50",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net51",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net53",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net57",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net61",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net14",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net36",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net34",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net1",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net10",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net12",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net16",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net18",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net20",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net21",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net23",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net24",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net25",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net26",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net27",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net28",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net29",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net30",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net31",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net32",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net35",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net37",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net38",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net39",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net4",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net40",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net42",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net43",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net46",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net54",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net6",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net8",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net88",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net74",
+       "source": "pathfinder-negotiated",
+       "stage": "base",
+       "viableCandidates": 1,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net65",
+       "source": "relay",
+       "stage": "transplant",
+       "viableCandidates": 2,
+       "rejectedByConflict": []
+      },
+      {
+       "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net72",
+       "source": "maze-astar",
+       "stage": "transplant",
+       "viableCandidates": 7,
+       "rejectedByConflict": []
+      }
+     ],
+     "seconds": 18.066,
+     "notes": [
+      "6 net(s) had a viable routing that no ranking could fit: the merge lost them to geometry, not to the routers"
+     ],
+     "deterministic": null,
+     "score": {
+      "completeness": 0.932584,
+      "errors": 0,
+      "warnings": 1,
+      "errorKinds": {},
+      "vias": 113,
+      "copperMm": 2384.3643,
+      "clean": false
+     }
+    }
+   }
+  }
+ ]
+}
