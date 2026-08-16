@@ -381,6 +381,93 @@ relay clears the same 3 of 10 boards as the best single family, as the second
 best, and as the oracle. Composition bought four points of completeness and zero
 fab-ready boards.
 
+## Recombination: build one board out of nine, net by net
+
+Every composition above moves *work* between families. This one moves *copper*:
+cut nine finished solutions apart along net boundaries and reassemble one board
+from the pieces. It is the only composition that can beat every input, because
+it is the only one that can hold two families' copper at once.
+
+Everything below was measured with all nine families re-run against the
+corrected pad model — the numbers earlier in this document are the stadium
+model's and are not comparable. Ruler `e1ee2a5623d0`, 16 instances, 380 routable
+nets, `packages/router/src/routerlib/compositions/recombine.py`.
+
+**The relay's own number under the corrected model is 92.1%, not 98.0%.** The
+98.0% has never been re-taken since the pad model was fixed, and two of the four
+families in its chain route very differently when their workspace stops lying to
+them. This is a new baseline, not a regression:
+`benchmarks/tournament/relay-truepads-2026-08-16.json`.
+
+| arm | nets | routed | KiCad-independent errors | harness-clean | vias |
+|---|---|---|---|---|---|
+| best of 9, per instance | 343 | 90.3% | 0 | — | — |
+| relay of 4 | 350 | 92.1% | 0 | 5/16 | 736 |
+| recombine, merge only | 345 | 90.8% | 0 | 8/16 | 545 |
+| recombine + repair | 350 | 92.1% | 0 | 8/16 | 538 |
+| **recombine + the relay as a tenth input** | **360** | **94.7%** | **0** | **9/16** | 640 |
+| recombine, free merge | 269 | 70.8% | 0 | 6/16 | 424 |
+| ceiling: union of the nine, legal in isolation | 380 | 100% | | | |
+
+**Every net on this benchmark is routed by somebody, legally, in isolation.**
+Split the copper by net and ask of each routing alone whether it connects and
+whether it clears the pads, drills, keepouts and board edge: 380 of 380. Not one
+net is lost to its own geometry. The whole remaining gap is co-existence.
+
+### Three results, and two of them are negative
+
+**Free merging is a 19-point loss.** Rank every net's candidates, greedily take
+the best non-conflicting one: 269 nets against best-of-nine's 343, and 47.6% on
+`matrix-rp2040-core__usb-c-data` where `maze-astar` alone reaches 85.7%. It is
+not the ordering and not the ranking — all three rankings score identically, and
+merging a single family with itself reproduces it net for net. A family's board
+is internally coherent and a cherry-pick is not: every net in it was routed
+knowing what that family had already committed.
+
+**Anchoring alone is best-of-N wearing a merge's clothes.** Take one family's
+board whole and transplant only the nets it failed, and **two** transplants land
+across sixteen boards out of thirty-seven available. The nets a base fails are
+the nets its own copper blocks, so the other families' routings for exactly
+those nets land on exactly the occupied space — measured blocking sets of 1, 1,
+2, 2 and 6 nets on `harness-puck`, 9 on `matrix-rp2040-core__usb-c-data`.
+
+**The repair is where the crossover actually lives.** Evict the nets standing in
+a transplant's way, place the transplant, and re-route the evicted ones around
+it — rip-up and reroute across a stage boundary, which is item 5 on the list
+below and the one thing a relay structurally cannot do, because a relay never
+takes the lead's copper back out. Swapping an evicted net for another family's
+routing of the same net is tried first because it is free, and it has never once
+worked. The trade must be strictly positive: every evicted net comes back or the
+attempt is rolled back.
+
+### The relay is an input, not a rival
+
+A relay's board is as coherent as any family's, so it is admissible as a base —
+and once it is in the pool the merge cannot lose to it. 360 nets against 350,
+**better on 7 of 16 boards and worse on none**, at 13% fewer vias.
+`matrix-rp2040-core__usb-c-data` finishes at 100%: no single family exceeds
+85.7% on it and the relay reaches 95.2%.
+
+On that same board the merge **declines** the relay as its base and anchors on
+`pathfinder-negotiated` at 71.4%, then transplants six nets and repairs one. The
+relay bought its extra nets with via density, and density is exactly what a
+transplant needs room in. **A denser base is not a better base**, so bases are
+scored by what their assembly reaches rather than by what they connect alone.
+
+### What this has not been measured against
+
+Legality here is the harness's, not KiCad's. The merge admits copper at the
+0.10mm fab floor rather than the 0.09mm gate, and every accepted routing is
+checked against the fixed board and against every other accepted net with the
+same geometry the scorer grades with — so the board is legal by construction
+under the corrected model, and the harness agrees at 0 errors on every arm. That
+is an argument, not a verification: none of these boards has been through
+`kicad-cli pcb drc`, and none has been taken through the fab-ready gate.
+
+    python3.12 packages/router/scripts/relay_baseline.py --cells-out work/recombine/inputs
+    python3.12 packages/router/scripts/recombine_matrix.py --set work/recombine/inputs \
+        --max-evictions 2 --reroute maze-astar --modes anchored
+
 ---
 
 ## The selector: two rules, a forecast, and a list of rules that failed
@@ -673,11 +760,20 @@ three measurements).
    minutes of compute for all 16 instances, against a two-week fab round trip.
 4. **Re-pour after routing**, so the pipeline stage stops refusing a third of
    our own example boards.
-5. **A legality-aware residual stage.** The relay's extra nets carry a third
-   more violations per millimetre than the nets routed first. A follower that
-   is allowed to rip up the lead's copper locally — rather than only routing
-   around it — is the standard answer and none of the nine families does it
-   across a stage boundary.
+5. ~~**A legality-aware residual stage.**~~ — **half built.** A follower allowed
+   to rip up the lead's copper locally rather than only route around it is now
+   the repair inside `compositions/recombine.py`, and it is worth 5 nets on its
+   own and 10 with the relay in the input pool. What is not built is the
+   *legality* half: the repair optimises connectivity and leaves per-millimetre
+   violation density alone.
+6. **Take a recombined board through KiCad and the fab-ready gate.** The merge
+   is legal by construction under the corrected model and the harness scores it
+   at zero errors on every arm, and neither of those is a KiCad run. It is 20
+   points of completeness better than nothing and 0 of 16 verified.
+7. **Grow the input pool rather than the algorithm.** The ceiling is 100% — every
+   net is routed by somebody, legally, in isolation — and the merge reaches
+   94.7%. Adding the relay as a tenth input bought 10 nets, more than the repair
+   bought over nine families. Cheap inputs beat clever merging.
 
 ## What the negative results taught
 
@@ -700,3 +796,13 @@ round produced four of the same kind, and they are worth as much as the relay:
   zero findings that another run scored at seven, and it only surfaced because
   two rows that had to agree did not. The collector now reads an errored row as
   *no measurement*.
+- **A solution is coherent, and cutting it up destroys that.** Recombination's
+  first two attempts both failed on one fact: a family's board is a set of nets
+  routed against each other, and a net lifted out of it was never routed against
+  anything it now sits beside. Cherry-picking cost 19 points; anchoring on a
+  whole board and transplanting into the gaps landed two nets in sixteen tries.
+  The value only appeared when the merge was allowed to *remove* copper.
+- **A denser base is not a better base.** Offered the relay's 95.2% board and
+  `pathfinder-negotiated`'s 71.4% one, the merge takes the sparser board and
+  finishes at 100%. Completeness bought with vias is completeness that costs the
+  next stage its room.
