@@ -358,10 +358,20 @@ because the follower's `Workspace` treats the lead's copper as an obstacle.
 Chain: `pathfinder-negotiated → maze-astar → plane-and-classes →
 exact-and-structured`, all 16 instances, same budget, two runs each.
 
+> **Superseded — every number in this table was measured against the stadium
+> pad model, which was wrong.** The relay's 98.0% is now **350 of 380 nets**:
+> 92.1% pooled, 90.6% as a mean of per-instance rates. Measured independently
+> by two agents, instance for instance, ruler `e1ee2a5623d0`. Clean boards fall
+> **8/16 → 5/16**, which puts the relay *below* plain `maze-astar` (92.5%,
+> 7/16) and well below `spatial-best` (94.3%, 8/16). The table is kept because
+> the *shape* of the finding held — a follower asked for three nets does finish
+> in seconds — and because deleting a number we published is how a document
+> starts lying by omission. See "the relay's own number" below.
+
 | | best single family | oracle of 9 | relay of 4 |
 |---|---|---|---|
-| mean completeness | 94.0% | 95.7% | **98.0%** |
-| harness-clean instances | 7/16 | — | 8/16 |
+| mean completeness | 94.0% | 95.7% | **98.0%** (stadium model — really 90.6%) |
+| harness-clean instances | 7/16 | — | 8/16 (really 5/16) |
 | deterministic | 16/16 | — | 16/16 |
 | wall clock, whole suite | 202s | 699s | 262s |
 
