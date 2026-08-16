@@ -355,7 +355,21 @@ function RoutingRequest({ card, onPrefillNote, onLocate }) {
         {card.at ? (
           <button
             type="button"
-            onClick={() => onLocate?.({ locatable: true, target: { kind: "point" }, at: card.at })}
+            // A 1mm window on the pinch, the same box shape a finding row
+            // carries (lib/boardViolations.js `findingBox`). Without it the
+            // handler has nothing to zoom to and the button does nothing.
+            onClick={() =>
+              onLocate?.({
+                locatable: true,
+                target: { kind: "point", key: "" },
+                box: {
+                  minX: card.at.x - 0.5,
+                  minY: card.at.y - 0.5,
+                  maxX: card.at.x + 0.5,
+                  maxY: card.at.y + 0.5,
+                },
+              })
+            }
             title="Show me where on the board"
             data-slot="routing-request-locate"
             className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
