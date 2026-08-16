@@ -1,5 +1,5 @@
 {
- "schema": "routerlib/instance@1",
+ "schema": "routerlib/instance@2",
  "id": "matrix-i2c-bus",
  "source": {
   "gitHead": "806561d",
@@ -10,7 +10,7 @@
    "i2c-bus"
   ]
  },
- "placementHash": "b833adeafa3c",
+ "placementHash": "916b0e7f4a66",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -44,7 +44,9 @@
    "component": "R8",
    "portId": "pcb_port_0",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_1",
@@ -61,7 +63,9 @@
    "component": "R8",
    "portId": "pcb_port_1",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_2",
@@ -78,7 +82,9 @@
    "component": "R9",
    "portId": "pcb_port_2",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_3",
@@ -95,7 +101,9 @@
    "component": "R9",
    "portId": "pcb_port_3",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   }
  ],
  "drills": [
@@ -109,7 +117,8 @@
    "net": null,
    "component": "",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   },
   {
    "id": "pcb_hole_1",
@@ -121,7 +130,8 @@
    "net": null,
    "component": "",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   }
  ],
  "keepouts": [],

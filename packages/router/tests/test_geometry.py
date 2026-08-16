@@ -11,6 +11,67 @@ from routerlib import geometry as geo
 from routerlib.model import Point
 
 
+class TrueShapes(unittest.TestCase):
+    """The defect this module was rewritten for, pinned as arithmetic.
+
+    Until 2026-08-16 a rectangle was its inscribed stadium, so the corner of a
+    1.0mm square pad stuck 0.207mm out of the model against a 0.09mm gate.
+    """
+
+    def test_a_square_pad_has_corners(self):
+        square = geo.rect_capsule(0, 0, 1.0, 1.0)
+        trace = geo.segment_capsule(0.6, 0.6, 2.0, 2.0, 0.2)
+        true_gap = geo.capsule_gap(trace, square)
+        stadium_gap = geo.capsule_gap(trace, geo.stadium_capsule(0, 0, 1.0, 1.0))
+        self.assertAlmostEqual(true_gap, math.hypot(0.1, 0.1) - 0.1, places=9)
+        self.assertGreater(stadium_gap - true_gap, 0.2)
+
+    def test_copper_inside_a_pad_reads_negative(self):
+        square = geo.rect_capsule(0, 0, 1.0, 1.0)
+        trace = geo.segment_capsule(-2.0, 0.4, 2.0, 0.4, 0.2)
+        self.assertLess(geo.capsule_gap(trace, square), 0.0)
+
+    def test_two_pads_of_one_footprint_do_not_short(self):
+        """0.54mm pads on a 1.02mm pitch clear by 0.48mm. Reading the
+        circumscribed stadium's radius as the core's sweep says they overlap,
+        which is how that mistake was caught."""
+        a = geo.rect_capsule(-0.51, 1.48, 0.54, 0.64)
+        b = geo.rect_capsule(0.51, 1.48, 0.54, 0.64)
+        self.assertAlmostEqual(geo.capsule_gap(a, b), 0.48, places=9)
+
+    def test_a_keepout_is_its_rectangle(self):
+        """``pcb_keepout_0`` of the USB-C block, 7.3 x 1.23mm, and a trace in
+        the corner of it. This is the case that turned a ``fab.ready`` board
+        into five blocking findings: the stadium cuts 0.255mm off each corner,
+        2.8 times the clearance gate, and reports the trace as clear."""
+        zone = geo.rect_capsule(0, 0, 7.3, 1.23)
+        trace = geo.segment_capsule(3.45, 0.55, 3.6, 0.55, 0.1)
+        self.assertLess(geo.capsule_gap(trace, zone), 0.0)
+        self.assertGreater(
+            geo.capsule_gap(trace, geo.stadium_capsule(0, 0, 7.3, 1.23)), 0.0
+        )
+
+    def test_a_polygon_pad_is_its_outline(self):
+        tab = geo.polygon_capsule(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 0.3), (0.3, 0.3), (0.3, 1.0), (0.0, 1.0)]
+        )
+        probe = geo.disc_capsule(0.8, 0.8, 0.2)
+        # The nearest copper is the top edge of the L's horizontal arm, 0.5mm
+        # below the probe — not the re-entrant corner a bounding box would put
+        # there, and not the 0.29mm the bounding box's inscribed stadium did.
+        self.assertAlmostEqual(geo.capsule_gap(probe, tab), 0.4, places=9)
+        self.assertLess(geo.capsule_gap(geo.disc_capsule(0.15, 0.15, 0.1), tab), 0.0)
+
+    def test_a_pill_is_still_exactly_a_stadium(self):
+        """The one shape the old model got right, and it stays right."""
+        pill = geo.rect_capsule(0, 0, 2.25, 0.63, 0.0, 0.315)
+        stadium = geo.stadium_capsule(0, 0, 2.25, 0.63)
+        probe = geo.disc_capsule(2.0, 0.5, 0.3)
+        self.assertAlmostEqual(
+            geo.capsule_gap(probe, pill), geo.capsule_gap(probe, stadium), places=9
+        )
+
+
 class Primitives(unittest.TestCase):
     def test_imported_from_the_pipeline(self):
         import circuitpy.checks as checks
@@ -30,13 +91,13 @@ class Primitives(unittest.TestCase):
 
 class Rotation(unittest.TestCase):
     def test_unrotated_pill_is_horizontal(self):
-        ax, ay, bx, by, r = geo.rect_capsule(0, 0, 2.25, 0.63)
+        ax, ay, bx, by, r = geo.stadium_capsule(0, 0, 2.25, 0.63)
         self.assertAlmostEqual(r, 0.315)
         self.assertAlmostEqual(bx - ax, 2.25 - 0.63)
         self.assertAlmostEqual(ay, 0.0)
 
     def test_270_degrees_turns_it_vertical(self):
-        ax, ay, bx, by, r = geo.rect_capsule(0, 0, 2.25, 0.63, 270.0)
+        ax, ay, bx, by, r = geo.stadium_capsule(0, 0, 2.25, 0.63, 270.0)
         self.assertAlmostEqual(r, 0.315)
         self.assertAlmostEqual(abs(by - ay), 2.25 - 0.63, places=9)
         self.assertAlmostEqual(bx - ax, 0.0, places=9)
@@ -45,15 +106,24 @@ class Rotation(unittest.TestCase):
         """Two 2.25 x 0.63mm pills at 270 degrees, 1.27mm apart. Read
         unrotated they overlap; read correctly they clear by 0.64mm. This is
         the bug that put six shorts on a clean hydrate-coaster."""
-        flat_a = geo.rect_capsule(-31.095, -25.53, 2.25, 0.63)
-        flat_b = geo.rect_capsule(-32.365, -25.53, 2.25, 0.63)
+        flat_a = geo.stadium_capsule(-31.095, -25.53, 2.25, 0.63)
+        flat_b = geo.stadium_capsule(-32.365, -25.53, 2.25, 0.63)
         self.assertLess(geo.capsule_gap(flat_a, flat_b), 0.0)
 
-        turned_a = geo.rect_capsule(-31.095, -25.53, 2.25, 0.63, 270.0)
-        turned_b = geo.rect_capsule(-32.365, -25.53, 2.25, 0.63, 270.0)
+        turned_a = geo.stadium_capsule(-31.095, -25.53, 2.25, 0.63, 270.0)
+        turned_b = geo.stadium_capsule(-32.365, -25.53, 2.25, 0.63, 270.0)
         self.assertAlmostEqual(
             geo.capsule_gap(turned_a, turned_b), 1.27 - 0.63, places=6
         )
+
+    def test_a_turned_rectangle_is_a_turned_rectangle(self):
+        """A 2.0 x 1.0mm pad at 90 degrees is 1.0 wide and 2.0 tall, and its
+        corners are where the corners are."""
+        turned = geo.rect_capsule(0, 0, 2.0, 1.0, 90.0)
+        x0, y0, x1, y1 = geo.capsule_bbox(turned)
+        self.assertAlmostEqual(x1 - x0, 1.0, places=9)
+        self.assertAlmostEqual(y1 - y0, 2.0, places=9)
+        self.assertAlmostEqual(geo.point_shape_distance(0.5, 1.0, turned), 0.0, places=9)
 
 
 class Polygons(unittest.TestCase):

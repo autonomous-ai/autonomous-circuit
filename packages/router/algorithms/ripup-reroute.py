@@ -119,7 +119,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
-from routerlib.geometry import segment_gap
+from routerlib.geometry import capsule_bbox, core_halfplanes, segment_gap
 from routerlib.model import (
     BOTTOM,
     TOP,
@@ -396,9 +396,11 @@ class _Grid:
     def _stamp_obstacles(self) -> None:
         from routerlib.geometry import (
             disc_capsule,
+            drill_capsule,
+            keepout_capsule,
             pad_capsule,
-            rect_capsule,
             segment_capsule,
+            stadium_capsule,
         )
 
         problem = self.problem
@@ -416,14 +418,11 @@ class _Grid:
             # "known divergence"), so a rotated USB-C alignment slot is two
             # different obstacles depending on who is asking. Stamping the union
             # satisfies whichever one turns out to be right.
-            shapes = [
-                rect_capsule(drill.center.x, drill.center.y,
-                             drill.width_mm, drill.height_mm, drill.rotation_deg)
-            ]
+            shapes = [drill_capsule(drill)]
             if drill.rotation_deg and abs(drill.width_mm - drill.height_mm) > 1e-9:
                 shapes.append(
-                    rect_capsule(drill.center.x, drill.center.y,
-                                 drill.width_mm, drill.height_mm, 0.0)
+                    stadium_capsule(drill.center.x, drill.center.y,
+                                    drill.width_mm, drill.height_mm, 0.0)
                 )
             warn_at = (
                 HOLE_WARN_BAND_MM
@@ -435,8 +434,7 @@ class _Grid:
 
         for keepout in problem.keepouts:
             self._stamp(
-                rect_capsule(keepout.center.x, keepout.center.y,
-                             keepout.width_mm, keepout.height_mm),
+                keepout_capsule(keepout),
                 EDGE_MARGIN_MM,
                 self._layer_indexes(keepout.layers),
             )
@@ -467,12 +465,21 @@ class _Grid:
         """Lower ``avail`` in every cell this obstacle constrains.
 
         Distance is measured from the **cell square** to the capsule's spine,
-        which is exact and cheap for an axis-aligned spine (the common case: an
-        unrotated pad, a round drill, a Manhattan trace) and falls back to four
+        which is exact and cheap for an axis-aligned spine (the common case: a
+        round drill, a Manhattan trace) and falls back to four
         segment-to-segment gaps otherwise. Measuring from the square rather than
         the centre is what lets a path through cell centres be trusted without
         re-checking its interior.
+
+        A shape with a core — a rectangular pad, a keepout, a polygon pad —
+        takes the branch below instead, because its spine is not its shape.
         """
+        core = getattr(capsule, "core", None)
+        if core is not None:
+            self._stamp_core(
+                capsule, clearance, layers, warn_clearance=warn_clearance
+            )
+            return
         ax, ay, bx, by, r = capsule
         reach = r + max(clearance, warn_clearance or 0.0) + MAX_HALF_MM
         p, x0, y0, nx, ny = self.pitch, self.x0, self.y0, self.nx, self.ny
@@ -512,6 +519,64 @@ class _Grid:
                     if free < layer_avail[idx]:
                         layer_avail[idx] = free
                 if warn is not None and d - r < warn_clearance:
+                    warn.add(idx)
+
+    def _stamp_core(
+        self,
+        capsule,
+        clearance: float,
+        layers: Sequence[int],
+        *,
+        warn_clearance: float | None = None,
+    ) -> None:
+        """:meth:`_stamp` for a shape that is not a stadium.
+
+        The cell square is measured against the core's own outward edge lines
+        rather than against a spine: negative inside the shape, the true
+        distance outside it, and a slight under-read in the wedge past a
+        corner, which costs the router a little space and never lends it any.
+        Read as an inscribed stadium instead, a 1.0mm square pad's corner was
+        0.21mm of free space that is not there.
+        """
+        planes = core_halfplanes(capsule)
+        if not planes:
+            return
+        sweep = capsule.sweep
+        reach = sweep + max(clearance, warn_clearance or 0.0) + MAX_HALF_MM
+        p, x0, y0, nx, ny = self.pitch, self.x0, self.y0, self.nx, self.ny
+        bx0, by0, bx1, by1 = capsule_bbox(capsule)
+        i0 = max(0, int(math.floor((bx0 - reach - x0) / p)))
+        i1 = min(nx - 1, int(math.floor((bx1 + reach - x0) / p)))
+        j0 = max(0, int(math.floor((by0 - reach - y0) / p)))
+        j1 = min(ny - 1, int(math.floor((by1 + reach - y0) / p)))
+        if i1 < i0 or j1 < j0:
+            return
+        targets = [self.avail[i] for i in layers]
+        warn = self.hole_warn if warn_clearance is not None else None
+        for j in range(j0, j1 + 1):
+            cy0 = y0 + j * p
+            cy1 = cy0 + p
+            base = j * nx
+            for i in range(i0, i1 + 1):
+                cx0 = x0 + i * p
+                cx1 = cx0 + p
+                d = -1e18
+                for pnx, pny, off in planes:
+                    # The corner of the cell square furthest into this
+                    # half-plane's inside is the one that decides the square.
+                    x = cx0 if pnx > 0.0 else cx1
+                    y = cy0 if pny > 0.0 else cy1
+                    value = pnx * x + pny * y - off
+                    if value > d:
+                        d = value
+                if d > reach:
+                    continue
+                free = d - sweep - clearance
+                idx = base + i
+                for layer_avail in targets:
+                    if free < layer_avail[idx]:
+                        layer_avail[idx] = free
+                if warn is not None and d - sweep < warn_clearance:
                     warn.add(idx)
 
     # -- lookups ---------------------------------------------------------

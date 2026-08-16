@@ -1,5 +1,5 @@
 {
- "schema": "routerlib/instance@1",
+ "schema": "routerlib/instance@2",
  "id": "matrix-ldo-3v3__usb-c-power",
  "source": {
   "gitHead": "806561d",
@@ -11,7 +11,7 @@
    "usb-c-power"
   ]
  },
- "placementHash": "7669e2c4a705",
+ "placementHash": "05a446cd05ce",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -46,7 +46,9 @@
    "component": "J1",
    "portId": "pcb_port_9",
    "drillId": "drill_pcb_plated_hole_0",
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_plated_hole_1",
@@ -64,7 +66,9 @@
    "component": "J1",
    "portId": "pcb_port_8",
    "drillId": "drill_pcb_plated_hole_1",
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_plated_hole_2",
@@ -82,7 +86,9 @@
    "component": "J1",
    "portId": "pcb_port_11",
    "drillId": "drill_pcb_plated_hole_2",
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_plated_hole_3",
@@ -100,7 +106,9 @@
    "component": "J1",
    "portId": "pcb_port_10",
    "drillId": "drill_pcb_plated_hole_3",
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_0",
@@ -117,7 +125,9 @@
    "component": "U2",
    "portId": "pcb_port_0",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_1",
@@ -134,7 +144,9 @@
    "component": "U2",
    "portId": "pcb_port_1",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_10",
@@ -151,7 +163,9 @@
    "component": "J1",
    "portId": "pcb_port_14",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_11",
@@ -168,7 +182,9 @@
    "component": "J1",
    "portId": "pcb_port_15",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_12",
@@ -185,7 +201,9 @@
    "component": "J1",
    "portId": "pcb_port_16",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_13",
@@ -202,7 +220,9 @@
    "component": "J1",
    "portId": "pcb_port_17",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_14",
@@ -219,7 +239,9 @@
    "component": "J1",
    "portId": "pcb_port_18",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_15",
@@ -236,7 +258,9 @@
    "component": "J1",
    "portId": "pcb_port_19",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_16",
@@ -253,7 +277,42 @@
    "component": "J1",
    "portId": "pcb_port_20",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": [
+    [
+     -4.649969,
+     -8.805892
+    ],
+    [
+     -4.649969,
+     -7.505869
+    ],
+    [
+     -4.949968,
+     -7.505869
+    ],
+    [
+     -4.949968,
+     -7.506022
+    ],
+    [
+     -5.249942,
+     -7.506022
+    ],
+    [
+     -5.249942,
+     -8.806044
+    ],
+    [
+     -4.949943,
+     -8.806044
+    ],
+    [
+     -4.949943,
+     -8.805892
+    ]
+   ],
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_17",
@@ -270,7 +329,34 @@
    "component": "J1",
    "portId": "pcb_port_21",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": [
+    [
+     1.149994,
+     -7.505869
+    ],
+    [
+     1.149994,
+     -8.805841
+    ],
+    [
+     1.449994,
+     -8.805841
+    ],
+    [
+     1.7500179999999999,
+     -8.805841
+    ],
+    [
+     1.7500179999999999,
+     -7.505869
+    ],
+    [
+     1.450019,
+     -7.505869
+    ]
+   ],
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_18",
@@ -287,7 +373,34 @@
    "component": "J1",
    "portId": "pcb_port_22",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": [
+    [
+     0.9501719999999999,
+     -8.805841
+    ],
+    [
+     0.9501719999999999,
+     -7.505869
+    ],
+    [
+     0.650173,
+     -7.505869
+    ],
+    [
+     0.35014799999999996,
+     -7.505869
+    ],
+    [
+     0.35014799999999996,
+     -8.805841
+    ],
+    [
+     0.650148,
+     -8.805841
+    ]
+   ],
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_19",
@@ -304,7 +417,34 @@
    "component": "J1",
    "portId": "pcb_port_23",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": [
+    [
+     -3.84997,
+     -8.805994
+    ],
+    [
+     -3.84997,
+     -7.506022
+    ],
+    [
+     -4.149995,
+     -7.506022
+    ],
+    [
+     -4.4499439999999995,
+     -7.506047
+    ],
+    [
+     -4.4499439999999995,
+     -8.806019
+    ],
+    [
+     -4.149919,
+     -8.806019
+    ]
+   ],
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_2",
@@ -321,7 +461,9 @@
    "component": "U2",
    "portId": "pcb_port_2",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_20",
@@ -338,7 +480,9 @@
    "component": "R1",
    "portId": "pcb_port_24",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_21",
@@ -355,7 +499,9 @@
    "component": "R1",
    "portId": "pcb_port_25",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_22",
@@ -372,7 +518,9 @@
    "component": "R2",
    "portId": "pcb_port_26",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_23",
@@ -389,7 +537,9 @@
    "component": "R2",
    "portId": "pcb_port_27",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_24",
@@ -406,7 +556,9 @@
    "component": "U1",
    "portId": "pcb_port_28",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_25",
@@ -423,7 +575,9 @@
    "component": "U1",
    "portId": "pcb_port_29",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_26",
@@ -440,7 +594,9 @@
    "component": "U1",
    "portId": "pcb_port_30",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_27",
@@ -457,7 +613,9 @@
    "component": "U1",
    "portId": "pcb_port_31",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_28",
@@ -474,7 +632,9 @@
    "component": "U1",
    "portId": "pcb_port_32",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_29",
@@ -491,7 +651,9 @@
    "component": "U1",
    "portId": "pcb_port_33",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_3",
@@ -508,7 +670,9 @@
    "component": "U2",
    "portId": "pcb_port_3",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_30",
@@ -525,7 +689,9 @@
    "component": "C1",
    "portId": "pcb_port_34",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_31",
@@ -542,7 +708,9 @@
    "component": "C1",
    "portId": "pcb_port_35",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_4",
@@ -559,7 +727,9 @@
    "component": "C2",
    "portId": "pcb_port_4",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_5",
@@ -576,7 +746,9 @@
    "component": "C2",
    "portId": "pcb_port_5",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_6",
@@ -593,7 +765,9 @@
    "component": "C3",
    "portId": "pcb_port_6",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_7",
@@ -610,7 +784,9 @@
    "component": "C3",
    "portId": "pcb_port_7",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_8",
@@ -627,7 +803,9 @@
    "component": "J1",
    "portId": "pcb_port_12",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   },
   {
    "id": "pcb_smtpad_9",
@@ -644,7 +822,9 @@
    "component": "J1",
    "portId": "pcb_port_13",
    "drillId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "points": null,
+   "cornerRadiusMm": null
   }
  ],
  "drills": [
@@ -658,7 +838,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
    "component": "J1",
    "padId": "pcb_plated_hole_0",
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "pill"
   },
   {
    "id": "drill_pcb_plated_hole_1",
@@ -670,7 +851,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
    "component": "J1",
    "padId": "pcb_plated_hole_1",
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "pill"
   },
   {
    "id": "drill_pcb_plated_hole_2",
@@ -682,7 +864,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
    "component": "J1",
    "padId": "pcb_plated_hole_2",
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "pill"
   },
   {
    "id": "drill_pcb_plated_hole_3",
@@ -694,7 +877,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_2_connectivity_net2",
    "component": "J1",
    "padId": "pcb_plated_hole_3",
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "pill"
   },
   {
    "id": "pcb_hole_0",
@@ -706,7 +890,8 @@
    "net": null,
    "component": "J1",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   },
   {
    "id": "pcb_hole_1",
@@ -718,7 +903,8 @@
    "net": null,
    "component": "J1",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   },
   {
    "id": "pcb_hole_2",
@@ -730,7 +916,8 @@
    "net": null,
    "component": "",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   },
   {
    "id": "pcb_hole_3",
@@ -742,7 +929,8 @@
    "net": null,
    "component": "",
    "padId": null,
-   "rot": 0.0
+   "rot": 0.0,
+   "shape": "circle"
   }
  ],
  "keepouts": [
@@ -756,7 +944,9 @@
     "top",
     "bottom"
    ],
-   "shape": "rect"
+   "shape": "rect",
+   "rot": 0.0,
+   "points": null
   }
  ],
  "planes": [],

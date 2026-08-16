@@ -128,10 +128,12 @@ from typing import Sequence
 
 from routerlib.geometry import (
     PolygonIndex,
+    capsule_bbox,
+    core_halfplanes,
     drill_capsule,
+    keepout_capsule,
     pad_capsule,
     point_segment_distance,
-    rect_capsule,
     stadium,
 )
 from routerlib.model import (
@@ -356,20 +358,36 @@ def _mark_capsule(arr: array, grid: Grid, capsule, extra: float, value: int) -> 
     becomes ``BLOCKED``: copper there is inside somebody's clearance whoever owns
     it.
     """
+    planes = core_halfplanes(capsule)
     ax, ay, bx, by, r = capsule
-    reach = r + extra
+    # A shape with a core — a rectangular pad, a keepout, a polygon pad — is
+    # measured against its own edge lines. ``max`` over them is negative inside
+    # the shape and the true distance outside it, except in the wedge past a
+    # corner where it under-reads and claims a cell or two extra. Under the
+    # inscribed stadium this loop left a pad's corners unclaimed by 0.21mm.
+    reach = (capsule.sweep if planes is not None else r) + extra
     p = grid.pitch
-    ix0 = max(0, int(math.floor((min(ax, bx) - reach - grid.x0) / p)))
-    ix1 = min(grid.nx - 1, int(math.ceil((max(ax, bx) + reach - grid.x0) / p)))
-    iy0 = max(0, int(math.floor((min(ay, by) - reach - grid.y0) / p)))
-    iy1 = min(grid.ny - 1, int(math.ceil((max(ay, by) + reach - grid.y0) / p)))
+    bx0, by0, bx1, by1 = capsule_bbox(capsule)
+    ix0 = max(0, int(math.floor((bx0 - extra - grid.x0) / p)))
+    ix1 = min(grid.nx - 1, int(math.ceil((bx1 + extra - grid.x0) / p)))
+    iy0 = max(0, int(math.floor((by0 - extra - grid.y0) / p)))
+    iy1 = min(grid.ny - 1, int(math.ceil((by1 + extra - grid.y0) / p)))
     for iy in range(iy0, iy1 + 1):
         cy = grid.y0 + iy * p
         row = iy * grid.nx
         for ix in range(ix0, ix1 + 1):
             cx = grid.x0 + ix * p
-            if point_segment_distance(cx, cy, ax, ay, bx, by) > reach:
-                continue
+            if planes is None:
+                if point_segment_distance(cx, cy, ax, ay, bx, by) > reach:
+                    continue
+            else:
+                worst = -1e18
+                for pnx, pny, off in planes:
+                    d = pnx * cx + pny * cy - off
+                    if d > worst:
+                        worst = d
+                if worst > reach:
+                    continue
             index = row + ix
             current = arr[index]
             if current == BLOCKED:
@@ -629,9 +647,7 @@ def build_static(
             )
 
     for keepout in problem.keepouts:
-        capsule = rect_capsule(
-            keepout.center.x, keepout.center.y, keepout.width_mm, keepout.height_mm
-        )
+        capsule = keepout_capsule(keepout)
         for layer in keepout.layers:
             slot = slot_of.get(layer)
             if slot is None:

@@ -32,11 +32,15 @@ router that aims at 0.10 will live there — which is the whole diagnosis of the
 router we ship.
 
 **What is not checked, said out loud.** :data:`COVERAGE_GAPS` is returned with
-every result. v1 does not check plane islanding (a trace cutting a poured plane
-into two pieces), acid traps, or copper balance, and it models a rectangular pad
-as its inscribed stadium, which rounds corners inward — that can miss a finding
-at a pad corner, never invent one. A cross-check against KiCad DRC lives in
-``tests/test_kicad_agreement.py`` and skips when kicad-cli is absent.
+every result. It does not check plane islanding (a trace cutting a poured plane
+into two pieces), acid traps, or copper balance. A cross-check against KiCad DRC
+lives in ``tests/test_kicad_agreement.py`` and skips when kicad-cli is absent.
+
+Every shape here is the shape the board has: a rotated rectangle is a rotated
+rectangle, a keepout is its rectangle, a polygon pad is its own outline. Until
+2026-08-16 all three were the inscribed stadium of a bounding box, and that one
+approximation was the dominant failure mode of the entire benchmark — see
+:mod:`routerlib.geometry`.
 """
 
 from __future__ import annotations
@@ -53,9 +57,9 @@ from routerlib.geometry import (
     capsule_gap,
     disc_capsule,
     distance_to_polygon,
+    keepout_capsule,
     pad_capsule,
     point_in_polygon,
-    rect_capsule,
     segment_capsule,
 )
 from routerlib.model import (
@@ -69,11 +73,20 @@ from routerlib.model import (
 
 #: Checks this module knowingly does not perform. Shipped with every result so
 #: a clean score is never read as "everything was looked at".
+#:
+#: The inscribed-stadium pad model left this list on 2026-08-16: pads and
+#: keepouts are now measured as the rotated rectangles, circles, pills and
+#: polygons they are. What replaced it is smaller and named honestly below.
 COVERAGE_GAPS: tuple[str, ...] = (
     "plane islanding — a trace that cuts a poured plane in two is not detected",
     "acid traps and copper balance — no manufacturability heuristics beyond the rule table",
-    "rectangular pads are modelled as their inscribed stadium, so a finding at a "
-    "sharp pad corner can be missed (never invented)",
+    "an elliptical pad is measured as a pill, which is the ellipse's outer bound: "
+    "a finding near the minor axis can be invented (never missed)",
+    "how deep two overlapping shapes overlap is measured on their convex hulls, so "
+    "the depth reported for a re-entrant polygon pad can be overstated — the "
+    "short/clearance verdict itself is exact",
+    "circuitpy.checks still reads pads and holes unrotated in its own hole-clearance "
+    "check, so the delegated dfm_* findings carry that blind spot",
     "solder mask, silkscreen and paste are out of scope — they are not routing",
 )
 
@@ -332,9 +345,7 @@ def keepout_findings(
         if item.kind in ("trace", "via")
     ]
     for keepout in problem.keepouts:
-        zone = rect_capsule(
-            keepout.center.x, keepout.center.y, keepout.width_mm, keepout.height_mm
-        )
+        zone = keepout_capsule(keepout)
         for item in routed:
             if not set(item.layers) & set(keepout.layers):
                 continue

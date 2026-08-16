@@ -63,12 +63,15 @@ from typing import Callable, Sequence
 from routerlib.bench import inset_polygon
 from routerlib.geometry import (
     PolygonIndex,
+    capsule_bbox,
     capsule_gap,
+    core_halfplanes,
     disc_capsule,
     drill_capsule,
+    keepout_capsule,
     pad_capsule,
-    rect_capsule,
     segment_capsule,
+    stadium_capsule,
 )
 from routerlib.model import (
     BOTTOM,
@@ -389,6 +392,48 @@ class Field:
                     continue
                 cells[i] = code if value == FREE else HARD
 
+    def stamp_shape(self, capsule, extra: float, code: int) -> None:
+        """:meth:`stamp` for a shape that is not a stadium.
+
+        Row spans come from the core's own outward edge lines instead of a
+        stadium's: ``max`` over them is negative inside the shape and the true
+        distance outside it, under-reading only in the wedge past a corner,
+        where it claims a cell or two more than it must. That is the safe
+        direction; the inscribed stadium this replaces left the corner of every
+        rectangular pad unclaimed by 0.21mm.
+        """
+        planes = core_halfplanes(capsule)
+        if not planes:
+            return
+        reach = capsule.sweep + extra
+        grid = self.grid
+        pitch = grid.pitch
+        nx = grid.nx
+        cells = self.cells
+        bx0, by0, bx1, by1 = capsule_bbox(capsule)
+        r0 = max(0, int(math.ceil((by0 - extra - grid.y0) / pitch)))
+        r1 = min(grid.ny - 1, int(math.floor((by1 + extra - grid.y0) / pitch)))
+        c_lo = max(0, int(math.ceil((bx0 - extra - grid.x0) / pitch)))
+        c_hi = min(nx - 1, int(math.floor((bx1 + extra - grid.x0) / pitch)))
+        if r1 < r0 or c_hi < c_lo:
+            return
+        for row in range(r0, r1 + 1):
+            cy = grid.y0 + row * pitch
+            base = row * nx
+            cx = grid.x0 + c_lo * pitch
+            for column in range(c_lo, c_hi + 1):
+                worst = -1e18
+                for pnx, pny, off in planes:
+                    d = pnx * cx + pny * cy - off
+                    if d > worst:
+                        worst = d
+                if worst <= reach:
+                    index = base + column
+                    value = cells[index]
+                    if value != code:
+                        cells[index] = code if value == FREE else HARD
+                cx += pitch
+
     def mark(
         self, ax: float, ay: float, bx: float, by: float, radius: float, value: int
     ) -> None:
@@ -684,16 +729,23 @@ class _Session:
             shapes = [pad_capsule(pad)]
             if pad in self._rotated_pads:
                 shapes.append(
-                    rect_capsule(
+                    stadium_capsule(
                         pad.center.x, pad.center.y, pad.width_mm, pad.height_mm, 0.0
                     )
                 )
-            for ax, ay, bx, by, radius in shapes:
-                reach = radius + half + margins.clearance
+            for shape in shapes:
                 for layer in pad.layers:
                     target = fields.get(layer)
-                    if target is not None:
-                        target.stamp(ax, ay, bx, by, reach, code)
+                    if target is None:
+                        continue
+                    if getattr(shape, "core", None) is not None:
+                        target.stamp_shape(shape, half + margins.clearance, code)
+                    else:
+                        ax, ay, bx, by, radius = shape
+                        target.stamp(
+                            ax, ay, bx, by,
+                            radius + half + margins.clearance, code,
+                        )
 
         for drill in problem.drills:
             ax, ay, bx, by, radius = drill_capsule(drill)
@@ -705,14 +757,18 @@ class _Session:
                 layer_field.stamp(ax, ay, bx, by, reach, code)
 
         for keepout in problem.keepouts:
-            ax, ay, bx, by, radius = rect_capsule(
-                keepout.center.x, keepout.center.y, keepout.width_mm, keepout.height_mm
-            )
-            reach = radius + half + margins.keepout
+            zone = keepout_capsule(keepout)
             for layer in keepout.layers:
                 target = fields.get(layer)
-                if target is not None:
-                    target.stamp(ax, ay, bx, by, reach, HARD)
+                if target is None:
+                    continue
+                if getattr(zone, "core", None) is not None:
+                    target.stamp_shape(zone, half + margins.keepout, HARD)
+                else:
+                    ax, ay, bx, by, radius = zone
+                    target.stamp(
+                        ax, ay, bx, by, radius + half + margins.keepout, HARD
+                    )
 
         for trace in problem.existing_traces:
             target = fields.get(trace.layer)
@@ -760,10 +816,14 @@ class _Session:
         for pad in self.problem.pads:
             if not pad.is_smd:
                 continue
-            ax, ay, bx, by, radius = pad_capsule(pad)
-            field_.stamp(ax, ay, bx, by, radius + drill_r, HARD)
+            shape = pad_capsule(pad)
+            if getattr(shape, "core", None) is not None:
+                field_.stamp_shape(shape, drill_r, HARD)
+            else:
+                ax, ay, bx, by, radius = shape
+                field_.stamp(ax, ay, bx, by, radius + drill_r, HARD)
             if pad in self._rotated_pads:
-                ax, ay, bx, by, radius = rect_capsule(
+                ax, ay, bx, by, radius = stadium_capsule(
                     pad.center.x, pad.center.y, pad.width_mm, pad.height_mm, 0.0
                 )
                 field_.stamp(ax, ay, bx, by, radius + drill_r, HARD)
@@ -865,7 +925,7 @@ class _Session:
             for other in self._rotated_pads:
                 if other.net and other.net == net:
                     continue
-                flat = rect_capsule(
+                flat = stadium_capsule(
                     other.center.x, other.center.y, other.width_mm, other.height_mm, 0.0
                 )
                 if capsule_gap(hole, flat) < rules.min_via_to_copper_mm:

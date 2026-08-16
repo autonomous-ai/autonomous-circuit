@@ -1,5 +1,5 @@
 {
- "schema": "routerlib/manifest@1",
+ "schema": "routerlib/manifest@2",
  "generatedAt": "2026-08-15T23:43:44",
  "measuredAgainst": {
   "gitHead": "806561d",
@@ -10,7 +10,7 @@
   {
    "id": "harness-puck",
    "file": "harness-puck.json",
-   "placementHash": "ef45db724309",
+   "placementHash": "484d827bf5be",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -56,7 +56,7 @@
   {
    "id": "hydrate-coaster-plane",
    "file": "hydrate-coaster-plane.json",
-   "placementHash": "639e6cbc1e83",
+   "placementHash": "009ed77b5a70",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -103,7 +103,7 @@
   {
    "id": "hydrate-coaster",
    "file": "hydrate-coaster.json",
-   "placementHash": "639e6cbc1e83",
+   "placementHash": "009ed77b5a70",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -149,7 +149,7 @@
   {
    "id": "matrix-i2c-bus",
    "file": "matrix-i2c-bus.json",
-   "placementHash": "b833adeafa3c",
+   "placementHash": "916b0e7f4a66",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -197,7 +197,7 @@
   {
    "id": "matrix-i2c-bus__ldo-3v3__usb-c-power",
    "file": "matrix-i2c-bus__ldo-3v3__usb-c-power.json",
-   "placementHash": "f560c84c2481",
+   "placementHash": "c503a0a2b65b",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -247,7 +247,7 @@
   {
    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
    "file": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane.json",
-   "placementHash": "218dc144c9c0",
+   "placementHash": "9e5a322b9f85",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -298,7 +298,7 @@
   {
    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power",
    "file": "matrix-ldo-3v3__rp2040-core__usb-c-power.json",
-   "placementHash": "218dc144c9c0",
+   "placementHash": "9e5a322b9f85",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -348,7 +348,7 @@
   {
    "id": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
    "file": "matrix-ldo-3v3__sensor-bme280__usb-c-power.json",
-   "placementHash": "7c1624bfa745",
+   "placementHash": "3e0a7592775f",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -398,7 +398,7 @@
   {
    "id": "matrix-ldo-3v3__usb-c-power",
    "file": "matrix-ldo-3v3__usb-c-power.json",
-   "placementHash": "7669e2c4a705",
+   "placementHash": "05a446cd05ce",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -447,7 +447,7 @@
   {
    "id": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
    "file": "matrix-ldo-3v3__usb-c-power__ws2812-chain.json",
-   "placementHash": "01f75a1daea6",
+   "placementHash": "c535e430adde",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -497,7 +497,7 @@
   {
    "id": "matrix-rp2040-core__sw-tact",
    "file": "matrix-rp2040-core__sw-tact.json",
-   "placementHash": "cece97b72c3b",
+   "placementHash": "4e9c1fa77221",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -546,7 +546,7 @@
   {
    "id": "matrix-rp2040-core__usb-c-data",
    "file": "matrix-rp2040-core__usb-c-data.json",
-   "placementHash": "264e0c1d024a",
+   "placementHash": "7b2be1b2b490",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -595,7 +595,7 @@
   {
    "id": "matrix-status-led",
    "file": "matrix-status-led.json",
-   "placementHash": "e064ea715d46",
+   "placementHash": "28fdb671f17b",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -643,7 +643,7 @@
   {
    "id": "matrix-status-led__ws2812-chain",
    "file": "matrix-status-led__ws2812-chain.json",
-   "placementHash": "f3284c0e4256",
+   "placementHash": "667292f81461",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -692,7 +692,7 @@
   {
    "id": "terminal-keyboard-plane",
    "file": "terminal-keyboard-plane.json",
-   "placementHash": "289487d0ece3",
+   "placementHash": "e57b004b4304",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -754,7 +754,7 @@
   {
    "id": "terminal-keyboard",
    "file": "terminal-keyboard.json",
-   "placementHash": "289487d0ece3",
+   "placementHash": "e57b004b4304",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -812,5 +812,236 @@
     ]
    }
   }
- ]
+ ],
+ "rebaseline": {
+  "at": "2026-08-16T07:41:44",
+  "gitHead": "9019152",
+  "why": "pads and keepouts are measured as their true shapes instead of their inscribed stadiums; shape joined the placement hash, so every hash moved once. Placement coordinates are unchanged \u2014 the fixtures were upgraded in place, not rebuilt.",
+  "instances": [
+   {
+    "id": "harness-puck",
+    "source": "examples/harness-puck/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "ef45db724309",
+    "newPlacementHash": "484d827bf5be",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 228,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 9,
+    "keepoutsShaped": 4
+   },
+   {
+    "id": "hydrate-coaster-plane",
+    "source": "examples/hydrate-coaster/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "639e6cbc1e83",
+    "newPlacementHash": "009ed77b5a70",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 174,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 10,
+    "keepoutsShaped": 5
+   },
+   {
+    "id": "hydrate-coaster",
+    "source": "examples/hydrate-coaster/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "639e6cbc1e83",
+    "newPlacementHash": "009ed77b5a70",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 174,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 10,
+    "keepoutsShaped": 5
+   },
+   {
+    "id": "matrix-i2c-bus",
+    "source": "work/tournament/cells/i2c-bus/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "b833adeafa3c",
+    "newPlacementHash": "916b0e7f4a66",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 4,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 0,
+    "drillsShaped": 2,
+    "keepoutsShaped": 0
+   },
+   {
+    "id": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+    "source": "work/tournament/cells/i2c-bus__ldo-3v3__usb-c-power/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "f560c84c2481",
+    "newPlacementHash": "c503a0a2b65b",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 40,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+    "source": "work/tournament/cells/ldo-3v3__rp2040-core__usb-c-power/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "218dc144c9c0",
+    "newPlacementHash": "9e5a322b9f85",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 147,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+    "source": "work/tournament/cells/ldo-3v3__rp2040-core__usb-c-power/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "218dc144c9c0",
+    "newPlacementHash": "9e5a322b9f85",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 147,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+    "source": "work/tournament/cells/ldo-3v3__sensor-bme280__usb-c-power/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "7c1624bfa745",
+    "newPlacementHash": "3e0a7592775f",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 48,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-ldo-3v3__usb-c-power",
+    "source": "work/tournament/cells/ldo-3v3__usb-c-power/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "7669e2c4a705",
+    "newPlacementHash": "05a446cd05ce",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 36,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+    "source": "work/tournament/cells/ldo-3v3__usb-c-power__ws2812-chain/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "01f75a1daea6",
+    "newPlacementHash": "c535e430adde",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 62,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-rp2040-core__sw-tact",
+    "source": "work/tournament/cells/rp2040-core__sw-tact/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "cece97b72c3b",
+    "newPlacementHash": "4e9c1fa77221",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 115,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 0,
+    "drillsShaped": 2,
+    "keepoutsShaped": 0
+   },
+   {
+    "id": "matrix-rp2040-core__usb-c-data",
+    "source": "work/tournament/cells/rp2040-core__usb-c-data/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "264e0c1d024a",
+    "newPlacementHash": "7b2be1b2b490",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 143,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 4,
+    "drillsShaped": 8,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "matrix-status-led",
+    "source": "work/tournament/cells/status-led/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "e064ea715d46",
+    "newPlacementHash": "28fdb671f17b",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 4,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 0,
+    "drillsShaped": 2,
+    "keepoutsShaped": 0
+   },
+   {
+    "id": "matrix-status-led__ws2812-chain",
+    "source": "work/tournament/cells/status-led__ws2812-chain/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "f3284c0e4256",
+    "newPlacementHash": "667292f81461",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 30,
+    "padsUnmatched": 0,
+    "polygonsRecovered": 0,
+    "drillsShaped": 2,
+    "keepoutsShaped": 0
+   },
+   {
+    "id": "terminal-keyboard-plane",
+    "source": "examples/terminal-keyboard/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "289487d0ece3",
+    "newPlacementHash": "e57b004b4304",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 354,
+    "padsUnmatched": 104,
+    "polygonsRecovered": 4,
+    "drillsShaped": 12,
+    "keepoutsShaped": 1
+   },
+   {
+    "id": "terminal-keyboard",
+    "source": "examples/terminal-keyboard/boards/main.circuit.json",
+    "oldSchema": "routerlib/instance@1",
+    "oldPlacementHash": "289487d0ece3",
+    "newPlacementHash": "e57b004b4304",
+    "baselineErrorsBefore": 0,
+    "baselineErrorsAfter": 0,
+    "padsShaped": 354,
+    "padsUnmatched": 104,
+    "polygonsRecovered": 4,
+    "drillsShaped": 12,
+    "keepoutsShaped": 1
+   }
+  ]
+ }
 }

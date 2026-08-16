@@ -40,7 +40,12 @@ from routerlib.model import (
 )
 
 #: Version of the scoring contract itself. Bump when a tier changes meaning.
-SCORER_VERSION = "1"
+#:
+#: ``2`` (2026-08-16): pads and keepouts are measured as their true shapes
+#: instead of their inscribed stadiums. No tier changed, but every legality
+#: number did, so a ``1`` score and a ``2`` score are not comparable and the
+#: hash has to say so.
+SCORER_VERSION = "2"
 
 #: How far apart two halves of a differential pair may run and still count as
 #: coupled: three times the design gap. Wider than that and the pair is two

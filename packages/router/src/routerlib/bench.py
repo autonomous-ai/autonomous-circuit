@@ -44,7 +44,11 @@ from routerlib.model import (
     empty_solution,
 )
 
-SCHEMA = "routerlib/instance@1"
+#: ``@2`` adds the fields that make a pad its real shape: a polygon pad's
+#: vertices, a rounded pad's corner radius, a drill's and a keepout's own
+#: shape and rotation. ``@1`` files are refused rather than silently read as
+#: rectangles, because reading them that way is exactly the defect.
+SCHEMA = "routerlib/instance@2"
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 INSTANCE_DIR = PACKAGE_ROOT / "benchmarks" / "instances"
 MANIFEST = PACKAGE_ROOT / "benchmarks" / "manifest.json"
@@ -93,6 +97,11 @@ def problem_to_dict(problem: RoutingProblem, *, source: dict | None = None) -> d
                 "portId": p.port_id,
                 "drillId": p.drill_id,
                 "rot": p.rotation_deg,
+                # Schema 2. A pad that arrives without these is a pad whose
+                # real outline was thrown away upstream, which is the defect
+                # this schema exists to close.
+                "points": [[v.x, v.y] for v in p.vertices] or None,
+                "cornerRadiusMm": p.corner_radius_mm or None,
             }
             for p in problem.pads
         ],
@@ -108,6 +117,7 @@ def problem_to_dict(problem: RoutingProblem, *, source: dict | None = None) -> d
                 "component": d.component,
                 "padId": d.pad_id,
                 "rot": d.rotation_deg,
+                "shape": d.shape,
             }
             for d in problem.drills
         ],
@@ -120,6 +130,8 @@ def problem_to_dict(problem: RoutingProblem, *, source: dict | None = None) -> d
                 "h": k.height_mm,
                 "layers": list(k.layers),
                 "shape": k.shape,
+                "rot": k.rotation_deg,
+                "points": [[v.x, v.y] for v in k.vertices] or None,
             }
             for k in problem.keepouts
         ],
@@ -183,6 +195,8 @@ def problem_from_dict(data: dict, *, rules: DesignRules | None = None) -> Routin
             port_id=p.get("portId"),
             drill_id=p.get("drillId"),
             rotation_deg=float(p.get("rot", 0.0) or 0.0),
+            vertices=tuple(Point(x, y) for x, y in (p.get("points") or ())),
+            corner_radius_mm=float(p.get("cornerRadiusMm") or 0.0),
         )
         for p in data.get("pads", ())
     )
@@ -197,6 +211,7 @@ def problem_from_dict(data: dict, *, rules: DesignRules | None = None) -> Routin
             component=d.get("component", ""),
             pad_id=d.get("padId"),
             rotation_deg=float(d.get("rot", 0.0) or 0.0),
+            shape=d.get("shape", "pill"),
         )
         for d in data.get("drills", ())
     )
@@ -208,6 +223,8 @@ def problem_from_dict(data: dict, *, rules: DesignRules | None = None) -> Routin
             height_mm=float(k["h"]),
             layers=tuple(k.get("layers") or (TOP, BOTTOM)),
             shape=k.get("shape", "rect"),
+            rotation_deg=float(k.get("rot", 0.0) or 0.0),
+            vertices=tuple(Point(x, y) for x, y in (k.get("points") or ())),
         )
         for k in data.get("keepouts", ())
     )
@@ -267,6 +284,12 @@ def placement_hash(problem: RoutingProblem) -> str:
     other agents rebuild those boards several times a day, and a rebuild can
     renumber every pad. Scoring drifted copper against a stale instance
     produces a number that looks like a score and means nothing.
+
+    **Shape is in the hash as of 2026-08-16.** It was not, and it had to be:
+    two placements that differ only in whether a pad is a rectangle or a
+    polygon are two different boards, and the hash that called them the same
+    was hiding the geometry the router is graded against. Adding it moved every
+    instance's hash once, on purpose — see the manifest's ``rebaseline`` block.
     """
     import hashlib
 
@@ -280,16 +303,19 @@ def placement_hash(problem: RoutingProblem) -> str:
         ],
         "pads": sorted(
             [p.id, p.net or "", p.center.x, p.center.y, p.width_mm, p.height_mm,
-             p.kind, round(p.rotation_deg, 4), list(p.layers)]
+             p.kind, round(p.rotation_deg, 4), list(p.layers), p.shape,
+             round(p.corner_radius_mm, 6),
+             [[v.x, v.y] for v in p.vertices]]
             for p in problem.pads
         ),
         "drills": sorted(
             [d.id, d.center.x, d.center.y, d.width_mm, d.height_mm, d.plated,
-             round(d.rotation_deg, 4)]
+             round(d.rotation_deg, 4), d.shape]
             for d in problem.drills
         ),
         "keepouts": sorted(
-            [k.id, k.center.x, k.center.y, k.width_mm, k.height_mm]
+            [k.id, k.center.x, k.center.y, k.width_mm, k.height_mm, k.shape,
+             round(k.rotation_deg, 4), [[v.x, v.y] for v in k.vertices]]
             for k in problem.keepouts
         ),
     }

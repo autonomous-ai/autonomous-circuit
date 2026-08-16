@@ -147,11 +147,13 @@ from routerlib.geometry import (
     Capsule,
     GridIndex,
     PolygonIndex,
+    capsule_bbox,
     capsule_gap,
+    core_halfplanes,
     disc_capsule,
     drill_capsule,
+    keepout_capsule,
     pad_capsule,
-    rect_capsule,
     segment_capsule,
     stadium,
 )
@@ -315,11 +317,13 @@ class _Grid:
         capsule's copper edge. Conservative by half a cell is fine; the
         workspace re-measures anything that becomes copper."""
         ax, ay, bx, by, radius = capsule
-        reach = radius + grow
-        lo_x = int(math.floor((min(ax, bx) - reach - self.x0) / self.pitch))
-        hi_x = int(math.ceil((max(ax, bx) + reach - self.x0) / self.pitch))
-        lo_y = int(math.floor((min(ay, by) - reach - self.y0) / self.pitch))
-        hi_y = int(math.ceil((max(ay, by) + reach - self.y0) / self.pitch))
+        planes = core_halfplanes(capsule)
+        reach = (capsule.sweep if planes is not None else radius) + grow
+        bx0, by0, bx1, by1 = capsule_bbox(capsule)
+        lo_x = int(math.floor((bx0 - grow - self.x0) / self.pitch))
+        hi_x = int(math.ceil((bx1 + grow - self.x0) / self.pitch))
+        lo_y = int(math.floor((by0 - grow - self.y0) / self.pitch))
+        hi_y = int(math.ceil((by1 + grow - self.y0) / self.pitch))
         lo_x = max(lo_x, 0)
         lo_y = max(lo_y, 0)
         hi_x = min(hi_x, self.nx - 1)
@@ -328,7 +332,18 @@ class _Grid:
             return np.empty(0, dtype=np.int64)
         xs = self._xs[lo_x : hi_x + 1][None, :]
         ys = self._ys[lo_y : hi_y + 1][:, None]
-        field = _segment_distance_field(xs, ys, ax, ay, bx, by)
+        if planes is None:
+            field = _segment_distance_field(xs, ys, ax, ay, bx, by)
+        else:
+            # A rectangle, a keepout, a polygon pad: the largest signed
+            # distance to the core's own edge lines. Negative inside, exact
+            # outside except in the wedge past a corner, where it under-reads
+            # and claims a cell or two extra — the safe direction, and the
+            # opposite of the inscribed stadium this replaced.
+            field = None
+            for pnx, pny, off in planes:
+                d = pnx * xs + pny * ys - off
+                field = d if field is None else np.maximum(field, d)
         rows, cols = np.nonzero(field <= reach)
         if rows.size == 0:
             return np.empty(0, dtype=np.int64)
@@ -389,12 +404,7 @@ class _Static:
             self.own[key] = own
 
             for keepout in problem.keepouts:
-                capsule = rect_capsule(
-                    keepout.center.x,
-                    keepout.center.y,
-                    keepout.width_mm,
-                    keepout.height_mm,
-                )
+                capsule = keepout_capsule(keepout)
                 cells = grid.cells_near(capsule, radius)
                 for layer in keepout.layers:
                     if layer in LAYERS:

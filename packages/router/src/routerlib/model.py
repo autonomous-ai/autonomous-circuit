@@ -151,13 +151,25 @@ class Drill:
     #: different obstacle from the same slot upright, and the pipeline's own
     #: DFM gate does not read this field yet — see README, "known divergence".
     rotation_deg: float = 0.0
+    #: ``pill`` covers a round hole and a slot, which is every hole
+    #: circuit.json emits. A drill that says ``rect`` gets a rectangle.
+    shape: str = "pill"
 
 
 @dataclass(frozen=True)
 class Pad:
     """A landing the router must reach. ``kind`` is ``"smd"`` or
     ``"plated_hole"``; a plated hole is reachable from both layers, an SMD pad
-    only from the one it sits on."""
+    only from the one it sits on.
+
+    **``shape`` is load-bearing geometry, not a label.** Until 2026-08-16 this
+    class kept only width, height and rotation, so a ``polygon`` pad's vertices
+    and a ``circle`` pad's radius were thrown away before any router saw them
+    and every rectangle was measured as its inscribed stadium — the corner of a
+    1.0mm square pad protruding 0.21mm through a 0.09mm gate. ``vertices`` and
+    ``corner_radius_mm`` exist so the real outline survives the trip from
+    circuit.json into the benchmark.
+    """
 
     id: str
     net: str | None
@@ -166,6 +178,9 @@ class Pad:
     height_mm: float
     layers: tuple[str, ...]
     kind: Literal["smd", "plated_hole"] = "smd"
+    #: ``rect`` / ``rotated_rect`` / ``circle`` / ``pill`` / ``rotated_pill`` /
+    #: ``polygon``, straight off ``pcb_smtpad``. An unknown shape is read as a
+    #: rectangle, which is the conservative reading.
     shape: str = "rect"
     component: str = ""
     port_id: str | None = None
@@ -174,6 +189,14 @@ class Pad:
     #: 2.25 x 0.63mm pill at 270 degrees on a 1.27mm pitch is eight separate
     #: pads; read as unrotated it is one bar shorting six nets.
     rotation_deg: float = 0.0
+    #: The true outline of a ``polygon`` pad. Present, it wins over everything
+    #: else; ``center``/``width``/``height`` stay as the bounding box so
+    #: features and displays keep working.
+    vertices: tuple[Point, ...] = ()
+    #: Corner rounding, from ``pcb_smtpad.radius``. At ``min(w, h) / 2`` a
+    #: rounded rectangle *is* a pill, and the shape model degenerates to the
+    #: stadium on its own.
+    corner_radius_mm: float = 0.0
 
     @property
     def is_smd(self) -> bool:
@@ -186,7 +209,13 @@ class Pad:
 @dataclass(frozen=True)
 class Keepout:
     """Copper is forbidden here on the listed layers. Antenna clearances,
-    connector shells, mounting-boss footprints."""
+    connector shells, mounting-boss footprints.
+
+    A keepout is where the inscribed-stadium model did the most damage: on the
+    7.3 x 1.23mm rectangle of the USB-C block it cut 0.255mm off each corner,
+    2.8 times the clearance gate, and turned a board that was ``fab.ready``
+    into five blocking findings the harness could not see.
+    """
 
     id: str
     center: Point
@@ -194,6 +223,8 @@ class Keepout:
     height_mm: float
     layers: tuple[str, ...] = LAYERS_2
     shape: str = "rect"
+    rotation_deg: float = 0.0
+    vertices: tuple[Point, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -31,9 +31,9 @@ from routerlib.geometry import (
     distance_to_polygon,
     PolygonIndex,
     drill_capsule as _drill_capsule,
+    keepout_capsule,
     pad_capsule,
     point_in_polygon,
-    rect_capsule,
     segment_capsule,
 )
 from routerlib.model import (
@@ -94,9 +94,7 @@ class Workspace:
         for drill in problem.drills:
             self._drills.insert(_drill_capsule(drill), drill)
         for keepout in problem.keepouts:
-            capsule = rect_capsule(
-                keepout.center.x, keepout.center.y, keepout.width_mm, keepout.height_mm
-            )
+            capsule = keepout_capsule(keepout)
             for layer in keepout.layers:
                 self._keepouts.setdefault(layer, GridIndex(2.0)).insert(
                     capsule, keepout
@@ -177,13 +175,7 @@ class Workspace:
                 return Blocker("board_edge")
 
         for _, keepout in self._keepouts.get(layer, GridIndex(2.0)).query(capsule, 0.05):
-            if capsule_gap(
-                capsule,
-                rect_capsule(
-                    keepout.center.x, keepout.center.y,
-                    keepout.width_mm, keepout.height_mm,
-                ),
-            ) < 0.0:
+            if capsule_gap(capsule, keepout_capsule(keepout)) < 0.0:
                 return Blocker("keepout", keepout.id)
 
         margin = self.clearance + 0.05

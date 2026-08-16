@@ -85,10 +85,13 @@ _bootstrap()
 
 from routerlib.geometry import (  # noqa: E402
     Capsule,
+    capsule_bbox,
+    core_halfplanes,
     disc_capsule,
     drill_capsule,
+    keepout_capsule,
     pad_capsule,
-    rect_capsule,
+    point_shape_distance,
     segment_capsule,
 )
 from routerlib.model import (  # noqa: E402
@@ -277,6 +280,10 @@ def _stamp(grid: list, spec: GridSpec, cap: Capsule, extra: float, value: int) -
     value, a different owner becomes :data:`BLOCKED`, the same owner is left
     alone. The geometry happens once, here, and never again inside the search.
     """
+    planes = core_halfplanes(cap)
+    if planes is not None:
+        _stamp_shape(grid, spec, cap, planes, extra, value)
+        return
     ax, ay, bx, by, r = cap
     rr = r + extra
     if rr <= 0.0:
@@ -335,6 +342,50 @@ def _stamp(grid: list, spec: GridSpec, cap: Capsule, extra: float, value: int) -
             ex = x - (ax + t * dx)
             ey = y - (ay + t * dy)
             if ex * ex + ey * ey <= rr2:
+                idx = base + i
+                cur = grid[idx]
+                if cur == FREE:
+                    grid[idx] = value
+                elif cur != value:
+                    grid[idx] = BLOCKED
+            x += px
+
+
+def _stamp_shape(
+    grid: list, spec: GridSpec, cap, planes, extra: float, value: int
+) -> None:
+    """:func:`_stamp` for a shape that is not a stadium — a rectangular pad, a
+    keepout, a polygon pad.
+
+    The cell test is ``max`` over the core's outward edge lines rather than a
+    distance to a spine. Inside the core every line is negative, so the pad's
+    interior is covered; outside, the value is the true distance except in the
+    wedge past a corner, where it under-reads and therefore paints a few cells
+    more than strictly necessary. Under this model the router is slightly
+    *cautious* at a pad corner. Under the stadium it was 0.21mm optimistic, and
+    that is the defect this replaces.
+    """
+    reach = cap.sweep + extra
+    x0, y0, x1, y1 = capsule_bbox(cap)
+    px = spec.pitch
+    i0 = max(0, int((x0 - extra - spec.x0) / px))
+    i1 = min(spec.nx - 1, int((x1 + extra - spec.x0) / px) + 1)
+    j0 = max(0, int((y0 - extra - spec.y0) / px))
+    j1 = min(spec.ny - 1, int((y1 + extra - spec.y0) / px) + 1)
+    if i1 < i0 or j1 < j0:
+        return
+    nx = spec.nx
+    for j in range(j0, j1 + 1):
+        y = spec.y0 + (j + 0.5) * px
+        base = j * nx
+        x = spec.x0 + (i0 + 0.5) * px
+        for i in range(i0, i1 + 1):
+            worst = -1e18
+            for pnx, pny, off in planes:
+                d = pnx * x + pny * y - off
+                if d > worst:
+                    worst = d
+            if worst <= reach:
                 idx = base + i
                 cur = grid[idx]
                 if cur == FREE:
@@ -510,10 +561,7 @@ class GridBoard:
         # Keepouts: copper may not overlap one at all — no clearance term, the
         # zone is the zone.
         for keepout in problem.keepouts:
-            cap = rect_capsule(
-                keepout.center.x, keepout.center.y,
-                keepout.width_mm, keepout.height_mm,
-            )
+            cap = keepout_capsule(keepout)
             for layer in keepout.layers:
                 for width in self.widths:
                     key = (layer, _width_key(width))
@@ -1445,32 +1493,30 @@ class _State:
         inside a neighbour's clearance halo.
         """
         spec = self.board.spec
-        ax, ay, bx, by, r = pad_capsule(pad)
-        reach = r + width / 2.0 + self.clearance
+        cap = pad_capsule(pad)
+        # ``point_shape_distance`` is signed against the pad's real outline: at
+        # most 0 inside it, positive outside. Read off the inscribed stadium
+        # instead, a cell in the corner of a 1.0mm square pad measured 0.21mm
+        # of air and was offered as a landing outside the copper.
+        reach = width / 2.0 + self.clearance
         layers = [0 if layer == TOP else 1 for layer in pad.layers]
         grids = {
             index: self.board.occ[(TOP if index == 0 else BOTTOM, _width_key(width))]
             for index in layers
         }
-        dx, dy = bx - ax, by - ay
-        span2 = dx * dx + dy * dy
         inside: list[tuple[float, int, int]] = []
         near: list[tuple[float, int, int]] = []
-        i0 = max(0, int((min(ax, bx) - reach - spec.x0) / spec.pitch))
-        i1 = min(spec.nx - 1, int((max(ax, bx) + reach - spec.x0) / spec.pitch))
-        j0 = max(0, int((min(ay, by) - reach - spec.y0) / spec.pitch))
-        j1 = min(spec.ny - 1, int((max(ay, by) + reach - spec.y0) / spec.pitch))
+        bx0, by0, bx1, by1 = capsule_bbox(cap)
+        i0 = max(0, int((bx0 - reach - spec.x0) / spec.pitch))
+        i1 = min(spec.nx - 1, int((bx1 + reach - spec.x0) / spec.pitch) + 1)
+        j0 = max(0, int((by0 - reach - spec.y0) / spec.pitch))
+        j1 = min(spec.ny - 1, int((by1 + reach - spec.y0) / spec.pitch) + 1)
         for j in range(j0, j1 + 1):
             y = spec.y0 + (j + 0.5) * spec.pitch
             base = j * spec.nx
             for i in range(i0, i1 + 1):
                 x = spec.x0 + (i + 0.5) * spec.pitch
-                if span2 <= 1e-18:
-                    d = math.hypot(x - ax, y - ay)
-                else:
-                    t = ((x - ax) * dx + (y - ay) * dy) / span2
-                    t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
-                    d = math.hypot(x - (ax + t * dx), y - (ay + t * dy))
+                d = point_shape_distance(x, y, cap)
                 if d > reach:
                     continue
                 cell = base + i
@@ -1478,7 +1524,9 @@ class _State:
                     owner = grids[index][cell]
                     if owner != FREE and owner != net_index:
                         continue
-                    (inside if d <= r else near).append((round(d, 6), index, cell))
+                    (inside if d <= 0.0 else near).append(
+                        (round(d, 6), index, cell)
+                    )
         if inside:
             return PadAccess(
                 ports=tuple((i, c) for _, i, c in sorted(inside)[:24]), anchor=None

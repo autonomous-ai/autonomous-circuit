@@ -371,7 +371,7 @@ def test_vias_clear_the_unrotated_pad_model_too():
     does not, so a via 0.3mm clear of a turned pad can be reported as
     overlapping it. Until the pipeline is fixed, clearing both shapes is the
     only answer that is honest under either reading."""
-    from routerlib.geometry import rect_capsule
+    from routerlib.geometry import stadium_capsule
 
     problem = instance("matrix-rp2040-core__sw-tact")
     solution = route(problem)
@@ -382,7 +382,7 @@ def test_vias_clear_the_unrotated_pad_model_too():
         for pad in turned:
             if pad.net and pad.net == via.net:
                 continue
-            flat = rect_capsule(
+            flat = stadium_capsule(
                 pad.center.x, pad.center.y, pad.width_mm, pad.height_mm, 0.0
             )
             assert capsule_gap(hole, flat) >= problem.rules.min_via_to_copper_mm - 1e-9

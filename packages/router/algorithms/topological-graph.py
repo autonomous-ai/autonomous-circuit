@@ -148,8 +148,8 @@ from routerlib.geometry import (  # noqa: E402
     disc_capsule,
     drill_capsule,
     pad_capsule,
-    rect_capsule,
     segments_cross,
+    stadium_capsule,
 )
 from routerlib.model import (  # noqa: E402
     BOTTOM,
@@ -466,7 +466,15 @@ class Site:
 
 
 def _cover(capsule: Capsule) -> list[tuple[float, float, float]]:
-    """A capsule as a chain of discs along its spine."""
+    """A capsule as a chain of discs along its spine.
+
+    This family models every obstacle as discs — that is the whole idea, and it
+    is why the triangulation works — so a rectangle cannot be represented
+    exactly here whatever the shape model says. It therefore covers the
+    **circumscribed** stadium: the discs contain the real pad, so the router
+    plans around slightly more copper than exists and never around less. The
+    copper it emits is still measured exactly, by ``Workspace`` and the scorer.
+    """
     ax, ay, bx, by, r = capsule
     spine = math.hypot(bx - ax, by - ay)
     if spine <= 1e-9 or r <= 0.0:
@@ -874,7 +882,9 @@ class Topology:
         self.pipeline_pads = GridIndex(cell_mm=2.0)
         for pad in self.pad_list:
             self.pipeline_pads.insert(
-                rect_capsule(pad.center.x, pad.center.y, pad.width_mm, pad.height_mm),
+                stadium_capsule(
+                    pad.center.x, pad.center.y, pad.width_mm, pad.height_mm
+                ),
                 (pad.net, pad.id),
             )
 

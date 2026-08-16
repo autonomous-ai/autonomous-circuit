@@ -25,6 +25,7 @@ actually exists**.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import Iterable, Sequence
 
 from routerlib.model import (
@@ -85,18 +86,43 @@ def _num(value, default: float | None = None) -> float | None:
     return float(value)
 
 
+def _polygon_points(points) -> tuple[Point, ...]:
+    """A polygon pad's own outline, in order, as far as it is well-formed."""
+    return tuple(
+        Point(float(p["x"]), float(p["y"]))
+        for p in (points or [])
+        if isinstance(p, dict)
+        and isinstance(p.get("x"), (int, float))
+        and isinstance(p.get("y"), (int, float))
+    )
+
+
+def _corner_radius(
+    shape: str, radius: float | None, width: float | None, height: float | None
+) -> float:
+    """``pcb_smtpad.radius`` as a corner radius, clamped to what fits.
+
+    A ``pill`` states a radius of exactly half its short side and is therefore
+    a stadium; anything smaller is a rounded rectangle, and the shape model
+    covers both from this one number.
+    """
+    if radius is None or radius <= 0 or not width or not height:
+        return 0.0
+    return min(float(radius), min(float(width), float(height)) / 2.0)
+
+
 def _polygon_box(points) -> tuple[float, float, float, float] | None:
-    """``(cx, cy, width, height)`` of a polygon pad's bounding box."""
-    xs = [
-        float(p["x"]) for p in (points or [])
-        if isinstance(p, dict) and isinstance(p.get("x"), (int, float))
-    ]
-    ys = [
-        float(p["y"]) for p in (points or [])
-        if isinstance(p, dict) and isinstance(p.get("y"), (int, float))
-    ]
-    if len(xs) < 3 or len(ys) < 3:
+    """``(cx, cy, width, height)`` of a polygon pad's bounding box.
+
+    The box is no longer the pad's *model* — :func:`routerlib.geometry.pad_capsule`
+    reads the vertices — but a bounding centre and size are what the feature
+    measurements, the placement hash and every display expect a pad to have.
+    """
+    verts = _polygon_points(points)
+    if len(verts) < 3:
         return None
+    xs = [p.x for p in verts]
+    ys = [p.y for p in verts]
     return (
         (min(xs) + max(xs)) / 2.0,
         (min(ys) + max(ys)) / 2.0,
@@ -212,12 +238,15 @@ def _pads_and_drills(
         width = _num(element.get("width"), radius * 2 if radius else None)
         height = _num(element.get("height"), radius * 2 if radius else width)
         rotation = _num(element.get("ccw_rotation"), 0.0) or 0.0
-        if element.get("shape") == "polygon":
+        shape = str(element.get("shape") or "rect")
+        vertices: tuple[Point, ...] = ()
+        if shape == "polygon":
             # A polygon pad carries no centre and no size — only its outline.
             # Dropping it (what a missing x/y used to do) would hand the router
-            # a USB-C shell tab as free space. Modelled by the inscribed
-            # stadium of its bounding box, the same inward-rounding the rest of
-            # the pad model uses.
+            # a USB-C shell tab as free space; keeping only its bounding box
+            # (what this did until 2026-08-16) hands it a shape that is neither
+            # the pad nor a bound on it. The vertices are right here.
+            vertices = _polygon_points(element.get("points"))
             box = _polygon_box(element.get("points"))
             if box is None:
                 continue
@@ -237,10 +266,12 @@ def _pads_and_drills(
                 height_mm=height,
                 layers=(layer,),
                 kind="smd",
-                shape=str(element.get("shape") or "rect"),
+                shape=shape,
                 component=comp_names.get(str(element.get("pcb_component_id") or ""), ""),
                 port_id=str(port_id) if isinstance(port_id, str) else None,
                 rotation_deg=rotation,
+                vertices=vertices,
+                corner_radius_mm=_corner_radius(shape, radius, width, height),
             )
         )
 
@@ -261,6 +292,12 @@ def _pads_and_drills(
         net = port_to_key.get(str(port_id or ""))
         rotation = _num(element.get("ccw_rotation"), 0.0) or 0.0
         drill_id = f"drill_{pad_id}"
+        shape = str(element.get("shape") or "circle")
+        # A plated hole's copper is a ring: ``pill`` and ``circle`` are both
+        # exactly stadiums, and a ``rect`` pad on a hole is a real rectangle.
+        hole_shape = str(element.get("hole_shape") or "").lower() or (
+            "pill" if shape in ("pill", "circle", "oval") else shape
+        )
         pads.append(
             Pad(
                 id=pad_id,
@@ -270,11 +307,14 @@ def _pads_and_drills(
                 height_mm=outer_h,
                 layers=tuple(element.get("layers") or (TOP, BOTTOM)),
                 kind="plated_hole",
-                shape=str(element.get("shape") or "circle"),
+                shape=shape,
                 component=comp_names.get(str(element.get("pcb_component_id") or ""), ""),
                 port_id=str(port_id) if isinstance(port_id, str) else None,
                 drill_id=drill_id,
                 rotation_deg=rotation,
+                corner_radius_mm=_corner_radius(
+                    shape, _num(element.get("radius")), outer_w, outer_h
+                ),
             )
         )
         drills.append(
@@ -288,6 +328,7 @@ def _pads_and_drills(
                 component=comp_names.get(str(element.get("pcb_component_id") or ""), ""),
                 pad_id=pad_id,
                 rotation_deg=rotation,
+                shape=hole_shape,
             )
         )
 
@@ -307,6 +348,7 @@ def _pads_and_drills(
                 plated=False,
                 net=None,
                 component=comp_names.get(str(element.get("pcb_component_id") or ""), ""),
+                shape=str(element.get("hole_shape") or "circle"),
             )
         )
     return pads, drills
@@ -332,6 +374,8 @@ def _keepouts(circuit_json: Sequence[dict]) -> list[Keepout]:
                 height_mm=height,
                 layers=tuple(element.get("layers") or (TOP, BOTTOM)),
                 shape=str(element.get("shape") or "rect"),
+                rotation_deg=_num(element.get("ccw_rotation"), 0.0) or 0.0,
+                vertices=_polygon_points(element.get("points")),
             )
         )
     return out
@@ -637,6 +681,52 @@ def solution_to_elements(
 ROUTE_ELEMENT_TYPES = ("pcb_trace", "pcb_via")
 
 
+def solution_from_elements(
+    problem: RoutingProblem,
+    circuit_json: Sequence[dict],
+    *,
+    router: str = "replay",
+    iterations: int = 0,
+    nodes_expanded: int = 0,
+) -> RoutingSolution:
+    """The inverse of :func:`solution_to_elements`: copper on disk, back.
+
+    This is what makes a re-score cheap. A tournament cell costs minutes of
+    routing and milliseconds of scoring, so when the ruler changes the copper
+    does not have to be produced again — it is already written out, and the new
+    ruler can be held against exactly the boards the old one graded.
+
+    ``iterations`` and ``nodes_expanded`` are not recoverable from copper and
+    are carried in by the caller from the original run, because the cost tier
+    of the score reads them.
+    """
+    source_net_key = {
+        n.source_net_id: n.id for n in problem.nets if n.source_net_id
+    }
+    port_to_key = {p.port_id: p.net for p in problem.pads if p.port_id and p.net}
+    traces, vias = _existing_copper(circuit_json, port_to_key, source_net_key)
+    # ``solution_to_elements`` writes the net key straight onto the element;
+    # prefer it over the indirection, so a replay cannot silently lose a net.
+    direct: dict[str, str] = {}
+    for element in _elements(circuit_json, "pcb_trace"):
+        key = element.get("subcircuit_connectivity_map_key")
+        tid = element.get("pcb_trace_id")
+        if isinstance(key, str) and isinstance(tid, str):
+            direct[tid] = key
+    fixed = tuple(
+        replace(trace, net=direct.get(trace.id.split("#")[0], trace.net))
+        for trace in traces
+    )
+    return RoutingSolution(
+        router=router,
+        traces=fixed,
+        vias=tuple(vias),
+        complete=False,
+        iterations=iterations,
+        nodes_expanded=nodes_expanded,
+    )
+
+
 def apply_solution(
     circuit_json: Sequence[dict],
     problem: RoutingProblem,
@@ -711,20 +801,26 @@ def circuit_json_for_scoring(
             }
         )
         if pad.kind == "smd":
-            out.append(
-                {
-                    "type": "pcb_smtpad",
-                    "pcb_smtpad_id": pad.id,
-                    "pcb_port_id": port_id,
-                    "layer": pad.layers[0] if pad.layers else TOP,
-                    "shape": pad.shape,
-                    "width": pad.width_mm,
-                    "height": pad.height_mm,
-                    "x": pad.center.x,
-                    "y": pad.center.y,
-                    "ccw_rotation": pad.rotation_deg,
-                }
-            )
+            element = {
+                "type": "pcb_smtpad",
+                "pcb_smtpad_id": pad.id,
+                "pcb_port_id": port_id,
+                "layer": pad.layers[0] if pad.layers else TOP,
+                "shape": pad.shape,
+                "width": pad.width_mm,
+                "height": pad.height_mm,
+                "x": pad.center.x,
+                "y": pad.center.y,
+                "ccw_rotation": pad.rotation_deg,
+            }
+            # Re-emit the shape we read. A polygon pad written back as its
+            # bounding rectangle is a different pad, and the check that reads
+            # it would be answering about a board we did not measure.
+            if pad.vertices:
+                element["points"] = [p.as_dict() for p in pad.vertices]
+            if pad.corner_radius_mm:
+                element["radius"] = pad.corner_radius_mm
+            out.append(element)
         else:
             drill = next(
                 (d for d in problem.drills if d.pad_id == pad.id), None
@@ -752,7 +848,11 @@ def circuit_json_for_scoring(
             {
                 "type": "pcb_hole",
                 "pcb_hole_id": drill.id,
-                "hole_shape": "circle" if drill.width_mm == drill.height_mm else "oval",
+                "hole_shape": (
+                    drill.shape
+                    if drill.shape not in ("pill", "")
+                    else ("circle" if drill.width_mm == drill.height_mm else "oval")
+                ),
                 "hole_width": drill.width_mm,
                 "hole_height": drill.height_mm,
                 "hole_diameter": drill.width_mm,
@@ -760,6 +860,24 @@ def circuit_json_for_scoring(
                 "y": drill.center.y,
             }
         )
+    for keepout in problem.keepouts:
+        element = {
+            "type": "pcb_keepout",
+            "pcb_keepout_id": keepout.id,
+            "shape": keepout.shape,
+            "center": keepout.center.as_dict(),
+            "layers": list(keepout.layers),
+        }
+        if keepout.shape == "circle":
+            element["radius"] = keepout.width_mm / 2.0
+        else:
+            element["width"] = keepout.width_mm
+            element["height"] = keepout.height_mm
+        if keepout.rotation_deg:
+            element["ccw_rotation"] = keepout.rotation_deg
+        if keepout.vertices:
+            element["points"] = [p.as_dict() for p in keepout.vertices]
+        out.append(element)
     # source_net + source_trace rows so power_width_warnings can see which
     # nets are rails and which track belongs to which.
     source_trace_for: dict[str, str] = {}
@@ -814,6 +932,7 @@ def circuit_json_for_scoring(
 
 __all__ = [
     "ROUTE_ELEMENT_TYPES",
+    "solution_from_elements",
     "apply_solution",
     "circuit_json_for_scoring",
     "classify_nets",
