@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { CircleAlert, CircleCheck, CircleDashed, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
+import { helpVerdict, readRoutingHelp } from "@/lib/routingHelp.js";
 import { formatElapsed } from "./buildStatus.js";
 import { useLiveElapsed } from "./useLiveElapsed.js";
 
@@ -68,9 +69,17 @@ export default function BoardVerdict({
   onFix,
   className,
 }) {
+  // When copper is missing, the router's own diagnosis replaces the finding
+  // count in this strip. "A connection was never drawn, in 7 places" is a
+  // symptom; "move U3 0.2mm up the board and 4 of them go through" is the
+  // decision the strip exists to surface.
+  const help = useMemo(
+    () => helpVerdict(readRoutingHelp(sidecar), { board: boardName }),
+    [sidecar, boardName],
+  );
   const verdict = useMemo(
-    () => boardVerdict({ sidecar, groups, building, buildLine, boardName, turnActive }),
-    [sidecar, groups, building, buildLine, boardName, turnActive],
+    () => boardVerdict({ sidecar, groups, building, buildLine, boardName, turnActive, help }),
+    [sidecar, groups, building, buildLine, boardName, turnActive, help],
   );
   const tone = TONE[verdict.tone] || TONE.unknown;
   const Icon = tone.icon;
@@ -126,7 +135,10 @@ export default function BoardVerdict({
         <span className="hidden shrink-0 font-mono text-[11px] text-muted-foreground lg:inline">{shape}</span>
       ) : null}
 
-      {verdict.tone === "blocked" && verdict.blockingCount ? (
+      {/* One ask, not two. When the router has a measured request, "Fix all 7"
+          hands over seven symptoms of the same cause and the request hands over
+          the cause — so the request wins the space. */}
+      {verdict.tone === "blocked" && verdict.blockingCount && !help ? (
         <button
           type="button"
           onClick={fixAll}

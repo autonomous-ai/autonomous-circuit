@@ -5,6 +5,7 @@ import {
   ChevronUp,
   CircleAlert,
   Crosshair,
+  HelpCircle,
   Info,
   MessageSquarePlus,
   TriangleAlert,
@@ -12,6 +13,7 @@ import {
 import { cn } from "@/ui/utils";
 import { buildMessages, messageCounts } from "@/lib/boardViolations.js";
 import { IMPACT, groupFindings, groupFixRequest, impactCounts } from "@/lib/plainLanguage.js";
+import { helpCards, helpRequestAll, readRoutingHelp } from "@/lib/routingHelp.js";
 import { normalizeWarnings, warningNoteText } from "./boardData.js";
 
 const SEVERITY_ICON = { error: CircleAlert, warning: TriangleAlert, info: Info };
@@ -92,6 +94,13 @@ export default function MessagesPanel({
   const shownGroups = useMemo(
     () => (filter === "all" ? groups : groups.filter((group) => group.rows.some((row) => row.severity === filter))),
     [groups, filter],
+  );
+  // The requests sit above the findings, because they are about the findings.
+  // Seven "a connection was never drawn" rows and one "move U3 0.2mm up the
+  // board" are the same event, and only one of them can be acted on.
+  const requests = useMemo(
+    () => helpCards(readRoutingHelp(sidecar), { board: boardName }),
+    [sidecar, boardName],
   );
 
   const header = (
@@ -195,6 +204,28 @@ export default function MessagesPanel({
     <div data-slot="messages-panel" className={cn("flex h-52 shrink-0 flex-col", className)}>
       {header}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        {requests.length ? (
+          <div data-slot="routing-help" className="border-b border-border/60 bg-primary/[0.04]">
+            <div className="flex items-center gap-2 px-3 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <HelpCircle className="size-3" aria-hidden />
+              What the wiring needs from you
+              {requests.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => onPrefillNote?.(helpRequestAll(readRoutingHelp(sidecar), { board: boardName }))}
+                  data-slot="routing-help-all"
+                  className="ml-auto rounded px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-muted-foreground/70 transition-colors hover:bg-primary/15 hover:text-foreground"
+                >
+                  Ask about all {requests.length}
+                </button>
+              ) : null}
+            </div>
+            {requests.map((card) => (
+              <RoutingRequest key={card.id} card={card} onPrefillNote={onPrefillNote} onLocate={onLocate} />
+            ))}
+          </div>
+        ) : null}
+
         {!shown.length ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             {sidecar ? "No findings at this severity — the board checks out." : "Findings appear here once the board builds."}
@@ -280,6 +311,70 @@ export default function MessagesPanel({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One request for a decision.
+ *
+ * A finding tells you something is wrong. This tells you what to change and
+ * what the measurement was — and where the measurement supports nothing, it
+ * says that in the same shape rather than going quiet. The evidence is folded
+ * away because it is the *proof*, not the message: a person who wants to check
+ * the numbers opens it, and nobody has to read it to act.
+ */
+function RoutingRequest({ card, onPrefillNote, onLocate }) {
+  const [open, setOpen] = useState(false);
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <div data-slot="routing-request" data-kind={card.kind} data-tone={card.tone} className="px-3 py-2">
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+          title={open ? "Hide what was measured" : "Show what was measured"}
+        >
+          <Chevron className="size-3" aria-hidden />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-medium text-foreground">{card.title}</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{card.body}</p>
+          {open && card.evidence.length ? (
+            <ul className="mt-1.5 space-y-0.5 border-l border-border/60 pl-2">
+              {card.evidence.map((line, index) => (
+                <li key={index} className="text-[11px] leading-relaxed text-muted-foreground/80">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        {card.at ? (
+          <button
+            type="button"
+            onClick={() => onLocate?.({ locatable: true, target: { kind: "point" }, at: card.at })}
+            title="Show me where on the board"
+            data-slot="routing-request-locate"
+            className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Crosshair className="size-3" aria-hidden />
+          </button>
+        ) : null}
+        {card.action ? (
+          <button
+            type="button"
+            onClick={() => onPrefillNote?.(card.action.request)}
+            data-slot="routing-request-action"
+            title={card.action.request}
+            className="flex shrink-0 items-center gap-1 rounded border border-border bg-foreground/[0.04] px-1.5 py-0.5 text-[11px] text-foreground transition-colors hover:bg-primary/15"
+          >
+            <MessageSquarePlus className="size-3" aria-hidden />
+            {card.action.label}
+          </button>
+        ) : null}
       </div>
     </div>
   );

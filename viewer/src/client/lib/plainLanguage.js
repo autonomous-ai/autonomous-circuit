@@ -401,6 +401,17 @@ const ISSUES = Object.freeze({
     meaning: "One step of the build stopped before it could give an answer, so its result is unknown.",
     impact: IMPACT.BLOCKS,
   },
+
+  // --- the router asking for a decision --------------------------------------
+  // Not a defect. The connections it is about are already reported as their own
+  // blocking findings; this row is the *reason* they failed, and the panel
+  // renders it as a request rather than a violation (lib/routingHelp.js).
+  routing_needs_a_decision: {
+    title: "The wiring needs a decision from you",
+    meaning:
+      "Some connections could not be drawn, and the board was measured to find out why. The request above says what would open the way.",
+    impact: IMPACT.QUALITY,
+  },
 });
 
 const BRACKET_CODE_RE = /^\s*\[([a-z0-9_]+)\]/i;
@@ -584,7 +595,9 @@ export function plural(count, one, many = `${one}s`) {
  *
  * @param {{sidecar?: object|null, groups?: Array<object>, building?: boolean,
  *          buildLine?: {tone: string, text: string, detail: string}|null,
- *          boardName?: string}} input
+ *          boardName?: string,
+ *          help?: {headline: string, line: string,
+ *                  action: {label: string, request: string}|null}|null}} input
  * @returns {{
  *   tone: "ready"|"blocked"|"building"|"failed"|"unknown",
  *   headline: string,
@@ -601,6 +614,7 @@ export function boardVerdict({
   buildLine = null,
   boardName = "",
   turnActive = false,
+  help = null,
 } = {}) {
   const blockingGroups = (Array.isArray(groups) ? groups : []).filter((g) => g.blocking);
   const blockingCount = blockingGroups.reduce((sum, g) => sum + g.count, 0);
@@ -690,6 +704,24 @@ export function boardVerdict({
   }
 
   // Not ready. Say what is left, in the order a person would fix it.
+  //
+  // When the thing that is left is missing copper, the router's own diagnosis
+  // outranks the finding list: "a connection was never drawn, in 7 places" is
+  // a symptom, and `routingHelp` carries the measured cause and the decision
+  // that would clear it. A request the person can act on beats a count they
+  // cannot. Everything else about the strip is unchanged — `fab.ready` is
+  // still the only thing that decides whether it reads as orderable.
+  if (help?.headline) {
+    return {
+      tone: "blocked",
+      headline: help.headline,
+      line: help.line,
+      blockingGroups,
+      blockingCount,
+      action: help.action || null,
+    };
+  }
+
   const headline = blockingGroups.length
     ? `Not orderable yet — ${plural(blockingGroups.length, "thing")} to fix`
     : "Not orderable yet";

@@ -1189,6 +1189,28 @@ def build_board(
             "severity": "info",
         })
 
+    # When copper is missing, say what would let it be drawn. The findings
+    # above name every unconnected net; this names the *reason* — one gap, its
+    # measured width, and where a part could move — so the person is asked for
+    # a decision instead of handed a defect list they cannot act on.
+    routing_help = router_bridge.diagnose_board(built_circuit_json)
+    if routing_help.get("ran") and routing_help.get("asks"):
+        build_block_help = routing_help
+        first = routing_help["asks"][0]
+        warnings.append({
+            "part": "board",
+            "kind": "routing_needs_a_decision",
+            "detail": (
+                f"{routing_help.get('unroutedNets', 0)} of "
+                f"{routing_help.get('routableNets', 0)} connections could not be "
+                f"drawn. {first.get('headline', '')}. "
+                + " ".join(first.get("evidence", ())[:2])
+            ),
+            "severity": "info",
+        })
+    else:
+        build_block_help = routing_help if routing_help.get("reason") else None
+
     # What the pair pass did to the attempt this build keeps, in the same
     # place and the same shape. A pair it refused is reported too: silence
     # would read as "there was nothing to do".
@@ -1244,6 +1266,8 @@ def build_board(
     }
     if kept_router.get("engine") != "off":
         build_block["router"] = kept_router
+    if build_block_help is not None:
+        build_block["routingHelp"] = build_block_help
     if diffpair_results:
         build_block["diffPair"] = diffpair_results[
             min(kept_attempt, len(diffpair_results) - 1)

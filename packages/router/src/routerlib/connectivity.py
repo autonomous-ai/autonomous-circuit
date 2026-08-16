@@ -74,7 +74,14 @@ class ConnectivityResult:
         return not self.unconnected_nets
 
 
-def analyse(problem: RoutingProblem, solution: RoutingSolution) -> ConnectivityResult:
+def _merge(problem: RoutingProblem, solution: RoutingSolution) -> _UnionFind:
+    """The union-find behind every answer in this module.
+
+    Factored out so :func:`pad_components` cannot drift from :func:`analyse`.
+    A diagnosis that grouped pads by one rule while the score counted them by
+    another would name the wrong nets, and the two rules would be one edit
+    apart from each other for ever.
+    """
     items = copper_items(problem, solution)
     uf = _UnionFind()
 
@@ -113,6 +120,40 @@ def analyse(problem: RoutingProblem, solution: RoutingSolution) -> ConnectivityR
                 continue
             uf.union(node, (item.id, plane.layer))
 
+    return uf
+
+
+def pad_components(
+    problem: RoutingProblem, solution: RoutingSolution
+) -> dict[str, tuple[tuple[str, ...], ...]]:
+    """``net id -> the pads grouped by the piece of copper they sit on``.
+
+    :func:`analyse` counts the pieces; this names them. One connected net has
+    one group, a net that failed has as many groups as the router left islands,
+    and those islands are exactly what a diagnosis has to join. Groups and the
+    pads inside them are sorted, so two runs describe the same board the same
+    way.
+    """
+    uf = _merge(problem, solution)
+    pads_by_id = problem.pads_by_id
+    out: dict[str, tuple[tuple[str, ...], ...]] = {}
+    for net in problem.routable_nets:
+        groups: dict[object, list[str]] = {}
+        for pad_id in net.pads:
+            pad = pads_by_id.get(pad_id)
+            if pad is None:
+                continue
+            groups.setdefault(uf.find((pad.id, pad.layers[0])), []).append(pad.id)
+        out[net.id] = tuple(
+            tuple(sorted(pads))
+            for pads in sorted(groups.values(), key=lambda ids: sorted(ids))
+        )
+    return out
+
+
+def analyse(problem: RoutingProblem, solution: RoutingSolution) -> ConnectivityResult:
+    uf = _merge(problem, solution)
+
     pads_by_id = problem.pads_by_id
     fragments: dict[str, int] = {}
     connected: list[str] = []
@@ -150,4 +191,4 @@ def analyse(problem: RoutingProblem, solution: RoutingSolution) -> ConnectivityR
     )
 
 
-__all__ = ["ConnectivityResult", "TOUCH_TOL_MM", "analyse"]
+__all__ = ["ConnectivityResult", "TOUCH_TOL_MM", "analyse", "pad_components"]

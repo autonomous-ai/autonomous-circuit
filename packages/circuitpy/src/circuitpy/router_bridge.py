@@ -255,11 +255,88 @@ def route_board(circuit_json_path: Path, profile: Any) -> dict:
     return report
 
 
+HELP_ENV = "CIRCUIT_ROUTING_HELP"
+
+
+def diagnose_board(circuit_json_path: Path) -> dict:
+    """What the router needs from a human, when it did not finish.
+
+    A board with seven unconnected nets reports seven findings and leaves the
+    person to guess which of them is one cause. This reads the finished board
+    back, measures why each unconnected net could not get across, and returns a
+    small number of **requests** instead — which nets, which gap, how wide it is
+    against how wide it needs to be, and a move that was performed and
+    re-measured where one works.
+
+    Runs only when something is actually unconnected, and never raises: a
+    diagnosis that fails is a diagnosis nobody gets, not a build that fails.
+    ``CIRCUIT_ROUTING_HELP=off`` switches it off.
+
+    The exchange rate is the north star's: a missed defect costs two weeks and
+    ~$85 in a fab queue, and this costs seconds of compute while nobody waits.
+    """
+    report: dict[str, Any] = {"ran": False}
+    if (os.environ.get(HELP_ENV) or "").strip().lower() in ("off", "0", "false", "no"):
+        report["reason"] = "switched off"
+        return report
+    if not _ensure_path():
+        report["reason"] = "routerlib not found in this checkout"
+        return report
+    t0 = time.perf_counter()
+    try:
+        from routerlib.adapters import problem_from_circuit_json
+        from routerlib.connectivity import analyse
+        from routerlib.diagnose import (
+            DEFAULT_PROBE,
+            bare_board_diagnosis,
+            diagnose,
+        )
+        from routerlib.model import RoutingSolution
+
+        elements = json.loads(circuit_json_path.read_text(encoding="utf-8"))
+        problem = problem_from_circuit_json(
+            elements, problem_id=circuit_json_path.stem,
+            strip_routes=True, strip_planes=False,
+        )
+        routed = problem_from_circuit_json(
+            elements, problem_id=circuit_json_path.stem,
+            strip_routes=False, strip_planes=False,
+        )
+        solution = RoutingSolution(
+            router="as-built",
+            traces=routed.existing_traces,
+            vias=routed.existing_vias,
+            complete=False,
+        )
+        linked = analyse(problem, solution)
+        if not linked.unconnected_nets:
+            report["ran"] = True
+            report["unroutedNets"] = 0
+            return report
+        # A board with no copper on it needs no geometry: the copper step
+        # produced nothing, which is a different event from a route that could
+        # not get through, and measuring every channel to say so costs 43
+        # seconds on a 36-connection board.
+        result = bare_board_diagnosis(problem, solution) or diagnose(
+            problem, solution, probe=DEFAULT_PROBE
+        )
+        report.update(result.as_dict())
+        report["ran"] = True
+    except BaseException as exc:  # noqa: BLE001 — never fail a build over this
+        report["reason"] = f"{type(exc).__name__}: {exc}"
+        report["ran"] = False
+    finally:
+        report["seconds"] = round(time.perf_counter() - t0, 2)
+    return report
+
+
 __all__ = [
     "ALLOW_POURS_ENV",
     "BUDGET_CLASS_ENV",
+    "HELP_ENV",
     "MODE_ENV",
     "ROUTER_ENV",
+    "diagnose_board",
     "engine",
     "route_board",
 ]

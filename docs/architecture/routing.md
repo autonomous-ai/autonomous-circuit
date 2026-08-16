@@ -682,6 +682,102 @@ fab-ready rate.** 6/10 either way. It is not the thing that makes a board
 shippable, and turning it on should not be read as one. `portfolio-force`
 stays measurement-only until completeness closes.
 
+## When it cannot finish, it says what it needs
+
+Everything above is about closing the completeness gap. This is about the board
+that is still short when we stop: **a board with seven unconnected nets used to
+produce seven findings and a person who had to guess.** Seven findings are not
+seven problems — on hydrate-coaster the four missing nets are four different
+causes, and on `matrix-ldo-3v3__sensor-bme280__usb-c-power` the two missing nets
+are one gap.
+
+`packages/router/src/routerlib/diagnose.py` measures the cause and returns a
+**request** instead: which connections failed, what is in the way, how wide the
+gap is against how wide it has to be, and a move that was *performed and
+re-measured* where one works.
+
+### The measurement
+
+For a net, every piece of copper that is not its own is an obstacle, and each
+demands its own clearance — 0.10mm for copper, 0.20 or 0.28mm for a hole,
+0.20mm for the board edge. Rasterise `room(p) = min over obstacles of
+(distance(p, o) − clearance(o))`: the widest half-trace that could be centred at
+`p`. Sort the cells by `room` descending, add them to a union-find in that
+order, and the level at which the net's islands join is the widest channel
+between them.
+
+`room` is 1-Lipschitz, so a grid of pitch `r` knows the true channel to within
+`r/√2` — and only with **eight** neighbours. On four it is not bounded at all:
+a 45° channel has to be walked as a staircase through cells that are not in it,
+measured on hydrate-coaster as 0.02mm at a 0.08mm pitch against 0.15mm at
+0.05mm, three times the tolerance the bound allows. The pitch is now chosen from
+what is being decided (`needed × 0.4`), so a 0.2mm signal is measured at 0.04mm
+and a 0.5mm rail at 0.10mm.
+
+Four things had to be fixed before any number here was worth printing, and each
+one produced a sentence that was true and useless:
+
+| What it said | Why it was wrong |
+|---|---|
+| "R21 and the GND track come within −0.37mm of each other" | a pad and the track soldered to it are one wall, not a channel — the "gap" was a connection |
+| "cannot get through the 0.27mm gap", about a 0.20mm net | the gap was the two shapes' closest approach *anywhere*, 4mm from the corridor being described |
+| a 0.043mm channel "refined" to 0.42mm | the refinement walked out of the corridor into the empty board beside it |
+| a pinch 0.017mm from a via with 0.26mm of open board on its other side | a breadth-first search returns the fewest-hops path, which hugs walls; the constriction is a topological fact and is now found as one — flood both islands one level *above* the channel, and the cells that join the two floods are the ones it waits on |
+
+### What it says, on the sixteen benchmark boards
+
+Relay copper, 30 unconnected nets, `python3.12 -m routerlib diagnose <instance>
+<copper.json>`. 88s for all sixteen, 21.7s worst.
+
+| what it asks for | nets |
+|---|---|
+| `tight_gap` — two named things, an exact gap, no move opened it | 15 |
+| `unattributed` — **"these failed and I cannot tell you why"** | 7 |
+| `reroute` — both walls are copper already laid down, so no part moves | 4 |
+| `router_limit` — there is room and the router did not use it | 3 |
+| `move_part` — a move was tried and re-measured | 1 |
+
+**Seven of thirty get no cause, and that is the output.** The alternative is a
+plausible sentence the person cannot check, which the north star names as worse
+than silence.
+
+One move landed across sixteen boards — `U3` 0.05mm north-west on
+terminal-keyboard — and the reason the number is one rather than ten is
+measured: on hydrate-coaster all four failures are a keepout the connector
+carries, copper against copper, and a channel nothing could widen. That is a
+real finding about these boards, not a limitation of the check.
+
+Three guards keep a suggestion honest:
+
+- **A move is performed, not proposed.** The part is translated, every shape it
+  owns re-checked against everything else, and the whole channel search re-run.
+  A candidate that widens the gap but does not raise the measured channel is
+  dropped.
+- **Copper is not an obstacle to a placement change**, because moving a part
+  re-routes the board. Checking against it rejected every move on all sixteen
+  boards: on a dense board something is always routed past a pad at the minimum
+  clearance.
+- **A keepout the part already sits inside travels with it.** circuit.json
+  records no owner for a `pcb_keepout`, so nothing in the file says the
+  7.3 × 1.23mm rectangle across a USB-C socket belongs to that socket — its pads
+  being inside it does. Without this, every USB-C connector reads as a part that
+  cannot be nudged 0.05mm in any direction.
+
+### Where it lands
+
+`build.routingHelp` in the sidecar, one `routing_needs_a_decision` finding, and
+two surfaces in the app: `viewer/src/client/lib/routingHelp.js` turns the
+measurement into cards above the findings list, and the verdict strip's line
+becomes the decision instead of the count. Every word in that copy is checked
+against a banned list — `net`, `pad`, `trace`, `via`, `DRC`, `gerber`,
+`footprint` — because the second bar is a curious person with no electronics
+background, and a message that needs a glossary is not finished.
+
+Off with `CIRCUIT_ROUTING_HELP=off`. It runs only when something is
+unconnected, and a board with no copper at all short-circuits to the free
+answer: measuring every channel to conclude "the copper step produced nothing"
+costs 43 seconds on a 36-net board and says what the copper count already said.
+
 ## What is still worse than the incumbent, said plainly
 
 1. **Fab-ready rate: unchanged.** 3 of 10 verified composition cells, the same

@@ -170,6 +170,44 @@ def _score(args: argparse.Namespace) -> int:
     return 0 if result.clean else 1
 
 
+def _diagnose(args: argparse.Namespace) -> int:
+    from routerlib.adapters import problem_from_circuit_json, solution_from_elements
+    from routerlib.diagnose import Probe, diagnose
+    from routerlib.model import RoutingSolution
+
+    problem = load_instance(args.instance)
+    if args.circuit_json:
+        elements = json.loads(Path(args.circuit_json).read_text(encoding="utf-8"))
+        solution = solution_from_elements(problem, elements, router=args.router_name)
+    else:
+        solution = RoutingSolution(router="empty")
+
+    probe = Probe(
+        resolution_mm=args.resolution,
+        verify_moves=not args.no_moves,
+        max_nets=args.max_nets,
+    )
+    result = diagnose(problem, solution, probe=probe)
+    if args.json:
+        print(json.dumps(result.as_dict(), indent=1))
+        return 0
+
+    print(
+        f"{result.board}: {result.connected_nets}/{result.routable_nets} nets "
+        f"connected, measured at {result.resolution_mm:.3f}mm in "
+        f"{result.seconds:.1f}s"
+    )
+    if not result.asks:
+        print("  nothing to ask for")
+    for ask in result.asks:
+        print(f"\n  [{ask.kind}] {ask.headline}")
+        for line in ask.evidence:
+            print(f"    - {line}")
+    for note in result.notes:
+        print(f"  note: {note}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="routerlib", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -209,6 +247,22 @@ def main(argv: list[str] | None = None) -> int:
         help="score even when the board is not the instance's placement",
     )
     p.set_defaults(func=_score)
+
+    p = sub.add_parser(
+        "diagnose",
+        help="why the unconnected nets are unconnected, and what would unblock them",
+    )
+    p.add_argument("instance")
+    p.add_argument("circuit_json", nargs="?", default=None,
+                   help="the routed board; omitted means the empty solution")
+    p.add_argument("--router-name", default="external")
+    p.add_argument("--resolution", type=float, default=0.0,
+                   help="grid pitch in mm; 0 chooses one from the net's own width")
+    p.add_argument("--no-moves", action="store_true",
+                   help="skip the move trials, report the geometry only")
+    p.add_argument("--max-nets", type=int, default=12)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_diagnose)
 
     args = parser.parse_args(argv)
     return args.func(args)
