@@ -385,6 +385,16 @@ export const SHORTCUT_COPY = Object.freeze({
   // "fit the view" on both tabs, handled by whichever view is on screen.
   // BoardWorkspace stands down on the 3D tab so only one handler ever runs.
   "view.fit": { group: "view", order: 10, label: "Fit the whole board in the pane" },
+  // The `when` is the honest half of a deliberate divergence: these are KiCad's
+  // zoom keys, and in Altium the same two keys step the layer stack. Someone
+  // whose hands come from Altium should read that here rather than discover it.
+  "view.zoom-in": {
+    group: "view",
+    order: 12,
+    label: "Zoom in",
+    when: "in Altium these step the layer stack; here they zoom, and L opens the layers",
+  },
+  "view.zoom-out": { group: "view", order: 13, label: "Zoom out" },
   "single-layer.cycle": { group: "view", order: 20, label: "Cycle single-layer mode" },
   "hud.toggle": { group: "view", order: 30, label: "Show or hide the coordinate readout" },
   "units.toggle": { group: "view", order: 40, label: "Switch between mm and mil" },

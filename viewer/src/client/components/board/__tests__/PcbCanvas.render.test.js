@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { mount, pointer } from "../../../test/render.js";
+import { mount, pointer, wheel } from "../../../test/render.js";
 import PcbCanvas from "../PcbCanvas.jsx";
 import { bindPlacements, parseBoardSource } from "../boardSource.js";
 import { buildBoardIndex } from "../../../lib/boardIndex.js";
@@ -85,4 +85,36 @@ test("PcbCanvas draws the hydrate-coaster board and a drag on it moves a real pa
   assert.deepEqual(ui.errors, [], "a handler threw where only the console would have seen it");
 
   ui.unmount();
+});
+
+test("Shift+wheel pans the real canvas sideways, and a plain wheel zooms it", () => {
+  // `wheelAction` is unit-tested; this is the join. The wheel handler is a
+  // native non-passive listener attached in an effect, and the whole class of
+  // bug this suite exists for is a decision function nothing calls — the right
+  // button shipped tested and unwired for a day.
+  const ui = mount(PcbCanvas, { index, placements, editing: false });
+  try {
+    const transform = () =>
+      /translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+) /.exec(
+        [...ui.root.querySelectorAll("svg > g")]
+          .map((node) => node.getAttribute("transform") || "")
+          .find((value) => value.startsWith("translate")) || "",
+      );
+
+    const before = transform();
+    assert.ok(before, "the canvas painted nothing to pan");
+
+    wheel(ui.root.querySelector("svg"), { deltaY: 120, shiftKey: true, clientX: 300, clientY: 200 });
+    const panned = transform();
+    assert.equal(Number(panned[3]), Number(before[3]), "Shift+wheel changed the zoom");
+    assert.equal(Number(panned[1]), Number(before[1]) - 120, "Shift+wheel did not travel sideways");
+    assert.equal(Number(panned[2]), Number(before[2]), "Shift+wheel moved the view vertically");
+
+    wheel(ui.root.querySelector("svg"), { deltaY: -120, clientX: 300, clientY: 200 });
+    assert.ok(Number(transform()[3]) > Number(panned[3]), "a plain wheel no longer zooms");
+
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
 });

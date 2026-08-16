@@ -55,6 +55,38 @@ export function panView(origin, dxPx, dyPx) {
 }
 
 /**
+ * What one wheel event means: zoom, or pan sideways.
+ *
+ * Plain wheel zooms. That is a deliberate deviation — Altium's plain wheel
+ * scrolls the sheet vertically and `Shift`+wheel scrolls it horizontally
+ * (shortcut-keys/pcb-editors) — and it is the deviation every browser-based
+ * canvas has already trained into the same hands, so it stays.
+ *
+ * `Shift`+wheel is Altium's, and it was dead: the wheel handler never read
+ * `shiftKey`, so on a board wider than the pane the one gesture an EE has for
+ * "look further along" did nothing at all, several times per session. It pans
+ * horizontally, by the dominant axis, so a trackpad that reports the shove on
+ * `deltaX` behaves the same as a wheel that reports it on `deltaY`.
+ *
+ * Returned as data rather than applied, for the reason the rest of this module
+ * exists: which gesture means what is the part that can be wrong invisibly.
+ *
+ * @returns {{kind: "zoom", factor: number}|{kind: "pan", dx: number, dy: number}}
+ */
+export function wheelAction(event, { zoomRate = 0.0016 } = {}) {
+  const dy = Number(event?.deltaY) || 0;
+  const dx = Number(event?.deltaX) || 0;
+  if (event?.shiftKey) {
+    // One axis, and the screen moves the way the content should: a shove that
+    // scrolls a page down moves the board left, which reads as travelling
+    // right along it.
+    const amount = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+    return { kind: "pan", dx: -amount, dy: 0 };
+  }
+  return { kind: "zoom", factor: Math.exp(-dy * zoomRate) };
+}
+
+/**
  * Advance a pan, or refuse to.
  *
  * Returns null while the press is still inside the slop — a press that has not

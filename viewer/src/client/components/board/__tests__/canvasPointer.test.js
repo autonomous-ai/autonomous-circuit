@@ -20,6 +20,7 @@ import {
   panView,
   pointerPressAction,
   pointerReleaseAction,
+  wheelAction,
 } from "../canvasPointer.js";
 
 const VIEW = { scale: 8, tx: 120, ty: -40 };
@@ -220,4 +221,27 @@ test("keys the canvas does not own are left alone", () => {
     assert.equal(canvasKeyAction({ key }, { dragging: true, hasCursor: true }), null, key);
   }
   assert.equal(canvasKeyAction({}, { dragging: true }), null);
+});
+
+test("Shift+wheel travels sideways; a plain wheel still zooms", () => {
+  // The gesture was dead: the wheel handler never read `shiftKey`, so on a
+  // board wider than its pane the one thing an EE does to look further along
+  // did nothing, several times a session. Altium's own binding
+  // (shortcut-keys/pcb-editors: Shift+wheel scrolls horizontally).
+  assert.deepEqual(wheelAction({ deltaY: 120, shiftKey: true }), { kind: "pan", dx: -120, dy: 0 });
+  assert.deepEqual(wheelAction({ deltaY: -120, shiftKey: true }), { kind: "pan", dx: 120, dy: 0 });
+
+  // A trackpad reports the same shove on the other axis; the dominant one wins
+  // so both hardware kinds feel the same.
+  assert.deepEqual(wheelAction({ deltaX: 40, deltaY: 5, shiftKey: true }), { kind: "pan", dx: -40, dy: 0 });
+
+  // Plain wheel zooms — a deliberate deviation from Altium (whose plain wheel
+  // scrolls) and the one every browser canvas has already trained.
+  const zoomIn = wheelAction({ deltaY: -100 });
+  assert.equal(zoomIn.kind, "zoom");
+  assert.ok(zoomIn.factor > 1, `zoom in gave ${zoomIn.factor}`);
+  assert.ok(wheelAction({ deltaY: 100 }).factor < 1);
+  // Nothing moved, nothing happens: a wheel event with no delta is a no-op
+  // zoom, not a jump.
+  assert.equal(wheelAction({}).factor, 1);
 });

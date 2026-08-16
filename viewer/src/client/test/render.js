@@ -124,6 +124,32 @@ export function click(target, init = {}) {
   }));
 }
 
+/**
+ * Dispatch a wheel event — a shove of the wheel or two fingers on a trackpad.
+ *
+ * The fields are forced on after construction because happy-dom's
+ * `WheelEvent` constructor drops the `MouseEvent` half of its init: measured
+ * 2026-08-16, `new WheelEvent("wheel", {shiftKey: true}).shiftKey` is
+ * `undefined`, which would make every modifier-gesture test pass for the wrong
+ * reason. Everything the canvases read is set here explicitly.
+ */
+export function wheel(target, init = {}) {
+  const event = new window.WheelEvent("wheel", { bubbles: true, cancelable: true, composed: true });
+  for (const [field, fallback] of [
+    ["deltaX", 0],
+    ["deltaY", 0],
+    ["clientX", 0],
+    ["clientY", 0],
+    ["shiftKey", false],
+    ["ctrlKey", false],
+    ["metaKey", false],
+    ["altKey", false],
+  ]) {
+    Object.defineProperty(event, field, { value: init[field] ?? fallback, configurable: true });
+  }
+  dispatch(target, event);
+}
+
 /** Dispatch a key event. `type` defaults to `keydown`. */
 export function key(target, keyName, init = {}) {
   dispatch(target, new window.KeyboardEvent(init.type || "keydown", {

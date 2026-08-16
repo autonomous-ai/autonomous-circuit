@@ -24,6 +24,7 @@ import BoardOrientationCube from "./BoardOrientationCube.jsx";
 import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
 import RevisionPager from "./RevisionPager.jsx";
 import ViewportToolRail from "./ViewportToolRail.jsx";
+import { dispatchViewportTool } from "./viewportTools.js";
 import useBoardRevisions from "./useBoardRevisions.js";
 import useBuildHistory from "./useBuildHistory.js";
 import useBuildStatus from "./useBuildStatus.js";
@@ -651,6 +652,23 @@ export default function BoardWorkspace({
   }, []);
 
   /**
+   * Zoom whichever pane is on screen, through the rail's own dispatcher so the
+   * key and the button take the same step.
+   *
+   * Nothing happens on the 3D tab: its camera is not this viewport, and a key
+   * that silently moves a pane nobody is looking at is the misfire class the
+   * keymap exists to avoid.
+   */
+  const zoomActivePane = useCallback(
+    (toolId) => {
+      const surface =
+        activeTab === "schematic" ? schematicRef.current : activeTab === "3d" ? null : pcbRef.current;
+      dispatchViewportTool(toolId, { view: surface });
+    },
+    [activeTab],
+  );
+
+  /**
    * Export the live PCB drawing. SVG rather than a PNG screenshot on purpose:
    * the canvas *is* vector, every pad and trace is already a node, and an SVG
    * drops into a datasheet, an issue, or Illustrator at any zoom. A raster of
@@ -813,6 +831,17 @@ export default function BoardWorkspace({
           // fit on that tab; fitting the 2D panes nobody is looking at is the
           // half that does nothing visible.
           if (activeTab !== "3d") fitAll();
+          break;
+        // Zoom the pane the user is looking at, through the same step the
+        // rail's own buttons take (`viewportTools.ZOOM_STEP`) so the key and
+        // the button cannot drift apart. Nothing happens on the 3D tab: its
+        // camera is not this viewport, and a key that silently moves an
+        // invisible pane is the misfire the keymap exists to avoid.
+        case "view.zoom-in":
+          zoomActivePane("zoom-in");
+          break;
+        case "view.zoom-out":
+          zoomActivePane("zoom-out");
           break;
         case "selection.clear":
           setSelection(null);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, us
 import { Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boxIsReal, inflateBox, schematicElementBox } from "@/lib/boardIndex.js";
-import { isDragButton, panTo, pointerReleaseAction } from "./canvasPointer.js";
+import { isDragButton, panTo, panView, pointerReleaseAction, wheelAction } from "./canvasPointer.js";
 import { palette, unselectedOpacity } from "@/lib/boardPalette.js";
 import {
   parseSchematicTransform,
@@ -188,11 +188,19 @@ export default function SchematicCanvas({
     if (!node) return undefined;
     const onWheel = (event) => {
       event.preventDefault();
+      // Shift+wheel travels sideways along a wide sheet — Altium's own
+      // binding, and the schematic is the pane most often wider than its
+      // window.
+      const action = wheelAction(event);
+      if (action.kind === "pan") {
+        setView((prev) => panView(prev, action.dx, action.dy));
+        return;
+      }
       const rect = node.getBoundingClientRect();
       const px = event.clientX - rect.left;
       const py = event.clientY - rect.top;
       setView((prev) => {
-        const factor = Math.exp(-event.deltaY * 0.0016);
+        const factor = action.factor;
         const scale = Math.min(40, Math.max(0.08, prev.scale * factor));
         const applied = scale / prev.scale;
         return { scale, tx: px - (px - prev.tx) * applied, ty: py - (py - prev.ty) * applied };

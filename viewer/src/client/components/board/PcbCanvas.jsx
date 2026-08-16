@@ -12,8 +12,10 @@ import { FINE_STEP_MM, formatMm, snapDelta } from "./boardSource.js";
 import {
   canvasKeyAction,
   escapeLiveCommand,
+  panView,
   pointerPressAction,
   pointerReleaseAction,
+  wheelAction,
 } from "./canvasPointer.js";
 import {
   CLICK_SLOP_PX,
@@ -329,9 +331,13 @@ export default function PcbCanvas({
     if (!node) return undefined;
     const onWheel = (event) => {
       event.preventDefault();
+      const action = wheelAction(event);
+      if (action.kind === "pan") {
+        setView((prev) => panView(prev, action.dx, action.dy));
+        return;
+      }
       const rect = node.getBoundingClientRect();
-      const factor = Math.exp(-event.deltaY * 0.0016);
-      setView((prev) => zoomAt(prev, event.clientX - rect.left, event.clientY - rect.top, factor));
+      setView((prev) => zoomAt(prev, event.clientX - rect.left, event.clientY - rect.top, action.factor));
     };
     node.addEventListener("wheel", onWheel, { passive: false });
     return () => node.removeEventListener("wheel", onWheel);

@@ -27,6 +27,8 @@ export const BOARD_COMMANDS = Object.freeze([
   "edit.redo",
   "measure.toggle",
   "view.fit",
+  "view.zoom-in",
+  "view.zoom-out",
   "selection.clear",
   "filter.clear",
   "single-layer.cycle",
@@ -59,7 +61,7 @@ const COMMAND_SET = new Set(BOARD_COMMANDS);
  * The sibling arbiters made the same call for the same reason:
  * `canvasPointer.js` drops `event.repeat` outright.
  */
-const REPEATABLE = new Set(["mask.decrease", "mask.increase"]);
+const REPEATABLE = new Set(["mask.decrease", "mask.increase", "view.zoom-in", "view.zoom-out"]);
 
 /** True when `id` is something the workspace switch has to handle. */
 export function isBoardCommand(id) {
@@ -180,6 +182,20 @@ function resolveBoardKeyRaw(event, mode = {}) {
   // lands, this becomes the last case of an ordered stack rather than the only
   // one.
   if (key === "Escape") return "selection.clear";
+
+  // Zoom, before the Shift branch: `+` IS Shift+`=` on most layouts, so a zoom
+  // key that only answers unshifted answers half the keyboards in the world.
+  //
+  // The rail has printed `+` and `−` beside its two zoom buttons since it was
+  // built and nothing answered either — the app's own tooltip teaching a
+  // shortcut that does not exist. Bound to the buttons they are printed on,
+  // which is also KiCad's binding (View » Zoom In / Zoom Out). **A deliberate
+  // divergence from Altium**, where `+` and `−` step the layer stack
+  // (ALTIUM-NOTES §7); the shortcut sheet says so in the row's own copy, and
+  // stepping layers lives in the layer bar `L` opens. Between teaching a wrong
+  // reflex and honouring the label already on screen, the label wins.
+  if (lower === "+" || lower === "=") return "view.zoom-in";
+  if (lower === "-" || lower === "_") return "view.zoom-out";
 
   if (event.shiftKey) {
     if (lower === "c") return "filter.clear"; // Altium: Shift+C clears the filter

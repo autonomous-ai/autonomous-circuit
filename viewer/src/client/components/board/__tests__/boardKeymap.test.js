@@ -59,6 +59,13 @@ const TABLE = Object.freeze([
   { key: "]", command: "mask.increase" },
   { key: "l", command: "layers.show" },
   { key: "r", command: "regions.toggle" },
+  // Zoom, on the keys the rail already prints beside its two buttons. All four
+  // spellings, because `+` is Shift+`=` on most layouts and `_` is Shift+`-`:
+  // a zoom key that only answers unshifted answers half the keyboards.
+  { key: "+", mods: { shiftKey: true }, command: "view.zoom-in" },
+  { key: "=", command: "view.zoom-in" },
+  { key: "-", command: "view.zoom-out" },
+  { key: "_", mods: { shiftKey: true }, command: "view.zoom-out" },
 ]);
 
 test("every published binding resolves to its command, upper and lower case", () => {
