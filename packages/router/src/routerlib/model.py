@@ -598,7 +598,12 @@ class Budget:
     machine, not the algorithm. So the currency is:
 
     * ``max_iterations`` — one unit of algorithm-defined outer work (a net
-      attempted, a rip-up round, a pattern tried).
+      attempted, a rip-up round, a pattern tried). **Algorithm-defined is the
+      operative word and it is a real limitation**: at the same cap of two
+      million, ``pathfinder-negotiated`` spent 20 rounds, ``plane-and-classes``
+      283 nets and ``exact-and-structured`` 38,427 candidates. The number
+      bounds one family's search honestly and compares nothing across two, so
+      :meth:`routerlib.scoring.ScoreResult.key` does not rank on it.
     * ``max_nodes`` — expanded search nodes, for anything that searches a grid
       or a graph. The finer of the two currencies and the one that actually
       bounds an A*.

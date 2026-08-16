@@ -127,18 +127,21 @@ def netted_circuit_json(problem, solution) -> list[dict]:
             pid = e.get("pcb_smtpad_id") or e.get("pcb_plated_hole_id")
             e["pcb_component_id"] = pcb_comp[comp_of.get(pid, "unknown")]
             if t == "pcb_smtpad":
-                # Every SMD pad goes out as ``rotated_rect``. Not cosmetic:
-                # ``routerlib.geometry.pad_capsule`` models *every* pad as
-                # ``rect_capsule(x, y, w, h, rotation)``, and the instance keeps
-                # only those four numbers — a ``polygon`` pad's vertices and a
-                # ``circle`` pad's radius are gone by the time a router sees it.
-                # Written back as ``polygon`` with no ``points``, tscircuit's
-                # geometry reads undefined: NaN clearances, and
-                # ``checkEachPcbTraceNonOverlapping`` throws outright (108 of
-                # 144 cells lost their shorts check that way). Emitting the
-                # rect the router actually reasoned about is the honest
-                # comparison — same geometry, two independent check engines.
-                e["shape"] = "rotated_rect"
+                # Every SMD pad used to go out as ``rotated_rect``, because the
+                # instance had only ``x, y, w, h, rotation`` to give — a polygon
+                # pad's vertices were discarded on the way in, and written back
+                # as ``polygon`` with no ``points`` they made tscircuit's
+                # geometry read undefined: NaN clearances, and
+                # ``checkEachPcbTraceNonOverlapping`` throwing outright, which
+                # cost 108 of 144 cells their shorts check. That workaround was
+                # honest about the geometry routerlib reasoned with and wrong
+                # about the board.
+                #
+                # Since the shape model landed, the pad carries its real
+                # outline, so the real outline is what the second engine gets.
+                # Reproduced 2026-08-16: strip the ``points`` back off and
+                # ``runAllChecks`` throws in ``SpatialObjectIndex.addObject``
+                # and returns nothing, which reads exactly like a clean board.
                 e["ccw_rotation"] = float(e.get("ccw_rotation") or 0.0)
     for e in cj:
         if e.get("type") == "source_trace":
@@ -183,9 +186,17 @@ def tscircuit_checks(circuit_json: list[dict], work: Path) -> dict:
     """``@tscircuit/checks``, one check at a time, failures isolated.
 
     Not ``runAllChecks``: that call runs everything in one pass with no guard,
-    and ``checkPadPadClearance`` throws on a pill-shaped plated hole. Twelve of
-    the sixteen instances have a USB-C receptacle, so twelve of sixteen came
-    back with the whole report lost — indistinguishable from clean.
+    so any one check that throws loses the whole report — and a lost report is
+    an empty findings list, which reads exactly like a clean board. Twelve of
+    the sixteen instances carry a USB-C receptacle and twelve of sixteen came
+    back empty that way.
+
+    Two defences, because one is not enough. Each check runs by name with its
+    own guard, and the result carries ``complete``: false the moment anything
+    threw. **A caller that reads ``count`` without reading ``complete`` is
+    reading a number that may mean nothing**, so the flag is not optional
+    decoration — ``tournament_results.py`` drops an incomplete report rather
+    than counting it as zero findings.
     """
     from circuitpy import toolchain
 
@@ -221,8 +232,14 @@ def tscircuit_checks(circuit_json: list[dict], work: Path) -> dict:
             "count": len(findings),
             "kindCounts": counts,
             "threw": threw,
+            # False means "this number is not a measurement". Never read
+            # ``count`` without it.
+            "complete": not threw,
             "findings": findings[:40],
         }
+    out["complete"] = all(
+        out[g].get("complete") for g in ("routing", "connectivity", "placement")
+    )
     return out
 
 

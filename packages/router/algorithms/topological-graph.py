@@ -147,7 +147,6 @@ from routerlib.geometry import (  # noqa: E402
     capsule_gap,
     disc_capsule,
     drill_capsule,
-    pad_capsule,
     segments_cross,
     stadium_capsule,
 )
@@ -465,16 +464,28 @@ class Site:
         return (self.x, self.y, self.x, self.y, self.r)
 
 
-def _cover(capsule: Capsule) -> list[tuple[float, float, float]]:
-    """A capsule as a chain of discs along its spine.
+def _planning_capsule(pad: Pad) -> Capsule:
+    """A pad as this family can represent it: a stadium.
 
-    This family models every obstacle as discs — that is the whole idea, and it
-    is why the triangulation works — so a rectangle cannot be represented
-    exactly here whatever the shape model says. It therefore covers the
-    **circumscribed** stadium: the discs contain the real pad, so the router
-    plans around slightly more copper than exists and never around less. The
-    copper it emits is still measured exactly, by ``Workspace`` and the scorer.
+    Every obstacle here is a disc — that is the whole idea, it is what makes
+    the Delaunay dual a routing graph, and it means a sharp corner cannot be
+    represented at all. So the *planner* keeps reading a pad as its inscribed
+    stadium, which under-covers the corners, and the copper it proposes is
+    measured against the real rectangle by ``Workspace`` before it is
+    committed and by the scorer afterwards. The approximation costs this
+    family rejected candidates; it cannot buy it a violation.
+
+    Covering the circumscribed stadium instead was tried and is worse: on a
+    square pad that is twice as tall as the pad, and it stopped the family
+    stitching a ground pad into its own pour.
     """
+    return stadium_capsule(
+        pad.center.x, pad.center.y, pad.width_mm, pad.height_mm, pad.rotation_deg
+    )
+
+
+def _cover(capsule: Capsule) -> list[tuple[float, float, float]]:
+    """A capsule as a chain of discs along its spine."""
     ax, ay, bx, by, r = capsule
     spine = math.hypot(bx - ax, by - ay)
     if spine <= 1e-9 or r <= 0.0:
@@ -523,7 +534,7 @@ def build_sites(problem: RoutingProblem) -> tuple[list[Site], dict[str, list[int
 
     for pad in problem.pads:
         indices: list[int] = []
-        for x, y, r in _cover(pad_capsule(pad)):
+        for x, y, r in _cover(_planning_capsule(pad)):
             indices.append(len(sites))
             sites.append(
                 Site(

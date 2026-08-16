@@ -61,12 +61,21 @@ def read_tree(root: Path, name: str) -> dict:
 
 
 def synth_findings(v: dict) -> dict | None:
+    """The pipeline's verdict, or ``None`` when there is not one.
+
+    ``None`` and "zero findings" are different answers and the difference is
+    the whole point: one thrown check inside ``@tscircuit/checks`` returns an
+    empty findings list, and counted as zero it reads as a clean board. A
+    report that did not complete is not a report.
+    """
     if not v or not v.get("ok"):
         return None
     ts = (v.get("tscircuit") or {})
     if "error" in ts:
         return None
     routing = ts.get("routing") or {}
+    if routing.get("complete") is False:
+        return None
     kic = v.get("kicad") or {}
     return {
         "tscircuitRouting": routing.get("count", 0),

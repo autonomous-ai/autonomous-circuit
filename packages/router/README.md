@@ -38,7 +38,7 @@ Components are where they are. The router may not move them.
 | Field | What it carries |
 |---|---|
 | `board` | outline polygon (the real routed edge, not the bounding box), layer count, thickness |
-| `pads` | every landing: net, centre, size, **rotation**, layers, SMD or plated hole |
+| `pads` | every landing: net, centre, size, **rotation**, **shape**, layers, SMD or plated hole |
 | `drills` | every hole, plated or not, as a real slot when it is one |
 | `keepouts` | declared no-copper zones, per layer |
 | `planes` | poured copper already belonging to a net — a pad inside one is connected |
@@ -48,6 +48,14 @@ Components are where they are. The router may not move them.
 
 Net identity is tscircuit's `subcircuit_connectivity_map_key`, not a name we
 invent — so a net in a problem and a net in a DRC finding are the same object.
+
+**A pad's shape is data, not a label.** `Pad` carries the vertices of a polygon
+pad and the corner radius of a rounded one; `Drill` carries its hole shape and
+`Keepout` its rotation and outline. Until 2026-08-16 none of them did: a pad was
+width, height and rotation, so a USB-C shell tab reached the router as the
+inscribed stadium of its bounding box and every rectangle reached it with its
+corners rounded off. See *The shape model* below — it is the single change that
+made the harness agree with KiCad.
 
 ### `DesignRules` — read from the pipeline, never transcribed
 
@@ -131,9 +139,17 @@ Register the class in `routerlib.cli.registry()` and it is in the tournament.
 that moves under you cannot be compared to itself.
 
 ```
-python -m routerlib list                     # the table below, regenerated
-python packages/router/scripts/build_instances.py   # refresh the fixtures
+python -m routerlib list                            # the table below, regenerated
+python packages/router/scripts/build_instances.py   # rebuild from today's boards
+python packages/router/scripts/upgrade_instances.py # re-baseline in place
 ```
+
+Two ways to refresh, and they are not the same operation. `build_instances.py`
+re-derives an instance from whatever `examples/` and the matrix contain today,
+which **moves the placement** — `terminal-keyboard` has drifted 104 pads since
+the tournament, and copper measured against the old placement becomes
+unscoreable. `upgrade_instances.py` changes what an instance *records* about a
+placement it does not touch, and prints every hash it moves.
 
 Sources: the three example boards, ten composition-matrix cells (every one a
 composition the planner can legally emit), and three synthetic ground-plane
@@ -160,7 +176,18 @@ exactly those, and every feature is measured from geometry:
 Each instance also stores a `placementHash` (see below) and its **baseline**: the DRC result of the *empty*
 solution. Any violation there belongs to the placement, not to a router. All 16
 shipped instances have an empty-solution baseline of zero errors, and
-`test_drc.py` fails if that ever stops being true.
+`test_drc.py` fails if that ever stops being true. That still holds under the
+true shape model, which is worth stating plainly: the placements themselves are
+legal, so every finding the corrected ruler produces belongs to a router.
+
+**Re-baselined 2026-08-16, schema `@2`.** A pad now records a polygon outline
+and a corner radius, a drill its hole shape, a keepout its rotation and
+outline — and `placementHash` covers all of it, because two placements that
+differ only in whether a pad is a rectangle or a polygon are two different
+boards. Every hash moved once; the before and after are in
+`benchmarks/manifest.json` under `rebaseline`, per instance, with the board each
+shape was read from. Coordinates did not move: the fixtures were upgraded in
+place precisely so the 208 copper sets already on disk stayed scoreable.
 
 ## The scoring harness
 
@@ -177,7 +204,12 @@ result.key()   # lexicographic, lower is better
    two weeks and about $85.
 3. **quality** — via count, total copper length, differential-pair coupling,
    power-net width. In that order.
-4. **cost** — iterations. Wall-clock is recorded and never scored.
+4. **cost** — nothing, and that is the honest answer. `iterations` was this
+   tier until the judge measured what nine families count with it: 20
+   negotiation rounds, 283 nets, 38,427 enumerated candidates, all at the same
+   cap. The contract defines an iteration as *algorithm-defined outer work*, so
+   ranking on it compares accounting units. It is still reported, with
+   `nodes_expanded` and wall-clock, and none of the three is ranked on.
 
 ### Where each legality check comes from
 
@@ -200,21 +232,74 @@ Board-level findings that no router can influence — `dfm_price_tier`,
 `dfm_board_size`, `dfm_thickness` — are reported separately and never counted
 against a route.
 
+### The shape model
+
+Every distance here is between two **rounded convex cores**: a polygon swept by
+a radius. That one form covers everything on a board without approximating any
+of it.
+
+| shape | core | radius |
+|---|---|---|
+| trace segment | the segment | half the width |
+| via, round pad | a single point | half the diameter |
+| pill (`rotated_pill`) | the spine | half the short side |
+| rectangle | its four corners | 0 |
+| rounded rectangle | the corners, inset | the corner radius |
+| polygon pad | its own outline | 0 |
+
+Distance is exact in both directions: the minimum over every pair of core edges
+when the cores are apart, and the separating-axis penetration depth when they
+overlap. A stadium stays a plain 5-tuple, so the hot path is unchanged.
+
+**What this replaced, and what it cost us.** Until 2026-08-16 every rectangle —
+pad *and* keepout — was its inscribed stadium. On a square pad that is the
+inscribed circle, so each corner protruded by `(√2−1)·w/2`: **0.21mm on a 1.0mm
+pad, against a 0.09mm gate**. The docstring called it "can miss a finding, never
+invent one". It was the dominant failure mode of the whole benchmark:
+
+* Harness-clean routers were pipeline-dirty and the ranking inverted.
+  `plane-and-classes` and `maze-astar` each scored 7/12 harness-clean and 1/12
+  pipeline-clean.
+* Worst case measured: `maze-astar` on hydrate-coaster, a 2.34 × 3.6mm pad —
+  the model reported 0.210mm of air where the trace sat 0.250mm *inside* the
+  pad. A 0.46mm modelling error against a 0.09mm gate.
+* On a keepout it was worse. The 7.3 × 1.23mm `pcb_keepout_0` of the USB-C
+  block loses 0.255mm at each corner, 2.8× the gate, which is how our copper
+  turned a `fab.ready` board into five blocking findings the harness could not
+  see.
+
+Re-scored on the same copper, the harness's error count per family now tracks
+KiCad's at **Spearman +0.93**, against **0.00** before — before, every family
+scored zero errors on the real boards, so there was no signal to correlate.
+
+Routers design to this model, not only get graded by it. Every grid rasteriser
+in `algorithms/` stamps a shape against its core's outward edge lines: negative
+inside the shape, exact outside it, and a slight under-read in the wedge past a
+corner, so a router now claims a cell or two extra near a pad corner where it
+used to be 0.21mm optimistic. `topological-graph` is the exception and says so
+in its own docstring: it covers obstacles with discs by construction, so it
+plans against the inscribed stadium and lets `Workspace` refuse anything that
+model let through.
+
 ### What is not checked, said out loud
 
 Shipped with every result as `coverage_gaps`:
 
 * **plane islanding** — a trace that cuts a poured plane in two is not detected
 * acid traps and copper balance
-* a rectangular pad is modelled as its **inscribed stadium**, which rounds
-  corners inward: the model can miss a finding at a sharp corner, it cannot
-  invent one
+* an elliptical pad is measured as a pill — the ellipse's outer bound, so a
+  finding near the minor axis can be invented, never missed
+* how *deep* two overlapping shapes overlap is measured on their convex hulls,
+  so the depth reported for a re-entrant polygon pad can be overstated. The
+  short-versus-clearance verdict itself is exact
+* `circuitpy.checks` still reads pads and holes unrotated in its own
+  hole-clearance check, so the delegated `dfm_*` findings carry that blind spot
 * solder mask, silkscreen and paste — not routing
 
 ### The ruler travels with the score
 
 ```
-ruler : 4c1f0f2f0f5a, 13 check kinds, jlcpcb @ 0.09mm gate
+ruler : 56d69c365a72, 13 check kinds, jlcpcb @ 0.09mm gate
         — compare only against a run with the same hash
 ```
 
@@ -222,6 +307,14 @@ A rate improves for two reasons and only one of them is good: the routes got
 better, or the ruler got shorter. Two scores are comparable only when their
 hashes match. A run against a stricter set is a new baseline, not an
 improvement.
+
+The ruler moved twice on 2026-08-16, `b3c77d55b171` → `032bfa67418e` →
+`56d69c365a72`: first when pads and keepouts became their true shapes, then when
+the cost tier left the ranking key. **Nothing measured against `b3c77d55b171`
+is comparable to anything here.** Every headline number in
+`docs/architecture/routing.md` from before that date is a number about a
+different ruler, and the re-scored ones are a new baseline — not an improvement
+and not a regression.
 
 ### A score refuses when it would be about the wrong thing
 
@@ -267,19 +360,24 @@ Its score shape is the point: **legality perfect, completeness poor**. That is
 the opposite failure to the one we ship, and the two together bracket what a
 real router has to do.
 
-Measured 2026-08-16 over all 16 instances, `ruler b3c77d55b171`:
+Measured 2026-08-16 over all 16 instances, `ruler 56d69c365a72`:
 
 ```
-2/16 instances clean, 57.3% mean completeness, 0 DRC errors, 16/16 deterministic
+2/16 instances clean, 57.3% mean completeness, 37 DRC errors, 16/16 deterministic
 ```
 
 Per instance it ranges from 100% (`matrix-status-led`, `matrix-i2c-bus` — the
 two-pad instances) down to **19.0%** on `matrix-rp2040-core__usb-c-data`, and it
-finishes 65.2% of `terminal-keyboard`'s 89 nets with 158 vias. Both numbers are
-floors, not results: the whole 0-error column is close to tautological, because
-the baseline asks `Workspace` for permission with the same geometry the scorer
-grades with and simply drops any edge it cannot place legally. **Completeness is
-the column a real router has to win.**
+finishes 65.2% of `terminal-keyboard`'s 89 nets with 158 vias.
+
+That error column used to read **0**, and the difference is not a regression in
+the baseline — it is the same copper measured with a ruler that can see a pad
+corner. It also kills the old claim that the 0-error column was tautological
+because the router asks `Workspace` with the same geometry the scorer grades
+with. It asks with the same *shape model* now, but it stamps its obstacles into
+a grid, and 37 findings is the size of the gap between "the grid said yes" and
+"the geometry says no". **Completeness is still the column a real router has to
+win.**
 
 That the scorer is not merely agreeing with itself is checked against copper it
 did not produce. Scored against the shipped autorouter's own output on
@@ -290,12 +388,30 @@ because of.
 ## Known divergence from the pipeline
 
 `circuitpy.checks` does not read `ccw_rotation` on `pcb_smtpad` or
-`pcb_plated_hole`; `routerlib.geometry.rect_capsule` does. Read unrotated, the
-eight 2.25 × 0.63mm pills of a 1.27mm-pitch package at 270° become one
-horizontal bar overlapping its neighbours. Measured on hydrate-coaster
-2026-08-15: six invented shorts on a board that has none. routerlib reads the
-field because a benchmark cannot run on invented findings; the pipeline's own
-hole-clearance check still has the blind spot and should be fixed there.
+`pcb_plated_hole`; `routerlib.geometry` does. Read unrotated, the eight 2.25 ×
+0.63mm pills of a 1.27mm-pitch package at 270° become one horizontal bar
+overlapping its neighbours. Measured on hydrate-coaster 2026-08-15: six invented
+shorts on a board that has none. routerlib reads the field because a benchmark
+cannot run on invented findings; the pipeline's own hole-clearance check still
+has the blind spot and should be fixed there.
+
+The pipeline also models a rectangle as its inscribed stadium, which is the
+defect this package fixed on its own side of the line. Our numbers are now the
+stricter ones, and `dfm_hole_clearance` — which we delegate — is still measured
+the old way.
+
+**One throw can read as a clean board.** `@tscircuit/checks` `runAllChecks`
+runs every check in one pass with no guard, so a single failure returns an
+empty findings list. Reproduced 2026-08-16: strip the `points` off a polygon pad
+— exactly what routerlib used to write back — and it throws inside
+`SpatialObjectIndex.addObject` and reports nothing. Twelve of the sixteen
+instances carry a USB-C receptacle and twelve of sixteen lost their whole
+report that way. Two defences, on our side of the line:
+`scripts/_js/routing_checks.cjs` runs each check by name and reports a throw as
+a throw, and every report carries `complete`, which `tournament_results.py`
+drops rather than counting as zero. The root cause was ours and is closed — a
+pad keeps its outline now — but the guard stays, because the next shape we get
+wrong should be loud.
 
 ## The portfolio
 

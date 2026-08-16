@@ -10,9 +10,18 @@ order in which a defect costs money:
 3. **quality** — via count, total copper length, differential-pair coupling,
    power-net width. In that order, and only among boards that are complete and
    legal.
-4. **cost** — iterations spent. Wall-clock is recorded and never scored: it is
-   a property of the machine, and scoring it is how the current router became
-   nondeterministic.
+4. **cost** — nothing, as of 2026-08-16, and that is the honest answer.
+   ``iterations`` was the fourth tier until the judge measured what the nine
+   families were counting with it: 20 negotiation rounds, 283 nets, 38,427
+   enumerated candidates. The contract itself defines an iteration as "one unit
+   of algorithm-defined outer work", so ranking on it compares a family's
+   choice of accounting unit, not its cost. It is still reported, and
+   ``nodes_expanded`` with it, because both are real information about one
+   family across time — they are simply not comparable *between* families, and
+   a ranking key is a between-families instrument.
+
+   Wall-clock is recorded and never scored either: it is a property of the
+   machine, and scoring it is how the current router became nondeterministic.
 
 Two scores are comparable only when their rulers match, so every score carries
 :class:`Ruler` — the check-set hash, the fab profile, the toolchain, the
@@ -45,7 +54,10 @@ from routerlib.model import (
 #: instead of their inscribed stadiums. No tier changed, but every legality
 #: number did, so a ``1`` score and a ``2`` score are not comparable and the
 #: hash has to say so.
-SCORER_VERSION = "2"
+#:
+#: ``3`` (2026-08-16): the cost tier is gone from the ranking key. It ranked on
+#: ``iterations``, which every family defines for itself.
+SCORER_VERSION = "3"
 
 #: How far apart two halves of a differential pair may run and still count as
 #: coupled: three times the design gap. Wider than that and the pair is two
@@ -287,7 +299,13 @@ class Score:
         return self.claimed_complete == (self.completeness >= 1.0)
 
     def key(self) -> tuple:
-        """Lexicographic, lower is better. Wall-clock is deliberately absent."""
+        """Lexicographic, lower is better.
+
+        Wall-clock is deliberately absent, and so is ``iterations`` — see the
+        module docstring's fourth tier. Ranking two families on a counter each
+        of them defines for itself is not a tie-break, it is a coin toss with a
+        number on it.
+        """
         q = self.quality
         return (
             round(1.0 - self.completeness, 9),
@@ -297,7 +315,6 @@ class Score:
             round(q.copper_mm, 3),
             round(1.0 - (q.diff_pair_coupling if q.diff_pair_coupling is not None else 1.0), 6),
             round(1.0 - (q.power_width_ratio if q.power_width_ratio is not None else 1.0), 6),
-            self.iterations,
         )
 
     def line(self) -> str:
@@ -329,7 +346,11 @@ class Score:
             "errorKinds": self.error_kinds,
             "boardFindings": [dict(f) for f in self.board_findings],
             "quality": self.quality.as_dict(),
+            # Family-defined units, reported and never ranked on. One family's
+            # iteration is a negotiation round, another's is an enumerated
+            # candidate; the two numbers do not belong in one column.
             "iterations": self.iterations,
+            "iterationsUnit": "family-defined",
             "nodesExpanded": self.nodes_expanded,
             "wallClockS": round(self.wall_clock_s, 3),
             "fingerprint": self.fingerprint,
