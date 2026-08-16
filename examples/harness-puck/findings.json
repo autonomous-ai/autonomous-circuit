@@ -1,15 +1,741 @@
 [
   {
-    "detail": "PCB trace is 13.48mm long, exceeding the 10mm maximum",
-    "kind": "pcb_trace_too_long_warning",
+    "detail": "Courtyard of Y1 overlaps with courtyard of SW1",
+    "kind": "pcb_courtyard_overlap_error",
+    "part": "Y1,SW1",
+    "severity": "error"
+  },
+  {
+    "detail": "Autorouting was skipped because 1 PCB placement error was found. Fix the placement errors or set placementDrcChecksDisabled to true to route anyway.",
+    "kind": "pcb_autorouting_error",
     "part": "board",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [J1.A5, R1.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "J1,R1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [J1.B5, R2.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "J1,R2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [Y1.pin1, U3.XIN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "Y1,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U3.XOUT, R11.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U3,R11",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R11.pin2, Y1.pin3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R11,Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [C15.pin1, U3.XIN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "C15,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [C16.pin1, Y1.pin3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "C16,Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.CS, U3.QSPI_SS] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.CLK, U3.QSPI_SCLK] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.DI, U3.QSPI_SD0] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.DO, U3.QSPI_SD1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.WP, U3.QSPI_SD2] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.HOLD, U3.QSPI_SD3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R13.pin1, U3.QSPI_SS] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R13,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R13.pin2, SW2.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R13,SW2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R12.pin2, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R12,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [SW3.pin1, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "SW3,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [SW3.pin2, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "SW3,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R20.pin2, LED1.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R20,LED1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.J1 > .CC1 to .R1 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "J1,R1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.J1 > .CC2 to .R2 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "J1,R2",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.Y1 > .pin1 to .U3 > .XIN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "Y1,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U3 > .XOUT to .R11 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U3,R11",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R11 > .pin2 to .Y1 > .pin3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R11,Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.C15 > .pin1 to .U3 > .XIN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "C15,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.C16 > .pin1 to .Y1 > .pin3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "C16,Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .CS to .U3 > .QSPI_SS] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .CLK to .U3 > .QSPI_SCLK] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO0 to .U3 > .QSPI_SD0] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO1 to .U3 > .QSPI_SD1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO2 to .U3 > .QSPI_SD2] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO3 to .U3 > .QSPI_SD3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R13 > .pin1 to .U3 > .QSPI_SS] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R13,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R13 > .pin2 to .SW2 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R13,SW2",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.SW2 > .pin2 to .SW2 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "SW2",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R12 > .pin2 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R12,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.SW3 > .pin1 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "SW3,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.SW3 > .pin2 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "SW3,U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R20 > .pin2 to .LED1 > .anode] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R20,LED1",
+    "severity": "error"
+  },
+  {
+    "detail": "the schematic draws a wire between two pins of SW2 \u2014 on paper that is a permanent short across the switch, and a reviewer has to read it as a dead button. If the pins are one internal terminal, declare the pairing with internallyConnectedPins so it folds into the symbol instead of drawing as a wire; if they are not, the design itself shorts the switch",
+    "kind": "schematic_symbol_short",
+    "part": "SW2",
     "severity": "warning"
   },
   {
-    "detail": "PCB trace is 13.84mm long, exceeding the 10mm maximum",
-    "kind": "pcb_trace_too_long_warning",
-    "part": "board",
+    "detail": "the schematic draws a wire between two pins of SW3 \u2014 on paper that is a permanent short across the switch, and a reviewer has to read it as a dead button. If the pins are one internal terminal, declare the pairing with internallyConnectedPins so it folds into the symbol instead of drawing as a wire; if they are not, the design itself shorts the switch",
+    "kind": "schematic_symbol_short",
+    "part": "SW3",
     "severity": "warning"
+  },
+  {
+    "detail": "Courtyard of Y1 overlaps with courtyard of SW1",
+    "kind": "pcb_courtyard_overlap_error",
+    "part": "Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [J1.A5, R1.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "J1.A5",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [J1.B5, R2.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "J1.B5",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [Y1.pin1, U3.XIN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "Y1.pin1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U3.XOUT, R11.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U3.XOUT",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R11.pin2, Y1.pin3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R11.pin2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [C15.pin1, U3.XIN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "C15.pin1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [C16.pin1, Y1.pin3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "C16.pin1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.CS, U3.QSPI_SS] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.CS",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.CLK, U3.QSPI_SCLK] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.CLK",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.DI, U3.QSPI_SD0] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.DI",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.DO, U3.QSPI_SD1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.DO",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.WP, U3.QSPI_SD2] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.WP",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [U4.HOLD, U3.QSPI_SD3] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "U4.HOLD",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R13.pin1, U3.QSPI_SS] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R13.pin1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R13.pin2, SW2.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R13.pin2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R12.pin2, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R12.pin2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [SW3.pin1, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "SW3.pin1",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [SW3.pin2, U3.RUN] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "SW3.pin2",
+    "severity": "error"
+  },
+  {
+    "detail": "Ports [R20.pin2, LED1.pin1] are not connected together through the same net.",
+    "kind": "pcb_port_not_connected_error",
+    "part": "R20.pin2",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.J1 > .CC1 to .R1 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "J1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.J1 > .CC2 to .R2 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "J1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.Y1 > .pin1 to .U3 > .XIN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U3 > .XOUT to .R11 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R11 > .pin2 to .Y1 > .pin3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R11",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.C15 > .pin1 to .U3 > .XIN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "C15",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.C16 > .pin1 to .Y1 > .pin3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "C16",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .CS to .U3 > .QSPI_SS] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .CLK to .U3 > .QSPI_SCLK] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO0 to .U3 > .QSPI_SD0] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO1 to .U3 > .QSPI_SD1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO2 to .U3 > .QSPI_SD2] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.U4 > .IO3 to .U3 > .QSPI_SD3] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R13 > .pin1 to .U3 > .QSPI_SS] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R13",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R13 > .pin2 to .SW2 > .pin1] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R13",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R12 > .pin2 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R12",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.SW3 > .pin1 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "SW3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.SW3 > .pin2 to .U3 > .RUN] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "SW3",
+    "severity": "error"
+  },
+  {
+    "detail": "Trace [.R20 > .pin2 to .LED1 > .anode] is not connected (it has no PCB trace)",
+    "kind": "pcb_trace_missing_error",
+    "part": "R20",
+    "severity": "error"
+  },
+  {
+    "detail": "<capacitor#1026 name=\".C47\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4739). \u2014 reported, not graded: the part sits at 22.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C47",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#865 name=\".C40\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4739). \u2014 reported, not graded: the part sits at 337.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C40",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#934 name=\".C43\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4739). \u2014 reported, not graded: the part sits at 202.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C43",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#957 name=\".C44\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4739). \u2014 reported, not graded: the part sits at 157.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C44",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#1003 name=\".C46\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4916). \u2014 reported, not graded: the part sits at 67.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C46",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#888 name=\".C41\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4916). \u2014 reported, not graded: the part sits at 292.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C41",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#911 name=\".C42\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4916). \u2014 reported, not graded: the part sits at 247.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C42",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#980 name=\".C45\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.4916). \u2014 reported, not graded: the part sits at 112.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C45",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#883 name=\".D11\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.602). \u2014 reported, not graded: the part sits at 292.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D11",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#906 name=\".D12\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.602). \u2014 reported, not graded: the part sits at 247.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D12",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#975 name=\".D15\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.602). \u2014 reported, not graded: the part sits at 112.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D15",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#998 name=\".D16\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.602). \u2014 reported, not graded: the part sits at 67.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D16",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#1021 name=\".D17\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.6033). \u2014 reported, not graded: the part sits at 22.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D17",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#860 name=\".D10\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.6033). \u2014 reported, not graded: the part sits at 337.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D10",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#929 name=\".D13\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.6033). \u2014 reported, not graded: the part sits at 202.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D13",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#952 name=\".D14\" /> footprint the provided footprint does not match supplier footprint jlcpcb:C2761795 (copper IoU 0.6033). \u2014 reported, not graded: the part sits at 157.5 degrees, off the orthogonal grid, and this IoU is measured axis-by-axis against the supplier footprint. Measured on one 0402 at six angles: 0.7249 at 0/90/180/270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the angle, not the land pattern.",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D14",
+    "severity": "info"
+  },
+  {
+    "detail": "<chip#479 name=\".U4\" /> footprint \"soic8_pillpads_w9.3102mm_pw0.63mm_pl2.25mm_pin1location(leftside,bottom)\" does not match supplier footprint jlcpcb:C97521 (copper IoU 0.6347).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "U4",
+    "severity": "warning"
+  },
+  {
+    "detail": "<capacitor#571 name=\".C15\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1548 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C15",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#583 name=\".C16\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1548 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C16",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#607 name=\".C14\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C14",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#690 name=\".C4\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C4",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#702 name=\".C5\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C5",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#714 name=\".C6\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C6",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#726 name=\".C7\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C7",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#738 name=\".C8\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C8",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#750 name=\".C9\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C9",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#762 name=\".C10\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C10",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#774 name=\".C11\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C11",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#802 name=\".C12\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C52923 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C12",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#814 name=\".C13\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C13",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#1093 name=\".R20\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R20",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#17 name=\".R1\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25905 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R1",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#30 name=\".R2\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25905 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R2",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#43 name=\".R3\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25100 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R3",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#554 name=\".R11\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R11",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#56 name=\".R4\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25100 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R4",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#621 name=\".R13\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R13",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#655 name=\".R12\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25744 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R12",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#845 name=\".R30\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25104 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R30",
+    "severity": "info"
+  },
+  {
+    "detail": "the compiled board was repaired before it was judged: 4 polygon pad(s) had a closed ring opened (4 repeated vertex/vertices dropped) \u2014 a zero-length pad edge makes every via read as inside that pad",
+    "kind": "circuit_normalized",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "Y1 and SW1 overlap by 0.900mm of keep-out; the courtyard is the space the placement nozzle and rework iron need, so overlapping ones mean one part cannot be worked on without disturbing the other",
+    "kind": "dfa_courtyard_overlap",
+    "part": "Y1,SW1",
+    "severity": "error"
   },
   {
     "detail": "J1 sits 0.349mm from the board edge; the assembly line grips the outer 2.5mm and needs 1mm as an absolute floor",
@@ -26,30 +752,6 @@
   {
     "detail": "15 part(s) are in package families whose zero-rotation convention differs between EDA output and JLCPCB's library: D10, D11, D12, D13, D14, D15, D16, D17, J1, LED1, U1, U2, U4, U5, Y1. Check pin-1 on each in the placement preview before paying \u2014 that screen is the only place this is catchable",
     "kind": "dfa_rotation_watchlist",
-    "part": "board",
-    "severity": "info"
-  },
-  {
-    "detail": "GND is routed at 0.150mm, which carries 604mA at a 10degC rise (IPC-2221B, 1oz external). It has to carry 649mA (the return path for every rail; the heaviest is V5 at 649mA), which needs 0.165mm",
-    "kind": "netclass_trace_width",
-    "part": "GND",
-    "severity": "warning"
-  },
-  {
-    "detail": "V5 is routed at 0.150mm, which carries 604mA at a 10degC rise (IPC-2221B, 1oz external). It has to carry 649mA (U1 0.001mA; U2 11mA; U5 11mA; 136mA drawn through U2 from V3_3), which needs 0.165mm",
-    "kind": "netclass_trace_width",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
-    "detail": "USB_DP routes 68.71mm and USB_DM 49.49mm \u2014 19.22mm of intra-pair skew against a 3.8mm budget (USB 2.0, ~150ps on FR-4). Length-match the pair or shorten the longer leg",
-    "kind": "netclass_pair_skew",
-    "part": "USB_DP,USB_DM",
-    "severity": "warning"
-  },
-  {
-    "detail": "every routed segment on this board is 0.15mm \u2014 the same copper for GND, V3_3, V3_3_LED, V5 as for a button signal. No net class distinguishes power from signal, so each rail carries whatever the router's default happens to be (604mA at 10degC by IPC-2221B)",
-    "kind": "netclass_uniform_width",
     "part": "board",
     "severity": "info"
   },
@@ -144,8 +846,14 @@
     "severity": "warning"
   },
   {
-    "detail": "the converted board was held to the fab's silkscreen floors before plotting: 60 silkscreen text(s) raised to the fab's minimum height (smallest was 0.267mm); 60 given an explicit stroke; 237 silkscreen stroke(s) widened (thinnest was 0.1000mm); 2 missing via(s) added under a B.Cu dead-end at a top-only pad",
+    "detail": "the converted board was held to the fab's silkscreen floors before plotting: 60 silkscreen text(s) raised to the fab's minimum height (smallest was 0.267mm); 60 given an explicit stroke; 237 silkscreen stroke(s) widened (thinnest was 0.1000mm)",
     "kind": "kicad_normalized",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "the exported schematic was held to the design's netlist: 118 of 220 pins disagreed with the design before, 0 after; 1 missing symbol(s) drawn (Device:J_TYPE-C-31-M-12); 127 net label(s) stamped; 5 label(s) removed from empty space",
+    "kind": "schematic_truth_normalized",
     "part": "board",
     "severity": "info"
   },
@@ -164,13 +872,7 @@
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "Pin 14 [???, ?]",
-    "severity": "info"
-  },
-  {
-    "detail": "[label_dangling] Label not connected",
-    "kind": "erc_violation",
-    "part": "Global Label 'TR_J1_cc2r'",
+    "part": "J1",
     "severity": "info"
   },
   {
@@ -200,24 +902,6 @@
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "R1",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "U2",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "U5",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
     "part": "Symbol V3_3 Pin 1 [1, Passive, Line]",
     "severity": "info"
   },
@@ -230,61 +914,7 @@
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "C23",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "Y1",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "D10",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "SW3",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
     "part": "U3",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C17",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "U4",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "R20",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "TP3",
     "severity": "info"
   },
   {
@@ -314,13 +944,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0435 mm",
+    "part": "Horizontal Wire, length 0.0300 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0300 mm",
+    "part": "Horizontal Wire, length 0.0435 mm",
     "severity": "info"
   },
   {
@@ -330,9 +960,27 @@
     "severity": "info"
   },
   {
+    "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Pin 1 [???, ?]",
+    "part": "Horizontal Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "J1",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
+    "kind": "erc_violation",
+    "part": "J1",
     "severity": "info"
   },
   {
@@ -828,12 +1476,6 @@
     "severity": "info"
   },
   {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0152 mm",
-    "severity": "info"
-  },
-  {
     "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
     "kind": "erc_violation",
     "part": "Vertical Wire, length 0.0152 mm",
@@ -842,7 +1484,7 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.1050 mm",
+    "part": "Vertical Wire, length 0.0152 mm",
     "severity": "info"
   },
   {
@@ -855,12 +1497,6 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "C23",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.1725 mm",
     "severity": "info"
   },
   {
@@ -974,12 +1610,6 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0764 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.2190 mm",
     "severity": "info"
   },
@@ -993,6 +1623,24 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "SW3",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0000 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0254 mm",
     "severity": "info"
   },
   {
@@ -1028,13 +1676,19 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.2010 mm",
+    "part": "Horizontal Wire, length 0.0360 mm",
     "severity": "info"
   },
   {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Global Label 'PX_11_DIN'",
+    "part": "Horizontal Wire, length 1.1565 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0945 mm",
     "severity": "info"
   },
   {
@@ -1206,21 +1860,9 @@
     "severity": "info"
   },
   {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "Global Label 'GND'",
-    "severity": "info"
-  },
-  {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Horizontal Wire, length 1.3725 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "Global Label 'V3_3'",
     "severity": "info"
   },
   {
@@ -1454,25 +2096,25 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0660 mm",
+    "part": "Vertical Wire, length 0.2812 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 1.6875 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "U4",
+    "part": "Horizontal Wire, length 0.2880 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.5175 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "U4",
     "severity": "info"
   },
   {
@@ -1562,12 +2204,6 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0545 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
     "part": "Horizontal Wire, length 2.2502 mm",
     "severity": "info"
   },
@@ -1580,7 +2216,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.1425 mm",
+    "part": "Horizontal Wire, length 1.1505 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.1177 mm",
     "severity": "info"
   },
   {
@@ -1593,12 +2235,6 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0917 mm",
     "severity": "info"
   },
   {
@@ -1629,6 +2265,12 @@
     "detail": "[isolated_pin_label] Label connected to only one pin",
     "kind": "erc_violation",
     "part": "Global Label 'PX_18_DIN'",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0619 mm",
     "severity": "info"
   },
   {
@@ -1682,7 +2324,7 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.1275 mm",
+    "part": "Horizontal Wire, length 0.0919 mm",
     "severity": "info"
   },
   {
@@ -1695,6 +2337,18 @@
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "LED1",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0795 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 1.6035 mm",
     "severity": "info"
   },
   {
@@ -1719,12 +2373,6 @@
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "TP2",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "TP3",
     "severity": "info"
   },
   {
@@ -1734,22 +2382,22 @@
     "severity": "info"
   },
   {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "TP3",
+    "severity": "info"
+  },
+  {
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "TP3",
     "severity": "info"
   },
   {
-    "detail": "[holes_co_located] Drilled holes co-located",
+    "detail": "[courtyards_overlap] Courtyards overlap",
     "kind": "drc_violation",
-    "part": "Via [USB_DM_CONN] on F.Cu - B.Cu",
-    "severity": "warning"
-  },
-  {
-    "detail": "[holes_co_located] Drilled holes co-located",
-    "kind": "drc_violation",
-    "part": "Via [GND] on F.Cu - B.Cu",
-    "severity": "warning"
+    "part": "SW1",
+    "severity": "error"
   },
   {
     "detail": "[lib_footprint_issues] The current configuration does not include the footprint library 'tscircuit'",
@@ -2132,13 +2780,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "R3",
+    "part": "U1",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "U1",
+    "part": "R2",
     "severity": "info"
   },
   {
@@ -2192,6 +2840,12 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
+    "part": "SW2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
     "part": "C2",
     "severity": "info"
   },
@@ -2204,19 +2858,19 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW2",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "C46",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "U5",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW3",
     "severity": "info"
   },
   {
@@ -2234,25 +2888,25 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C42",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "LED1",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW4",
+    "part": "C42",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'DIO' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW4",
     "severity": "info"
   },
   {
@@ -2265,6 +2919,12 @@
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "U4",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C14",
     "severity": "info"
   },
   {
@@ -2288,13 +2948,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C11",
+    "part": "C7",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C12",
+    "part": "C8",
     "severity": "info"
   },
   {
@@ -2306,43 +2966,7 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C10",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "Y1",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "R11",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "C4",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C43",
     "severity": "info"
   },
   {
@@ -2360,19 +2984,43 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW3",
+    "part": "C10",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C7",
+    "part": "C43",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "C8",
+    "part": "Y1",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C16",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C11",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C15",
     "severity": "info"
   },
   {
@@ -2432,7 +3080,7 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "SW2",
+    "part": "U5",
     "severity": "info"
   },
   {
@@ -2444,25 +3092,19 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D12",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
     "part": "LED1",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D15",
+    "part": "D12",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "Y1",
+    "part": "D15",
     "severity": "info"
   },
   {
@@ -2480,8 +3122,344 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
+    "part": "SW2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
     "part": "D14",
     "severity": "info"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "V5",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C42",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C41",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D12",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C22",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D13",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C40",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "U5",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C4",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C9",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "SW3",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C15",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C5",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "Y1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "U3",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C6",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C11",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "U1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R2",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C7",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C12",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C16",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C13",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C17",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "SW2",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D14",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C14",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C47",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D17",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "U2",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C3",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C23",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "TP3",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D15",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D16",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C46",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R11",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R13",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R12",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R30",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D11",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "SW1",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R20",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R3",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "R4",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C10",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C8",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "D10",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C43",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C21",
+    "severity": "error"
+  },
+  {
+    "detail": "[unconnected_items] Missing connection between items",
+    "kind": "drc_violation",
+    "part": "C45",
+    "severity": "error"
   },
   {
     "detail": "[duplicate_footprints] Duplicate footprints",
@@ -2502,18 +3480,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (Net-(C1-Pad1))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U1-GND))",
-    "kind": "drc_violation",
-    "part": "C1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C2",
@@ -2521,12 +3487,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U2-GND))",
     "kind": "drc_violation",
     "part": "C2",
     "severity": "warning"
@@ -2544,18 +3504,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C3-Pad1))",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C15-Pad2))",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C4",
@@ -2563,18 +3511,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C4",
     "severity": "warning"
@@ -2592,18 +3528,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C6",
@@ -2611,18 +3535,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C6",
     "severity": "warning"
@@ -2635,18 +3547,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C7",
     "severity": "warning"
@@ -2659,18 +3559,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C8",
     "severity": "warning"
@@ -2683,18 +3571,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C9",
     "severity": "warning"
@@ -2707,18 +3583,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C10",
     "severity": "warning"
@@ -2731,18 +3595,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C11",
     "severity": "warning"
@@ -2760,12 +3612,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C12",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C13",
@@ -2778,12 +3624,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C13",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C14",
@@ -2791,18 +3631,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(C14-Pad1))",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(C14-Pad2))",
     "kind": "drc_violation",
     "part": "C14",
     "severity": "warning"
@@ -2826,12 +3654,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C15-Pad2))",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C16",
@@ -2850,12 +3672,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(Y1-4))",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C17",
@@ -2863,18 +3679,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(C17-Pad1))",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C17",
     "severity": "warning"
@@ -2892,18 +3696,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (Net-(U1-VBUS))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U5-GND))",
-    "kind": "drc_violation",
-    "part": "C20",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C21",
@@ -2911,18 +3703,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C21",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C21-Pad1))",
-    "kind": "drc_violation",
-    "part": "C21",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C21-Pad2))",
     "kind": "drc_violation",
     "part": "C21",
     "severity": "warning"
@@ -2940,18 +3720,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C21-Pad1))",
-    "kind": "drc_violation",
-    "part": "C22",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C21-Pad2))",
-    "kind": "drc_violation",
-    "part": "C22",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C23",
@@ -2964,18 +3732,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (unconnected-(C23-Pad1))",
-    "kind": "drc_violation",
-    "part": "C23",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(C23-Pad2))",
-    "kind": "drc_violation",
-    "part": "C23",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C40",
@@ -2983,18 +3739,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C40",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C40-Pad1))",
-    "kind": "drc_violation",
-    "part": "C40",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D10-GND))",
     "kind": "drc_violation",
     "part": "C40",
     "severity": "warning"
@@ -3012,18 +3756,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C40-Pad1))",
-    "kind": "drc_violation",
-    "part": "C41",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D11-GND))",
-    "kind": "drc_violation",
-    "part": "C41",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C42",
@@ -3031,18 +3763,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C42",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C42-Pad1))",
-    "kind": "drc_violation",
-    "part": "C42",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D12-GND))",
     "kind": "drc_violation",
     "part": "C42",
     "severity": "warning"
@@ -3055,18 +3775,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C43",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C42-Pad1))",
-    "kind": "drc_violation",
-    "part": "C43",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D13-GND))",
     "kind": "drc_violation",
     "part": "C43",
     "severity": "warning"
@@ -3079,18 +3787,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C44",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C44-Pad1))",
-    "kind": "drc_violation",
-    "part": "C44",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D14-GND))",
     "kind": "drc_violation",
     "part": "C44",
     "severity": "warning"
@@ -3103,18 +3799,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C45",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C44-Pad1))",
-    "kind": "drc_violation",
-    "part": "C45",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D15-GND))",
     "kind": "drc_violation",
     "part": "C45",
     "severity": "warning"
@@ -3127,18 +3811,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C46",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C46-Pad1))",
-    "kind": "drc_violation",
-    "part": "C46",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D16-GND))",
     "kind": "drc_violation",
     "part": "C46",
     "severity": "warning"
@@ -3151,18 +3823,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C47",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(C46-Pad1))",
-    "kind": "drc_violation",
-    "part": "C47",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D17-GND))",
     "kind": "drc_violation",
     "part": "C47",
     "severity": "warning"
@@ -3180,24 +3840,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D10-VDD))",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (PX_11_DIN) doesn't match net given by schematic (unconnected-(D10-DOUT-Pad2))",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D10-GND))",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:WS2812B-B_T doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "D11",
@@ -3210,18 +3852,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D10-VDD))",
-    "kind": "drc_violation",
-    "part": "D11",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D11-GND))",
-    "kind": "drc_violation",
-    "part": "D11",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:WS2812B-B_T doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "D12",
@@ -3229,18 +3859,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D12",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D12-VDD))",
-    "kind": "drc_violation",
-    "part": "D12",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D12-GND))",
     "kind": "drc_violation",
     "part": "D12",
     "severity": "warning"
@@ -3253,18 +3871,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D13",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D12-VDD))",
-    "kind": "drc_violation",
-    "part": "D13",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D13-GND))",
     "kind": "drc_violation",
     "part": "D13",
     "severity": "warning"
@@ -3277,18 +3883,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D14-VDD))",
-    "kind": "drc_violation",
-    "part": "D14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D14-GND))",
     "kind": "drc_violation",
     "part": "D14",
     "severity": "warning"
@@ -3301,18 +3895,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D15",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D14-VDD))",
-    "kind": "drc_violation",
-    "part": "D15",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D15-GND))",
     "kind": "drc_violation",
     "part": "D15",
     "severity": "warning"
@@ -3325,18 +3907,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D16",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D16-VDD))",
-    "kind": "drc_violation",
-    "part": "D16",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D16-GND))",
     "kind": "drc_violation",
     "part": "D16",
     "severity": "warning"
@@ -3349,18 +3919,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "D17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(D16-VDD))",
-    "kind": "drc_violation",
-    "part": "D17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(D17-GND))",
     "kind": "drc_violation",
     "part": "D17",
     "severity": "warning"
@@ -3369,6 +3927,48 @@
     "detail": "[missing_footprint] Missing footprint GND (GND)",
     "kind": "drc_violation",
     "part": "board",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_mismatch] Value (J1) doesn't match symbol value (J1)",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_mismatch] tscircuit:TYPE-C-31-M-12 doesn't match footprint given by symbol ()",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Connector')",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(J1-B8-Pad5))",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.J1 > .CC1 to .R1 > .pin1) doesn't match net given by schematic (N$16)",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(J1-A8-Pad11))",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.J1 > .CC2 to .R2 > .pin1) doesn't match net given by schematic (TR_J1_cc2r)",
+    "kind": "drc_violation",
+    "part": "J1",
     "severity": "warning"
   },
   {
@@ -3390,18 +3990,12 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (.R20 > .pin2 to .LED1 > .anode) doesn't match net given by schematic (Net-(LED1-Pad1))",
+    "detail": "[net_conflict] Pad net (.R20 > .pin2 to .LED1 > .anode) doesn't match net given by schematic (TR_R20_led)",
     "kind": "drc_violation",
     "part": "R20",
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U4-GND))",
-    "kind": "drc_violation",
-    "part": "LED1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:resistor_res0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "R1",
@@ -3414,18 +4008,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (.J1 > .CC1 to .R1 > .pin1) doesn't match net given by schematic (unconnected-(R1-Pad1))",
-    "kind": "drc_violation",
-    "part": "J1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(R1-Pad2))",
-    "kind": "drc_violation",
-    "part": "R1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:resistor_res0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "R2",
@@ -3433,18 +4015,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Resistor')",
-    "kind": "drc_violation",
-    "part": "R2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (.J1 > .CC2 to .R2 > .pin1) doesn't match net given by schematic (TR_J1_cc2r)",
-    "kind": "drc_violation",
-    "part": "J1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(R1-Pad2))",
     "kind": "drc_violation",
     "part": "R2",
     "severity": "warning"
@@ -3504,12 +4074,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C3-Pad1))",
-    "kind": "drc_violation",
-    "part": "R12",
-    "severity": "warning"
-  },
-  {
     "detail": "[net_conflict] Pad net (.R12 > .pin2 to .U3 > .RUN) doesn't match net given by schematic (TR_R12_run)",
     "kind": "drc_violation",
     "part": "R12",
@@ -3552,12 +4116,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(R20-Pad1))",
-    "kind": "drc_violation",
-    "part": "R20",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:resistor_res0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "R30",
@@ -3582,6 +4140,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (GND)",
+    "kind": "drc_violation",
+    "part": "SW1",
+    "severity": "warning"
+  },
+  {
     "detail": "[net_conflict] No corresponding pin found in schematic",
     "kind": "drc_violation",
     "part": "SW1",
@@ -3600,6 +4164,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad net (.R13 > .pin2 to .SW2 > .pin1) doesn't match net given by schematic (GND)",
+    "kind": "drc_violation",
+    "part": "R13",
+    "severity": "warning"
+  },
+  {
     "detail": "[net_conflict] No corresponding pin found in schematic",
     "kind": "drc_violation",
     "part": "SW2",
@@ -3618,7 +4188,7 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (.R12 > .pin2 to .U3 > .RUN) doesn't match net given by schematic (unconnected-(SW3-Pad2))",
+    "detail": "[net_conflict] Pad net (.R12 > .pin2 to .U3 > .RUN) doesn't match net given by schematic (GND)",
     "kind": "drc_violation",
     "part": "R12",
     "severity": "warning"
@@ -3642,6 +4212,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (GND)",
+    "kind": "drc_violation",
+    "part": "SW4",
+    "severity": "warning"
+  },
+  {
     "detail": "[net_conflict] No corresponding pin found in schematic",
     "kind": "drc_violation",
     "part": "SW4",
@@ -3684,12 +4260,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(TP3-Pad1))",
-    "kind": "drc_violation",
-    "part": "TP3",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:USBLC6-2SC6 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U1",
@@ -3697,12 +4267,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "U1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U1-GND))",
     "kind": "drc_violation",
     "part": "U1",
     "severity": "warning"
@@ -3720,24 +4284,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U2-GND))",
-    "kind": "drc_violation",
-    "part": "U2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U2-VOUT1))",
-    "kind": "drc_violation",
-    "part": "U2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (unconnected-(U2-VIN-Pad3))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:RP2040 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U3",
@@ -3745,12 +4291,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-IOVDD5))",
     "kind": "drc_violation",
     "part": "U3",
     "severity": "warning"
@@ -3870,12 +4410,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-ADC_AVDD))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
     "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(U3-GPIO22-Pad34))",
     "kind": "drc_violation",
     "part": "U3",
@@ -3954,12 +4488,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(U3-GND-Pad57))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:W25Q128JVSIQ doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U4",
@@ -3967,18 +4495,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "U4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U4-GND))",
-    "kind": "drc_violation",
-    "part": "U4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(U4-VCC-Pad8))",
     "kind": "drc_violation",
     "part": "U4",
     "severity": "warning"
@@ -3993,24 +4509,6 @@
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
     "kind": "drc_violation",
     "part": "U5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U5-GND))",
-    "kind": "drc_violation",
-    "part": "U5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3_LED) doesn't match net given by schematic (Net-(U5-VOUT1))",
-    "kind": "drc_violation",
-    "part": "U5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (unconnected-(U5-VIN-Pad3))",
-    "kind": "drc_violation",
-    "part": "V5",
     "severity": "warning"
   },
   {
@@ -4044,19 +4542,13 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (.Y1 > .pin1 to .U3 > .XIN) doesn't match net given by schematic (Net-(Y1-4))",
+    "detail": "[net_conflict] Pad net (.Y1 > .pin1 to .U3 > .XIN) doesn't match net given by schematic (GND)",
     "kind": "drc_violation",
     "part": "Y1",
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(Y1-Pad2))",
-    "kind": "drc_violation",
-    "part": "Y1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (.R11 > .pin2 to .Y1 > .pin3) doesn't match net given by schematic (unconnected-(Y1-1-Pad3))",
+    "detail": "[net_conflict] Pad net (.R11 > .pin2 to .Y1 > .pin3) doesn't match net given by schematic (TR_Y1_xin)",
     "kind": "drc_violation",
     "part": "R11",
     "severity": "warning"
@@ -4070,29 +4562,17 @@
   {
     "detail": "[extra_footprint] Extra footprint",
     "kind": "drc_violation",
-    "part": "J1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[extra_footprint] Extra footprint",
-    "kind": "drc_violation",
     "part": "Footprint <no reference designator>",
     "severity": "warning"
   },
   {
-    "detail": "2 drill hit(s) in the packet have no matching hole in the design ((100.20, -92.50), (97.60, -126.83)) \u2014 something was added between the design and the plot",
-    "kind": "gerber_drill_extra",
-    "part": "packet",
-    "severity": "warning"
-  },
-  {
-    "detail": "10 thin mask web(s) on mask top sit inside a single part's own land pattern (a 0402's pad gap is 0.1985mm, just under the 0.2mm rule). That is a property of the qualified footprint, which the fab builds every day \u2014 recorded, not blocked",
+    "detail": "8 thin mask web(s) on mask top sit inside a single part's own land pattern (a 0402's pad gap is 0.1985mm, just under the 0.2mm rule). That is a property of the qualified footprint, which the fab builds every day \u2014 recorded, not blocked",
     "kind": "gerber_mask_sliver_in_footprint",
     "part": "board-F_Mask.gts",
     "severity": "info"
   },
   {
-    "detail": "104 silkscreen stroke(s) on silk top land inside a solder-mask opening \u2014 ink on a solderable surface stops the joint wetting, and the fab may clip the silk instead",
+    "detail": "117 silkscreen stroke(s) on silk top land inside a solder-mask opening \u2014 ink on a solderable surface stops the joint wetting, and the fab may clip the silk instead",
     "kind": "gerber_silk_over_pad",
     "part": "board-F_Silkscreen.gto",
     "severity": "warning"

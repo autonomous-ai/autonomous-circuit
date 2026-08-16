@@ -35,19 +35,32 @@ output root, or drop a marker into the mirror).
 Build it:
 
 ```bash
-CIRCUIT_PARTS_ENGINE=off python3 skills/circuitcode/scripts/circuit \
-  /abs/path/examples/harness-puck/boards/main.tsx --wall-clock-s 1500
+python3.12 skills/circuitcode/scripts/circuit \
+  /abs/path/examples/harness-puck/boards/main.tsx --wall-clock-s 5400
 ```
 
-**State: 2 blocking, 262 advisory, 430 info. `fab.ready` is false — do not order
-this.** Both blocking warnings are the same finding: GND tracks running 0.1396mm
-and 0.1848mm from the two NPTH alignment holes inside the TYPE-C footprint,
-against a 0.2mm rule. The channel those holes leave is 0.525mm wide and cannot
-legally carry any track above the 0.127mm fab floor, so the fix belongs in the
-`usb-c-power` block's footprint, not here. Gerbers, BOM and CPL in `main_fab/`
-are real (kicad-cli 10.0.5 exported them) but the packet is not shippable and
-`ORDER.md` was not written. `DESIGN-REVIEW.md` has the whole story, including
-the two fixes that were tried and what they broke.
+**State (rebuilt 2026-08-16 07:03 from committed source): 137 blocking, 189
+advisory, 437 info. `fab.ready` is false, and this board now routes nothing at
+all — do not order it.** One placement error is the whole story: Y1's courtyard
+overlaps SW1's by 0.900mm, and tscircuit skips autorouting for the *entire*
+board when it finds a placement error, so `main.circuit.json` carries **0
+`pcb_trace` and 0 `pcb_via`**. Every other blocking finding — 38
+`pcb_port_not_connected_error`, 39 `pcb_trace_missing_error`, 56 KiCad
+`unconnected_items` — is a consequence of that, not a separate defect.
+
+The cause is a golden block that moved under a board nobody rebuilt.
+`rp2040-core`'s crystal cluster was relocated (`pcbX=-8, pcbY=0` →
+`pcbX=0, pcbY=-10.5`) by the EE-review fix commits on 2026-08-15; harness-puck
+composes that block at `pcbX=-2, pcbY=11`, which lands Y1's centre at
+(−2, +0.50) with a 3.6 × 2.9mm body, 3.50mm from SW1 at (−2, −3.00) with a
+7 × 4.4498mm body. The bodies overlap by 0.175mm. SW1's position is product
+geometry — the key cap presses it — so the lever is the MCU cluster, not the
+button. **This is Dee's call and it is unmade.**
+
+The previously committed packet said `fab.ready: true` with 2 blocking. That
+artifact was built on 2026-08-13, before the block moved, and it is the
+strongest argument in this repo for rebuilding every composing board when a
+golden block changes (ledger #39).
 
 ## What the board does
 

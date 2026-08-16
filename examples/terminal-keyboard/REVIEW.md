@@ -1,8 +1,10 @@
 # Board sign-off — terminal-keyboard
 
-**The tool says this board is orderable:** zero error-severity findings, and gerbers independently produced by `kicad-cli` from the same file KiCad ran DRC against.
+**Not orderable — 1 blocking finding.**
 
-That is our claim. This review is where it gets tested by someone who did not build it.
+- `dfm_hole_clearance` — U4: a pad passes 0.130mm from a via at (10.12, -20.90); the fab needs 0.2mm — route around it, the drill's own tolerance can cut a track this close
+
+We already know about these, so there is nothing to approve here yet. What we want from you is whether the blocking list is **complete** — a defect we are missing is worth far more to us than one we have already found.
 
 ## What is in this folder
 
@@ -25,18 +27,18 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = True` · 1053 findings total, 0 blocking.
+`fab.ready = False` · 1177 findings total, 1 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 642 |
-| `erc_violation` | 394 |
-| `review_decoupling_distant` | 3 |
-| `dfa_edge_clearance` | 2 |
-| `pcb_trace_too_long_warning` | 1 |
-| `dfa_off_board` | 1 |
-| `dfa_pin_pitch` | 1 |
-| `dfa_rotation_watchlist` | 1 |
+| `drc_violation` | 654 |
+| `erc_violation` | 387 |
+| `supplier_footprint_mismatch_warning` | 47 |
+| `source_part_not_found_warning` | 44 |
+| `dfa_edge_clearance` | 17 |
+| `dfm_power_trace_width` | 3 |
+| `schematic_symbol_short` | 2 |
+| `netclass_pair_skew` | 2 |
 
 Non-blocking findings are in `findings.json` here, in full. Some are noise from
 our own converter and are labelled as such — **please challenge that labelling**

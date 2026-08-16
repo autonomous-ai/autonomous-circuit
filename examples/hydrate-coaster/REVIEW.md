@@ -25,18 +25,18 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = True` · 514 findings total, 0 blocking.
+`fab.ready = True` · 483 findings total, 0 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 280 |
-| `erc_violation` | 214 |
+| `drc_violation` | 229 |
+| `erc_violation` | 201 |
+| `supplier_footprint_mismatch_warning` | 27 |
 | `dfm_power_trace_width` | 3 |
 | `schematic_symbol_short` | 2 |
+| `netclass_pair_reference` | 2 |
 | `review_decoupling_distant` | 2 |
 | `pcb_trace_too_long_warning` | 1 |
-| `dfa_edge_clearance` | 1 |
-| `dfa_pin_pitch` | 1 |
 
 Non-blocking findings are in `findings.json` here, in full. Some are noise from
 our own converter and are labelled as such — **please challenge that labelling**

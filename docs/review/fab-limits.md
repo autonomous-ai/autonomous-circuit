@@ -31,6 +31,7 @@ our documentation.
 | `standard_thickness_mm` | 1.6 |
 | `warn_clearance_mm` | 0.127 |
 | `warn_edge_clearance_mm` | 0.3 |
+| `warn_power_trace_mm` | 0.5 |
 | `warn_pth_to_copper_mm` | 0.35 |
 | `warn_trace_mm` | 0.15 |
 | `warn_via_annular_mm` | 0.1 |

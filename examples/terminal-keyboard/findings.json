@@ -1,8 +1,692 @@
 [
   {
-    "detail": "PCB trace is 21.60mm long, exceeding the 10mm maximum",
+    "detail": "Failed to fetch supplier footprint for <capacitor#2179 name=\".C15\" /> (jlcpcb:C1548): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C15",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2298 name=\".C4\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C4",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2322 name=\".C6\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C6",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2370 name=\".C10\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C10",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2382 name=\".C11\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C11",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2410 name=\".C12\" /> (jlcpcb:C52923): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C12",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2422 name=\".C13\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C13",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <capacitor#2623 name=\".C3\" /> (jlcpcb:C15850): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "C3",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <chip#1850 name=\".U3\" /> (jlcpcb:C2040): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "U3",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <chip#2537 name=\".U1\" /> (jlcpcb:C2687116): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "U1",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <connector#2468 name=\".J1\" /> (jlcpcb:C165948): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1036 name=\".D29\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D29",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#111 name=\".D4\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D4",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1295 name=\".D36\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D36",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1332 name=\".D37\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D37",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#148 name=\".D5\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D5",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1517 name=\".D42\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D42",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1628 name=\".D45\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D45",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1739 name=\".D48\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D48",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#1813 name=\".D50\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D50",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#259 name=\".D8\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D8",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#296 name=\".D9\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D9",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <diode#333 name=\".D10\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "D10",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <led#2644 name=\".LED1\" /> (jlcpcb:C2297): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "LED1",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1423 name=\".SW48\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW48",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1534 name=\".SW51\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW51",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1608 name=\".SW53\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW53",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1645 name=\".SW54\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW54",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1719 name=\".SW56\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW56",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1756 name=\".SW57\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW57",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1793 name=\".SW58\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW58",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#2242 name=\".SW2\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW2",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#276 name=\".SW17\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW17",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#313 name=\".SW18\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW18",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#535 name=\".SW24\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW24",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#720 name=\".SW29\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW29",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#794 name=\".SW31\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW31",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <pushbutton#905 name=\".SW34\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "SW34",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2229 name=\".R13\" /> (jlcpcb:C11702): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R13",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2263 name=\".R12\" /> (jlcpcb:C25744): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R12",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2485 name=\".R1\" /> (jlcpcb:C25905): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R1",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2498 name=\".R2\" /> (jlcpcb:C25905): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R2",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2524 name=\".R4\" /> (jlcpcb:C25100): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R4",
+    "severity": "warning"
+  },
+  {
+    "detail": "Failed to fetch supplier footprint for <resistor#2654 name=\".R20\" /> (jlcpcb:C11702): Failed to search for the component (HTTP 429)",
+    "kind": "source_part_not_found_warning",
+    "part": "R20",
+    "severity": "warning"
+  },
+  {
+    "detail": "PCB trace is 13.96mm long, exceeding the 10mm maximum",
     "kind": "pcb_trace_too_long_warning",
     "part": "board",
+    "severity": "warning"
+  },
+  {
+    "detail": "the schematic draws a wire between two pins of SW2 \u2014 on paper that is a permanent short across the switch, and a reviewer has to read it as a dead button. If the pins are one internal terminal, declare the pairing with internallyConnectedPins so it folds into the symbol instead of drawing as a wire; if they are not, the design itself shorts the switch",
+    "kind": "schematic_symbol_short",
+    "part": "SW2",
+    "severity": "warning"
+  },
+  {
+    "detail": "the schematic draws a wire between two pins of SW3 \u2014 on paper that is a permanent short across the switch, and a reviewer has to read it as a dead button. If the pins are one internal terminal, declare the pairing with internallyConnectedPins so it folds into the symbol instead of drawing as a wire; if they are not, the design itself shorts the switch",
+    "kind": "schematic_symbol_short",
+    "part": "SW3",
+    "severity": "warning"
+  },
+  {
+    "detail": "<chip#2087 name=\".U4\" /> footprint \"soic8_pillpads_w9.3102mm_pw0.63mm_pl2.25mm_pin1location(leftside,bottom)\" does not match supplier footprint jlcpcb:C97521 (copper IoU 0.6347).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "U4",
+    "severity": "warning"
+  },
+  {
+    "detail": "<capacitor#2191 name=\".C16\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1548 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C16",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2215 name=\".C14\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C14",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2310 name=\".C5\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C5",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2334 name=\".C7\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C7",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2346 name=\".C8\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C8",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2358 name=\".C9\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C9",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#2162 name=\".R11\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R11",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#2511 name=\".R3\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C25100 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R3",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#0 name=\".D1\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D1",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1073 name=\".D30\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D30",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1110 name=\".D31\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D31",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1147 name=\".D32\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D32",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1184 name=\".D33\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D33",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1221 name=\".D34\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D34",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1258 name=\".D35\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D35",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1369 name=\".D38\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D38",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1406 name=\".D39\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D39",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1443 name=\".D40\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D40",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1480 name=\".D41\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D41",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1554 name=\".D43\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D43",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1591 name=\".D44\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D44",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1665 name=\".D46\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D46",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1702 name=\".D47\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D47",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1776 name=\".D49\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D49",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#185 name=\".D6\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D6",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#222 name=\".D7\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D7",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#37 name=\".D2\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D2",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#370 name=\".D11\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D11",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#407 name=\".D12\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D12",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#444 name=\".D13\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D13",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#481 name=\".D14\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D14",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#518 name=\".D15\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D15",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#555 name=\".D16\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D16",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#592 name=\".D17\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D17",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#629 name=\".D18\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D18",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#666 name=\".D19\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D19",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#703 name=\".D20\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D20",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#74 name=\".D3\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D3",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#740 name=\".D21\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D21",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#777 name=\".D22\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D22",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#814 name=\".D23\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D23",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#851 name=\".D24\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D24",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#888 name=\".D25\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D25",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#925 name=\".D26\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D26",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#962 name=\".D27\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D27",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#999 name=\".D28\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D28",
+    "severity": "info"
+  },
+  {
+    "detail": "a pad passes 0.130mm from a via at (10.12, -20.90); the fab needs 0.2mm \u2014 route around it, the drill's own tolerance can cut a track this close",
+    "kind": "dfm_hole_clearance",
+    "part": "U4",
+    "severity": "error"
+  },
+  {
+    "detail": "power net GND is routed at 0.2mm \u2014 the same copper as a signal. The current maths may pass on this board, but power at signal width is the wrong habit; the profile's power floor is 0.5mm (warn_power_trace_mm \u2014 an EE moves the line there)",
+    "kind": "dfm_power_trace_width",
+    "part": "GND",
+    "severity": "warning"
+  },
+  {
+    "detail": "power net V3_3 is routed at 0.2mm \u2014 the same copper as a signal. The current maths may pass on this board, but power at signal width is the wrong habit; the profile's power floor is 0.5mm (warn_power_trace_mm \u2014 an EE moves the line there)",
+    "kind": "dfm_power_trace_width",
+    "part": "V3_3",
+    "severity": "warning"
+  },
+  {
+    "detail": "power net V5 is routed at 0.2mm \u2014 the same copper as a signal. The current maths may pass on this board, but power at signal width is the wrong habit; the profile's power floor is 0.5mm (warn_power_trace_mm \u2014 an EE moves the line there)",
+    "kind": "dfm_power_trace_width",
+    "part": "V5",
+    "severity": "warning"
+  },
+  {
+    "detail": "the compiled board was repaired before it was judged: 4 polygon pad(s) had a closed ring opened (4 repeated vertex/vertices dropped) \u2014 a zero-length pad edge makes every via read as inside that pad",
+    "kind": "circuit_normalized",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "this pair kept the autorouter's copper: two layers: no corridor wide enough for the pair exists between the two ends (needs 1.04mm of clear copper plus clearance, on any of top, bottom); one layer: no corridor wide enough for the pair exists between the two ends (needs 0.77mm of clear copper plus clearance, on any of top)",
+    "kind": "diffpair_not_routed",
+    "part": "USB_DP,USB_DM",
+    "severity": "info"
+  },
+  {
+    "detail": "D1 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "D1",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW10 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW10",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW19 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW19",
+    "severity": "warning"
+  },
+  {
+    "detail": "D11 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "D11",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW20 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW20",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW29 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW29",
+    "severity": "warning"
+  },
+  {
+    "detail": "D21 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "D21",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW30 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW30",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW39 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW39",
+    "severity": "warning"
+  },
+  {
+    "detail": "D31 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "D31",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW40 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW40",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW49 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW49",
+    "severity": "warning"
+  },
+  {
+    "detail": "D41 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "D41",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW50 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW50",
+    "severity": "warning"
+  },
+  {
+    "detail": "SW59 sits 1.250mm from the board edge; JLCPCB assembly asks for 2.5mm of component-body clearance (conveyor rails and depanel routing pass through that strip)",
+    "kind": "dfa_edge_clearance",
+    "part": "SW59",
     "severity": "warning"
   },
   {
@@ -36,9 +720,39 @@
     "severity": "info"
   },
   {
-    "detail": "USB_DP routes 50.91mm and USB_DM 40.28mm \u2014 10.63mm of intra-pair skew against a 3.8mm budget (USB 2.0, ~150ps on FR-4). Length-match the pair or shorten the longer leg",
+    "detail": "USB_DP routes 30.65mm and USB_DM 50.90mm \u2014 20.25mm of intra-pair skew against a 3.8mm budget (USB 2.0, ~150ps on FR-4). Length-match the pair or shorten the longer leg",
     "kind": "netclass_pair_skew",
     "part": "USB_DP,USB_DM",
+    "severity": "warning"
+  },
+  {
+    "detail": "USB_DP_CONN routes 15.72mm and USB_DM_CONN 19.78mm \u2014 4.06mm of intra-pair skew against a 3.8mm budget (USB 2.0, ~150ps on FR-4). Length-match the pair or shorten the longer leg",
+    "kind": "netclass_pair_skew",
+    "part": "USB_DP_CONN,USB_DM_CONN",
+    "severity": "warning"
+  },
+  {
+    "detail": "USB_DP/USB_DM run within 0.80mm of each other (4x the 0.2mm trace) for only 10% of the run \u2014 a differential pair should travel together (widest gap 4.52mm). The pipeline's pair pass (circuitpy.diffpair) either could not route this pair or was switched off; its report says which. Review the pair before ordering",
+    "kind": "netclass_pair_coupling",
+    "part": "USB_DP,USB_DM",
+    "severity": "warning"
+  },
+  {
+    "detail": "USB_DP_CONN/USB_DM_CONN run within 0.80mm of each other (4x the 0.2mm trace) for only 57% of the run \u2014 a differential pair should travel together (widest gap 1.85mm). The pipeline's pair pass (circuitpy.diffpair) either could not route this pair or was switched off; its report says which. Review the pair before ordering",
+    "kind": "netclass_pair_coupling",
+    "part": "USB_DP_CONN,USB_DM_CONN",
+    "severity": "warning"
+  },
+  {
+    "detail": "0% of USB_DP's run has ground copper on the opposite layer within 0.5mm. A differential pair needs a continuous return path under it or its impedance is undefined and its return current goes wherever it can. Pour ground on the free layer under the pair",
+    "kind": "netclass_pair_reference",
+    "part": "USB_DP,USB_DM",
+    "severity": "warning"
+  },
+  {
+    "detail": "11% of USB_DP_CONN's run has ground copper on the opposite layer within 0.5mm. A differential pair needs a continuous return path under it or its impedance is undefined and its return current goes wherever it can. Pour ground on the free layer under the pair",
+    "kind": "netclass_pair_reference",
+    "part": "USB_DP_CONN,USB_DM_CONN",
     "severity": "warning"
   },
   {
@@ -48,15 +762,9 @@
     "severity": "info"
   },
   {
-    "detail": "U3's nearest decoupling capacitor to pin ADC_AVDD is 9.6mm away; the loop inductance is what does the work, so keep it inside 5mm (7 pin(s) are further)",
+    "detail": "U3's nearest decoupling capacitor to pin IOVDD3 is 6.1mm away; the loop inductance is what does the work, so keep it inside 5mm (2 pin(s) are further)",
     "kind": "review_decoupling_distant",
     "part": "U3",
-    "severity": "info"
-  },
-  {
-    "detail": "U4's nearest decoupling capacitor to pin VCC is 9.1mm away; the loop inductance is what does the work, so keep it inside 5mm (1 pin(s) are further)",
-    "kind": "review_decoupling_distant",
-    "part": "U4",
     "severity": "info"
   },
   {
@@ -84,8 +792,14 @@
     "severity": "info"
   },
   {
-    "detail": "the converted board was held to the fab's silkscreen floors before plotting: 191 silkscreen text(s) raised to the fab's minimum height (smallest was 0.267mm); 191 given an explicit stroke; 691 silkscreen stroke(s) widened (thinnest was 0.1000mm)",
+    "detail": "the converted board was held to the fab's silkscreen floors before plotting: 191 silkscreen text(s) raised to the fab's minimum height (smallest was 0.267mm); 191 given an explicit stroke; 691 silkscreen stroke(s) widened (thinnest was 0.1000mm); 3 missing via(s) added under a B.Cu dead-end at a top-only pad",
     "kind": "kicad_normalized",
+    "part": "board",
+    "severity": "info"
+  },
+  {
+    "detail": "the exported schematic was held to the design's netlist: 65 of 354 pins disagreed with the design before, 0 after; 1 missing symbol(s) drawn (Device:J_TYPE-C-31-M-12); 75 net label(s) stamped; 6 label(s) removed from empty space",
+    "kind": "schematic_truth_normalized",
     "part": "board",
     "severity": "info"
   },
@@ -104,13 +818,7 @@
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "Pin 1 [???, ?]",
-    "severity": "info"
-  },
-  {
-    "detail": "[label_dangling] Label not connected",
-    "kind": "erc_violation",
-    "part": "Global Label 'TR_J1_cc2r'",
+    "part": "J1",
     "severity": "info"
   },
   {
@@ -140,73 +848,13 @@
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "R1",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C1",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C2",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
     "part": "Symbol V3_3 Pin 1 [1, Passive, Line]",
     "severity": "info"
   },
   {
     "detail": "[pin_not_connected] Pin not connected",
     "kind": "erc_violation",
-    "part": "C3",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
     "part": "U3",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "U4",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C17",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "C14",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "R20",
-    "severity": "info"
-  },
-  {
-    "detail": "[pin_not_connected] Pin not connected",
-    "kind": "erc_violation",
-    "part": "TP3",
     "severity": "info"
   },
   {
@@ -252,9 +900,27 @@
     "severity": "info"
   },
   {
+    "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Pin 1 [???, ?]",
+    "part": "Horizontal Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "J1",
+    "severity": "info"
+  },
+  {
+    "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
+    "kind": "erc_violation",
+    "part": "J1",
     "severity": "info"
   },
   {
@@ -482,6 +1148,18 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.1879 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.3757 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
     "part": "Vertical Wire, length 0.0001 mm",
     "severity": "info"
   },
@@ -506,6 +1184,24 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0075 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0150 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0152 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
     "part": "Vertical Wire, length 0.0930 mm",
     "severity": "info"
   },
@@ -525,6 +1221,12 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.2311 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0075 mm",
     "severity": "info"
   },
   {
@@ -566,12 +1268,6 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0764 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
     "part": "SW10",
     "severity": "info"
   },
@@ -632,7 +1328,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.2010 mm",
+    "part": "Vertical Wire, length 0.0630 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 1.3500 mm",
     "severity": "info"
   },
   {
@@ -800,12 +1502,6 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0075 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.0975 mm",
     "severity": "info"
   },
@@ -909,18 +1605,6 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Symbol V3_3 Pin 1 [1, Passive, Line]",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Horizontal Wire, length 1.0470 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.5182 mm",
     "severity": "info"
   },
   {
@@ -1100,6 +1784,24 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0000 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 0.0254 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
     "part": "Vertical Wire, length 0.4305 mm",
     "severity": "info"
   },
@@ -1119,6 +1821,24 @@
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "SW3",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0360 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Horizontal Wire, length 1.1565 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
+    "part": "Vertical Wire, length 1.2945 mm",
     "severity": "info"
   },
   {
@@ -1422,42 +2142,6 @@
     "severity": "info"
   },
   {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "ROW0",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "ROW1",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "ROW2",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "ROW3",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "ROW4",
-    "severity": "info"
-  },
-  {
-    "detail": "[isolated_pin_label] Label connected to only one pin",
-    "kind": "erc_violation",
-    "part": "Global Label 'GND'",
-    "severity": "info"
-  },
-  {
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "SW14",
@@ -1521,12 +2205,6 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.0825 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0150 mm",
     "severity": "info"
   },
   {
@@ -1838,13 +2516,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0301 mm",
+    "part": "Vertical Wire, length 0.2812 mm",
     "severity": "info"
   },
   {
-    "detail": "[unconnected_wire_endpoint] Unconnected wire endpoint",
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0301 mm",
+    "part": "Horizontal Wire, length 0.2880 mm",
     "severity": "info"
   },
   {
@@ -1857,12 +2535,6 @@
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
     "part": "Horizontal Wire, length 0.5175 mm",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0362 mm",
     "severity": "info"
   },
   {
@@ -1989,12 +2661,6 @@
     "detail": "[lib_symbol_issues] The current configuration does not include the symbol library 'Device'",
     "kind": "erc_violation",
     "part": "SW56",
-    "severity": "info"
-  },
-  {
-    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
-    "kind": "erc_violation",
-    "part": "Horizontal Wire, length 1.3500 mm",
     "severity": "info"
   },
   {
@@ -2264,6 +2930,12 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
+    "part": "Horizontal Wire, length 0.0362 mm",
+    "severity": "info"
+  },
+  {
+    "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
+    "kind": "erc_violation",
     "part": "TP3",
     "severity": "info"
   },
@@ -2462,25 +3134,7 @@
   {
     "detail": "[holes_co_located] Drilled holes co-located",
     "kind": "drc_violation",
-    "part": "Via [USB_DM_CONN] on F.Cu - B.Cu",
-    "severity": "warning"
-  },
-  {
-    "detail": "[holes_co_located] Drilled holes co-located",
-    "kind": "drc_violation",
-    "part": "Via [USB_DP_CONN] on F.Cu - B.Cu",
-    "severity": "warning"
-  },
-  {
-    "detail": "[holes_co_located] Drilled holes co-located",
-    "kind": "drc_violation",
-    "part": "Via [GND] on F.Cu - B.Cu",
-    "severity": "warning"
-  },
-  {
-    "detail": "[holes_co_located] Drilled holes co-located",
-    "kind": "drc_violation",
-    "part": "ROW3",
+    "part": "Via [V3_3] on F.Cu - B.Cu",
     "severity": "warning"
   },
   {
@@ -3320,150 +3974,6 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'A' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW30",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW20",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'W' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW21",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'S' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW31",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW32",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW42",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'X' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'ESC' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW10",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW11",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'FN+' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Q' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'TAB' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW40",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW41",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Z' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'SHFT' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW50",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'MIC' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW52",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW43",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "PCB text 'SPC' on F.Silkscreen",
     "severity": "info"
   },
@@ -3476,283 +3986,25 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'ALT' on F.Silkscreen",
+    "part": "SW54",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW51",
+    "part": "PCB text 'E' on F.Silkscreen",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW2",
+    "part": "SW22",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'AUTONOMOUS TERMINAL KEYBOARD' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "Y1",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW3",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "R12",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C13",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "C12",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "F3",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW15",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW14",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW16",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "F4",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW26",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'U' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'I' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW27",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'CTL' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW17",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'Y' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'H' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW35",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'J' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW36",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "F2",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW24",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW25",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW45",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW34",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'B' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW46",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'N' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW47",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'M' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'K' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW37",
+    "part": "SW23",
     "severity": "info"
   },
   {
@@ -3770,31 +4022,31 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "F1",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "SW13",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW22",
+    "part": "F1",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'E' on F.Silkscreen",
+    "part": "F2",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW23",
+    "part": "SW14",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW24",
     "severity": "info"
   },
   {
@@ -3806,13 +4058,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'T' on F.Silkscreen",
+    "part": "SW34",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'C' on F.Silkscreen",
+    "part": "PCB text 'T' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -3824,19 +4076,229 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
+    "part": "SW15",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F3",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW25",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'Y' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW32",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'X' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW42",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'MIC' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW52",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
     "part": "SW44",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'PGUP' on F.Silkscreen",
+    "part": "SW45",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW48",
+    "part": "PCB text 'B' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW35",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'H' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'C' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW43",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'V' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW55",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "F4",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW16",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW17",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'CTL' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW27",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'U' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW26",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'I' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW36",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW37",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'J' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'N' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW46",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW47",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'M' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'HOME' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW56",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'PGDN' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW57",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW58",
     "severity": "info"
   },
   {
@@ -3848,7 +4310,217 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW58",
+    "part": "PCB text 'DIO' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C6",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C4",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C5",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C7",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "C8",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'FN+' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW11",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW21",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW20",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'Q' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'W' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW31",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'ESC' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW10",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'A' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW30",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'TAB' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW40",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'Z' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW41",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'FN-' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW18",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'BKSP' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW19",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW28",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW29",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'P' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'O' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'K' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW48",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'PGUP' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW38",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'L' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW39",
     "severity": "info"
   },
   {
@@ -3864,33 +4536,21 @@
     "severity": "info"
   },
   {
-    "detail": "[silk_overlap] Silkscreen clearance",
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "SW59",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'SPR' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'BKSP' on F.Silkscreen",
+    "part": "D15",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D12",
+    "part": "D16",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D13",
+    "part": "D14",
     "severity": "info"
   },
   {
@@ -3902,43 +4562,7 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D11",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D22",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D21",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D31",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D41",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D32",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D42",
+    "part": "D24",
     "severity": "info"
   },
   {
@@ -3956,25 +4580,31 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D44",
+    "part": "D26",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D43",
+    "part": "D25",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D35",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D36",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
     "part": "D46",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D45",
     "severity": "info"
   },
   {
@@ -3992,127 +4622,13 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D26",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
     "part": "D27",
     "severity": "info"
   },
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
-    "part": "D28",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D14",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D15",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D25",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D24",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D30",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D40",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D10",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D19",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D20",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D29",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D39",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D35",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D16",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D36",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D37",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
     "part": "D38",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D47",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "D50",
     "severity": "info"
   },
   {
@@ -4130,6 +4646,156 @@
   {
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
+    "part": "PCB text 'AUTONOMOUS TERMINAL KEYBOARD' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D47",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D12",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D11",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D21",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D22",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D10",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D20",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D28",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D29",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D30",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D13",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D32",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D31",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D43",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D44",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D45",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D41",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D42",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "LED1",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D40",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D37",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D19",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D39",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
+    "part": "D50",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
+    "kind": "drc_violation",
     "part": "R2",
     "severity": "info"
   },
@@ -4137,12 +4803,6 @@
     "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
     "kind": "drc_violation",
     "part": "R3",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_over_copper] Silkscreen clipped by solder mask",
-    "kind": "drc_violation",
-    "part": "LED1",
     "severity": "info"
   },
   {
@@ -4164,18 +4824,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (unconnected-(C1-Pad1))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U1-GND))",
-    "kind": "drc_violation",
-    "part": "C1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C2",
@@ -4183,18 +4831,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (unconnected-(C2-Pad1))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U2-GND))",
     "kind": "drc_violation",
     "part": "C2",
     "severity": "warning"
@@ -4212,18 +4848,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(C3-Pad1))",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C3-Pad2))",
-    "kind": "drc_violation",
-    "part": "C3",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C4",
@@ -4231,18 +4855,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C4",
     "severity": "warning"
@@ -4260,18 +4872,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C5",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C6",
@@ -4279,18 +4879,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C6",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C6",
     "severity": "warning"
@@ -4303,18 +4891,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C7",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C7",
     "severity": "warning"
@@ -4327,18 +4903,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C8",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C8",
     "severity": "warning"
@@ -4351,18 +4915,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C9",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C9",
     "severity": "warning"
@@ -4375,18 +4927,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C10",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C10",
     "severity": "warning"
@@ -4399,18 +4939,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(C10-Pad1))",
-    "kind": "drc_violation",
-    "part": "C11",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C11",
     "severity": "warning"
@@ -4428,12 +4956,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C12",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C13",
@@ -4446,12 +4968,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
-    "kind": "drc_violation",
-    "part": "C13",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C14",
@@ -4459,18 +4975,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(C14-Pad1))",
-    "kind": "drc_violation",
-    "part": "C14",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C14-Pad2))",
     "kind": "drc_violation",
     "part": "C14",
     "severity": "warning"
@@ -4494,12 +4998,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(Y1-4))",
-    "kind": "drc_violation",
-    "part": "C15",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C16",
@@ -4518,12 +5016,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(C16-Pad2))",
-    "kind": "drc_violation",
-    "part": "C16",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:capacitor_cap0805 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "C17",
@@ -4531,18 +5023,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Capacitor')",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(C17-Pad1))",
-    "kind": "drc_violation",
-    "part": "C17",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C10-Pad2))",
     "kind": "drc_violation",
     "part": "C17",
     "severity": "warning"
@@ -5154,6 +5634,48 @@
     "severity": "warning"
   },
   {
+    "detail": "[footprint_symbol_mismatch] Value (J1) doesn't match symbol value (J1)",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_mismatch] tscircuit:TYPE-C-31-M-12 doesn't match footprint given by symbol ()",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Connector')",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(J1-B8-Pad5))",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.J1 > .CC1 to .R1 > .pin1) doesn't match net given by schematic (N$427)",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(J1-A8-Pad11))",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.J1 > .CC2 to .R2 > .pin1) doesn't match net given by schematic (TR_J1_cc2r)",
+    "kind": "drc_violation",
+    "part": "J1",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] Value (LED1) doesn't match symbol value (LED)",
     "kind": "drc_violation",
     "part": "LED1",
@@ -5178,12 +5700,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(C14-Pad2))",
-    "kind": "drc_violation",
-    "part": "LED1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:resistor_res0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "R1",
@@ -5196,18 +5712,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (.J1 > .CC1 to .R1 > .pin1) doesn't match net given by schematic (unconnected-(R1-Pad1))",
-    "kind": "drc_violation",
-    "part": "J1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(R1-Pad2))",
-    "kind": "drc_violation",
-    "part": "R1",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:resistor_res0402 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "R2",
@@ -5215,18 +5719,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Resistor')",
-    "kind": "drc_violation",
-    "part": "R2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (.J1 > .CC2 to .R2 > .pin1) doesn't match net given by schematic (TR_J1_cc2r)",
-    "kind": "drc_violation",
-    "part": "J1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(R1-Pad2))",
     "kind": "drc_violation",
     "part": "R2",
     "severity": "warning"
@@ -5286,12 +5778,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-IOVDD4))",
-    "kind": "drc_violation",
-    "part": "R12",
-    "severity": "warning"
-  },
-  {
     "detail": "[net_conflict] Pad net (.R12 > .pin2 to .U3 > .RUN) doesn't match net given by schematic (TR_R12_run)",
     "kind": "drc_violation",
     "part": "R12",
@@ -5334,12 +5820,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (unconnected-(R20-Pad1))",
-    "kind": "drc_violation",
-    "part": "R20",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW2",
@@ -5349,6 +5829,12 @@
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
     "kind": "drc_violation",
     "part": "SW2",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.R13 > .pin2 to .SW2 > .pin1) doesn't match net given by schematic (GND)",
+    "kind": "drc_violation",
+    "part": "R13",
     "severity": "warning"
   },
   {
@@ -5367,6 +5853,12 @@
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
     "kind": "drc_violation",
     "part": "SW3",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.R12 > .pin2 to .U3 > .RUN) doesn't match net given by schematic (GND)",
+    "kind": "drc_violation",
+    "part": "R12",
     "severity": "warning"
   },
   {
@@ -5383,6 +5875,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW10",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW10",
     "severity": "warning"
@@ -5406,6 +5904,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
+    "kind": "drc_violation",
+    "part": "SW11",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW12",
@@ -5413,6 +5917,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW12",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW12",
     "severity": "warning"
@@ -5425,6 +5935,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW13",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW13",
     "severity": "warning"
@@ -5437,6 +5953,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW14",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW14",
     "severity": "warning"
@@ -5449,6 +5971,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW15",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW15",
     "severity": "warning"
@@ -5461,6 +5989,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW16",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW16",
     "severity": "warning"
@@ -5473,6 +6007,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW17",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW17",
     "severity": "warning"
@@ -5485,6 +6025,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW18",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW18",
     "severity": "warning"
@@ -5497,6 +6043,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW19",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW0)",
     "kind": "drc_violation",
     "part": "SW19",
     "severity": "warning"
@@ -5509,6 +6061,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW20",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW20",
     "severity": "warning"
@@ -5532,6 +6090,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
+    "kind": "drc_violation",
+    "part": "SW21",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW22",
@@ -5539,6 +6103,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW22",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW22",
     "severity": "warning"
@@ -5551,6 +6121,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW23",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW23",
     "severity": "warning"
@@ -5563,6 +6139,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW24",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW24",
     "severity": "warning"
@@ -5575,6 +6157,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW25",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW25",
     "severity": "warning"
@@ -5587,6 +6175,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW26",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW26",
     "severity": "warning"
@@ -5599,6 +6193,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW27",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW27",
     "severity": "warning"
@@ -5611,6 +6211,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW28",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW28",
     "severity": "warning"
@@ -5623,6 +6229,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW29",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW1)",
     "kind": "drc_violation",
     "part": "SW29",
     "severity": "warning"
@@ -5635,6 +6247,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW30",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW30",
     "severity": "warning"
@@ -5658,6 +6276,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
+    "kind": "drc_violation",
+    "part": "SW31",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW32",
@@ -5665,6 +6289,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW32",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW32",
     "severity": "warning"
@@ -5677,6 +6307,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW33",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW33",
     "severity": "warning"
@@ -5689,6 +6325,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW34",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW34",
     "severity": "warning"
@@ -5701,6 +6343,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW35",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW35",
     "severity": "warning"
@@ -5713,6 +6361,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW36",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW36",
     "severity": "warning"
@@ -5725,6 +6379,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW37",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW37",
     "severity": "warning"
@@ -5737,6 +6397,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW38",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW38",
     "severity": "warning"
@@ -5749,6 +6415,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW39",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW2)",
     "kind": "drc_violation",
     "part": "SW39",
     "severity": "warning"
@@ -5761,6 +6433,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW40",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW40",
     "severity": "warning"
@@ -5784,6 +6462,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
+    "kind": "drc_violation",
+    "part": "SW41",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW42",
@@ -5791,6 +6475,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW42",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW42",
     "severity": "warning"
@@ -5803,6 +6493,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW43",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW43",
     "severity": "warning"
@@ -5815,6 +6511,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW44",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW44",
     "severity": "warning"
@@ -5827,6 +6529,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW45",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW45",
     "severity": "warning"
@@ -5839,6 +6547,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW46",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW46",
     "severity": "warning"
@@ -5851,6 +6565,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW47",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW47",
     "severity": "warning"
@@ -5863,6 +6583,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW48",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW48",
     "severity": "warning"
@@ -5875,6 +6601,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW49",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW3)",
     "kind": "drc_violation",
     "part": "SW49",
     "severity": "warning"
@@ -5887,6 +6619,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW50",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW50",
     "severity": "warning"
@@ -5910,6 +6648,12 @@
     "severity": "warning"
   },
   {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
+    "kind": "drc_violation",
+    "part": "SW51",
+    "severity": "warning"
+  },
+  {
     "detail": "[footprint_symbol_mismatch] tscircuit:push_button_dfn4_p3.6998mm_w7mm_pw0.75mm doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "SW52",
@@ -5917,6 +6661,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW52",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW52",
     "severity": "warning"
@@ -5929,6 +6679,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW53",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW53",
     "severity": "warning"
@@ -5941,6 +6697,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW54",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW54",
     "severity": "warning"
@@ -5953,6 +6715,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW55",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW55",
     "severity": "warning"
@@ -5965,6 +6733,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW56",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW56",
     "severity": "warning"
@@ -5977,6 +6751,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW57",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW57",
     "severity": "warning"
@@ -5989,6 +6769,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW58",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW58",
     "severity": "warning"
@@ -6001,6 +6787,12 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
+    "kind": "drc_violation",
+    "part": "SW59",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad missing net given by schematic (ROW4)",
     "kind": "drc_violation",
     "part": "SW59",
     "severity": "warning"
@@ -6037,12 +6829,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Component')",
-    "kind": "drc_violation",
-    "part": "TP3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(TP3-Pad1))",
     "kind": "drc_violation",
     "part": "TP3",
     "severity": "warning"
@@ -6060,18 +6846,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U1-GND))",
-    "kind": "drc_violation",
-    "part": "U1",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V5) doesn't match net given by schematic (Net-(U1-VBUS))",
-    "kind": "drc_violation",
-    "part": "V5",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:AMS1117-3.3 doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U2",
@@ -6079,18 +6853,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "U2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (Net-(U2-GND))",
-    "kind": "drc_violation",
-    "part": "U2",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U2-VOUT1))",
     "kind": "drc_violation",
     "part": "U2",
     "severity": "warning"
@@ -6108,19 +6870,7 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-IOVDD5))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
     "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(U3-GPIO15-Pad18))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-IOVDD4))",
     "kind": "drc_violation",
     "part": "U3",
     "severity": "warning"
@@ -6157,12 +6907,6 @@
   },
   {
     "detail": "[net_conflict] Pad missing net given by schematic (unconnected-(U3-GPIO21-Pad32))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (V3_3) doesn't match net given by schematic (Net-(U3-ADC_AVDD))",
     "kind": "drc_violation",
     "part": "U3",
     "severity": "warning"
@@ -6246,12 +6990,6 @@
     "severity": "warning"
   },
   {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(U3-GND-Pad57))",
-    "kind": "drc_violation",
-    "part": "U3",
-    "severity": "warning"
-  },
-  {
     "detail": "[footprint_symbol_mismatch] tscircuit:W25Q128JVSIQ doesn't match footprint given by symbol ()",
     "kind": "drc_violation",
     "part": "U4",
@@ -6259,12 +6997,6 @@
   },
   {
     "detail": "[footprint_symbol_field_mismatch] Field 'Description' differs (PCB: '', Schematic: 'Integrated Circuit')",
-    "kind": "drc_violation",
-    "part": "U4",
-    "severity": "warning"
-  },
-  {
-    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (unconnected-(U4-GND-Pad4))",
     "kind": "drc_violation",
     "part": "U4",
     "severity": "warning"
@@ -6294,9 +7026,21 @@
     "severity": "warning"
   },
   {
-    "detail": "[extra_footprint] Extra footprint",
+    "detail": "[net_conflict] Pad net (.Y1 > .pin1 to .U3 > .XIN) doesn't match net given by schematic (GND)",
     "kind": "drc_violation",
-    "part": "J1",
+    "part": "Y1",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (.R11 > .pin2 to .Y1 > .pin3) doesn't match net given by schematic (TR_Y1_xin)",
+    "kind": "drc_violation",
+    "part": "R11",
+    "severity": "warning"
+  },
+  {
+    "detail": "[net_conflict] Pad net (GND) doesn't match net given by schematic (TR_R11_Y1)",
+    "kind": "drc_violation",
+    "part": "Y1",
     "severity": "warning"
   },
   {
@@ -6306,13 +7050,13 @@
     "severity": "warning"
   },
   {
-    "detail": "2 thin mask web(s) on mask top sit inside a single part's own land pattern (a 0402's pad gap is 0.1985mm, just under the 0.2mm rule). That is a property of the qualified footprint, which the fab builds every day \u2014 recorded, not blocked",
-    "kind": "gerber_mask_sliver_in_footprint",
-    "part": "board-F_Mask.gts",
-    "severity": "info"
+    "detail": "3 drill hit(s) in the packet have no matching hole in the design ((101.82, -128.77), (80.13, -138.40), (99.54, -136.65)) \u2014 something was added between the design and the plot",
+    "kind": "gerber_drill_extra",
+    "part": "packet",
+    "severity": "warning"
   },
   {
-    "detail": "228 silkscreen stroke(s) on silk top land inside a solder-mask opening \u2014 ink on a solderable surface stops the joint wetting, and the fab may clip the silk instead",
+    "detail": "232 silkscreen stroke(s) on silk top land inside a solder-mask opening \u2014 ink on a solderable surface stops the joint wetting, and the fab may clip the silk instead",
     "kind": "gerber_silk_over_pad",
     "part": "board-F_Silkscreen.gto",
     "severity": "warning"
