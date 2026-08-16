@@ -31,7 +31,7 @@ import {
   rotateEdits,
   wrapPreview,
 } from "./boardSource.js";
-import { rotateRefusal } from "./placementRotate.js";
+import { commitRotateStep, rotateRefusal } from "./placementRotate.js";
 
 async function callApi(command, args) {
   const response = await fetch(`${getApiBase()}/api/${command}`, {
@@ -96,6 +96,16 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   turnsRef.current = turnsPending;
   const bindingRef = useRef(EMPTY_BINDING);
   const wantCheckRef = useRef(false);
+  // The file as the server last confirmed it. `source` (and `sourceRef`, which
+  // is assigned during render) only catches up on the next render, and two
+  // gestures can land inside one render: four taps of Space is the gesture
+  // Altium trains, and each tap has to see what the tap before it wrote.
+  const latestTextRef = useRef("");
+  // One edit at a time, in the order the user made them. Without this, tap two
+  // computes its target from tap one's pre-write angle and asks for the angle
+  // that is already there — which writes nothing, says nothing, and eats the
+  // keystroke.
+  const queueRef = useRef(Promise.resolve());
   const sourceRef = useRef("");
   sourceRef.current = source;
   // The file as the board on screen was built from. `changes` is a count of
@@ -128,6 +138,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       })
       .then((text) => {
         if (cancelled) return;
+        latestTextRef.current = text;
         setSource(text);
         buildBaselineRef.current = text;
         setState("ready");
@@ -135,6 +146,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       })
       .catch((err) => {
         if (cancelled) return;
+        latestTextRef.current = "";
         setSource("");
         setState("failed");
         setError(err instanceof Error ? err.message : String(err));
@@ -240,6 +252,56 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     }
   }, [projectId, file]);
 
+  /**
+   * Run one edit after the last one has finished, whatever it did.
+   *
+   * `.then(task, task)` on purpose: a refused edit must not stall the queue
+   * behind it. The stored promise swallows the result so an unhandled rejection
+   * can never come out of the chain itself.
+   */
+  const enqueue = useCallback((task) => {
+    const run = queueRef.current.then(task, task);
+    queueRef.current = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
+  }, []);
+
+  /**
+   * The placement as the file has it *now*, with the parts of it that only the
+   * built board knows kept from the binding.
+   *
+   * Every edit is a byte range, and a byte range from a parse of yesterday's
+   * text lands in the wrong place in today's. When the render has caught up
+   * this is the bound placement itself; when it has not — the whole reason the
+   * queue exists — the latest text is re-parsed and its spans and angle win,
+   * while the label, the anchor and the "this one cannot turn" verdict stay
+   * with the binding, because those come from geometry the parse cannot see.
+   */
+  const freshPlacement = useCallback((placementId) => {
+    const bound = bindingRef.current?.byId?.get(placementId) || null;
+    if (!bound) return null;
+    const text = latestTextRef.current;
+    if (!text || text === sourceRef.current) return bound;
+    const parsedNow = parseBoardSource(text);
+    if (!parsedNow.ok) return bound;
+    const fresh = parsedNow.placements.find((one) => one.id === placementId);
+    if (!fresh) return bound;
+    return {
+      ...bound,
+      ...fresh,
+      label: bound.label,
+      anchor: bound.anchor,
+      refdes: bound.refdes,
+      // The built board has the last word on whether a turn would mean
+      // anything (a mounting hole comes out as a drill and cannot carry one).
+      rotateVia: bound.rotateVia === "no" ? "no" : fresh.rotateVia,
+      rotateBlock: bound.rotateBlock,
+      rotateReason: bound.rotateReason,
+    };
+  }, []);
+
   // One render after a write, which is the first moment the binding describes
   // the file the server now holds — and the request's whole content is the
   // difference between that binding and the board that was built.
@@ -254,18 +316,26 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       if (!edits.length) return true;
       setBusy(true);
       setError("");
+      // The text these edits were computed against — the one the server last
+      // confirmed, not the one the last render painted. They are the same text
+      // except while a second gesture is in flight behind the first, and that
+      // is exactly when getting it wrong costs a keystroke: a stale
+      // `sourceLength` is a compare-and-swap token for a file that no longer
+      // exists, so the server refuses an edit that was perfectly correct.
+      const base = latestTextRef.current;
       try {
         const result = await callApi("board_source_write", {
           id: projectId,
           file,
           edits,
-          sourceLength: sourceRef.current.length,
+          sourceLength: base.length,
         });
         // Belt and braces: the server splices the same edits we did, so if the
         // two disagree the file is not what this hook thinks it is.
-        const predicted = applyEdits(sourceRef.current, edits);
+        const predicted = applyEdits(base, edits);
         if (result?.text !== predicted) {
           setError("the board file on disk is not what this view predicted — reloading");
+          latestTextRef.current = String(result?.text ?? "");
           setSource(String(result?.text ?? ""));
           return false;
         }
@@ -275,11 +345,12 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         // carried across by position or the wrapped part inherits a neighbour's
         // footprint, refdes list and cross-probe set. Only when the ids
         // actually moved: every ordinary move and lock leaves them alone.
-        const before = parseBoardSource(sourceRef.current).placements;
+        const before = parseBoardSource(base).placements;
         const after = parseBoardSource(result.text).placements;
         if (before.length !== after.length || before.some((p, at) => p.id !== after[at].id)) {
           setSnapshot((prev) => remapSnapshot(prev, before, after));
         }
+        latestTextRef.current = result.text;
         setSource(result.text);
         setChanges((n) => (result.text === buildBaselineRef.current ? 0 : Math.max(0, n + delta)));
         if (note) setLastChange(note);
@@ -320,17 +391,18 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
 
   /** Move a placement to an absolute board position, recording the undo. */
   const move = useCallback(
-    async (placementId, x, y, note) => {
-      const placement = binding.byId.get(placementId);
-      if (!placement) return false;
-      const edits = moveEdits(source, placement, x, y);
-      if (!edits.length) return true;
-      const undoEntry = { kind: "move", placementId, x: placement.x, y: placement.y, label: placement.label };
-      const ok = await write(edits, note, +1);
-      if (ok) pushHistory(undoEntry);
-      return ok;
-    },
-    [binding, source, write, pushHistory],
+    (placementId, x, y, note) =>
+      enqueue(async () => {
+        const placement = freshPlacement(placementId);
+        if (!placement) return false;
+        const edits = moveEdits(latestTextRef.current, placement, x, y);
+        if (!edits.length) return true;
+        const undoEntry = { kind: "move", placementId, x: placement.x, y: placement.y, label: placement.label };
+        const ok = await write(edits, note, +1);
+        if (ok) pushHistory(undoEntry);
+        return ok;
+      }),
+    [enqueue, freshPlacement, write, pushHistory],
   );
 
   /**
@@ -350,33 +422,85 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
    * names a `<group>` and the tag it wrapped is no longer a placement at all.
    */
   const rotate = useCallback(
-    async (placementId, degrees, note) => {
-      const placement = binding.byId.get(placementId);
-      if (!placement) return false;
-      const refusal = rotateRefusal(placement);
-      if (refusal) {
-        setError(refusal.reason);
-        return false;
-      }
-      const edits = rotateEdits(source, placement, degrees);
-      if (!edits.length) return true;
-      const undoEntry =
-        placement.rotateVia === "wrap"
-          ? { kind: "wrap", placementId, label: placement.label, inverse: invertEdits(edits) }
-          : {
-              kind: "rotate",
-              placementId,
-              label: placement.label,
-              rotation: placement.rotationSpan ? placement.rotation : null,
-            };
-      const ok = await write(edits, note || describeRotate(placement.label, placement.rotation, degrees), +1);
-      if (ok) {
-        pushHistory(undoEntry);
-        setTurnsPending((n) => n + 1);
-      }
-      return ok;
-    },
-    [binding, source, write, pushHistory],
+    (placementId, degrees, note) =>
+      enqueue(async () => {
+        const placement = freshPlacement(placementId);
+        if (!placement) return false;
+        const refusal = rotateRefusal(placement);
+        if (refusal) {
+          setError(refusal.reason);
+          return false;
+        }
+        const edits = rotateEdits(latestTextRef.current, placement, degrees);
+        if (!edits.length) return true;
+        const undoEntry =
+          placement.rotateVia === "wrap"
+            ? { kind: "wrap", placementId, label: placement.label, inverse: invertEdits(edits) }
+            : {
+                kind: "rotate",
+                placementId,
+                label: placement.label,
+                rotation: placement.rotationSpan ? placement.rotation : null,
+              };
+        const ok = await write(edits, note || describeRotate(placement.label, placement.rotation, degrees), +1);
+        if (ok) {
+          pushHistory(undoEntry);
+          setTurnsPending((n) => n + 1);
+        }
+        return ok;
+      }),
+    [enqueue, freshPlacement, write, pushHistory],
+  );
+
+  /**
+   * Turn a placement one step, resolving the target when the turn runs.
+   *
+   * The difference from `rotate` is the whole fix for a dropped keystroke.
+   * `rotate` takes an absolute angle, and an absolute angle computed on screen
+   * is computed from the angle the screen had — so four taps of Space fired
+   * faster than a round trip all ask for the same 270°, three of them find it
+   * already written, and three keystrokes vanish without a word. Here the step
+   * is applied inside the queue, to the angle the file has by then, so N taps
+   * are N steps.
+   *
+   * `direction` is `CCW`/`CW` from placementRotate.js, which owns which way is
+   * which; this function does not know and must not learn.
+   */
+  const turnBy = useCallback(
+    (placementId, direction, step, note) =>
+      enqueue(async () => {
+        const placement = freshPlacement(placementId);
+        if (!placement) return false;
+        const refusal = rotateRefusal(placement);
+        if (refusal) {
+          setError(refusal.reason);
+          return false;
+        }
+        const command = commitRotateStep(placement, direction, step);
+        if (!command) return true;
+        const edits = rotateEdits(latestTextRef.current, placement, command.to);
+        if (!edits.length) return true;
+        const undoEntry =
+          placement.rotateVia === "wrap"
+            ? { kind: "wrap", placementId, label: placement.label, inverse: invertEdits(edits) }
+            : {
+                kind: "rotate",
+                placementId,
+                label: placement.label,
+                rotation: placement.rotationSpan ? placement.rotation : null,
+              };
+        const ok = await write(
+          edits,
+          note || describeRotate(placement.label, placement.rotation, command.to),
+          +1,
+        );
+        if (ok) {
+          pushHistory(undoEntry);
+          setTurnsPending((n) => n + 1);
+        }
+        return ok;
+      }),
+    [enqueue, freshPlacement, write, pushHistory],
   );
 
   /** The four lines a wrap is about to write, so a confirm can show the diff
@@ -392,17 +516,18 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
    * the board source, not this app's state.
    */
   const setLock = useCallback(
-    async (placementId, locked) => {
-      const placement = binding.byId.get(placementId);
-      if (!placement) return false;
-      const edits = lockEdits(source, placement, locked);
-      if (!edits.length) return true;
-      const undoEntry = { kind: "lock", placementId, locked: placement.locked, label: placement.label };
-      const ok = await write(edits, `${placement.label} ${locked ? "locked in place" : "unlocked"}`, 0);
-      if (ok) pushHistory(undoEntry);
-      return ok;
-    },
-    [binding, source, write, pushHistory],
+    (placementId, locked) =>
+      enqueue(async () => {
+        const placement = freshPlacement(placementId);
+        if (!placement) return false;
+        const edits = lockEdits(latestTextRef.current, placement, locked);
+        if (!edits.length) return true;
+        const undoEntry = { kind: "lock", placementId, locked: placement.locked, label: placement.label };
+        const ok = await write(edits, `${placement.label} ${locked ? "locked in place" : "unlocked"}`, 0);
+        if (ok) pushHistory(undoEntry);
+        return ok;
+      }),
+    [enqueue, freshPlacement, write, pushHistory],
   );
 
   /**
@@ -433,7 +558,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         if (ok) setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
         return ok ? reciprocal : null;
       }
-      const placement = binding.byId.get(entry.placementId);
+      const placement = freshPlacement(entry.placementId);
       if (!placement) {
         setError(`that part is not in the board file any more — nothing to ${verb === "undid" ? "undo" : "redo"} onto`);
         return null;
@@ -451,38 +576,46 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
             : { kind: "move", placementId: entry.placementId, label: entry.label, x: placement.x, y: placement.y };
       const edits =
         entry.kind === "lock"
-          ? lockEdits(source, placement, entry.locked)
+          ? lockEdits(latestTextRef.current, placement, entry.locked)
           : entry.kind === "rotate"
-            ? rotateEdits(source, placement, entry.rotation)
-            : moveEdits(source, placement, entry.x, entry.y);
+            ? rotateEdits(latestTextRef.current, placement, entry.rotation)
+            : moveEdits(latestTextRef.current, placement, entry.x, entry.y);
       const ok = await write(edits, `${verb}: ${entry.label}`, entry.kind === "lock" ? 0 : delta);
       if (ok && entry.kind === "rotate") {
         setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
       }
       return ok ? reciprocal : null;
     },
-    [binding, source, write],
+    [freshPlacement, write],
   );
 
-  const undo = useCallback(async () => {
-    const entry = history[history.length - 1];
-    if (!entry) return false;
-    const reciprocal = await applyEntry(entry, "undid", -1);
-    if (!reciprocal) return false;
-    setHistory((list) => list.slice(0, -1));
-    setFuture((list) => [...list, reciprocal].slice(-50));
-    return true;
-  }, [history, applyEntry]);
+  const undo = useCallback(
+    () =>
+      enqueue(async () => {
+        const entry = history[history.length - 1];
+        if (!entry) return false;
+        const reciprocal = await applyEntry(entry, "undid", -1);
+        if (!reciprocal) return false;
+        setHistory((list) => list.slice(0, -1));
+        setFuture((list) => [...list, reciprocal].slice(-50));
+        return true;
+      }),
+    [enqueue, history, applyEntry],
+  );
 
-  const redo = useCallback(async () => {
-    const entry = future[future.length - 1];
-    if (!entry) return false;
-    const reciprocal = await applyEntry(entry, "redid", +1);
-    if (!reciprocal) return false;
-    setFuture((list) => list.slice(0, -1));
-    setHistory((list) => [...list, reciprocal].slice(-50));
-    return true;
-  }, [future, applyEntry]);
+  const redo = useCallback(
+    () =>
+      enqueue(async () => {
+        const entry = future[future.length - 1];
+        if (!entry) return false;
+        const reciprocal = await applyEntry(entry, "redid", +1);
+        if (!reciprocal) return false;
+        setFuture((list) => list.slice(0, -1));
+        setHistory((list) => [...list, reciprocal].slice(-50));
+        return true;
+      }),
+    [enqueue, future, applyEntry],
+  );
 
   /** Called once a rebuild has been asked for — the file is no longer ahead
    *  of the board on screen from the user's point of view. */
@@ -527,6 +660,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     checkNow,
     move,
     rotate,
+    turnBy,
     previewRotate,
     setLock,
     undo,

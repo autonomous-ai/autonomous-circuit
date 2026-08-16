@@ -310,3 +310,30 @@ test("a key typed into a <select> does not switch tabs", async () => {
   }
   board.close();
 });
+
+test("the key list has a way in that is not a key", async () => {
+  // Discoverability, as a test. The sheet is derived from the resolvers and is
+  // the app's answer to "an EE carries a hundred bindings without a learning
+  // curve because the tool tells them" — and it was reachable only by guessing
+  // `?` or Shift+F1, since the Help menu that also opens it renders on Windows
+  // only. A list nobody can find is a list nobody has.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const button = w.find('[data-slot="board-shortcuts"]');
+    assert.ok(button, "no visible way into the shortcut list anywhere on the board");
+    assert.match(button.textContent, /\?/, "the button does not print the key it stands for");
+
+    assert.equal(document.body.querySelector('[data-slot="shortcut-sheet"]'), null);
+    click(button);
+    await w.settle();
+    const sheet = document.body.querySelector('[data-slot="shortcut-sheet"]');
+    assert.ok(sheet, "the button did not open the sheet");
+    assert.match(sheet.textContent, /Keyboard shortcuts/u);
+
+    // One dialog, not two: the workspace mounts the host once and the button
+    // asks it by event, so a second host cannot answer `?` alongside it.
+    assert.equal(document.body.querySelectorAll('[data-slot="shortcut-sheet"]').length, 1);
+  } finally {
+    w.close();
+  }
+});

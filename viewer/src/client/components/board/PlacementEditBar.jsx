@@ -232,7 +232,7 @@ export default function PlacementEditBar({
     // then telling them the part is locked would be two dialogs for one no.
     if (refusal) {
       setPendingWrap(null);
-      editor.rotate(command.placementId, command.to);
+      editor.turnBy(command.placementId, direction, turnBy);
       return;
     }
     if (command.confirm && !confirmedWraps.current.has(command.placementId)) {
@@ -240,7 +240,12 @@ export default function PlacementEditBar({
       return;
     }
     setPendingWrap(null);
-    editor.rotate(command.placementId, command.to);
+    // The step, not the angle. `command.to` was computed from the angle on
+    // screen, and the angle on screen is one round trip behind the file while
+    // a tap is in flight — so four fast taps all asked for the same 270°, three
+    // of them found it already written, and three taps disappeared. `turnBy`
+    // applies the step inside the edit queue, to whatever the file says then.
+    editor.turnBy(command.placementId, direction, turnBy);
   };
 
   return (

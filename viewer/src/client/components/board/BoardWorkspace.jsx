@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, SendHorizontal } from "lucide-react";
+import { Keyboard as KeyboardIcon, Loader2, SendHorizontal } from "lucide-react";
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
@@ -38,7 +38,7 @@ import PlacementEditBar from "./PlacementEditBar.jsx";
 import usePlacementEditor from "./usePlacementEditor.js";
 import { isTypingTarget, resolveBoardKey } from "./boardKeymap.js";
 import BoardContextMenu from "./BoardContextMenu.jsx";
-import { ShortcutSheetHost } from "./ShortcutSheet.jsx";
+import { OPEN_SHORTCUT_SHEET_EVENT, ShortcutSheetHost } from "./ShortcutSheet.jsx";
 import { DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placementRotate.js";
 import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
@@ -525,7 +525,10 @@ export default function BoardWorkspace({
       // the strip owns; the key press says where to find it rather than
       // writing structure nobody approved.
       if (command.confirm) return `${placement.label} needs a wrapper to turn — use the ↺ button to see the change first.`;
-      editor.rotate(command.placementId, command.to);
+      // By step, not to an angle: Space is a key people hold down and tap in
+      // fours, and an absolute target computed from the angle on screen is
+      // stale the moment a second tap lands before the first write returns.
+      editor.turnBy(command.placementId, direction, rotationStep);
       return "";
     },
     [editor, rotationStep],
@@ -1148,12 +1151,35 @@ export default function BoardWorkspace({
                   </div>
                 ) : null}
 
+                {/* The way in to the key list, on the board itself.
+                    Altium carries ~100 bindings without a learning curve
+                    because the tool will tell you what they are; ours was
+                    derived from the resolvers, listed under `?` and Shift+F1 —
+                    and reachable only by guessing one of those two keys, since
+                    the Help menu that also opens it renders on Windows only. A
+                    list nobody can find is a list nobody has.
+
+                    An event, not a second `ShortcutSheetHost`: the host owns a
+                    window `keydown` listener, so mounting two would answer `?`
+                    twice and put two dialogs on screen. */}
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(OPEN_SHORTCUT_SHEET_EVENT))}
+                  data-slot="board-shortcuts"
+                  title="Keyboard shortcuts (? or Shift+F1)"
+                  aria-label="Keyboard shortcuts"
+                  className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <KeyboardIcon className="size-3.5" aria-hidden />
+                  <kbd className="font-mono text-[10px] opacity-70">?</kbd>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleSendToAI}
                   title="Send this view to the chat"
                   data-slot="board-send-to-ai"
-                  className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className="ml-1 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <SendHorizontal className="size-3" aria-hidden />
                   Send to AI
@@ -1394,8 +1420,14 @@ export default function BoardWorkspace({
 
       {/* Altium's Shift+F1 — "a menu listing all valid shortcuts". Ours is
           derived from the resolvers rather than written by hand, so it cannot
-          drift from the keys that actually work. The button lives in the
-          window menu bar's Help menu; this mount owns the key and the dialog. */}
+          drift from the keys that actually work.
+
+          This mount owns the key and the dialog for the whole workspace,
+          including the states where the tab strip is not on screen (no board
+          selected, still building). The visible button lives up in the tab
+          strip beside "Send to AI"; the Help menu in the window menu bar
+          reaches the same dialog by event — but that bar only renders on
+          Windows, which is why a board-level button had to exist at all. */}
       <ShortcutSheetHost button={false} />
     </div>
   );

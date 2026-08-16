@@ -276,3 +276,45 @@ test("a part the board file places in code cannot be dragged, and the panel says
     w.close();
   }
 });
+
+test("four fast taps of the turn button are four turns, not two", async () => {
+  // The gesture Altium trains is tapping Spacebar, and a tap is faster than a
+  // round trip to the server. Every tap used to compute its target from the
+  // angle *on screen* — which is one write behind while a tap is in flight —
+  // so taps two, three and four asked for the angle tap one had already
+  // written, found nothing to change, and vanished without a word. Four taps
+  // of 90° must come back to where the part started, to the byte.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle();
+
+    const cw = w.find('[data-slot="placement-rotate-cw"]');
+    assert.ok(cw, "no turn button — the part did not select");
+    assert.equal(cw.dataset.rotateVia, "prop", "this test needs a part that takes an angle of its own");
+
+    const before = w.server.source;
+    // Not awaited between clicks. That is the whole point.
+    click(cw);
+    click(cw);
+    click(cw);
+    click(cw);
+    await w.settle(10);
+
+    const turns = w.server.writes.length;
+    assert.equal(turns, 4, `four taps wrote ${turns} times`);
+    assert.equal(w.server.source, before, "four 90° turns did not come back to the starting angle");
+
+    // And one turn alone still turns it, so the round trip above is not just
+    // four no-ops cancelling out.
+    click(cw);
+    await w.settle(6);
+    const after = parseBoardSource(w.server.source).placements.find((one) => one.id === "resistor[1]");
+    assert.equal(after.rotation, 270);
+  } finally {
+    w.close();
+  }
+});
