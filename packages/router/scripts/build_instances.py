@@ -21,7 +21,15 @@ Usage::
 
     python packages/router/scripts/build_instances.py            # everything
     python packages/router/scripts/build_instances.py --examples-only
+    python packages/router/scripts/build_instances.py --only harness-puck
     python packages/router/scripts/build_instances.py --jobs 2
+
+``--only`` re-extracts one instance and leaves every other fixture untouched.
+That is the usual case, because re-extracting is not free: the placement moves,
+and any copper already measured against the old one stops being scoreable
+against the new. Do it when the board it came from has moved and settled —
+``harness-puck`` on 2026-08-16, whose SW1 shifted 1.2mm to clear a courtyard —
+and not on a schedule.
 
 ``--jobs`` defaults to 2. The machine is shared; a matrix run at
 ``cpu_count - 1`` once drove load to 79 on 16 cores and starved another agent's
@@ -184,8 +192,12 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--examples-only", action="store_true")
+    parser.add_argument("--only", default=None,
+                        help="comma list of instance ids; everything else is "
+                             "left exactly as it is on disk")
     parser.add_argument("--out", default=str(INSTANCE_DIR))
     args = parser.parse_args(argv[1:])
+    only = {i for i in (args.only or "").split(",") if i} or None
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -194,6 +206,8 @@ def main(argv: list[str]) -> int:
     written: list[Path] = []
 
     for instance_id, folder in EXAMPLES:
+        if only is not None and instance_id not in only:
+            continue
         path = REPO / "examples" / folder / "boards" / "main.circuit.json"
         if not path.is_file():
             print(f"missing {path}")
@@ -204,15 +218,26 @@ def main(argv: list[str]) -> int:
         )
 
     if not args.examples_only:
-        print(f"building {len(CELLS)} composition cells on {args.jobs} workers")
-        written += build_cells(CELLS, args.jobs, out_dir, base)
+        cells = [
+            c for c in CELLS
+            if only is None or ("matrix-" + "__".join(c)) in only
+        ]
+        if cells:
+            print(f"building {len(cells)} composition cells on {args.jobs} workers")
+            written += build_cells(cells, args.jobs, out_dir, base)
 
-    manifest = {
-        "schema": "routerlib/manifest@1",
-        "generatedAt": base["extractedAt"],
-        "measuredAgainst": base,
-        "instances": [],
-    }
+    # The manifest is rewritten from what is on disk, but anything it carries
+    # that is not derived from an instance — the ``rebaseline`` record of which
+    # placement hash moved when, and why — survives. A re-extract that erased
+    # the history of the last one would be the second worst thing this script
+    # could do.
+    manifest = {}
+    if MANIFEST.is_file():
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest["schema"] = manifest.get("schema", "routerlib/manifest@2")
+    manifest["generatedAt"] = base["extractedAt"]
+    manifest["measuredAgainst"] = base
+    manifest["instances"] = []
     for path in sorted(out_dir.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
         manifest["instances"].append(

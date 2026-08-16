@@ -1,20 +1,20 @@
 {
  "schema": "routerlib/manifest@2",
- "generatedAt": "2026-08-15T23:43:44",
+ "generatedAt": "2026-08-16T08:27:51",
  "measuredAgainst": {
-  "gitHead": "806561d",
+  "gitHead": "12a6dd6",
   "gitDirty": true,
-  "extractedAt": "2026-08-15T23:43:44"
+  "extractedAt": "2026-08-16T08:27:51"
  },
  "instances": [
   {
    "id": "harness-puck",
    "file": "harness-puck.json",
-   "placementHash": "3e25860d1480",
+   "placementHash": "2da53fb41652",
    "source": {
-    "gitHead": "806561d",
+    "gitHead": "12a6dd6",
     "gitDirty": true,
-    "extractedAt": "2026-08-15T23:43:44",
+    "extractedAt": "2026-08-16T08:27:51",
     "kind": "example",
     "path": "/Users/d/code/autonomous-circuit/examples/harness-puck/boards/main.circuit.json"
    },
@@ -40,8 +40,8 @@
     "ground_net_count": 1,
     "ground_pad_count": 61,
     "has_plane": false,
-    "mst_length_mm": 1175.391,
-    "routing_demand_per_mm2": 0.30542,
+    "mst_length_mm": 1178.227,
+    "routing_demand_per_mm2": 0.30616,
     "repeat_ratio": 0.836,
     "grid_score": 0.279,
     "regular": false

@@ -94,11 +94,16 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
     try:
-        from routerlib.bench import INSTANCE_DIR, load_instance
+        from routerlib.bench import INSTANCE_DIR, load_instance, placement_hash
         from routerlib.model import Budget
         from routerlib.scoring import score
 
         problem = load_instance(Path(INSTANCE_DIR) / f"{args.instance}.json")
+        # The placement this copper was produced against. Copper outlives the
+        # fixture it came from — ``harness-puck`` was re-extracted on
+        # 2026-08-16 after its SW1 moved 1.2mm — and copper scored against a
+        # placement it never saw produces a number that looks like a score.
+        row["placementHash"] = placement_hash(problem)
         budget = Budget(
             max_iterations=args.max_iterations,
             max_nodes=args.max_nodes,

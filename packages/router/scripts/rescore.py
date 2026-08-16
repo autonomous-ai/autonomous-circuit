@@ -35,10 +35,10 @@ os.environ.setdefault("CIRCUIT_PARTS_ENGINE", "off")
 TOURNAMENT = REPO / "work" / "tournament"
 
 
-def score_one(args: tuple[str, str, str, str]) -> dict:
-    router, instance, row_path, copper_path = args
+def score_one(args: tuple[str, str, str, str, str]) -> dict:
+    router, instance, row_path, copper_path, instance_dir = args
     from routerlib.adapters import solution_from_elements
-    from routerlib.bench import INSTANCE_DIR, load_instance
+    from routerlib.bench import load_instance, placement_hash
     from routerlib.scoring import score
 
     row = json.loads(Path(row_path).read_text(encoding="utf-8"))
@@ -64,7 +64,19 @@ def score_one(args: tuple[str, str, str, str]) -> dict:
         out["error"] = row.get("error") or "no copper on disk"
         return out
     try:
-        problem = load_instance(Path(INSTANCE_DIR) / f"{instance}.json")
+        problem = load_instance(Path(instance_dir) / f"{instance}.json")
+        # A fixture can be re-extracted between the run and the re-score, and
+        # then the copper is about a board that no longer exists. Scored
+        # anyway it produces a plausible number about nothing.
+        current = placement_hash(problem)
+        out["placementHash"] = current
+        was = row.get("placementHash")
+        if was and was != current:
+            out["stale"] = True
+            out["error"] = (
+                f"placement moved since this copper was routed: {was} -> {current}"
+            )
+            return out
         elements = json.loads(Path(copper_path).read_text(encoding="utf-8"))
         solution = solution_from_elements(
             problem,
@@ -104,8 +116,19 @@ def main(argv=None) -> int:
     ap.add_argument("--tournament", default=str(TOURNAMENT))
     ap.add_argument("--out", required=True)
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument(
+        "--instances", default=None,
+        help="fixture directory; defaults to the committed one. Point it at a "
+             "checkout of an older revision to reproduce a published number "
+             "exactly after a fixture has been re-extracted, e.g. "
+             "`git worktree add /tmp/fx 627dcac` then "
+             "`--instances /tmp/fx/packages/router/benchmarks/instances`",
+    )
     args = ap.parse_args(argv)
     root = Path(args.tournament)
+    from routerlib.bench import INSTANCE_DIR
+
+    instance_dir = args.instances or str(INSTANCE_DIR)
 
     work: list[tuple[str, str, str, str]] = []
     for rdir in sorted((root / "rows").iterdir()):
@@ -118,6 +141,7 @@ def main(argv=None) -> int:
                     row.stem,
                     str(row),
                     str(root / "copper" / rdir.name / f"{row.stem}.json"),
+                    instance_dir,
                 )
             )
     print(f"{len(work)} cells, {args.jobs} at a time", flush=True)
@@ -128,6 +152,7 @@ def main(argv=None) -> int:
     old_rulers = {c["old"]["rulerHash"] for c in cells if c["old"].get("rulerHash")}
     payload = {
         "measuredAt": "2026-08-16",
+        "instanceDir": instance_dir,
         "oldRulerHash": sorted(old_rulers),
         "newRulerHash": sorted(rulers),
         "what": (
@@ -139,9 +164,16 @@ def main(argv=None) -> int:
     Path(args.out).write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
 
     mismatched = [c for c in cells if c.get("new") and not c.get("replayMatches")]
-    failed = [c for c in cells if c.get("error")]
+    stale = [c for c in cells if c.get("stale")]
+    failed = [c for c in cells if c.get("error") and not c.get("stale")]
+    unguarded = sum(1 for c in cells if not c.get("placementHash"))
     print(f"wrote {args.out}: {len(cells)} cells, {len(failed)} failed, "
-          f"{len(mismatched)} replay mismatches")
+          f"{len(stale)} stale (placement moved), {len(mismatched)} replay mismatches")
+    if unguarded:
+        print(f"  {unguarded} cells carry no placementHash — their rows predate "
+              f"the guard and nothing checked that the board still exists")
+    for c in stale[:10]:
+        print(f"  STALE  {c['router']:<22} {c['instance']:<44} {c['error'][:70]}")
     for c in failed[:10]:
         print(f"  FAILED {c['router']:<22} {c['instance']:<44} {c['error'][:80]}")
     for c in mismatched[:10]:

@@ -21,6 +21,13 @@ Three copper sets go through the identical path:
                autorouter's answer, at whatever effort that build used.
 ``portfolio``  ``routerlib.portfolio`` over the same placement, copper stripped.
 
+``--routers`` names what goes in that third slot and takes more than one, all
+checked against the same control and the same incumbent in a single pass.
+``portfolio`` means the selector in the given mode; anything else is one family
+run on its own. Since the pad model was corrected the selector's lead
+(``pathfinder-negotiated``) is no longer the strongest family, so naming a
+family directly is how that gets measured rather than assumed.
+
 Pours are stripped from all three. A ``pcb_copper_pour`` in a built board was
 generated *after* routing and is carved around the incumbent's traces; leaving
 it in would hand the incumbent a zone shaped like its own answer and hand the
@@ -96,6 +103,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--board", required=True)
     ap.add_argument("--rev", default="HEAD")
     ap.add_argument("--out", default=str(REPO / "work" / "portfolio" / "ab"))
+    ap.add_argument("--routers", default="portfolio",
+                    help="comma list; 'portfolio' is the selector, anything "
+                         "else is one family from the tournament registry")
     ap.add_argument("--mode", default="relay",
                     choices=("single", "best-of-n", "relay"))
     ap.add_argument("--budget-class", default="thorough",
@@ -135,12 +145,32 @@ def main(argv: list[str] | None = None) -> int:
 
     budget = Budget(max_iterations=args.max_iterations,
                     max_nodes=args.max_nodes, seed=args.seed)
-    t0 = time.perf_counter()
-    result = portfolio.route(
-        problem, budget, registry(),
-        budget_class=args.budget_class, mode=args.mode,
-    )
-    portfolio_seconds = time.perf_counter() - t0
+    reg = registry()
+    ours: list[tuple[str, RoutingSolution]] = []
+    meta: dict = {}
+    for spec in [r for r in args.routers.split(",") if r]:
+        t0 = time.perf_counter()
+        if spec == "portfolio":
+            result = portfolio.route(
+                problem, budget, reg,
+                budget_class=args.budget_class, mode=args.mode,
+            )
+            solution = result.solution
+            label = f"portfolio[{args.mode}/{args.budget_class}]"
+            meta[label] = {
+                "selection": result.selection.as_dict(),
+                "stages": [s.as_dict() for s in result.stages],
+            }
+        else:
+            if spec not in reg:
+                raise KeyError(f"unknown router {spec!r}")
+            solution = reg[spec]().route(problem, budget)
+            label = spec
+            meta[label] = {"selection": None, "stages": None}
+        meta[label]["seconds"] = round(time.perf_counter() - t0, 1)
+        meta[label]["fingerprint"] = solution.fingerprint()
+        ours.append((label, solution))
+        print(f"  routed {label} in {meta[label]['seconds']}s", flush=True)
 
     out: dict = {
         "board": args.board,
@@ -148,14 +178,11 @@ def main(argv: list[str] | None = None) -> int:
         "commit": sha,
         "poursStripped": pours,
         "features": vars(features_of(problem)),
-        "selection": result.selection.as_dict(),
-        "stages": [s.as_dict() for s in result.stages],
-        "portfolioSeconds": round(portfolio_seconds, 1),
+        "ours": meta,
         "harness": {},
         "pipeline": {},
-        "fingerprint": result.solution.fingerprint(),
     }
-    for name, solution in (("incumbent", incumbent), ("portfolio", result.solution)):
+    for name, solution in [("incumbent", incumbent)] + ours:
         s = score(problem, solution)
         out["harness"][name] = {
             "completeness": round(s.completeness, 6),
@@ -170,9 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         }
         out["harness"][name]["rulerHash"] = s.ruler.hash
 
-    for name, solution in (("control", empty), ("incumbent", incumbent),
-                           ("portfolio", result.solution)):
-        work = Path(tempfile.mkdtemp(prefix=f"ab-{name}-"))
+    for name, solution in ([("control", empty), ("incumbent", incumbent)] + ours):
+        safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+        work = Path(tempfile.mkdtemp(prefix=f"ab-{safe}-"))
         t = time.perf_counter()
         try:
             out["pipeline"][name] = check(board_json, problem, solution, work)
@@ -202,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     ctrl = out["pipeline"]["control"]
     ck = kicad_count(ctrl)
     ct = routing_count(ctrl)
-    for name in ("incumbent", "portfolio"):
+    for name in ["incumbent"] + [n for n, _ in ours]:
         row = out["pipeline"][name]
         k = kicad_count(row)
         t_ = routing_count(row)
@@ -218,12 +245,12 @@ def main(argv: list[str] | None = None) -> int:
 
     h = out["harness"]
     print(f"\n{args.board} @ {sha[:9]}  ({pours} pour(s) stripped)")
-    print(f"{'':<14}{'routed':>9}{'harnessErr':>12}{'kicadErr':>10}{'tsErr':>8}"
+    print(f"{'':<32}{'routed':>9}{'harnessErr':>12}{'kicadErr':>10}{'tsErr':>8}"
           f"{'vias':>7}{'copper mm':>11}")
-    for name in ("incumbent", "portfolio"):
-        n = out["pipeline"][name]["net"]
-        print(f"{name:<14}{h[name]['completeness'] * 100:>8.1f}%{h[name]['errors']:>12}"
-              f"{str(n['kicadCopper']):>10}{str(n['tscircuitRouting']):>8}"
+    for name in ["incumbent"] + [n for n, _ in ours]:
+        n_ = out["pipeline"][name]["net"]
+        print(f"{name:<32}{h[name]['completeness'] * 100:>8.1f}%{h[name]['errors']:>12}"
+              f"{str(n_['kicadCopper']):>10}{str(n_['tscircuitRouting']):>8}"
               f"{h[name]['vias']:>7}{h[name]['copperMm']:>11.0f}")
     print(f"wrote {path}")
     return 0

@@ -2,13 +2,13 @@
  "schema": "routerlib/instance@2",
  "id": "harness-puck",
  "source": {
-  "gitHead": "806561d",
+  "gitHead": "12a6dd6",
   "gitDirty": true,
-  "extractedAt": "2026-08-15T23:43:44",
+  "extractedAt": "2026-08-16T08:27:51",
   "kind": "example",
   "path": "/Users/d/code/autonomous-circuit/examples/harness-puck/boards/main.circuit.json"
  },
- "placementHash": "3e25860d1480",
+ "placementHash": "2da53fb41652",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -11319,7 +11319,7 @@
    "id": "pcb_smtpad_209",
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net34",
    "x": -5.0,
-   "y": -1.1501,
+   "y": -2.3501,
    "w": 1.0,
    "h": 0.75,
    "layers": [
@@ -11357,7 +11357,7 @@
    "id": "pcb_smtpad_210",
    "net": null,
    "x": -5.0,
-   "y": -4.8499,
+   "y": -6.0499,
    "w": 1.0,
    "h": 0.75,
    "layers": [
@@ -11376,7 +11376,7 @@
    "id": "pcb_smtpad_211",
    "net": null,
    "x": 1.0,
-   "y": -4.8499,
+   "y": -6.0499,
    "w": 1.0,
    "h": 0.75,
    "layers": [
@@ -11395,7 +11395,7 @@
    "id": "pcb_smtpad_212",
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net1",
    "x": 1.0,
-   "y": -1.1501,
+   "y": -2.3501,
    "w": 1.0,
    "h": 0.75,
    "layers": [
@@ -14097,8 +14097,8 @@
   "ground_net_count": 1,
   "ground_pad_count": 61,
   "has_plane": false,
-  "mst_length_mm": 1175.391,
-  "routing_demand_per_mm2": 0.30542,
+  "mst_length_mm": 1178.227,
+  "routing_demand_per_mm2": 0.30616,
   "repeat_ratio": 0.836,
   "grid_score": 0.279,
   "regular": false

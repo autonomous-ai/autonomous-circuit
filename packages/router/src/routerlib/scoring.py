@@ -80,6 +80,14 @@ class Ruler:
     check_kinds: tuple[str, ...]
     coverage_gaps: tuple[str, ...]
     toolchain: dict = field(default_factory=dict)
+    #: Source fingerprint of ``circuitpy.checks``, the module this package
+    #: delegates every ``dfm_*`` finding to. It is in the hash because a change
+    #: there changes our numbers: on 2026-08-16 somebody taught it to read
+    #: ``ccw_rotation`` and ``dfm_hole_clearance`` went from 2 findings to 107
+    #: across the tournament, with nothing in the ruler moving to say so. A
+    #: score that can change while its ruler stays the same is not carrying its
+    #: ruler.
+    delegated_checks: str = ""
 
     @property
     def hash(self) -> str:
@@ -92,6 +100,7 @@ class Ruler:
                     "floor": self.min_clearance_mm,
                     "kinds": list(self.check_kinds),
                     "gaps": list(self.coverage_gaps),
+                    "delegated": self.delegated_checks,
                 },
                 sort_keys=True,
             ).encode()
@@ -100,7 +109,8 @@ class Ruler:
     def line(self) -> str:
         return (
             f"ruler : {self.hash}, {len(self.check_kinds)} check kinds, "
-            f"{self.fab_profile} @ {self.clearance_gate_mm:g}mm gate "
+            f"{self.fab_profile} @ {self.clearance_gate_mm:g}mm gate, "
+            f"circuitpy.checks {self.delegated_checks} "
             f"— compare only against a run with the same hash"
         )
 
@@ -124,6 +134,24 @@ CHECK_KINDS: tuple[str, ...] = (
 )
 
 
+def delegated_checks_fingerprint() -> str:
+    """sha256 of the ``circuitpy.checks`` source, or ``"unknown"``.
+
+    Not a version string: the module is edited in this repo, often by another
+    agent, and a working-tree edit has no version. The source bytes are the
+    only thing that always tells the truth about which checks ran.
+    """
+    try:
+        import inspect
+
+        from circuitpy import checks as _checks
+
+        source = inspect.getsource(_checks)
+    except Exception:  # noqa: BLE001
+        return "unknown"
+    return hashlib.sha256(source.encode()).hexdigest()[:12]
+
+
 def ruler_for(rules: DesignRules) -> Ruler:
     toolchain: dict = {}
     try:  # never let a version probe fail a score
@@ -138,6 +166,7 @@ def ruler_for(rules: DesignRules) -> Ruler:
         clearance_gate_mm=rules.clearance_gate_mm,
         min_clearance_mm=rules.min_clearance_mm,
         check_kinds=CHECK_KINDS,
+        delegated_checks=delegated_checks_fingerprint(),
         coverage_gaps=drc_mod.COVERAGE_GAPS,
         toolchain=toolchain,
     )
@@ -362,6 +391,7 @@ class Score:
             "measuredAgainst": {
                 "rulerHash": self.ruler.hash,
                 "scorerVersion": self.ruler.scorer_version,
+                "delegatedChecks": self.ruler.delegated_checks,
                 "fabProfile": self.ruler.fab_profile,
                 "clearanceGateMm": self.ruler.clearance_gate_mm,
                 "checkKinds": list(self.ruler.check_kinds),
