@@ -333,16 +333,38 @@ def parse_exporter_bom(text: str) -> list[dict]:
 
 
 def merge_parts_lock(rows: list[dict], parts: dict[str, dict]) -> list[dict]:
-    """Fold the ``parts.json`` lock into BOM rows. Match order: exact part id
-    == designator (case-insensitive). A matched row gains ``lock`` (the lock
-    entry) and, when the exporter had no part number, its locked ``lcsc``.
-    The v1 lock keys parts by component name/refdes; fuzzier mapping belongs
-    to parts-book, not here."""
+    """Fold the ``parts.json`` lock into BOM rows.
+
+    Match order: the part id equal to the designator (case-insensitive), then
+    the designator listed in an entry's own ``refdes``.
+
+    The second half is what makes the lock reach a real board. parts-book's ids
+    are readable slugs — ``ams1117-3.3``, ``r-4.7k-0402`` — and it records the
+    designators that use them in ``refdes: ["U2"]``. Matching on the id alone
+    therefore matched **nothing** on the only board that pins its parts:
+    hydrate-coaster locks 19 parts and not one of them is called "U2". Between
+    that and a loader that could not read the file's shape at all
+    (``spec.load_parts``), the lock has never once reached a BOM row.
+
+    A designator claimed by two entries is left unmatched rather than given to
+    whichever sorted first: two locks for one part is a parts-book question,
+    and picking one silently is how a board gets ordered with the wrong number.
+    """
     by_id = {part_id.lower(): (part_id, entry) for part_id, entry in parts.items()}
+    by_refdes: dict[str, tuple[str, dict] | None] = {}
+    for part_id, entry in parts.items():
+        listed = entry.get("refdes")
+        for refdes in listed if isinstance(listed, list) else []:
+            key = str(refdes).strip().lower()
+            if not key:
+                continue
+            # None marks a designator two entries both claim.
+            by_refdes[key] = None if key in by_refdes else (part_id, entry)
     merged: list[dict] = []
     for row in rows:
         out = dict(row)
-        hit = by_id.get(row["designator"].lower())
+        key = row["designator"].lower()
+        hit = by_id.get(key) or by_refdes.get(key)
         if hit is not None:
             part_id, entry = hit
             out["lock_id"] = part_id
@@ -586,7 +608,21 @@ def write_bom_csv(
             first = row["designator"].split(",")[0].strip()
             extra = described.get(first, {})
             comment = row.get("comment") or row.get("value") or extra.get("comment") or ""
-            footprint = row.get("footprint") or packages.get(row.get("lcsc") or "", "")
+            # The lock first, the catalog mirror second. parts-book records the
+            # package it chose the part *for* (`package`, "package/footprint
+            # class as documented by the block"), and that is the board's own
+            # decision; the mirror is a lookup that happens to carry 464 parts
+            # and none of the seven the shipped boards were missing. Measured
+            # 2026-08-16: 9 of 18 BOM lines on harness-puck had a blank
+            # Footprint, and JLC's parts-match table uses that column as the
+            # one cross-check between the number you typed and the part you
+            # meant.
+            lock = row.get("lock") or {}
+            footprint = (
+                row.get("footprint")
+                or str(lock.get("package") or "").strip()
+                or packages.get(row.get("lcsc") or "", "")
+            )
             writer.writerow([comment, row["designator"], footprint, row.get("lcsc") or ""])
     return path
 

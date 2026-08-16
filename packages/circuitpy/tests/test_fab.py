@@ -77,6 +77,31 @@ class LockMerge(unittest.TestCase):
         merged = fab.merge_parts_lock(rows, {"R1": {"lcsc": "C999"}})
         self.assertEqual(merged[0]["lcsc"], "C11702")  # drift is the BOM gate's call
 
+    def test_a_slug_id_reaches_the_row_through_its_refdes(self) -> None:
+        # parts-book's ids are readable slugs and the designators live in
+        # `refdes`, so id-only matching matched nothing on the one board that
+        # locks its parts: hydrate-coaster pins 19 parts and not one is
+        # called "U2".
+        rows = fab.parse_exporter_bom(EXPORTER_BOM_OFFLINE)
+        merged = fab.merge_parts_lock(
+            rows,
+            {"ams1117-3.3": {"lcsc": "C6186", "package": "SOT-223", "refdes": ["R1"]}},
+        )
+        self.assertEqual(merged[0]["lock_id"], "ams1117-3.3")
+        self.assertEqual(merged[0]["lcsc"], "C6186")
+
+    def test_a_designator_two_locks_claim_is_left_alone(self) -> None:
+        # Picking one silently is how a board gets ordered with the wrong part.
+        merged = fab.merge_parts_lock(
+            [{"designator": "U2", "comment": "", "value": "", "footprint": "", "lcsc": ""}],
+            {
+                "ldo-a": {"lcsc": "C1", "refdes": ["U2"]},
+                "ldo-b": {"lcsc": "C2", "refdes": ["U2"]},
+            },
+        )
+        self.assertNotIn("lock_id", merged[0])
+        self.assertEqual(merged[0]["lcsc"], "")
+
     def test_match_is_case_insensitive(self) -> None:
         merged = fab.merge_parts_lock(
             [{"designator": "r1", "comment": "", "value": "", "footprint": "", "lcsc": ""}],
@@ -147,6 +172,31 @@ class PacketWriters(unittest.TestCase):
             b",TP1,,\r\n"
             b",TP2,,\r\n",
         )
+
+    def test_the_locked_package_fills_the_footprint_column(self) -> None:
+        """JLC's parts-match table reads this column as the one cross-check
+        between the number you typed and the part you meant, and 9 of 18 lines
+        on harness-puck shipped with it blank."""
+        rows = fab.merge_parts_lock(
+            fab.parse_exporter_bom(EXPORTER_BOM_OFFLINE),
+            {"rp2040": {"lcsc": "C2040", "package": "LQFN-56(7x7)", "refdes": ["R1"]}},
+        )
+        with tempfile.TemporaryDirectory() as scratch:
+            path = fab.write_bom_csv(rows, Path(scratch) / "bom.csv", PROFILE)
+            written = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+        by_designator = {row["Designator"]: row for row in written}
+        self.assertEqual(by_designator["R1"]["Footprint"], "LQFN-56(7x7)")
+        # And the exporter's own footprint still wins where it has one: the
+        # lock says what was ordered, the exporter says what was placed, and
+        # disagreeing with the artifact is not this column's job.
+        rows2 = fab.merge_parts_lock(
+            fab.parse_exporter_bom(EXPORTER_BOM_WITH_PARTS),
+            {"rp2040": {"lcsc": "C2040", "package": "LQFN-56(7x7)", "refdes": ["R1"]}},
+        )
+        with tempfile.TemporaryDirectory() as scratch:
+            path = fab.write_bom_csv(rows2, Path(scratch) / "bom.csv", PROFILE)
+            written2 = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+        self.assertEqual({row["Designator"]: row for row in written2}["R1"]["Footprint"], "0402")
 
     def test_bare_copper_never_reaches_the_parts_match_table(self) -> None:
         """EE review follow-up: TP1/TP2/TP3 shipped as three BOM lines with no

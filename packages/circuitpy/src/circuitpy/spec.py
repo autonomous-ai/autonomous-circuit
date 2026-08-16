@@ -147,10 +147,38 @@ def load_parts(project_root: Path) -> dict[str, dict]:
         raise ProjectShapeError(f"parts.json unreadable: {exc}") from exc
     if not isinstance(raw, dict):
         raise ProjectShapeError(
-            f"parts.json must be a JSON object of part id -> entry "
-            f"(got {type(raw).__name__})"
+            f"parts.json must be a JSON object (got {type(raw).__name__})"
         )
+    # Two shapes, because two tracks wrote to this file with different ideas
+    # about it and only one of them was ever read.
+    #
+    # `parts-book` writes what its contract prints — a wrapper carrying
+    # `version`/`generator`/`updated`/`summary` and a **`parts` array**, each
+    # entry keyed by its own `id` (skills/parts-book/SKILL.md, "The record
+    # written per part"). This loader wanted a flat `{id: entry}` map, so on
+    # every board that has a lock it collected the one dict-valued key it
+    # recognised — `summary` — and returned a lock of size 1. Measured
+    # 2026-08-16 on hydrate-coaster, the only board that pins its parts:
+    # `load_parts` returned `{"summary": {...}}` for 19 locked parts.
+    #
+    # Nothing raised. The BOM's Footprint column went out blank for every part
+    # the local catalog mirror does not carry (9 of 18 lines on harness-puck),
+    # `part_drift` compared against nothing, and the cost estimate had no
+    # prices to add up. A lock that is silently empty is worse than no lock:
+    # the checks that exist to catch a part changing under you all pass.
+    #
+    # Both shapes are read now, and the flat one stays supported because it is
+    # what the tests and any hand-written lock use.
+    listed = raw.get("parts")
     parts: dict[str, dict] = {}
+    if isinstance(listed, list):
+        for entry in listed:
+            if not isinstance(entry, dict):
+                continue
+            part_id = str(entry.get("id") or entry.get("lcsc") or "").strip()
+            if part_id:
+                parts[part_id] = entry
+        return parts
     for part_id, entry in raw.items():
         if isinstance(entry, dict):
             parts[str(part_id)] = entry
