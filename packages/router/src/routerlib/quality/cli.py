@@ -24,6 +24,14 @@ the run describes a board that no longer exists, and scoring it anyway produces
 a plausible number about nothing. Same rule as ``scripts/rescore.py``. The
 incumbent rows carry the guard too: the comparison is only an A/B when both
 sides are the same board.
+
+**And the incumbent's boards come out of a commit, not the working tree.**
+``examples/`` is rebuilt by other agents several times a day — while this was
+being written, all three example boards were rewritten inside seven minutes and
+two consecutive sweeps disagreed about ``harness-puck``'s self-crossings by two.
+Same rule ``scripts/ab_incumbent.py`` already follows: ``--rev`` names the
+revision, the resolved commit is written into the output, and a number quoted
+from this table can be reproduced.
 """
 
 from __future__ import annotations
@@ -124,7 +132,18 @@ def _score(job: dict) -> dict:
             elements = json.loads(Path(job["copper_path"]).read_text(encoding="utf-8"))
             solution = solution_from_elements(problem, elements, router=job["router"])
         else:  # "board" — the incumbent's own copper, out of a built board
-            raw = json.loads(Path(job["copper_path"]).read_text(encoding="utf-8"))
+            if job.get("rev_path"):
+                import subprocess
+
+                raw = json.loads(subprocess.run(
+                    ["git", "show", f"{job['commit']}:{job['rev_path']}"],
+                    cwd=str(REPO), capture_output=True, text=True, check=True,
+                ).stdout)
+                out["fromCommit"] = job["commit"]
+            else:
+                raw = json.loads(
+                    Path(job["copper_path"]).read_text(encoding="utf-8")
+                )
             raw = [e for e in raw if e.get("type") != "pcb_copper_pour"]
             built = problem_from_circuit_json(
                 raw,
@@ -216,8 +235,27 @@ def _jobs_from_tournament(
     return jobs
 
 
+def _resolve(rev: str) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", "rev-parse", rev], cwd=str(REPO),
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+
+def _board_at(commit: str, rel: str):
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "show", f"{commit}:{rel}"], cwd=str(REPO),
+        capture_output=True, text=True,
+    )
+    return json.loads(result.stdout) if result.returncode == 0 else None
+
+
 def _incumbent_jobs(
-    gate_off: Path, currents: dict, *, detail: bool = False
+    gate_off: Path, currents: dict, *, detail: bool = False, commit: str = "HEAD"
 ) -> list[dict]:
     jobs: list[dict] = []
     if gate_off.is_dir():
@@ -240,9 +278,9 @@ def _incumbent_jobs(
                 }
             )
     for name in REAL_BOARDS:
-        board = REPO / "examples" / name / "boards" / "main.circuit.json"
+        rel = f"examples/{name}/boards/main.circuit.json"
         path = _instance_dir() / f"{name}.json"
-        if not (board.is_file() and path.is_file()):
+        if not path.is_file() or _board_at(commit, rel) is None:
             continue
         jobs.append(
             {
@@ -251,7 +289,9 @@ def _incumbent_jobs(
                 "router": "tscircuit-autorouter",
                 "instance": name,
                 "instance_path": str(path),
-                "copper_path": str(board),
+                "copper_path": str(REPO / rel),
+                "rev_path": rel,
+                "commit": commit,
                 # terminal-keyboard's fixture predates the 100x90 rebuild, so
                 # its board no longer matches. Scored against its own board and
                 # marked, rather than dropped: the incumbent's own quality is
@@ -264,7 +304,9 @@ def _incumbent_jobs(
     return jobs
 
 
-def _collect_currents(gate_off: Path) -> dict[str, dict[str, float]]:
+def _collect_currents(
+    gate_off: Path, commit: str = "HEAD"
+) -> dict[str, dict[str, float]]:
     out: dict[str, dict[str, float]] = {}
     if gate_off.is_dir():
         for cell in sorted(gate_off.iterdir()):
@@ -274,9 +316,9 @@ def _collect_currents(gate_off: Path) -> dict[str, dict[str, float]]:
                     json.loads(board.read_text(encoding="utf-8"))
                 )
     for name in REAL_BOARDS:
-        board = REPO / "examples" / name / "boards" / "main.circuit.json"
-        if board.is_file():
-            out[name] = currents_for(json.loads(board.read_text(encoding="utf-8")))
+        raw = _board_at(commit, f"examples/{name}/boards/main.circuit.json")
+        if raw is not None:
+            out[name] = currents_for(raw)
     for base in ("hydrate-coaster", "terminal-keyboard"):
         if base in out:
             out.setdefault(f"{base}-plane", out[base])
@@ -284,7 +326,8 @@ def _collect_currents(gate_off: Path) -> dict[str, dict[str, float]]:
 
 
 def cmd_table(args) -> int:
-    currents = _collect_currents(Path(args.gate_off))
+    commit = _resolve(args.rev)
+    currents = _collect_currents(Path(args.gate_off), commit)
     jobs: list[dict] = []
     jobs += _jobs_from_tournament(
         Path(args.tournament), "tournament", currents, detail=args.detail
@@ -292,7 +335,9 @@ def cmd_table(args) -> int:
     jobs += _jobs_from_tournament(
         Path(args.rerun), "rerun-truepads", currents, detail=args.detail
     )
-    jobs += _incumbent_jobs(Path(args.gate_off), currents, detail=args.detail)
+    jobs += _incumbent_jobs(
+        Path(args.gate_off), currents, detail=args.detail, commit=commit
+    )
     if args.only:
         wanted = set(args.only.split(","))
         jobs = [j for j in jobs if j["router"] in wanted or j["source"] in wanted]
@@ -308,6 +353,7 @@ def cmd_table(args) -> int:
             "copper is byte-identical to the runs the legality tables scored."
         ),
         "qualityRulerHash": rulers,
+        "exampleBoardsAt": commit,
         "instanceDir": str(_instance_dir()),
         "currentsAvailableFor": sorted(k for k, v in currents.items() if v),
         "cells": cells,
@@ -486,6 +532,10 @@ def main(argv=None) -> int:
     t.add_argument("--rerun", default=str(DEFAULT_RERUN))
     t.add_argument("--gate-off", default=str(DEFAULT_GATE_OFF))
     t.add_argument("--jobs", type=int, default=4)
+    t.add_argument("--rev", default="HEAD",
+                   help="revision the three example boards come out of. The "
+                        "working tree is rebuilt by other agents; a number "
+                        "measured against it cannot be reproduced")
     t.add_argument("--only", default=None, help="comma list of routers or sources")
     t.add_argument("--detail", action="store_true",
                    help="keep the per-net rows, so `render --mode paired` can "

@@ -3,6 +3,7 @@
  "qualityRulerHash": [
   "b7029fbf41df"
  ],
+ "exampleBoardsAt": "e84e3c9b2ac5d8adfe8c0e918404ebfba6505498",
  "instanceDir": "/Users/d/code/autonomous-circuit/packages/router/benchmarks/instances",
  "currentsAvailableFor": [
   "harness-puck",
@@ -9257,6 +9258,7 @@
    "router": "tscircuit-autorouter",
    "instance": "hydrate-coaster",
    "placementHash": "038661e32725",
+   "fromCommit": "e84e3c9b2ac5d8adfe8c0e918404ebfba6505498",
    "boardPlacementHash": "038661e32725",
    "placementMatch": true,
    "qualityRuler": "b7029fbf41df",
@@ -9295,6 +9297,7 @@
    "router": "tscircuit-autorouter",
    "instance": "harness-puck",
    "placementHash": "2da53fb41652",
+   "fromCommit": "e84e3c9b2ac5d8adfe8c0e918404ebfba6505498",
    "boardPlacementHash": "2da53fb41652",
    "placementMatch": true,
    "qualityRuler": "b7029fbf41df",
@@ -9333,6 +9336,7 @@
    "router": "tscircuit-autorouter",
    "instance": "terminal-keyboard",
    "placementHash": "afdde4745cff",
+   "fromCommit": "e84e3c9b2ac5d8adfe8c0e918404ebfba6505498",
    "boardPlacementHash": "095138f1e7f1",
    "placementMatch": false,
    "qualityRuler": "b7029fbf41df",

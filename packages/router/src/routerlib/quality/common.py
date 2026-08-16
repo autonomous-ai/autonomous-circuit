@@ -164,17 +164,32 @@ class LayerField:
     Uniform-grid buckets with an expanding-ring probe: the first ring that
     contains anything gives a candidate distance ``d``, then one confirming
     query at margin ``d`` returns the true nearest, because a shape closer than
-    ``d`` must occupy a bucket inside that margin. Exact, not approximate.
+    ``d`` must occupy a bucket inside that margin. **Exact, not approximate** —
+    a wider starting ring can only add candidates, never change the minimum,
+    which is what makes the two speedups below safe.
+
+    Both exist because ``terminal-keyboard`` is the pathological case: its
+    ground copper is sparse and the nearest return is often 20mm away, so the
+    naive ring walk escalated through seven queries and then measured most of
+    the board at every one of five thousand samples.
+
+    * a **hint** carries the last answer forward, because consecutive samples
+      along a trace have nearly the same nearest return
+    * a **bounding-box floor** skips the exact distance for any candidate whose
+      box is already further than the best so far
     """
 
-    __slots__ = ("_grid", "_count")
+    __slots__ = ("_grid", "_count", "_hint")
 
     def __init__(self, cell_mm: float = 2.0) -> None:
         self._grid = GridIndex(cell_mm=cell_mm)
         self._count = 0
+        self._hint = _RINGS[0]
 
     def add(self, capsule: Capsule, payload=None) -> None:
-        self._grid.insert(capsule, payload)
+        from routerlib.geometry import capsule_bbox
+
+        self._grid.insert(capsule, (capsule_bbox(capsule), payload))
         self._count += 1
 
     def __len__(self) -> int:
@@ -190,7 +205,10 @@ class LayerField:
         if not self._count:
             return (math.inf, None)
         probe = (x, y, x, y, 0.0)
+        start = self._hint
         for margin in _RINGS:
+            if margin < start:
+                continue
             hits = list(self._grid.query(probe, margin=margin))
             if not hits:
                 continue
@@ -198,16 +216,24 @@ class LayerField:
             if best > margin:
                 hits = list(self._grid.query(probe, margin=best + 1e-9))
                 best, payload = self._best(x, y, hits)
+            self._hint = max(_RINGS[0], best * 0.75)
             return (best, payload)
         # Nothing within the widest ring: fall back to the whole field once.
-        hits = [(cap, pay) for cap, pay in self._grid._items]  # noqa: SLF001
+        hits = [item for _, item in self._grid._items]  # noqa: SLF001
         return self._best(x, y, hits)
 
     @staticmethod
     def _best(x: float, y: float, hits) -> tuple[float, object | None]:
         best = math.inf
         payload = None
-        for capsule, pay in hits:
+        for capsule, (bbox, pay) in hits:
+            if best <= 0.0:
+                break  # already inside copper; the answer clamps to zero
+            bx0, by0, bx1, by1 = bbox
+            dx = bx0 - x if x < bx0 else (x - bx1 if x > bx1 else 0.0)
+            dy = by0 - y if y < by0 else (y - by1 if y > by1 else 0.0)
+            if math.isfinite(best) and dx * dx + dy * dy >= best * best:
+                continue  # its own box is further than the best exact answer
             d = point_shape_distance(x, y, capsule)
             if d < best:
                 best = d
@@ -277,7 +303,13 @@ class GroundField:
         grounds = ground_net_ids(problem)
         self.thickness_mm = float(problem.board.thickness_mm)
         self.clearance_mm = float(problem.rules.min_clearance_mm)
-        self._fields: dict[str, LayerField] = {TOP: LayerField(), BOTTOM: LayerField()}
+        # 6mm buckets, not 2mm. The query that costs is the confirming one at
+        # a 20mm margin on a board whose ground is sparse (terminal-keyboard),
+        # and there the bucket walk dominates the distance arithmetic: 2mm
+        # cells make it visit a hundred times more empty buckets than 6mm do.
+        self._fields: dict[str, LayerField] = {
+            TOP: LayerField(cell_mm=6.0), BOTTOM: LayerField(cell_mm=6.0)
+        }
         self._planes: dict[str, list] = {TOP: [], BOTTOM: []}
 
         for pad in problem.pads:
