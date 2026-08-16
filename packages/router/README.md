@@ -8,8 +8,8 @@ That is the whole interface. Everything else in this package exists to make
 that line measurable: adapters so a real board becomes a problem and a solution
 becomes a board again, a benchmark of instances stripped out of boards we have
 actually built, and a scorer that judges **completeness, then legality, then
-quality, then cost** — in that order, because that is the order in which a
-defect costs money.
+quality** — in that order, because that is the order in which a defect costs
+money. There used to be a fourth tier for cost and it is gone; see below.
 
 ## Why this package exists
 
@@ -267,6 +267,12 @@ invent one". It was the dominant failure mode of the whole benchmark:
   block loses 0.255mm at each corner, 2.8× the gate, which is how our copper
   turned a `fab.ready` board into five blocking findings the harness could not
   see.
+
+Re-run against the corrected model, `maze-astar` goes from 401 harness errors
+to **0** at the same completeness, and from 213 real KiCad copper errors to
+**0** over the 11 boards that still match their instance.
+`pathfinder-negotiated` reaches the same zero and pays 29 nets for it. The
+whole comparison is `scripts/rerun_table.py`.
 
 Re-scored on the same copper, the harness's error count per family now tracks
 KiCad's at **Spearman +0.93**, against **0.00** before — before, every family

@@ -53,6 +53,20 @@
   }
  },
  "what": "pathfinder-negotiated, maze-astar and exact-and-structured re-run at the same budget and seed, routing against the true shape model. Compare with rescore-truepads-2026-08-16.json, which is the tournament copper (routed against the inscribed stadium) under the same ruler.",
+ "kicadRealBoards": {
+  "boards": 11,
+  "note": "empty-solution control subtracted; harness-puck and the two terminal-keyboard variants are refused because their boards no longer match the instance's placement",
+  "copperFindings": {
+   "pathfinder-negotiated": 0,
+   "maze-astar": 0,
+   "exact-and-structured": 0
+  },
+  "copperFindingsOldCopper12Boards": {
+   "pathfinder-negotiated": 80,
+   "maze-astar": 213,
+   "exact-and-structured": 29
+  }
+ },
  "cells": [
   {
    "router": "exact-and-structured",

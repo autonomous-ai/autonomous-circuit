@@ -106,10 +106,29 @@ that is the finding:
 
 So the ranking changed twice over: once because the ruler was fixed, and again
 because two of the three leaders respond to the truth completely differently.
-**Zero harness errors is not the same claim as a clean board** — these routers
-ask `Workspace` for permission with the same shape model the scorer grades
-with, so the column is partly self-agreement. The independent KiCad number on
-the real boards is the one to read, and it is being measured.
+
+**Zero harness errors is not the same claim as a clean board**, because these
+routers ask `Workspace` for permission with the same shape model the scorer
+grades with. So the copper went through KiCad on the real boards, with the
+empty-solution control subtracted:
+
+| family | KiCad copper errors, old copper (12 boards) | new copper (11 boards) |
+|---|---|---|
+| `pathfinder-negotiated` | 80 | **0** |
+| `maze-astar` | 213 | **0** |
+| `exact-and-structured` | 29 | **0** |
+
+Eleven boards, not twelve, and the missing one is the fixture mechanism working
+rather than failing: `harness-puck`'s SW1 moved four pads *during this work*
+(commit `aff429b`, "move SW1 clear of the crystal"), so the board on disk is no
+longer the instance's placement and `verify_real_board.py` refuses it rather
+than judging a router against a board it never saw. `terminal-keyboard` has been
+in that state for longer, at 104 drifted pads.
+
+`@tscircuit/checks` is not zero on the same boards — 12 findings for
+`maze-astar`, 4 for `exact-and-structured`, 1 for `pathfinder-negotiated`. Its
+checks and the shipped autorouter come from one codebase, so it is the weaker
+column, but it is not nothing and those findings have not been chased down.
 
 ---
 
