@@ -727,7 +727,7 @@ one produced a sentence that was true and useless:
 ### What it says, on the sixteen benchmark boards
 
 Relay copper, 30 unconnected nets, `python3.12 -m routerlib diagnose <instance>
-<copper.json>`. 88s for all sixteen, 21.7s worst.
+<copper.json>`. 96s for all sixteen, 23s worst.
 
 | what it asks for | nets |
 |---|---|
@@ -774,9 +774,19 @@ against a banned list — `net`, `pad`, `trace`, `via`, `DRC`, `gerber`,
 background, and a message that needs a glossary is not finished.
 
 Off with `CIRCUIT_ROUTING_HELP=off`. It runs only when something is
-unconnected, and a board with no copper at all short-circuits to the free
-answer: measuring every channel to conclude "the copper step produced nothing"
-costs 43 seconds on a 36-net board and says what the copper count already said.
+unconnected, so all three example boards cost 0.2–0.3s and say nothing. Two
+shortcuts keep the broken cases affordable, and both are honest about what they
+skip:
+
+- **A board with no copper at all** goes straight to the free answer. Measuring
+  every channel to conclude "the copper step produced nothing" costs 43 seconds
+  on a 36-net board and says what the copper count already said.
+- **A coarse pass runs first.** Its error bar is two-sided, so a channel that
+  clears the requirement by more than the tolerance clears it *for real* — and
+  that is the whole answer for a net nothing was in the way of. On a
+  harness-puck board with a third of its copper deleted it settles 12 of 12
+  nets and takes the run from 44s to 21s. It costs 8% on the benchmark, where
+  most nets are genuinely pinched and pay for both passes.
 
 ## What is still worse than the incumbent, said plainly
 
