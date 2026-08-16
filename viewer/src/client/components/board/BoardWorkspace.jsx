@@ -873,6 +873,17 @@ export default function BoardWorkspace({
           break;
         case "edit-mode.toggle":
           if (!viewing) {
+            // Move mode only exists on the board, and everything that says it
+            // is on — the amber strip, the lit tool, the move cursor — is on
+            // the board too. Turning it on from the BOM or the schematic
+            // changed a state nobody could see, which from the outside is a
+            // key that does nothing. `E` means "I want to move parts", so show
+            // the parts. Decided here rather than inside the updater: a
+            // `setState` call in another updater's body is a side effect in a
+            // function React may run twice.
+            if (!editing && (!CANVAS_TABS.has(activeTab) || activeTab === "schematic")) {
+              setActiveTab("pcb");
+            }
             setEditing((value) => {
               if (!value) setMeasuring(false);
               return !value;
@@ -918,7 +929,7 @@ export default function BoardWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode, viewing, activeTab]);
+  }, [fitAll, singleLayerMode, viewing, activeTab, editing, zoomActivePane]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";

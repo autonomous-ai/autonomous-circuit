@@ -337,3 +337,38 @@ test("the key list has a way in that is not a key", async () => {
     w.close();
   }
 });
+
+test("E from a tab with no board on it brings the board with it", async () => {
+  // Move mode only exists on the PCB pane, and so does everything that says it
+  // is on: the amber strip naming the file, the lit tool, the move cursor.
+  // Toggling it from the schematic or the BOM changed a state nobody could
+  // see — which from the outside is a key that does nothing, the exact
+  // complaint this whole keymap exists to remove.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const tab = (id) =>
+      [...w.ui.container.querySelectorAll('[data-slot="board-tab"]')].find((node) => node.dataset.tab === id);
+    // The harness opens with move mode already on (it clicks the tool), so
+    // leave it off first — this is about turning it ON from the wrong tab.
+    key(window, "e");
+    await w.settle(4);
+    click(tab("schematic"));
+    await w.settle(4);
+    assert.equal(w.find('[data-slot="placement-edit-bar"]'), null, "move mode did not turn off");
+
+    key(window, "e");
+    await w.settle(4);
+
+    assert.equal(tab("pcb").getAttribute("aria-current"), "true", "E left the user on a tab with no board");
+    const strip = w.find('[data-slot="placement-edit-bar"]');
+    assert.ok(strip, "move mode turned on with nothing on screen to say so");
+    assert.match(strip.textContent, /Moving parts edits/);
+    assert.match(strip.textContent, /main\.tsx/);
+
+    // And the tool on the rail reads as pressed, which is the other half of
+    // "am I in it" for anyone whose eyes are on the canvas.
+    assert.equal(w.ui.container.querySelector('[data-tool="edit"]').getAttribute("aria-pressed"), "true");
+  } finally {
+    w.close();
+  }
+});
