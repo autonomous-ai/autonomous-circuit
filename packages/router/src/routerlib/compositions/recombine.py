@@ -625,6 +625,13 @@ class _Assembly:
     lost: list[str]
     evictions: int = 0
     repairs: int = 0
+    #: Router calls the repair has spent. The only unbounded cost in the module.
+    reroutes: int = 0
+    #: (net, blocking set) pairs already tried and failed. Without this the
+    #: repair re-asks the same router the same question every round, and on
+    #: hydrate-coaster at four evictions that is the difference between four
+    #: seconds and more than two minutes.
+    tried: set = dataclasses.field(default_factory=set)
 
 
 def _scarcity(viable: Mapping[str, Sequence[NetRouting]]):
@@ -710,6 +717,7 @@ def _repair(
     viable: Mapping[str, Sequence[NetRouting]],
     *,
     max_evictions: int,
+    max_reroutes: int,
     reroute: Residual | None,
     budget: Budget,
 ) -> None:
@@ -747,7 +755,8 @@ def _repair(
     for _round in range(_REPAIR_ROUNDS):
         before = len(assembly.lost)
         _repair_pass(problem, assembly, viable, order,
-                     max_evictions=max_evictions, reroute=reroute, budget=budget)
+                     max_evictions=max_evictions, max_reroutes=max_reroutes,
+                     reroute=reroute, budget=budget)
         if len(assembly.lost) >= before:
             return
 
@@ -765,6 +774,7 @@ def _repair_pass(
     order,
     *,
     max_evictions: int,
+    max_reroutes: int,
     reroute: Residual | None,
     budget: Budget,
 ) -> None:
@@ -780,10 +790,16 @@ def _repair_pass(
             )
             continue
         rows = viable.get(net, ())
-        for row in rows:
+        # Cheapest repair first: a candidate blocked by one net needs one net
+        # re-routed, and a candidate blocked by four needs four to come back.
+        for row in sorted(rows, key=lambda r: len(assembly.board.blockers(r))):
             blocking = assembly.board.blockers(row)
             if not blocking or len(blocking) > max_evictions:
                 continue
+            attempt = (net, row.source, blocking)
+            if attempt in assembly.tried:
+                continue
+            assembly.tried.add(attempt)
             trial = assembly.board.copy()
             trial.drop(blocking)
             if trial.blockers(row):
@@ -798,8 +814,9 @@ def _repair_pass(
                 else:
                     open_again.append(evicted)
             if open_again:
-                if reroute is None:
+                if reroute is None or assembly.reroutes >= max_reroutes:
                     continue
+                assembly.reroutes += 1
                 stage = dataclasses.replace(
                     problem,
                     nets=tuple(n for n in problem.nets if n.id in set(open_again)),
@@ -877,6 +894,7 @@ def recombine(
     ranking: str = "obstruction",
     clearance_mm: float | None = None,
     max_evictions: int = 2,
+    max_reroutes: int = 16,
     reroute: Residual | None = None,
     residual: Residual | None = None,
     budget: Budget | None = None,
@@ -889,6 +907,10 @@ def recombine(
     router. ``max_evictions`` is how many placed nets the repair may take out to
     make room for one more — ``0`` disables the repair, which is the control
     that says how much of the result is the repair and how much is the merge.
+    ``max_reroutes`` caps the router calls the repair may spend, because that is
+    the only unbounded cost here: at four evictions and eight candidate families
+    an uncapped repair asked for 160 routes on one instance and ran for minutes
+    where the merge itself takes four seconds.
     ``order`` breaks ties between equally good candidates and defaults to the
     sorted family names, so the same inputs give the same board whatever order
     the caller happened to build the mapping in. Determinism is not a nicety
@@ -956,6 +978,7 @@ def recombine(
     _repair(
         problem, assembly, viable,
         max_evictions=max_evictions,
+        max_reroutes=max_reroutes,
         reroute=reroute,
         budget=budget or Budget(),
     )

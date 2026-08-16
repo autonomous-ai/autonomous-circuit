@@ -78,12 +78,20 @@ def main(argv: list[str] | None = None) -> int:
         help="how many placed nets the repair may rip up for one more; 0 disables it",
     )
     ap.add_argument(
+        "--max-reroutes", type=int, default=16,
+        help="router calls the repair may spend per merge; the only unbounded cost",
+    )
+    ap.add_argument(
         "--reroute", default="",
         help="comma-separated families the repair may re-route an evicted net with",
     )
     ap.add_argument(
         "--residual", default="",
         help="comma-separated families that relay whatever the merge left open",
+    )
+    ap.add_argument(
+        "--no-determinism", action="store_true",
+        help="skip the second merge; halves the cost and gives up the check",
     )
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
@@ -136,21 +144,25 @@ def main(argv: list[str] | None = None) -> int:
                     problem, solutions, mode=mode, ranking=ranking,
                     clearance_mm=args.clearance,
                     max_evictions=args.max_evictions,
+                    max_reroutes=args.max_reroutes,
                     reroute=reroute, residual=residual,
                 )
                 scored = score(problem, result.solution)
                 ruler = ruler or scored.ruler
                 # Determinism is not a nicety: a merge that answers differently
                 # twice cannot be compared to a relay, or to itself yesterday.
-                again = recombine(
-                    problem, solutions, mode=mode, ranking=ranking,
-                    clearance_mm=args.clearance,
-                    max_evictions=args.max_evictions,
-                    reroute=reroute, residual=residual,
-                )
-                deterministic = (
-                    result.solution.fingerprint() == again.solution.fingerprint()
-                )
+                deterministic = None
+                if not args.no_determinism:
+                    again = recombine(
+                        problem, solutions, mode=mode, ranking=ranking,
+                        clearance_mm=args.clearance,
+                        max_evictions=args.max_evictions,
+                        max_reroutes=args.max_reroutes,
+                        reroute=reroute, residual=residual,
+                    )
+                    deterministic = (
+                        result.solution.fingerprint() == again.solution.fingerprint()
+                    )
                 row["rankings"][cell] = {
                     **result.as_dict(),
                     "deterministic": deterministic,
@@ -174,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"base={result.base[:12]:<12} "
                     f"xp={result.transplanted:>3} rep={result.repairs:>2} "
                     f"lost={len(result.lost_to_conflict):>3}"
-                    f"{'' if deterministic else '  NONDETERMINISTIC'}",
+                    f"{'' if deterministic is not False else '  NONDETERMINISTIC'}",
                     flush=True,
                 )
         rows.append(row)
@@ -198,7 +210,9 @@ def main(argv: list[str] | None = None) -> int:
                 cross = sum(r["rankings"][cell]["transplanted"] for r in rows)
                 lost = sum(len(r["rankings"][cell]["lostToConflict"]) for r in rows)
                 vias = sum(r["rankings"][cell]["score"]["vias"] for r in rows)
-                det = sum(1 for r in rows if r["rankings"][cell]["deterministic"])
+                det = sum(
+                    1 for r in rows if r["rankings"][cell]["deterministic"] is True
+                )
                 reps = sum(r["rankings"][cell]["repairs"] for r in rows)
                 print(
                     f"{cell:<24} {connected:6.0f}/{total} nets "
