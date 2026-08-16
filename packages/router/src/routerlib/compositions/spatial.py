@@ -674,6 +674,7 @@ def route(
     experts: Mapping[str, str] | None = None,
     region_order: str = "hardest-first",
     boundary_clearance: float = 1.0,
+    crossing_chain: Sequence[str] = (),
     residue: Sequence[str] = (),
     partition_kwargs: Mapping | None = None,
     given: Partition | None = None,
@@ -744,6 +745,22 @@ def route(
         part.crossing_nets,
         clearance_scale=boundary_clearance,
     )
+
+    # 1b. A crossing net that failed is a boundary condition nobody fixed, and
+    #     retrying it *after* the regions have taken the space is strictly
+    #     worse than retrying it now. Off by default so the effect can be
+    #     attributed rather than assumed.
+    for name in crossing_chain:
+        open_crossing = [
+            n for n in part.crossing_nets
+            if n in set(conn.analyse(problem, merged).unconnected_nets)
+        ]
+        if not open_crossing:
+            break
+        run_stage(
+            f"crossing[{name}]", name, "crossing", open_crossing,
+            clearance_scale=boundary_clearance,
+        )
 
     # 2. Each region, inside those fixed boundary conditions.
     if region_order == "hardest-first":

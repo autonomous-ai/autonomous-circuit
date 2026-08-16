@@ -42,7 +42,23 @@ for extra in (PACKAGE / "src", PACKAGE.parent / "circuitpy" / "src"):
     if str(extra) not in sys.path:
         sys.path.insert(0, str(extra))
 
-ARMS = ("relay", "spatial", "spatial-flat", "spatial-residue")
+ARMS = (
+    "relay",
+    "spatial",
+    "spatial-flat",
+    "spatial-residue",
+    # Two more, each changing exactly one thing against ``spatial``:
+    # ``spatial-tight`` cuts harder (a split must isolate twice what it cuts),
+    # ``spatial-chain`` retries a failed crossing net before the regions take
+    # the space rather than after.
+    "spatial-tight",
+    "spatial-chain",
+)
+
+#: ``spatial-tight``'s partition. Measured on the fixtures with no routing:
+#: interior share over the 16 instances is 61.8% at the default and 76.8%
+#: here, at 40 regions against 65.
+TIGHT = {"max_depth": 2, "max_cut_ratio": 0.5}
 
 #: The relay's chain, so ``spatial-residue`` and ``relay`` run four routers each.
 FOLLOWERS = ("maze-astar", "plane-and-classes", "exact-and-structured")
@@ -101,6 +117,10 @@ def run_one(arm: str, problem, budget, registry):
         options["experts"] = {}
     if arm == "spatial-residue":
         options["residue"] = FOLLOWERS
+    if arm == "spatial-tight":
+        options["partition_kwargs"] = TIGHT
+    if arm == "spatial-chain":
+        options["crossing_chain"] = FOLLOWERS
     result = spatial.route(problem, budget, registry, **options)
     return result.solution, {"spatial": result.as_dict()}
 

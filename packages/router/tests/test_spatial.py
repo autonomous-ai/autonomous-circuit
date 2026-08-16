@@ -341,6 +341,19 @@ class Routing(unittest.TestCase):
         self.assertTrue(any("not registered" in n or "KeyError" in n
                             for n in result.notes), result.notes)
 
+    def test_crossing_chain_retries_before_the_regions_take_the_space(self):
+        problem = two_cluster_board()
+        part = spatial.partition(problem, min_cells=2, max_depth=1)
+        reg = dict(registry("second"))
+        reg[spatial.GLOBAL_EXPERT] = DeadRouter
+        result = spatial.route(
+            problem, BUDGET, reg, given=part, crossing_chain=("second",)
+        )
+        labels = [s.stage for s in result.stages]
+        self.assertEqual(labels[0], "crossing[second]")
+        self.assertEqual(result.stages[0].asked_nets, 1)
+        self.assertTrue(all(l.startswith("crossing") is False for l in labels[1:]))
+
     def test_residue_runs_only_on_what_is_left(self):
         problem = two_cluster_board()
         part = spatial.partition(problem, min_cells=2, max_depth=1,
