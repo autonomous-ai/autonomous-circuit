@@ -372,6 +372,25 @@ class PowerWidthTests(unittest.TestCase):
             "of the run now at" in f["detail"] for f in result.findings()
         ))
 
+    def test_the_reported_limiter_is_the_obstacle_that_caused_the_neck(self) -> None:
+        """A route point takes the *min* of the two pieces meeting at it, so
+        the piece that ends up narrow is as often the neighbour of the tight
+        one as it is the tight one itself. Reporting the wrong side is not
+        cosmetic: harness-puck's V3_3_LED and V5 both shipped a sidecar saying
+        `limiter: null` for a rail that necks to 0.15mm, i.e. "nothing is
+        holding this back", about copper that something plainly was."""
+        pinch = {
+            "type": "pcb_smtpad", "pcb_smtpad_id": "pad_the_culprit",
+            "shape": "rect", "layer": "top",
+            "x": 0.0, "y": 0.21, "width": 0.4, "height": 0.001,
+            "pcb_port_id": "other",
+        }
+        path = _write(self.tmp, _board(extra=[pinch]))
+        result = powerwidth.widen_power_traces(path, PROFILE)
+        net = result.nets[0]
+        self.assertLess(net.after_mm, TARGET)
+        self.assertEqual(net.limiter, "pad_the_culprit")
+
     def test_an_unreadable_board_is_a_refusal_and_never_an_exception(self) -> None:
         path = self.tmp / "circuit.json"
         path.write_text("{not json", encoding="utf-8")

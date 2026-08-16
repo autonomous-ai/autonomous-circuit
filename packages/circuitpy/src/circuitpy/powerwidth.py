@@ -463,12 +463,22 @@ def _widen_route(
         # copper rather than only of the intent: a piece's realised width is
         # the min of its two endpoints, so both have to clear its floor.
         allowed_at = []
+        #: Parallel to `allowed_at`: which obstacle set that point's width.
+        #: Kept because the *cause* of a neck and the piece that *shows* it are
+        #: not the same piece — a point takes the min of the two pieces meeting
+        #: at it, so the tight one is as often the neighbour as it is this one.
+        #: Reporting the wrong side of a route point is how harness-puck's
+        #: V3_3_LED and V5 came to be recorded with `limiter: null` while both
+        #: still necked to 0.15mm.
+        limiter_at: list[str | None] = []
         for i in range(len(pieces) + 1):
             touching = [pieces[j] for j in (i - 1, i) if 0 <= j < len(pieces)]
+            tightest = min(touching, key=lambda p: p["allowed"])
             allowed_at.append(max(
-                _snap(min(min(p["allowed"] for p in touching), target)),
+                _snap(min(tightest["allowed"], target)),
                 max(p["floor"] for p in touching),
             ))
+            limiter_at.append(tightest["limiter"])
 
         # Emit. An original point keeps every field it had; an invented
         # boundary copies geometry only — a port id on an invented point would
@@ -534,8 +544,13 @@ def _widen_route(
                 continue
             wa = diffpair._f(emitted[i].get("width"), 0.15) or 0.15
             wb = diffpair._f(emitted[i + 1].get("width"), 0.15) or 0.15
+            # The limiter reported is the one that set the *realised* width —
+            # the endpoint that came out narrower, and the obstacle behind it.
+            # `piece["limiter"]` is only this piece's own obstacle, which is
+            # the wrong answer whenever the neighbour is the tight one.
+            cause = limiter_at[i] if wa <= wb else limiter_at[i + 1]
             measured.append((
-                min(wa, wb), narrowest_before, piece["length"], piece["limiter"],
+                min(wa, wb), narrowest_before, piece["length"], cause,
             ))
 
     return out, measured
