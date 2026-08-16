@@ -32,6 +32,11 @@ export const VIEWPORT_TOOLS = Object.freeze([
   { id: "fit", group: "view", label: "Zoom to fit", icon: "fit", key: "F", state: "action" },
   { id: "zoom-out", group: "view", label: "Zoom out", icon: "minus", key: "−", state: "action" },
   { id: "zoom-in", group: "view", label: "Zoom in", icon: "plus", key: "+", state: "action" },
+  // The one tool on this rail that changes the board rather than the view, so
+  // its label says what it changes. Turning it on opens a strip above the
+  // canvas naming the file — a drag must never be the first time the user
+  // learns their source is being written.
+  { id: "edit", group: "edit", label: "Move parts (edits your board file)", icon: "move", key: "E", state: "toggle" },
   { id: "measure", group: "inspect", label: "Measure", icon: "ruler", key: "⌘M", state: "toggle" },
   { id: "hud", group: "inspect", label: "Coordinates", icon: "crosshair", key: "⇧H", state: "toggle" },
   { id: "grid", group: "inspect", label: "Grid", icon: "grid", key: "", state: "toggle" },
@@ -68,6 +73,8 @@ export function toolsForSurface(surface) {
  */
 export function toolState(tool, ctx = {}) {
   switch (tool.id) {
+    case "edit":
+      return { active: Boolean(ctx.editing), value: "" };
     case "measure":
       return { active: Boolean(ctx.measuring), value: "" };
     case "hud":
@@ -120,6 +127,10 @@ export function dispatchViewportTool(id, ctx = {}) {
     case "zoom-out":
       if (!view?.zoomBy) return false;
       view.zoomBy(1 / ZOOM_STEP);
+      return true;
+    case "edit":
+      if (!ctx.onToggleEditing) return false;
+      ctx.onToggleEditing();
       return true;
     case "measure":
       if (!ctx.onToggleMeasure) return false;

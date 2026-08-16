@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { cn } from "@/ui/utils";
-import { boxIsReal, hitTestPcb, inflateBox, pcbElementBox } from "@/lib/boardIndex.js";
+import {
+  boxIsReal,
+  elementId as elementIdOf,
+  hitTestPcb,
+  inflateBox,
+  pcbElementBox,
+  pcbElementContains,
+} from "@/lib/boardIndex.js";
+import { formatMm } from "./boardSource.js";
+import {
+  CLICK_SLOP_PX,
+  beginMove,
+  cancelMove,
+  commitMove,
+  placementForHit as placementForHitOf,
+  refusalForHit,
+  renderOffset,
+  trackMove,
+} from "./placementDrag.js";
 import { LABEL_CHAR_PX, LABEL_PAD_PX, roomOverlay } from "@/lib/boardRegions.js";
 import {
   copperColor,
@@ -23,7 +41,73 @@ import {
 } from "@/lib/boardRender.js";
 
 const NUM = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
-const CLICK_SLOP_PX = 4;
+
+/** Pick order inside one placement — pads beat silkscreen beats courtyard. */
+const PLACEMENT_HIT_RANK = {
+  pcb_smtpad: 40,
+  pcb_plated_hole: 40,
+  pcb_hole: 30,
+  pcb_silkscreen_text: 12,
+  pcb_silkscreen_path: 10,
+  pcb_silkscreen_rect: 10,
+  pcb_silkscreen_circle: 10,
+  pcb_cutout: 8,
+  pcb_courtyard_rect: 5,
+  pcb_courtyard_outline: 5,
+};
+
+/**
+ * Hit-test a point against ONE placement's own geometry.
+ *
+ * `hitTestPcb` ranks across the whole board, which is right for selection and
+ * wrong here: when a moved part is probed at its pre-move coordinates, a trace
+ * that happens to run over that spot outranks the part's own pad and the
+ * probe reports "not this placement". The part then became undraggable after
+ * its first move — visible only by dragging the same part twice in the real
+ * app. Restricting the search to what the placement owns removes the contest.
+ */
+function hitWithinPlacement(index, placement, x, y, tolerance, visibleLayers) {
+  let best = null;
+  let bestRank = -1;
+  for (const id of placement.pcbIds) {
+    const element = index.byId.get(id);
+    if (!element) continue;
+    const rank = PLACEMENT_HIT_RANK[element.type];
+    if (rank === undefined || rank < bestRank) continue;
+    if (visibleLayers && element.layer && !visibleLayers.has(element.layer)) continue;
+    if (!pcbElementContains(element, x, y, tolerance, visibleLayers)) continue;
+    best = element;
+    bestRank = rank;
+  }
+  if (best) {
+    return {
+      elementId: elementIdOf(best),
+      element: best,
+      netKey: index.netKeyByElementId.get(elementIdOf(best)) || "",
+      componentKey: index.componentKeyByElementId.get(elementIdOf(best)) || "",
+      layer: String(best.layer || "top"),
+    };
+  }
+  // The empty middle of a connector or a QFN still belongs to the part, the
+  // same last resort `hitTestPcb` takes.
+  for (const key of placement.componentKeys) {
+    const component = index.componentBySourceId.get(key);
+    const pcb = component?.pcb;
+    if (!pcb) continue;
+    if (visibleLayers && pcb.layer && !visibleLayers.has(pcb.layer)) continue;
+    const box = pcbElementBox(pcb);
+    if (!boxIsReal(box)) continue;
+    if (x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) continue;
+    return {
+      elementId: component.pcbId,
+      element: pcb,
+      netKey: "",
+      componentKey: component.key,
+      layer: String(pcb.layer || "top"),
+    };
+  }
+  return null;
+}
 
 const TEXT_ANCHOR = {
   center: "middle",
@@ -62,6 +146,13 @@ const TEXT_BASELINE = {
  *   · ⌘/Ctrl+click   select + jump (zoom the other pane to it)
  *   · ⇧+click        select the whole net under the cursor
  *   · measure mode   drag to measure, live readout
+ *   · move mode      drag a part; on release the board SOURCE is rewritten
+ *
+ * Move mode is the one interaction here that changes something. It moves only
+ * what the board file can move (see boardSource.js) and it moves only the
+ * part — the copper stays where the router left it, because after the drag it
+ * *is* where the router left it, and drawing it snapped to the new position
+ * would be the canvas telling a story the board cannot back up.
  */
 export default function PcbCanvas({
   index,
@@ -81,6 +172,12 @@ export default function PcbCanvas({
   showRegions = false,
   flash = null,
   fallbackSrc = "",
+  // --- move mode
+  editing = false,
+  placements = null,
+  snapStepMm = 0.5,
+  onPlacementMove,
+  onPlacementSelect,
   onSelect,
   onHoverChange,
   onMeasureChange,
@@ -98,11 +195,28 @@ export default function PcbCanvas({
   const [cursor, setCursor] = useState(null);
   const [measure, setMeasure] = useState(null);
   const [deltaOrigin, setDeltaOrigin] = useState({ x: 0, y: 0 });
+  // The live move session (placementDrag.beginMove). Null whenever nothing is
+  // being dragged — which is also what a cancelled drag leaves behind.
+  const [move, setMove] = useState(null);
   const dragRef = useRef(null);
   const viewStateRef = useRef(view);
   viewStateRef.current = view;
   const deltaOriginRef = useRef(deltaOrigin);
   deltaOriginRef.current = deltaOrigin;
+
+  /** The placement a hit belongs to, or null. Element id first: a mounting
+   *  hole and a silkscreen label have no component behind them. */
+  const placementForHit = useCallback(
+    (hit) => {
+      if (!editing || !hit || !placements) return null;
+      const id =
+        placements.byElementId?.get(hit.elementId) ||
+        (hit.componentKey ? placements.byComponentKey?.get(hit.componentKey) : "");
+      return id ? placements.byId?.get(id) || null : null;
+    },
+    [editing, placements],
+  );
+
 
   // --- viewport size
   useEffect(() => {
@@ -227,6 +341,51 @@ export default function PcbCanvas({
     [index, layerFilter, visibleClasses],
   );
 
+  /**
+   * Placements the board file has already moved and the board has not been
+   * rebuilt for.
+   *
+   * They are drawn at the position the FILE gives, because the file is the
+   * board; their copper stays where the last router run left it, because that
+   * is the only place copper has ever been. The two visibly disagreeing is the
+   * point — it is what "rebuild" means, drawn.
+   */
+  const shifted = useMemo(() => {
+    if (!editing || !placements?.byId) return [];
+    return [...placements.byId.values()].filter((p) => p.offset && (p.offset.dx || p.offset.dy));
+  }, [editing, placements]);
+
+  /**
+   * Hit-test, honouring pending offsets.
+   *
+   * A moved part is drawn `offset` away from its own geometry, so the pointer
+   * is un-shifted before it is tested against that geometry — and the spot the
+   * part used to occupy is empty board now. Without this a part could be
+   * picked up exactly once: the second grab would land where it used to be.
+   */
+  const hitAt = useCallback(
+    (point) => {
+      if (!index || !point) return null;
+      const tolerance = 4 / Math.max(1, viewStateRef.current.scale);
+      for (const placement of shifted) {
+        const hit = hitWithinPlacement(
+          index,
+          placement,
+          point.x - placement.offset.dx,
+          point.y - placement.offset.dy,
+          tolerance,
+          layerFilter,
+        );
+        if (hit) return hit;
+      }
+      const hit = hitTestPcb(index, point.x, point.y, { visibleLayers: layerFilter, tolerance });
+      if (!hit) return null;
+      for (const placement of shifted) if (placement.pcbIds.has(hit.elementId)) return null;
+      return hit;
+    },
+    [index, layerFilter, shifted],
+  );
+
   const highlightIds = highlight?.pcbIds || null;
   const masking = Boolean(highlightIds && highlightIds.size) && highlightMethod !== "normal";
   const dimOpacity = unselectedOpacity(highlightMethod, maskLevel);
@@ -254,6 +413,23 @@ export default function PcbCanvas({
         dragRef.current = { mode: "measure", from: point, startX: event.clientX, startY: event.clientY };
         return;
       }
+      if (editing && point && index) {
+        const placement = placementForHit(hitAt(point));
+        // A locked placement is a decision someone made on purpose; dragging
+        // it by accident is exactly what the lock is for. It still selects.
+        if (placement && !placement.locked) {
+          dragRef.current = {
+            mode: "move",
+            placement,
+            from: point,
+            startX: event.clientX,
+            startY: event.clientY,
+            moved: false,
+          };
+          setMove({ placement, dx: 0, dy: 0 });
+          return;
+        }
+      }
       dragRef.current = {
         mode: "pan",
         startX: event.clientX,
@@ -262,7 +438,7 @@ export default function PcbCanvas({
         moved: false,
       };
     },
-    [boardPointFromEvent, measuring],
+    [boardPointFromEvent, editing, hitAt, index, measuring, placementForHit],
   );
 
   const onPointerMove = useCallback(
@@ -284,6 +460,29 @@ export default function PcbCanvas({
         });
         return;
       }
+      if (drag?.mode === "move" && point) {
+        if (
+          Math.abs(event.clientX - drag.startX) > CLICK_SLOP_PX ||
+          Math.abs(event.clientY - drag.startY) > CLICK_SLOP_PX
+        ) {
+          drag.moved = true;
+        }
+        // Alt is the escape hatch from the grid, the way it is in every EDA
+        // tool. The grid snaps the *movement*, not the position — see
+        // boardSource.snapDelta for why an absolute grid breaks 2.54mm pitch.
+        const step = event.altKey ? FINE_STEP_MM : snapStepMm;
+        const dx = snapDelta(point.x - drag.from.x, step);
+        const dy = snapDelta(point.y - drag.from.y, step);
+        setMove((prev) =>
+          prev && prev.dx === dx && prev.dy === dy ? prev : { placement: drag.placement, dx, dy },
+        );
+        onHoverChange?.({
+          point,
+          delta: { x: dx, y: dy },
+          scale: viewStateRef.current.scale,
+        });
+        return;
+      }
       if (drag?.mode === "pan") {
         const dx = event.clientX - drag.startX;
         const dy = event.clientY - drag.startY;
@@ -295,14 +494,13 @@ export default function PcbCanvas({
       }
 
       if (!index || !point) return;
-      const tolerance = 3 / Math.max(1, viewStateRef.current.scale);
-      const hit = hitTestPcb(index, point.x, point.y, { visibleLayers: layerFilter, tolerance });
+      const hit = hitAt(point);
       setHover(hit);
       const origin = deltaOriginRef.current;
       const delta = { x: point.x - origin.x, y: point.y - origin.y };
       onHoverChange?.({ ...(hit || {}), point, delta, scale: viewStateRef.current.scale });
     },
-    [boardPointFromEvent, index, layerFilter, onHoverChange, onMeasureChange],
+    [boardPointFromEvent, hitAt, index, onHoverChange, onMeasureChange, snapStepMm],
   );
 
   const onPointerUp = useCallback(
@@ -311,13 +509,32 @@ export default function PcbCanvas({
       dragRef.current = null;
       if (!drag) return;
       if (drag.mode === "measure") return;
-      if (drag.moved) return;
+      if (drag.mode === "move") {
+        const dropped = move;
+        setMove(null);
+        if (drag.moved && dropped && (dropped.dx !== 0 || dropped.dy !== 0)) {
+          onPlacementSelect?.(drag.placement);
+          onPlacementMove?.(drag.placement, {
+            x: drag.placement.x + dropped.dx,
+            y: drag.placement.y + dropped.dy,
+            dx: dropped.dx,
+            dy: dropped.dy,
+          });
+          return;
+        }
+        // A press that went nowhere is still a click, and a click selects.
+      } else if (drag.moved) {
+        return;
+      }
 
       // A click that did not pan is a selection.
       const point = boardPointFromEvent(event);
       if (!point || !index) return;
-      const tolerance = 4 / Math.max(1, viewStateRef.current.scale);
-      const hit = hitTestPcb(index, point.x, point.y, { visibleLayers: layerFilter, tolerance });
+      const hit = hitAt(point);
+      // In move mode a click also picks the placement the edit bar acts on.
+      // Selection cannot carry that on its own: a mounting hole and a
+      // silkscreen label have no component and no net to select.
+      if (editing) onPlacementSelect?.(placementForHit(hit));
       const jump = event.metaKey || event.ctrlKey;
       if (!hit) {
         onSelect?.(null, { jump: false, source: "pcb" });
@@ -328,15 +545,27 @@ export default function PcbCanvas({
       else if (hit.componentKey) onSelect?.({ kind: "component", key: hit.componentKey }, { jump, source: "pcb" });
       else onSelect?.(null, { jump: false, source: "pcb" });
     },
-    [boardPointFromEvent, index, layerFilter, onSelect],
+    [
+      boardPointFromEvent,
+      editing,
+      hitAt,
+      index,
+      move,
+      onPlacementMove,
+      onPlacementSelect,
+      onSelect,
+      placementForHit,
+    ],
   );
 
   const endDrag = useCallback(() => {
     dragRef.current = null;
+    setMove(null);
   }, []);
 
   const onPointerLeave = useCallback(() => {
     dragRef.current = null;
+    setMove(null);
     setHover(null);
     setCursor(null);
     onHoverChange?.(null);
@@ -345,6 +574,13 @@ export default function PcbCanvas({
   // Space zeroes the delta origin (KiCad's relative-origin gesture).
   useEffect(() => {
     const onKey = (event) => {
+      // Escape abandons a drag in progress. Without it the only way out of a
+      // move you did not mean to start is to complete it.
+      if (event.key === "Escape" && dragRef.current?.mode === "move") {
+        dragRef.current = null;
+        setMove(null);
+        return;
+      }
       if (event.key === " " && cursor && document.activeElement?.tagName !== "INPUT") {
         setDeltaOrigin(cursor);
       }
@@ -353,6 +589,14 @@ export default function PcbCanvas({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [cursor]);
+
+  // Leaving move mode must not leave a half-finished drag behind it.
+  useEffect(() => {
+    if (!editing) {
+      dragRef.current = null;
+      setMove(null);
+    }
+  }, [editing]);
 
   // --- element painters
   const paint = useCallback(
@@ -619,6 +863,66 @@ export default function PcbCanvas({
 
   const hasGeometry = Boolean(index && index.pcbDrawables.length);
 
+  // --- move mode overlays
+  //
+  // Three sets, not one. Copper is in none of them: the traces were routed to
+  // the old position and they still are, and letting them follow a part would
+  // be the canvas promising a board nobody has built.
+  //
+  //   still     everything the last build placed and nobody has moved
+  //   pending   parts the file has moved, drawn where the file puts them
+  //   moving    the part under the pointer right now
+  const paintSets = useMemo(() => {
+    const movingIds = move ? move.placement.pcbIds : null;
+    const still = [];
+    const moving = [];
+    const pending = new Map();
+    for (const item of drawList) {
+      if (movingIds?.has(item.id)) {
+        moving.push(item);
+        continue;
+      }
+      const owner = shifted.find((placement) => placement.pcbIds.has(item.id));
+      if (!owner) {
+        still.push(item);
+        continue;
+      }
+      const bucket = pending.get(owner.id);
+      if (bucket) bucket.items.push(item);
+      else pending.set(owner.id, { offset: owner.offset, items: [item] });
+    }
+    return { still, moving, pending: [...pending.entries()].map(([id, value]) => ({ id, ...value })) };
+  }, [drawList, move, shifted]);
+
+  // Where the part being dragged will land, including any move it was already
+  // carrying from an earlier drag.
+  const moveDelta = move
+    ? { dx: (move.placement.offset?.dx || 0) + move.dx, dy: (move.placement.offset?.dy || 0) + move.dy }
+    : null;
+  const moveTargetRect = useMemo(() => {
+    if (!move || !moveDelta || !boxIsReal(move.placement.box)) return null;
+    const box = move.placement.box;
+    return boxToScreenRect(view, {
+      minX: box.minX + moveDelta.dx - 0.2,
+      minY: box.minY + moveDelta.dy - 0.2,
+      maxX: box.maxX + moveDelta.dx + 0.2,
+      maxY: box.maxY + moveDelta.dy + 0.2,
+    });
+  }, [move, moveDelta?.dx, moveDelta?.dy, view]);
+
+  // What the pointer would pick up if it were pressed now. Editing without
+  // this is a guessing game: most of a board is copper nobody can drag.
+  const hoverPlacement = useMemo(() => (move ? null : placementForHit(hover)), [move, hover, placementForHit]);
+  const hoverPlacementRect = useMemo(() => {
+    if (!hoverPlacement || !boxIsReal(hoverPlacement.box)) return null;
+    const { dx = 0, dy = 0 } = hoverPlacement.offset || {};
+    const box = hoverPlacement.box;
+    return boxToScreenRect(
+      view,
+      inflateBox({ minX: box.minX + dx, minY: box.minY + dy, maxX: box.maxX + dx, maxY: box.maxY + dy }, 0.2),
+    );
+  }, [hoverPlacement, view]);
+
   // Rooms — a named rectangle per area of the board. Altium draws exactly this
   // and calls it a room; without it the layout is two hundred pads and no way
   // to tell the power supply from the radio. The rules that keep it a map
@@ -633,9 +937,14 @@ export default function PcbCanvas({
     <div
       ref={stageRef}
       data-slot="pcb-canvas"
+      data-editing={editing ? "true" : undefined}
       className={cn(
         "relative min-h-0 flex-1 touch-none select-none overflow-hidden",
-        measuring ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
+        measuring
+          ? "cursor-crosshair"
+          : move || (editing && hoverPlacement && !hoverPlacement.locked)
+            ? "cursor-move"
+            : "cursor-grab active:cursor-grabbing",
         className,
       )}
       style={{ backgroundColor: colors.background }}
@@ -690,7 +999,31 @@ export default function PcbCanvas({
                 opacity={0.95}
               />
             ) : null}
-            {drawList.map(paint)}
+            {/* Everything not moving drops back while a drag is live. On a
+                dense board the copper is most of the ink, and without this the
+                part you are carrying is invisible inside it. */}
+            {move ? <g opacity={0.3}>{paintSets.still.map(paint)}</g> : paintSets.still.map(paint)}
+            {paintSets.pending.map((group) => (
+              <g
+                key={group.id}
+                data-slot="pcb-pending-move"
+                data-placement={group.id}
+                opacity={move ? 0.3 : 1}
+                transform={`translate(${group.offset.dx} ${group.offset.dy})`}
+              >
+                {group.items.map(paint)}
+              </g>
+            ))}
+            {paintSets.moving.length ? (
+              <g data-slot="pcb-move-origin" opacity={0.18}>
+                {paintSets.moving.map(paint)}
+              </g>
+            ) : null}
+            {paintSets.moving.length ? (
+              <g data-slot="pcb-move-ghost" transform={`translate(${moveDelta.dx} ${moveDelta.dy})`}>
+                {paintSets.moving.map(paint)}
+              </g>
+            ) : null}
           </g>
 
           {/* Screen-space overlays: constant stroke width at any zoom. */}
@@ -737,6 +1070,35 @@ export default function PcbCanvas({
                 </g>
               ))}
             </g>
+          ) : null}
+          {hoverPlacementRect ? (
+            <rect
+              x={hoverPlacementRect.x}
+              y={hoverPlacementRect.y}
+              width={hoverPlacementRect.width}
+              height={hoverPlacementRect.height}
+              fill="none"
+              stroke={hoverPlacement.locked ? colors.drcError : colors.measure}
+              strokeWidth={1.25}
+              strokeDasharray={hoverPlacement.locked ? "2 2" : undefined}
+              opacity={0.8}
+              data-slot="pcb-move-target"
+              data-placement={hoverPlacement.id}
+              data-locked={hoverPlacement.locked ? "true" : "false"}
+            />
+          ) : null}
+          {moveTargetRect ? (
+            <rect
+              x={moveTargetRect.x}
+              y={moveTargetRect.y}
+              width={moveTargetRect.width}
+              height={moveTargetRect.height}
+              fill="none"
+              stroke={colors.measure}
+              strokeWidth={1.5}
+              strokeDasharray="5 3"
+              data-slot="pcb-move-outline"
+            />
           ) : null}
           {selectionRect ? (
             <rect
@@ -799,6 +1161,30 @@ export default function PcbCanvas({
           <p className="max-w-xs px-6 text-center text-sm leading-6 text-white/50">
             The board layout lands once the board builds.
           </p>
+        </div>
+      ) : null}
+
+      {/* What this drag will write, in the units the source is written in.
+          Shown while dragging because the number IS the edit — after the drop
+          it is a line in the board file. */}
+      {move && moveTargetRect ? (
+        <div
+          data-slot="pcb-move-readout"
+          className="pointer-events-none absolute rounded border border-white/20 bg-black/85 px-2 py-1 font-mono text-[11px] leading-4 tabular-nums text-white"
+          style={{
+            left: Math.min(moveTargetRect.x + moveTargetRect.width + 10, Math.max(0, size.width - 190)),
+            top: Math.max(0, moveTargetRect.y - 8),
+          }}
+        >
+          <span className="text-white/60">{move.placement.label}</span>
+          {"  "}
+          <span style={{ color: colors.measure }}>
+            Δ {formatMm(move.dx)}, {formatMm(move.dy)} mm
+          </span>
+          <br />
+          <span className="text-white/50">
+            pcbX={formatMm(move.placement.x + move.dx)} pcbY={formatMm(move.placement.y + move.dy)}
+          </span>
         </div>
       ) : null}
 

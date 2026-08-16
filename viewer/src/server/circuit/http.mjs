@@ -166,6 +166,98 @@ export function quietLimitMs(stage) {
   return STAGE_QUIET_LIMIT_MS[String(stage ?? "")] ?? DEFAULT_QUIET_LIMIT_MS;
 }
 
+// ---------------------------------------------------------------------------
+// board_source_write — the one command that lets the UI change a board file
+// ---------------------------------------------------------------------------
+
+/** Most edits a single drag or lock can produce; a drag makes two. */
+const MAX_SOURCE_EDITS = 8;
+/** Longest replacement text we will splice in. The lock comment is the big one. */
+const MAX_EDIT_TEXT = 200;
+
+/**
+ * Check one write request against the file on disk.
+ *
+ * This is a compare-and-swap, and it has to be, because the agent writing this
+ * same file is the whole point of the app. The client sends the byte ranges it
+ * means to replace **and the text it expects to find there**, plus the length
+ * of the file it read them from. If either has moved, the write is refused and
+ * the UI re-reads — a stale offset would otherwise land a coordinate in the
+ * middle of a comment.
+ *
+ * Exported so `node:test` can drive every refusal without an HTTP server.
+ *
+ * @returns {{ok: true, text: string} | {ok: false, code: string, message: string}}
+ */
+export function planSourceWrite(current, edits, sourceLength) {
+  const text = String(current ?? "");
+  if (!Array.isArray(edits) || !edits.length) {
+    return { ok: false, code: "INVALID_ARGUMENT", message: "no edits in the request" };
+  }
+  if (edits.length > MAX_SOURCE_EDITS) {
+    return { ok: false, code: "INVALID_ARGUMENT", message: `at most ${MAX_SOURCE_EDITS} edits per write` };
+  }
+  if (!Number.isInteger(sourceLength) || sourceLength !== text.length) {
+    return {
+      ok: false,
+      code: "SOURCE_CHANGED",
+      message: "the board file changed since it was read — reopen the board and try again",
+    };
+  }
+  const sorted = [...edits].sort((a, b) => Number(a.start) - Number(b.start) || Number(a.end) - Number(b.end));
+  let previousEnd = -1;
+  for (const edit of sorted) {
+    const start = Number(edit?.start);
+    const end = Number(edit?.end);
+    const replacement = String(edit?.text ?? "");
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > text.length) {
+      return { ok: false, code: "INVALID_ARGUMENT", message: "an edit points outside the file" };
+    }
+    if (replacement.length > MAX_EDIT_TEXT) {
+      return { ok: false, code: "INVALID_ARGUMENT", message: "an edit is longer than a placement change can be" };
+    }
+    // Tab, newline and carriage return are the only invisible bytes allowed.
+    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(replacement)) {
+      return { ok: false, code: "INVALID_ARGUMENT", message: "an edit carries control characters" };
+    }
+    // `start === end` is an insertion (the lock comment); two insertions at the
+    // same point would be order-dependent, so they are refused too.
+    if (start < previousEnd || (start === previousEnd && start === end)) {
+      return { ok: false, code: "INVALID_ARGUMENT", message: "edits overlap" };
+    }
+    if (text.slice(start, end) !== String(edit?.expected ?? "")) {
+      return {
+        ok: false,
+        code: "SOURCE_CHANGED",
+        message: "the board file changed since it was read — reopen the board and try again",
+      };
+    }
+    previousEnd = end;
+  }
+  let out = text;
+  for (let i = sorted.length - 1; i >= 0; i -= 1) {
+    out = out.slice(0, sorted[i].start) + String(sorted[i].text ?? "") + out.slice(sorted[i].end);
+  }
+  return { ok: true, text: out };
+}
+
+/**
+ * Where a board source may live: `boards/<stem>.tsx`, directly under the
+ * project root and nowhere else. Not a general file-write command — the app
+ * has exactly one reason to change a file on disk, and widening this to "any
+ * path inside the project" would make it a general one by accident.
+ *
+ * @returns {string|null} the relative path, normalised, or null when refused
+ */
+export function boardSourceRelPath(file) {
+  const rel = String(file ?? "").replaceAll("\\", "/");
+  if (!/^boards\/[A-Za-z0-9._-]+\.tsx$/.test(rel)) return null;
+  if (rel.includes("..") || rel.includes("//")) return null;
+  const base = rel.slice("boards/".length);
+  if (base.startsWith(".") || base.startsWith("_")) return null;
+  return rel;
+}
+
 /** The repo's pinned Node toolchain dir: env CIRCUIT_TOOLCHAIN > repo default
  * (`<repo>/toolchain`, four levels above this file). */
 export function toolchainDir(env = process.env) {
@@ -373,6 +465,23 @@ export function createCircuitServices({ env = process.env } = {}) {
     return String(id);
   }
 
+  /** The pipeline's own view of whether it is mid-build, read the same way
+   *  `build_status` reads it (including the per-stage staleness limit, so a
+   *  build that died three hours ago does not lock the file forever). */
+  function pipelineRunning(projectId) {
+    try {
+      const status = JSON.parse(
+        fs.readFileSync(path.join(projects.projectDir(projectId), ".circuit", "build-status.json"), "utf8"),
+      );
+      if (status?.state !== "running") return false;
+      const updatedAt = Number(status?.updatedAt) * 1000;
+      if (!Number.isFinite(updatedAt)) return true;
+      return Date.now() - updatedAt <= quietLimitMs(status?.stage);
+    } catch {
+      return false;
+    }
+  }
+
   // --- command handlers (contract §2 command list, verbatim) ---------------
   const commands = {
     // app
@@ -428,6 +537,62 @@ export function createCircuitServices({ env = process.env } = {}) {
         limit: Number.isFinite(limit) ? Number(limit) : undefined,
       });
       return { revisions, trend: revisionTrend(revisions) };
+    },
+
+    /**
+     * Write a placement change back into `boards/<stem>.tsx`.
+     *
+     * The only command in this app that changes a file the user owns, so it is
+     * deliberately the narrowest one: a fixed path shape, a byte-range splice
+     * whose expected text has to match, and a refusal whenever the agent is
+     * mid-turn. A drag on the canvas is not allowed to be a general
+     * file-write API by accident.
+     *
+     * Returns the file as it now stands so the client re-parses the truth
+     * rather than its own prediction of it.
+     */
+    board_source_write: async ({ id, file, edits, sourceLength }) => {
+      const projectId = requireProject(id);
+      if (chat.turnInProgress(projectId) || pipelineRunning(projectId)) {
+        throw ipcError(
+          "BUILD_RUNNING",
+          "the board is building — wait for it to finish before moving parts",
+          409,
+        );
+      }
+      const rel = boardSourceRelPath(file);
+      if (!rel) {
+        throw ipcError("INVALID_ARGUMENT", "only a board source under boards/ can be edited", 400);
+      }
+      const root = fs.realpathSync(projects.projectDir(projectId));
+      const abs = path.resolve(root, rel);
+      if (!abs.startsWith(`${root}${path.sep}`)) {
+        throw ipcError("FORBIDDEN", "that path is outside the project", 403);
+      }
+      let stat;
+      try {
+        stat = fs.lstatSync(abs);
+      } catch {
+        throw ipcError("NOT_FOUND", `no board source at ${rel}`, 404);
+      }
+      // A symlink here would be a way out of the project even though the path
+      // itself looks fine.
+      if (!stat.isFile()) {
+        throw ipcError("FORBIDDEN", "that board source is not a regular file", 403);
+      }
+      const current = fs.readFileSync(abs, "utf8");
+      const planned = planSourceWrite(current, edits, sourceLength);
+      if (!planned.ok) {
+        throw ipcError(planned.code, planned.message, planned.code === "SOURCE_CHANGED" ? 409 : 400);
+      }
+      // Written through a sibling temp file and renamed: a half-written board
+      // source is one the next build cannot compile, and the build may start
+      // the instant the catalog watcher notices the change.
+      const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${process.pid}.tmp`);
+      fs.writeFileSync(tmp, planned.text, "utf8");
+      fs.renameSync(tmp, abs);
+      projects.touch(projectId);
+      return { file: rel, text: planned.text, sourceLength: planned.text.length };
     },
 
     app_settings_read: async () => settings.readWire(),

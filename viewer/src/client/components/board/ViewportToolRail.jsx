@@ -6,6 +6,7 @@ import {
   Layers,
   Maximize2,
   Minus,
+  Move,
   Plus,
   RotateCcw,
   Ruler,
@@ -17,6 +18,7 @@ import { dispatchViewportTool, toolState, toolsForSurface } from "./viewportTool
 const ICONS = Object.freeze({
   fit: Maximize2,
   minus: Minus,
+  move: Move,
   plus: Plus,
   ruler: Ruler,
   crosshair: Crosshair,

@@ -18,7 +18,7 @@ test("every tool has a stable id, a group and a state kind", () => {
   for (const tool of VIEWPORT_TOOLS) {
     assert.ok(tool.label, `${tool.id} needs a label`);
     assert.ok(tool.icon, `${tool.id} needs an icon`);
-    assert.ok(["view", "inspect", "layers", "out"].includes(tool.group), `${tool.id} group`);
+    assert.ok(["view", "edit", "inspect", "layers", "out"].includes(tool.group), `${tool.id} group`);
     assert.ok(["action", "toggle", "cycle"].includes(tool.state), `${tool.id} state kind`);
   }
 });
@@ -42,6 +42,8 @@ test("toolState reports pressed state and the cycling tools' current value", () 
     maskLevel: 4,
     units: "mil",
   };
+  assert.deepEqual(toolState(byId("edit"), ctx), { active: false, value: "" });
+  assert.deepEqual(toolState(byId("edit"), { editing: true }), { active: true, value: "" });
   assert.deepEqual(toolState(byId("measure"), ctx), { active: true, value: "" });
   assert.deepEqual(toolState(byId("hud"), ctx), { active: false, value: "" });
   assert.deepEqual(toolState(byId("grid"), ctx), { active: false, value: "" });
@@ -67,6 +69,7 @@ function spyContext() {
     ctx: {
       view: { zoomBy: record("zoomBy") },
       onFit: record("fit"),
+      onToggleEditing: record("editing"),
       onToggleMeasure: record("measure"),
       onToggleHud: record("hud"),
       onToggleGrid: record("grid"),

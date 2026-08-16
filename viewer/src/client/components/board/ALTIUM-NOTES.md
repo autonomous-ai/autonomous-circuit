@@ -418,3 +418,43 @@ Two rules the layer must keep, both learned the hard way:
 - Messages panel severity colour coding. Unpublished; we used KiCad's DRC colours.
 - `Shift+H`: the Board Insight page says it toggles the HUD, another page renders it as a
   snap toggle. We followed the Board Insight page.
+
+---
+
+## 12. Move mode — where we stop following Altium
+
+Altium's canvas is the design. Ours is a *view* of `boards/<stem>.tsx`, and that is a
+deliberate difference, not a limitation: the board is code, the agent writes that code,
+and a canvas that owned placement in parallel would immediately disagree with the file
+the next build reads.
+
+So a drag ends as an edit to the source. `boardSource.js` parses the board file, finds
+the JSX elements that carry `pcbX`/`pcbY`, binds each to what the compiled board drew at
+that anchor, and turns a drop into a byte-range replacement of exactly one numeric
+literal. `board_source_write` (the only command in this app that writes a file the user
+owns) refuses the write unless the expected text is still at those offsets, and refuses
+outright while a build is running.
+
+What that buys, and what it costs:
+
+- **Only the board file's own placements move.** A part inside a golden block is placed
+  by the block; moving it would mean editing a file other boards share. The draggable
+  unit is a direct child of `<board>` — a block instance, a `<group>`, or a part the
+  board wrote itself. On the three example boards that is 17 / 12 / 28 placements, all
+  of them bound.
+- **The copper does not follow.** Traces were routed against the old placement and they
+  still are. Drawing them snapped to the new position would be the canvas promising a
+  board nobody has built. A moved part is drawn where the *file* now puts it, its copper
+  where the *last build* put it, and the two visibly disagreeing is what "rebuild" means.
+- **Geometry is captured per build, not per parse.** The moment a drag writes a new
+  `pcbX`, source coordinates and compiled anchors stop matching — correctly. Re-matching
+  by coordinate after every edit unbinds the part that was just dragged, which allows
+  exactly one move per part and no undo. `rebindPlacements` carries geometry forward by
+  placement id instead, and the id is the tag plus its ordinal in the file, so it
+  survives a coordinate change.
+- **The lock is a comment in the source.** `{/* locked: placed by hand … */}` above the
+  element. A lock the next agent cannot read is not a lock, and the next agent reads the
+  board file, not this app's memory.
+- **Rebuild is a button, never a side effect.** A build is minutes.
+
+Move mode and measure mode both own the drag, so turning on either turns off the other.

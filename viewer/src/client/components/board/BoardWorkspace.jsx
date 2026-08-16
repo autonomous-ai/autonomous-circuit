@@ -3,7 +3,7 @@ import { Loader2, SendHorizontal } from "lucide-react";
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
-import { setPendingViewContext, setProject as setChatProject } from "@/store/chat.js";
+import { setPendingViewContext, setProject as setChatProject, startTurn } from "@/store/chat.js";
 import {
   FOCUS_CHAT_INPUT_EVENT,
   prefillChatInput,
@@ -34,6 +34,9 @@ import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
+import PlacementEditBar from "./PlacementEditBar.jsx";
+import usePlacementEditor from "./usePlacementEditor.js";
+import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
 import LayerBar from "./LayerBar.jsx";
@@ -140,6 +143,14 @@ export default function BoardWorkspace({
   const [hover, setHover] = useState(null);
   const [flash, setFlash] = useState(null);
   const [pcbView, setPcbView] = useState({ scale: 0 });
+  // --- move mode: the canvas as an editor of the board source
+  const [editing, setEditing] = useState(false);
+  const [snapStep, setSnapStep] = useState(0.5);
+  const [rebuilding, setRebuilding] = useState(false);
+  // Which placement the edit bar acts on. Separate from `selection` because a
+  // mounting hole and a silkscreen label are placements with no component and
+  // no net — nothing `selection` can hold.
+  const [activePlacementId, setActivePlacementId] = useState("");
 
   const pcbRef = useRef(null);
   const schematicRef = useRef(null);
@@ -442,6 +453,74 @@ export default function BoardWorkspace({
   const boardName = String(effectiveSidecar?.board?.name || "").trim() || selectedStem;
   const artifact = selectedEntry?.artifact || {};
 
+  // --- the board source, behind the canvas.
+  //
+  // Never while an older build is on screen: those coordinates describe a file
+  // that has since been rewritten, and a drag would move the wrong element by
+  // exactly the amount the board has changed since.
+  const canEdit = editing && !viewing;
+  const editor = usePlacementEditor({
+    projectId: currentProjectId || "",
+    stem: selectedStem,
+    index,
+    buildKey: circuitJsonUrl,
+    enabled: canEdit,
+    revision: manifestRevision,
+  });
+  useEffect(() => {
+    if (viewing) setEditing(false);
+  }, [viewing]);
+  useEffect(() => {
+    if (!canEdit) setActivePlacementId("");
+  }, [canEdit, selectedFile]);
+
+  /** A drop: write the new coordinates, then say what changed. */
+  const handlePlacementMove = useCallback(
+    (placement, next) => {
+      editor.move(
+        placement.id,
+        next.x,
+        next.y,
+        describeMove(placement.label, { x: placement.x, y: placement.y }, next),
+      );
+      // Light the part up in the other panes too, but only when there is a
+      // part — a mounting hole has no component to cross-probe to.
+      if (placement.componentKeys.length) {
+        setSelection({ kind: "component", key: placement.componentKeys[0] });
+      }
+    },
+    [editor],
+  );
+
+  /**
+   * Ask for a rebuild. A build is minutes, so it is never a side effect of a
+   * drag — it is this button, and it goes through the same chat turn every
+   * other change to this board goes through. The instruction names the file
+   * and the lock convention so the agent does not helpfully re-place what a
+   * person just placed.
+   */
+  const handleRebuild = useCallback(async () => {
+    if (!selectedStem || rebuilding) return;
+    setRebuilding(true);
+    try {
+      const changed = editor.changes;
+      await startTurn(
+        [
+          `I moved ${changed === 1 ? "a part" : "parts"} by hand on the PCB canvas, so`,
+          `boards/${selectedStem}.tsx now has ${changed === 1 ? "a new pcbX/pcbY pair" : "new pcbX/pcbY values"}.`,
+          "Rebuild the board from the file exactly as it stands.",
+          "Keep every placement I set — do not re-place parts to make routing easier,",
+          "and never move a placement that carries a `locked:` comment above it.",
+          "If a placement I chose makes the board unroutable, say so and show me the evidence",
+          "rather than moving it back.",
+        ].join(" "),
+      );
+      editor.markBuilding();
+    } finally {
+      setRebuilding(false);
+    }
+  }, [editor, rebuilding, selectedStem]);
+
   // --- selection + cross-probe
   const handleSelect = useCallback(
     (next, options = {}) => {
@@ -557,6 +636,7 @@ export default function BoardWorkspace({
         return pcbRef.current;
       },
       measuring,
+      editing: canEdit,
       hudVisible,
       showGrid,
       showRegions: regionsVisible,
@@ -565,7 +645,20 @@ export default function BoardWorkspace({
       maskLevel,
       units,
       onFit: fitAll,
-      onToggleMeasure: () => setMeasuring((value) => !value),
+      // Move mode and measure mode both own the drag, so one turns the other
+      // off rather than the two fighting over a pointerdown.
+      onToggleEditing: () => {
+        if (viewing) return;
+        setEditing((value) => {
+          if (!value) setMeasuring(false);
+          return !value;
+        });
+      },
+      onToggleMeasure: () =>
+        setMeasuring((value) => {
+          if (!value) setEditing(false);
+          return !value;
+        }),
       onToggleHud: () => setHudVisible((value) => !value),
       onToggleGrid: () => setShowGrid((value) => !value),
       onToggleRegions: () => setRegionsVisible((value) => !value),
@@ -583,6 +676,8 @@ export default function BoardWorkspace({
     }),
     [
       measuring,
+      canEdit,
+      viewing,
       hudVisible,
       showGrid,
       regionsVisible,
@@ -630,7 +725,11 @@ export default function BoardWorkspace({
       if (event.metaKey || event.ctrlKey) {
         if (key.toLowerCase() === "m") {
           event.preventDefault();
-          setMeasuring((value) => !value);
+          // Measure and move both own the drag; whichever is asked for last wins.
+          setMeasuring((value) => {
+            if (!value) setEditing(false);
+            return !value;
+          });
         }
         if (key === "PageDown") {
           event.preventDefault();
@@ -656,6 +755,15 @@ export default function BoardWorkspace({
           break;
         case "0":
           setActiveTab("split");
+          break;
+        case "e":
+        case "E":
+          if (!viewing) {
+            setEditing((value) => {
+              if (!value) setMeasuring(false);
+              return !value;
+            });
+          }
           break;
         case "f":
         case "F":
@@ -689,7 +797,7 @@ export default function BoardWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode]);
+  }, [fitAll, singleLayerMode, viewing]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";
@@ -730,66 +838,99 @@ export default function BoardWorkspace({
     </div>
   );
 
+  // The placement the edit bar acts on: whatever was last clicked or dragged
+  // in move mode, falling back to whatever the current selection resolves to.
+  const selectedPlacement = useMemo(() => {
+    if (!canEdit) return null;
+    const byClick = activePlacementId ? editor.placements.byId.get(activePlacementId) : null;
+    if (byClick) return byClick;
+    if (selection?.kind !== "component") return null;
+    const id = editor.placements.byComponentKey.get(selection.key);
+    return id ? editor.placements.byId.get(id) || null : null;
+  }, [canEdit, activePlacementId, selection, editor.placements]);
+
   const pcbPane = (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <PcbCanvas
-        index={index}
-        scheme={scheme}
-        visibleLayers={visibleLayers}
-        visibleClasses={visibleClasses}
-        activeLayer={activeLayer}
-        singleLayerMode={singleLayerMode}
-        highlight={highlight}
-        selection={selection}
-        highlightMethod={highlightMethod}
-        maskLevel={maskLevel}
-        units={units}
-        measuring={measuring}
-        showGrid={showGrid}
-        regions={regions}
-        showRegions={regionsVisible}
-        flash={flash}
-        fallbackSrc={String(artifact.pcbUrl || "")}
-        onSelect={handleSelect}
-        onHoverChange={setHover}
-        onViewChange={setPcbView}
-        viewRef={pcbRef}
-      />
-      <ViewportToolRail surface="pcb" context={pcbToolContext} />
-      {/* Lifted clear of the rail rather than parked beside it — the same call
-          drei's viewcube makes with `margin={[60, 120]}`. In Split the PCB pane
-          is half-width, and a rail centred in that half already reaches the
-          right edge. */}
-      <BoardOrientationCube
-        scheme={scheme}
-        activeLayer={activeLayer}
-        singleLayerMode={singleLayerMode}
-        hasBottom={layers.includes("bottom")}
-        onChange={handleBoardSide}
-        bottomInset={48}
-      />
-      <BoardInsightHud
-        hover={hover}
-        activeLayer={activeLayer}
-        units={units}
-        scale={pcbView.scale}
-        netName={hoverNetName}
-        partName={hoverPart ? partPlainName(hoverPart) : ""}
-        partRefdes={hoverPart?.refdes || ""}
-        partArea={hoverArea}
-        visible={hudVisible}
-        measuring={measuring}
-      />
-      {circuitState === "loading" ? (
-        <span className="pointer-events-none absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-white/60">
-          indexing circuit.json…
-        </span>
+      {canEdit ? (
+        <PlacementEditBar
+          editor={editor}
+          placement={selectedPlacement}
+          snapStep={snapStep}
+          onSnapStep={setSnapStep}
+          onRebuild={handleRebuild}
+          rebuilding={rebuilding}
+          canRebuild={!turnInProgress}
+          onClose={() => setEditing(false)}
+        />
       ) : null}
-      {circuitState === "failed" ? (
-        <span className="pointer-events-none absolute right-2 top-2 rounded border border-amber-500/40 bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-amber-300/90">
-          circuit.json unreadable — showing the rendered image
-        </span>
-      ) : null}
+      {/* The overlays (HUD, rail, cube) are positioned against the drawing,
+          not against the pane — otherwise the edit bar pushes the canvas down
+          and the coordinate readout stays behind, printed over the bar. */}
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <PcbCanvas
+          index={index}
+          scheme={scheme}
+          visibleLayers={visibleLayers}
+          visibleClasses={visibleClasses}
+          activeLayer={activeLayer}
+          singleLayerMode={singleLayerMode}
+          highlight={highlight}
+          selection={selection}
+          highlightMethod={highlightMethod}
+          maskLevel={maskLevel}
+          units={units}
+          measuring={measuring}
+          showGrid={showGrid}
+          regions={regions}
+          showRegions={regionsVisible}
+          flash={flash}
+          fallbackSrc={String(artifact.pcbUrl || "")}
+          editing={canEdit && editor.ready}
+          placements={editor.placements}
+          snapStepMm={snapStep}
+          onPlacementMove={handlePlacementMove}
+          onPlacementSelect={(placement) => setActivePlacementId(placement?.id || "")}
+          onSelect={handleSelect}
+          onHoverChange={setHover}
+          onViewChange={setPcbView}
+          viewRef={pcbRef}
+        />
+        <ViewportToolRail surface="pcb" context={pcbToolContext} />
+        {/* Lifted clear of the rail rather than parked beside it — the same call
+            drei's viewcube makes with `margin={[60, 120]}`. In Split the PCB pane
+            is half-width, and a rail centred in that half already reaches the
+            right edge. */}
+        <BoardOrientationCube
+          scheme={scheme}
+          activeLayer={activeLayer}
+          singleLayerMode={singleLayerMode}
+          hasBottom={layers.includes("bottom")}
+          onChange={handleBoardSide}
+          bottomInset={48}
+        />
+        <BoardInsightHud
+          hover={hover}
+          activeLayer={activeLayer}
+          units={units}
+          scale={pcbView.scale}
+          netName={hoverNetName}
+          partName={hoverPart ? partPlainName(hoverPart) : ""}
+          partRefdes={hoverPart?.refdes || ""}
+          partArea={hoverArea}
+          visible={hudVisible}
+          measuring={measuring}
+        />
+        {circuitState === "loading" ? (
+          <span className="pointer-events-none absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-white/60">
+            indexing circuit.json…
+          </span>
+        ) : null}
+        {circuitState === "failed" ? (
+          <span className="pointer-events-none absolute right-2 top-2 rounded border border-amber-500/40 bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-amber-300/90">
+            circuit.json unreadable — showing the rendered image
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 
