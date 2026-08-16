@@ -597,7 +597,7 @@ export function createCircuitServices({ env = process.env } = {}) {
      * Returns the file as it now stands so the client re-parses the truth
      * rather than its own prediction of it.
      */
-    board_source_write: async ({ id, file, edits, sourceLength }) => {
+    board_source_write: async ({ id, file, edits, sourceLength, summary }) => {
       const projectId = requireProject(id);
       // Same queue as `board_edit_apply`, and for the same reason. This handler
       // is a read-modify-write, and today it is safe only because `fs`'s
@@ -607,7 +607,7 @@ export function createCircuitServices({ env = process.env } = {}) {
       // symptom would be a part that quietly springs back.
       return serializeEdit(projectId, async () => {
         refuseIfBuilding(projectId);
-        const { rel, abs } = resolveBoardSource(projectId, file);
+        const { rel, abs, root } = resolveBoardSource(projectId, file);
         const current = fs.readFileSync(abs, "utf8");
         const planned = planSourceWrite(current, edits, sourceLength);
         if (!planned.ok) {
@@ -633,6 +633,16 @@ export function createCircuitServices({ env = process.env } = {}) {
         }
         writeAtomic(abs, planned.text);
         projects.touch(projectId);
+        // The board's history is where "what happened to this board" is
+        // answered, and until now it answered it for builds only: `recordEdit`
+        // was called from `board_edit_apply`, which no client calls, so a human
+        // could drag twenty parts and the history would show nothing at all
+        // between two builds. The summary comes from the client because the
+        // client is the only side that knows the gesture ("R30 moved 2, 0 mm");
+        // this command sees byte ranges.
+        if (typeof summary === "string" && summary.trim()) {
+          recordEdit(root, { summary: summary.trim(), file: rel });
+        }
         return { file: rel, text: planned.text, sourceLength: planned.text.length };
       });
     },

@@ -367,6 +367,11 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
           file,
           edits,
           sourceLength: base.length,
+          // The gesture, in the words the strip shows. The server sees byte
+          // ranges and cannot name what happened, so a history without this is
+          // a history of builds with the human's work missing from between
+          // them — which is most of what an engineer wants to look back at.
+          summary: note || "",
         });
         // Belt and braces: the server splices the same edits we did, so if the
         // two disagree the file is not what this hook thinks it is.

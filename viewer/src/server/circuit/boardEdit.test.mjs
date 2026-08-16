@@ -552,3 +552,41 @@ test(
     );
   },
 );
+
+test("a human's drag lands in the board's own history", async () => {
+  // `recordEdit` existed, `REVISION_KIND.EDIT` existed, and the only caller was
+  // `board_edit_apply` — the endpoint no client uses. So an engineer could move
+  // twenty parts and the history between two builds was empty.
+  const app = await bootServer();
+  try {
+    const before = fs.readFileSync(app.board, "utf8");
+    const at = before.indexOf("pcbX={1}") + "pcbX={".length;
+    const wrote = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start: at, end: at + 1, text: "4", expected: "1" }],
+      sourceLength: before.length,
+      summary: "R1 moved 3, 0 mm",
+    });
+    assert.equal(wrote.status, 200);
+
+    const history = readRevisions(app.dir);
+    const edits = history.filter((one) => one.kind === REVISION_KIND.EDIT);
+    assert.equal(edits.length, 1, JSON.stringify(history));
+    assert.equal(edits[0].summary, "R1 moved 3, 0 mm");
+    assert.equal(edits[0].author, AUTHOR.HUMAN);
+    assert.equal(edits[0].file, "boards/main.tsx");
+
+    // A write with nothing to say adds no line: a lock is a real edit and
+    // "someone did something" is not worth a row in a history someone reads.
+    await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start: at, end: at + 1, text: "5", expected: "4" }],
+      sourceLength: fs.readFileSync(app.board, "utf8").length,
+    });
+    assert.equal(readRevisions(app.dir).filter((one) => one.kind === REVISION_KIND.EDIT).length, 1);
+  } finally {
+    app.close();
+  }
+});
