@@ -35,12 +35,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 29.5,
+   "edgeGapMm": 28.575,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW1",
    "rotationDeg": 0.0,
    "xMm": -2.0,
-   "yMm": -3.0
+   "yMm": -4.2
   },
   {
    "bodyMm": [

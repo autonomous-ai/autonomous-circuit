@@ -236,8 +236,17 @@ export default () => (
     {/* the face: eight addressable pixels around the rim */}
     <PuckRing />
 
-    {/* press-to-delegate, centre-front, under the printed key cap */}
-    <SwTact name="SW1" signal="BTN_GO" pcbX={-2} pcbY={-3} schX={22} schY={10} />
+    {/* Press-to-delegate, centre-front, under the printed key cap.
+        pcbY -3 -> -4.2 on 2026-08-16: at -3 the switch courtyard's top edge sits
+        at -0.775 and rp2040-core's crystal Y1 reaches down to -0.95, so the two
+        courtyards overlapped by 0.175mm. tscircuit treats a courtyard overlap as
+        a *placement* error and then skips autorouting entirely — one 0.175mm
+        conflict produced 137 blocking findings, 38 of them unconnected ports.
+        Y1 cannot move: it is inside the golden block and already sits at the
+        edge of the RP2040's 10mm XIN limit. Nothing occupies the board below
+        SW1, so the switch moves instead, leaving 0.825mm of courtyard air. The
+        cap that presses it moves 1.2mm toward the board's front edge with it. */}
+    <SwTact name="SW1" signal="BTN_GO" pcbX={-2} pcbY={-4.2} schX={22} schY={10} />
 
     {/* mode / long-press companion, right rim */}
     <SwTact name="SW4" signal="BTN_MODE" pcbX={18.5} pcbY={2} schX={22} schY={5} />
