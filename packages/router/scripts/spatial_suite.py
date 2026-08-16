@@ -43,6 +43,10 @@ for extra in (PACKAGE / "src", PACKAGE.parent / "circuitpy" / "src"):
         sys.path.insert(0, str(extra))
 
 ARMS = (
+    # The floor: one router on the whole board, chosen by the selector's rules.
+    # Without it, "crossing-first ordering helps" cannot be told apart from
+    # "four routers help", because spatial-flat is one router in stages.
+    "single",
     "relay",
     "spatial",
     "spatial-flat",
@@ -106,9 +110,11 @@ def run_one(arm: str, problem, budget, registry):
     from routerlib import portfolio
     from routerlib.compositions import spatial
 
-    if arm == "relay":
+    if arm in ("relay", "single"):
         result = portfolio.route(
-            problem, budget, registry, budget_class="thorough", mode="relay"
+            problem, budget, registry,
+            budget_class="thorough" if arm == "relay" else "cheap",
+            mode=arm if arm == "single" else "relay",
         )
         return result.solution, {"portfolio": result.as_dict()}
 
