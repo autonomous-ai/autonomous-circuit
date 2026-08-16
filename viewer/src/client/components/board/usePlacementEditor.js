@@ -20,12 +20,15 @@ import {
   applyEdits,
   bindPlacements,
   describeRotate,
+  formatDeg,
+  formatMm,
   geometrySnapshot,
   invertEdits,
   lockEdits,
   moveEdits,
   parseBoardSource,
   pendingMoves,
+  normalizeDeg,
   rebindPlacements,
   remapSnapshot,
   rotateEdits,
@@ -57,6 +60,41 @@ async function callApi(command, args) {
 }
 
 const EMPTY_BINDING = { byId: new Map(), byComponentKey: new Map(), byElementId: new Map(), unmatched: [] };
+
+/**
+ * Why this history entry may not be applied — because the file has moved on.
+ *
+ * `entry.after` is what the edit being reversed actually wrote. If the
+ * placement no longer holds it, something else wrote to the same part after
+ * this edit did, and going ahead would delete that work without a word. The
+ * message names both values and what to do, because "refused" with no numbers
+ * is indistinguishable from a bug.
+ *
+ * Entries recorded before this field existed (a session already open across the
+ * upgrade) carry no `after` and are applied as before.
+ */
+function driftReason(entry, placement) {
+  const after = entry?.after;
+  if (after === undefined || after === null) return "";
+  const label = entry.label || "that part";
+  if (entry.kind === "lock") {
+    if (Boolean(placement.locked) === Boolean(after)) return "";
+    return `${label} was ${placement.locked ? "locked" : "unlocked"} by someone else after your change — nothing was undone.`;
+  }
+  if (entry.kind === "rotate") {
+    if (normalizeDeg(placement.rotation) === normalizeDeg(after)) return "";
+    return (
+      `${label} is at ${formatDeg(placement.rotation)}° now, not the ${formatDeg(after)}° your change left it at` +
+      " — somebody else turned it since. Nothing was undone."
+    );
+  }
+  if (Number(placement.x) === Number(after.x) && Number(placement.y) === Number(after.y)) return "";
+  return (
+    `${label} is at ${formatMm(placement.x)}, ${formatMm(placement.y)} now, not the ` +
+    `${formatMm(after.x)}, ${formatMm(after.y)} your change left it at — somebody else moved it since.` +
+    " Nothing was undone; move it by hand if you still want it back."
+  );
+}
 
 /**
  * @param {{
@@ -397,7 +435,16 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         if (!placement) return false;
         const edits = moveEdits(latestTextRef.current, placement, x, y);
         if (!edits.length) return true;
-        const undoEntry = { kind: "move", placementId, x: placement.x, y: placement.y, label: placement.label };
+        // `after` is what this edit puts in the file — the value an undo must
+        // still find there before it may write over it.
+        const undoEntry = {
+          kind: "move",
+          placementId,
+          x: placement.x,
+          y: placement.y,
+          label: placement.label,
+          after: { x: Number(formatMm(x)), y: Number(formatMm(y)) },
+        };
         const ok = await write(edits, note, +1);
         if (ok) pushHistory(undoEntry);
         return ok;
@@ -441,6 +488,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
                 placementId,
                 label: placement.label,
                 rotation: placement.rotationSpan ? placement.rotation : null,
+                after: normalizeDeg(degrees),
               };
         const ok = await write(edits, note || describeRotate(placement.label, placement.rotation, degrees), +1);
         if (ok) {
@@ -488,6 +536,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
                 placementId,
                 label: placement.label,
                 rotation: placement.rotationSpan ? placement.rotation : null,
+                after: command.to,
               };
         const ok = await write(
           edits,
@@ -522,7 +571,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         if (!placement) return false;
         const edits = lockEdits(latestTextRef.current, placement, locked);
         if (!edits.length) return true;
-        const undoEntry = { kind: "lock", placementId, locked: placement.locked, label: placement.label };
+        const undoEntry = { kind: "lock", placementId, locked: placement.locked, label: placement.label, after: Boolean(locked) };
         const ok = await write(edits, `${placement.label} ${locked ? "locked in place" : "unlocked"}`, 0);
         if (ok) pushHistory(undoEntry);
         return ok;
@@ -563,17 +612,42 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         setError(`that part is not in the board file any more — nothing to ${verb === "undid" ? "undo" : "redo"} onto`);
         return null;
       }
+      // Whoever moved it last has the last word — and it may not have been
+      // this user.
+      //
+      // The whole premise of this app is that an agent and a human edit the
+      // same file. An undo writes a coordinate recorded before the forward
+      // edit, and the byte-level compare-and-swap cannot see anything wrong
+      // with that: the edits are recomputed against the current text, so their
+      // `expected` always matches. Measured 2026-08-16 — a human moves CLK,
+      // an agent moves it again, the human presses ⌘Z, and the agent's work
+      // vanishes with a green tick. So the check has to be semantic: the value
+      // this edit produced is recorded with it, and if the file no longer
+      // holds that value, somebody else has been here.
+      const drifted = driftReason(entry, placement);
+      if (drifted) {
+        setError(drifted);
+        return null;
+      }
       const reciprocal =
         entry.kind === "lock"
-          ? { kind: "lock", placementId: entry.placementId, label: entry.label, locked: placement.locked }
+          ? { kind: "lock", placementId: entry.placementId, label: entry.label, locked: placement.locked, after: entry.locked }
           : entry.kind === "rotate"
             ? {
                 kind: "rotate",
                 placementId: entry.placementId,
                 label: entry.label,
                 rotation: placement.rotationSpan ? placement.rotation : null,
+                after: entry.rotation,
               }
-            : { kind: "move", placementId: entry.placementId, label: entry.label, x: placement.x, y: placement.y };
+            : {
+                kind: "move",
+                placementId: entry.placementId,
+                label: entry.label,
+                x: placement.x,
+                y: placement.y,
+                after: { x: entry.x, y: entry.y },
+              };
       const edits =
         entry.kind === "lock"
           ? lockEdits(latestTextRef.current, placement, entry.locked)

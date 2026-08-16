@@ -52,6 +52,43 @@ export const FINE_STEP_MM = 0.01;
 export const ROTATION_STEPS = Object.freeze([90, 45, 30, 15]);
 
 /**
+ * The furthest from the origin a placement may be put, in millimetres.
+ *
+ * A sanity bound, not a design rule. The board is the constraint an engineer
+ * cares about, and this is nowhere near it: JLCPCB's largest panel is under
+ * 500mm on a side, so ±1000mm is two board-widths outside anything orderable
+ * and still refuses the class of value that actually turns up —
+ * `pcbX={1e+30}`, which a fat-fingered API call and a confused model both
+ * produce, which writes cleanly into the source, and which every check
+ * downstream then calls legal (measured 2026-08-16 through `board_edit_apply`:
+ * `saved: true`, `check.status: "legal"`, on a part a light-year off the
+ * board).
+ *
+ * Deliberately not the board's own envelope: a part parked just outside the
+ * outline while its neighbours are rearranged is a real move an EE makes, and
+ * the DFM check is the thing that should complain about it, in the language of
+ * board edges. This bound only catches numbers that are not positions at all.
+ */
+export const MAX_PLACEMENT_MM = 1000;
+
+/**
+ * Why this coordinate cannot be written, or "" when it can.
+ *
+ * One owner for the rule, imported by the client that types it and the server
+ * that writes it, so the two cannot disagree about what a position is.
+ */
+export function placementRangeReason(x, y) {
+  for (const [axis, value] of [["X", x], ["Y", y]]) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return `${axis} must be a number`;
+    if (Math.abs(number) > MAX_PLACEMENT_MM) {
+      return `${axis} is ${number}mm, which is off any board — positions must be within ±${MAX_PLACEMENT_MM}mm`;
+    }
+  }
+  return "";
+}
+
+/**
  * The server's own cap on one edit's text (`http.mjs:176` `MAX_EDIT_TEXT`),
  * mirrored here so a wrap that could not be written is refused *before* the
  * user presses the key, with a reason, instead of failing at the transport.

@@ -599,19 +599,27 @@ export function createCircuitServices({ env = process.env } = {}) {
      */
     board_source_write: async ({ id, file, edits, sourceLength }) => {
       const projectId = requireProject(id);
-      refuseIfBuilding(projectId);
-      const { rel, abs } = resolveBoardSource(projectId, file);
-      const current = fs.readFileSync(abs, "utf8");
-      const planned = planSourceWrite(current, edits, sourceLength);
-      if (!planned.ok) {
-        throw ipcError(planned.code, planned.message, planned.code === "SOURCE_CHANGED" ? 409 : 400);
-      }
-      // Written through a sibling temp file and renamed: a half-written board
-      // source is one the next build cannot compile, and the build may start
-      // the instant the catalog watcher notices the change.
-      writeAtomic(abs, planned.text);
-      projects.touch(projectId);
-      return { file: rel, text: planned.text, sourceLength: planned.text.length };
+      // Same queue as `board_edit_apply`, and for the same reason. This handler
+      // is a read-modify-write, and today it is safe only because `fs`'s
+      // synchronous calls happen not to interleave — an implementation
+      // accident, not a guarantee. One `await` added inside this block by a
+      // later refactor turns two concurrent drags into a lost update, and the
+      // symptom would be a part that quietly springs back.
+      return serializeEdit(projectId, async () => {
+        refuseIfBuilding(projectId);
+        const { rel, abs } = resolveBoardSource(projectId, file);
+        const current = fs.readFileSync(abs, "utf8");
+        const planned = planSourceWrite(current, edits, sourceLength);
+        if (!planned.ok) {
+          throw ipcError(planned.code, planned.message, planned.code === "SOURCE_CHANGED" ? 409 : 400);
+        }
+        // Written through a sibling temp file and renamed: a half-written board
+        // source is one the next build cannot compile, and the build may start
+        // the instant the catalog watcher notices the change.
+        writeAtomic(abs, planned.text);
+        projects.touch(projectId);
+        return { file: rel, text: planned.text, sourceLength: planned.text.length };
+      });
     },
 
     /**

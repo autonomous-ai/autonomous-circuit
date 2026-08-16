@@ -35,6 +35,7 @@ import {
   lockEdits,
   moveEdits,
   parseBoardSource,
+  placementRangeReason,
 } from "../../client/components/board/boardSource.js";
 
 /** Refusals a caller can act on, mapped to HTTP by the command wrapper. */
@@ -135,6 +136,15 @@ export function planPlacementEdit(source, edit) {
   const y = hasAbsolute ? Number(edit.y) : placement.y + Number(edit?.dy || 0);
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     throw new EditError(EDIT_ERROR.INVALID, "the move has no destination");
+  }
+  // Finite is not the same as plausible. `x: 1e30` is finite, writes
+  // `pcbX={1e+30}` into the board source without complaint, and comes back from
+  // the gate as `legal` — measured 2026-08-16 — because nothing downstream
+  // measures a placement against anything. One owner for the rule, shared with
+  // the client that types the number in (`boardSource.placementRangeReason`).
+  const outOfRange = placementRangeReason(x, y);
+  if (outOfRange) {
+    throw new EditError(EDIT_ERROR.INVALID, outOfRange);
   }
   const edits = moveEdits(source, placement, x, y);
   if (!edits.length) {

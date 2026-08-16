@@ -67,6 +67,29 @@ test("a move that changes nothing is refused, not silently accepted", () => {
   );
 });
 
+test("a coordinate that is not a position is refused, however finite it is", () => {
+  // `1e30` is finite, and finite was the only thing this check asked for. It
+  // wrote `pcbX={1e+30}` into a real board file on the running app and came
+  // back from the gate as `legal`, because nothing downstream measures a
+  // placement against anything at all.
+  for (const edit of [
+    { kind: "move", placementId: "resistor[1]", x: 1e30, y: 1 },
+    { kind: "move", placementId: "resistor[1]", x: 1, y: -1e15 },
+    { kind: "move", placementId: "resistor[1]", dx: 5000, dy: 0 },
+  ]) {
+    assert.throws(
+      () => planPlacementEdit(BOARD, edit),
+      (error) => error.code === "INVALID_ARGUMENT" && /±1000mm/.test(error.message),
+      JSON.stringify(edit),
+    );
+  }
+
+  // And the bound is nowhere near a real board: a part parked 200mm off a
+  // 20mm board — which is what rearranging a layout looks like — still writes.
+  const planned = planPlacementEdit(BOARD, { kind: "move", placementId: "resistor[1]", x: 200, y: -200 });
+  assert.equal(planned.next.x, 200);
+});
+
 test("an unknown placement is refused by name", () => {
   assert.throws(
     () => planPlacementEdit(BOARD, { kind: "move", placementId: "capacitor[7]", dx: 1, dy: 0 }),

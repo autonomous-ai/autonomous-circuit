@@ -318,3 +318,43 @@ test("four fast taps of the turn button are four turns, not two", async () => {
     w.close();
   }
 });
+
+test("undo refuses to overwrite somebody else's edit to the same part", async () => {
+  // The collision this whole app is built around: an agent and a human editing
+  // one file. Undo writes a coordinate recorded before the forward edit, and
+  // the byte-level compare-and-swap cannot object — the edits are recomputed
+  // against the current text, so their `expected` always matches. Measured on
+  // the running app: human moves a part, agent moves it again, human presses
+  // ⌘Z, and the agent's work disappears behind a green tick.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    dragR30East(w);
+    await w.settle();
+    assert.equal(positions(w.server.source).get("resistor[1]"), "0,-6");
+
+    // The agent gets there next, and the client re-reads the file — which is
+    // what the catalog watcher makes it do in production, and what makes this
+    // dangerous: after the reload the undo's byte ranges are computed against
+    // the agent's text, so every `expected` matches and the compare-and-swap
+    // has nothing to object to. The loss is semantic, not a stale offset.
+    w.server.agentWrites(w.server.source.replace("pcbX={0} pcbY={-6}", "pcbX={9} pcbY={-6}"));
+    w.ui.set({ manifestRevision: 99 });
+    await w.settle(6);
+    assert.equal(positions(w.server.source).get("resistor[1]"), "9,-6");
+
+    const undo = w.find('[data-slot="placement-undo"]');
+    click(undo);
+    await w.settle(6);
+
+    const note = w.text('[data-slot="placement-edit-error"]');
+    assert.match(note, /R30 is at 9, -6 now, not the 0, -6 your change left it at/);
+    assert.match(note, /somebody else moved it since/i);
+    assert.equal(
+      positions(w.server.source).get("resistor[1]"),
+      "9,-6",
+      "undo wrote over an edit it did not make",
+    );
+  } finally {
+    w.close();
+  }
+});
