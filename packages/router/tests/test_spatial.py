@@ -22,6 +22,7 @@ by the tournament.
 
 from __future__ import annotations
 
+import dataclasses
 import unittest
 
 import routerfix
@@ -341,6 +342,23 @@ class Routing(unittest.TestCase):
         self.assertTrue(any("not registered" in n or "KeyError" in n
                             for n in result.notes), result.notes)
 
+    def test_escape_first_puts_the_fine_pitch_regions_before_the_crossings(self):
+        problem = two_cluster_board()
+        part = spatial.partition(problem, min_cells=2, max_depth=1)
+        part = dataclasses.replace(
+            part,
+            regions=(dataclasses.replace(part.regions[0], character="fine-pitch"),
+                     part.regions[1]),
+        )
+        result = spatial.route(
+            problem, BUDGET, registry(spatial.GLOBAL_EXPERT), given=part,
+            escape_first=True,
+        )
+        self.assertEqual([s.stage for s in result.stages], ["r0", "crossing", "r1"])
+        # And exactly one turn each: two stages under one label would
+        # double-count the nets asked.
+        self.assertEqual(len({s.stage for s in result.stages}), len(result.stages))
+
     def test_crossing_chain_retries_before_the_regions_take_the_space(self):
         problem = two_cluster_board()
         part = spatial.partition(problem, min_cells=2, max_depth=1)
@@ -400,6 +418,19 @@ class Contract(unittest.TestCase):
                 two_cluster_board(), BUDGET, registry(spatial.GLOBAL_EXPERT),
                 region_order="whatever",
             )
+
+    def test_the_default_expert_map_is_the_constant(self):
+        """The table this module was built to test lost the A/B — 114 nets
+        against 94 on lattice regions, 28 against 22 on fine-pitch. Putting it
+        back is a change that needs a new measurement, not a new opinion."""
+        self.assertEqual(
+            set(spatial.EXPERTS.values()), {spatial.GLOBAL_EXPERT},
+            "a non-constant expert map is a claim; it needs an A/B in "
+            "scripts/spatial_suite.py and a line in the routing doc",
+        )
+
+    def test_rejected_assignments_never_shrinks(self):
+        self.assertGreaterEqual(len(spatial.REJECTED_ASSIGNMENTS), 2)
 
     def test_rejected_assignments_carry_their_measurement(self):
         """Same discipline as the selector's ``REJECTED_RULES``: a rule that
