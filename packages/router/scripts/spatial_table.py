@@ -35,24 +35,33 @@ def main(argv: list[str] | None = None) -> int:
         )
     ruler = rulers.pop()
 
-    order = [a for a in ("relay", "spatial", "spatial-flat", "spatial-residue",
-                         "spatial-tight") if a in runs] + [
-        a for a in sorted(runs) if a not in
-        ("relay", "spatial", "spatial-flat", "spatial-residue", "spatial-tight")
+    # Floor first, then the number to beat, then the arms in the order they
+    # were argued for. Anything unknown lands at the end, sorted.
+    known = ("single", "relay", "spatial", "spatial-flat", "spatial-tight",
+             "spatial-chain", "spatial-escape-first", "spatial-residue",
+             "spatial-best", "spatial-shuffled")
+    order = [a for a in known if a in runs] + [
+        a for a in sorted(runs) if a not in known
     ]
 
     print(f"ruler {ruler}   "
           f"head {runs[order[0]]['measuredAgainst']['gitHead']}"
           f"{' (dirty)' if runs[order[0]]['measuredAgainst']['gitDirty'] else ''}\n")
-    head = (f"{'arm':<18}{'mean routed':>12}{'clean':>7}{'harness err':>12}"
-            f"{'det':>6}{'id clashes':>11}{'seconds':>9}")
+    head = (f"{'arm':<18}{'mean routed':>12}{'nets':>10}{'clean':>7}"
+            f"{'harness err':>12}{'det':>6}{'id clashes':>11}{'seconds':>9}")
     print(head)
     print("-" * len(head))
+    print("  mean routed is the mean of per-instance completeness; nets is the\n"
+          "  pooled count. They disagree when an arm wins on small boards, and\n"
+          "  clean — boards at 100% — is the one the fab-ready bar reads.")
     for arm in order:
         s = runs[arm]["summary"]
+        got = sum(r["score"]["connectedNets"] for r in runs[arm]["rows"])
+        want = sum(r["score"]["routableNets"] for r in runs[arm]["rows"])
         det = (f"{s['deterministic']}/{s['instances']}"
                if s.get("deterministic") is not None else "n/m")
         print(f"{arm:<18}{s['meanCompleteness'] * 100:>11.1f}%"
+              f"{got:>6}/{want:<3}"
               f"{s['cleanInstances']:>4}/{s['instances']:<3}"
               f"{s['harnessErrors']:>12}{det:>6}"
               f"{s['collidingCopperIds']:>11}{s['totalSeconds']:>9.0f}")
@@ -63,15 +72,15 @@ def main(argv: list[str] | None = None) -> int:
                   f"{s['cleanInstancesWithUniqueIds']:>4}/{s['instances']:<3}"
                   f"{s['harnessErrorsWithUniqueIds']:>12}")
 
-    print(f"\n{'instance':<48}" + "".join(f"{a:>17}" for a in order))
+    print(f"\n{'instance':<44}" + "".join(f"{a[-13:]:>15}" for a in order))
     per: dict[str, dict[str, float]] = {}
     for arm in order:
         for row in runs[arm]["rows"]:
             per.setdefault(row["instance"], {})[arm] = row["score"]["completeness"]
     for instance in sorted(per):
-        cells = "".join(f"{per[instance].get(a, float('nan')) * 100:>16.1f}%"
+        cells = "".join(f"{per[instance].get(a, float('nan')) * 100:>14.1f}%"
                         for a in order)
-        print(f"{instance:<48}{cells}")
+        print(f"{instance:<44}{cells}")
 
     # Where did the regions actually do work?
     spatial_runs = [a for a in order if a.startswith("spatial")]

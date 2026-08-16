@@ -1,66 +1,84 @@
-"""Spatial decomposition: cut the board into regions, give each one an expert.
+"""Spatial decomposition: cut the board into regions, and route the escape first.
 
-Our own keyboard is the argument for this. It is three routing problems wearing
-one coat — a 10x5 matrix at 10mm pitch (textbook channel routing), a 0.4mm-pitch
-QFN escape (a small exact problem), and ordinary signals across open board
-between them. A general router that handles all three adequately is worse than
-three specialists, and the tournament said the same thing from the other side:
-selecting one family per *board* is worth two nets, but the nine families
-between them route 378 of 380 nets. The winner varies **inside** a board.
+The plan this module was built to test was *regions to specialists* — the key
+matrix to a channel router, the 0.4mm QFN escape to the exact solver, open
+board to PathFinder — with the inter-region nets routed first to fix the
+crossings. Measured on the 16 benchmark instances at ruler ``e1ee2a5623d0``,
+**that plan loses and one piece of it wins**:
 
-What this module does, in the order that works
-----------------------------------------------
+======================================  ============  ========  =======  =====
+arm                                     mean routed   nets      clean    s
+======================================  ============  ========  =======  =====
+one router, whole board                 81.5%         320/380   3/16     312
+relay, four routers on the residue      90.6%         350/380   5/16     589
+regions to specialists                  70.9%         261/380   3/16     190
+same partition, one router everywhere   75.6%         287/380   3/16     172
+**same nets, dealt out at random**      **79.8%**     286/380   4/16     170
+escapes first, then crossings           86.9%         319/380   6/16     241
+**escapes first + the relay's chain**   **94.3%**     346/380   **8/16** 743
+======================================  ============  ========  =======  =====
 
-1. **Partition the components**, not the nets. A package cannot be split, so a
-   component is the atom. The cut is a sweep bisection — sort the components
-   along one axis, try every position where the coordinate changes, keep the
-   one that cuts the fewest nets subject to a balance constraint — applied
-   recursively. Sweeping rather than clustering keeps a region convex and
-   contiguous, which is what makes "this region has a character" a true
-   statement about geometry rather than about a label.
+Three findings, in the order they change what you would build:
 
-2. **Route the crossing nets first, on the whole board.** This is the part
-   spatial decomposition usually gets wrong. A region routed optimally in
-   isolation can leave no legal crossing at its edge, so the boundary
-   conditions have to be fixed before any region solves. ``boundary_clearance``
-   widens the global stage's target clearance so the copper that fixes the
-   crossings leaves room for the regions that have to route around it.
+**Route the escape before the crossings.** Fixing the crossings first is the
+textbook order and it is wrong here: a 0.4mm-pitch escape has one or two
+channels out of the package and a crossing net can detour round the whole
+part, so whoever goes first should be the one with no alternative. Moving the
+fine-pitch regions ahead of the crossing stage is worth **+11.3 points and
+three more finished boards** on one router, and it is what takes the full
+composition past the relay — 8 boards at 100% against the relay's 5, for 26%
+more wall clock.
+
+**The crossing/interior split is worse than no information at all.** With the
+crossings first, dealing the same nets into the same-sized groups by hash
+scores *better* than the real partition (79.8% against 75.6%). The seam only
+pays when it is used to say *which region is the escape*, never to say which
+nets are local.
+
+**The expert table lost to the constant.** On the identical partition, order
+and budget, ``pathfinder-negotiated`` connects 114 of the 123 interior nets in
+lattice regions where ``exact-and-structured`` connects 94, and 28 of 88
+against 22 in fine-pitch regions. That is the region-level form of two rules
+the board-level tournament already refuted, failing the same way; both are in
+:data:`REJECTED_ASSIGNMENTS` and the default map is the constant.
+
+How it runs
+-----------
+
+1. **Partition the components**, not the nets — a package cannot be split, so a
+   component is the atom. Sweep bisection: sort the components along one axis,
+   try every position where the coordinate changes, keep the split that cuts
+   the fewest nets subject to a balance constraint, recurse while a split still
+   isolates more nets than it cuts. Sweeping rather than clustering keeps a
+   region convex and contiguous, which is what makes "this region has a
+   character" a statement about geometry rather than a label.
+
+2. **The fine-pitch regions**, if ``escape_first``. This is the stage above.
+
+3. **The crossing nets**, on the whole board. ``boundary_clearance`` widens
+   this stage's target clearance so the copper that fixes the crossings leaves
+   room for the regions that must route around it.
 
    *"Low resolution" here means which nets are visible, not a coarser grid.*
-   The global stage sees every obstacle at full precision and only the nets
-   that span regions. There is no shared coarse-grid notion across nine
-   families to exploit, and inventing one for this module would make its copper
-   incomparable with everything else in the package.
+   The stage sees every obstacle at full precision and only the nets that span
+   regions. There is no shared coarse-grid notion across nine families to
+   exploit, and inventing one would make this copper incomparable with
+   everything else in the package.
 
-3. **Route each region's interior nets with its expert**, hardest region first,
-   with every piece of copper already down as an obstacle. Because each stage's
-   ``Workspace`` treats the previous stages' copper as an obstacle, the
-   composition cannot invent a clearance violation that no stage could see —
-   the same property that makes the relay safe.
+4. **Each remaining region's interior nets**, hardest first, with every piece
+   of copper already down as an obstacle. Because each stage's ``Workspace``
+   treats the previous stages' copper as an obstacle, the composition cannot
+   invent a clearance violation that no stage could see — the property that
+   makes the relay safe, and the reason none of the arms above scores a single
+   harness error.
 
-4. **Optionally hand the residue to a follower chain**, which is the relay
-   applied to whatever the regions could not finish.
+5. **The residue to a follower chain**, which is the relay applied to what the
+   regions could not finish.
 
-What the seam is worth, and what the experts are not
-----------------------------------------------------
-
-The partition is measured: :func:`partition` reports, per instance, how many
-nets end up interior to a region and how many cross. On the 16 benchmark
-instances that is 44-78% interior on the four large boards, 18% on
-``matrix-ldo-3v3__rp2040-core__usb-c-power``, and **no seam at all** on three
-small cells. A board with no useful seam is a real outcome, not a failure to
-report: :attr:`Partition.seam` is False with a reason and the composition
-degenerates to its global router by construction, so this arm can never
-quietly turn into per-board selection.
-
-**The expert table lost.** The whole point of decomposing was to hand the key
-matrix to the structured router and the QFN escape to the exact solver, and on
-the identical partition, region order and budget, routing every region with
-``pathfinder-negotiated`` instead connects *more* nets in both classes — 114
-against 94 on lattice regions, 28 against 22 on fine-pitch. So the default
-mapping is the constant, the two hypotheses are recorded in
-:data:`REJECTED_ASSIGNMENTS`, and the module keeps the partition rather than
-the assignment. The value of a seam here is **ordering**, not specialisation.
+A board with no useful seam is a real outcome, not a failure to report:
+:attr:`Partition.seam` is False with a reason, and the composition then
+degenerates to the plain global router by construction, so it can never quietly
+become per-board selection. Three of the sixteen instances are in that state.
 """
 
 from __future__ import annotations
@@ -697,7 +715,7 @@ def route(
     experts: Mapping[str, str] | None = None,
     region_order: str = "hardest-first",
     boundary_clearance: float = 1.0,
-    escape_first: bool = False,
+    escape_first: bool = True,
     crossing_chain: Sequence[str] = (),
     residue: Sequence[str] = (),
     partition_kwargs: Mapping | None = None,
@@ -768,15 +786,14 @@ def route(
     else:
         order = sorted(part.regions, key=lambda r: r.id)
 
-    # 0. Optionally, the escapes before the crossings.
-    #
-    #    This contradicts the rule the rest of the module is built on, on
-    #    purpose. Fixing the crossings first is right when a region can be
-    #    solved many ways and only needs a legal edge; a 0.4mm-pitch escape is
-    #    the opposite — its interior nets have one or two channels out and a
-    #    crossing net can detour around the whole package. Measured on the
-    #    fine-pitch regions, which connect 22 of 88 with the expert and 28 of
-    #    88 with the global router when they go second.
+    # 0. The escapes, before the crossings. On by default because it is the
+    #    one thing in this module that pays: +11.3 points of mean completeness
+    #    and three more finished boards on one router (75.6% / 3 clean ->
+    #    86.9% / 6 clean), and 94.3% / 8 clean with the follower chain, past
+    #    the relay's 90.6% / 5. Fixing the crossings first is right when a
+    #    region can be solved many ways and only needs a legal edge; a
+    #    0.4mm-pitch escape is the opposite, so whoever has no alternative
+    #    should go first.
     attempted: set[str] = set()
     if escape_first:
         for region in [r for r in order if r.character == "fine-pitch"]:

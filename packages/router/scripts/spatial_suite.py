@@ -181,17 +181,20 @@ def run_one(arm: str, problem, budget, registry):
     # Every spatial arm is explicit about its expert map. ``spatial`` is the
     # refuted hypothesis; everything else routes every region with the global
     # router, which is what the A/B said to do.
-    options: dict = {"experts": {} if arm != "spatial" else HYPOTHESIS_EXPERTS}
+    # Every spatial arm names both knobs the module has a measured opinion
+    # about, so a change to a module default cannot silently redefine what an
+    # arm measured. ``spatial`` carries the refuted hypothesis in both.
+    options: dict = {
+        "experts": HYPOTHESIS_EXPERTS if arm == "spatial" else {},
+        "escape_first": arm in ("spatial-escape-first", "spatial-best"),
+    }
     if arm == "spatial-residue":
         options["residue"] = FOLLOWERS
     if arm == "spatial-tight":
         options["partition_kwargs"] = TIGHT
     if arm == "spatial-chain":
         options["crossing_chain"] = FOLLOWERS
-    if arm == "spatial-escape-first":
-        options["escape_first"] = True
     if arm == "spatial-best":
-        options["escape_first"] = True
         options["residue"] = FOLLOWERS
     if arm == "spatial-shuffled":
         options["given"] = shuffled(

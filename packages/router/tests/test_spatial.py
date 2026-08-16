@@ -429,6 +429,22 @@ class Contract(unittest.TestCase):
             "scripts/spatial_suite.py and a line in the routing doc",
         )
 
+    def test_the_escape_goes_first_by_default(self):
+        """The one thing in this module that pays. 75.6% / 3 clean with the
+        crossings first, 86.9% / 6 clean with the escapes first, on the same
+        partition and the same single router."""
+        problem = two_cluster_board()
+        part = spatial.partition(problem, min_cells=2, max_depth=1)
+        part = dataclasses.replace(
+            part,
+            regions=(dataclasses.replace(part.regions[0], character="fine-pitch"),
+                     part.regions[1]),
+        )
+        result = spatial.route(
+            problem, BUDGET, registry(spatial.GLOBAL_EXPERT), given=part
+        )
+        self.assertEqual(result.stages[0].stage, "r0")
+
     def test_rejected_assignments_never_shrinks(self):
         self.assertGreaterEqual(len(spatial.REJECTED_ASSIGNMENTS), 2)
 
