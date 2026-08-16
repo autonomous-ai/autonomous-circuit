@@ -39,6 +39,23 @@ Three things are new, and each is something a router can be told to optimise:
 **No pass mark is invented.** USB 2.0's 3.8mm intra-pair skew is a real budget
 and is cited. ``gap_cv`` and ``via_asymmetry`` have no standard, so they are
 reported raw and boards are ranked against each other.
+
+**One deliberate divergence from ``verifylib``, named because it moves a
+number.** Coupling here is measured **on the same layer only** — the P leg is
+compared against N copper on P's own layer, which is what
+``routerlib.scoring._pair_coupling`` does and what the test above pins.
+``verifylib.netclass._diff_pair_coupling`` takes the nearest N segment on any
+layer. On ``hydrate-coaster``'s connector-side pair that is 22.6% here against
+39% there: the two legs pass over each other on opposite sides, which is
+adjacency and not coupling. Stricter is the right side to be wrong on, but the
+two numbers are not interchangeable and should not be quoted as one.
+
+Measured on ``hydrate-coaster`` as shipped, this reproduces the pipeline's own
+report of ``circuitpy.diffpair`` exactly where the two overlap: the routed pair
+comes back at 37.03 / 38.99mm and **1.954mm of skew** against the pipeline's
+37.0 / 39.0 and 1.95, with zero via asymmetry. The connector-side pair, which
+``diffpair.py`` skips, comes back at **5.868mm** of skew against the pipeline's
+5.87 — and at 6 vias on one leg against 2 on the other.
 """
 
 from __future__ import annotations
