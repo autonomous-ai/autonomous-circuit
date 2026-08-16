@@ -161,6 +161,10 @@ ruler `e1ee2a5623d0`, `scripts/spatial_suite.py`. Full record in
 disagree whenever an arm wins on small boards. **`boards at 100%` is the column the fab-ready
 bar reads**, because a board with one net missing is not a board.
 
+Seconds are the weakest column and should be read as an order of magnitude. The machine is
+shared with other agents' builds, and the same `spatial-best` run took 743s once and 572s on a
+second pass — the copper was byte-identical both times, only the load differed.
+
 ### The escape goes first, and that is the result
 
 `spatial-best` is the first composition in this package to beat the relay: **8 boards finished
@@ -248,9 +252,10 @@ latent, not active, and `spatial` namespaces its stages so it cannot happen ther
   copper from `spatial-best` has not been through `kicad-cli pcb drc`.
 - **`boundary_clearance`.** The knob exists (widen the crossing stage's target clearance so it
   leaves room for the regions) and was never run at anything but 1.0.
-- **Determinism of the four-router arms at `--runs 2`.** `spatial` and `spatial-flat` are
-  16/16 on two runs; the arms marked `n/m` in the record were routed once, and the record says
-  `null` rather than a vacuous `true`.
+- **Determinism of five of the ten arms.** `relay`, `spatial`, `spatial-flat`,
+  `spatial-residue` and `spatial-best` are 16/16 byte-identical on two runs, and
+  `spatial-best` reproduced 94.32% and 8 clean exactly. The arms marked `n/m` in the record
+  were routed once, and the record says `null` rather than a vacuous `true`.
 
 ---
 

@@ -40,6 +40,7 @@ from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
 from circuitpy import kicad_schematic
+from circuitpy import pour_clearance
 from circuitpy import powerwidth
 from circuitpy import review as review_mod
 from circuitpy import router_bridge
@@ -914,6 +915,7 @@ def build_board(
     circuit_normalizations: list[circuit_normalize.CircuitNormalization] = []
     diffpair_results: list[diffpair.DiffPairResult] = []
     powerwidth_results: list[powerwidth.WidenResult] = []
+    pour_results: list[pour_clearance.PourResult] = []
     #: Stage 0b, one entry per compile attempt. Empty engine="off" rows are
     #: dropped from the sidecar; a stage that did nothing should not be noise.
     router_reports: list[dict] = []
@@ -1030,6 +1032,18 @@ def build_board(
                     built_circuit_json, profile, grade=_grade_power
                 )
             )
+        # Stage 0e: push the copper pour off anything it is too close to.
+        # A pour is polygons, and a polygon approximating a circle always errs
+        # inward — 32 sides measure R * 0.995185 at the chord midpoints. A via
+        # obeys none of `<copperpour>`'s margin props, so its cutout comes out
+        # at via_radius + 0.1 whatever we ask for, and (0.3 + 0.1) * 0.995185
+        # - 0.3 = 0.098mm against the 0.15mm the zone declares about itself.
+        # Last, because it is the only stage that must see the final copper:
+        # the pair pass and the widening pass both move metal the pour has to
+        # clear.
+        pour_results.append(
+            pour_clearance.repair_pour_clearance(built_circuit_json, profile)
+        )
         try:
             elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
@@ -1211,6 +1225,13 @@ def build_board(
         ]
         warnings.extend(widened.findings())
 
+    # What the pour repair had to move, if anything. Silence means the pour
+    # already held, which on a board with vias is worth being told.
+    if pour_results:
+        warnings.extend(
+            pour_results[min(kept_attempt, len(pour_results) - 1)].findings()
+        )
+
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
@@ -1230,6 +1251,10 @@ def build_board(
     if powerwidth_results:
         build_block["powerWidth"] = powerwidth_results[
             min(kept_attempt, len(powerwidth_results) - 1)
+        ].as_dict()
+    if pour_results:
+        build_block["pourClearance"] = pour_results[
+            min(kept_attempt, len(pour_results) - 1)
         ].as_dict()
 
     tool_versions = toolchain.versions()

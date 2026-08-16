@@ -59,6 +59,13 @@ class FabProfile:
     # habit line, and it is warn-band on purpose — an EE moves it here, in
     # one place, without touching a check.
     warn_power_trace_mm: float = 0.5
+    #: The clearance a copper pour declares about itself in the exported KiCad
+    #: project, and therefore the number KiCad's own DRC holds the *filled*
+    #: zone to. It is written by the tscircuit converter, not by us, and it is
+    #: stricter than this profile's copper floor — which is exactly why it has
+    #: to be written down here: a pour that satisfies our 0.1mm and not this
+    #: 0.15mm passes our gate and fails the packet the reviewer opens.
+    kicad_zone_clearance_mm: float = 0.15
     min_clearance_mm: float = 0.10       # JLC 1oz floor
     warn_clearance_mm: float = 0.127
     #: Slack when handing our floors to a *different* geometry engine. The

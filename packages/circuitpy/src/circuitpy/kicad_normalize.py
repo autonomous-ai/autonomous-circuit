@@ -450,6 +450,60 @@ def _candidate_centers(ex: float, ey: float, p: _PadGeom) -> list[tuple[float, f
     return out
 
 
+def _zone_fills(text: str) -> list[tuple[str, list[tuple[float, float]]]]:
+    """Every filled zone polygon in the board, as ``(net, points)``.
+
+    A pour is copper. Leaving it out of the feasibility test is how the
+    via-bridge repair — which exists to *fix* a clearance problem — created
+    one: on terminal-keyboard it added three vias and landed one **0.09807mm**
+    from the ground plane against the 0.15mm clearance the zone declares about
+    itself, and that was the last blocking finding on the board.
+
+    Ledger #11 said this in so many words after a via-nudge script that
+    validated new positions against pads only and produced six shorts. Same
+    lesson, one kind of copper further out: *all* the copper, or none of it.
+    """
+    out: list[tuple[str, list[tuple[float, float]]]] = []
+    for start, end in _balanced_spans(text, "(zone"):
+        block = text[start:end]
+        match = re.search(r'\(net_name\s+"?([^")\s]*)"?\s*\)', block)
+        net = match.group(1) if match else ""
+        for fill_start, fill_end in _balanced_spans(block, "(filled_polygon"):
+            pts = [
+                (float(a), float(b))
+                for a, b in re.findall(
+                    r"\(xy ([-\d.eE+]+) ([-\d.eE+]+)\)", block[fill_start:fill_end]
+                )
+            ]
+            if len(pts) >= 3:
+                out.append((net, pts))
+    return out
+
+
+def _point_poly_dist(px: float, py: float,
+                     pts: list[tuple[float, float]]) -> float:
+    """Distance from a point to a polygon's boundary; 0 if it is inside."""
+    inside = False
+    n = len(pts)
+    for i in range(n):
+        ax, ay = pts[i]
+        bx, by = pts[(i - 1) % n]
+        if (ay > py) != (by > py) and px < (bx - ax) * (py - ay) / (by - ay) + ax:
+            inside = not inside
+    if inside:
+        return 0.0
+    best = math.inf
+    for i in range(n):
+        ax, ay = pts[i]
+        bx, by = pts[(i + 1) % n]
+        dx, dy = bx - ax, by - ay
+        length = dx * dx + dy * dy
+        t = 0.0 if length == 0 else max(0.0, min(1.0, (
+            (px - ax) * dx + (py - ay) * dy) / length))
+        best = min(best, math.hypot(px - (ax + t * dx), py - (ay + t * dy)))
+    return best
+
+
 def _via_feasible(
     cx: float,
     cy: float,
@@ -464,6 +518,8 @@ def _via_feasible(
     clearance: float,
     hole_clear: float,
     hole_to_hole: float,
+    zones: list[tuple[str, list[tuple[float, float]]]] | None = None,
+    zone_clearance: float = 0.0,
 ) -> bool:
     """True if a via of this size at this center heals the dead-end safely."""
     radius = size / 2
@@ -490,6 +546,14 @@ def _via_feasible(
         d = math.hypot(cx - via.x, cy - via.y)
         if d - drill_r - via.drill / 2 < hole_to_hole - 1e-9:
             return False
+    # The pour. A via placed to heal one clearance problem must not create
+    # another against the copper that covers most of the board.
+    for zone_net, pts in zones or ():
+        if zone_net == net:
+            continue
+        d = _point_poly_dist(cx, cy, pts)
+        if d - radius < zone_clearance - 1e-9 or d - drill_r < hole_clear - 1e-9:
+            return False
     return True
 
 
@@ -507,6 +571,22 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
     clearance = profile.min_clearance_mm - profile.drc_tolerance_mm
     hole_clear = 0.2  # kicad_project_json's min_hole_clearance
     hole_to_hole = 0.2  # kicad_project_json's min_hole_to_hole
+    # A zone is held to the clearance it declares about itself, which the
+    # tscircuit converter writes and which is stricter than the board's
+    # netclass. Satisfying the looser one is how a via passes this test and
+    # fails the DRC on the very packet this function is preparing.
+    zone_clearance = max(
+        clearance, float(getattr(profile, "kicad_zone_clearance_mm", 0.15) or 0.15)
+    )
+    try:
+        zones = _zone_fills(text)
+    except Exception as exc:  # noqa: BLE001
+        result.notes.append(
+            f"via-bridge could not read the copper pours "
+            f"({type(exc).__name__}: {exc}); no vias were added, because "
+            "placing one without seeing the plane is how #11 happened"
+        )
+        return text
     try:
         pads, segs, vias = _parse_geometry(text)
     except Exception as exc:  # noqa: BLE001
@@ -538,7 +618,8 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
                 for size, drill in _VIA_CANDIDATES:
                     if _via_feasible(cx, cy, size, drill, seg.net, mate, seg,
                                      pads, segs, vias, clearance,
-                                     hole_clear, hole_to_hole):
+                                     hole_clear, hole_to_hole,
+                                     zones, zone_clearance):
                         placements.append((cx, cy, size, drill, seg.net))
                         vias.append(_ViaGeom(cx, cy, drill, seg.net))
                         placed = True
