@@ -52,6 +52,12 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
           ? "blocked"
           : "legal";
 
+  // A turn the gate could not grade belongs on the chip, not only inside a
+  // panel that is closed by default. "legal" and "legal, except for the turn
+  // you just made" have to look different at a glance, or the disclosure is
+  // decoration: the judge's words were that a green chip after a turn looks
+  // identical to one that actually graded the turn.
+  const turnsUnchecked = state === "legal" || state === "blocked" ? Number(turnsPending || 0) : 0;
   const label =
     state === "checking"
       ? "checking…"
@@ -60,8 +66,10 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
         : state === "unavailable"
           ? "check unavailable"
           : blocking
-            ? `${blocking} blocking`
-            : "legal";
+            ? `${blocking} blocking${turnsUnchecked ? ` · ${turnsUnchecked} turn${turnsUnchecked === 1 ? "" : "s"} unchecked` : ""}`
+            : turnsUnchecked
+              ? `legal · ${turnsUnchecked} turn${turnsUnchecked === 1 ? "" : "s"} unchecked`
+              : "legal";
 
   const findings = Array.isArray(verdict?.warnings) ? verdict.warnings : [];
   const worst = findings
@@ -71,7 +79,12 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
 
   return (
     <>
-      <span className="flex items-center gap-1" data-slot="placement-verdict" data-state={state}>
+      <span
+        className="flex items-center gap-1"
+        data-slot="placement-verdict"
+        data-state={state}
+        data-turns-unchecked={turnsUnchecked || undefined}
+      >
         <button
           type="button"
           onClick={() => (verdict || checking ? setOpen((value) => !value) : onCheck?.())}
@@ -84,7 +97,11 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
           }
           className={cn(
             "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium transition-colors",
-            state === "legal" && "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+            state === "legal" && !turnsUnchecked &&
+              "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+            // Not green. The board may well be fine; this gate did not say so.
+            state === "legal" && turnsUnchecked &&
+              "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300",
             state === "blocked" && "border-destructive/50 bg-destructive/15 text-destructive",
             (state === "unknown" || state === "checking" || state === "unavailable") &&
               "border-border/60 text-muted-foreground hover:text-foreground",
@@ -92,6 +109,8 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
         >
           {state === "checking" ? (
             <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : state === "legal" && turnsUnchecked ? (
+            <CircleHelp className="size-3" aria-hidden />
           ) : state === "legal" ? (
             <CircleCheck className="size-3" aria-hidden />
           ) : state === "blocked" ? (

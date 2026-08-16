@@ -185,6 +185,7 @@ export default function PcbCanvas({
   placements = null,
   snapStepMm = 0.5,
   onPlacementMove,
+  onPlacementRotate,
   onPlacementSelect,
   onContextMenuRequest,
   onSelect,
@@ -685,14 +686,26 @@ export default function PcbCanvas({
         return;
       }
       if (action.type === "rotate") {
-        // Nothing on this canvas can turn a part yet — the rotate edit lives
-        // in the placement editor, and this canvas has no callback to reach
-        // it. Swallow the key rather than let it scroll the page: a spacebar
-        // that pages the board down mid-drag is worse than one that does
-        // nothing, and silently doing nothing is the misfire class this whole
-        // pass exists to remove. The Properties row and the edit strip both
-        // carry a working ↺/↻ today.
+        // Altium's own gesture: Spacebar turns whatever is on the cursor,
+        // Shift+Spacebar turns it the other way. Always `preventDefault` —
+        // a spacebar that pages the board down mid-drag is worse than one
+        // that does nothing — and then actually turn the part.
+        //
+        // The key was answered by the arbiter and swallowed here for a day,
+        // with a comment saying this canvas had no callback to reach the
+        // editor. It had one: `BoardWorkspace` was already passing
+        // `onPlacementRotate` and this file never declared the prop. Two
+        // halves of one wire, each complete, neither connected — the same
+        // shape as the right button and as `board_fast_check`.
         event.preventDefault();
+        const drag = dragRef.current;
+        if (drag?.mode !== "move" || !drag.placement) return;
+        const refusal = onPlacementRotate?.(drag.placement, { direction: action.direction });
+        // The drag keeps going either way: the turn is its own edit, and the
+        // position still commits on mouse-up. A refusal (locked, or a part
+        // whose source cannot carry an angle) is shown where the user is
+        // already looking — the live readout under the cursor.
+        setMove((prev) => (prev ? { ...prev, note: refusal || "" } : prev));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1295,6 +1308,16 @@ export default function PcbCanvas({
           <span className="text-white/50">
             pcbX={formatMm(move.placement.x + move.dx)} pcbY={formatMm(move.placement.y + move.dy)}
           </span>
+          {/* Why a turn did not happen, under the cursor rather than in a
+              panel the user is not looking at mid-drag. */}
+          {move.note ? (
+            <>
+              <br />
+              <span data-slot="pcb-move-note" className="text-amber-300">
+                {move.note}
+              </span>
+            </>
+          ) : null}
         </div>
       ) : null}
 

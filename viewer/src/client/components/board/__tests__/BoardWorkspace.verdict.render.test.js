@@ -122,3 +122,37 @@ test("a gate that is down says so, instead of leaving the last green answer up",
     w.close();
   }
 });
+
+test("a turn the gate could not grade is on the chip, not only inside it", async () => {
+  // The gate translates elements; it cannot rotate them. So after a turn the
+  // verdict is about a board missing that turn — and "legal" and "legal,
+  // except for the thing you just did" have to look different at a glance or
+  // the disclosure is decoration.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle();
+
+    click(w.find('[data-slot="placement-rotate-cw"]'));
+    await w.settle(6);
+
+    const chip = w.find('[data-slot="placement-verdict"]');
+    assert.equal(chip.dataset.state, "legal");
+    assert.equal(chip.dataset.turnsUnchecked, "1");
+    assert.match(chip.textContent, /legal · 1 turn unchecked/);
+
+    // A second turn counts, and undoing one takes the count back down: the
+    // number follows the geometry, not the number of gestures.
+    click(w.find('[data-slot="placement-rotate-cw"]'));
+    await w.settle(6);
+    assert.match(w.find('[data-slot="placement-verdict"]').textContent, /2 turns unchecked/);
+    click(w.find('[data-slot="placement-undo"]'));
+    await w.settle(6);
+    assert.match(w.find('[data-slot="placement-verdict"]').textContent, /1 turn unchecked/);
+  } finally {
+    w.close();
+  }
+});

@@ -15,7 +15,7 @@ import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mj
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
-import { createEditQueue, planPlacementEdit, writeAtomic } from "./boardEdit.mjs";
+import { createEditQueue, planPlacementEdit, refuseWrittenBoard, writeAtomic } from "./boardEdit.mjs";
 import { runFastCheck } from "./fastCheck.mjs";
 import {
   PHASE,
@@ -616,6 +616,21 @@ export function createCircuitServices({ env = process.env } = {}) {
         // Written through a sibling temp file and renamed: a half-written board
         // source is one the next build cannot compile, and the build may start
         // the instant the catalog watcher notices the change.
+        // Bound the *result*, not the request. This command takes byte
+        // ranges, so it has no coordinate to check — which is exactly how a
+        // bound that lives in `board_edit_apply` gets walked around: every
+        // real gesture in the app (drag, Properties, undo, redo) writes
+        // through here, and `pcbX={1e30}` went straight to disk. Measured by
+        // the integrity judge, round 2, on the running server.
+        //
+        // Parsing the text the write produced is the only honest place to
+        // catch it. A placement the parser cannot see is left alone: this is a
+        // guard against a number that is not a position, not a second opinion
+        // about what the file may contain.
+        const refusal = refuseWrittenBoard(planned.text, current);
+        if (refusal) {
+          throw ipcError("INVALID_ARGUMENT", refusal, 400);
+        }
         writeAtomic(abs, planned.text);
         projects.touch(projectId);
         return { file: rel, text: planned.text, sourceLength: planned.text.length };

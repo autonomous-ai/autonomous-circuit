@@ -19,7 +19,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { click, pointer } from "../../../test/render.js";
+import { click, key, pointer } from "../../../test/render.js";
 import { openWorkspace } from "./boardWorkspace.test-helper.js";
 import { parseBoardSource } from "../boardSource.js";
 import { REASONS } from "../placementFields.js";
@@ -377,6 +377,42 @@ test("the turn buttons say what they will write, because 270 reads as a bug", as
     assert.match(cw.title, /writes pcbRotation=\{270\}/);
     assert.match(cw.title, /counts counterclockwise/);
     assert.match(ccw.title, /writes pcbRotation=\{90\}/);
+  } finally {
+    w.close();
+  }
+});
+
+test("Spacebar turns the part being dragged — Altium's own gesture", async () => {
+  // The arbiter answered Space and this canvas swallowed it, with a comment
+  // saying there was no callback to reach the editor. There was one: the
+  // workspace was already passing `onPlacementRotate` and PcbCanvas never
+  // declared the prop. Two halves of one wire, neither connected — the same
+  // shape as the right button and as `board_fast_check` before it.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    const start = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", start);
+    pointer(w.canvas, "move", { clientX: start.clientX + 2 * w.view.scale, clientY: start.clientY });
+
+    key(window, " ");
+    await w.settle(6);
+    const turned = parseBoardSource(w.server.source).placements.find((one) => one.id === "resistor[1]");
+    assert.equal(turned.rotation, 90, "Space did not turn the part being dragged");
+
+    // Shift+Space turns it back the other way, and the drag is still live —
+    // the position commits on mouse-up as it always did.
+    key(window, " ", { shiftKey: true });
+    await w.settle(6);
+    assert.equal(
+      parseBoardSource(w.server.source).placements.find((one) => one.id === "resistor[1]").rotation,
+      0,
+    );
+
+    pointer(w.canvas, "up", { clientX: start.clientX + 2 * w.view.scale, clientY: start.clientY });
+    await w.settle(6);
+    const after = parseBoardSource(w.server.source).placements.find((one) => one.id === "resistor[1]");
+    assert.equal(after.x, 0, "the drag that carried the turn lost its move");
   } finally {
     w.close();
   }

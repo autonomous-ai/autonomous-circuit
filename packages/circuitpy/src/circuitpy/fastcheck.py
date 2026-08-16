@@ -439,6 +439,16 @@ NOT_CHECKED: tuple[dict[str, str], ...] = (
         "why": "the BOM gate and gerber truth have no input until the exporter "
                "has run. 'orderable' is not a word this answer may use.",
     },
+    {
+        "what": "KiCad's own ERC and DRC",
+        "why": "the second substrate. The build converts the board and runs "
+               "kicad-cli over it, and that leg is where clearance, shorting "
+               "and unconnected findings come from — on hydrate-coaster it is "
+               "**88% of everything the sidecar reports**. It costs ~13.5s and "
+               "needs the converted board, so it cannot run between a mouse-up "
+               "and the next frame. A clean answer here is a clean answer from "
+               "one ruler out of two.",
+    },
 )
 
 

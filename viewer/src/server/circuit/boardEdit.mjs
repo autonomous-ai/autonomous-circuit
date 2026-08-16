@@ -93,6 +93,64 @@ function placementLabel(placement) {
  * a refusal rather than a silent success because the caller is about to record
  * a revision and rebuild a board on the strength of the answer.
  */
+/**
+ * Why this write must not land, or "".
+ *
+ * `board_source_write` takes byte ranges, so it has no coordinate to check —
+ * and it is the command every real gesture in the app goes through (drag,
+ * Properties, undo, redo). A bound that lives only in `planPlacementEdit` is
+ * therefore a bound on the endpoint nothing calls: measured on the running
+ * server, `pcbX={1e30}` spliced through here was written to disk without
+ * complaint, twice.
+ *
+ * So the *result* is what gets checked, two ways, because the obvious way
+ * misses the interesting half:
+ *
+ * 1. **A placement nowhere a board could be.** ±1000mm, the same rule the
+ *    semantic endpoint applies, from the same function.
+ * 2. **A placement that has stopped being readable.** `1e30` is not caught by
+ *    (1) at all — the parser's number grammar has no exponent, so the part
+ *    does not come back as out of range, it does not come back *at all*. A
+ *    board whose editor can no longer see a part it could see a moment ago is
+ *    a worse outcome than a refused write, and it is invisible until someone
+ *    tries to drag that part. Counting rather than comparing ids on purpose:
+ *    the wrap edit deliberately renames a placement (an `<Ldo3v3>` becomes a
+ *    `<group>`) and must keep working.
+ *
+ * A file that does not parse at all, before or after, is left alone. This is a
+ * guard against a number that is not a position, not a second opinion about
+ * what a board file may contain.
+ */
+export function refuseWrittenBoard(text, previousText) {
+  let after;
+  try {
+    after = parseBoardSource(String(text || ""));
+  } catch {
+    return "";
+  }
+  if (!after?.ok) return "";
+  for (const placement of after.placements || []) {
+    const reason = placementRangeReason(placement.x, placement.y);
+    if (reason) return `${placement.name || placement.id}: ${reason}`;
+  }
+  if (previousText === undefined || previousText === null) return "";
+  let before;
+  try {
+    before = parseBoardSource(String(previousText));
+  } catch {
+    return "";
+  }
+  if (!before?.ok) return "";
+  const lost = (before.placements?.length || 0) - (after.placements?.length || 0);
+  if (lost > 0) {
+    return (
+      `this edit makes ${lost} placement${lost === 1 ? "" : "s"} unreadable — ` +
+      "the board file would still compile, and the app could no longer see the part to move it"
+    );
+  }
+  return "";
+}
+
 export function planPlacementEdit(source, edit) {
   const kind = String(edit?.kind || "move");
   const parsed = parseBoardSource(source);

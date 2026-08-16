@@ -449,6 +449,61 @@ const TOOLCHAIN_READY =
   Boolean(resolvePython()) &&
   pythonPathDirs().length > 0;
 
+test("a byte-range write cannot put a part somewhere a board cannot be", async () => {
+  // The bound used to live in `planPlacementEdit`, which is `board_edit_apply`
+  // — an endpoint no client code calls. Every real gesture (drag, Properties,
+  // undo, redo) writes byte ranges through `board_source_write`, and
+  // `pcbX={1e30}` went straight to disk through it, twice, on the running
+  // server. A command that takes byte ranges has no coordinate to check, so
+  // the *result* is what gets checked.
+  const app = await bootServer();
+  try {
+    const before = fs.readFileSync(app.board, "utf8");
+    const at = before.indexOf("pcbX={1}");
+    assert.ok(at > 0, "the fixture board must have R1's literal in it");
+    const start = at + "pcbX={".length;
+
+    const refused = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start, end: start + 1, text: "1e30", expected: "1" }],
+      sourceLength: before.length,
+    });
+    assert.equal(refused.status, 400);
+    // `1e30` is not caught as out of range — it is not caught as a *number*.
+    // The parser's grammar has no exponent, so the part stops appearing in the
+    // parse at all, which is the worse outcome: a board whose editor can no
+    // longer see a part it could see a moment ago, invisible until someone
+    // tries to drag it.
+    assert.match(refused.body.message, /unreadable/);
+    assert.equal(fs.readFileSync(app.board, "utf8"), before, "the refused write reached the file");
+
+    // A coordinate the parser CAN read, and that is still nowhere a board
+    // could be, is refused by the bound itself.
+    const far = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start, end: start + 1, text: "4000", expected: "1" }],
+      sourceLength: before.length,
+    });
+    assert.equal(far.status, 400);
+    assert.match(far.body.message, /±1000mm/);
+    assert.equal(fs.readFileSync(app.board, "utf8"), before);
+
+    // And an ordinary move through the same path still writes.
+    const ok = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start, end: start + 1, text: "4", expected: "1" }],
+      sourceLength: before.length,
+    });
+    assert.equal(ok.status, 200);
+    assert.match(fs.readFileSync(app.board, "utf8"), /pcbX=\{4\}/);
+  } finally {
+    app.close();
+  }
+});
+
 test(
   "the gate catches a drag on terminal-keyboard without compiling anything",
   { skip: TOOLCHAIN_READY ? false : "example board or pinned toolchain not present" },
