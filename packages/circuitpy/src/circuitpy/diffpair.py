@@ -35,18 +35,15 @@ see, so it would route straight through the pair. The other hook, ``<tracehint>`
 only reaches connections built from two-port ``source_trace`` rows; D+/D- reach
 the MCU through a *net*, and net connections never get hint points inserted.
 
-**But the corridor CAN be reserved, and that is the way out for the boards
-this pass refuses.** Measured in the bundle 2026-08-16, correcting what the
-paragraph above used to imply: the obstacle builder has an explicit
-``element.type === "pcb_keepout"`` branch that pushes an oval or a rect with
-``connectedTo: []``, and the same for ``pcb_cutout``. A keepout is not copper,
-so nothing has to be deleted from the output — the autorouter simply refuses to
-enter it, and the pair pass can then lay its two legs in a channel that is
-guaranteed clear instead of hunting for one in the leftovers. The pair's
-endpoints are known at *placement* time, before any routing happens, so the
-reservation costs no extra build. That is what `harness-puck` and
-`terminal-keyboard` need, and it is the concrete shape of what
-`pipeline-v2.md` calls the v2 route stage.
+**But the corridor CAN be reserved, and this pass now consumes one.** Measured
+in the bundle 2026-08-16, correcting what the paragraph above used to imply:
+the obstacle builder has an explicit ``element.type === "pcb_keepout"`` branch
+that pushes an oval or a rect with ``connectedTo: []``, and the same for
+``pcb_cutout``. A keepout is not copper, so nothing has to be deleted from the
+output — the autorouter simply refuses to enter it, and the pair pass can then
+lay its two legs in a channel that is guaranteed clear instead of hunting for
+one in the leftovers. The pair's endpoints are known at *placement* time,
+before any routing happens, so the reservation costs no extra build.
 
 (The earlier reading of this file listed the obstacle set as components, pads,
 holes, vias and cutouts, and concluded that nothing could be reserved. That
@@ -54,6 +51,38 @@ list is `getSimpleRouteJsonFromCircuitJson`'s *pre-filter*, not the obstacle
 builder, and it is why this pass shipped believing it had no option. The
 `pcb_trace` half of the claim stands: copper laid before the autorouter is
 still copper it routes straight through.)
+
+**How the reservation reaches this pass.** ``route_diff_pairs(..., reservation=)``
+takes the *record of what the pipeline wrote* — the exact
+``(shape, layers, center, radius | width/height)`` of every keepout it injected
+into the mirrored board source — and nothing else. From that record this pass
+does two things and refuses to do a third:
+
+1. **It stops treating those keepouts as obstacles**, so the channel reserved
+   *for* the pair is a channel the pair may enter. Every other keepout on the
+   board — ledger #1's USB-C belly rect, ledger #7's mounting holes, anything a
+   user wrote — keeps blocking, because the exemption is by geometry, matched at
+   ``RESERVE_MATCH_TOL_MM`` against the record, and **exactly one keepout per
+   record entry or the whole reservation is dropped**. Zero matches is fine and
+   expected: a release pass may have stripped the elements already, and an
+   exemption with nothing to exempt is safe. Two matches is not — that is the
+   only way a foreign keepout could be unblocked, so the pass throws the
+   reservation away and routes as if none had been offered.
+2. **It searches inside the corridor first.** The reserved shapes are a mask on
+   the search raster: the first attempt confines the centreline to them, so the
+   pair lands in the channel that was planned for it rather than in whatever
+   else the reserved rebuild happened to free. If no route fits inside, the
+   search widens to the whole board with the reservation still exempt, and only
+   then refuses.
+3. **It never invents a reservation.** There is no provenance field on a
+   ``pcb_keepout`` (no name, no description, and all of harness-puck's four
+   report the same ``subcircuit_id``), so a keepout this pass was not told about
+   is somebody else's rule. Never by id, never by type, never "all keepouts".
+
+Everything downstream of the search is unchanged: the exact clearance test runs
+against the real shapes, the coupling/skew/clearance comparison still has to
+improve, and the pipeline's own gate still decides. A reservation buys room to
+search; it buys no leniency.
 
 **As shipped today the pair is routed after the autorouter, in the space its
 own detour frees.** The old copper is deleted first, which is what makes room: a 51.71 mm
@@ -73,19 +102,69 @@ RP2040 native USB is full-speed. What is delivered is geometry — parallel,
 constant gap, matched length — which is what the EE asked for and what the
 skew and coupling numbers measure.
 
-**What it costs, measured 2026-08-16 against the same three boards.**
+**What it costs, measured 2026-08-16 against the committed artifacts.**
 
     hydrate-coaster     routed  coupling 7% -> 95%, skew 13.91 -> 1.95 mm,
                                 worst clearance 0.115 -> 0.128 mm,
                                 8 vias out / 8 in, 8 s
-    harness-puck        refused no corridor: a pair at via pitch needs 0.96 mm
-                                of clear copper and neither layer has it
-    terminal-keyboard   refused no clear fan-out from the RP2040's USB_DM pad
+    harness-puck        refused no_corridor, needs 0.574 mm one layer / 0.99 two
+    terminal-keyboard   refused no_corridor, needs 0.766 mm one layer / 1.04 two
 
-Two of three refuse, and that is the honest limit of running last: the pair
-can only use what the autorouter left over. Reserving the corridor *first* is
-the v2 route stage's job (`docs/architecture/pipeline-v2.md`), and these two
-numbers are what it has to beat.
+Two of three refuse, and that is the honest limit of running last **on a board
+with no reservation**: the pair can only use what the autorouter left over.
+
+**And what a reservation buys, measured on both refusing boards the same day**
+(``work/reserve-consume/``). Each board was rebuilt from its own source with a
+single-layer top corridor written in — a chain of discs of
+``pair_span(profile, width, allow_layers=False).half_span_mm + 0.15`` — at the
+same ``autorouterEffortLevel="5x"``. The router honoured it: top-layer copper
+crossing the corridor went **51 segments / 18.042 mm / 7 vias -> 0 / 0.000 mm /
+0** on harness-puck and **50 / 20.584 mm / 8 -> 0 / 0.000 mm / 0** on
+terminal-keyboard. Then this pass, on those artifacts:
+
+    harness-puck        107 discs, r = 0.4371 mm
+      no reservation, corridor standing   refused  no_corridor, needs 0.574 mm
+      reservation, corridor standing      routed*  gate reverts it
+      reservation, corridor released      routed   coupling 2.4% -> 98.7%,
+                                                   skew 8.93 -> 1.37 mm,
+                                                   clearance -0.075 -> 0.164 mm,
+                                                   blocking 7 -> 4, 0 traces lost
+    terminal-keyboard    56 discs, r = 0.5328 mm
+      no reservation, corridor standing   refused  no_corridor, needs 0.766 mm
+      reservation, corridor released      routed   coupling 17.3% -> 97.9%,
+                                                   skew 10.89 -> 0.48 mm,
+                                                   clearance -0.100 -> 0.148 mm,
+                                                   blocking 35 -> 26, 0 lost
+
+The first line of each block is the point of the ``reservation`` argument: **a
+corridor this pass has not been told about is a wall to it**, because
+``collect_obstacles`` reads every keepout as a hard obstacle at clearance 0.0.
+Same board, same copper, same corridor — the record is the whole difference.
+
+The starred line is the second point, and it constrains the *pipeline*, not this
+file: with the keepouts still in the artifact the route is found and then **the
+gate throws it away**, because ``@tscircuit/checks`` reports every crossing as
+``pcb_trace_error … overlaps with pcb_keepout (accidental contact)`` — 214 of
+them. This pass does not delete elements it did not write, so the release
+(stage 0R', ``reserve.py``) has to run before the gate does.
+
+Third, confinement is what makes it affordable: on the released harness-puck the
+same pass takes **36.8 s** confined to the corridor's bounding box against
+**432.0 s** for the whole-board margin escalation, and returns the same pair
+(skew 1.369 mm against 1.313 mm).
+
+**And the honest limit, which is not this file's to fix.** Both reserved boards
+carry more blocking findings than their own unreserved rebuilds — harness-puck
+**1 -> 7** before this pass and 4 after, terminal-keyboard **1 -> 35** before and
+26 after, same command, same effort, ``--disable-parts-engine`` on both sides.
+The pair is real and so is the cost, and under the reservation gate's own rule
+("attempt-level blocking not higher") stage 0R must discard both attempts and
+restore attempt 1 whole. So EE finding 3 is *routable* on these two boards and
+still not *closed* on them: what has to get cheaper is the corridor, which is
+``reserve.py``'s and the placement's problem.
+
+``docs/architecture/reserve-before-route.md`` is where the corridor is planned,
+injected and released. This file is its consumer, not its author.
 """
 
 from __future__ import annotations
@@ -166,6 +245,226 @@ _PAIR_TOKENS: tuple[tuple[str, str], ...] = (
     ("DP", "DM"),
 )
 
+#: How close a reservation entry's numbers have to be to a keepout's before the
+#: two are the same element. The pipeline writes millimetres into TSX and reads
+#: millimetres back out of circuit.json, so the round trip is exact in practice;
+#: 1e-6 mm is a nanometre — six orders of magnitude under any fab rule and well
+#: above float noise at board coordinates. Deliberately not a "close enough"
+#: tolerance: matching loosely is how a foreign keepout gets unblocked.
+RESERVE_MATCH_TOL_MM = 1e-6
+
+
+# ---------------------------------------------------------------------------
+# The reservation: what the pipeline reserved, recorded by its own numbers.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReservedKeepout:
+    """One keepout the pipeline wrote, as the numbers it wrote.
+
+    Not an id. Ids renumber — in the measured proof build the injected element
+    came back as ``pcb_keepout_1``, and in the baseline ``pcb_keepout_1`` is a
+    ``MountingHole`` circle (ledger #7). Matching by id would exempt the wrong
+    element on the very board this exists to serve.
+    """
+
+    shape: str
+    layers: tuple[str, ...]
+    cx: float
+    cy: float
+    radius: float = 0.0
+    width: float = 0.0
+    height: float = 0.0
+
+    @classmethod
+    def from_obj(cls, obj: Any) -> "ReservedKeepout | None":
+        """Read one entry, shaped exactly like the ``pcb_keepout`` element the
+        pipeline emitted. Extra keys are ignored; a malformed entry is None,
+        and one None entry invalidates the whole reservation."""
+        if not isinstance(obj, dict):
+            return None
+        shape = str(obj.get("shape") or "")
+        if shape not in ("circle", "rect"):
+            return None
+        centre = obj.get("center") or obj.get("centre") or {}
+        if isinstance(centre, dict):
+            cx, cy = _f(centre.get("x")), _f(centre.get("y"))
+        elif isinstance(centre, (list, tuple)) and len(centre) == 2:
+            cx, cy = _f(centre[0]), _f(centre[1])
+        else:
+            cx, cy = _f(obj.get("x")), _f(obj.get("y"))
+        if cx is None or cy is None:
+            return None
+        layers = obj.get("layers")
+        if not isinstance(layers, (list, tuple)) or not layers:
+            return None
+        if shape == "circle":
+            radius = _f(obj.get("radius"))
+            if radius is None or radius <= 0:
+                return None
+            return cls("circle", tuple(str(x) for x in layers), cx, cy,
+                       radius=radius)
+        width, height = _f(obj.get("width")), _f(obj.get("height"))
+        if width is None or height is None or width <= 0 or height <= 0:
+            return None
+        return cls("rect", tuple(str(x) for x in layers), cx, cy,
+                   width=width, height=height)
+
+    def matches(self, keepout: dict) -> bool:
+        """Is this circuit.json ``pcb_keepout`` the element we recorded?"""
+        other = ReservedKeepout.from_obj(keepout)
+        if other is None or other.shape != self.shape:
+            return False
+        if tuple(sorted(other.layers)) != tuple(sorted(self.layers)):
+            return False
+        near = RESERVE_MATCH_TOL_MM
+        if abs(other.cx - self.cx) > near or abs(other.cy - self.cy) > near:
+            return False
+        if self.shape == "circle":
+            return abs(other.radius - self.radius) <= near
+        return (abs(other.width - self.width) <= near
+                and abs(other.height - self.height) <= near)
+
+    def covers(self, layer: str) -> bool:
+        return layer in self.layers
+
+    @property
+    def area_mm2(self) -> float:
+        if self.shape == "circle":
+            return math.pi * self.radius * self.radius
+        return self.width * self.height
+
+
+@dataclass(frozen=True)
+class Reservation:
+    """Every keepout the pipeline reserved for one pair, and which pair.
+
+    ``pair`` is the two *net names* the corridor was planned for. A board with
+    two pairs must not let the second one walk into the first one's channel, so
+    a named reservation is only exempt and only searched for that pair.
+    ``None`` means "the one pair on this board", which is what a single-consumer
+    caller wants and what the tests use.
+    """
+
+    keepouts: tuple[ReservedKeepout, ...]
+    pair: tuple[str, str] | None = None
+
+    @classmethod
+    def from_obj(cls, obj: Any) -> "Reservation | None":
+        """A list of keepout records, or ``{"pair": [p, n], "keepouts": [...]}``.
+
+        Returns None for anything malformed — never a partial reservation. A
+        reservation we cannot read in full is a reservation we do not use, and
+        the pass then behaves exactly as it does with none at all.
+        """
+        if obj is None:
+            return None
+        if isinstance(obj, Reservation):
+            return obj
+        pair: tuple[str, str] | None = None
+        entries: Any
+        if isinstance(obj, dict):
+            entries = obj.get("keepouts")
+            named = obj.get("pair")
+            if isinstance(named, (list, tuple)) and len(named) == 2:
+                pair = (str(named[0]), str(named[1]))
+        else:
+            entries = obj
+        if not isinstance(entries, (list, tuple)) or not entries:
+            return None
+        out: list[ReservedKeepout] = []
+        for entry in entries:
+            parsed = (entry if isinstance(entry, ReservedKeepout)
+                      else ReservedKeepout.from_obj(entry))
+            if parsed is None:
+                return None
+            out.append(parsed)
+        return cls(tuple(out), pair)
+
+    def is_for(self, name_p: str, name_n: str) -> bool:
+        if self.pair is None:
+            return True
+        return {self.pair[0], self.pair[1]} == {name_p, name_n}
+
+    @property
+    def area_mm2(self) -> float:
+        return sum(k.area_mm2 for k in self.keepouts)
+
+
+@dataclass
+class _ResolvedReservation:
+    """What the reservation turned out to be against a real circuit.json."""
+
+    reservation: Reservation
+    shapes: tuple[ReservedKeepout, ...]
+    exempt_ids: frozenset[str]
+    matched: int
+    released: int
+    usable: bool
+    note: str = ""
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "entries": len(self.reservation.keepouts),
+            "matched": self.matched,
+            "released": self.released,
+            "usable": self.usable,
+            # The sum of the shapes' areas, **not** the swept area: a corridor
+            # is a chain of deliberately overlapping discs, so this
+            # double-counts every overlap (harness-puck: 64.363 against a
+            # measured 37.965 mm² swept). Named for what it is, because the
+            # design's area cap is on swept area and a number that looks like
+            # it and is not would fail that cap for the wrong reason.
+            "sumOfShapeAreasMm2": round(self.reservation.area_mm2, 3),
+        }
+
+
+def _resolve_reservation(board: "_Board",
+                         reservation: Reservation) -> _ResolvedReservation:
+    """Match every recorded entry against the board, exactly once or not at all.
+
+    Three outcomes per entry, and only one of them is dangerous:
+
+    * **one match** — that keepout is ours; exempt it and keep its geometry.
+    * **no match** — a release pass already stripped it. Nothing is exempted
+      (so no foreign keepout can be), and the geometry is still the corridor
+      the router was made to avoid, so the search still uses it.
+    * **two or more matches** — we cannot tell which one we wrote, and one of
+      the others could be a user's. The whole reservation is dropped.
+    """
+    keepouts = board.by_type.get("pcb_keepout", [])
+    exempt: set[str] = set()
+    matched = released = 0
+    for entry in reservation.keepouts:
+        hits = [k for k in keepouts if entry.matches(k)]
+        if len(hits) == 1:
+            identifier = str(hits[0].get("pcb_keepout_id") or "")
+            if not identifier:
+                return _ResolvedReservation(
+                    reservation, (), frozenset(), matched, released, False,
+                    "a reserved keepout in the artifact carries no id, so it "
+                    "cannot be exempted safely; the reservation is ignored",
+                )
+            exempt.add(identifier)
+            matched += 1
+        elif not hits:
+            released += 1
+        else:
+            return _ResolvedReservation(
+                reservation, (), frozenset(), matched, released, False,
+                f"a reserved keepout matches {len(hits)} keepouts on the board; "
+                "one of them may not be ours, so the reservation is ignored and "
+                "every keepout keeps blocking",
+            )
+    note = ""
+    if released:
+        note = (f"{released} of {len(reservation.keepouts)} reserved keepout(s) "
+                "are no longer in the artifact (already released); their "
+                "geometry is still used as the corridor")
+    return _ResolvedReservation(reservation, reservation.keepouts,
+                                frozenset(exempt), matched, released, True, note)
+
 
 # ---------------------------------------------------------------------------
 # Reporting
@@ -206,10 +505,22 @@ class PairOutcome:
     net_n: str
     status: str  # "routed" | "refused" | "skipped"
     reason: str = ""
+    #: The same refusal, as a token a caller can branch on. Prose is for the
+    #: human reading the sidecar; the reservation stage keys on
+    #: ``reason_code == "no_corridor"`` and nothing else, because a stage that
+    #: greps an English sentence breaks the first time the sentence improves.
+    reason_code: str = ""
+    #: For ``no_corridor``: how much clear copper the narrowest attempt needed,
+    #: in millimetres, and which attempt that was. This is the number a
+    #: corridor has to beat.
+    need_mm: float | None = None
+    layer_mode: str = ""
     before: PairMeasurement | None = None
     after: PairMeasurement | None = None
     layer: str = ""
     pitch_mm: float = 0.0
+    #: What a reservation, if one was offered for this pair, turned out to be.
+    reserved: dict[str, object] | None = None
 
     def as_dict(self) -> dict[str, object]:
         out: dict[str, object] = {
@@ -218,10 +529,18 @@ class PairOutcome:
         }
         if self.reason:
             out["reason"] = self.reason
+        if self.reason_code:
+            out["reasonCode"] = self.reason_code
+        if self.need_mm is not None:
+            out["needMm"] = round(self.need_mm, 3)
+        if self.layer_mode:
+            out["layerMode"] = self.layer_mode
         if self.layer:
             out["layer"] = self.layer
         if self.pitch_mm:
             out["pitchMm"] = round(self.pitch_mm, 3)
+        if self.reserved is not None:
+            out["reserved"] = self.reserved
         if self.before is not None:
             out["before"] = self.before.as_dict()
         if self.after is not None:
@@ -397,6 +716,81 @@ def _rotated_rect(cx: float, cy: float, w: float, h: float,
         dx, dy = sx * w / 2, sy * h / 2
         out.append((cx + dx * cos - dy * sin, cy + dx * sin + dy * cos))
     return tuple(out)
+
+
+@dataclass(frozen=True)
+class PairSpan:
+    """How much room a pair needs, from the fab profile and the trace width.
+
+    **One owner, because there are two consumers.** This pass dilates its
+    search raster by ``half_span_mm``; ``reserve.py`` sizes the corridor it
+    reserves *before* the autorouter by the same number. A corridor planned
+    with a different ruler is a corridor this pass cannot enter, and that is
+    not a hypothesis: measured 2026-08-16, a corridor sized at exactly the
+    pass's minimum left **0.0093 mm** of slack over its own 0.05 mm raster and
+    the pass refused to use it. Two copies of this arithmetic would disagree in
+    one of them (ledger #15).
+    """
+
+    pitch_mm: float
+    half_span_mm: float
+    half_span_via_mm: float
+    via_outer_mm: float
+    via_drill_mm: float
+    allow_layer_change: bool
+
+
+def pair_span(profile: Any, width: float, allow_layers: bool = True) -> PairSpan:
+    """The pitch and the half-span for a pair of ``width`` copper.
+
+    **The pitch is set by the via, not by the trace.** Two tracks 2x width
+    apart is the textbook tight pair, but the two vias at a layer change sit on
+    the same pitch, and a 0.45mm via pad 0.30mm from its partner overlaps it by
+    0.15mm — measured, and the first thing that blocked this pass. So the pitch
+    opens up to fit the vias, and stays inside the coupling budget or the pair
+    does not change layers at all.
+
+    Three rules bind two stacked vias and the tightest is not the obvious one.
+    Measured on the first end-to-end build: at a 0.57mm pitch the pass produced
+    eight ``dfm_hole_clearance`` errors and five KiCad hole-clearance
+    violations, all of them one via's **pad** 0.196mm from the other via's
+    **drill** against a 0.20mm rule — copper-to-copper was fine, drill-to-drill
+    was fine, and the cross term was the one nobody had modelled.
+
+    ``half_span_mm`` is how far the pair's outermost copper can sit from its
+    centreline. Not ``pitch/2 + width/2``: at a corner the mitre pushes the
+    offset out by ``1/cos(half-angle)``, and A*'s 90-degree turn cap bounds
+    that at ``1/MITRE_LIMIT``. Dilating by the smaller number leaves the mitre
+    outside the corridor the search proved — measured, 0.0664mm from
+    ``pcb_via_50`` on hydrate-coaster, which is a short the search believed it
+    had avoided.
+    """
+    clearance = float(getattr(profile, "min_clearance_mm", 0.10))
+    # The via geometry the boards already ship with, so a pair route never
+    # trips the warn band on via pad or drill (ledger #28: a smaller via pad
+    # was tried on the whole board and measured much worse).
+    via_outer = max(float(getattr(profile, "min_via_diameter_mm", 0.3)),
+                    float(getattr(profile, "warn_via_diameter_mm", 0.45)))
+    via_drill = float(getattr(profile, "warn_via_drill_mm", 0.3))
+    via_to_copper = float(getattr(profile, "min_via_to_copper_mm", 0.20))
+    tight = PAIR_PITCH_WIDTHS * width
+    pitch = max(
+        tight,
+        via_outer + clearance + FLOOR_MARGIN_MM,              # pad to pad
+        via_outer / 2 + via_drill / 2 + via_to_copper + FLOOR_MARGIN_MM,
+        via_drill + via_to_copper + FLOOR_MARGIN_MM,          # drill to drill
+    )
+    allow_layer_change = allow_layers and pitch <= COUPLING_WIDTHS * width + 1e-9
+    if not allow_layer_change:
+        pitch = tight
+    return PairSpan(
+        pitch_mm=pitch,
+        half_span_mm=pitch / 2 / MITRE_LIMIT + width / 2,
+        half_span_via_mm=pitch / 2 + via_outer / 2,
+        via_outer_mm=via_outer,
+        via_drill_mm=via_drill,
+        allow_layer_change=allow_layer_change,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -654,12 +1048,22 @@ def _stadium_poly(cx: float, cy: float, w: float, h: float,
 
 
 def collect_obstacles(board: _Board, profile: Any,
-                      skip_trace_ids: set[str]) -> list[Obstacle]:
+                      skip_trace_ids: set[str],
+                      exempt_keepout_ids: "frozenset[str] | set[str] | None" = None,
+                      ) -> list[Obstacle]:
     """Every copper, drill, keepout and pour on the board, with its own rule.
 
     ``skip_trace_ids`` are the traces this pass is about to delete: their copper
     and their vias are not obstacles for the route that replaces them.
+
+    ``exempt_keepout_ids`` are the keepouts the pipeline reserved **for the
+    caller** — resolved by geometry against the reservation record, exactly one
+    element each (``_resolve_reservation``). They are the only keepouts that
+    stop being obstacles; everything else on the board, including every other
+    keepout, is unchanged. Default ``None`` is the behaviour this function has
+    always had, which is what every other caller gets.
     """
+    exempt = frozenset(exempt_keepout_ids or ())
     clear = float(getattr(profile, "min_clearance_mm", 0.10))
     npth = float(getattr(profile, "min_npth_to_copper_mm", 0.20))
     pth = float(getattr(profile, "min_pth_to_copper_mm", 0.28))
@@ -763,6 +1167,11 @@ def collect_obstacles(board: _Board, profile: Any,
         cx, cy = _f(centre.get("x")), _f(centre.get("y"))
         layers = tuple(str(x) for x in (keepout.get("layers") or every))
         label = str(keepout.get("pcb_keepout_id") or "keepout")
+        if label in exempt:
+            # Reserved for this pass by the pipeline. It is an obstacle to the
+            # autorouter — which is the entire point of writing it — and not to
+            # the pair it was written for.
+            continue
         if cx is None or cy is None:
             continue
         if keepout.get("shape") == "circle":
@@ -906,6 +1315,44 @@ class _Grid:
             bx, by = poly[(i + 1) % len(poly)]
             near_edge |= _seg_distance_grid(xs, ys, (ax, ay, bx, by)) <= margin
         self.blocked |= (~inside) | near_edge
+
+    def confine_to(self, shapes: Sequence[ReservedKeepout], layer: str) -> bool:
+        """Block every cell whose centre is outside the reserved corridor.
+
+        The corridor is a positive mask, the exact opposite of an obstacle: a
+        cell survives only if it is inside one of the shapes the pipeline
+        reserved *on this layer*. A single-layer reservation therefore empties
+        the other layer, which is correct — nothing was reserved there.
+
+        Returns whether any cell survived, so a caller can tell "the corridor
+        does not reach this raster" from "the corridor is blocked".
+        """
+        inside = _np.zeros((self.ny, self.nx), dtype=bool)
+        for shape in shapes:
+            if not shape.covers(layer):
+                continue
+            if shape.shape == "circle":
+                half_w = half_h = shape.radius
+            else:
+                half_w, half_h = shape.width / 2, shape.height / 2
+            # Per-shape window: a corridor is a chain of small discs on a board
+            # -sized raster, and touching the whole array once per disc is the
+            # difference between a search and a wait.
+            window = self._slice(shape.cx - half_w, shape.cy - half_h,
+                                 shape.cx + half_w, shape.cy + half_h)
+            if window is None:
+                continue
+            r0, r1, c0, c1 = window
+            xs = self._xs[c0:c1][_np.newaxis, :]
+            ys = self._ys[r0:r1][:, _np.newaxis]
+            if shape.shape == "circle":
+                hit = _np.hypot(xs - shape.cx, ys - shape.cy) <= shape.radius
+            else:
+                hit = ((_np.abs(xs - shape.cx) <= half_w)
+                       & (_np.abs(ys - shape.cy) <= half_h))
+            inside[r0:r1, c0:c1] |= hit
+        self.blocked |= ~inside
+        return bool((~self.blocked).any())
 
     def clone(self) -> "_Grid":
         copy = object.__new__(_Grid)
@@ -1374,85 +1821,135 @@ def _via_segments(nodes: Sequence[dict], layers: Sequence[str], outer: float,
     return out
 
 
+#: How far a refusal got, so the most informative one is the one reported. A
+#: pass that says "no corridor" when it actually found a corridor and broke a
+#: clearance in it has told the caller the wrong thing to fix — and stage 0R
+#: keys on exactly that distinction, because reserving a corridor for a pair
+#: that already had one buys nothing and costs the whole board a re-solve.
+_REASON_RANK: dict[str, int] = {
+    "no_endpoint_position": 0,
+    "pitch_too_tight": 0,
+    "search_box_too_large": 0,
+    "no_corridor": 1,
+    "layer_change_end": 2,
+    "no_side_assignment": 3,
+    "no_fan_out": 4,
+    "clearance": 5,
+    "legs_too_close": 6,
+}
+
+
+@dataclass(frozen=True)
+class _Refusal:
+    code: str
+    message: str
+
+    @property
+    def rank(self) -> int:
+        return _REASON_RANK.get(self.code, 0)
+
+
+@dataclass
+class _AttemptResult:
+    nodes_p: list[dict]
+    nodes_n: list[dict]
+    pitch_mm: float
+    layer_mode: str = ""
+    refusal: _Refusal | None = None
+    #: For ``no_corridor``: the clear copper this attempt asked for.
+    need_mm: float | None = None
+
+    @property
+    def routed(self) -> bool:
+        return bool(self.nodes_p) and bool(self.nodes_n)
+
+
 def _route_one_pair(board: _Board, obstacles: Sequence[Obstacle],
                     outline: Sequence[tuple[float, float]] | None,
                     profile: Any, ends: Sequence[tuple[dict, dict]],
                     layer: str, width: float,
-                    net_p: str, net_n: str
-                    ) -> tuple[list[dict], list[dict], float, str]:
-    """Two coupled tracks as ordered route nodes, or ``([], [], pitch, why)``.
+                    net_p: str, net_n: str,
+                    corridor: Sequence[ReservedKeepout] = (),
+                    ) -> _AttemptResult:
+    """Two coupled tracks as ordered route nodes, or the reason there are none.
 
     Two attempts, widest first. A pair that may change layers needs a corridor
     as wide as a via pair; one that may not needs only two tracks, which is
     half as much, and on a congested board that is sometimes the difference
     between a pair and no pair. The wide attempt goes first because a pair that
     can dive reaches ends a single layer cannot.
+
+    **With a reservation, those two attempts run twice.** First confined to the
+    reserved shapes, so the pair lands in the channel that was planned for it
+    and the search cannot wander into space some other net will want; then, if
+    nothing fits, over the whole board with the reservation still exempt. The
+    fallback matters: a corridor that is a little wrong should cost a longer
+    route, not the pair.
     """
+    modes: list[tuple[bool, bool]] = []
+    if corridor:
+        modes += [(True, True), (False, True)]
+    modes += [(True, False), (False, False)]
+
     reasons: list[str] = []
-    pitch_reported = PAIR_PITCH_WIDTHS * width
-    for allow_layers in (True, False):
-        nodes_p, nodes_n, pitch, why = _route_pair_attempt(
+    best: _AttemptResult | None = None
+    for allow_layers, confine in modes:
+        attempt = _route_pair_attempt(
             board, obstacles, outline, profile, ends, layer, width,
-            net_p, net_n, allow_layers)
-        if nodes_p and nodes_n:
-            return nodes_p, nodes_n, pitch, ""
-        pitch_reported = pitch
-        label = "two layers" if allow_layers else "one layer"
-        reasons.append(f"{label}: {why}")
-    return [], [], pitch_reported, "; ".join(reasons)
+            net_p, net_n, allow_layers, corridor if confine else ())
+        if attempt.routed:
+            return attempt
+        reasons.append(f"{attempt.layer_mode}: "
+                       f"{attempt.refusal.message if attempt.refusal else 'no route'}")
+        if best is None or (attempt.refusal and best.refusal
+                            and attempt.refusal.rank > best.refusal.rank):
+            best = attempt
+        elif (best.need_mm is not None and attempt.need_mm is not None
+              and attempt.refusal and best.refusal
+              and attempt.refusal.rank == best.refusal.rank
+              and attempt.need_mm < best.need_mm):
+            # Same failure, narrower ask: report the narrowest corridor that
+            # would have served, because that is the number to reserve.
+            best = attempt
+    assert best is not None
+    return _AttemptResult(
+        [], [], best.pitch_mm, best.layer_mode,
+        _Refusal(best.refusal.code if best.refusal else "", "; ".join(reasons)),
+        best.need_mm,
+    )
 
 
 def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
                         outline: Sequence[tuple[float, float]] | None,
                         profile: Any, ends: Sequence[tuple[dict, dict]],
                         layer: str, width: float,
-                        net_p: str, net_n: str, allow_layers: bool
-                        ) -> tuple[list[dict], list[dict], float, str]:
+                        net_p: str, net_n: str, allow_layers: bool,
+                        corridor: Sequence[ReservedKeepout] = (),
+                        ) -> _AttemptResult:
     clearance = float(getattr(profile, "min_clearance_mm", 0.10))
     edge_clearance = float(getattr(profile, "min_edge_clearance_mm", 0.2))
-    # The via geometry the boards already ship with, so a pair route never
-    # trips the warn band on via pad or drill (ledger #28: a smaller via pad
-    # was tried on the whole board and measured much worse).
-    via_outer = max(float(getattr(profile, "min_via_diameter_mm", 0.3)),
-                    float(getattr(profile, "warn_via_diameter_mm", 0.45)))
-    via_drill = float(getattr(profile, "warn_via_drill_mm", 0.3))
-    # **The pitch is set by the via, not by the trace.** Two tracks 2x width
-    # apart is the textbook tight pair, but the two vias at a layer change sit
-    # on the same pitch, and a 0.45mm via pad 0.30mm from its partner overlaps
-    # it by 0.15mm — measured, and the first thing that blocked this pass. So
-    # the pitch opens up to fit the vias, and stays inside the coupling budget
-    # or the pair does not change layers at all.
     via_to_copper = float(getattr(profile, "min_via_to_copper_mm", 0.20))
-    # Three rules bind two stacked vias, and the tightest is not the obvious
-    # one. Measured on the first end-to-end build: at a 0.57mm pitch the pass
-    # produced eight `dfm_hole_clearance` errors and five KiCad hole-clearance
-    # violations, all of them one via's **pad** 0.196mm from the other via's
-    # **drill** against a 0.20mm rule — copper-to-copper was fine, and
-    # drill-to-drill was fine, and the cross term was the one nobody modelled.
-    tight = PAIR_PITCH_WIDTHS * width
-    pitch = max(
-        tight,
-        via_outer + clearance + FLOOR_MARGIN_MM,              # pad to pad
-        via_outer / 2 + via_drill / 2 + via_to_copper + FLOOR_MARGIN_MM,
-        via_drill + via_to_copper + FLOOR_MARGIN_MM,          # drill to drill
-    )
-    allow_layer_change = allow_layers and pitch <= COUPLING_WIDTHS * width + 1e-9
-    if not allow_layer_change:
-        pitch = tight
+    span = pair_span(profile, width, allow_layers)
+    via_outer = span.via_outer_mm
+    via_drill = span.via_drill_mm
+    pitch = span.pitch_mm
+    allow_layer_change = span.allow_layer_change
+    mode = ("two layers" if allow_layers else "one layer") + (
+        ", reserved corridor" if corridor else "")
+
+    def refuse(code: str, message: str,
+               need_mm: float | None = None) -> _AttemptResult:
+        return _AttemptResult([], [], pitch, mode, _Refusal(code, message),
+                              need_mm)
+
     if pitch - width < clearance - 1e-9:
-        return [], [], pitch, (
+        return refuse("pitch_too_tight", (
             f"a {pitch:.3f}mm pitch on {width:.3f}mm copper leaves "
             f"{pitch - width:.3f}mm between the tracks, under the "
             f"{clearance:.2f}mm floor"
-        )
-    # How far the pair's outermost copper can sit from its centreline. Not
-    # `pitch/2 + width/2`: at a corner the mitre pushes the offset out by
-    # `1/cos(half-angle)`, and A*'s 90-degree turn cap bounds that at
-    # 1/MITRE_LIMIT. Dilating by the smaller number leaves the mitre outside
-    # the corridor the search proved — measured, 0.0664mm from pcb_via_50 on
-    # hydrate-coaster, which is a short the search believed it had avoided.
-    half_span = pitch / 2 / MITRE_LIMIT + width / 2
-    half_span_via = pitch / 2 + via_outer / 2
+        ))
+    half_span = span.half_span_mm
+    half_span_via = span.half_span_via_mm
     layers = list(board.layers)
     if layer not in layers:
         layers = [layer] + layers
@@ -1465,7 +1962,7 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
         px, py = _f(port_p.get("x")), _f(port_p.get("y"))
         nx, ny = _f(port_n.get("x")), _f(port_n.get("y"))
         if None in (px, py, nx, ny):
-            return [], [], pitch, "an endpoint pad has no position"
+            return refuse("no_endpoint_position", "an endpoint pad has no position")
         anchors.append(((px, py), (nx, ny), ((px + nx) / 2, (py + ny) / 2)))
 
     if outline:
@@ -1500,20 +1997,51 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
             grid.block_outside(raster_outline, edge_clearance + width / 2)
         fan_grids[net] = grid
 
-    runs: list[tuple[str, list]] | None = None
-    for margin in SEARCH_MARGINS_MM:
-        if margin is None:
-            box = board_box
-        else:
+    # Which boxes to raster, in order. Without a corridor this is the margin
+    # escalation the pass has always used. **With one it is a single box, the
+    # corridor's own** — a confined search can only ever use cells inside the
+    # reservation, so rastering the whole board to throw all of it away is pure
+    # cost, and it is not small: harness-puck's corridor is 37.97 mm² of a
+    # 3848 mm² board, and the escalation would raster ~2000 obstacles three
+    # times over to reach the same answer.
+    if corridor:
+        cxs: list[float] = []
+        cys: list[float] = []
+        for shape in corridor:
+            reach = (shape.radius if shape.shape == "circle"
+                     else max(shape.width, shape.height) / 2)
+            cxs += [shape.cx - reach, shape.cx + reach]
+            cys += [shape.cy - reach, shape.cy + reach]
+        # The two anchor midpoints and their seed radius come with it: the box
+        # has to contain the point `_pair_seed` measures from, or `cell_of`
+        # clamps it to the border and the seed is chosen around the wrong cell.
+        for anchor in (anchors[0][2], anchors[1][2]):
+            cxs += [anchor[0] - SEED_RADIUS_MM, anchor[0] + SEED_RADIUS_MM]
+            cys += [anchor[1] - SEED_RADIUS_MM, anchor[1] + SEED_RADIUS_MM]
+        pad = half_span_via + edge_clearance + GRID_MM
+        boxes = [(max(board_box[0], min(cxs) - pad),
+                  max(board_box[1], min(cys) - pad),
+                  min(board_box[2], max(cxs) + pad),
+                  min(board_box[3], max(cys) + pad))]
+    else:
+        boxes = []
+        for margin in SEARCH_MARGINS_MM:
+            if margin is None:
+                boxes.append(board_box)
+                continue
             xs = [anchors[0][2][0], anchors[1][2][0]]
             ys = [anchors[0][2][1], anchors[1][2][1]]
-            box = (max(board_box[0], min(xs) - margin),
-                   max(board_box[1], min(ys) - margin),
-                   min(board_box[2], max(xs) + margin),
-                   min(board_box[3], max(ys) + margin))
+            boxes.append((max(board_box[0], min(xs) - margin),
+                          max(board_box[1], min(ys) - margin),
+                          min(board_box[2], max(xs) + margin),
+                          min(board_box[3], max(ys) + margin)))
+
+    runs: list[tuple[str, list]] | None = None
+    for box in boxes:
         probe = _Grid(*box)
         if probe.nx * probe.ny * len(layers) > 16_000_000:
-            return [], [], pitch, "the search box is larger than this pass will raster"
+            return refuse("search_box_too_large",
+                          "the search box is larger than this pass will raster")
         track_grids = [_Grid(*box) for _ in layers]
         via_grids = [_Grid(*box) for _ in layers]
         for obstacle in obstacles:
@@ -1528,6 +2056,16 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
                     raster_outline, edge_clearance + half_span)
                 via_grids[index].block_outside(
                     raster_outline, edge_clearance + half_span_via)
+        if corridor:
+            # The reservation as a *positive* mask, applied last so it can only
+            # ever remove cells: the centreline must stay inside the channel the
+            # pipeline reserved for this pair. Obstacle dilation still applies
+            # inside it, which is why the reservation is planned wider than
+            # `half_span` — a corridor sized at exactly the pass's minimum is a
+            # corridor the pass cannot enter.
+            for index, name in enumerate(layers):
+                track_grids[index].confine_to(corridor, name)
+                via_grids[index].confine_to(corridor, name)
         seed = _pair_seed(track_grids[start_layer], fan_grids,
                           anchors[0][0], anchors[0][1], net_p, net_n,
                           anchors[1][2])
@@ -1543,18 +2081,21 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
         runs = _runs_from_path(path, probe, layers, pitch, track_grids)
         break
     if not runs:
-        return [], [], pitch, (
-            "no corridor wide enough for the pair exists between the two ends "
-            f"(needs {2 * half_span:.2f}mm of clear copper plus clearance, on "
-            f"any of {', '.join(layers)})"
-        )
+        inside = " inside the reserved corridor" if corridor else ""
+        return refuse("no_corridor", (
+            "no corridor wide enough for the pair exists between the two ends"
+            f"{inside} (needs {2 * half_span:.2f}mm of clear copper plus "
+            f"clearance, on any of {', '.join(layers)})"
+        ), need_mm=2 * half_span)
     if any(len(points) < 2 for points in (r[1] for r in runs)):
-        return [], [], pitch, "the pair route ends on a layer change; nothing to offset"
+        return refuse("layer_change_end",
+                      "the pair route ends on a layer change; nothing to offset")
 
-    #: (stage reached, message). A refusal at a later stage says more about
-    #: why the pair cannot be routed than one at an earlier stage, and the
-    #: last combination tried is not the most informative one.
-    best_reason = (0, "no side assignment or crossover point produced a legal pair")
+    #: (stage reached, code, message). A refusal at a later stage says more
+    #: about why the pair cannot be routed than one at an earlier stage, and
+    #: the last combination tried is not the most informative one.
+    best_reason = (0, "no_side_assignment",
+                   "no side assignment or crossover point produced a legal pair")
     swap_points: list[int | None] = [None] + list(range(len(runs) - 1))
     for side in (1.0, -1.0):
         for swap in swap_points:
@@ -1565,8 +2106,9 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
             nodes_p, nodes_n = built
             fanned = _attach_fans(nodes_p, nodes_n, anchors, fan_grids,
                                   net_p, net_n, width, layer, clearance)
-            if isinstance(fanned, str):
-                best_reason = max(best_reason, (1, fanned))
+            if isinstance(fanned, _Refusal):
+                best_reason = max(best_reason,
+                                  (1, fanned.code, fanned.message))
                 continue
             nodes_p, nodes_n = fanned
 
@@ -1577,20 +2119,21 @@ def _route_pair_attempt(board: _Board, obstacles: Sequence[Obstacle],
             _, violation = _worst_clearance(segs_p + segs_n + vias, obstacles,
                                             outline, edge_clearance)
             if violation is not None:
-                best_reason = max(best_reason, (2, violation.detail))
+                best_reason = max(best_reason,
+                                  (2, "clearance", violation.detail))
                 continue
             self_gap = _pair_self_clearance(
                 segs_p + [v for v in vias if v[6] == net_p],
                 segs_n + [v for v in vias if v[6] == net_n],
             )
             if self_gap < clearance - 1e-9:
-                best_reason = max(best_reason, (3, (
+                best_reason = max(best_reason, (3, "legs_too_close", (
                     f"the two legs come within {self_gap:.4f}mm of each "
                     f"other on one layer, under the {clearance:.2f}mm floor"
                 )))
                 continue
-            return nodes_p, nodes_n, pitch, ""
-    return [], [], pitch, best_reason[1]
+            return _AttemptResult(nodes_p, nodes_n, pitch, mode)
+    return refuse(best_reason[1], best_reason[2])
 
 
 #: How far from the two pads the pair's end may sit, and how coarsely the
@@ -1666,7 +2209,7 @@ def _pair_seed(track: _Grid, fan_grids: dict[str, _Grid],
 def _attach_fans(nodes_p: list[dict], nodes_n: list[dict],
                  anchors: Sequence[tuple], fan_grids: dict[str, _Grid],
                  net_p: str, net_n: str, width: float, layer: str,
-                 clearance: float) -> tuple[list[dict], list[dict]] | str:
+                 clearance: float) -> "tuple[list[dict], list[dict]] | _Refusal":
     """Connect each pad to its end of the pair, out of the way of everything.
 
     The fan-out is not a straight line from the pad to the track. Measured on
@@ -1697,13 +2240,15 @@ def _attach_fans(nodes_p: list[dict], nodes_n: list[dict],
             pad = pad_p if leg == "p" else pad_n
             tip = nodes[0] if index == 0 else nodes[-1]
             if tip["layer"] != layer:
-                return "the pair's end sits on a layer its pads are not on"
+                return _Refusal(
+                    "layer_change_end",
+                    "the pair's end sits on a layer its pads are not on")
             path = _fan_path(grid, pad, (tip["x"], tip["y"]))
             if path is None:
-                return (
+                return _Refusal("no_fan_out", (
                     f"no clear fan-out from the pad at "
                     f"({pad[0]:.2f}, {pad[1]:.2f}) to the pair"
-                )
+                ))
             # ``path`` runs pad -> tip inclusive. The tip already exists as a
             # node, so only the points before it are inserted — but the whole
             # polyline, tip included, is what the other leg has to avoid.
@@ -2010,13 +2555,23 @@ def _pair_ends(ports_p: Sequence[dict],
 
 
 def route_diff_pairs(path: Path, profile: Any,
-                     grade: "Callable[[list, Path], list[dict]] | None" = None
+                     grade: "Callable[[list, Path], list[dict]] | None" = None,
+                     reservation: Any = None,
                      ) -> DiffPairResult:
     """Re-route every two-terminal differential pair in ``path`` as a pair.
 
     Idempotent in effect and a no-op on a board with no pair: the file is only
     rewritten when copper actually moved. Never raises — a repair pass that
     takes the build down is worse than a board with an uncoupled pair.
+
+    ``reservation`` is the record of the keepout corridor the pipeline reserved
+    for this pair — a ``Reservation``, a list of ``pcb_keepout``-shaped dicts,
+    or ``{"pair": [name_p, name_n], "keepouts": [...]}``. It is a *record of
+    what was written*, never a request to find one: the pass matches every
+    entry against the board's own keepouts by geometry, exempts exactly the
+    ones it wrote, and searches inside them first. Anything it cannot resolve
+    unambiguously it discards, and then behaves exactly as it does with none.
+    Default ``None`` is today's behaviour to the byte.
 
     ``grade`` is how the pass is held to the same ruler as the board. Given the
     element list and a path to read it from, it returns the pipeline's own
@@ -2044,8 +2599,18 @@ def route_diff_pairs(path: Path, profile: Any,
     if not isinstance(elements, list):
         return result
 
+    parsed: Reservation | None = None
+    if reservation is not None:
+        parsed = Reservation.from_obj(reservation)
+        if parsed is None:
+            result.notes.append(
+                "the reservation handed to the differential-pair pass could "
+                "not be read as a list of keepout records; it was ignored and "
+                "every keepout on the board still blocks"
+            )
+
     try:
-        return _route_diff_pairs(path, elements, profile, result, grade)
+        return _route_diff_pairs(path, elements, profile, result, grade, parsed)
     except Exception as exc:  # noqa: BLE001
         result.notes.append(
             f"the differential-pair route pass aborted "
@@ -2061,13 +2626,20 @@ def route_diff_pairs(path: Path, profile: Any,
 
 def _route_diff_pairs(path: Path, elements: list, profile: Any,
                       result: DiffPairResult,
-                      grade: "Callable[[list, Path], list[dict]] | None" = None
+                      grade: "Callable[[list, Path], list[dict]] | None" = None,
+                      reservation: Reservation | None = None,
                       ) -> DiffPairResult:
     board = _Board(elements)
     names = _named_nets(board)
     pairs = find_pairs(names)
     if not pairs:
         return result
+
+    resolved: _ResolvedReservation | None = None
+    if reservation is not None:
+        resolved = _resolve_reservation(board, reservation)
+        if resolved.note:
+            result.notes.append(resolved.note)
 
     outline = _board_outline(board)
     coupling_widths = 4.0  # the same budget verifylib.netclass grades against
@@ -2082,7 +2654,12 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
         key_p, key_n = names[name_p], names[name_n]
         ports_p = board.pcb_ports_of_net(key_p)
         ports_n = board.pcb_ports_of_net(key_n)
+        mine = (resolved if resolved is not None and resolved.usable
+                and resolved.reservation.is_for(name_p, name_n) else None)
+        if resolved is not None and resolved.reservation.is_for(name_p, name_n):
+            outcome.reserved = resolved.as_dict()
         if len(ports_p) != 2 or len(ports_n) != 2:
+            outcome.reason_code = "multi_drop"
             outcome.reason = (
                 f"{name_p} has {len(ports_p)} pads and {name_n} has "
                 f"{len(ports_n)}; this pass routes two-terminal pairs only, so "
@@ -2094,6 +2671,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
         traces_n = [t for t in board.by_type.get("pcb_trace", [])
                     if board.trace_net_key(t) == key_n]
         if len(traces_p) != 1 or len(traces_n) != 1:
+            outcome.reason_code = "trace_count"
             outcome.reason = (
                 f"{name_p} is drawn by {len(traces_p)} trace(s) and {name_n} by "
                 f"{len(traces_n)}; expected exactly one each"
@@ -2105,6 +2683,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
         before = _measure(segs_p_before, segs_n_before, coupling_widths)
         outcome.before = before
         if not segs_p_before or not segs_n_before:
+            outcome.reason_code = "no_copper"
             outcome.reason = "one half of the pair has no copper to compare against"
             continue
 
@@ -2112,6 +2691,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
         pad_layers = {_pad_layer(p) for p in ports_p + ports_n}
         pad_layers.discard(None)
         if len(pad_layers) != 1:
+            outcome.reason_code = "pads_split_layers"
             outcome.reason = (
                 f"the pair's four pads sit on {sorted(pad_layers)}; a single-layer "
                 "pair needs them all on one layer"
@@ -2123,20 +2703,39 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
 
         skip = {str(traces_p[0].get("pcb_trace_id") or ""),
                 str(traces_n[0].get("pcb_trace_id") or "")}
-        obstacles = collect_obstacles(board, profile, skip)
+        # The reservation is exempted **only for the pair it was written for**.
+        # A second pair on the same board sees every keepout, including this
+        # one's corridor: a channel reserved for D+/D- is not free space.
+        obstacles = collect_obstacles(
+            board, profile, skip,
+            exempt_keepout_ids=mine.exempt_ids if mine else None)
         before.worst_clearance_mm, _ = _worst_clearance(
             segs_p_before + segs_n_before, obstacles, outline,
             float(getattr(profile, "min_edge_clearance_mm", 0.2)),
         )
 
         ends = _pair_ends(ports_p, ports_n)
-        nodes_p, nodes_n, pitch_mm, reason = _route_one_pair(
-            board, obstacles, outline, profile, ends, layer, width, key_p, key_n
+        attempt = _route_one_pair(
+            board, obstacles, outline, profile, ends, layer, width, key_p, key_n,
+            corridor=mine.shapes if mine else (),
         )
+        nodes_p, nodes_n, pitch_mm = (attempt.nodes_p, attempt.nodes_n,
+                                      attempt.pitch_mm)
+        outcome.layer_mode = attempt.layer_mode
         if not nodes_p or not nodes_n:
             outcome.status = "refused"
-            outcome.reason = reason or "no pair route was found"
+            outcome.reason_code = (attempt.refusal.code if attempt.refusal
+                                   else "no_route")
+            outcome.need_mm = attempt.need_mm
+            outcome.reason = (
+                (attempt.refusal.message if attempt.refusal else "")
+                or "no pair route was found"
+            )
             continue
+        if mine is not None:
+            outcome.reserved = dict(mine.as_dict(),
+                                    usedCorridor="reserved corridor"
+                                    in attempt.layer_mode)
 
         segs_p = _nodes_to_segments(nodes_p, width, key_p)
         segs_n = _nodes_to_segments(nodes_n, width, key_n)
@@ -2156,6 +2755,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
 
         if after.coupled_fraction <= before.coupled_fraction:
             outcome.status = "refused"
+            outcome.reason_code = "not_more_coupled"
             outcome.reason = (
                 f"the pair route is no more coupled than the router's "
                 f"({after.coupled_fraction:.0%} against "
@@ -2164,6 +2764,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
             continue
         if after.skew_mm > before.skew_mm + 1e-6:
             outcome.status = "refused"
+            outcome.reason_code = "more_skew"
             outcome.reason = (
                 f"the pair route skews more than the router's "
                 f"({after.skew_mm:.2f}mm against {before.skew_mm:.2f}mm)"
@@ -2171,6 +2772,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
             continue
         if (after.worst_clearance_mm or 0.0) < clearance_floor - 1e-9:
             outcome.status = "refused"
+            outcome.reason_code = "under_clearance"
             outcome.reason = (
                 f"the pair route leaves {after.worst_clearance_mm:.4f}mm of "
                 f"clearance, under the {clearance_floor:.2f}mm floor"
@@ -2230,6 +2832,7 @@ def _route_diff_pairs(path: Path, elements: list, profile: Any,
             for pair in result.pairs:
                 if pair.status == "routed":
                     pair.status = "refused"
+                    pair.reason_code = "gate"
                     pair.reason = (
                         "the pipeline's own gate found "
                         f"{len(added)} new blocking finding(s) in the paired "

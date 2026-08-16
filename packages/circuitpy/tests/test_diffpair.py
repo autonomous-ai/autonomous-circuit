@@ -327,6 +327,262 @@ class GradedByTheRealGate(unittest.TestCase):
         self.assertEqual(result.pairs[0].status, "refused")
 
 
+class UsingAReservedCorridor(unittest.TestCase):
+    """EE finding 3, the half this pass could not reach on its own.
+
+    The board below is the shape of the real problem in miniature: a wall of
+    other-net copper the pair cannot cross, with **one** gap in it. In the real
+    pipeline that gap exists because a keepout was written before the
+    autorouter ran and the router went round it. Here the gap is built in and
+    the keepout sits in it, which is the same board circuit.json shows the pass:
+    a channel that is empty of copper and covered by an obstacle this pass
+    treats as hard at clearance 0.0.
+
+    So the assertions are the two halves of "use the reservation":
+    **without** the record the keepout blocks the pair and the pass refuses;
+    **with** it the pair routes through the channel — and every keepout the
+    record does not name keeps blocking, whatever it costs.
+    """
+
+    #: The wall's gap, and the keepout that reserves it. Both layers, because
+    #: the wall is on both.
+    GAP = {
+        "type": "pcb_keepout",
+        "pcb_keepout_id": "pcb_keepout_reserved",
+        "shape": "rect",
+        "layers": ["top", "bottom"],
+        "width": 4.4,
+        "height": 3.0,
+        "center": {"x": 0.0, "y": 0.0},
+    }
+
+    def setUp(self):
+        import tempfile
+
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def walled_board(self, extra: list[dict] | None = None) -> list[dict]:
+        """`sample_board` plus a wall with a 3mm gap at the origin."""
+        elements = sample_board()
+        elements.append(_source_net(2, "GND"))
+        # 4.0mm of copper has a 2.0mm half-width, and a capsule's round cap
+        # reaches that far past its endpoint too — so the wall's free band is
+        # |y| < 2.0, not |y| < 4.0. Getting that wrong is how a "control" test
+        # measures nothing.
+        for name, y0, y1 in (("upper", 4.0, 9.0), ("lower", -9.0, -4.0)):
+            for layer in ("top", "bottom"):
+                elements.append({
+                    "type": "pcb_trace",
+                    "pcb_trace_id": f"trace_wall_{name}_{layer}",
+                    "connectsTo": [],
+                    "subcircuit_connectivity_map_key": "net_GND",
+                    "route": [
+                        {"route_type": "wire", "x": 0.0, "y": y0, "width": 4.0,
+                         "layer": layer},
+                        {"route_type": "wire", "x": 0.0, "y": y1, "width": 4.0,
+                         "layer": layer},
+                    ],
+                })
+        elements.extend(extra or [])
+        return elements
+
+    def record(self, keepout: dict) -> list[dict]:
+        """What the pipeline would have recorded when it wrote this keepout —
+        the numbers only, never the id."""
+        return [{k: v for k, v in keepout.items()
+                 if k in ("shape", "layers", "width", "height", "radius",
+                          "center")}]
+
+    def test_the_gap_is_routable_before_anything_is_reserved_in_it(self):
+        """The control. Without the keepout the pair goes through the gap, so
+        every refusal below is the keepout's doing and not the wall's."""
+        path = write(self.tmp, self.walled_board())
+        result = diffpair.route_diff_pairs(path, PROFILE)
+        self.assertEqual(result.pairs[0].status, "routed",
+                         result.pairs[0].reason)
+
+    def test_an_unclaimed_keepout_in_the_only_gap_refuses(self):
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        before = path.read_bytes()
+        result = diffpair.route_diff_pairs(path, PROFILE)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertEqual(result.pairs[0].reason_code, "no_corridor")
+        # The machine-readable half stage 0R keys on: how much clear copper the
+        # narrowest attempt asked for.
+        self.assertIsNotNone(result.pairs[0].need_mm)
+        self.assertGreater(result.pairs[0].need_mm, 0.5)
+
+    def test_the_same_keepout_handed_back_as_a_reservation_routes_the_pair(self):
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record(self.GAP))
+        pair = result.pairs[0]
+        self.assertEqual(pair.status, "routed", pair.reason)
+        self.assertEqual(pair.reserved, {"entries": 1, "matched": 1,
+                                         "released": 0, "usable": True,
+                                         "sumOfShapeAreasMm2": 13.2,
+                                         "usedCorridor": True})
+        # And it is a real pair, held to the same bar as any other route.
+        self.assertGreater(pair.after.coupled_fraction, 0.8)
+        self.assertLess(pair.after.skew_mm, pair.before.skew_mm)
+        self.assertGreaterEqual(pair.after.worst_clearance_mm,
+                                PROFILE.min_clearance_mm - 1e-9)
+
+    def test_a_keepout_the_record_does_not_name_still_blocks(self):
+        """The one that matters. A reservation is permission to enter *its own*
+        channel, and nothing else: a second keepout in the same gap — a user's
+        rule, a mounting hole, ledger #1's USB-C belly rect — is still a wall."""
+        foreign = {
+            "type": "pcb_keepout",
+            "pcb_keepout_id": "pcb_keepout_someone_elses",
+            "shape": "circle",
+            "layers": ["top", "bottom"],
+            "radius": 1.6,
+            "center": {"x": 0.0, "y": 0.0},
+        }
+        path = write(self.tmp, self.walled_board([self.GAP, foreign]))
+        before = path.read_bytes()
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record(self.GAP))
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertEqual(result.pairs[0].reason_code, "no_corridor")
+
+    def test_a_record_that_matches_nothing_unblocks_nothing(self):
+        """Zero matches is safe and expected — a release pass may have stripped
+        the element already — but it is never a licence to enter a keepout that
+        *is* still there. Same numbers, wrong size: the gap stays shut."""
+        wrong = dict(self.GAP, width=4.5)
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record(wrong))
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertEqual(result.pairs[0].reserved["matched"], 0)
+        self.assertEqual(result.pairs[0].reserved["released"], 1)
+
+    def test_a_record_matching_two_keepouts_drops_the_whole_reservation(self):
+        """We cannot tell which one we wrote, and the other one could be a
+        user's. Strip nothing, exempt nothing, say so."""
+        twin = dict(self.GAP, pcb_keepout_id="pcb_keepout_twin")
+        path = write(self.tmp, self.walled_board([self.GAP, twin]))
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record(self.GAP))
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertFalse(result.pairs[0].reserved["usable"])
+        self.assertTrue(any("may not be ours" in n for n in result.notes),
+                        result.notes)
+
+    def test_the_pair_goes_where_the_corridor_goes(self):
+        """Exempting the keepouts is not enough — the pair has to *use* the
+        channel that was planned for it. On an open board the shortest route is
+        a straight line; confined to a corridor that detours north, the pair
+        takes the detour, which is how we know the mask is doing the work.
+        """
+        (self.tmp / "a").mkdir(exist_ok=True)
+        straight = write(self.tmp / "a", sample_board())
+        result = diffpair.route_diff_pairs(straight, PROFILE)
+        flat = result.pairs[0].after.length_p_mm
+
+        # A chain of overlapping discs, the shape the corridor planner emits
+        # (a rect is not rotation-safe in circuit-json). Centres are deduped:
+        # two keepouts on one point would match one record twice and the whole
+        # reservation would be dropped, exactly as designed.
+        detour: list[dict] = []
+        seen: set[tuple[float, float]] = set()
+        points = [(-6.0, 0.0), (-6.0, 4.0), (6.0, 4.0), (6.0, 0.0)]
+        step = 0.4
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            span = math.hypot(x1 - x0, y1 - y0)
+            for i in range(int(span / step) + 1):
+                t = min(1.0, i * step / span)
+                centre = (round(x0 + (x1 - x0) * t, 6),
+                          round(y0 + (y1 - y0) * t, 6))
+                if centre in seen:
+                    continue
+                seen.add(centre)
+                detour.append({
+                    "type": "pcb_keepout",
+                    "pcb_keepout_id": f"pcb_keepout_corridor_{len(detour)}",
+                    "shape": "circle",
+                    "layers": ["top"],
+                    "radius": 0.9,
+                    "center": {"x": centre[0], "y": centre[1]},
+                })
+        (self.tmp / "b").mkdir(exist_ok=True)
+        path = write(self.tmp / "b", sample_board() + detour)
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record_all(detour))
+        pair = result.pairs[0]
+        self.assertEqual(pair.status, "routed", pair.reason)
+        self.assertIn("reserved corridor", pair.layer_mode)
+        # The corridor is 8mm of detour longer than the straight line, and the
+        # route pays for it. A pass that merely ignored the keepouts would take
+        # the straight line and come out shorter.
+        self.assertGreater(pair.after.length_p_mm, flat + 4.0)
+
+    def record_all(self, keepouts: list[dict]) -> list[dict]:
+        return [self.record(k)[0] for k in keepouts]
+
+    def test_the_reserved_route_is_deterministic(self):
+        for name in ("a", "b"):
+            (self.tmp / name).mkdir(exist_ok=True)
+        paths = [write(self.tmp / name, self.walled_board([self.GAP]))
+                 for name in ("a", "b")]
+        for path in paths:
+            diffpair.route_diff_pairs(
+                path, PROFILE, reservation=self.record(self.GAP))
+        self.assertEqual(paths[0].read_bytes(), paths[1].read_bytes())
+
+    def test_the_gate_still_decides(self):
+        """A reservation buys room to search. It buys no leniency: the
+        pipeline's own gate is unchanged, and a new blocking finding still
+        reverts the whole rewrite (ledger lesson E)."""
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        before = path.read_bytes()
+        original = json.loads(before.decode())
+
+        def grumpy(elements, at):
+            if elements == original:
+                return []
+            return [{"kind": "invented_defect", "severity": "error",
+                     "part": "board", "detail": "no"}]
+
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=self.record(self.GAP), grade=grumpy)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertEqual(result.pairs[0].reason_code, "gate")
+
+    def test_a_reservation_for_another_pair_is_not_this_pair_s_to_enter(self):
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        result = diffpair.route_diff_pairs(
+            path, PROFILE,
+            reservation={"pair": ["OTHER_DP", "OTHER_DM"],
+                         "keepouts": self.record(self.GAP)})
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertIsNone(result.pairs[0].reserved)
+
+    def test_an_unreadable_reservation_is_ignored_not_guessed(self):
+        path = write(self.tmp, self.walled_board([self.GAP]))
+        result = diffpair.route_diff_pairs(
+            path, PROFILE, reservation=[{"shape": "hexagon"}])
+        self.assertEqual(result.pairs[0].status, "refused")
+        self.assertTrue(any("could not be read" in n for n in result.notes),
+                        result.notes)
+
+    def test_collect_obstacles_exempts_only_what_it_is_told(self):
+        board = diffpair._Board(self.walled_board([self.GAP]))
+        every = {o.label for o in
+                 diffpair.collect_obstacles(board, PROFILE, set())}
+        self.assertIn("pcb_keepout_reserved", every)
+        fewer = {o.label for o in diffpair.collect_obstacles(
+            board, PROFILE, set(),
+            exempt_keepout_ids={"pcb_keepout_reserved"})}
+        self.assertNotIn("pcb_keepout_reserved", fewer)
+        self.assertEqual(every - fewer, {"pcb_keepout_reserved"})
+
+
 class GeometryHelpers(unittest.TestCase):
     def test_a_stadium_covers_its_rectangle(self):
         poly = diffpair._stadium_poly(0.0, 0.0, 2.0, 1.0)
