@@ -138,7 +138,8 @@ def main(argv: list[str] | None = None) -> int:
                     "arms": {a: runs[a]["summary"] for a in order},
                     "measuredAgainst": runs[order[0]]["measuredAgainst"],
                     "perInstanceCompleteness": per,
-                    "rows": {a: runs[a]["rows"] for a in order},
+                    "rows": {a: [_slim(r) for r in runs[a]["rows"]]
+                             for a in order},
                 },
                 indent=1,
             )
@@ -147,6 +148,48 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"\nwrote {args.json_out}")
     return 0
+
+
+def _slim(row: dict) -> dict:
+    """The row without the per-pad lists.
+
+    A region carries every pad id it owns, which is the right thing in the
+    working file and 1.9MB of noise in a committed record. Everything a reader
+    needs to re-derive a number stays: the score, the stages, and each region's
+    id, character, expert and interior-net count.
+    """
+    out = {k: v for k, v in row.items() if k not in ("spatial", "fingerprints")}
+    # The ruler is identical on every row by construction — the table refuses
+    # to print otherwise — so it belongs once at the top, not 160 times.
+    out["score"] = {k: v for k, v in row["score"].items() if k != "measuredAgainst"}
+    if "spatial" not in row:
+        return out
+    part = row["spatial"]["partition"]
+    out["spatial"] = {
+        "stages": row["spatial"]["stages"],
+        "notes": row["spatial"]["notes"],
+        "partition": {
+            **{k: v for k, v in part.items() if k not in ("regions", "crossingNets")},
+            "crossingNetCount": len(part["crossingNets"]),
+            "regions": [
+                {
+                    "id": r["id"],
+                    "character": r["character"],
+                    "expert": r["expert"],
+                    "componentCount": r["component_count"],
+                    "padCount": r["pad_count"],
+                    "areaMm2": r["area_mm2"],
+                    "padDensityPerCm2": r["pad_density_per_cm2"],
+                    "finestPitchMm": r["finest_pitch_mm"],
+                    "gridScore": r["grid_score"],
+                    "bbox": r["bbox"],
+                    "interiorNetCount": len(r["interior_nets"]),
+                }
+                for r in part["regions"]
+            ],
+        },
+    }
+    return out
 
 
 if __name__ == "__main__":

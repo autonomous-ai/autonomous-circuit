@@ -129,3 +129,125 @@ Two rules, both learned the hard way this week:
 
 Nothing here is worth anything without the harness that scores it. That is the whole reason
 the tournament builds the scorer before it builds a single algorithm.
+
+---
+
+## Measured: spatial decomposition, 2026-08-16
+
+Composition 2 above is now built (`packages/router/src/routerlib/compositions/spatial.py`)
+and measured. **The plan in this document is wrong in an interesting way**: regions-to-experts
+loses badly, and one piece of it — routing the fine-pitch escape *before* the inter-region
+nets, which is the opposite of what "the stitching is the hard part" argues for — is the
+largest single win anyone has measured on this benchmark.
+
+Ten arms, 16 instances, one budget (`max_iterations=2_000_000, max_nodes=20_000_000, seed=0`),
+ruler `e1ee2a5623d0`, `scripts/spatial_suite.py`. Full record in
+`packages/router/benchmarks/tournament/spatial-2026-08-16.json`.
+
+| arm | what it is | mean routed | nets | boards at 100% | s |
+|---|---|---|---|---|---|
+| `single` | one router, whole board | 81.5% | 320/380 | 3/16 | 312 |
+| `relay` | four routers, each asked only for the residue | 90.6% | 350/380 | 5/16 | 589 |
+| `spatial` | regions to specialists, crossings first | 70.9% | 261/380 | 3/16 | 190 |
+| `spatial-flat` | same partition, one router everywhere | 75.6% | 287/380 | 3/16 | 172 |
+| `spatial-tight` | same, cutting harder (76.8% interior, not 61.8%) | 74.0% | 276/380 | 3/16 | 213 |
+| `spatial-shuffled` | **same staging, nets dealt out by hash** | 79.8% | 286/380 | 4/16 | 170 |
+| `spatial-chain` | crossings retried by three more families | 78.3% | 296/380 | 3/16 | 268 |
+| `spatial-escape-first` | fine-pitch regions before the crossings | 86.9% | 319/380 | 6/16 | 241 |
+| `spatial-residue` | `spatial` + the relay's follower chain | 83.8% | 321/380 | 5/16 | 642 |
+| **`spatial-best`** | **escapes first + the relay's chain** | **94.3%** | 346/380 | **8/16** | 743 |
+
+`mean routed` is the mean of per-instance completeness and `nets` is the pooled count; they
+disagree whenever an arm wins on small boards. **`boards at 100%` is the column the fab-ready
+bar reads**, because a board with one net missing is not a board.
+
+### The escape goes first, and that is the result
+
+`spatial-best` is the first composition in this package to beat the relay: **8 boards finished
+against 5**, 94.3% against 90.6%, for 26% more wall clock and 4 fewer nets connected overall.
+The difference between it and `spatial-residue` — same partition, same followers, same
+everything else — is one line: fine-pitch regions route *before* the crossing stage rather
+than after. That single reordering is worth **+11.3 points and three more finished boards even
+on a single router** (75.6% / 3 → 86.9% / 6).
+
+The reasoning behind "crossings first" is sound and still holds for most regions: a region
+routed in isolation can leave no legal crossing at its edge. It fails for an escape because
+the asymmetry runs the other way. A 0.4mm-pitch QFN has one or two channels out from each pin;
+a crossing net can detour round the whole package. **Whoever has no alternative should go
+first.** Fine-pitch regions were the worst class on the board by a distance — 28 of 88 interior
+nets connected when they went second — and they are the class that improves when they go first.
+
+### The seam is worth nothing except for finding the escape
+
+`spatial-shuffled` is the control: identical region count, identical group sizes, identical
+staging, nets dealt into groups by SHA-256 of their id instead of by position. With the
+crossings first it **beats the real partition**, 79.8% against 75.6% and 4 finished boards
+against 3.
+
+So the crossing/interior split carries *negative* information. Splitting nets by geometry and
+routing the groups in stages is worse than splitting them at random, and both are worse than
+handing the whole board to one router (81.5%). PathFinder's entire mechanism is global
+negotiation — it never commits, so ordering stops mattering by the fourth pass — and staging
+destroys exactly that: each stage's copper is immovable to the next.
+
+The same partition read differently — *which region is a dense escape* — is worth 11 points.
+Same geometry, two uses, opposite signs.
+
+### Regions to specialists loses at region level too
+
+The table this composition was designed around was measured on the identical partition,
+region order and budget against routing every region with `pathfinder-negotiated`:
+
+| region character | nets asked | `exact-and-structured` | `pathfinder-negotiated` |
+|---|---|---|---|
+| lattice | 123 | 94 | **114** |
+| fine-pitch | 88 | 22 | **28** |
+| open | 24 | — | 23 |
+
+Both hypotheses are the region-level form of rules `routerlib.portfolio.REJECTED_RULES`
+already refuted at board level, and they fail the same way. They are recorded in
+`spatial.REJECTED_ASSIGNMENTS`, the default map is the constant, and a test fails if either
+comes back without a new measurement.
+
+### What the partition actually finds
+
+Per-instance, at the default parameters (balance 0.30, depth 3, a split must isolate more nets
+than it cuts):
+
+- 44–78% of nets end up interior to a region on the four large boards — `terminal-keyboard`
+  78% across 8 regions, `matrix-rp2040-core__usb-c-data` 67%, `harness-puck` 53%,
+  `hydrate-coaster` 44%.
+- 18% on `matrix-ldo-3v3__rp2040-core__usb-c-power`: five regions that isolate three nets.
+- **No seam at all** on `matrix-i2c-bus`, `matrix-ldo-3v3__usb-c-power` and
+  `matrix-status-led`. `Partition.seam` is False with a reason and the composition degenerates
+  to the plain global router, so it can never quietly become per-board selection.
+
+Cutting harder does not help: `spatial-tight` raises the interior share from 61.8% to 76.8%
+and drops completeness by 1.6 points.
+
+### Two things this turned up that are not about spatial decomposition
+
+**The relay's 98.0% was the broken pad model.** Re-measured on the corrected geometry it is
+**90.6%**, 350 of 380 nets, 5 of 16 boards finished. That is a new baseline, not a regression
+— `docs/architecture/routing.md`'s relay numbers were taken against ruler `b3c77d55b171`.
+Confirmed independently by `scripts/relay_baseline.py`, which agrees instance for instance.
+
+**Stage copper ids collide, and nothing checks it.** `routerlib.connectivity` unions
+`(copper id, layer)` nodes and `routerlib.drc` skips a pair when the two ids match, so two
+stages that both mint `v0` become one node carrying two nets — a connection that does not
+exist and a short that is never checked, at once. The relay does this: 35 colliding ids across
+the suite, 23 of them on `matrix-rp2040-core__sw-tact`. Every solution in the table above was
+therefore scored twice, once as returned and once with every id made unique, and **the two
+scores are identical everywhere** — the collisions have not yet bought a false number. It is
+latent, not active, and `spatial` namespaces its stages so it cannot happen there.
+
+### What is not measured
+
+- **KiCad on the real boards.** Every arm scores 0 harness errors, and harness-vs-KiCad rank
+  correlation is +0.93 since the pad model was fixed, but agreement is not a measurement. The
+  copper from `spatial-best` has not been through `kicad-cli pcb drc`.
+- **`boundary_clearance`.** The knob exists (widen the crossing stage's target clearance so it
+  leaves room for the regions) and was never run at anything but 1.0.
+- **Determinism of the four-router arms at `--runs 2`.** `spatial` and `spatial-flat` are
+  16/16 on two runs; the arms marked `n/m` in the record were routed once, and the record says
+  `null` rather than a vacuous `true`.
