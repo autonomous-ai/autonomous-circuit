@@ -15,6 +15,7 @@ import {
   panView,
   pointerPressAction,
   pointerReleaseAction,
+  takeKeyboardFromTyping,
   wheelAction,
 } from "./canvasPointer.js";
 import {
@@ -416,6 +417,10 @@ export default function PcbCanvas({
 
   const onPointerDown = useCallback(
     (event) => {
+      // First, the keyboard. See `takeKeyboardFromTyping`: the composer holds
+      // focus from load, so until this runs every board key is dead and
+      // nothing says why.
+      takeKeyboardFromTyping(typeof document === "undefined" ? null : document.activeElement);
       const point = boardPointFromEvent(event);
       // What this press means is decided in one place for both canvases —
       // `canvasPointer.pointerPressAction` — rather than by a chain of `if`s

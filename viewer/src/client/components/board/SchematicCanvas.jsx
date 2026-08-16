@@ -2,7 +2,14 @@ import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, us
 import { Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boxIsReal, inflateBox, schematicElementBox } from "@/lib/boardIndex.js";
-import { isDragButton, panTo, panView, pointerReleaseAction, wheelAction } from "./canvasPointer.js";
+import {
+  isDragButton,
+  panTo,
+  panView,
+  pointerReleaseAction,
+  takeKeyboardFromTyping,
+  wheelAction,
+} from "./canvasPointer.js";
 import { palette, unselectedOpacity } from "@/lib/boardPalette.js";
 import {
   parseSchematicTransform,
@@ -272,6 +279,9 @@ export default function SchematicCanvas({
   // uses more than the left one. Which button it was rides on the ref, because
   // the release reads it: left selects, right asks for a context menu.
   const onPointerDown = useCallback((event) => {
+    // The same handover the PCB canvas does, for the same reason: a press on a
+    // pane is where the keyboard should point.
+    takeKeyboardFromTyping(typeof document === "undefined" ? null : document.activeElement);
     if (!isDragButton(event.button)) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = {

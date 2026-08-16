@@ -55,6 +55,31 @@ export function panView(origin, dxPx, dyPx) {
 }
 
 /**
+ * Hand the keyboard to the board when someone presses on it.
+ *
+ * The chat composer takes focus when the app loads (`ChatInput.jsx` `autoFocus`)
+ * and `isTypingTarget` — correctly — refuses to take any key out of a text box,
+ * or typing "make the LED green" would toggle move mode, switch tabs and flip
+ * the units mid-sentence. The cost of those two true things together is that
+ * **every board key is dead until the composer loses focus**, and nothing on
+ * screen says so: an engineer opens the app, presses `E`, and the tool does
+ * nothing at all. Reported from the outside within a minute of first use.
+ *
+ * A press on the board is an unambiguous "I am working on the board now", which
+ * is exactly how Altium and KiCad decide where the keyboard points. Only a
+ * typing target is blurred — clicking the canvas must not steal focus from a
+ * dialog or a menu that is deliberately holding it.
+ *
+ * @returns {boolean} whether focus was taken off a text field.
+ */
+export function takeKeyboardFromTyping(activeElement) {
+  if (!activeElement || !isTypingTarget(activeElement)) return false;
+  if (typeof activeElement.blur !== "function") return false;
+  activeElement.blur();
+  return true;
+}
+
+/**
  * What one wheel event means: zoom, or pan sideways.
  *
  * Plain wheel zooms. That is a deliberate deviation — Altium's plain wheel

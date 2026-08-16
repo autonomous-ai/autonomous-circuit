@@ -12,6 +12,8 @@ import {
   Ruler,
   SquareDashed,
 } from "lucide-react";
+import { useState } from "react";
+
 import { cn } from "@/ui/utils";
 import { dispatchViewportTool, toolState, toolsForSurface } from "./viewportTools.js";
 
@@ -49,6 +51,35 @@ function ToolGlyph({ tool, value }) {
  * overlays, so opening the Messages panel slides the rail up instead of
  * burying it.
  */
+/**
+ * The hint over the rail.
+ *
+ * Every pill already carries a `title`, and a `title` is a tooltip the OS
+ * shows after about a second in its own styling — long enough that the first
+ * question an engineer asked about this rail was "what does the move icon look
+ * like?". A row of unlabelled glyphs is a guessing game, and the fix is the one
+ * every EDA tool uses: say what is under the cursor, immediately, in the app's
+ * own voice, with the key beside it so the pointer teaches the keyboard.
+ */
+function ToolHint({ hint }) {
+  if (!hint) return null;
+  return (
+    <div
+      data-slot="viewport-tool-hint"
+      className="pointer-events-none mb-1 flex justify-center"
+    >
+      <span className="rounded-md border border-white/10 bg-black/80 px-2 py-1 text-[11px] leading-none text-white/90 shadow-lg backdrop-blur-md">
+        {hint.label}
+        {hint.key ? (
+          <kbd className="ml-1.5 rounded border border-white/20 bg-white/10 px-1 py-0.5 font-mono text-[10px]">
+            {hint.key}
+          </kbd>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 export default function ViewportToolRail({
   surface = "pcb",
   context = {},
@@ -57,6 +88,7 @@ export default function ViewportToolRail({
   className,
 }) {
   const tools = toolsForSurface(surface);
+  const [hint, setHint] = useState(null);
   let lastGroup = "";
 
   return (
@@ -69,6 +101,7 @@ export default function ViewportToolRail({
         transform: `translateX(calc(-50% - ${rightInset / 2}px))`,
       }}
     >
+      <ToolHint hint={hint} />
       <div className="scrollbar-thin pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-white/10 bg-black/70 p-1 text-white/85 shadow-lg backdrop-blur-md">
         {tools.map((tool) => {
           const { active, value } = toolState(tool, context);
@@ -80,6 +113,10 @@ export default function ViewportToolRail({
               <button
                 type="button"
                 onClick={() => dispatchViewportTool(tool.id, context)}
+                onPointerEnter={() => setHint({ label: tool.label, key: tool.key })}
+                onPointerLeave={() => setHint((current) => (current?.label === tool.label ? null : current))}
+                onFocus={() => setHint({ label: tool.label, key: tool.key })}
+                onBlur={() => setHint(null)}
                 data-slot="viewport-tool"
                 data-tool={tool.id}
                 aria-pressed={tool.state === "action" ? undefined : active}
