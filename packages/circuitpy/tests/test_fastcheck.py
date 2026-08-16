@@ -159,62 +159,6 @@ class SeverityAgreementTests(unittest.TestCase):
         self.assertIn("product.json", failed[0]["detail"])
 
 
-class BoardOutlineTests(unittest.TestCase):
-    """Copper past a curved board edge — the check that replaced a 5.4-second one.
-
-    `checkPcbComponentsOutOfBoard` costs 5,368ms on harness-puck because the
-    board outline is 2,205 points, and that was 84% of the gate's whole answer.
-    This is the same containment test by ray casting.
-    """
-
-    def _round_board(self, pad_x: float) -> list[dict]:
-        import math
-
-        outline = [
-            {"x": 10 * math.cos(i * math.pi / 180), "y": 10 * math.sin(i * math.pi / 180)}
-            for i in range(0, 360, 2)
-        ]
-        return [
-            {"type": "pcb_board", "width": 20, "height": 20, "center": {"x": 0, "y": 0},
-             "outline": outline},
-            {"type": "source_component", "source_component_id": "sc_1", "name": "R1"},
-            {"type": "pcb_component", "pcb_component_id": "pc_1", "source_component_id": "sc_1"},
-            _pad("pad_1", "port_1", "pc_1", pad_x, 0.0),
-        ]
-
-    def test_copper_inside_a_round_board_is_not_reported(self) -> None:
-        self.assertEqual(checks.board_outline_warnings(self._round_board(0.0)), [])
-        # And near the edge but still inside: the corner of a 1mm pad at x=9
-        # reaches 9.5, which is inside a radius of 10.
-        self.assertEqual(checks.board_outline_warnings(self._round_board(9.0)), [])
-
-    def test_copper_past_the_curve_is_an_error_naming_the_part(self) -> None:
-        found = checks.board_outline_warnings(self._round_board(9.9))
-        self.assertEqual(len(found), 1, found)
-        self.assertEqual(found[0]["kind"], "component_outside_board")
-        self.assertEqual(found[0]["severity"], "error")
-        self.assertEqual(found[0]["part"], "R1")
-        # The corner it reports is the one furthest out, not the pad centre —
-        # the centre is still inside at x=9.9.
-        self.assertIn("10.400", found[0]["detail"])
-
-    def test_a_rectangular_board_is_left_to_the_dfm_check(self) -> None:
-        # No outline: `dfm_edge_clearance` measures against the same rectangle
-        # and says it in the fab's language, so two findings for one defect is
-        # the thing being avoided.
-        rect = [e for e in self._round_board(50.0) if e.get("type") != "pcb_board"]
-        rect.append({"type": "pcb_board", "width": 20, "height": 20, "center": {"x": 0, "y": 0}})
-        self.assertEqual(checks.board_outline_warnings(rect), [])
-
-    def test_it_never_raises_on_junk(self) -> None:
-        for junk in (
-            [],
-            [{"type": "pcb_board", "outline": "not a list"}],
-            [{"type": "pcb_board", "outline": [{"x": "left"}, {}, {"y": 2}]}],
-        ):
-            self.assertEqual(checks.board_outline_warnings(junk), [])
-
-
 class TraceAnchorTests(unittest.TestCase):
     def test_a_settled_board_reports_nothing(self) -> None:
         self.assertEqual(checks.trace_anchor_warnings(_board()), [])

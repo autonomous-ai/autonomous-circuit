@@ -19,20 +19,22 @@ Three things make that answer honest rather than merely fast.
    result, not a footnote in the UI. Nothing here sees the copper pour, the fab
    packet, or what the router will do on the next build, and the caller is
    given those words to print.
-3. **It has a stand-in for every check it drops.** Two are dropped, both
-   because they are the long pole on some board, and each has a Python
-   replacement measured against the same geometry:
+3. **It has a stand-in for the check it drops, and a cheaper ruler for the one
+   it cannot.** ``checkTracesAreContiguous`` is the only thing in the whole
+   stack that notices a part has left its copper, and costs **1,491ms** on
+   terminal-keyboard; ``checks.trace_anchor_warnings`` catches the same defect
+   in **3.8ms**, so the node leg runs without it.
 
-   - ``checkTracesAreContiguous`` is the only thing in the whole stack that
-     notices a part has left its copper, and costs **1,491ms** on
-     terminal-keyboard. ``checks.trace_anchor_warnings`` catches the same
-     defect in **3.8ms**.
-   - ``checkPcbComponentsOutOfBoard`` costs **5,368ms on harness-puck** — 84%
-     of that board's whole answer — against 49ms on terminal-keyboard. Not part
-     count (61 components against 137): the *board outline*, which tscircuit
-     emits as 2,205 points for a round board and omits for a rectangle.
-     ``checks.board_outline_warnings`` ray-casts the same containment in
-     **194ms**.
+   ``checkPcbComponentsOutOfBoard`` costs **5,368ms on harness-puck** — 84% of
+   that board's whole answer — against 49ms on terminal-keyboard. Not part
+   count (61 components against 137): the *board outline*, which tscircuit
+   emits as 2,205 points for a round board and omits for a rectangle. It is
+   **not** dropped, because it lives in a group that also holds an internal
+   ``checkCourtyardOverlap`` that is not exported and cannot be composed
+   around. Instead the node leg is handed a board whose outline is thinned to
+   ``MAX_OUTLINE_POINTS``; the error that buys is bounded and named in the
+   helper (0.042mm on harness-puck's 35mm radius, against a 0.2mm rule the DFM
+   leg measures exactly).
 
 **The whole answer, on all three shipped boards, warm** (2026-08-16, this
 module, `--disable-parts-engine` not involved — the gate never resolves parts):
@@ -71,7 +73,15 @@ from circuitpy import checks, fab as fab_mod, spec as spec_mod, verify_bridge
 #: The check dropped from the node leg, and the reason it is affordable to drop.
 #: Kept as a constant because two places have to agree about it: the node
 #: invocation and the `checked`/`not_checked` bookkeeping the UI prints.
-SKIPPED_NODE_CHECKS = ("checkTracesAreContiguous", "checkPcbComponentsOutOfBoard")
+SKIPPED_NODE_CHECKS = ("checkTracesAreContiguous",)
+
+#: How many outline points the node leg is given. The board's *shape* is what
+#: makes `checkPcbComponentsOutOfBoard` expensive — 2,205 points on a round
+#: board — and the check is kept rather than dropped because
+#: `runAllPlacementChecks` also holds an internal `checkCourtyardOverlap` that
+#: is not exported and cannot be composed around. See the helper's own comment
+#: for the error bound (0.042mm on harness-puck).
+MAX_OUTLINE_POINTS = 64
 
 #: Anchor keying, to 0.1µm. Identical to `KEY` in `boardSource.js:436` — a
 #: placement binds to geometry by exact arithmetic or it does not bind, and the
@@ -500,7 +510,11 @@ def fast_check(
         def node_leg() -> list[dict]:
             if not node:
                 return []
-            return checks.run_tscircuit_checks(node_input, skip=SKIPPED_NODE_CHECKS)
+            return checks.run_tscircuit_checks(
+                node_input,
+                skip=SKIPPED_NODE_CHECKS,
+                max_outline_points=MAX_OUTLINE_POINTS,
+            )
 
         # Two legs, no shared state, so they overlap. The node leg is the long
         # pole even with the contiguity check dropped.
@@ -512,7 +526,6 @@ def fast_check(
             if product is not None:
                 warnings.extend(checks.dfm_warnings(elements, product, profile))
             warnings.extend(checks.trace_anchor_warnings(elements))
-            warnings.extend(checks.board_outline_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
                     node_input, profile=profile, assembly_order=True
@@ -562,7 +575,6 @@ def fast_check(
             "DFM limits (hole-to-copper, power width, board envelope)"
             if product is not None else "DFM limits: not run (no product.json)",
             "trace anchors (a part that left its copper)",
-            "board outline (copper past a curved edge)",
             "verifylib: assembly, netclass, dc, review, thermal",
             f"@tscircuit/checks minus {', '.join(SKIPPED_NODE_CHECKS)}"
             if node else "@tscircuit/checks: not run",
