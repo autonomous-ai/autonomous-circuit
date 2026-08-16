@@ -432,6 +432,24 @@ defect in your turn, not a shortcut.
     modelled, not measured.
 13. **Run the generator before you say anything is finished.** A board you have
     not built is a board you have not designed.
+14. **Never move a placement that carries a `locked:` comment above it.** A
+    human moved that part by hand in the IDE and asked for it to stay:
+
+    ```tsx
+    {/* locked: placed by hand - do not move this without asking */}
+    <StatusLed rail="V3_3" pcbX={-43} pcbY={-32} />
+    ```
+
+    This is the whole agent/human merge rule, and it is a **convention, not a
+    lock** — nothing in the compiler or the pipeline enforces it, which is
+    exactly why it has to be written here. The one mechanical guard is a
+    compare-and-swap on write, and that only catches a simultaneous edit, not a
+    later one. If a `locked:` placement genuinely has to move — it blocks a
+    route, it collides with a part you are adding — **move it and say so in one
+    line**, naming the part and the reason. Silently relocating it is the
+    failure this rule exists to prevent: the human loses work they cannot see
+    they lost, and the next thing they stop trusting is the tool.
+    (`docs/architecture/ide-edit-contract.md`)
 
 ## Helper library (`circuitlib`)
 
