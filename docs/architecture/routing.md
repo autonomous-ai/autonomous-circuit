@@ -16,7 +16,7 @@ autorouter still beats us on all three example boards.**
 > every rectangular pad and keepout as its inscribed stadium. That model was
 > wrong by 0.21mm on a 1.0mm pad against a 0.09mm gate, and it is why the
 > harness ranking and the pipeline ranking disagreed. It was replaced on
-> 2026-08-16 (`56d69c365a72`). **The old tables are kept, not corrected**: they
+> 2026-08-16 (`fe41e1dbd433`). **The old tables are kept, not corrected**: they
 > are what that instrument said, and re-labelling them would hide the size of
 > the error. The corrected numbers are in the next section, and they are a new
 > baseline — not an improvement and not a regression.
@@ -112,18 +112,20 @@ routers ask `Workspace` for permission with the same shape model the scorer
 grades with. So the copper went through KiCad on the real boards, with the
 empty-solution control subtracted:
 
-| family | KiCad copper errors, old copper (12 boards) | new copper (11 boards) |
+| family | KiCad copper errors, old copper (12 boards) | new copper (12 boards) |
 |---|---|---|
 | `pathfinder-negotiated` | 80 | **0** |
 | `maze-astar` | 213 | **0** |
 | `exact-and-structured` | 29 | **0** |
 
-Eleven boards, not twelve, and the missing one is the fixture mechanism working
-rather than failing: `harness-puck`'s SW1 moved four pads *during this work*
-(commit `aff429b`, "move SW1 clear of the crystal"), so the board on disk is no
-longer the instance's placement and `verify_real_board.py` refuses it rather
-than judging a router against a board it never saw. `terminal-keyboard` has been
-in that state for longer, at 104 drifted pads.
+`harness-puck` is in that twelve because its instance was re-extracted after
+the board settled: SW1 moved four pads *during this work* (commit `aff429b`,
+"move SW1 clear of the crystal"), `verify_real_board.py` refused the board until
+the fixture caught up, and the three families were re-run on the new placement.
+It is deliberately **absent from the before/after table above** — a before on
+one placement and an after on another are two boards, not two measurements, and
+`rerun_table.py` now drops such a pair rather than averaging it.
+`terminal-keyboard` remains unverifiable at 104 drifted pads.
 
 `@tscircuit/checks` is not zero on the same boards — 12 findings for
 `maze-astar`, 4 for `exact-and-structured`, 1 for `pathfinder-negotiated`. Its
@@ -505,16 +507,88 @@ fab-ready". Done 2026-08-16; the corrected harness charges 68 keepout entries
 across the 208 cells it used to see none of, and the re-run families place
 none. The flag has not been re-measured through the pipeline.
 
+## Re-run against the incumbent with the pad model corrected
+
+`scripts/ab_incumbent.py --routers maze-astar,pathfinder-negotiated,portfolio`,
+boards at `12a6dd6`, pours stripped, empty-solution control subtracted, ruler
+`fe41e1dbd433`. Same board, same checker, one thing different: the copper.
+
+| board | | routed | nets left | KiCad copper | what kind |
+|---|---|---|---|---|---|
+| hydrate-coaster | incumbent | **100.0%** | 0 | 7 | all `holes_co_located` |
+| | portfolio relay/thorough | 87.5% | 4 | **0** | — |
+| harness-puck | incumbent | **97.2%** | 1 | 4 | all `holes_co_located` |
+| | portfolio relay/thorough | 94.4% | 2 | **0** | — |
+| terminal-keyboard | incumbent | **98.9%** | 1 | 3 | all `holes_co_located` |
+| | portfolio relay/thorough | 92.1% | 7 | **0** | — |
+
+**We win legality on all three boards and lose completeness on all three.** The
+answer to "do we beat the incumbent" is still no, and the reason has changed
+sides. Before the pad model was corrected the portfolio scored 96.9% / 12
+errors, 97.2% / 35 and 94.4% / 27 — worse on both axes on two of the three
+boards. It is now 0 errors everywhere and 2.8 to 12.5 points short of the
+incumbent's completeness.
+
+Two things make that a loss rather than a trade:
+
+- **An unrouted net is a dead board; a duplicate drill is a fab query.** Every
+  one of the incumbent's remaining findings is `holes_co_located` — it has no
+  clearance violations, no shorts and no copper-to-hole findings on any of the
+  three. Ours are gone too, so the legality column is now a comparison between
+  zero and a fab email. The completeness column is a comparison between a board
+  and a board with seven nets missing.
+- **Neither side is `fab.ready`.** The bar is 100% routed *and* zero blocking
+  findings, and nothing here clears it.
+
+The single-family runs are in the same file and they lose to the relay on every
+board: `maze-astar` 84.4 / 80.6 / 80.9, `pathfinder-negotiated` 78.1 / 86.1 /
+87.6. Composition still buys the completeness that selection does not, which is
+the one conclusion in this document that survived the ruler change intact.
+
+### The shipping gate no longer breaks
+
+The flag's one measured regression was `matrix-ldo-3v3__usb-c-power`: five
+nets, the simplest real composition in the matrix, `fab.ready: true` with the
+router off and `false` with five blocking `pcb_trace_error` findings with it
+forced on — every one of them our copper inside `pcb_keepout_0`, the 7.3 ×
+1.23mm rectangle whose corners the inscribed stadium rounded off by 0.255mm.
+
+Rebuilt today, same cell, same flag:
+
+| | `fab.ready` | blocking | routed | vias | copper |
+|---|---|---|---|---|---|
+| `CIRCUIT_ROUTER` off | true | 0 | 100% | 16 | 137.0mm |
+| `CIRCUIT_ROUTER=portfolio-force` | **true** | **0** | 100% | **7** | 141.1mm |
+| `CIRCUIT_ROUTER=portfolio` (gated) | **true** | **0** | 100% | **7** | 141.1mm |
+
+The gated mode keeps our copper here because it connects the same five nets,
+and it lands the board with **7 vias against the incumbent's 16** at 3% more
+copper. That is the first end-to-end board where our router is straightforwardly
+better through the gate that ships boards.
+
+Read the gate for what it is: it compares **net count**, not legality. It
+guarantees the router can never cost a connection and guarantees nothing about
+the copper it accepts. That is only safe to lean on because legality is now
+measured at zero over 12 real boards and 3 example boards — the day that stops
+being true, the gate will not catch it.
+
 ## What is still worse than the incumbent, said plainly
 
 1. **Fab-ready rate: unchanged.** 3 of 10 verified composition cells, the same
    as the best single family and the same as the oracle. Zero of the three
-   example boards.
-2. **Completeness on the boards we ship.** 94.4% against 98.9% on
-   terminal-keyboard, 96.9% against 100% on hydrate-coaster.
-3. **Real DRC errors: 2× to 9× the incumbent's**, and worse in kind.
-4. **The shipping gate.** Forced on, the flag turns the simplest real
-   composition cell from `fab.ready: true` into five blocking findings.
+   example boards. *(Old ruler. The corrected re-run has not been taken through
+   the full fab-ready gate on all ten.)*
+2. **Completeness on the boards we ship — and it got worse, not better.** 92.1%
+   against 98.9% on terminal-keyboard, 87.5% against 100% on hydrate-coaster,
+   94.4% against 97.2% on harness-puck. This is now the *whole* gap, and honest
+   obstacles are what widened it: the copper we used to squeeze through a pad
+   corner was never there.
+3. ~~**Real DRC errors: 2× to 9× the incumbent's**~~ — **fixed.** 0 against 7,
+   4 and 3, and the incumbent's remainder is `holes_co_located` rather than
+   anything that scraps a board.
+4. ~~**The shipping gate.**~~ — **fixed and re-verified.** The cell that went
+   `fab.ready: true` → five blocking findings now builds `true` with zero,
+   through both the gated and the forced flag.
 5. **Pours.** The pipeline stage refuses any board that already carries a
    `pcb_copper_pour`, because the pour was generated around the incumbent's
    traces and re-pouring after our route is not written. That is one of the

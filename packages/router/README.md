@@ -270,7 +270,7 @@ invent one". It was the dominant failure mode of the whole benchmark:
 
 Re-run against the corrected model, `maze-astar` goes from 401 harness errors
 to **0** at the same completeness, and from 213 real KiCad copper errors to
-**0** over the 11 boards that still match their instance.
+**0** over all 12 boards that match their instance.
 `pathfinder-negotiated` reaches the same zero and pays 29 nets for it. The
 whole comparison is `scripts/rerun_table.py`.
 
@@ -313,7 +313,8 @@ Shipped with every result as `coverage_gaps`:
 ### The ruler travels with the score
 
 ```
-ruler : 56d69c365a72, 13 check kinds, jlcpcb @ 0.09mm gate
+ruler : fe41e1dbd433, 13 check kinds, jlcpcb @ 0.09mm gate,
+        circuitpy.checks a25a24c06979
         — compare only against a run with the same hash
 ```
 
@@ -322,9 +323,18 @@ better, or the ruler got shorter. Two scores are comparable only when their
 hashes match. A run against a stricter set is a new baseline, not an
 improvement.
 
-The ruler moved twice on 2026-08-16, `b3c77d55b171` → `032bfa67418e` →
-`56d69c365a72`: first when pads and keepouts became their true shapes, then when
-the cost tier left the ranking key. **Nothing measured against `b3c77d55b171`
+**The delegated checks are part of the ruler**, as a sha256 of the
+`circuitpy.checks` source. Not a version string: that module is edited in this
+repo, often by another agent, and a working-tree edit has no version. It is in
+the hash because a change there changes our numbers — on 2026-08-16 somebody
+taught it to read `ccw_rotation` and `dfm_hole_clearance` went from 2 findings
+across the tournament to 107, with nothing in the ruler moving to say so. A
+score that can change while its ruler stays still is not carrying its ruler.
+
+The ruler moved three times on 2026-08-16, `b3c77d55b171` → `032bfa67418e` →
+`56d69c365a72` → `fe41e1dbd433`: pads and keepouts became their true shapes,
+the cost tier left the ranking key, and the delegated checks joined the hash.
+The last move changed no number. **Nothing measured against `b3c77d55b171`
 is comparable to anything here.** Every headline number in
 `docs/architecture/routing.md` from before that date is a number about a
 different ruler, and the re-scored ones are a new baseline — not an improvement
@@ -374,7 +384,7 @@ Its score shape is the point: **legality perfect, completeness poor**. That is
 the opposite failure to the one we ship, and the two together bracket what a
 real router has to do.
 
-Measured 2026-08-16 over all 16 instances, `ruler 56d69c365a72`:
+Measured 2026-08-16 over all 16 instances, `ruler fe41e1dbd433`:
 
 ```
 2/16 instances clean, 57.3% mean completeness, 37 DRC errors, 16/16 deterministic
@@ -455,7 +465,22 @@ Verified through KiCad it also carries a third more violations per millimetre,
 and it clears the same 3 of 10 boards at the fab-ready bar.
 
 `docs/architecture/routing.md` has all of it, including the A/B against the
-shipped autorouter, which the shipped autorouter still wins.
+shipped autorouter, which the shipped autorouter still wins — on completeness
+now, not on legality. Re-run against the corrected pad model, boards at
+`12a6dd6`:
+
+| board | incumbent | portfolio relay/thorough |
+|---|---|---|
+| hydrate-coaster | 100.0% routed, 7 KiCad | 87.5%, **0** |
+| harness-puck | 97.2%, 4 KiCad | 94.4%, **0** |
+| terminal-keyboard | 98.9%, 3 KiCad | 92.1%, **0** |
+
+Every one of the incumbent's remaining findings is `holes_co_located`, which is
+a fab query. Ours are gone. **We do not win**: a board with 7 nets missing is
+not better than a board with a duplicate drill, and neither side is
+`fab.ready`. The one place we are straightforwardly ahead is
+`matrix-ldo-3v3__usb-c-power` through the real shipping gate — 100% routed,
+`fab.ready: true`, 0 blocking, **7 vias against the incumbent's 16**.
 
 ## Layout
 

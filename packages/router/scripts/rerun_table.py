@@ -28,7 +28,7 @@ REPO = Path(__file__).resolve().parents[3]
 def load(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     return {
-        (c["router"], c["instance"]): c["new"]
+        (c["router"], c["instance"]): {**c["new"], "placementHash": c.get("placementHash")}
         for c in data["cells"]
         if c.get("new")
     }, data
@@ -79,6 +79,25 @@ def main(argv=None) -> int:
     print(f"ruler {', '.join(ameta['newRulerHash'])} on both sides")
     print("before: copper routed against the inscribed stadium, re-scored")
     print("after : copper routed against the true shape model\n")
+
+    # A board can be re-extracted between the two runs — harness-puck was, on
+    # 2026-08-16, after its SW1 moved 1.2mm. Two cells named the same thing on
+    # two different placements are not a before and an after, they are two
+    # boards, and averaging them would read as a router getting worse.
+    dropped = sorted(
+        key for key in set(before) & set(after)
+        if before[key].get("placementHash")
+        and after[key].get("placementHash")
+        and before[key]["placementHash"] != after[key]["placementHash"]
+    )
+    for key in dropped:
+        del after[key]
+    if dropped:
+        names = sorted({i for _, i in dropped})
+        print(f"dropped from the comparison, placement moved between the runs: "
+              f"{', '.join(names)}")
+        print(f"  ({len(dropped)} cells; they are still in the KiCad column "
+              f"below, which is about the board each was actually routed on)\n")
 
     families = sorted({r for r, _ in after})
     rows = {}

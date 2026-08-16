@@ -1,0 +1,178 @@
+{
+ "measuredAt": "2026-08-16",
+ "what": "ab_incumbent.py against the shipped tscircuit autorouter on the three example boards, with pads and keepouts measured as their true shapes. Same board, same checker, one thing different: the copper. Empty-solution control subtracted; pours stripped.",
+ "verdict": "we win legality on all three boards and lose completeness on all three. Every remaining incumbent finding is holes_co_located, a fab query; ours are gone. Neither side is fab.ready, and an unrouted net is the worse defect.",
+ "boards": {
+  "hydrate-coaster": {
+   "commit": "12a6dd6128c51cc5ae7c392fc921e3d2d23c1330",
+   "poursStripped": 2,
+   "rulerHash": "56d69c365a72",
+   "rows": {
+    "incumbent": {
+     "routed": 1.0,
+     "connectedNets": 32,
+     "routableNets": 32,
+     "harnessErrors": 0,
+     "kicadCopper": 7,
+     "kicadCopperKinds": {
+      "holes_co_located": 7
+     },
+     "tscircuitRouting": 0,
+     "vias": 108,
+     "copperMm": 1138.9,
+     "seconds": null
+    },
+    "maze-astar": {
+     "routed": 0.84375,
+     "connectedNets": 27,
+     "routableNets": 32,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 5,
+     "vias": 56,
+     "copperMm": 775.6,
+     "seconds": 20.6
+    },
+    "pathfinder-negotiated": {
+     "routed": 0.78125,
+     "connectedNets": 25,
+     "routableNets": 32,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 0,
+     "vias": 51,
+     "copperMm": 722.4,
+     "seconds": 21.5
+    },
+    "portfolio[relay/thorough]": {
+     "routed": 0.875,
+     "connectedNets": 28,
+     "routableNets": 32,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 3,
+     "vias": 68,
+     "copperMm": 945.5,
+     "seconds": 52.5
+    }
+   }
+  },
+  "harness-puck": {
+   "commit": "12a6dd6128c51cc5ae7c392fc921e3d2d23c1330",
+   "poursStripped": 0,
+   "rulerHash": "ae2bc778370b",
+   "rows": {
+    "incumbent": {
+     "routed": 0.972222,
+     "connectedNets": 35,
+     "routableNets": 36,
+     "harnessErrors": 0,
+     "kicadCopper": 4,
+     "kicadCopperKinds": {
+      "holes_co_located": 4
+     },
+     "tscircuitRouting": 0,
+     "vias": 122,
+     "copperMm": 1530.7,
+     "seconds": null
+    },
+    "maze-astar": {
+     "routed": 0.805556,
+     "connectedNets": 29,
+     "routableNets": 36,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 5,
+     "vias": 64,
+     "copperMm": 1197.8,
+     "seconds": 35.1
+    },
+    "pathfinder-negotiated": {
+     "routed": 0.861111,
+     "connectedNets": 31,
+     "routableNets": 36,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 2,
+     "vias": 79,
+     "copperMm": 1313.2,
+     "seconds": 16.5
+    },
+    "portfolio[relay/thorough]": {
+     "routed": 0.944444,
+     "connectedNets": 34,
+     "routableNets": 36,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 3,
+     "vias": 87,
+     "copperMm": 1459.3,
+     "seconds": 28.3
+    }
+   }
+  },
+  "terminal-keyboard": {
+   "commit": "fd92ebefd4edda43f4675053222e5b85e54b53ef",
+   "poursStripped": 0,
+   "rulerHash": "e1ee2a5623d0",
+   "rows": {
+    "incumbent": {
+     "routed": 0.988764,
+     "connectedNets": 88,
+     "routableNets": 89,
+     "harnessErrors": 1,
+     "kicadCopper": 3,
+     "kicadCopperKinds": {
+      "holes_co_located": 3
+     },
+     "tscircuitRouting": 0,
+     "vias": 213,
+     "copperMm": 2838.8,
+     "seconds": null
+    },
+    "maze-astar": {
+     "routed": 0.808989,
+     "connectedNets": 72,
+     "routableNets": 89,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 5,
+     "vias": 79,
+     "copperMm": 2034.9,
+     "seconds": 53.9
+    },
+    "pathfinder-negotiated": {
+     "routed": 0.876404,
+     "connectedNets": 78,
+     "routableNets": 89,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 0,
+     "vias": 93,
+     "copperMm": 2158.9,
+     "seconds": 70.9
+    },
+    "portfolio[relay/thorough]": {
+     "routed": 0.921348,
+     "connectedNets": 82,
+     "routableNets": 89,
+     "harnessErrors": 0,
+     "kicadCopper": 0,
+     "kicadCopperKinds": {},
+     "tscircuitRouting": 1,
+     "vias": 133,
+     "copperMm": 2679.0,
+     "seconds": 179.6
+    }
+   }
+  }
+ }
+}
