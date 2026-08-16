@@ -146,6 +146,40 @@ def pad(x: float, y: float, *, w: float = 0.6, h: float = 0.6) -> dict:
     }
 
 
+def pad_on_net(x: float, y: float, net_id: str, *, w: float, h: float,
+               shape: str = "rect", rotation: float = 0.0) -> list[dict]:
+    """An SMD pad wired to a net, with its ``ccw_rotation`` carried through.
+
+    The net matters to every hole-clearance fixture for the same reason it
+    does to the check: copper on the drill's own net is the connection, not a
+    violation, so a fixture with no nets tests a different rule than the one
+    that fires on a board.
+    """
+    tag = f"{x}_{y}".replace("-", "m")
+    return [
+        {
+            "type": "pcb_smtpad", "pcb_smtpad_id": f"p_{tag}",
+            "pcb_port_id": f"pp_{tag}", "shape": shape, "layer": "top",
+            "x": x, "y": y, "width": w, "height": h, "ccw_rotation": rotation,
+        },
+        {
+            "type": "pcb_port", "pcb_port_id": f"pp_{tag}",
+            "source_port_id": f"sp_{tag}", "x": x, "y": y,
+        },
+        {
+            "type": "source_port", "source_port_id": f"sp_{tag}", "name": "VCC",
+            "subcircuit_connectivity_map_key": f"conn_{net_id}",
+        },
+    ]
+
+
+def via_on_net(x: float, y: float, net_id: str, *, hole_d: float = 0.3,
+               outer_d: float = 0.6) -> dict:
+    out = via(hole_d=hole_d, outer_d=outer_d, x=x, y=y)
+    out["subcircuit_connectivity_map_key"] = f"conn_{net_id}"
+    return out
+
+
 # ---------------------------------------------------------------------------
 # The corpus
 # ---------------------------------------------------------------------------
@@ -376,6 +410,59 @@ CORPUS: tuple[Defect, ...] = (
         near_miss_why=(
             "0.425mm from the end of the slot is legal — modelling the slot "
             "must not turn into inflating it."
+        ),
+    ),
+    Defect(
+        id="a-pad-measured-unrotated",
+        found="2026-08-16 — terminal-keyboard, the last blocking finding on "
+              "the last of the three boards",
+        story=(
+            "The hole-clearance check modelled every pad as the stadium "
+            "inscribed in its width and height and dropped the pad's own "
+            "`ccw_rotation`. That does not blur a shape, it moves one. U4 is a "
+            "W25Q128 in SOIC-8: eight 2.25 x 0.63mm pads at ccw_rotation 90, "
+            "so the copper is 2.25mm *tall*. Swung back onto the x-axis it "
+            "becomes 2.25mm *wide* and reaches 0.81mm toward a via that is "
+            "nowhere near it — 0.130mm against a 0.20mm floor, on a board "
+            "where the real gap is 0.506mm. KiCad's own hole-clearance DRC, on "
+            "at 0.2mm on the same packet, reported nothing. The 1.27mm pad "
+            "pitch settles it without any tool: eight pads 2.25mm wide at "
+            "1.27mm centres would overlap each other, so the unrotated reading "
+            "cannot describe a real footprint. The same blindness runs the "
+            "other way — a pad whose long axis genuinely points at a drill was "
+            "measured as if it pointed away, which is a missed defect and "
+            "costs two weeks. Both directions are pinned here."
+        ),
+        elements=[
+            board(),
+            net("n_gnd", name="GND"),
+            net("n_vcc", name="V3_3"),
+            # The dangerous direction. The pad's real copper runs *toward* the
+            # via: spine (0,-0.81)-(0,0.81) with a 0.315mm radius, so a drill
+            # 1.405mm above the pad centre clears the copper by 0.595 - 0.315
+            # - 0.15 = 0.130mm, under the 0.20mm via floor. The unrotated
+            # model lays the same pad along x and reports 0.940mm — clean.
+            *pad_on_net(0.0, 0.0, "n_vcc", w=2.25, h=0.63,
+                        shape="rotated_pill", rotation=90.0),
+            via_on_net(0.0, 1.405, "n_gnd"),
+        ],
+        expect_kind="dfm_hole_clearance",
+        near_miss=[
+            board(),
+            net("n_gnd", name="GND"),
+            net("n_vcc", name="V3_3"),
+            # terminal-keyboard's own geometry, moved to the origin: U4 pin 8
+            # and pcb_via_200, 0.971mm to the side and 0.573mm up. Real gap
+            # 0.506mm; the unrotated model called it 0.130mm and blocked the
+            # board.
+            *pad_on_net(0.0, 0.0, "n_vcc", w=2.25, h=0.63,
+                        shape="rotated_pill", rotation=90.0),
+            via_on_net(-0.971, 0.5729, "n_gnd"),
+        ],
+        near_miss_why=(
+            "0.506mm from a pad that is 0.63mm wide, not 2.25mm wide. A model "
+            "that reports 0.130mm here is measuring copper that is not on the "
+            "board, and it blocked a finished design for a day."
         ),
     ),
     Defect(

@@ -224,26 +224,40 @@ below.
 
 ## Where it ended up
 
-**46 → 1 blocking error**, on two layers, with the fab packet intact
-(gerbers, BOM and CPL all written from kicad-cli). It is one error short of
-orderable, and that error is documented below rather than papered over.
+**46 → 0 blocking errors**, on two layers, with the fab packet intact
+(gerbers, BOM and CPL all written from kicad-cli). The board is orderable and
+`ORDER.md` is written.
 
 ## Honest limits
 
-**This board is not fab-ready. `fab.ready` is `false` on exactly one blocking
-error, and the reason is routing, not sourcing.** State as of 2026-08-16, from
-two consecutive builds of the 100 × 90 source that produced byte-identical
-gerbers (comments and creation dates stripped):
+**This board is fab-ready as of 2026-08-16. `fab.ready` is `true` with zero
+blocking findings**, and an independent KiCad run — the packet unzipped into an
+empty directory and checked by `kicad-cli` 10.0.5, which knows nothing about
+this pipeline — reports **0 error-severity violations and 0 unconnected items**.
 
 | | |
 |---|---|
-| blocking (`error`) | **1** — `dfm_hole_clearance`: one of U4's pads passes 0.130 mm from a via at (10.12, −20.90), against a 0.20 mm rule. 0.07 mm short. |
-| `warning` | 418 — of which 377 are `drc_violation` and 369 of those are kicad-converter noise (`footprint_symbol_mismatch` ×139, `footprint_symbol_field_mismatch` ×137, `net_conflict` ×93) |
-| `info` | 742 |
-| `fab.ready` | **false** — one error stands, so `ORDER.md` is not written |
+| blocking (`error`) | **0** |
+| `warning` | 427 — of which 377 are `drc_violation` and 369 of those are kicad-converter noise (`footprint_symbol_mismatch` ×139, `footprint_symbol_field_mismatch` ×137, `net_conflict` ×93) |
+| `info` | 740 |
+| `fab.ready` | **true** — `ORDER.md` is written |
+| independent DRC | `kicad-cli pcb drc --severity-error` on the shipped `kicad-project.zip`: **0 violations, 0 unconnected** |
 | gerber source | `kicad-cli` 10.0.5 — the shipping exporter, not the fallback |
 | BOM | 20 grouped lines, **17 orderable** (JLC's own format, ledger #32) |
 | route | 252 PCB traces, 213 vias, **zero** errors in the compiled circuit.json |
+
+**The last blocking error was never on the board.** Until 2026-08-16 this
+section said `dfm_hole_clearance`: one of U4's pads 0.130 mm from a via at
+(10.12, −20.90), against a 0.20 mm rule. The pad is not there. U4 is a SOIC-8,
+and its eight 2.25 × 0.63 mm pads carry `ccw_rotation: 90` — the copper is
+2.25 mm *tall*. The clearance check dropped the rotation and swung every pad
+back onto the x-axis, which reaches 0.81 mm sideways toward a via that is
+0.506 mm away. Three things said so before any tool did: the pads sit on a
+1.27 mm pitch, so eight pads 2.25 mm *wide* would overlap each other; the KiCad
+packet writes each one with a trailing `90`; and KiCad's own hole-clearance
+DRC, enabled at 0.2 mm on the same packet, reported nothing. The fix is in the
+check (`_pad_copper`, ledger #41), not in this board — no copper moved, and the
+route is the same one the 08-16 05:20 source has always produced.
 
 **The shrink to 100 × 90 took this from 12 blocking to 1.** Measured on the
 same pipeline and the same command: the 112 × 90 source rebuilt on 2026-08-16
@@ -255,11 +269,9 @@ switches opens the inter-column channel from 2.1 mm to 3.0 mm, and the same
 an older commit of `main.board.json` predates the EE-review pipeline changes;
 it is not a number this source ever reaches today.)
 
-The 50-key matrix routes clean — **zero errors anywhere in the key field**. The
-one blocking error, and every warning that matters, sits in a roughly
-30 × 20 mm patch around the MCU and the USB connector. It is ledger #11's open
-class: the router has no repair for a via it parks too close to a pad, and
-nothing in the board source moves it. Details, with numbers, below.
+The 50-key matrix routes clean — **zero errors anywhere in the key field** —
+and every warning that still matters sits in a roughly 30 × 20 mm patch around
+the MCU and the USB connector. Details, with numbers, below.
 
 One more thing an EE will spot in the packet: `board.drl` carries **228 drill
 hits against 225 holes and vias in the design**. The three extras are real and
@@ -279,13 +291,14 @@ them — the 50-key matrix, 500 switch-pad connections, 100 diode connections an
 the fifteen matrix nets fanning into the QFN — with **zero unrouted nets and
 zero errors in the compiled circuit.json**. Scale was not the problem.
 
-Density was. Every remaining error lives in the electronics strip:
+Density was. Every error the board ever carried lived in the electronics strip
+(the counts below are the history; the board is at zero now):
 
 | what | why it cannot be fixed by moving parts |
 |---|---|
 | the RP2040 QFN-56 escape | 0.4 mm pitch, 0.2 mm pads → 0.2 mm between adjacent pads. The mandated `minTraceWidth="0.2mm"` needs 0.4 mm of channel to pass between two pads. Nothing can go between them, so the router doglegs and lays parallel traces at ~0.05–0.09 mm apart. |
 | the USB D+/D− pair | leaves pins 46/47, two adjacent 0.4 mm-pitch pads; at default effort the router repeatedly shorted DP to DM in the first millimetre of the escape. |
-| J1's own drill field | the USB-C receptacle is a hybrid SMD+TH part with four plated legs. V5 and GND have to leave through them, and the last surviving error is a V5 track 0.12 mm from one of those drills. |
+| J1's own drill field | the USB-C receptacle is a hybrid SMD+TH part with four plated legs. V5 and GND have to leave through them, and a V5 track 0.12 mm from one of those drills was the last real error here — closed by the block's keepout (ledger #1). |
 | the QSPI bus to U4 | six signals sharing the corridor with the 3V3/GND/DVDD web and the 15 matrix nets converging on the same chip. |
 
 Four things were tried and measured. Blocking-error counts, same board:
@@ -301,6 +314,7 @@ Four things were tried and measured. Blocking-error counts, same board:
 | + one more placement fix on the last error | **26** | 17:00 |
 | 2026-08-16 pipeline, unchanged 112 × 90 source | **12** | ~18:00 |
 | + board 112 → 100 mm, diodes tucked 3.4 → 1.4 mm | **1** | ~18:00 |
+| + the clearance check reads a rotated pad (no copper moved) | **0** | 15:05 |
 
 The seventh row is the one that taught the most: fixing the final error by
 moving the VBUS bulk cap re-solved the whole board and produced 26 different

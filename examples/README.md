@@ -68,9 +68,9 @@ to design, at planning time, before anything is built.
 
 | Board | State |
 |---|---|
-| [harness-puck](harness-puck/REVIEW.md) | 137 blocking |
+| [harness-puck](harness-puck/REVIEW.md) | clean |
 | [hydrate-coaster](hydrate-coaster/REVIEW.md) | clean |
-| [terminal-keyboard](terminal-keyboard/REVIEW.md) | 1 blocking |
+| [terminal-keyboard](terminal-keyboard/REVIEW.md) | clean |
 
 These are evidence, not deliverables — nobody is asking you to approve three
 boards. They are here because they are the only way to see what the tool

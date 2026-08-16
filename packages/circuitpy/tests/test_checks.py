@@ -3,6 +3,8 @@ geometry. Every harvester must be never-raise."""
 
 from __future__ import annotations
 
+import math
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -476,6 +478,108 @@ class DfmGate(unittest.TestCase):
             [{"type": "pcb_board", "width": "x"}], _product(), PROFILE  # type: ignore[list-item]
         )
         self.assertIsInstance(warnings, list)
+
+
+class PadShape(unittest.TestCase):
+    """What the hole-clearance gate thinks a pad is.
+
+    Ledger #41: it thought every pad was the stadium inscribed in its width
+    and height, on the x-axis. That is the right shape for exactly one of the
+    five kinds of pad a board carries, and being wrong about the other four is
+    what produced the last blocking finding on terminal-keyboard — plus three
+    blind spots nobody had looked for.
+    """
+
+    def _hole_gap(self, pad: dict, x: float, y: float,
+                  drill: float = 0.3) -> float:
+        """The clearance the gate measures between ``pad`` and a drill at
+        ``(x, y)``, read back out of the finding it writes."""
+        # The pad is on its own net. Without that, copper inside the via's
+        # annular ring is exempt (it is the ring, not a clearance), and the
+        # geometry under test here never reaches the rule.
+        pad = {**pad, "pcb_port_id": "pp1", "layer": "top"}
+        elements = [
+            {"type": "pcb_board", "width": 20, "height": 20, "thickness": 1.6,
+             "center": {"x": 0, "y": 0}},
+            pad,
+            {"type": "pcb_port", "pcb_port_id": "pp1", "source_port_id": "sp1",
+             "x": 0.0, "y": 0.0},
+            {"type": "source_port", "source_port_id": "sp1", "name": "VCC",
+             "subcircuit_connectivity_map_key": "pad_net"},
+            {"type": "pcb_via", "pcb_via_id": "v1", "x": x, "y": y,
+             "hole_diameter": drill, "outer_diameter": drill + 0.3,
+             "subcircuit_connectivity_map_key": "other_net"},
+        ]
+        found = [w for w in checks.dfm_warnings(elements, _product(), PROFILE)
+                 if w["kind"] == "dfm_hole_clearance"]
+        if not found:
+            return math.inf
+        return float(re.search(r"passes ([\d.]+)mm", found[0]["detail"]).group(1))
+
+    def test_a_rotated_pill_is_measured_where_its_copper_is(self) -> None:
+        """U4 on terminal-keyboard: 2.25 x 0.63mm at 90 degrees, so the copper
+        is 2.25mm tall and 0.63mm wide, not the other way round."""
+        pad = {"type": "pcb_smtpad", "pcb_smtpad_id": "p1",
+               "shape": "rotated_pill", "x": 0.0, "y": 0.0,
+               "width": 2.25, "height": 0.63, "ccw_rotation": 90.0}
+        # Off the pad's long end — the near side once the rotation is read.
+        self.assertAlmostEqual(self._hole_gap(pad, 0.0, 1.405), 0.130, places=3)
+        # Off its narrow side, at the same distance from the centre: clear.
+        self.assertEqual(self._hole_gap(pad, -1.405, 0.0), math.inf)
+
+    def test_a_rectangle_keeps_its_corners(self) -> None:
+        """The inscribed stadium rounds 1.0mm square pad corners inward by
+        0.207mm, which is more than the whole clearance rule."""
+        pad = {"type": "pcb_smtpad", "pcb_smtpad_id": "p1", "shape": "rect",
+               "x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+        # Diagonally off the corner (0.5, 0.5), 0.1mm of copper-to-drill gap.
+        corner = 0.5 + (0.15 + 0.1) / math.sqrt(2)
+        self.assertLess(self._hole_gap(pad, corner, corner), 0.2)
+
+    def test_a_circle_pad_is_its_own_radius(self) -> None:
+        """A circle pad carries ``radius`` and no ``width``. Reading the
+        radius *as* the width halved every round pad on every board — the
+        DebugPort test points are 1.0mm across and were modelled at 0.5mm."""
+        pad = {"type": "pcb_smtpad", "pcb_smtpad_id": "p1", "shape": "circle",
+               "x": 0.0, "y": 0.0, "radius": 0.5}
+        # 0.13mm from the real 0.5mm radius; 0.38mm from the modelled 0.25mm.
+        self.assertAlmostEqual(self._hole_gap(pad, 0.78, 0.0), 0.130, places=3)
+
+    def test_a_polygon_pad_is_measured_at_all(self) -> None:
+        """A polygon pad has no width or height, so it failed the numeric
+        guard and was dropped — including the four shell pads on every USB-C
+        receptacle we ship, which sit beside the drills this gate exists for."""
+        pad = {"type": "pcb_smtpad", "pcb_smtpad_id": "p1", "shape": "polygon",
+               "points": [{"x": -0.5, "y": -0.5}, {"x": 0.5, "y": -0.5},
+                          {"x": 0.5, "y": 0.5}, {"x": -0.5, "y": 0.5}]}
+        self.assertAlmostEqual(self._hole_gap(pad, 0.0, 0.78), 0.130, places=3)
+
+    def test_edge_clearance_reads_the_same_shapes(self) -> None:
+        """The board-edge rule had the identical blind spot: a polygon pad has
+        no width, no height and no centre, so it was skipped — on a board whose
+        USB-C shell pads are polygons and sit at the edge by design."""
+        overhang = [
+            {"type": "pcb_board", "width": 20, "height": 20, "thickness": 1.6,
+             "center": {"x": 0, "y": 0}},
+            {"type": "pcb_smtpad", "pcb_smtpad_id": "p1", "shape": "polygon",
+             "points": [{"x": 9.9, "y": -0.5}, {"x": 10.4, "y": -0.5},
+                        {"x": 10.4, "y": 0.5}, {"x": 9.9, "y": 0.5}]},
+        ]
+        found = [w for w in checks.dfm_warnings(overhang, _product(), PROFILE)
+                 if w["kind"] == "dfm_edge_clearance"]
+        self.assertEqual([w["severity"] for w in found], ["error"])
+
+    def test_an_unrotated_pill_is_unchanged(self) -> None:
+        """The one shape the old model got right stays right, to the digit."""
+        self.assertEqual(
+            checks._stadium(1.0, 2.0, 2.25, 0.63),
+            checks._stadium(1.0, 2.0, 2.25, 0.63, 0.0),
+        )
+        ax, ay, bx, by, r = checks._stadium(0.0, 0.0, 2.25, 0.63)
+        self.assertAlmostEqual(r, 0.315)
+        self.assertAlmostEqual(bx - ax, 1.62)
+        self.assertAlmostEqual(ay, 0.0)
+        self.assertAlmostEqual(by, 0.0)
 
 
 class BomGate(unittest.TestCase):

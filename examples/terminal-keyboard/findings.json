@@ -6,21 +6,9 @@
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <capacitor#2298 name=\".C4\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <capacitor#2191 name=\".C16\" /> (jlcpcb:C1548): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "C4",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <capacitor#2322 name=\".C6\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "C6",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <capacitor#2370 name=\".C10\" /> (jlcpcb:C1525): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "C10",
+    "part": "C16",
     "severity": "warning"
   },
   {
@@ -42,15 +30,15 @@
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <capacitor#2623 name=\".C3\" /> (jlcpcb:C15850): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <capacitor#2565 name=\".C1\" /> (jlcpcb:C15850): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "C3",
+    "part": "C1",
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <chip#1850 name=\".U3\" /> (jlcpcb:C2040): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <capacitor#2611 name=\".C2\" /> (jlcpcb:C15850): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "U3",
+    "part": "C2",
     "severity": "warning"
   },
   {
@@ -60,111 +48,15 @@
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <connector#2468 name=\".J1\" /> (jlcpcb:C165948): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <diode#1184 name=\".D33\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "J1",
+    "part": "D33",
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <diode#1036 name=\".D29\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <pushbutton#1571 name=\".SW52\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "D29",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#111 name=\".D4\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D4",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1295 name=\".D36\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D36",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1332 name=\".D37\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D37",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#148 name=\".D5\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D5",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1517 name=\".D42\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D42",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1628 name=\".D45\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D45",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1739 name=\".D48\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D48",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#1813 name=\".D50\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D50",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#259 name=\".D8\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D8",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#296 name=\".D9\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D9",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <diode#333 name=\".D10\" /> (jlcpcb:C81598): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "D10",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <led#2644 name=\".LED1\" /> (jlcpcb:C2297): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "LED1",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#1423 name=\".SW48\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW48",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#1534 name=\".SW51\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW51",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#1608 name=\".SW53\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW53",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#1645 name=\".SW54\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW54",
+    "part": "SW52",
     "severity": "warning"
   },
   {
@@ -180,57 +72,15 @@
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#1793 name=\".SW58\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW58",
-    "severity": "warning"
-  },
-  {
     "detail": "Failed to fetch supplier footprint for <pushbutton#2242 name=\".SW2\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
     "part": "SW2",
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#276 name=\".SW17\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
+    "detail": "Failed to fetch supplier footprint for <pushbutton#2276 name=\".SW3\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
     "kind": "source_part_not_found_warning",
-    "part": "SW17",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#313 name=\".SW18\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW18",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#535 name=\".SW24\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW24",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#720 name=\".SW29\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW29",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#794 name=\".SW31\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW31",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <pushbutton#905 name=\".SW34\" /> (jlcpcb:C318884): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "SW34",
-    "severity": "warning"
-  },
-  {
-    "detail": "Failed to fetch supplier footprint for <resistor#2229 name=\".R13\" /> (jlcpcb:C11702): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "R13",
+    "part": "SW3",
     "severity": "warning"
   },
   {
@@ -258,12 +108,6 @@
     "severity": "warning"
   },
   {
-    "detail": "Failed to fetch supplier footprint for <resistor#2654 name=\".R20\" /> (jlcpcb:C11702): Failed to search for the component (HTTP 429)",
-    "kind": "source_part_not_found_warning",
-    "part": "R20",
-    "severity": "warning"
-  },
-  {
     "detail": "PCB trace is 13.96mm long, exceeding the 10mm maximum",
     "kind": "pcb_trace_too_long_warning",
     "part": "board",
@@ -288,21 +132,27 @@
     "severity": "warning"
   },
   {
-    "detail": "<capacitor#2191 name=\".C16\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1548 (copper IoU 0.7249).",
-    "kind": "supplier_footprint_mismatch_warning",
-    "part": "C16",
-    "severity": "info"
-  },
-  {
     "detail": "<capacitor#2215 name=\".C14\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "C14",
     "severity": "info"
   },
   {
+    "detail": "<capacitor#2298 name=\".C4\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C4",
+    "severity": "info"
+  },
+  {
     "detail": "<capacitor#2310 name=\".C5\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "C5",
+    "severity": "info"
+  },
+  {
+    "detail": "<capacitor#2322 name=\".C6\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C6",
     "severity": "info"
   },
   {
@@ -324,9 +174,21 @@
     "severity": "info"
   },
   {
+    "detail": "<capacitor#2370 name=\".C10\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C1525 (copper IoU 0.7249).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "C10",
+    "severity": "info"
+  },
+  {
     "detail": "<resistor#2162 name=\".R11\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "R11",
+    "severity": "info"
+  },
+  {
+    "detail": "<resistor#2229 name=\".R13\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R13",
     "severity": "info"
   },
   {
@@ -336,15 +198,33 @@
     "severity": "info"
   },
   {
+    "detail": "<resistor#2654 name=\".R20\" /> footprint \"0402\" does not match supplier footprint jlcpcb:C11702 (copper IoU 0.7741).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "R20",
+    "severity": "info"
+  },
+  {
     "detail": "<diode#0 name=\".D1\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D1",
     "severity": "info"
   },
   {
+    "detail": "<diode#1036 name=\".D29\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D29",
+    "severity": "info"
+  },
+  {
     "detail": "<diode#1073 name=\".D30\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D30",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#111 name=\".D4\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D4",
     "severity": "info"
   },
   {
@@ -360,12 +240,6 @@
     "severity": "info"
   },
   {
-    "detail": "<diode#1184 name=\".D33\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
-    "kind": "supplier_footprint_mismatch_warning",
-    "part": "D33",
-    "severity": "info"
-  },
-  {
     "detail": "<diode#1221 name=\".D34\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D34",
@@ -375,6 +249,18 @@
     "detail": "<diode#1258 name=\".D35\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D35",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1295 name=\".D36\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D36",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1332 name=\".D37\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D37",
     "severity": "info"
   },
   {
@@ -396,9 +282,21 @@
     "severity": "info"
   },
   {
+    "detail": "<diode#148 name=\".D5\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D5",
+    "severity": "info"
+  },
+  {
     "detail": "<diode#1480 name=\".D41\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D41",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1517 name=\".D42\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D42",
     "severity": "info"
   },
   {
@@ -414,6 +312,12 @@
     "severity": "info"
   },
   {
+    "detail": "<diode#1628 name=\".D45\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D45",
+    "severity": "info"
+  },
+  {
     "detail": "<diode#1665 name=\".D46\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D46",
@@ -426,9 +330,21 @@
     "severity": "info"
   },
   {
+    "detail": "<diode#1739 name=\".D48\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D48",
+    "severity": "info"
+  },
+  {
     "detail": "<diode#1776 name=\".D49\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D49",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#1813 name=\".D50\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D50",
     "severity": "info"
   },
   {
@@ -441,6 +357,24 @@
     "detail": "<diode#222 name=\".D7\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D7",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#259 name=\".D8\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D8",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#296 name=\".D9\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D9",
+    "severity": "info"
+  },
+  {
+    "detail": "<diode#333 name=\".D10\" /> footprint \"sod123\" does not match supplier footprint jlcpcb:C81598 (copper IoU 0.7764).",
+    "kind": "supplier_footprint_mismatch_warning",
+    "part": "D10",
     "severity": "info"
   },
   {
@@ -562,12 +496,6 @@
     "kind": "supplier_footprint_mismatch_warning",
     "part": "D28",
     "severity": "info"
-  },
-  {
-    "detail": "a pad passes 0.130mm from a via at (10.12, -20.90); the fab needs 0.2mm \u2014 route around it, the drill's own tolerance can cut a track this close",
-    "kind": "dfm_hole_clearance",
-    "part": "U4",
-    "severity": "error"
   },
   {
     "detail": "power net GND is routed at 0.2mm \u2014 the same copper as a signal. The current maths may pass on this board, but power at signal width is the wrong habit; the profile's power floor is 0.5mm (warn_power_trace_mm \u2014 an EE moves the line there)",
@@ -1148,13 +1076,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.1879 mm",
+    "part": "Horizontal Wire, length 0.3757 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.3757 mm",
+    "part": "Horizontal Wire, length 0.1879 mm",
     "severity": "info"
   },
   {
@@ -1244,13 +1172,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "C1",
+    "part": "Horizontal Wire, length 0.0272 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0272 mm",
+    "part": "C1",
     "severity": "info"
   },
   {
@@ -1778,13 +1706,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "SW3",
+    "part": "Vertical Wire, length 0.0000 mm",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Vertical Wire, length 0.0000 mm",
+    "part": "SW3",
     "severity": "info"
   },
   {
@@ -2930,13 +2858,13 @@
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "Horizontal Wire, length 0.0362 mm",
+    "part": "TP3",
     "severity": "info"
   },
   {
     "detail": "[endpoint_off_grid] Symbol pin or wire end off connection grid",
     "kind": "erc_violation",
-    "part": "TP3",
+    "part": "Horizontal Wire, length 0.0362 mm",
     "severity": "info"
   },
   {
@@ -3974,13 +3902,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'SPC' on F.Silkscreen",
+    "part": "SW53",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW53",
+    "part": "PCB text 'SPC' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -3992,13 +3920,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'E' on F.Silkscreen",
+    "part": "SW22",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW22",
+    "part": "PCB text 'E' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4052,7 +3980,7 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'R' on F.Silkscreen",
+    "part": "PCB text 'G' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4065,6 +3993,12 @@
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'T' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'F' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4106,13 +4040,19 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'X' on F.Silkscreen",
+    "part": "PCB text 'D' on F.Silkscreen",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "SW42",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'X' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4155,12 +4095,6 @@
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'H' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "PCB text 'C' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4280,19 +4214,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW56",
+    "part": "SW57",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
     "part": "PCB text 'PGDN' on F.Silkscreen",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
-    "part": "SW57",
     "severity": "info"
   },
   {
@@ -4316,7 +4244,19 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
+    "part": "PCB text 'AUTONOMOUS TERMINAL KEYBOARD' on F.Silkscreen",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
     "part": "SW2",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "SW56",
     "severity": "info"
   },
   {
@@ -4370,19 +4310,19 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW20",
-    "severity": "info"
-  },
-  {
-    "detail": "[silk_overlap] Silkscreen clearance",
-    "kind": "drc_violation",
     "part": "PCB text 'Q' on F.Silkscreen",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'W' on F.Silkscreen",
+    "part": "SW20",
+    "severity": "info"
+  },
+  {
+    "detail": "[silk_overlap] Silkscreen clearance",
+    "kind": "drc_violation",
+    "part": "PCB text 'S' on F.Silkscreen",
     "severity": "info"
   },
   {
@@ -4406,13 +4346,13 @@
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "PCB text 'A' on F.Silkscreen",
+    "part": "SW30",
     "severity": "info"
   },
   {
     "detail": "[silk_overlap] Silkscreen clearance",
     "kind": "drc_violation",
-    "part": "SW30",
+    "part": "PCB text 'A' on F.Silkscreen",
     "severity": "info"
   },
   {

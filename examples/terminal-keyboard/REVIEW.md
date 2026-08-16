@@ -1,10 +1,8 @@
 # Board sign-off — terminal-keyboard
 
-**Not orderable — 1 blocking finding.**
+**The tool says this board is orderable:** zero error-severity findings, and gerbers independently produced by `kicad-cli` from the same file KiCad ran DRC against.
 
-- `dfm_hole_clearance` — U4: a pad passes 0.130mm from a via at (10.12, -20.90); the fab needs 0.2mm — route around it, the drill's own tolerance can cut a track this close
-
-We already know about these, so there is nothing to approve here yet. What we want from you is whether the blocking list is **complete** — a defect we are missing is worth far more to us than one we have already found.
+That is our claim. This review is where it gets tested by someone who did not build it.
 
 ## What is in this folder
 
@@ -27,14 +25,14 @@ yours disagree, that disagreement is the most valuable output of this review.
 
 ## All findings by kind
 
-`fab.ready = False` · 1177 findings total, 1 blocking.
+`fab.ready = True` · 1167 findings total, 0 blocking.
 
 | Kind | Count |
 |---|---|
-| `drc_violation` | 654 |
+| `drc_violation` | 656 |
 | `erc_violation` | 387 |
-| `supplier_footprint_mismatch_warning` | 47 |
-| `source_part_not_found_warning` | 44 |
+| `supplier_footprint_mismatch_warning` | 62 |
+| `source_part_not_found_warning` | 18 |
 | `dfa_edge_clearance` | 17 |
 | `dfm_power_trace_width` | 3 |
 | `schematic_symbol_short` | 2 |

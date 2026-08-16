@@ -353,6 +353,26 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/tests/test_determinism.py",
         r"def test_the_router_search_is_bounded_by_iterations_not_by_the_clock",
     ),
+    (
+        41,
+        "the hole gate reads a pad as the shape the fab plots — rotated, "
+        "cornered, and its own radius",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def _pad_copper",
+    ),
+    (
+        41,
+        "a pad's ccw_rotation reaches the geometry instead of being dropped",
+        "packages/circuitpy/src/circuitpy/checks.py",
+        r"def _stadium\(x: float, y: float, width: float, height: float,\n"
+        r"\s+rotation: float = 0\.0",
+    ),
+    (
+        41,
+        "both directions of the rotated-pad defect stay pinned",
+        "packages/circuitpy/tests/test_failure_corpus.py",
+        r'id="a-pad-measured-unrotated"',
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)

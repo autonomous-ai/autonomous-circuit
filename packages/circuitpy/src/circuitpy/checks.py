@@ -500,7 +500,19 @@ def _segment_gap(
     )
 
 
-def _stadium(x: float, y: float, width: float, height: float
+def _rotate(px: float, py: float, cx: float, cy: float, degrees: float
+            ) -> tuple[float, float]:
+    """``(px, py)`` turned ``degrees`` counter-clockwise about ``(cx, cy)``."""
+    if not degrees:
+        return px, py
+    radians = math.radians(degrees)
+    cos_r, sin_r = math.cos(radians), math.sin(radians)
+    dx, dy = px - cx, py - cy
+    return cx + dx * cos_r - dy * sin_r, cy + dx * sin_r + dy * cos_r
+
+
+def _stadium(x: float, y: float, width: float, height: float,
+             rotation: float = 0.0
              ) -> tuple[float, float, float, float, float]:
     """A drill or its pad as ``(ax, ay, bx, by, radius)`` — the segment the
     hole's centre sweeps, plus a radius. A round hole is the degenerate case
@@ -510,13 +522,154 @@ def _stadium(x: float, y: float, width: float, height: float
     long axis by half the slot's length: the USB-C shell drills are 0.8 x
     1.6mm pills, so copper 0.3mm off the end of one measured as 0.7mm clear.
     That was a false *negative*, and it is the reason this is a segment.
+
+    ``rotation`` is the shape's own ``ccw_rotation`` in degrees. Ignoring it
+    does not blur a shape, it **moves** one: a 2.25 x 0.63mm SOIC pad at 90
+    degrees is copper 2.25mm tall, and the unrotated model puts that copper
+    2.25mm wide instead — in the wrong place by more than a millimetre, in
+    both directions at once. Defaults to zero so the existing four-argument
+    call is unchanged.
     """
     radius = min(width, height) / 2.0
     if height >= width:
         half = (height - width) / 2.0
-        return (x, y - half, x, y + half, radius)
-    half = (width - height) / 2.0
-    return (x - half, y, x + half, y, radius)
+        ax, ay, bx, by = x, y - half, x, y + half
+    else:
+        half = (width - height) / 2.0
+        ax, ay, bx, by = x - half, y, x + half, y
+    ax, ay = _rotate(ax, ay, x, y, rotation)
+    bx, by = _rotate(bx, by, x, y, rotation)
+    return (ax, ay, bx, by, radius)
+
+
+#: Copper as this check measures it: either a capsule — ``("capsule", ax, ay,
+#: bx, by, radius)``, a segment swept by a disc, which is exactly a trace, a
+#: via, a round pad or a pill — or ``("polygon", points)`` for a shape whose
+#: corners are real. Two representations rather than one because a rectangle
+#: is not a stadium and a stadium is not a polygon, and this check was wrong
+#: about both.
+Copper = tuple
+
+
+def _rect_outline(x: float, y: float, width: float, height: float,
+                  rotation: float = 0.0) -> list[tuple[float, float]]:
+    """A rectangular pad as its four real corners, turned in place."""
+    half_w, half_h = width / 2.0, height / 2.0
+    return [
+        _rotate(x + sx * half_w, y + sy * half_h, x, y, rotation)
+        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+    ]
+
+
+def _point_in_polygon(px: float, py: float,
+                      points: Sequence[tuple[float, float]]) -> bool:
+    inside = False
+    count = len(points)
+    for index in range(count):
+        x1, y1 = points[index]
+        x2, y2 = points[(index + 1) % count]
+        if (y1 > py) != (y2 > py):
+            cross = (x2 - x1) * (py - y1) / (y2 - y1) + x1
+            if px < cross:
+                inside = not inside
+    return inside
+
+
+def _segment_polygon_gap(ax: float, ay: float, bx: float, by: float,
+                         points: Sequence[tuple[float, float]]) -> float:
+    """Shortest distance from a segment to a polygon's outline, and 0.0 when
+    the segment is inside it."""
+    if _point_in_polygon(ax, ay, points) or _point_in_polygon(bx, by, points):
+        return 0.0
+    count = len(points)
+    return min(
+        _segment_gap(ax, ay, bx, by, points[i][0], points[i][1],
+                     points[(i + 1) % count][0], points[(i + 1) % count][1])
+        for i in range(count)
+    )
+
+
+def _copper_gap(shape: Copper, ax: float, ay: float, bx: float, by: float
+                ) -> float:
+    """Distance from the hole's spine to this copper's edge. The drill radius
+    is the caller's to subtract — it belongs to the hole, not the copper."""
+    if shape[0] == "capsule":
+        _, cx, cy, dx, dy, radius = shape
+        return _segment_gap(cx, cy, dx, dy, ax, ay, bx, by) - radius
+    return _segment_polygon_gap(ax, ay, bx, by, shape[1])
+
+
+def _copper_box(shape: Copper) -> tuple[float, float, float, float]:
+    """``(x0, y0, x1, y1)`` — the axis-aligned box this copper occupies."""
+    if shape[0] == "capsule":
+        _, ax, ay, bx, by, radius = shape
+        return (min(ax, bx) - radius, min(ay, by) - radius,
+                max(ax, bx) + radius, max(ay, by) + radius)
+    points = shape[1]
+    return (min(p[0] for p in points), min(p[1] for p in points),
+            max(p[0] for p in points), max(p[1] for p in points))
+
+
+def _copper_bound(shape: Copper) -> tuple[float, float, float]:
+    """``(cx, cy, radius)`` — a disc that contains this copper, for rejecting
+    the pairs that cannot possibly be close before measuring them exactly."""
+    if shape[0] == "capsule":
+        _, cx, cy, dx, dy, radius = shape
+        return ((cx + dx) / 2.0, (cy + dy) / 2.0,
+                math.hypot(dx - cx, dy - cy) / 2.0 + radius)
+    points = shape[1]
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+    return (cx, cy, max(math.hypot(p[0] - cx, p[1] - cy) for p in points))
+
+
+def _pad_copper(element: dict) -> Copper | None:
+    """An SMD pad as the copper it actually is.
+
+    Three shapes were being read wrong, and every one of them the same way —
+    the check could not see the geometry, so it invented one:
+
+    - **A rotated pad was measured unrotated.** ``rotated_pill`` and
+      ``rotated_rect`` carry ``ccw_rotation``; the model dropped it and swung
+      the copper back onto the x-axis.
+    - **A round pad was measured at half size.** ``circle`` pads carry
+      ``radius`` and no ``width``; ``width or radius`` then fed a *radius*
+      into a *width*, so a 1.0mm test-point pad was modelled as 0.5mm.
+    - **A polygon pad was not measured at all.** It carries ``points`` and no
+      width or height, so it failed the numeric guard and was dropped —
+      including the four shell pads of every USB-C receptacle we ship, which
+      sit beside the very drills this check exists for.
+
+    The first invents findings and hides them; the other two only hide them.
+    """
+    shape = element.get("shape")
+    x, y = element.get("x"), element.get("y")
+    points = element.get("points")
+    if isinstance(points, list) and len(points) >= 3:
+        outline = [
+            (float(p["x"]), float(p["y"])) for p in points
+            if isinstance(p, dict)
+            and isinstance(p.get("x"), (int, float))
+            and isinstance(p.get("y"), (int, float))
+        ]
+        if len(outline) >= 3:
+            return ("polygon", outline)
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return None
+    radius = element.get("radius")
+    if shape == "circle" and isinstance(radius, (int, float)):
+        return ("capsule", float(x), float(y), float(x), float(y), float(radius))
+    width = element.get("width") or radius
+    height = element.get("height") or radius or width
+    if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+        return None
+    rotation = element.get("ccw_rotation")
+    rotation = float(rotation) if isinstance(rotation, (int, float)) else 0.0
+    if shape in ("pill", "rotated_pill", "oval"):
+        return ("capsule", *_stadium(float(x), float(y), float(width),
+                                     float(height), rotation))
+    return ("polygon", _rect_outline(float(x), float(y), float(width),
+                                     float(height), rotation))
 
 
 def _connectivity_index(circuit_json: Sequence[dict]) -> tuple[dict, dict]:
@@ -582,7 +735,11 @@ def _hole_to_copper_warnings(
 
     So same-net copper is exempt, and copper inside a plated hole's own pad
     outline is exempt when no net is known either side. Everything else is
-    measured — from the drill's real shape, a slot as a slot.
+    measured — from the drill's real shape, a slot as a slot, **and from the
+    copper's real shape**: a pad is turned by its own ``ccw_rotation``, a
+    rectangle keeps its corners, a polygon is its own outline (2026-08-16,
+    ledger #41 — the unrotated inscribed stadium was the last blocking finding
+    on terminal-keyboard, and it was measuring a pad that is not there).
     """
     warnings: list[Warning] = []
     port_net, net_by_source_net = _connectivity_index(circuit_json)
@@ -615,8 +772,13 @@ def _hole_to_copper_warnings(
                         (float(pad_h) - float(hole_h)) / 2.0),
                 )
         is_via = etype == "pcb_via"
+        drill_rotation = element.get("ccw_rotation")
         holes.append({
-            "spine": _stadium(float(x), float(y), float(hole_w), float(hole_h)),
+            "spine": _stadium(
+                float(x), float(y), float(hole_w), float(hole_h),
+                float(drill_rotation)
+                if isinstance(drill_rotation, (int, float)) else 0.0,
+            ),
             "x": float(x), "y": float(y),
             "plated": plated,
             "via": is_via,
@@ -632,11 +794,17 @@ def _hole_to_copper_warnings(
     if not holes:
         return warnings
 
-    #: (element, element id, net key, geometry) for every piece of copper the
-    #: router places or a footprint lands. Traces and vias are the router's;
-    #: SMD pads are the footprint's, and a pad beside a mounting hole is the
-    #: same defect from the other direction.
-    items: list[tuple[dict, str, str | None, str, tuple]] = []
+    #: (element, element id, net key, what, geometry, bounding disc) for every
+    #: piece of copper the router places or a footprint lands. Traces and vias
+    #: are the router's; SMD pads are the footprint's, and a pad beside a
+    #: mounting hole is the same defect from the other direction.
+    items: list[tuple[dict, str, str | None, str, Copper,
+                      tuple[float, float, float]]] = []
+
+    def _add(element: dict, item_id: str, net: str | None, what: str,
+             shape: Copper) -> None:
+        items.append((element, item_id, net, what, shape, _copper_bound(shape)))
+
     for element in circuit_json:
         if not isinstance(element, dict):
             continue
@@ -655,38 +823,38 @@ def _hole_to_copper_warnings(
             ]
             tid = str(element.get("pcb_trace_id") or "")
             for first, second in zip(route, route[1:]):
-                items.append((
-                    element, tid, net, "a track",
-                    (float(first["x"]), float(first["y"]),
-                     float(second["x"]), float(second["y"]),
-                     float(first.get("width") or 0.2) / 2.0),
+                _add(element, tid, net, "a track", (
+                    "capsule",
+                    float(first["x"]), float(first["y"]),
+                    float(second["x"]), float(second["y"]),
+                    float(first.get("width") or 0.2) / 2.0,
                 ))
         elif etype == "pcb_via":
             x, y = element.get("x"), element.get("y")
             outer = element.get("outer_diameter")
             if not all(isinstance(v, (int, float)) for v in (x, y, outer)):
                 continue
-            items.append((
+            _add(
                 element, str(element.get("pcb_via_id") or ""),
                 element.get("subcircuit_connectivity_map_key"), "a via",
-                (float(x), float(y), float(x), float(y), float(outer) / 2.0),
-            ))
+                ("capsule", float(x), float(y), float(x), float(y),
+                 float(outer) / 2.0),
+            )
         elif etype == "pcb_smtpad":
-            x, y = element.get("x"), element.get("y")
-            pad_w = element.get("width") or element.get("radius")
-            pad_h = element.get("height") or element.get("radius") or pad_w
-            if not all(isinstance(v, (int, float)) for v in (x, y, pad_w, pad_h)):
+            # A pad is the shape the fab plots: a rectangle keeps its corners,
+            # a pill is a stadium, a polygon is its own outline, and every one
+            # of them is turned by its own `ccw_rotation`. The inscribed
+            # stadium this used to model is a *different shape* for anything
+            # but a pill, and off-axis it is a different shape in a different
+            # place — see `_pad_copper`.
+            shape = _pad_copper(element)
+            if shape is None:
                 continue
-            # A rect pad is modelled as the stadium inscribed in it, which
-            # rounds its corners *inward*. That errs toward saying a pad is
-            # further from the drill than it is — a missed finding, never an
-            # invented one. Worth knowing before someone reads a number here
-            # as exact.
-            items.append((
+            _add(
                 element, str(element.get("pcb_smtpad_id") or ""),
                 port_net.get(str(element.get("pcb_port_id") or "")), "a pad",
-                _stadium(float(x), float(y), float(pad_w), float(pad_h)),
-            ))
+                shape,
+            )
 
     # Worst gap per (hole, copper item), so a trace is judged on its closest
     # segment rather than on whichever segment the loop reached first.
@@ -697,11 +865,18 @@ def _hole_to_copper_warnings(
         limit = _hole_floor(hole, profile)
         if plated and not hole["via"]:
             limit = max(limit, profile.warn_pth_to_copper_mm)
-        for element, item_id, net, what, geom in items:
+        # The hole's own bounding disc, so the exact measurement below only
+        # runs on the pairs that could possibly be within `limit`.
+        hole_cx, hole_cy = (ax + bx) / 2.0, (ay + by) / 2.0
+        hole_reach = math.hypot(bx - ax, by - ay) / 2.0 + drill_r + limit
+        for element, item_id, net, what, geom, bound in items:
             if item_id == hole["id"]:
                 continue    # a via measured against its own drill
-            cx, cy, dx, dy, half = geom
-            gap = _segment_gap(cx, cy, dx, dy, ax, ay, bx, by) - drill_r - half
+            item_cx, item_cy, item_r = bound
+            if math.hypot(item_cx - hole_cx, item_cy - hole_cy) > \
+                    hole_reach + item_r:
+                continue
+            gap = _copper_gap(geom, ax, ay, bx, by) - drill_r
             if gap >= limit - 1e-9:
                 continue
             # The hole's own net. Its pad is copper the fab *requires* at one
@@ -1078,21 +1253,29 @@ def dfm_warnings(
                             )
                         )
             if board_rect is not None and etype in ("pcb_smtpad", "pcb_via", "pcb_plated_hole"):
-                x = element.get("x")
-                y = element.get("y")
-                if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
-                    continue
                 if etype == "pcb_smtpad":
-                    half_w = float(element.get("width") or 0) / 2
-                    half_h = float(element.get("height") or 0) / 2
+                    # The same shape reading as the hole gate (ledger #41), for
+                    # the same reason: `width`/`height` unrotated is the wrong
+                    # box for a turned pad, is half size for a circle, and does
+                    # not exist at all for a polygon — the four USB-C shell pads
+                    # on every board were skipped here too.
+                    shape = _pad_copper(element)
+                    if shape is None:
+                        continue
+                    x0, y0, x1, y1 = _copper_box(shape)
                 else:
+                    x = element.get("x")
+                    y = element.get("y")
+                    if not isinstance(x, (int, float)) \
+                            or not isinstance(y, (int, float)):
+                        continue
                     radius = float(element.get("outer_diameter") or 0) / 2
-                    half_w = half_h = radius
+                    x0, y0, x1, y1 = x - radius, y - radius, x + radius, y + radius
                 margin = min(
-                    (x - half_w) - board_rect[0],
-                    (y - half_h) - board_rect[1],
-                    board_rect[2] - (x + half_w),
-                    board_rect[3] - (y + half_h),
+                    x0 - board_rect[0],
+                    y0 - board_rect[1],
+                    board_rect[2] - x1,
+                    board_rect[3] - y1,
                 )
                 if margin < profile.min_edge_clearance_mm - 1e-9:
                     warnings.append(
