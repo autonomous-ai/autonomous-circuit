@@ -49,6 +49,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-nodes", type=int, default=20_000_000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None)
+    ap.add_argument(
+        "--cells-out", default=None,
+        help=(
+            "write the relay's copper as a tournament family, so a composition "
+            "can take the relay as an input rather than only as a rival"
+        ),
+    )
     args = ap.parse_args(argv)
 
     from routerlib import connectivity as conn
@@ -93,6 +100,33 @@ def main(argv: list[str] | None = None) -> int:
         )
         scored = score(problem, solution)
         ruler = ruler or scored.ruler
+        if args.cells_out:
+            from routerlib.adapters import solution_to_elements
+
+            cells = Path(args.cells_out)
+            copper = cells / "copper" / "relay"
+            rowdir = cells / "rows" / "relay"
+            copper.mkdir(parents=True, exist_ok=True)
+            rowdir.mkdir(parents=True, exist_ok=True)
+            (copper / f"{instance}.json").write_text(
+                json.dumps(solution_to_elements(problem, solution), indent=1) + "\n",
+                encoding="utf-8",
+            )
+            (rowdir / f"{instance}.json").write_text(
+                json.dumps(
+                    {
+                        "router": "relay",
+                        "instance": instance,
+                        "ok": True,
+                        "placementHash": placement_hash(problem),
+                        "traceCount": len(solution.traces),
+                        "viaCount": len(solution.vias),
+                    },
+                    indent=1,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         rows.append({
             "instance": instance,
             "placementHash": placement_hash(problem),
