@@ -39,6 +39,25 @@ export const SNAP_STEPS = Object.freeze([1, 0.5, 0.25, 0.1]);
 /** Step used while a modifier asks for fine control. */
 export const FINE_STEP_MM = 0.01;
 
+/**
+ * Rotation steps offered in the UI, degrees. 90 is first because it is
+ * Altium's own default: "the amount of rotation, in degrees, applied to objects
+ * floating on the cursor when the Spacebar is pressed", default 90.
+ * https://www.altium.com/documentation/altium-designer/pcb-editor-general-preferences?version=22
+ *
+ * The other three are ours — Altium's step is a free-form number and publishes
+ * no shortlist (**unverified**), so we offer the divisors of 90 that a real
+ * footprint needs and leave arbitrary angles to the file.
+ */
+export const ROTATION_STEPS = Object.freeze([90, 45, 30, 15]);
+
+/**
+ * The server's own cap on one edit's text (`http.mjs:176` `MAX_EDIT_TEXT`),
+ * mirrored here so a wrap that could not be written is refused *before* the
+ * user presses the key, with a reason, instead of failing at the transport.
+ */
+const MAX_EDIT_TEXT = 200;
+
 const NAME_START = /[A-Za-z_$]/;
 const NAME_CHAR = /[A-Za-z0-9_$.:-]/;
 const NUMBER_LITERAL = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
@@ -163,16 +182,41 @@ export function readOpeningTag(text, mask, lt) {
 }
 
 /**
- * The value of prop `prop` on the tag whose attributes span [from, to).
- * Only a bare numeric literal inside `{}` is editable — `pcbX="3mm"` is a
- * string the compiler parses, not a number we may rewrite, and saying so is
- * better than writing `3.5` where `"3mm"` was.
+ * Everything about one prop on the tag whose attributes span [from, to): where
+ * it is written, and in which of the three forms a board file can write it.
  *
- * @returns {{start: number, end: number, value: number}|null|"non-numeric"}
+ * `readNumericProp` below is the narrow view of this and is what the position
+ * readers want. Rotation needs the wide one for two reasons the position
+ * readers never had: it has to tell an expression from a quoted string to say
+ * *why* it will not turn a part, and an absent `pcbRotation` has to be
+ * insertable, which needs the end of a neighbouring prop as an anchor. One
+ * scanner serves both — two scanners that disagreed about where a prop ends
+ * would put the same tag in the editable list and the refused list at once.
+ *
+ * `propStart` is the first character of the name; `propEnd` is one past the
+ * last character of the value, so `[propStart, propEnd)` is the whole prop.
+ *
+ * @returns {null
+ *   | {form: "number", start: number, end: number, value: number, propStart: number, propEnd: number}
+ *   | {form: "expression", propStart: number, propEnd: number}
+ *   | {form: "text", propStart: number, propEnd: number}}
  */
-export function readNumericProp(text, mask, from, to, prop) {
+export function readPropDetail(text, mask, from, to, prop) {
   for (let i = from; i < to; i += 1) {
     if (mask[i]) continue;
+    // Skip whole `{…}` attribute values, so only the tag's OWN props are read.
+    // A part written with an inline footprint carries a nested board inside one
+    // attribute — `footprint={<footprint><smtpad pcbX="2.92995985mm" …/>…}`
+    // (every `blocks/*/ldo-3v3.tsx` in the repo is this shape) — and a flat
+    // scan finds the PAD's coordinate first and reports it as the part's
+    // position. That is the "writes to the wrong element" failure this module
+    // exists to refuse, arriving as a plausible number.
+    if (text[i] === "{") {
+      const close = matchBrace(text, mask, i);
+      if (close < 0 || close >= to) break;
+      i = close;
+      continue;
+    }
     if (text[i] !== prop[0]) continue;
     if (text.slice(i, i + prop.length) !== prop) continue;
     // Whole word only: `pcbX` must not match inside `pcbXOffset`.
@@ -184,20 +228,42 @@ export function readNumericProp(text, mask, from, to, prop) {
     if (text[j] !== "=") continue;
     j += 1;
     while (j < to && /\s/.test(text[j])) j += 1;
-    if (text[j] !== "{") return "non-numeric";
+    if (text[j] === '"' || text[j] === "'") {
+      const quote = text[j];
+      const close = text.indexOf(quote, j + 1);
+      return { form: "text", propStart: i, propEnd: close < 0 || close >= to ? to : close + 1 };
+    }
+    // Not a brace and not a quote: a bare `pcbRotation=90deg`. Unwritable for
+    // the same reason a quoted value is, so it reports as the same form.
+    if (text[j] !== "{") return { form: "text", propStart: i, propEnd: j };
     const close = matchBrace(text, mask, j);
-    if (close < 0) return "non-numeric";
+    if (close < 0) return { form: "expression", propStart: i, propEnd: to };
     let start = j + 1;
     let end = close;
     while (start < end && /\s/.test(text[start])) start += 1;
     while (end > start && /\s/.test(text[end - 1])) end -= 1;
     const literal = text.slice(start, end);
-    if (!NUMBER_LITERAL.test(literal)) return "non-numeric";
+    if (!NUMBER_LITERAL.test(literal)) return { form: "expression", propStart: i, propEnd: close + 1 };
     const value = Number(literal);
-    if (!Number.isFinite(value)) return "non-numeric";
-    return { start, end, value };
+    if (!Number.isFinite(value)) return { form: "expression", propStart: i, propEnd: close + 1 };
+    return { form: "number", start, end, value, propStart: i, propEnd: close + 1 };
   }
   return null;
+}
+
+/**
+ * The value of prop `prop` on the tag whose attributes span [from, to).
+ * Only a bare numeric literal inside `{}` is editable — `pcbX="3mm"` is a
+ * string the compiler parses, not a number we may rewrite, and saying so is
+ * better than writing `3.5` where `"3mm"` was.
+ *
+ * @returns {{start: number, end: number, value: number}|null|"non-numeric"}
+ */
+export function readNumericProp(text, mask, from, to, prop) {
+  const detail = readPropDetail(text, mask, from, to, prop);
+  if (!detail) return null;
+  if (detail.form !== "number") return "non-numeric";
+  return { start: detail.start, end: detail.end, value: detail.value };
 }
 
 /** Start-of-line index for `at`. */
@@ -210,6 +276,15 @@ function lineStartOf(text, at) {
 function readNameProp(text, mask, from, to) {
   for (let i = from; i < to; i += 1) {
     if (mask[i]) continue;
+    // Same nested-attribute skip as `readNumericProp`: an inline footprint
+    // holds `<smtpad>`s of its own, and the first `name=` inside one of them
+    // is not what this tag is called.
+    if (text[i] === "{") {
+      const close = matchBrace(text, mask, i);
+      if (close < 0 || close >= to) break;
+      i = close;
+      continue;
+    }
     if (text.slice(i, i + 4) !== "name") continue;
     if (i > 0 && NAME_CHAR.test(text[i - 1])) continue;
     let j = i + 4;
@@ -226,6 +301,156 @@ function readNameProp(text, mask, from, to) {
   return "";
 }
 
+// --- rotation: which placements can be turned, and how ----------------------
+//
+// A placement turns in one of three ways, and the difference is a language
+// rule rather than a preference. JSX resolves a lowercase tag to an intrinsic
+// element and an uppercase tag to a value in scope. Every intrinsic tscircuit
+// element that can be a placement accepts `pcbRotation` — it is on
+// `CommonLayoutProps`, which is also where the `pcbX`/`pcbY` a placement
+// requires come from (`@tscircuit/props` 0.0.2279,
+// `toolchain/node_modules/@tscircuit/props/dist/index.d.ts:6986,6999`). Our own
+// components are a different matter: all seven behind the 31 component
+// placements on the three example boards declare exactly `pcbX`/`pcbY`
+// (+ `schX`/`schY`) and forward only those, so a `pcbRotation` written on one
+// reaches the function, is never read, and never reaches a `<group>`.
+//
+// Nothing downstream would catch that. There is no typecheck in this repo's
+// build path — `tscircuit-cli build` transpiles — so the write would succeed,
+// the change counter would tick, a 95-second rebuild would run, and the part
+// would come back at the same angle. **That is the silent discard this module
+// exists to refuse**, which is why the gate lives here, before the write.
+//
+// So: an intrinsic takes the prop. One of ours gets wrapped in a `<group>` that
+// carries the prop — an idiom the board author already writes by hand
+// (`examples/hydrate-coaster/boards/main.tsx:73`) for exactly this reason. And
+// what neither can express is refused out loud.
+
+/** How a placement can be turned. `"no"` always comes with a `rotateBlock`. */
+const ROTATE_VIA = Object.freeze({ prop: "prop", wrap: "wrap", no: "no" });
+
+/**
+ * Why a placement will not turn, in the words the edit bar shows.
+ *
+ * A sentence rather than a code because the user reads it, and it names the
+ * thing that would have to change — the board file, not this app.
+ */
+export function rotateReasonFor(block, label) {
+  const name = String(label || "this placement");
+  switch (block) {
+    case "expression":
+      return `${name}'s angle is written as an expression in the board file, so this app cannot turn it. Edit pcbRotation there.`;
+    case "text":
+      return `${name}'s angle is written as text, not a number. Edit pcbRotation in the board file.`;
+    case "closing-tag":
+      return `${name} is written with a closing tag; this app only wraps self-closing elements.`;
+    case "shared-line":
+      return `${name} shares its line with other code, so this app cannot wrap it.`;
+    case "too-deep":
+      return `${name} is nested too deeply for this app to wrap.`;
+    case "drill":
+      return `${name} is a round drill — turning it changes nothing on the board.`;
+    default:
+      return block ? `${name} cannot be turned from this app.` : "";
+  }
+}
+
+/**
+ * The opening line a wrap writes: the element's own indent, then a `<group>`
+ * carrying the element's coordinates and the angle, then the child's indent.
+ *
+ * `x` and `y` are copied byte-for-byte from the source and never passed through
+ * `formatMm` — rule 1 of this module is that only the number moves, and in a
+ * wrap not even that: `pcbX={14}` stays `14` and `-18.0` stays `-18.0`.
+ *
+ * The group carries no `schX`/`schY`. A pcb-only `<group>` is already shipping
+ * board source (`examples/harness-puck/blocks/glue.tsx:64`), the child keeps its
+ * own schematic props byte-identical, and turning a part on the PCB must not
+ * move anything on the schematic.
+ */
+function wrapOpenText(indent, childIndent, xText, yText, degrees) {
+  return `${indent}<group pcbX={${xText}} pcbY={${yText}} pcbRotation={${degrees}}>\n${childIndent}`;
+}
+
+/** The indent of the line `at` sits on, without copying the rest of the file. */
+function indentOfLine(text, at) {
+  const start = lineStartOf(text, at);
+  let end = start;
+  while (end < text.length && (text[end] === " " || text[end] === "\t")) end += 1;
+  return text.slice(start, end);
+}
+
+/**
+ * The rotation half of a parsed placement: what the file says the angle is,
+ * where an edit would go, and — the part that matters — whether an edit would
+ * mean anything once it got there.
+ */
+function rotationFields(text, { tag, name, rot, x, y, lineStart, tagStart, indent, elementEnd }) {
+  const rotation = rot?.form === "number" ? rot.value : 0;
+  const rotationSpan = rot?.form === "number" ? { start: rot.start, end: rot.end } : null;
+
+  // A deletion takes the whitespace that separated the prop with it, so undoing
+  // an insertion returns the line to the bytes it had rather than leaving a
+  // double space or an empty continuation line where the prop used to be.
+  let gap = rot ? rot.propStart : 0;
+  while (rot && gap > tagStart && /\s/.test(text[gap - 1])) gap -= 1;
+  const rotationPropSpan = rot ? { start: gap, end: rot.propEnd } : null;
+
+  // An inserted prop goes immediately after `pcbY`'s closing brace, so the two
+  // coordinates and the angle read together. When the props are written one per
+  // line it gets its own line at the same indent: folding a multi-line tag onto
+  // one line would rewrite bytes this module promises not to touch.
+  const rotationInsertAt = y.propEnd;
+  let run = rotationInsertAt;
+  while (run < text.length && (text[run] === " " || text[run] === "\t")) run += 1;
+  const ownLine = text[run] === "\n" || text[run] === "\r";
+  const rotationInsertPrefix = ownLine ? `\n${indentOfLine(text, y.propStart)}` : " ";
+
+  let via = ROTATE_VIA.prop;
+  let block = "";
+  if (rot?.form === "expression") {
+    via = ROTATE_VIA.no;
+    block = "expression";
+  } else if (rot?.form === "text") {
+    via = ROTATE_VIA.no;
+    block = "text";
+  } else if (rot?.form === "number" || /^[a-z]/.test(String(tag))) {
+    // A lowercase tag is an intrinsic and takes the prop. So does anything
+    // already carrying a numeric angle: a component that threads rotation
+    // proves it by having a number written on it, and that is evidence this
+    // parser can read. It is also what makes the second turn of a wrapped
+    // placement cheap — after a wrap the unit at that anchor is the `<group>`.
+    via = ROTATE_VIA.prop;
+  } else if (elementEnd === null) {
+    via = ROTATE_VIA.no;
+    block = "closing-tag";
+  } else if (!/^[ \t]*$/.test(text.slice(lineStart, tagStart))) {
+    // The wrap replaces `[lineStart, tagStart)` with the group's opening line.
+    // If that range holds anything but indent, replacing it would delete code.
+    via = ROTATE_VIA.no;
+    block = "shared-line";
+  } else {
+    const childIndent = text.slice(tagStart, elementEnd).includes("\n") ? indent : `${indent}  `;
+    // The angle is not known at parse time, so the cap is measured against the
+    // longest string `formatDeg` can return. Refusing here rather than at the
+    // transport is the difference between a reason and a failed request.
+    const widest = wrapOpenText(indent, childIndent, text.slice(x.start, x.end), text.slice(y.start, y.end), "359.999");
+    via = widest.length > MAX_EDIT_TEXT ? ROTATE_VIA.no : ROTATE_VIA.wrap;
+    if (via === ROTATE_VIA.no) block = "too-deep";
+  }
+
+  return {
+    rotation,
+    rotationSpan,
+    rotationPropSpan,
+    rotationInsertAt,
+    rotationInsertPrefix,
+    rotateVia: via,
+    rotateBlock: block,
+    rotateReason: rotateReasonFor(block, name || tag),
+  };
+}
+
 /**
  * Parse a board TSX into the placements the board file can move.
  *
@@ -238,6 +463,12 @@ function readNameProp(text, mask, from, to) {
  *     xSpan: {start: number, end: number}, ySpan: {start: number, end: number},
  *     tagStart: number, lineStart: number, indent: string,
  *     locked: boolean, lockSpan: {start: number, end: number}|null,
+ *     selfClosing: boolean, elementEnd: number|null,
+ *     rotation: number,
+ *     rotationSpan: {start: number, end: number}|null,
+ *     rotationPropSpan: {start: number, end: number}|null,
+ *     rotationInsertAt: number, rotationInsertPrefix: string,
+ *     rotateVia: "prop"|"wrap"|"no", rotateBlock: string, rotateReason: string,
  *   }>,
  *   skipped: Array<{tag: string, reason: string}>,
  * }}
@@ -301,9 +532,9 @@ export function parseBoardSource(source) {
       continue;
     }
     if (depth === 0) {
-      const x = readNumericProp(text, mask, tag.nameEnd, tag.gt, "pcbX");
-      const y = readNumericProp(text, mask, tag.nameEnd, tag.gt, "pcbY");
-      if (x === "non-numeric" || y === "non-numeric") {
+      const x = readPropDetail(text, mask, tag.nameEnd, tag.gt, "pcbX");
+      const y = readPropDetail(text, mask, tag.nameEnd, tag.gt, "pcbY");
+      if ((x && x.form !== "number") || (y && y.form !== "number")) {
         skipped.push({ tag: tag.tag, reason: "its position is written as text, not a number" });
       } else if (x && y) {
         const ordinal = (counters.get(tag.tag) || 0) + 1;
@@ -311,6 +542,8 @@ export function parseBoardSource(source) {
         const lineStart = lineStartOf(text, i);
         const indent = /^[ \t]*/.exec(text.slice(lineStart, i))?.[0] ?? "";
         const lock = readLock(text, lineStart);
+        const rot = readPropDetail(text, mask, tag.nameEnd, tag.gt, "pcbRotation");
+        const elementEnd = tag.selfClosing ? tag.gt + 1 : null;
         placements.push({
           id: `${tag.tag}[${ordinal}]`,
           tag: tag.tag,
@@ -324,6 +557,19 @@ export function parseBoardSource(source) {
           indent,
           locked: Boolean(lock),
           lockSpan: lock,
+          selfClosing: tag.selfClosing,
+          elementEnd,
+          ...rotationFields(text, {
+            tag: tag.tag,
+            name: readNameProp(text, mask, tag.nameEnd, tag.gt),
+            rot,
+            x,
+            y,
+            lineStart,
+            tagStart: i,
+            indent,
+            elementEnd,
+          }),
         });
       }
     }
@@ -436,6 +682,155 @@ export function lockEdits(source, placement, locked) {
   return withExpected(source, [
     { start: placement.lockSpan.start, end: placement.lockSpan.end, text: "" },
   ]);
+}
+
+/** An angle wrapped into [0, 360). `-0` comes back as `0`. */
+export function normalizeDeg(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  const wrapped = ((n % 360) + 360) % 360;
+  return wrapped === 0 ? 0 : wrapped;
+}
+
+/**
+ * An angle as a board file would write it. Three decimals for the same reason
+ * `formatMm` uses three: it is two orders finer than anything downstream can
+ * hold, and trailing zeros are noise in a diff. Rounding that lands on 360
+ * comes back as 0, because a file should not carry a full turn.
+ */
+export function formatDeg(value) {
+  const rounded = Math.round(normalizeDeg(value) * 1000) / 1000;
+  const wrapped = rounded >= 360 ? 0 : rounded;
+  if (Object.is(wrapped, -0)) return "0";
+  return String(wrapped);
+}
+
+/**
+ * The edits that wrap a placement in a `<group>` carrying the angle.
+ *
+ * Four edits over the ORIGINAL offsets: the element's indent becomes the
+ * group's opening line, the element's own coordinates become `0` because the
+ * group took them, and a closing tag is appended. Children rotate about the
+ * group's anchor — measured on `examples/hydrate-coaster`, where the
+ * hand-written wrapper at `boards/main.tsx:73` anchors `pcb_group_2` at exactly
+ * its un-rotated `(-20, -22)` and puts the block's `U4`, written
+ * `pcbX={13} pcbY={0}`, at `(-33, -22)` = `(-20, -22) + 13·(cos 180°, sin 180°)`.
+ */
+function wrapEdits(text, placement, degrees) {
+  const { lineStart, tagStart, indent, xSpan, ySpan, elementEnd } = placement;
+  const multiline = text.slice(tagStart, elementEnd).includes("\n");
+  // A multi-line element keeps its own indent and the group brackets it at the
+  // same level. Re-indenting its interior lines — nine of them on
+  // `examples/harness-puck/boards/main.tsx:194-203` — would touch bytes this
+  // module promises not to touch, and ragged by one level is still valid TSX.
+  const childIndent = multiline ? indent : `${indent}  `;
+  return withExpected(text, [
+    {
+      start: lineStart,
+      end: tagStart,
+      text: wrapOpenText(indent, childIndent, text.slice(xSpan.start, xSpan.end), text.slice(ySpan.start, ySpan.end), degrees),
+    },
+    { start: xSpan.start, end: xSpan.end, text: "0" },
+    { start: ySpan.start, end: ySpan.end, text: "0" },
+    { start: elementEnd, end: elementEnd, text: `\n${indent}</group>` },
+  ]);
+}
+
+/**
+ * The edits that turn one placement to `degrees`. Empty when nothing changes,
+ * and empty when the source cannot say it — `placement.rotateReason` is the
+ * sentence to show in that case, and a caller that writes nothing and says
+ * nothing has discarded the user's action, which is the one outcome worse than
+ * a missing feature.
+ *
+ * **`pcbRotation={0}` is never written.** `null` and an angle that normalizes
+ * to zero both **remove** the prop, and the absence of a prop is what zero
+ * means to the compiler — the two forms are the same board. One rule, because
+ * the alternative is a file that accumulates dead props: four taps of Space is
+ * a full turn, and writing the literal `0` on the fourth left
+ * `pcbRotation={0}` behind, counted a change, and offered a ~96-second rebuild
+ * for a board that had not moved. Measured on hydrate-coaster's `TP1`.
+ *
+ * The cost, stated: a `pcbRotation={0}` somebody wrote by hand does not come
+ * back byte-for-byte after a turn and an undo — it comes back absent. Nothing
+ * downstream can tell the difference, and the dead-prop case is the one that
+ * happens.
+ */
+export function rotateEdits(source, placement, degrees) {
+  if (!placement) return [];
+  const text = String(source || "");
+  const toZero = degrees === null || degrees === undefined || normalizeDeg(degrees) === 0;
+  if (toZero) {
+    if (!placement.rotationSpan || !placement.rotationPropSpan) return [];
+    if (placement.rotateVia === ROTATE_VIA.no) return [];
+    const { start, end } = placement.rotationPropSpan;
+    return withExpected(text, [{ start, end, text: "" }]);
+  }
+  if (placement.rotateVia === ROTATE_VIA.no) return [];
+  const next = formatDeg(degrees);
+  if (placement.rotationSpan) {
+    const { start, end } = placement.rotationSpan;
+    if (next === text.slice(start, end)) return [];
+    return withExpected(text, [{ start, end, text: next }]);
+  }
+  // A zero turn never reaches here — `toZero` above took it — so a wrap is
+  // only ever written for an angle that actually turns something.
+  if (placement.rotateVia === ROTATE_VIA.wrap) return wrapEdits(text, placement, next);
+  if (!Number.isFinite(Number(placement.rotationInsertAt))) return [];
+  const at = Number(placement.rotationInsertAt);
+  return withExpected(text, [
+    { start: at, end: at, text: `${placement.rotationInsertPrefix ?? " "}pcbRotation={${next}}` },
+  ]);
+}
+
+/**
+ * The lines a wrap is about to write, for a confirmation to show.
+ *
+ * The diff itself, not a description of it: a four-line structural edit to a
+ * file that carries the board's engineering record in its comments has a wider
+ * blast radius than replacing `180` with `270`, and Altium's own pattern is
+ * that the wider the blast radius the more it interposes a confirmation
+ * (`Confirm Global Edit`,
+ * https://www.altium.com/documentation/altium-designer/pcb-editor-general-preferences).
+ * Altium's wording for it is not something to copy — a diff is not a wording
+ * question.
+ *
+ * Empty string for anything that is not a wrap.
+ */
+export function wrapPreview(source, placement, degrees) {
+  if (placement?.rotateVia !== ROTATE_VIA.wrap) return "";
+  const edits = rotateEdits(source, placement, degrees);
+  if (!edits.length) return "";
+  const text = String(source || "");
+  const end = edits.reduce(
+    (at, edit) => (edit.start >= placement.elementEnd ? at + edit.text.length : at + edit.text.length - (edit.end - edit.start)),
+    placement.elementEnd,
+  );
+  return applyEdits(text, edits).slice(placement.lineStart, end);
+}
+
+/**
+ * The edits that put `applyEdits(source, edits)` back to `source`.
+ *
+ * Offsets shift by the cumulative length change of every earlier edit, which is
+ * exactly what `applyEdits` did to produce them. Every input edit must carry
+ * `expected` (i.e. must have come through `withExpected`).
+ *
+ * This is how a structural edit gets an undo. A move inverts by knowing the old
+ * coordinates, but a wrap changes which tag a placement id names — after it,
+ * `Ldo3v3[1]` is not in the file at all and there is nothing to recompute from.
+ * Recording the inverse bytes sidesteps that, and it is general: every
+ * structural edit that lands after this one gets undo by recording it.
+ */
+export function invertEdits(edits) {
+  const list = [...(edits || [])].sort((a, b) => a.start - b.start || a.end - b.end);
+  let shift = 0;
+  return list.map((edit) => {
+    const text = String(edit.text);
+    const start = edit.start + shift;
+    shift += text.length - (edit.end - edit.start);
+    return { start, end: start + text.length, text: edit.expected, expected: text };
+  });
 }
 
 // --- binding a placement to the geometry it owns ----------------------------
@@ -597,11 +992,13 @@ export function bindPlacements(placements, index) {
     // A `<MountingHole>` is a real group that owns no parts, and a
     // `<silkscreentext>` is not a group at all. Both still draw something at
     // exactly the point the board file names, and both are worth dragging.
+    const looseTypes = new Set();
     if (!pcbIds.size) {
       for (const element of loose.get(key) || []) {
         const id = elementIdOf(element);
         if (!id) continue;
         pcbIds.add(id);
+        looseTypes.add(String(element.type || ""));
         grow(pcbBoxOf(element));
       }
     }
@@ -624,6 +1021,14 @@ export function bindPlacements(placements, index) {
         pcbIds,
         box,
         anchor: { x: placement.x, y: placement.y },
+        // A drill is round: turning it about its own centre changes nothing
+        // anybody can measure or inspect. That is 13 of the 57 placements on
+        // our three boards (`MountingHole` H1-H6, H1-H4, H1-H3), and refusing a
+        // no-op is cheaper than offering one.
+        roundDrill:
+          componentKeys.length === 0 &&
+          looseTypes.size > 0 &&
+          [...looseTypes].every((type) => type === "pcb_hole" || type === "pcb_cutout"),
       }),
     });
     for (const componentKey of componentKeys) byComponentKey.set(componentKey, placement.id);
@@ -646,16 +1051,26 @@ export const GEOMETRY_FIELDS = Object.freeze([
   "pcbIds",
   "box",
   "anchor",
+  "roundDrill",
 ]);
 
 function attachLabel(placement, geometry) {
   const anchor = geometry.anchor || { x: placement.x, y: placement.y };
+  const label = placementLabel(placement, geometry);
+  // The parser decides how a turn would be WRITTEN; the built board decides
+  // whether it would MEAN anything. Only the second half knows a mounting hole
+  // came out as a drill, so the last word on `rotateVia` is here, and the
+  // reason is re-rendered now that there is a label to name.
+  const block = geometry.roundDrill && placement.rotateVia !== "no" ? "drill" : placement.rotateBlock || "";
   return {
     ...geometry,
     anchor,
     // How far ahead of the drawing this placement is. Zero until a drag.
     offset: { dx: placement.x - anchor.x, dy: placement.y - anchor.y },
-    label: placementLabel(placement, geometry),
+    label,
+    rotateVia: block ? "no" : placement.rotateVia,
+    rotateBlock: block,
+    rotateReason: rotateReasonFor(block, label),
   };
 }
 
@@ -695,6 +1110,43 @@ export function rebindPlacements(placements, snapshot) {
   return { byId, byComponentKey, byElementId, unmatched };
 }
 
+/**
+ * Carry a geometry snapshot across an edit that renamed placements.
+ *
+ * A placement id is its tag plus its ordinal in the file, which survives a
+ * coordinate change — that is the whole point of `rebindPlacements`. It does
+ * **not** survive a structural change: wrapping `<Ldo3v3 …/>` in a `<group>`
+ * removes an `Ldo3v3[1]` and inserts a `group[1]`, which renumbers every later
+ * `group[…]` in the file. On hydrate-coaster that is not hypothetical — the
+ * board already has a hand-written `<group>` below the LDO, so wrapping the LDO
+ * makes the new wrapper `group[1]` and the RP2040's wrapper `group[2]`, and a
+ * snapshot keyed by the old ids would hand the LDO the RP2040's geometry. The
+ * part would then highlight, box and cross-probe as 22 other components.
+ *
+ * The fix is positional, and it is sound for exactly the reason it is needed: a
+ * wrap keeps the placement list the same length and in the same file order, and
+ * changes one entry's name. When the lengths disagree the edit did something
+ * this cannot reason about, so the snapshot is dropped and `rebindPlacements`
+ * reports the honest "nothing on the built board sits where this line says"
+ * rather than a confident wrong answer.
+ */
+export function remapSnapshot(snapshot, before, after) {
+  const byId = new Map(snapshot?.byId || []);
+  const reasonById = new Map(snapshot?.reasonById || []);
+  const from = (Array.isArray(before) ? before : []).map((placement) => placement.id);
+  const to = (Array.isArray(after) ? after : []).map((placement) => placement.id);
+  if (from.length !== to.length) return { byId: new Map(), reasonById: new Map() };
+  const nextById = new Map();
+  const nextReason = new Map();
+  for (let i = 0; i < from.length; i += 1) {
+    const geometry = byId.get(from[i]);
+    if (geometry) nextById.set(to[i], geometry);
+    const reason = reasonById.get(from[i]);
+    if (reason) nextReason.set(to[i], reason);
+  }
+  return { byId: nextById, reasonById: nextReason };
+}
+
 /** Freeze a binding's geometry so a later parse of the same file can reuse it. */
 export function geometrySnapshot(binding) {
   const byId = new Map();
@@ -727,4 +1179,21 @@ export function describeMove(label, from, to) {
   const dx = formatMm(Number(to.x) - Number(from.x));
   const dy = formatMm(Number(to.y) - Number(from.y));
   return `${label} moved ${dx}, ${dy} mm`;
+}
+
+/**
+ * One-line summary of a turn, in the same register as `describeMove`.
+ *
+ * Reported as the shorter way round, because that is the way the user asked
+ * for it: `pcbRotation` is counterclockwise-positive, so a step from 90 to 0
+ * is 90° CW rather than 270° CCW. The sign was measured, not assumed — the
+ * first ring LED on `examples/harness-puck` compiles at `rotation: 337.5` with
+ * pads at ±32.88°/±147.12° from its centre after subtracting 337.5; read as
+ * clockwise the same pads come out at −12.12°/102.12°/−77.88°/167.88°, which is
+ * not a rectangle.
+ */
+export function describeRotate(label, from, to) {
+  const ccw = normalizeDeg(Number(to) - Number(from));
+  const shorter = ccw <= 180 ? ccw : 360 - ccw;
+  return `${label} turned ${formatDeg(shorter)}° ${ccw <= 180 ? "CCW" : "CW"} (now ${formatDeg(to)}°)`;
 }

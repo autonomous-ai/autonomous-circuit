@@ -109,6 +109,12 @@ export default function MessagesPanel({
         type="button"
         onClick={onToggleOpen}
         data-slot="messages-toggle"
+        // The key is printed here because it moved twice. It was `L` (Altium's
+        // Layers And Colors), then briefly Shift+M (Altium's Board Insight
+        // Lens); Shift+N is the first spelling that collides with nothing
+        // Altium publishes. A binding that moves without saying so is a
+        // binding the user has to rediscover.
+        title={`${open ? "Hide" : "Show"} the messages drawer (⇧N)`}
         className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
       >
         {open ? <ChevronDown className="size-3" aria-hidden /> : <ChevronUp className="size-3" aria-hidden />}

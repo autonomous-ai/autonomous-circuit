@@ -36,6 +36,10 @@ import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
 import PlacementEditBar from "./PlacementEditBar.jsx";
 import usePlacementEditor from "./usePlacementEditor.js";
+import { isTypingTarget, resolveBoardKey } from "./boardKeymap.js";
+import BoardContextMenu from "./BoardContextMenu.jsx";
+import { ShortcutSheetHost } from "./ShortcutSheet.jsx";
+import { DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placementRotate.js";
 import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
@@ -78,12 +82,6 @@ const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // their own inspector, so the EDA panels along the bottom and the right would
 // be a second copy of the same numbers in the vocabulary the tab is avoiding.
 const PLAIN_TABS = new Set(["overview", "function"]);
-
-/** True when the event came from somewhere the user is typing. */
-function isTypingTarget(target) {
-  const tag = String(target?.tagName || "").toLowerCase();
-  return tag === "input" || tag === "textarea" || target?.isContentEditable === true;
-}
 
 /**
  * The board workspace — an Altium-shaped PCB tool with our chat on the side.
@@ -146,6 +144,14 @@ export default function BoardWorkspace({
   // --- move mode: the canvas as an editor of the board source
   const [editing, setEditing] = useState(false);
   const [snapStep, setSnapStep] = useState(0.5);
+  // Lifted out of PlacementEditBar so the strip and the Space key turn a part
+  // by the same amount. Two owners of one step is how a dropdown and a
+  // keystroke end up meaning different things by the same gesture.
+  const [rotationStep, setRotationStep] = useState(DEFAULT_ROTATION_STEP);
+  // The right-click menu: what was under the press, and whether it is up.
+  // Frozen at the release (canvasPointer.pointerReleaseAction) — the hit is
+  // resolved once so a header cannot disagree with the row under it.
+  const [contextRequest, setContextRequest] = useState(null);
   const [rebuilding, setRebuilding] = useState(false);
   // Which placement the edit bar acts on. Separate from `selection` because a
   // mounting hole and a silkscreen label are placements with no component and
@@ -493,6 +499,39 @@ export default function BoardWorkspace({
   );
 
   /**
+   * A turn: Space and Shift+Space while dragging, and the strip's two buttons,
+   * through ONE command.
+   *
+   * `commitRotateStep` (placementRotate.js) is the only producer of a rotate in
+   * this app and `editor.rotate` the only consumer, so the keyboard and the
+   * panel cannot come to mean slightly different things by the same gesture —
+   * which is the seam this workspace exists to close. `rotateRefusal` is the
+   * only wording for a "no", so a locked part is explained the same way
+   * wherever the user asks.
+   *
+   * @returns {string} the reason nothing happened, or "" when it did. The
+   *   canvas prints it in the drag readout: a gesture that vanishes is how a
+   *   user learns the app loses their input.
+   */
+  const handlePlacementRotate = useCallback(
+    (placement, { direction }) => {
+      const refusal = rotateRefusal(placement);
+      if (refusal) return refusal.reason;
+      const command = commitRotateStep(placement, direction, rotationStep);
+      // Null means the angle would not change — a turn onto the angle already
+      // written is not an edit, the same way a drag that snaps back is a click.
+      if (!command) return "";
+      // A wrap is four lines of new structure and gets a confirmation, which
+      // the strip owns; the key press says where to find it rather than
+      // writing structure nobody approved.
+      if (command.confirm) return `${placement.label} needs a wrapper to turn — use the ↺ button to see the change first.`;
+      editor.rotate(command.placementId, command.to);
+      return "";
+    },
+    [editor, rotationStep],
+  );
+
+  /**
    * Ask for a rebuild. A build is minutes, so it is never a side effect of a
    * drag — it is this button, and it goes through the same chat turn every
    * other change to this board goes through. The instruction names the file
@@ -712,52 +751,95 @@ export default function BoardWorkspace({
     setSingleLayerMode(change.singleLayerMode);
   }, []);
 
-  // --- keyboard, honouring Altium's bindings where a browser lets us
+  // Undo, or null when there is nothing this key press could honestly do.
+  //
+  // Three conditions, not one. The history survives leaving move mode but the
+  // placement binding does not (`enabled: canEdit` at the hook), so an undo
+  // offered outside move mode resolves no placement and fails into an error
+  // strip that is not even on screen. Held in a ref rather than the effect's
+  // deps because `editor` is a fresh object every render and the listener
+  // would re-subscribe on each one.
+  //
+  // `busy` is the fourth: a write is in flight, and a second undo computed
+  // against source the server has not returned yet lands as a SOURCE_CHANGED
+  // refusal (`http.mjs` planSourceWrite). The Undo *button* has always been
+  // guarded this way (`PlacementEditBar.jsx` `disabled={!canUndo || busy}`);
+  // the key duplicates the button, so it duplicates the guard.
+  const undoRef = useRef(null);
+  undoRef.current = canEdit && editor.ready && editor.canUndo && !editor.busy ? editor.undo : null;
+  const redoRef = useRef(null);
+  redoRef.current = canEdit && editor.ready && editor.canRedo && !editor.busy ? editor.redo : null;
+
+  // --- keyboard, honouring Altium's bindings where a browser lets us.
+  //
+  // The arbiter is `boardKeymap.js` — pure, and tested over the whole key
+  // space, because the two bugs this replaced were both resolution bugs rather
+  // than dispatch bugs: `L` reaching the wrong surface, and Ctrl+Z reaching
+  // nothing at all. This effect is now only the dispatch.
   useEffect(() => {
     const onKey = (event) => {
-      if (isTypingTarget(event.target)) return;
-      const key = event.key;
-      if (key === "Escape") {
-        setSelection(null);
-        setMeasuring(false);
-        return;
-      }
-      if (event.metaKey || event.ctrlKey) {
-        if (key.toLowerCase() === "m") {
-          event.preventDefault();
+      const command = resolveBoardKey(event, {
+        typing: isTypingTarget(event.target),
+        canUndo: Boolean(undoRef.current),
+        canRedo: Boolean(redoRef.current),
+      });
+      if (!command) return;
+      // Only the modified bindings are worth taking off the browser: ⌘M
+      // minimizes a window and ⌘Z runs the webview's own text undo. The plain
+      // letters collide with nothing.
+      if (event.metaKey || event.ctrlKey) event.preventDefault();
+      switch (command) {
+        case "edit.undo":
+          undoRef.current?.();
+          break;
+        case "edit.redo":
+          redoRef.current?.();
+          break;
+        case "measure.toggle":
           // Measure and move both own the drag; whichever is asked for last wins.
           setMeasuring((value) => {
             if (!value) setEditing(false);
             return !value;
           });
-        }
-        if (key === "PageDown") {
-          event.preventDefault();
-          fitAll();
-        }
-        return;
-      }
-      if (event.shiftKey) {
-        if (key.toLowerCase() === "c") setSelection(null);
-        if (key.toLowerCase() === "s") setSingleLayerMode(nextSingleLayerMode(singleLayerMode));
-        if (key.toLowerCase() === "h") setHudVisible((value) => !value);
-        return;
-      }
-      switch (key) {
-        case "1":
+          break;
+        case "view.fit":
+          // Board3DView owns `F` on its own tab (`3d.home`, back to the
+          // starting camera). Both listeners are on `window`, so without this
+          // one key ran two handlers and the shortcut sheet printed two rows
+          // for `F` that read as a contradiction. The 3D camera reset IS the
+          // fit on that tab; fitting the 2D panes nobody is looking at is the
+          // half that does nothing visible.
+          if (activeTab !== "3d") fitAll();
+          break;
+        case "selection.clear":
+          setSelection(null);
+          setMeasuring(false);
+          break;
+        case "filter.clear":
+          setSelection(null);
+          break;
+        case "single-layer.cycle":
+          setSingleLayerMode(nextSingleLayerMode(singleLayerMode));
+          break;
+        case "hud.toggle":
+          setHudVisible((value) => !value);
+          break;
+        case "messages.toggle":
+          setMessagesOpen((value) => !value);
+          break;
+        case "tab.schematic":
           setActiveTab("schematic");
           break;
-        case "2":
+        case "tab.pcb":
           setActiveTab("pcb");
           break;
-        case "3":
+        case "tab.3d":
           setActiveTab("3d");
           break;
-        case "0":
+        case "tab.split":
           setActiveTab("split");
           break;
-        case "e":
-        case "E":
+        case "edit-mode.toggle":
           if (!viewing) {
             setEditing((value) => {
               if (!value) setMeasuring(false);
@@ -765,30 +847,37 @@ export default function BoardWorkspace({
             });
           }
           break;
-        case "f":
-        case "F":
-          fitAll();
-          break;
-        case "q":
-        case "Q":
+        case "units.toggle":
           setUnits((value) => (value === "mm" ? "mil" : "mm"));
           break;
-        case "m":
-        case "M":
+        case "highlight.cycle":
           setHighlightMethod((value) => nextHighlightMethod(value));
           break;
-        case "[":
+        case "mask.decrease":
           setMaskLevel((value) => Math.max(0, value - 1));
           break;
-        case "]":
+        case "mask.increase":
           setMaskLevel((value) => Math.min(5, value + 1));
           break;
-        case "l":
-        case "L":
-          setMessagesOpen((value) => !value);
+        // Altium's `L` opens the Layers And Colors panel. Ours is not a panel:
+        // the layer chips live permanently on the bar under the canvas, so the
+        // key puts that bar on screen and then puts the keyboard ON it. The
+        // second half matters — with the bar already visible the key otherwise
+        // looked broken, and moving focus is what "opens the layers" means for
+        // someone who is not reaching for the mouse.
+        //
+        // The richer popover from ide-altium-parity.md ("Layers And Colors:
+        // what opens, and what is in it") is still LayerBar's file, not this
+        // one. This is the honest version until it lands.
+        case "layers.show":
+          if (!(CANVAS_TABS.has(activeTab) && activeTab !== "schematic")) setActiveTab("pcb");
+          // After the tab has painted, not during this handler.
+          requestAnimationFrame(() => {
+            const bar = document.querySelector('[data-slot="layer-bar"]');
+            bar?.querySelector("button")?.focus();
+          });
           break;
-        case "r":
-        case "R":
+        case "regions.toggle":
           setRegionsVisible((value) => !value);
           break;
         default:
@@ -797,7 +886,7 @@ export default function BoardWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode, viewing]);
+  }, [fitAll, singleLayerMode, viewing, activeTab]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";
@@ -832,6 +921,7 @@ export default function BoardWorkspace({
         maskLevel={maskLevel}
         onSelect={handleSelect}
         onHoverChange={setHover}
+        onContextMenuRequest={setContextRequest}
         viewRef={schematicRef}
       />
       <ViewportToolRail surface="schematic" context={schematicToolContext} />
@@ -857,6 +947,8 @@ export default function BoardWorkspace({
           placement={selectedPlacement}
           snapStep={snapStep}
           onSnapStep={setSnapStep}
+          rotationStep={rotationStep}
+          onRotationStep={setRotationStep}
           onRebuild={handleRebuild}
           rebuilding={rebuilding}
           canRebuild={!turnInProgress}
@@ -889,9 +981,12 @@ export default function BoardWorkspace({
           placements={editor.placements}
           snapStepMm={snapStep}
           onPlacementMove={handlePlacementMove}
+          onPlacementRotate={handlePlacementRotate}
           onPlacementSelect={(placement) => setActivePlacementId(placement?.id || "")}
           onSelect={handleSelect}
           onHoverChange={setHover}
+          onContextMenuRequest={setContextRequest}
+          onExitMeasure={() => setMeasuring(false)}
           onViewChange={setPcbView}
           viewRef={pcbRef}
         />
@@ -919,6 +1014,10 @@ export default function BoardWorkspace({
           partArea={hoverArea}
           visible={hudVisible}
           measuring={measuring}
+          // The Δ readout is the only way to zero the delta origin on a
+          // MacBook — Space was handed to rotation and Insert is not on the
+          // keyboard. Without this the Δ column reads 0,0 forever.
+          onResetDelta={() => pcbRef.current?.resetDelta?.({ x: 0, y: 0 })}
         />
         {circuitState === "loading" ? (
           <span className="pointer-events-none absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-white/60">
@@ -1218,6 +1317,14 @@ export default function BoardWorkspace({
                     partsByLcscMap={partsMap}
                     units={units}
                     onSelect={handleSelect}
+                    // The typing half of the same edit the canvas drags. Both
+                    // land in handlePlacementMove, so there is one write path.
+                    editor={editor}
+                    canEdit={canEdit}
+                    viewing={Boolean(viewing)}
+                    activePlacementId={activePlacementId}
+                    onPlacementMove={handlePlacementMove}
+                    onPlacementRotate={handlePlacementRotate}
                   />
                 )}
               </div>
@@ -1244,6 +1351,52 @@ export default function BoardWorkspace({
           )}
         </div>
       </div>
+
+      {/* Right-click, decided on release by the canvas and rendered here.
+          It sits at the workspace root rather than inside a pane because both
+          canvases feed it and it is portalled to the body either way. */}
+      <BoardContextMenu
+        open={Boolean(contextRequest)}
+        onOpenChange={(next) => {
+          if (!next) setContextRequest(null);
+        }}
+        request={contextRequest}
+        index={index}
+        placements={editor.placements}
+        editor={editor}
+        messageRows={messageRows}
+        selection={selection}
+        canEdit={canEdit}
+        viewing={Boolean(viewing)}
+        showGrid={showGrid}
+        units={units}
+        boardName={boardName}
+        onSelect={handleSelect}
+        onJump={handleSelect}
+        onLocate={handleLocate}
+        onZoomBox={(box) => pcbRef.current?.zoomToBox?.(box)}
+        onLock={(placementId, locked) => editor.setLock(placementId, locked)}
+        onMoveExact={(next) => {
+          const placement = editor.placements.byId.get(next.placementId);
+          if (placement) handlePlacementMove(placement, next);
+        }}
+        onPrefill={handlePrefillNote}
+        onFit={fitAll}
+        onClearSelection={() => setSelection(null)}
+        onToggleGrid={() => setShowGrid((value) => !value)}
+        onToggleUnits={() => setUnits((value) => (value === "mm" ? "mil" : "mm"))}
+        onToggleEdit={(on) => {
+          if (viewing) return;
+          if (on) setMeasuring(false);
+          setEditing(Boolean(on));
+        }}
+      />
+
+      {/* Altium's Shift+F1 — "a menu listing all valid shortcuts". Ours is
+          derived from the resolvers rather than written by hand, so it cannot
+          drift from the keys that actually work. The button lives in the
+          window menu bar's Help menu; this mount owns the key and the dialog. */}
+      <ShortcutSheetHost button={false} />
     </div>
   );
 }

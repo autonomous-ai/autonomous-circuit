@@ -7,6 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { isEditableTarget } from "@/ui/dom";
 import { transport, isTauriRuntime } from "@/lib/transport.ts";
 import circuitLogoUrl from "@/assets/favicon.png";
+import { OPEN_SHORTCUT_SHEET_EVENT } from "./board/ShortcutSheet.jsx";
 
 /**
  * In-window menu bar (Windows-style row) mirroring the native macOS application
@@ -63,6 +65,14 @@ export default function WindowMenuBar() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [version, setVersion] = useState("");
   const [isMaximized, setIsMaximized] = useState(false);
+  // Whether the Edit menu has anything to act on. Every item in that menu runs
+  // `execCommand` against a focused editable element, so with no field focused
+  // all seven of them do nothing at all — and an Undo that silently does
+  // nothing is worse than no Undo, because it is a promise in writing. Greyed
+  // out is the honest state. Board edits are NOT undone here: the board file's
+  // 50-entry history lives on the PCB edit strip and on ⌘Z over the canvas
+  // (`board/boardKeymap.js` → `edit.undo`).
+  const [hasEditTarget, setHasEditTarget] = useState(false);
 
   // Window controls only mean anything inside Tauri (outside, `windowAction`
   // no-ops); gate the render so a plain browser doesn't show dead buttons.
@@ -127,8 +137,10 @@ export default function WindowMenuBar() {
     const el = document.activeElement;
     if (!isEditableTarget(el)) {
       editTargetRef.current = null;
+      setHasEditTarget(false);
       return;
     }
+    setHasEditTarget(true);
     const snapshot = { el, start: null, end: null, range: null };
     if (typeof el.selectionStart === "number") {
       snapshot.start = el.selectionStart;
@@ -219,6 +231,11 @@ export default function WindowMenuBar() {
         <DropdownMenuTrigger
           className={MENU_TRIGGER_CLASS}
           onPointerDownCapture={captureEditTarget}
+          // Opening the menu from the keyboard means focus was already on this
+          // trigger, so there is no field behind it — capture there too and let
+          // the items grey themselves out rather than reusing a stale snapshot
+          // from the last time the menu was opened with the mouse.
+          onKeyDownCapture={captureEditTarget}
         >
           Edit
         </DropdownMenuTrigger>
@@ -230,14 +247,43 @@ export default function WindowMenuBar() {
           // trigger, so the caret stays where the user left it after editing.
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
-          <DropdownMenuItem onSelect={() => runEdit("undo")}>Undo</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => runEdit("redo")}>Redo</DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("undo")}>
+            Undo
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("redo")}>
+            Redo
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => runEdit("cut")}>Cut</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => runEdit("copy")}>Copy</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => runEdit("paste")}>Paste</DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("cut")}>
+            Cut
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("copy")}>
+            Copy
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("paste")}>
+            Paste
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => runEdit("selectAll")}>Select All</DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasEditTarget} onSelect={() => runEdit("selectAll")}>
+            Select All
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Help</DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={4} className="min-w-44">
+          {/* Altium reaches its shortcut list from Shift+F1 and from Help.
+              A key you have to already know is not discoverability, and this
+              bar was the one place in the app that listed nothing about keys.
+              The board workspace mounts the sheet; this asks it to open.
+              https://www.altium.com/documentation/altium-designer/shortcut-keys */}
+          <DropdownMenuItem
+            onSelect={() => window.dispatchEvent(new Event(OPEN_SHORTCUT_SHEET_EVENT))}
+          >
+            Keyboard Shortcuts
+            <DropdownMenuShortcut>?</DropdownMenuShortcut>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

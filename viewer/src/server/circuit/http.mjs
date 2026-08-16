@@ -14,7 +14,9 @@ import { execFile } from "node:child_process";
 import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
-import { readRevisions, revisionTrend } from "./revisions.mjs";
+import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
+import { createEditQueue, planPlacementEdit, writeAtomic } from "./boardEdit.mjs";
+import { runFastCheck } from "./fastCheck.mjs";
 import {
   PHASE,
   approvedPlanMessage,
@@ -482,6 +484,50 @@ export function createCircuitServices({ env = process.env } = {}) {
     }
   }
 
+  /**
+   * Resolve `boards/<stem>.tsx` inside a project, or throw the refusal.
+   *
+   * Shared by both write commands so there is exactly one answer to "may this
+   * path be written". The `lstat` matters: the path shape can be perfectly
+   * legal while the file itself is a symlink pointing out of the project.
+   */
+  function resolveBoardSource(projectId, file) {
+    const rel = boardSourceRelPath(file);
+    if (!rel) {
+      throw ipcError("INVALID_ARGUMENT", "only a board source under boards/ can be edited", 400);
+    }
+    const root = fs.realpathSync(projects.projectDir(projectId));
+    const abs = path.resolve(root, rel);
+    if (!abs.startsWith(`${root}${path.sep}`)) {
+      throw ipcError("FORBIDDEN", "that path is outside the project", 403);
+    }
+    let stat;
+    try {
+      stat = fs.lstatSync(abs);
+    } catch {
+      throw ipcError("NOT_FOUND", `no board source at ${rel}`, 404);
+    }
+    if (!stat.isFile()) {
+      throw ipcError("FORBIDDEN", "that board source is not a regular file", 403);
+    }
+    return { rel, root, abs };
+  }
+
+  /** Refuse any write while something else owns the board file. */
+  function refuseIfBuilding(projectId) {
+    if (chat.turnInProgress(projectId) || pipelineRunning(projectId)) {
+      throw ipcError(
+        "BUILD_RUNNING",
+        "the board is building — wait for it to finish before moving parts",
+        409,
+      );
+    }
+  }
+
+  // One promise chain per project: a semantic edit is a read-modify-write, and
+  // two of them arriving together would otherwise both read the pre-edit file.
+  const serializeEdit = createEditQueue();
+
   // --- command handlers (contract §2 command list, verbatim) ---------------
   const commands = {
     // app
@@ -553,33 +599,8 @@ export function createCircuitServices({ env = process.env } = {}) {
      */
     board_source_write: async ({ id, file, edits, sourceLength }) => {
       const projectId = requireProject(id);
-      if (chat.turnInProgress(projectId) || pipelineRunning(projectId)) {
-        throw ipcError(
-          "BUILD_RUNNING",
-          "the board is building — wait for it to finish before moving parts",
-          409,
-        );
-      }
-      const rel = boardSourceRelPath(file);
-      if (!rel) {
-        throw ipcError("INVALID_ARGUMENT", "only a board source under boards/ can be edited", 400);
-      }
-      const root = fs.realpathSync(projects.projectDir(projectId));
-      const abs = path.resolve(root, rel);
-      if (!abs.startsWith(`${root}${path.sep}`)) {
-        throw ipcError("FORBIDDEN", "that path is outside the project", 403);
-      }
-      let stat;
-      try {
-        stat = fs.lstatSync(abs);
-      } catch {
-        throw ipcError("NOT_FOUND", `no board source at ${rel}`, 404);
-      }
-      // A symlink here would be a way out of the project even though the path
-      // itself looks fine.
-      if (!stat.isFile()) {
-        throw ipcError("FORBIDDEN", "that board source is not a regular file", 403);
-      }
+      refuseIfBuilding(projectId);
+      const { rel, abs } = resolveBoardSource(projectId, file);
       const current = fs.readFileSync(abs, "utf8");
       const planned = planSourceWrite(current, edits, sourceLength);
       if (!planned.ok) {
@@ -588,11 +609,127 @@ export function createCircuitServices({ env = process.env } = {}) {
       // Written through a sibling temp file and renamed: a half-written board
       // source is one the next build cannot compile, and the build may start
       // the instant the catalog watcher notices the change.
-      const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${process.pid}.tmp`);
-      fs.writeFileSync(tmp, planned.text, "utf8");
-      fs.renameSync(tmp, abs);
+      writeAtomic(abs, planned.text);
       projects.touch(projectId);
       return { file: rel, text: planned.text, sourceLength: planned.text.length };
+    },
+
+    /**
+     * Apply one semantic placement edit, then say what it costs.
+     *
+     * The whole round trip: serialise against other edits to this project →
+     * refuse if the agent or the pipeline holds the file → read → parse with
+     * the same engine the canvas uses → compare-and-swap → atomic write →
+     * grade the predicted geometry in ~1.2s → record the round in the same
+     * history a build lands in.
+     *
+     * The three words stay separate in the response. `saved` is true the
+     * moment the literal is on disk. `check.status` may reach `legal`. Nothing
+     * here may say `orderable` — see `check.notChecked`, which the Python side
+     * fills in and which always includes the copper pour, because no gate in
+     * this pipeline can see a pour defect.
+     */
+    board_edit_apply: async ({ id, file, edit, sourceLength, builtAnchor, verify = true }) => {
+      const projectId = requireProject(id);
+      return serializeEdit(projectId, async () => {
+        // Re-checked inside the queue, not before it: a build can start while
+        // this request waits its turn behind another edit.
+        refuseIfBuilding(projectId);
+        const { rel, root, abs } = resolveBoardSource(projectId, file);
+        const current = fs.readFileSync(abs, "utf8");
+        // The client's length is a compare-and-swap token against a write by
+        // the agent between its read and this call. Omitted, the server's own
+        // read is the baseline — safe here only because the parse and the
+        // write happen inside one turn of this queue.
+        if (sourceLength !== undefined && sourceLength !== current.length) {
+          throw ipcError(
+            "SOURCE_CHANGED",
+            "the board file changed since it was read — reopen the board and try again",
+            409,
+          );
+        }
+        let planned;
+        try {
+          planned = planPlacementEdit(current, edit);
+        } catch (error) {
+          const code = String(error?.code || "INVALID_ARGUMENT");
+          throw ipcError(code, String(error?.message || error), code === "NO_CHANGE" ? 409 : 400);
+        }
+        const write = planSourceWrite(current, planned.edits, current.length);
+        if (!write.ok) {
+          throw ipcError(write.code, write.message, write.code === "SOURCE_CHANGED" ? 409 : 400);
+        }
+        writeAtomic(abs, write.text);
+        projects.touch(projectId);
+
+        // The gate grades the BUILT board with this move applied to it. The
+        // anchor is therefore the position the last build was made from, which
+        // the client carries per placement across edits — not the value that
+        // was in the file a moment ago, which is already one drag stale if the
+        // user has moved this part twice without rebuilding.
+        const anchor = Number.isFinite(Number(builtAnchor?.x)) && Number.isFinite(Number(builtAnchor?.y))
+          ? { x: Number(builtAnchor.x), y: Number(builtAnchor.y) }
+          : { x: planned.placement.x, y: planned.placement.y };
+        const stem = rel.slice("boards/".length, -".tsx".length);
+        let check = null;
+        if (verify) {
+          check = await runFastCheck(path.join(root, "boards", `${stem}.circuit.json`), {
+            projectRoot: root,
+            moves: [{ anchor, dx: planned.delta.dx, dy: planned.delta.dy }],
+            env,
+          });
+        }
+
+        // History gets the round whether or not the gate ran, because "a human
+        // moved this part" is the fact worth keeping; the counts are the part
+        // that may be missing.
+        recordEdit(root, {
+          summary: planned.summary,
+          file: rel,
+          counts: {
+            total: check?.warnings?.length ?? 0,
+            blocking: check?.counts?.error ?? 0,
+            electrical: 0,
+            other: 0,
+          },
+        });
+
+        return {
+          saved: true,
+          file: rel,
+          text: write.text,
+          sourceLength: write.text.length,
+          summary: planned.summary,
+          delta: planned.delta,
+          placement: {
+            id: planned.placement.id,
+            tag: planned.placement.tag,
+            name: planned.placement.name,
+            ...planned.next,
+          },
+          check,
+        };
+      });
+    },
+
+    /**
+     * The same verdict without an edit — "how does the board stand right now".
+     * Same gate, same blind spots, no write, so it is safe to call while the
+     * user is reading rather than editing.
+     */
+    board_fast_check: async ({ id, file, moves = [] }) => {
+      const projectId = requireProject(id);
+      const rel = boardSourceRelPath(file);
+      if (!rel) {
+        throw ipcError("INVALID_ARGUMENT", "only a board under boards/ can be checked", 400);
+      }
+      const root = fs.realpathSync(projects.projectDir(projectId));
+      const stem = rel.slice("boards/".length, -".tsx".length);
+      return runFastCheck(path.join(root, "boards", `${stem}.circuit.json`), {
+        projectRoot: root,
+        moves: Array.isArray(moves) ? moves : [],
+        env,
+      });
     },
 
     app_settings_read: async () => settings.readWire(),

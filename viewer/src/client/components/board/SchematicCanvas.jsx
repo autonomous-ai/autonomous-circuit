@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, us
 import { Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { boxIsReal, inflateBox, schematicElementBox } from "@/lib/boardIndex.js";
+import { isDragButton, panTo, pointerReleaseAction } from "./canvasPointer.js";
 import { palette, unselectedOpacity } from "@/lib/boardPalette.js";
 import {
   parseSchematicTransform,
@@ -12,7 +13,6 @@ import {
 } from "@/lib/boardRender.js";
 
 const NUM = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
-const CLICK_SLOP_PX = 4;
 
 /**
  * The schematic pane. The sheet itself is the pipeline's own `_schematic.svg`
@@ -28,6 +28,12 @@ const CLICK_SLOP_PX = 4;
  *
  * Altium's schematic sheet is light while its PCB canvas is black; we keep that
  * split on purpose — it is what the muscle memory expects.
+ *
+ * Pointer, matching the PCB canvas gesture for gesture so nothing has to be
+ * relearned crossing the splitter:
+ *   · drag / right-drag   pan            · wheel   zoom about the cursor
+ *   · click               select + cross-probe     · ⌘/Ctrl+click  select + jump
+ *   · right-click         context menu, emitted upward, selection untouched
  */
 export default function SchematicCanvas({
   index,
@@ -41,6 +47,7 @@ export default function SchematicCanvas({
   highlightMethod = "dim",
   maskLevel = 3,
   onSelect,
+  onContextMenuRequest,
   onHoverChange,
   className,
   viewRef: externalViewRef,
@@ -253,10 +260,15 @@ export default function SchematicCanvas({
     [index],
   );
 
+  // Both buttons pan the sheet — Altium's Right-Click, Hold&Drag, which an EE
+  // uses more than the left one. Which button it was rides on the ref, because
+  // the release reads it: left selects, right asks for a context menu.
   const onPointerDown = useCallback((event) => {
-    if (event.button !== 0) return;
+    if (!isDragButton(event.button)) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = {
+      mode: "pan",
+      button: event.button,
       startX: event.clientX,
       startY: event.clientY,
       origin: viewStateRef.current,
@@ -266,15 +278,10 @@ export default function SchematicCanvas({
 
   const onPointerMove = useCallback(
     (event) => {
-      const drag = dragRef.current;
-      if (drag) {
-        const dx = event.clientX - drag.startX;
-        const dy = event.clientY - drag.startY;
-        if (Math.abs(dx) > CLICK_SLOP_PX || Math.abs(dy) > CLICK_SLOP_PX) drag.moved = true;
-        if (drag.moved) {
-          setView({ ...drag.origin, tx: drag.origin.tx + dx, ty: drag.origin.ty + dy });
-          return;
-        }
+      const panned = panTo(dragRef.current, event.clientX, event.clientY);
+      if (panned) {
+        setView(panned);
+        return;
       }
       if (!sheet) return;
       const point = worldFromEvent(event);
@@ -290,10 +297,26 @@ export default function SchematicCanvas({
     (event) => {
       const drag = dragRef.current;
       dragRef.current = null;
-      if (!drag || drag.moved || !sheet) return;
-      const point = worldFromEvent(event);
-      const pixelsPerUnit = Math.abs(sheet.transform.a) * viewStateRef.current.scale;
-      const hit = hitTest(point, pixelsPerUnit);
+      const release = pointerReleaseAction(drag);
+      if (release === "none") return;
+      const point = sheet ? worldFromEvent(event) : null;
+      const pixelsPerUnit = sheet ? Math.abs(sheet.transform.a) * viewStateRef.current.scale : 0;
+      const hit = sheet ? hitTest(point, pixelsPerUnit) : null;
+
+      // A right press that never travelled asks for a context menu. The sheet
+      // can still say where the press landed when the overlay is unaligned, so
+      // this fires even without a transform — the menu's own items decide what
+      // is answerable, not this canvas. Selection is left alone on purpose.
+      if (release === "menu") {
+        onContextMenuRequest?.({
+          point,
+          hit,
+          client: { x: event.clientX, y: event.clientY },
+          source: "schematic",
+        });
+        return;
+      }
+      if (!sheet) return;
       const jump = event.metaKey || event.ctrlKey;
       if (!hit) {
         onSelect?.(null, { jump: false, source: "schematic" });
@@ -301,7 +324,7 @@ export default function SchematicCanvas({
       }
       onSelect?.({ kind: hit.kind, key: hit.key }, { jump, source: "schematic" });
     },
-    [hitTest, onSelect, sheet, worldFromEvent],
+    [hitTest, onContextMenuRequest, onSelect, sheet, worldFromEvent],
   );
 
   const endDrag = useCallback(() => {
@@ -366,6 +389,10 @@ export default function SchematicCanvas({
         setHover(null);
         onHoverChange?.(null);
       }}
+      // Same reason as the PCB canvas: the menu is decided on release so a
+      // right-drag can pan, and the native WebView menu must not appear over
+      // the sheet in dev (main.jsx only suppresses it in PROD).
+      onContextMenu={(event) => event.preventDefault()}
       onDoubleClick={fitToSheet}
     >
       {showSheet ? (

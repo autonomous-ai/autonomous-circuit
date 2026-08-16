@@ -5,9 +5,12 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  AUTHOR,
   DEFAULT_REVISION_LIMIT,
+  REVISION_KIND,
   countWarnings,
   readRevisions,
+  recordEdit,
   recordRevision,
   revisionTrend,
   revisionsPath,
@@ -199,4 +202,66 @@ test("a full round trip through disk preserves the trend", () => {
   assert.equal(trend.to, 0);
   assert.equal(trend.fixed, 6);
   assert.equal(trend.fabReady, true);
+});
+
+// ------------------------------------------------------- who changed what
+
+test("a hand edit is recorded as a human placement round", () => {
+  const dir = workspace();
+  recordEdit(dir, {
+    summary: "moved StatusLed from (-45.8, -32) to (-43, -32)",
+    file: "boards/main.tsx",
+    counts: { total: 14, blocking: 14 },
+  });
+  const [row] = readRevisions(dir);
+  assert.equal(row.author, AUTHOR.HUMAN);
+  assert.equal(row.kind, REVISION_KIND.EDIT);
+  assert.equal(row.phase, "placement");
+  assert.equal(row.file, "boards/main.tsx");
+  // No compile ran, so orderability is unknown — never false.
+  assert.equal(row.fabReady, null);
+});
+
+test("history written before author/kind existed still reads as an agent build", () => {
+  const dir = workspace();
+  fs.mkdirSync(path.dirname(revisionsPath(dir)), { recursive: true });
+  fs.writeFileSync(
+    revisionsPath(dir),
+    `${JSON.stringify({ at: "2026-08-01T00:00:00Z", phase: "structure", counts: { blocking: 3 } })}\n`,
+  );
+  const [row] = readRevisions(dir);
+  assert.equal(row.author, AUTHOR.AGENT);
+  assert.equal(row.kind, REVISION_KIND.BUILD);
+});
+
+test("an author the UI cannot render is normalised, not stored", () => {
+  const dir = workspace();
+  recordRevision(dir, { phase: "final", author: "a passing stranger", kind: "vandalism" });
+  const [row] = readRevisions(dir);
+  assert.equal(row.author, AUTHOR.AGENT);
+  assert.equal(row.kind, REVISION_KIND.BUILD);
+});
+
+test("edits are counted in the trend but never averaged into it", () => {
+  // An edit's blocking count comes from the fast gate on predicted geometry and
+  // a build's from the full gauntlet. Putting the two on one line would draw a
+  // convergence no single measurement supports.
+  const dir = workspace();
+  recordRevision(dir, { phase: "structure", counts: { blocking: 6 } });
+  recordEdit(dir, { summary: "moved R20", counts: { blocking: 14 } });
+  recordRevision(dir, { phase: "final", counts: { blocking: 0 }, fabReady: true });
+
+  const trend = revisionTrend(readRevisions(dir));
+  assert.equal(trend.builds, 2);
+  assert.equal(trend.edits, 1);
+  assert.equal(trend.from, 6);
+  assert.equal(trend.to, 0);
+  assert.equal(trend.worse, false);
+});
+
+test("one build plus one edit is still not a trend, but the edit is reported", () => {
+  const dir = workspace();
+  recordRevision(dir, { phase: "structure", counts: { blocking: 2 } });
+  recordEdit(dir, { summary: "moved R20" });
+  assert.deepEqual(revisionTrend(readRevisions(dir)), { builds: 1, edits: 1 });
 });

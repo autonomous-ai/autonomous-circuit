@@ -419,7 +419,7 @@ export default function PcbCanvas({
       const canGrab = Boolean(
         editing && point && index && (() => {
           const placement = placementForHit(hitAt(point));
-          return placement && !placement.locked;
+          return Boolean(placement) && !placement.locked;
         })(),
       );
       const action = pointerPressAction({

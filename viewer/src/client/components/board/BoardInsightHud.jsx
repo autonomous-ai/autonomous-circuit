@@ -10,8 +10,15 @@ const NUM = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(va
  * the pointer covers the thing you are trying to read).
  *
  * Shows cursor X/Y, the delta from the last origin reset, the object and net
- * under the cursor, and the active layer. `Shift+H` toggles it; `Space` or
- * `Insert` zeroes the delta origin.
+ * under the cursor, and the active layer. `Shift+H` toggles it.
+ *
+ * The delta origin is zeroed by `Insert` — Altium's own key, "Insert: Resets
+ * the Delta Origin point for the Heads Up Display feature to 0,0"
+ * (https://www.altium.com/documentation/altium-designer/shortcut-keys/pcb-editors)
+ * — **or by clicking the Δ readout**, which is not Altium's and is not
+ * decoration: Space used to do this job and was handed to rotation, and a
+ * MacBook keyboard has no Insert key, so without the click half our own team
+ * would have a Δ frozen at 0,0 forever.
  *
  * Parked **top**-left, not bottom-left: the bottom edge now belongs to the
  * floating tool rail and the board-side widget, and two overlapping glass
@@ -30,6 +37,7 @@ export default function BoardInsightHud({
   partArea = "",
   visible = true,
   measuring = false,
+  onResetDelta,
   className,
 }) {
   if (!visible) return null;
@@ -50,10 +58,24 @@ export default function BoardInsightHud({
           <span className="text-white/35">X/Y </span>
           {point ? formatPoint(point.x, point.y, units) : "—"}
         </span>
-        <span>
+        {/* The wrapper is `pointer-events-none` so the HUD never eats a drag
+            on the board underneath it; this one control opts back in. */}
+        <button
+          type="button"
+          data-slot="hud-delta-reset"
+          onClick={() => onResetDelta?.()}
+          disabled={!onResetDelta}
+          // Not "here": clicking the HUD means the pointer left the board, so
+          // there is no cursor to zero at. The click puts the origin back to
+          // the board's own 0,0 — deterministic, and the reading you want when
+          // you have lost track of where the delta is measured from. `Insert`
+          // keeps Altium's meaning, which is "zero it at the cursor".
+          title="Put the delta origin back to the board origin — Insert zeroes it at the cursor"
+          className="pointer-events-auto -mx-1 rounded px-1 text-left transition-colors hover:bg-white/10 disabled:pointer-events-none"
+        >
           <span className="text-white/35">Δ </span>
           {delta ? formatPoint(delta.x, delta.y, units) : "—"}
-        </span>
+        </button>
       </div>
       <div className="mt-0.5 flex items-center gap-3">
         <span>

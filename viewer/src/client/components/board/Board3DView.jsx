@@ -30,8 +30,19 @@ import {
  * download beside a truthful error is worth more than a black canvas.
  */
 
+// Local, because this view resolves its keys in a closure rather than through
+// a pure arbiter (see docs/architecture/ide-shortcut-sheet.md). It has to agree
+// with `boardKeymap.isTypingTarget` + `isOverlayTarget` or the two window
+// listeners disagree about who owns a keystroke: without the overlay half,
+// opening the shortcut sheet and pressing `F` moved the 3D camera behind the
+// modal.
 const isTypingTarget = (el) =>
-  Boolean(el && (/^(input|textarea|select)$/i.test(el.tagName) || el.isContentEditable));
+  Boolean(
+    el &&
+      (/^(input|textarea|select)$/i.test(el.tagName) ||
+        el.isContentEditable ||
+        el.closest?.('[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"],[aria-modal="true"]')),
+  );
 
 export default function Board3DView({ glbUrl = "", stem = "board", scheme = "studio", className }) {
   const colors = palette(scheme);

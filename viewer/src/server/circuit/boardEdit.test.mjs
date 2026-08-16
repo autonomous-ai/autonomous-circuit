@@ -1,0 +1,476 @@
+// board_edit_apply — a drag as a sentence, written to disk, graded, recorded.
+//
+// Three levels, matching how the code is split. The planner (`planPlacementEdit`)
+// and the queue (`createEditQueue`) are pure and driven directly. The command is
+// driven over an ephemeral port for everything that involves the disk: the
+// atomic write, the mid-build refusal, the compare-and-swap, and the history
+// line. The gate (`runFastCheck`) gets its own section, and the part of it that
+// needs a real toolchain SKIPS rather than fails when the toolchain is absent —
+// the same posture kicad-dependent tests take in circuitpy.
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { createCircuitServices } from "./http.mjs";
+import { createEditQueue, planPlacementEdit } from "./boardEdit.mjs";
+import { pythonPathDirs, resolvePython, runFastCheck } from "./fastCheck.mjs";
+import { AUTHOR, REVISION_KIND, readRevisions } from "./revisions.mjs";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const FAKE_CLAUDE = path.join(HERE, "fixtures", "fake-claude.mjs");
+const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..");
+
+const BOARD = `export default () => (
+  <board width="20mm" height="20mm">
+    {/* measured: 0.115mm from the alignment hole at x=3 */}
+    <resistor name="R1" resistance="1k" footprint="0402" pcbX={1} pcbY={2} />
+    <StatusLed led="LED1" pcbX={-4.5} pcbY={6} />
+  </board>
+)
+`;
+
+// --- the planner -----------------------------------------------------------
+
+test("a delta move rewrites one literal and reports what it actually wrote", () => {
+  const planned = planPlacementEdit(BOARD, { kind: "move", placementId: "resistor[1]", dx: 2.8, dy: 0 });
+  assert.equal(planned.edits.length, 1);
+  assert.equal(planned.edits[0].text, "3.8");
+  assert.equal(planned.edits[0].expected, "1");
+  assert.deepEqual(planned.delta, { dx: 2.8, dy: 0 });
+  assert.equal(planned.summary, "moved resistor R1 from (1, 2) to (3.8, 2)");
+});
+
+test("an absolute move and a delta move agree", () => {
+  const byDelta = planPlacementEdit(BOARD, { kind: "move", placementId: "StatusLed[1]", dx: 1.5, dy: -2 });
+  const byPoint = planPlacementEdit(BOARD, { kind: "move", placementId: "StatusLed[1]", x: -3, y: 4 });
+  assert.deepEqual(byDelta.edits, byPoint.edits);
+});
+
+test("the reported delta is what the file holds, not what was asked for", () => {
+  // formatMm rounds to a micron. A move smaller than that leaves the file
+  // unchanged, and a gate told about a move the file does not contain would be
+  // grading geometry nobody will ever build.
+  const planned = planPlacementEdit(BOARD, { kind: "move", placementId: "resistor[1]", dx: 0.0004, dy: 0.5 });
+  assert.deepEqual(planned.delta, { dx: 0, dy: 0.5 });
+  assert.equal(planned.edits.length, 1); // only pcbY moved
+});
+
+test("a move that changes nothing is refused, not silently accepted", () => {
+  assert.throws(
+    () => planPlacementEdit(BOARD, { kind: "move", placementId: "resistor[1]", dx: 0, dy: 0 }),
+    (error) => error.code === "NO_CHANGE",
+  );
+});
+
+test("an unknown placement is refused by name", () => {
+  assert.throws(
+    () => planPlacementEdit(BOARD, { kind: "move", placementId: "capacitor[7]", dx: 1, dy: 0 }),
+    (error) => error.code === "PLACEMENT_NOT_FOUND" && /capacitor\[7\]/.test(error.message),
+  );
+});
+
+test("locking inserts the comment above the tag and counts as no movement", () => {
+  const planned = planPlacementEdit(BOARD, { kind: "lock", placementId: "StatusLed[1]", locked: true });
+  assert.equal(planned.edits.length, 1);
+  assert.match(planned.edits[0].text, /locked: placed by hand/);
+  assert.deepEqual(planned.delta, { dx: 0, dy: 0 });
+});
+
+test("locking an already-locked placement is refused", () => {
+  const locked = BOARD.replace(
+    "    <StatusLed",
+    "    {/* locked: placed by hand - do not move this without asking */}\n    <StatusLed",
+  );
+  assert.throws(
+    () => planPlacementEdit(locked, { kind: "lock", placementId: "StatusLed[1]", locked: true }),
+    (error) => error.code === "NO_CHANGE",
+  );
+});
+
+test("an unparseable board is a refusal, not a crash", () => {
+  assert.throws(
+    () => planPlacementEdit("const x = 1\n", { kind: "move", placementId: "resistor[1]", dx: 1, dy: 0 }),
+    (error) => error.code === "INVALID_ARGUMENT",
+  );
+});
+
+// --- the queue -------------------------------------------------------------
+
+test("two edits to one project run one after the other, not interleaved", async () => {
+  const serialize = createEditQueue();
+  const order = [];
+  const slow = serialize("p", async () => {
+    order.push("a:start");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    order.push("a:end");
+  });
+  const fast = serialize("p", async () => {
+    order.push("b:start");
+    order.push("b:end");
+  });
+  await Promise.all([slow, fast]);
+  assert.deepEqual(order, ["a:start", "a:end", "b:start", "b:end"]);
+});
+
+test("a failed edit does not wedge the queue behind it", async () => {
+  const serialize = createEditQueue();
+  await assert.rejects(serialize("p", async () => {
+    throw new Error("boom");
+  }));
+  assert.equal(await serialize("p", async () => "still working"), "still working");
+});
+
+test("different projects do not wait on each other", async () => {
+  const serialize = createEditQueue();
+  let released;
+  const blocked = new Promise((resolve) => {
+    released = resolve;
+  });
+  const first = serialize("a", () => blocked);
+  assert.equal(await serialize("b", async () => "b ran"), "b ran");
+  released("a ran");
+  assert.equal(await first, "a ran");
+});
+
+// --- the command -----------------------------------------------------------
+
+function tmpdir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+async function bootServer() {
+  const home = tmpdir("circuit-home-");
+  const cfgDir = tmpdir("circuit-cfg-");
+  fs.writeFileSync(path.join(home, "scenario.json"), JSON.stringify({}));
+  const env = {
+    ...process.env,
+    CIRCUIT_HOME: home,
+    CLAUDE_CONFIG_DIR: cfgDir,
+    CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    CIRCUIT_FAKE_SCENARIO: path.join(home, "scenario.json"),
+  };
+  const services = createCircuitServices({ env });
+  const server = http.createServer((req, res) => {
+    services.apiMiddleware(req, res, () => {
+      res.statusCode = 404;
+      res.end("fallthrough");
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  async function post(cmd, body = {}) {
+    const response = await fetch(`${base}/api/${cmd}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  }
+  const project = await post("project_create", { req: { name: "drag-me" } });
+  const id = project.body.id;
+  const dir = services.projects.projectDir(id);
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "boards", "main.tsx"), BOARD, "utf8");
+  return {
+    services,
+    post,
+    id,
+    dir,
+    board: path.join(dir, "boards", "main.tsx"),
+    close: () => {
+      services.close();
+      server.close();
+    },
+  };
+}
+
+test("a move lands on disk, keeps the comments, and leaves no temp file", async () => {
+  const s = await bootServer();
+  try {
+    const response = await s.post("board_edit_apply", {
+      id: s.id,
+      file: "boards/main.tsx",
+      edit: { kind: "move", placementId: "resistor[1]", dx: 2.8, dy: -0.5 },
+      sourceLength: BOARD.length,
+      verify: false,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.saved, true);
+    assert.equal(response.body.check, null);
+    const onDisk = fs.readFileSync(s.board, "utf8");
+    assert.equal(onDisk.includes("pcbX={3.8} pcbY={1.5}"), true);
+    assert.equal(onDisk.includes("measured: 0.115mm"), true);
+    assert.equal(response.body.text, onDisk);
+    assert.deepEqual(response.body.placement, {
+      id: "resistor[1]",
+      tag: "resistor",
+      name: "R1",
+      x: 3.8,
+      y: 1.5,
+      locked: false,
+    });
+    assert.deepEqual(fs.readdirSync(path.join(s.dir, "boards")).sort(), ["main.tsx"]);
+  } finally {
+    s.close();
+  }
+});
+
+test("the edit is recorded in the same history a build lands in, marked human", async () => {
+  const s = await bootServer();
+  try {
+    await s.post("board_edit_apply", {
+      id: s.id,
+      file: "boards/main.tsx",
+      edit: { kind: "move", placementId: "StatusLed[1]", dx: 1, dy: 0 },
+      verify: false,
+    });
+    const rows = readRevisions(s.dir);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].author, AUTHOR.HUMAN);
+    assert.equal(rows[0].kind, REVISION_KIND.EDIT);
+    assert.equal(rows[0].phase, "placement");
+    assert.equal(rows[0].file, "boards/main.tsx");
+    assert.equal(rows[0].summary, "moved StatusLed from (-4.5, 6) to (-3.5, 6)");
+    // No compile ran, so the fab verdict is unknown — never false.
+    assert.equal(rows[0].fabReady, null);
+
+    const history = await s.post("build_revisions", { id: s.id });
+    assert.equal(history.body.revisions.length, 1);
+    assert.equal(history.body.revisions[0].kind, REVISION_KIND.EDIT);
+  } finally {
+    s.close();
+  }
+});
+
+test("a build in progress blocks the edit and the file is untouched", async () => {
+  const s = await bootServer();
+  try {
+    fs.mkdirSync(path.join(s.dir, ".circuit"), { recursive: true });
+    fs.writeFileSync(
+      path.join(s.dir, ".circuit", "build-status.json"),
+      JSON.stringify({ state: "running", stage: "compile", updatedAt: Date.now() / 1000 }),
+    );
+    const response = await s.post("board_edit_apply", {
+      id: s.id,
+      file: "boards/main.tsx",
+      edit: { kind: "move", placementId: "resistor[1]", dx: 2.8, dy: 0 },
+      verify: false,
+    });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.code, "BUILD_RUNNING");
+    assert.equal(fs.readFileSync(s.board, "utf8"), BOARD);
+    assert.deepEqual(readRevisions(s.dir), []);
+  } finally {
+    s.close();
+  }
+});
+
+test("an edit against a file the agent has since rewritten is refused with 409", async () => {
+  const s = await bootServer();
+  try {
+    fs.writeFileSync(s.board, `${BOARD}// the agent added a line\n`, "utf8");
+    const before = fs.readFileSync(s.board, "utf8");
+    const response = await s.post("board_edit_apply", {
+      id: s.id,
+      file: "boards/main.tsx",
+      edit: { kind: "move", placementId: "resistor[1]", dx: 2.8, dy: 0 },
+      sourceLength: BOARD.length,
+      verify: false,
+    });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.code, "SOURCE_CHANGED");
+    assert.equal(fs.readFileSync(s.board, "utf8"), before);
+  } finally {
+    s.close();
+  }
+});
+
+test("two edits fired at once both land — neither reads the pre-edit file", async () => {
+  // Without the per-project queue both handlers read the same bytes and the
+  // second write erases the first. This is the test that fails if serialisation
+  // is removed.
+  const s = await bootServer();
+  try {
+    const [a, b] = await Promise.all([
+      s.post("board_edit_apply", {
+        id: s.id,
+        file: "boards/main.tsx",
+        edit: { kind: "move", placementId: "resistor[1]", dx: 2.8, dy: 0 },
+        verify: false,
+      }),
+      s.post("board_edit_apply", {
+        id: s.id,
+        file: "boards/main.tsx",
+        edit: { kind: "move", placementId: "StatusLed[1]", dx: 0, dy: -1.5 },
+        verify: false,
+      }),
+    ]);
+    assert.deepEqual([a.status, b.status], [200, 200]);
+    const onDisk = fs.readFileSync(s.board, "utf8");
+    assert.equal(onDisk.includes("pcbX={3.8}"), true, "the resistor move survived");
+    assert.equal(onDisk.includes("pcbY={4.5}"), true, "the LED move survived");
+    assert.equal(readRevisions(s.dir).length, 2);
+  } finally {
+    s.close();
+  }
+});
+
+test("locking writes a comment the compiler ignores and the next agent reads", async () => {
+  const s = await bootServer();
+  try {
+    const response = await s.post("board_edit_apply", {
+      id: s.id,
+      file: "boards/main.tsx",
+      edit: { kind: "lock", placementId: "StatusLed[1]", locked: true },
+      verify: false,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.placement.locked, true);
+    const onDisk = fs.readFileSync(s.board, "utf8");
+    assert.match(onDisk, /\{\/\* locked: placed by hand[^\n]*\*\/\}\n\s*<StatusLed/);
+    assert.equal(readRevisions(s.dir)[0].summary, "unlocked StatusLed".replace("un", ""));
+  } finally {
+    s.close();
+  }
+});
+
+test("a path outside boards/ never reaches the edit engine", async () => {
+  const s = await bootServer();
+  try {
+    const response = await s.post("board_edit_apply", {
+      id: s.id,
+      file: "../../../etc/hosts",
+      edit: { kind: "move", placementId: "resistor[1]", dx: 1, dy: 0 },
+      verify: false,
+    });
+    assert.equal(response.status, 400);
+    assert.equal(response.body.code, "INVALID_ARGUMENT");
+  } finally {
+    s.close();
+  }
+});
+
+test("an unknown project is a 404, not a write", async () => {
+  const s = await bootServer();
+  try {
+    const response = await s.post("board_edit_apply", {
+      id: "not-a-project",
+      file: "boards/main.tsx",
+      edit: { kind: "move", placementId: "resistor[1]", dx: 1, dy: 0 },
+      verify: false,
+    });
+    assert.equal(response.status, 404);
+  } finally {
+    s.close();
+  }
+});
+
+// --- the gate --------------------------------------------------------------
+
+test("a board that has never been built reports unavailable, never clean", async () => {
+  // Silence is not a pass. An absent check has to be visible in the verdict or
+  // the UI will render "no problems found" over a board nothing looked at.
+  const s = await bootServer();
+  try {
+    const verdict = await runFastCheck(path.join(s.dir, "boards", "main.circuit.json"), {
+      projectRoot: s.dir,
+    });
+    assert.equal(verdict.ok, false);
+    assert.equal(verdict.status, "unavailable");
+    assert.match(verdict.reason, /has not been built yet/);
+    assert.deepEqual(verdict.counts, { error: 0, warning: 0, info: 0 });
+  } finally {
+    s.close();
+  }
+});
+
+test("a missing interpreter reports unavailable rather than throwing", async () => {
+  const verdict = await runFastCheck("/nonexistent/boards/main.circuit.json", {
+    projectRoot: "/nonexistent",
+    env: { ...process.env, CIRCUIT_PYTHON: "", PATH: "/nonexistent-bin" },
+  });
+  assert.equal(verdict.status, "unavailable");
+  assert.equal(verdict.counts.error, 0);
+});
+
+test("board_fast_check refuses a path that is not a board source", async () => {
+  const s = await bootServer();
+  try {
+    const response = await s.post("board_fast_check", { id: s.id, file: "blocks/glue.tsx" });
+    assert.equal(response.status, 400);
+    assert.equal(response.body.code, "INVALID_ARGUMENT");
+  } finally {
+    s.close();
+  }
+});
+
+/**
+ * The real thing, on the largest board we ship.
+ *
+ * Skipped rather than failed when the pinned toolchain or a 3.10+ interpreter
+ * is absent, matching how circuitpy treats kicad-dependent tests: a missing
+ * tool is not a broken gate. When it does run it asserts the two claims this
+ * whole feature rests on — that a 2.8mm drag is caught without a compile, and
+ * that the verdict admits what it cannot see.
+ */
+const EXAMPLE = path.join(REPO_ROOT, "examples", "terminal-keyboard");
+const TOOLCHAIN_READY =
+  fs.existsSync(path.join(EXAMPLE, "boards", "main.circuit.json")) &&
+  fs.existsSync(path.join(REPO_ROOT, "toolchain", "node_modules")) &&
+  Boolean(resolvePython()) &&
+  pythonPathDirs().length > 0;
+
+test(
+  "the gate catches a drag on terminal-keyboard without compiling anything",
+  { skip: TOOLCHAIN_READY ? false : "example board or pinned toolchain not present" },
+  async () => {
+    const circuitJson = path.join(EXAMPLE, "boards", "main.circuit.json");
+
+    const before = await runFastCheck(circuitJson, { projectRoot: EXAMPLE });
+    assert.equal(before.ok, true, before.reason);
+    assert.equal(before.geometry, "as_built");
+
+    // <StatusLed> sits at (-45.8, -32) and owns LED1 + R20. The board's own
+    // comment at main.tsx:268-271 says this leaves 0.44mm of courtyard; 2.8mm
+    // east spends it and lands LED1 on the LDO's input cap.
+    const after = await runFastCheck(circuitJson, {
+      projectRoot: EXAMPLE,
+      moves: [{ anchor: { x: -45.8, y: -32 }, dx: 2.8, dy: 0 }],
+    });
+    assert.equal(after.ok, true, after.reason);
+    assert.equal(after.geometry, "predicted");
+    assert.equal(after.status, "blocked");
+    assert.equal(after.moves[0].ok, true, after.moves[0].reason);
+    assert.deepEqual(after.moves[0].refdes, ["LED1", "R20"]);
+    assert.ok(
+      after.counts.error > before.counts.error,
+      `the drag must add blockers (${before.counts.error} -> ${after.counts.error})`,
+    );
+
+    const kinds = new Set(after.warnings.filter((w) => w.severity === "error").map((w) => w.kind));
+    for (const expected of [
+      "pcb_footprint_overlap_error",
+      "pcb_pad_pad_clearance_error",
+      "pcb_courtyard_overlap_error",
+      "trace_left_its_pad",
+    ]) {
+      assert.ok(kinds.has(expected), `expected a ${expected} finding, got ${[...kinds].join(", ")}`);
+    }
+
+    // The verdict has to carry its own blind spots. The pour is the one that
+    // matters: no gate in this pipeline, including KiCad DRC, can see a pour
+    // defect, so it must never be reported as clear.
+    assert.ok(after.notChecked.length >= 3);
+    assert.match(JSON.stringify(after.notChecked), /copper pour/);
+    assert.ok(
+      after.checked.some((line) => /minus checkTracesAreContiguous/.test(line)),
+      "the verdict must name the check it dropped",
+    );
+  },
+);

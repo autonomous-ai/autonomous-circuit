@@ -177,9 +177,18 @@ function rootGroupId(index) {
  *
  *   locked    a person decided this on purpose; the bar above undoes that
  *   copper    the router drew it, and the next build will draw it again
- *   block     the placement lives in blocks/<block>.tsx, which other boards share
+ *   block     it moves with a block, and no line in this file places that block
  *   computed  the board file places it in code — a loop, a trig call
  *   unplaced  nothing in the file puts anything here
+ *
+ * `block` and `computed` both mean "there is no literal to write", and they
+ * are split because the unit that would have to gain one differs: the block
+ * instance in the first case, the part itself in the second. Measured on
+ * terminal-keyboard, the 100 unreachable parts divide 50/50 between them —
+ * the diodes `keyCells()` emits directly, and the switches it emits as
+ * `<KeySwitch>` block instances. A part sitting inside a block the file DOES
+ * place never reaches here: `bindPlacements` maps every component of a bound
+ * group to that group's placement, so it is draggable, by its block's frame.
  *
  * @returns {{kind: string, reason: string, box: object|null}|null}
  */
@@ -208,13 +217,13 @@ export function refusalForHit(index, placements, hit) {
     if (root && component.groupId && component.groupId !== root) {
       return {
         kind: "block",
-        reason: `${name} is placed by its block, not by this board file`,
+        reason: `${name} moves with its block, and no line in this board file places that block`,
         box: component.pcbBox || null,
       };
     }
     return {
       kind: "computed",
-      reason: `${name} has no pcbX/pcbY of its own — the board file places it in code`,
+      reason: `${name} has no pcbX/pcbY in the board file — it is placed in code`,
       box: component.pcbBox || null,
     };
   }

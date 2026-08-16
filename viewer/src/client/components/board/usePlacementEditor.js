@@ -19,12 +19,18 @@ import { getApiBase } from "@/lib/transport.ts";
 import {
   applyEdits,
   bindPlacements,
+  describeRotate,
   geometrySnapshot,
+  invertEdits,
   lockEdits,
   moveEdits,
   parseBoardSource,
   rebindPlacements,
+  remapSnapshot,
+  rotateEdits,
+  wrapPreview,
 } from "./boardSource.js";
+import { rotateRefusal } from "./placementRotate.js";
 
 async function callApi(command, args) {
   const response = await fetch(`${getApiBase()}/api/${command}`, {
@@ -66,10 +72,21 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState([]);
+  // Undone edits, newest last, each one ready to be re-applied. Without it
+  // ⌘Z is a one-way door: the key is bound, the button is on the strip, and
+  // the only way back is to redo the drag by hand.
+  const [future, setFuture] = useState([]);
   const [changes, setChanges] = useState(0);
   const [lastChange, setLastChange] = useState("");
   const sourceRef = useRef("");
   sourceRef.current = source;
+  // The file as the board on screen was built from. `changes` is a count of
+  // edits, but the question the rebuild button is really asking is "does the
+  // file differ from the board?" — and four taps of Space, or an undo of
+  // everything, brings it back to the same bytes while the count says 4.
+  // Offering a ninety-second rebuild for a file that did not change is a lie
+  // about what changed, so the count is zeroed when the text comes home.
+  const buildBaselineRef = useRef("");
 
   const file = stem ? `boards/${stem}.tsx` : "";
   const url = projectId && stem ? `/projects/${projectId}/${file}?v=${revision}` : "";
@@ -94,6 +111,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       .then((text) => {
         if (cancelled) return;
         setSource(text);
+        buildBaselineRef.current = text;
         setState("ready");
         setError("");
       })
@@ -112,6 +130,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   // than offering an undo that would land on a different file.
   useEffect(() => {
     setHistory([]);
+    setFuture([]);
     setChanges(0);
     setLastChange("");
   }, [file]);
@@ -180,8 +199,19 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
           setSource(String(result?.text ?? ""));
           return false;
         }
+        // A structural edit can rename placements — wrapping an `<Ldo3v3>` in a
+        // `<group>` removes an `Ldo3v3[n]` and inserts a `group[n]`, renumbering
+        // every later `group[…]`. Geometry is keyed by id, so it has to be
+        // carried across by position or the wrapped part inherits a neighbour's
+        // footprint, refdes list and cross-probe set. Only when the ids
+        // actually moved: every ordinary move and lock leaves them alone.
+        const before = parseBoardSource(sourceRef.current).placements;
+        const after = parseBoardSource(result.text).placements;
+        if (before.length !== after.length || before.some((p, at) => p.id !== after[at].id)) {
+          setSnapshot((prev) => remapSnapshot(prev, before, after));
+        }
         setSource(result.text);
-        setChanges((n) => Math.max(0, n + delta));
+        setChanges((n) => (result.text === buildBaselineRef.current ? 0 : Math.max(0, n + delta)));
         if (note) setLastChange(note);
         return true;
       } catch (err) {
@@ -194,6 +224,19 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     [projectId, file],
   );
 
+  /**
+   * Record a new edit.
+   *
+   * A fresh edit forks the timeline, so anything that was undone is no longer
+   * reachable — the standard rule everywhere else, and the honest one: a redo
+   * stack kept across a new drag would re-apply an edit onto a file that has
+   * since moved under it.
+   */
+  const pushHistory = useCallback((entry) => {
+    setHistory((list) => [...list, entry].slice(-50));
+    setFuture([]);
+  }, []);
+
   /** Move a placement to an absolute board position, recording the undo. */
   const move = useCallback(
     async (placementId, x, y, note) => {
@@ -203,10 +246,60 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       if (!edits.length) return true;
       const undoEntry = { kind: "move", placementId, x: placement.x, y: placement.y, label: placement.label };
       const ok = await write(edits, note, +1);
-      if (ok) setHistory((list) => [...list, undoEntry].slice(-50));
+      if (ok) pushHistory(undoEntry);
       return ok;
     },
-    [binding, source, write],
+    [binding, source, write, pushHistory],
+  );
+
+  /**
+   * Turn a placement to an absolute angle, recording the undo.
+   *
+   * The refusal is re-checked here even though the caller checked it. This is
+   * the last line before bytes reach the file, and the failure it guards
+   * against is the expensive one: a `pcbRotation` written on one of our own
+   * components is dropped by JSX in silence, survives a 95-second rebuild, and
+   * comes back at the same angle with nothing in the chain having said a word.
+   * Refusing loudly here costs one comparison.
+   *
+   * Two undo shapes, because there are two edit shapes. A prop edit inverts by
+   * knowing the previous angle — `null` when there was no prop, so undo removes
+   * the one this app inserted and the file goes back byte-for-byte. A wrap
+   * inverts by replaying the recorded bytes, because after it the placement id
+   * names a `<group>` and the tag it wrapped is no longer a placement at all.
+   */
+  const rotate = useCallback(
+    async (placementId, degrees, note) => {
+      const placement = binding.byId.get(placementId);
+      if (!placement) return false;
+      const refusal = rotateRefusal(placement);
+      if (refusal) {
+        setError(refusal.reason);
+        return false;
+      }
+      const edits = rotateEdits(source, placement, degrees);
+      if (!edits.length) return true;
+      const undoEntry =
+        placement.rotateVia === "wrap"
+          ? { kind: "wrap", placementId, label: placement.label, inverse: invertEdits(edits) }
+          : {
+              kind: "rotate",
+              placementId,
+              label: placement.label,
+              rotation: placement.rotationSpan ? placement.rotation : null,
+            };
+      const ok = await write(edits, note || describeRotate(placement.label, placement.rotation, degrees), +1);
+      if (ok) pushHistory(undoEntry);
+      return ok;
+    },
+    [binding, source, write, pushHistory],
+  );
+
+  /** The four lines a wrap is about to write, so a confirm can show the diff
+   *  itself rather than a description of it. Empty for every other path. */
+  const previewRotate = useCallback(
+    (placementId, degrees) => wrapPreview(source, binding.byId.get(placementId), degrees),
+    [binding, source],
   );
 
   /**
@@ -222,8 +315,60 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       if (!edits.length) return true;
       const undoEntry = { kind: "lock", placementId, locked: placement.locked, label: placement.label };
       const ok = await write(edits, `${placement.label} ${locked ? "locked in place" : "unlocked"}`, 0);
-      if (ok) setHistory((list) => [...list, undoEntry].slice(-50));
+      if (ok) pushHistory(undoEntry);
       return ok;
+    },
+    [binding, source, write, pushHistory],
+  );
+
+  /**
+   * Apply one history entry and hand back the entry that would undo it.
+   *
+   * Undo and redo are the same operation pointed the other way, so they are
+   * one function. Writing them twice is how a redo ends up restoring a
+   * slightly different thing than the undo took away — and the reciprocal has
+   * to be computed from the placement as it is *now*, before the write, which
+   * is exactly what the forward edit did when it was first recorded.
+   *
+   * @returns {object|null} the reciprocal entry, or null when nothing happened.
+   */
+  const applyEntry = useCallback(
+    async (entry, verb, delta) => {
+      if (!entry) return null;
+      // A structural edit carries its own inverse, recorded when it was
+      // written. Recomputing one from a placement would fail: the id in the
+      // entry names the tag as it was BEFORE the edit, and after a wrap that
+      // tag is no longer a top-level placement. Inverting the inverse is what
+      // makes a wrap redoable.
+      if (entry.inverse) {
+        const reciprocal = { kind: "wrap", placementId: entry.placementId, label: entry.label, inverse: invertEdits(entry.inverse) };
+        const ok = await write(entry.inverse, `${verb}: ${entry.label}`, delta);
+        return ok ? reciprocal : null;
+      }
+      const placement = binding.byId.get(entry.placementId);
+      if (!placement) {
+        setError(`that part is not in the board file any more — nothing to ${verb === "undid" ? "undo" : "redo"} onto`);
+        return null;
+      }
+      const reciprocal =
+        entry.kind === "lock"
+          ? { kind: "lock", placementId: entry.placementId, label: entry.label, locked: placement.locked }
+          : entry.kind === "rotate"
+            ? {
+                kind: "rotate",
+                placementId: entry.placementId,
+                label: entry.label,
+                rotation: placement.rotationSpan ? placement.rotation : null,
+              }
+            : { kind: "move", placementId: entry.placementId, label: entry.label, x: placement.x, y: placement.y };
+      const edits =
+        entry.kind === "lock"
+          ? lockEdits(source, placement, entry.locked)
+          : entry.kind === "rotate"
+            ? rotateEdits(source, placement, entry.rotation)
+            : moveEdits(source, placement, entry.x, entry.y);
+      const ok = await write(edits, `${verb}: ${entry.label}`, entry.kind === "lock" ? 0 : delta);
+      return ok ? reciprocal : null;
     },
     [binding, source, write],
   );
@@ -231,23 +376,27 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   const undo = useCallback(async () => {
     const entry = history[history.length - 1];
     if (!entry) return false;
-    const placement = binding.byId.get(entry.placementId);
-    if (!placement) {
-      setError("that part is not in the board file any more — nothing to undo onto");
-      return false;
-    }
-    const edits =
-      entry.kind === "lock"
-        ? lockEdits(source, placement, entry.locked)
-        : moveEdits(source, placement, entry.x, entry.y);
-    const ok = await write(edits, `undid: ${entry.label}`, entry.kind === "move" ? -1 : 0);
-    if (ok) setHistory((list) => list.slice(0, -1));
-    return ok;
-  }, [history, binding, source, write]);
+    const reciprocal = await applyEntry(entry, "undid", -1);
+    if (!reciprocal) return false;
+    setHistory((list) => list.slice(0, -1));
+    setFuture((list) => [...list, reciprocal].slice(-50));
+    return true;
+  }, [history, applyEntry]);
+
+  const redo = useCallback(async () => {
+    const entry = future[future.length - 1];
+    if (!entry) return false;
+    const reciprocal = await applyEntry(entry, "redid", +1);
+    if (!reciprocal) return false;
+    setFuture((list) => list.slice(0, -1));
+    setHistory((list) => [...list, reciprocal].slice(-50));
+    return true;
+  }, [future, applyEntry]);
 
   /** Called once a rebuild has been asked for — the file is no longer ahead
    *  of the board on screen from the user's point of view. */
   const markBuilding = useCallback(() => {
+    buildBaselineRef.current = sourceRef.current;
     setChanges(0);
     setLastChange("");
   }, []);
@@ -266,9 +415,13 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     changes,
     lastChange,
     canUndo: history.length > 0,
+    canRedo: future.length > 0,
     move,
+    rotate,
+    previewRotate,
     setLock,
     undo,
+    redo,
     markBuilding,
     clearError: () => setError(""),
   };
