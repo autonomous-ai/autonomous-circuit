@@ -1,0 +1,5310 @@
+{
+ "what": "net-class decomposition: route by class, each class to the expert for it. Every plan over all 16 benchmark instances.",
+ "date": "2026-08-16",
+ "gitHead": "5ec2582",
+ "treeDirtyUnderSrc": true,
+ "ruler": [
+  "e1ee2a5623d0"
+ ],
+ "budget": {
+  "maxIterations": 2000000,
+  "maxNodes": 20000000,
+  "seed": 0
+ },
+ "runsPerCell": 2,
+ "control": "monolithic \u2014 one stage, one router, no decomposition. A plan that does not beat this bought nothing.",
+ "plans": {
+  "brief": {
+   "stages": [
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "power",
+     "router": "maze-astar",
+     "classes": [
+      "power"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "pair",
+     "router": "plane-and-classes",
+     "classes": [
+      "diff_pair"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.747461,
+   "clean": 3,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.2731,
+   "couplingInstances": 9,
+   "wallClockS": 218.3,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.694444,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 60,
+     "copperMm": 1120.0388,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 22.329,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 364.97,
+       "seconds": 1.422,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 1,
+       "vias": 4,
+       "copper_mm": 77.3408,
+       "seconds": 6.66,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 29,
+       "connected": 21,
+       "vias": 54,
+       "copper_mm": 677.728,
+       "seconds": 14.215,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.59375,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 64,
+     "copperMm": 465.8288,
+     "diffPairCoupling": 0.476064020789255,
+     "deterministic": true,
+     "wallClockS": 23.737,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.025,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 138.5593,
+       "seconds": 0.514,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 6,
+       "copper_mm": 51.6598,
+       "seconds": 6.833,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 25,
+       "connected": 14,
+       "vias": 20,
+       "copper_mm": 239.9677,
+       "seconds": 16.343,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.65625,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 42,
+     "copperMm": 675.8699,
+     "diffPairCoupling": 0.4777336302798363,
+     "deterministic": true,
+     "wallClockS": 28.226,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 136.6976,
+       "seconds": 0.488,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 51.6931,
+       "seconds": 6.718,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 26,
+       "connected": 17,
+       "vias": 36,
+       "copper_mm": 487.4791,
+       "seconds": 20.997,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.018,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.018,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 119.0776,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 5.598,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 55.0751,
+       "seconds": 0.258,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 64.0025,
+       "seconds": 5.335,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.764706,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 53,
+     "copperMm": 331.1172,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 6.654,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.015,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 142.8558,
+       "seconds": 0.495,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 10,
+       "vias": 21,
+       "copper_mm": 156.8073,
+       "seconds": 6.126,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.705882,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 30,
+     "copperMm": 453.5022,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 8.589,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 134.1736,
+       "seconds": 0.458,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 10,
+       "vias": 30,
+       "copper_mm": 319.3286,
+       "seconds": 8.11,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 6,
+     "copperMm": 141.0533,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 9.347,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 65.344,
+       "seconds": 0.282,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 6,
+       "copper_mm": 75.7092,
+       "seconds": 9.059,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 106.1653,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 6.311,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 47.304,
+       "seconds": 0.207,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 58.8613,
+       "seconds": 6.099,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 0.777778,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 17,
+     "copperMm": 259.288,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 8.422,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 112.0844,
+       "seconds": 0.386,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 5,
+       "vias": 17,
+       "copper_mm": 147.2035,
+       "seconds": 8.027,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.785714,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 22,
+     "copperMm": 317.1126,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 2.752,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 62.7296,
+       "seconds": 0.222,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 13,
+       "connected": 10,
+       "vias": 22,
+       "copper_mm": 254.3831,
+       "seconds": 2.516,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.619048,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 31,
+     "copperMm": 484.6665,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 13.632,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 83.2201,
+       "seconds": 0.303,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 1,
+       "vias": 4,
+       "copper_mm": 61.6416,
+       "seconds": 7.086,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 10,
+       "vias": 27,
+       "copper_mm": 339.8048,
+       "seconds": 6.224,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.018,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.018,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 141.2343,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.457,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 49.0381,
+       "seconds": 0.137,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 6,
+       "connected": 6,
+       "vias": 8,
+       "copper_mm": 92.1963,
+       "seconds": 0.315,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.764045,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 91,
+     "copperMm": 1634.327,
+     "diffPairCoupling": 0.5635404949713992,
+     "deterministic": true,
+     "wallClockS": 40.93,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.03,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 155.3217,
+       "seconds": 0.461,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 8,
+       "copper_mm": 52.1827,
+       "seconds": 7.921,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 82,
+       "connected": 63,
+       "vias": 45,
+       "copper_mm": 1393.2745,
+       "seconds": 32.471,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.797753,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 73,
+     "copperMm": 1851.9482,
+     "diffPairCoupling": 0.9404790660552811,
+     "deterministic": true,
+     "wallClockS": 41.249,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 148.6538,
+       "seconds": 0.452,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 56.0885,
+       "seconds": 7.024,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 83,
+       "connected": 67,
+       "vias": 65,
+       "copper_mm": 1647.2059,
+       "seconds": 33.723,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  },
+  "monolithic": {
+   "stages": [
+    {
+     "label": "all",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.925098,
+   "clean": 7,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.0313,
+   "couplingInstances": 9,
+   "wallClockS": 306.4,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.805556,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 64,
+     "copperMm": 1197.8061,
+     "diffPairCoupling": 0.008495715995702783,
+     "deterministic": true,
+     "wallClockS": 38.373,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 36,
+       "connected": 29,
+       "vias": 64,
+       "copper_mm": 1197.8061,
+       "seconds": 38.334,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.84375,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 76,
+     "copperMm": 585.9962,
+     "diffPairCoupling": 0.06526816449141377,
+     "deterministic": true,
+     "wallClockS": 23.126,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 32,
+       "connected": 27,
+       "vias": 76,
+       "copper_mm": 585.9962,
+       "seconds": 23.099,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.84375,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 56,
+     "copperMm": 775.6398,
+     "diffPairCoupling": 0.06526816449141377,
+     "deterministic": true,
+     "wallClockS": 28.351,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 32,
+       "connected": 27,
+       "vias": 56,
+       "copper_mm": 775.6398,
+       "seconds": 28.316,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.024,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.024,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 9,
+     "copperMm": 111.2649,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.636,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 9,
+       "copper_mm": 111.2649,
+       "seconds": 0.626,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 49,
+     "copperMm": 360.7399,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 7.957,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 16,
+       "vias": 49,
+       "copper_mm": 360.7399,
+       "seconds": 7.923,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 37,
+     "copperMm": 497.0167,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 8.707,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 16,
+       "vias": 37,
+       "copper_mm": 497.0167,
+       "seconds": 8.679,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 10,
+     "copperMm": 138.5924,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 5.682,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 10,
+       "copper_mm": 138.5924,
+       "seconds": 5.673,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 110.3823,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.587,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 8,
+       "copper_mm": 110.3823,
+       "seconds": 0.581,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 9,
+     "copperMm": 270.7703,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 4.186,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 9,
+       "connected": 9,
+       "vias": 9,
+       "copper_mm": 270.7703,
+       "seconds": 4.174,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.928571,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 27,
+     "copperMm": 360.7753,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 7.281,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 13,
+       "vias": 27,
+       "copper_mm": 360.7753,
+       "seconds": 7.259,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.857143,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 43,
+     "copperMm": 577.9703,
+     "diffPairCoupling": 0.05241057751513946,
+     "deterministic": true,
+     "wallClockS": 27.748,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 21,
+       "connected": 18,
+       "vias": 43,
+       "copper_mm": 577.9703,
+       "seconds": 27.718,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.022,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.021,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 2,
+     "copperMm": 141.0624,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.535,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 7,
+       "vias": 2,
+       "copper_mm": 141.0624,
+       "seconds": 0.527,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 95,
+     "copperMm": 1827.229,
+     "diffPairCoupling": 0.04493767519776717,
+     "deterministic": true,
+     "wallClockS": 77.247,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 89,
+       "connected": 73,
+       "vias": 95,
+       "copper_mm": 1827.229,
+       "seconds": 77.164,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 80,
+     "copperMm": 2022.2256,
+     "diffPairCoupling": 0.04493767519776717,
+     "deterministic": true,
+     "wallClockS": 75.898,
+     "stages": [
+      {
+       "label": "all",
+       "router": "maze-astar",
+       "asked": 89,
+       "connected": 73,
+       "vias": 80,
+       "copper_mm": 2022.2256,
+       "seconds": 75.804,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "all"
+    }
+   ]
+  },
+  "brief-plane-last": {
+   "stages": [
+    {
+     "label": "power",
+     "router": "maze-astar",
+     "classes": [
+      "power"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "pair",
+     "router": "plane-and-classes",
+     "classes": [
+      "diff_pair"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.749095,
+   "clean": 3,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.3022,
+   "couplingInstances": 9,
+   "wallClockS": 326.8,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.694444,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 60,
+     "copperMm": 1120.0388,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 36.905,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 364.97,
+       "seconds": 2.03,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 1,
+       "vias": 4,
+       "copper_mm": 77.3408,
+       "seconds": 10.226,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 29,
+       "connected": 21,
+       "vias": 54,
+       "copper_mm": 677.728,
+       "seconds": 24.602,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.65625,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 66,
+     "copperMm": 524.732,
+     "diffPairCoupling": 0.7383315350939632,
+     "deterministic": true,
+     "wallClockS": 38.324,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 136.6976,
+       "seconds": 0.675,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 53.0084,
+       "seconds": 9.918,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.037,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 25,
+       "connected": 16,
+       "vias": 24,
+       "copper_mm": 299.384,
+       "seconds": 27.664,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.65625,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 42,
+     "copperMm": 675.8699,
+     "diffPairCoupling": 0.4777336302798363,
+     "deterministic": true,
+     "wallClockS": 46.544,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 136.6976,
+       "seconds": 0.72,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 51.6931,
+       "seconds": 10.464,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 26,
+       "connected": 17,
+       "vias": 36,
+       "copper_mm": 487.4791,
+       "seconds": 35.33,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.02,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.02,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 119.0776,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 8.161,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 55.0751,
+       "seconds": 0.298,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 64.0025,
+       "seconds": 7.857,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.705882,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 49,
+     "copperMm": 320.9365,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 13.584,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 134.1736,
+       "seconds": 0.56,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.021,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 9,
+       "vias": 17,
+       "copper_mm": 155.3089,
+       "seconds": 12.976,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.705882,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 30,
+     "copperMm": 453.5022,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 13.944,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 134.1736,
+       "seconds": 0.721,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 10,
+       "vias": 30,
+       "copper_mm": 319.3286,
+       "seconds": 13.195,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 6,
+     "copperMm": 141.0533,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 14.406,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 65.344,
+       "seconds": 0.364,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 6,
+       "copper_mm": 75.7092,
+       "seconds": 14.034,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 106.1653,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 9.681,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 47.304,
+       "seconds": 0.297,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 58.8613,
+       "seconds": 9.376,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 0.777778,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 17,
+     "copperMm": 259.288,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 12.914,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 112.0844,
+       "seconds": 0.531,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 5,
+       "vias": 17,
+       "copper_mm": 147.2035,
+       "seconds": 12.37,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.785714,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 22,
+     "copperMm": 317.1126,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 3.41,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 62.7296,
+       "seconds": 0.276,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 13,
+       "connected": 10,
+       "vias": 22,
+       "copper_mm": 254.3831,
+       "seconds": 3.118,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.619048,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 31,
+     "copperMm": 484.6665,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 16.741,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 83.2201,
+       "seconds": 0.319,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 1,
+       "vias": 4,
+       "copper_mm": 61.6416,
+       "seconds": 8.728,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 10,
+       "vias": 27,
+       "copper_mm": 339.8048,
+       "seconds": 7.672,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.018,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.018,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 141.2343,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.53,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 49.0381,
+       "seconds": 0.16,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 6,
+       "connected": 6,
+       "vias": 8,
+       "copper_mm": 92.1963,
+       "seconds": 0.365,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.786517,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 95,
+     "copperMm": 1720.1624,
+     "diffPairCoupling": 0.5635404949713992,
+     "deterministic": true,
+     "wallClockS": 57.722,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 148.6538,
+       "seconds": 0.527,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 8,
+       "copper_mm": 52.1827,
+       "seconds": 10.49,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.031,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 82,
+       "connected": 65,
+       "vias": 49,
+       "copper_mm": 1485.7778,
+       "seconds": 46.617,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.797753,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 73,
+     "copperMm": 1851.9482,
+     "diffPairCoupling": 0.9404790660552811,
+     "deterministic": true,
+     "wallClockS": 53.908,
+     "stages": [
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 148.6538,
+       "seconds": 0.539,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 56.0885,
+       "seconds": 9.367,
+       "status": "ran"
+      },
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 83,
+       "connected": 67,
+       "vias": 65,
+       "copper_mm": 1647.2059,
+       "seconds": 43.944,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  },
+  "pairs": {
+   "stages": [
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "pair",
+     "router": "plane-and-classes",
+     "classes": [
+      "diff_pair"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.924001,
+   "clean": 7,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.2753,
+   "couplingInstances": 9,
+   "wallClockS": 247.0,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.805556,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 65,
+     "copperMm": 1226.2043,
+     "diffPairCoupling": 0.529635980438016,
+     "deterministic": true,
+     "wallClockS": 30.438,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 6,
+       "copper_mm": 103.795,
+       "seconds": 5.609,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 32,
+       "connected": 26,
+       "vias": 59,
+       "copper_mm": 1122.4094,
+       "seconds": 24.787,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.8125,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 76,
+     "copperMm": 587.4812,
+     "diffPairCoupling": 0.4304257573700329,
+     "deterministic": true,
+     "wallClockS": 19.319,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.033,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 6,
+       "copper_mm": 78.9816,
+       "seconds": 5.577,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 27,
+       "connected": 22,
+       "vias": 34,
+       "copper_mm": 472.8575,
+       "seconds": 13.67,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.8125,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 56,
+     "copperMm": 727.1409,
+     "diffPairCoupling": 0.456817880766385,
+     "deterministic": true,
+     "wallClockS": 28.391,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 6,
+       "copper_mm": 78.8169,
+       "seconds": 8.3,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 28,
+       "connected": 23,
+       "vias": 50,
+       "copper_mm": 648.324,
+       "seconds": 20.051,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.027,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.027,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 9,
+     "copperMm": 111.2649,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.712,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 9,
+       "copper_mm": 111.2649,
+       "seconds": 0.706,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 51,
+     "copperMm": 377.9414,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 8.134,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.024,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 16,
+       "connected": 15,
+       "vias": 19,
+       "copper_mm": 346.4874,
+       "seconds": 8.073,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 37,
+     "copperMm": 497.0167,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 10.018,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 16,
+       "vias": 37,
+       "copper_mm": 497.0167,
+       "seconds": 9.988,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 10,
+     "copperMm": 138.5924,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 5.43,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 10,
+       "copper_mm": 138.5924,
+       "seconds": 5.423,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 110.3823,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.538,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 8,
+       "copper_mm": 110.3823,
+       "seconds": 0.533,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 9,
+     "copperMm": 270.7703,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 4.381,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 9,
+       "connected": 9,
+       "vias": 9,
+       "copper_mm": 270.7703,
+       "seconds": 4.366,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.928571,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 27,
+     "copperMm": 360.7753,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 6.751,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 13,
+       "vias": 27,
+       "copper_mm": 360.7753,
+       "seconds": 6.73,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.857143,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 40,
+     "copperMm": 605.1001,
+     "diffPairCoupling": 0.3070026457844141,
+     "deterministic": true,
+     "wallClockS": 20.648,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 4,
+       "copper_mm": 96.6458,
+       "seconds": 5.087,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 15,
+       "vias": 36,
+       "copper_mm": 508.4544,
+       "seconds": 15.528,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.025,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.024,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 2,
+     "copperMm": 141.0624,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.481,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 7,
+       "vias": 2,
+       "copper_mm": 141.0624,
+       "seconds": 0.475,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.853933,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 105,
+     "copperMm": 1928.1329,
+     "diffPairCoupling": 0.37700451636782717,
+     "deterministic": true,
+     "wallClockS": 53.056,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.027,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 80.37,
+       "seconds": 4.05,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 84,
+       "connected": 72,
+       "vias": 69,
+       "copper_mm": 1814.2148,
+       "seconds": 48.898,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.831461,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 81,
+     "copperMm": 1932.8275,
+     "diffPairCoupling": 0.37700451636782717,
+     "deterministic": true,
+     "wallClockS": 58.695,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "plane-and-classes",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 80.37,
+       "seconds": 4.476,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 85,
+       "connected": 71,
+       "vias": 79,
+       "copper_mm": 1852.4575,
+       "seconds": 54.147,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  },
+  "plane-only": {
+   "stages": [
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.925098,
+   "clean": 7,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.0263,
+   "couplingInstances": 9,
+   "wallClockS": 264.5,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.805556,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 64,
+     "copperMm": 1197.8061,
+     "diffPairCoupling": 0.008495715995702783,
+     "deterministic": true,
+     "wallClockS": 36.702,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 36,
+       "connected": 29,
+       "vias": 64,
+       "copper_mm": 1197.8061,
+       "seconds": 36.669,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.84375,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 81,
+     "copperMm": 612.4707,
+     "diffPairCoupling": 0.06526816449141377,
+     "deterministic": true,
+     "wallClockS": 20.349,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.027,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 31,
+       "connected": 26,
+       "vias": 45,
+       "copper_mm": 576.8286,
+       "seconds": 20.285,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.84375,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 56,
+     "copperMm": 775.6398,
+     "diffPairCoupling": 0.06526816449141377,
+     "deterministic": true,
+     "wallClockS": 23.387,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 32,
+       "connected": 27,
+       "vias": 56,
+       "copper_mm": 775.6398,
+       "seconds": 23.359,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.018,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.018,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 9,
+     "copperMm": 111.2649,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.471,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 9,
+       "copper_mm": 111.2649,
+       "seconds": 0.466,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 51,
+     "copperMm": 377.9414,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 5.375,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.022,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 16,
+       "connected": 15,
+       "vias": 19,
+       "copper_mm": 346.4874,
+       "seconds": 5.331,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 37,
+     "copperMm": 497.0167,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 6.676,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 16,
+       "vias": 37,
+       "copper_mm": 497.0167,
+       "seconds": 6.654,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 10,
+     "copperMm": 138.5924,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 4.915,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 10,
+       "copper_mm": 138.5924,
+       "seconds": 4.905,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 110.3823,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.445,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 8,
+       "copper_mm": 110.3823,
+       "seconds": 0.44,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 9,
+     "copperMm": 270.7703,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 3.362,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 9,
+       "connected": 9,
+       "vias": 9,
+       "copper_mm": 270.7703,
+       "seconds": 3.352,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.928571,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 27,
+     "copperMm": 360.7753,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 5.72,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 13,
+       "vias": 27,
+       "copper_mm": 360.7753,
+       "seconds": 5.698,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.857143,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 43,
+     "copperMm": 577.9703,
+     "diffPairCoupling": 0.05241057751513946,
+     "deterministic": true,
+     "wallClockS": 20.757,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 21,
+       "connected": 18,
+       "vias": 43,
+       "copper_mm": 577.9703,
+       "seconds": 20.731,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.02,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.019,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 2,
+     "copperMm": 141.0624,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.413,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 7,
+       "vias": 2,
+       "copper_mm": 141.0624,
+       "seconds": 0.408,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 98,
+     "copperMm": 1869.7299,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 62.25,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.023,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 88,
+       "connected": 72,
+       "vias": 64,
+       "copper_mm": 1836.1818,
+       "seconds": 62.16,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 80,
+     "copperMm": 2022.2256,
+     "diffPairCoupling": 0.04493767519776717,
+     "deterministic": true,
+     "wallClockS": 73.611,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 89,
+       "connected": 73,
+       "vias": 80,
+       "copper_mm": 2022.2256,
+       "seconds": 73.521,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  },
+  "brief-pair-general": {
+   "stages": [
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "power",
+     "router": "maze-astar",
+     "classes": [
+      "power"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "pair",
+     "router": "maze-astar",
+     "classes": [
+      "diff_pair"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.755962,
+   "clean": 3,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.0136,
+   "couplingInstances": 9,
+   "wallClockS": 328.5,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.694444,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 59,
+     "copperMm": 1090.5102,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 41.713,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 364.97,
+       "seconds": 1.904,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 1,
+       "vias": 4,
+       "copper_mm": 52.7604,
+       "seconds": 18.824,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 29,
+       "connected": 21,
+       "vias": 53,
+       "copper_mm": 672.7798,
+       "seconds": 20.938,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.6875,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 72,
+     "copperMm": 551.4562,
+     "diffPairCoupling": 0.06116067379707233,
+     "deterministic": true,
+     "wallClockS": 43.516,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.03,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 138.5593,
+       "seconds": 0.651,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 2,
+       "vias": 8,
+       "copper_mm": 67.3851,
+       "seconds": 16.876,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 25,
+       "connected": 17,
+       "vias": 26,
+       "copper_mm": 309.8698,
+       "seconds": 25.931,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.65625,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 44,
+     "copperMm": 707.0057,
+     "diffPairCoupling": 0.06116067379707233,
+     "deterministic": true,
+     "wallClockS": 47.421,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 2,
+       "copper_mm": 136.6976,
+       "seconds": 0.58,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 2,
+       "vias": 8,
+       "copper_mm": 67.3851,
+       "seconds": 15.74,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 26,
+       "connected": 17,
+       "vias": 34,
+       "copper_mm": 502.923,
+       "seconds": 31.073,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.019,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.018,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 119.0776,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 6.884,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 55.0751,
+       "seconds": 0.283,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 64.0025,
+       "seconds": 6.596,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.764706,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 53,
+     "copperMm": 331.1172,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 8.373,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.016,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 142.8558,
+       "seconds": 0.539,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 10,
+       "vias": 21,
+       "copper_mm": 156.8073,
+       "seconds": 7.799,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.705882,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 30,
+     "copperMm": 453.5022,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 10.955,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 134.1736,
+       "seconds": 0.514,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 10,
+       "vias": 30,
+       "copper_mm": 319.3286,
+       "seconds": 10.419,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 6,
+     "copperMm": 141.0533,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 12.844,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 65.344,
+       "seconds": 0.308,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 6,
+       "copper_mm": 75.7092,
+       "seconds": 12.529,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 0.6,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 5,
+     "copperMm": 106.1653,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 7.784,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 47.304,
+       "seconds": 0.22,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 3,
+       "connected": 1,
+       "vias": 5,
+       "copper_mm": 58.8613,
+       "seconds": 7.557,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 0.777778,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 17,
+     "copperMm": 259.288,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 11.145,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 112.0844,
+       "seconds": 0.433,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 5,
+       "vias": 17,
+       "copper_mm": 147.2035,
+       "seconds": 10.702,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.785714,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 22,
+     "copperMm": 317.1126,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 3.285,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 62.7296,
+       "seconds": 0.242,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 13,
+       "connected": 10,
+       "vias": 22,
+       "copper_mm": 254.3831,
+       "seconds": 3.028,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.571429,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 25,
+     "copperMm": 424.8877,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 29.963,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 0,
+       "copper_mm": 83.2201,
+       "seconds": 0.323,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 1,
+       "vias": 2,
+       "copper_mm": 41.6263,
+       "seconds": 20.829,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 15,
+       "connected": 9,
+       "vias": 23,
+       "copper_mm": 300.0412,
+       "seconds": 8.788,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.019,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.018,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 141.2343,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.492,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 49.0381,
+       "seconds": 0.149,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 6,
+       "connected": 6,
+       "vias": 8,
+       "copper_mm": 92.1963,
+       "seconds": 0.338,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "power"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 103,
+     "copperMm": 1742.1071,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 45.272,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.022,
+       "status": "ran"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 155.3217,
+       "seconds": 0.511,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 1,
+       "vias": 7,
+       "copper_mm": 35.4152,
+       "seconds": 16.606,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 82,
+       "connected": 69,
+       "vias": 58,
+       "copper_mm": 1517.8222,
+       "seconds": 28.082,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.831461,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 88,
+     "copperMm": 2040.5789,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 58.855,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "power",
+       "router": "maze-astar",
+       "asked": 2,
+       "connected": 2,
+       "vias": 4,
+       "copper_mm": 148.6538,
+       "seconds": 0.482,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 1,
+       "vias": 7,
+       "copper_mm": 36.1963,
+       "seconds": 19.311,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 83,
+       "connected": 71,
+       "vias": 77,
+       "copper_mm": 1855.7288,
+       "seconds": 38.988,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  },
+  "pairs-general": {
+   "stages": [
+    {
+     "label": "plane",
+     "router": "plane-and-classes",
+     "classes": [],
+     "planed": true,
+     "rest": false
+    },
+    {
+     "label": "pair",
+     "router": "maze-astar",
+     "classes": [
+      "diff_pair"
+     ],
+     "planed": false,
+     "rest": false
+    },
+    {
+     "label": "rest",
+     "router": "maze-astar",
+     "classes": [],
+     "planed": null,
+     "rest": true
+    }
+   ],
+   "meanCompleteness": 0.919724,
+   "clean": 7,
+   "instances": 16,
+   "harnessErrors": 0,
+   "deterministic": 16,
+   "meanDiffPairCoupling": 0.088,
+   "couplingInstances": 9,
+   "wallClockS": 190.7,
+   "rows": [
+    {
+     "instance": "harness-puck",
+     "completeness": 0.833333,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 76,
+     "copperMm": 1326.9056,
+     "diffPairCoupling": 0.007222749710922525,
+     "deterministic": true,
+     "wallClockS": 52.598,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 110.0641,
+       "seconds": 3.475,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 32,
+       "connected": 27,
+       "vias": 74,
+       "copper_mm": 1216.8415,
+       "seconds": 49.09,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster-plane",
+     "completeness": 0.78125,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 73,
+     "copperMm": 579.323,
+     "diffPairCoupling": 0.281979051311622,
+     "deterministic": true,
+     "wallClockS": 12.566,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 36,
+       "copper_mm": 35.6421,
+       "seconds": 0.025,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 3,
+       "copper_mm": 75.3832,
+       "seconds": 3.161,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 27,
+       "connected": 21,
+       "vias": 34,
+       "copper_mm": 468.2977,
+       "seconds": 9.357,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "hydrate-coaster",
+     "completeness": 0.78125,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 58,
+     "copperMm": 731.7568,
+     "diffPairCoupling": 0.04947522470397445,
+     "deterministic": true,
+     "wallClockS": 16.722,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 3,
+       "copper_mm": 75.3849,
+       "seconds": 3.101,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 28,
+       "connected": 22,
+       "vias": 55,
+       "copper_mm": 656.372,
+       "seconds": 13.598,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.5198,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.017,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.5198,
+       "seconds": 0.017,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 9,
+     "copperMm": 111.2649,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.442,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 9,
+       "copper_mm": 111.2649,
+       "seconds": 0.437,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 51,
+     "copperMm": 377.9414,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 4.434,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 32,
+       "copper_mm": 31.4541,
+       "seconds": 0.015,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 16,
+       "connected": 15,
+       "vias": 19,
+       "copper_mm": 346.4874,
+       "seconds": 4.402,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+     "completeness": 0.941176,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 37,
+     "copperMm": 497.0167,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 5.127,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 16,
+       "vias": 37,
+       "copper_mm": 497.0167,
+       "seconds": 5.104,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 10,
+     "copperMm": 138.5924,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 3.689,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 10,
+       "copper_mm": 138.5924,
+       "seconds": 3.683,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 8,
+     "copperMm": 110.3823,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.413,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 5,
+       "connected": 5,
+       "vias": 8,
+       "copper_mm": 110.3823,
+       "seconds": 0.408,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 9,
+     "copperMm": 270.7703,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 2.724,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 9,
+       "connected": 9,
+       "vias": 9,
+       "copper_mm": 270.7703,
+       "seconds": 2.715,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__sw-tact",
+     "completeness": 0.928571,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 27,
+     "copperMm": 360.7753,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 4.324,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 14,
+       "connected": 13,
+       "vias": 27,
+       "copper_mm": 360.7753,
+       "seconds": 4.31,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-rp2040-core__usb-c-data",
+     "completeness": 0.857143,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 47,
+     "copperMm": 542.5896,
+     "diffPairCoupling": 0.4395622444579117,
+     "deterministic": true,
+     "wallClockS": 12.54,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 103.7209,
+       "seconds": 4.291,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 17,
+       "connected": 15,
+       "vias": 45,
+       "copper_mm": 438.8687,
+       "seconds": 8.228,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 0,
+     "copperMm": 2.1965,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.017,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 1,
+       "connected": 1,
+       "vias": 0,
+       "copper_mm": 2.1965,
+       "seconds": 0.017,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "matrix-status-led__ws2812-chain",
+     "completeness": 1.0,
+     "errors": 0,
+     "warnings": 0,
+     "vias": 2,
+     "copperMm": 141.0624,
+     "diffPairCoupling": null,
+     "deterministic": true,
+     "wallClockS": 0.349,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 7,
+       "connected": 7,
+       "vias": 2,
+       "copper_mm": 141.0624,
+       "seconds": 0.345,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard-plane",
+     "completeness": 0.820225,
+     "errors": 0,
+     "warnings": 1,
+     "vias": 104,
+     "copperMm": 1883.2995,
+     "diffPairCoupling": 0.0,
+     "deterministic": true,
+     "wallClockS": 37.449,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 1,
+       "connected": 1,
+       "vias": 34,
+       "copper_mm": 33.5481,
+       "seconds": 0.021,
+       "status": "ran"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 82.674,
+       "seconds": 3.109,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 84,
+       "connected": 69,
+       "vias": 68,
+       "copper_mm": 1767.0775,
+       "seconds": 34.269,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    },
+    {
+     "instance": "terminal-keyboard",
+     "completeness": 0.831461,
+     "errors": 0,
+     "warnings": 2,
+     "vias": 89,
+     "copperMm": 1994.1304,
+     "diffPairCoupling": 0.013755613575505119,
+     "deterministic": true,
+     "wallClockS": 37.3,
+     "stages": [
+      {
+       "label": "plane",
+       "router": "plane-and-classes",
+       "asked": 0,
+       "connected": 0,
+       "vias": 0,
+       "copper_mm": 0.0,
+       "seconds": 0.0,
+       "status": "empty"
+      },
+      {
+       "label": "pair",
+       "router": "maze-astar",
+       "asked": 4,
+       "connected": 3,
+       "vias": 2,
+       "copper_mm": 78.5073,
+       "seconds": 3.727,
+       "status": "ran"
+      },
+      {
+       "label": "rest",
+       "router": "maze-astar",
+       "asked": 85,
+       "connected": 71,
+       "vias": 87,
+       "copper_mm": 1915.6231,
+       "seconds": 33.518,
+       "status": "ran"
+      }
+     ],
+     "limitingStage": "rest"
+    }
+   ]
+  }
+ },
+ "relayBaseline": {
+  "note": "routerlib.portfolio mode=relay budget-class=thorough, re-measured on this ruler. Its published 98.0% was measured before the pad model was corrected.",
+  "meanCompleteness": 0.905588,
+  "clean": 5,
+  "rows": [
+   {
+    "instance": "harness-puck",
+    "completeness": 0.944444,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "hydrate-coaster-plane",
+    "completeness": 0.96875,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "hydrate-coaster",
+    "completeness": 0.875,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-i2c-bus",
+    "completeness": 1.0,
+    "errors": 0,
+    "chain": "baseline-pattern"
+   },
+   {
+    "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+    "completeness": 0.8,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+    "completeness": 0.823529,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+    "completeness": 0.882353,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+    "completeness": 0.6,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-ldo-3v3__usb-c-power",
+    "completeness": 1.0,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar"
+   },
+   {
+    "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+    "completeness": 0.777778,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-rp2040-core__sw-tact",
+    "completeness": 1.0,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes"
+   },
+   {
+    "instance": "matrix-rp2040-core__usb-c-data",
+    "completeness": 0.952381,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "matrix-status-led",
+    "completeness": 1.0,
+    "errors": 0,
+    "chain": "baseline-pattern"
+   },
+   {
+    "instance": "matrix-status-led__ws2812-chain",
+    "completeness": 1.0,
+    "errors": 0,
+    "chain": "pathfinder-negotiated"
+   },
+   {
+    "instance": "terminal-keyboard-plane",
+    "completeness": 0.932584,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   },
+   {
+    "instance": "terminal-keyboard",
+    "completeness": 0.932584,
+    "errors": 0,
+    "chain": "pathfinder-negotiated+maze-astar+plane-and-classes+exact-and-structured"
+   }
+  ]
+ }
+}

@@ -251,3 +251,101 @@ latent, not active, and `spatial` namespaces its stages so it cannot happen ther
 - **Determinism of the four-router arms at `--runs 2`.** `spatial` and `spatial-flat` are
   16/16 on two runs; the arms marked `n/m` in the record were routed once, and the record says
   `null` rather than a vacuous `true`.
+
+---
+
+## Measured: net-class decomposition, 2026-08-16
+
+Composition 1 above is now built (`packages/router/src/routerlib/compositions/netclass.py`)
+and measured. **This document calls it "the first thing to build, because it removes work
+rather than redistributing it." Three of its four stages remove nothing.** One of them is a
+17.7-point loss, one is exactly neutral, and one — diff pairs — is the only place on this
+benchmark where knowing what a net is *for* has been worth anything.
+
+Seven plans, 16 instances, one budget (`max_iterations=2_000_000, max_nodes=20_000_000,
+seed=0`), two runs per cell, ruler `e1ee2a5623d0`, `scripts/netclass_suite.py`. Full record in
+`packages/router/benchmarks/compositions/netclass-2026-08-16.json`.
+
+| plan | stages | mean routed | boards at 100% | pair coupling | s |
+|---|---|---|---|---|---|
+| `monolithic` | one router, whole board (`maze-astar`) | **92.5%** | **7/16** | 3.1% | 306 |
+| `plane-only` | plane → general | **92.5%** | **7/16** | 2.6% | 264 |
+| **`pairs`** *(default)* | plane → pair → general | 92.4% | **7/16** | **27.5%** | 247 |
+| `pairs-general` | same, pair stage to the general router | 92.0% | **7/16** | 8.8% | 191 |
+| `brief` | plane → power → pair → general | 74.7% | 3/16 | 27.3% | 218 |
+| `brief-plane-last` | power → pair → plane → general | 74.9% | 3/16 | 30.2% | 327 |
+| `brief-pair-general` | …and the pair stage to the general router | 75.6% | 3/16 | 1.4% | 328 |
+
+Every plan scored **0 harness errors and 16/16 deterministic**, so `boards at 100%` and
+`clean` are the same column here. Coupling is the mean over the nine instances that carry a
+differential pair.
+
+### The diff-pair stage is the only stage that pays
+
+3.1% → **27.5%** mean coupling for one net out of 380: 0.8% → 53.0% on `harness-puck`, 5.2% →
+30.7% on `matrix-rp2040-core__usb-c-data`, 4.5% → 37.7% on `terminal-keyboard`, 6.5% → 45.7%
+on `hydrate-coaster`. This is the thing the EE review asked for on USB D+/D−, and the
+incumbent's own coupling on `harness-puck` is 0.07.
+
+It pays **only when the stage goes to the pair expert**. Same three stages, only that router
+swapped: coupling falls to 8.8% and completeness with it. A pair is two unrelated nets to a
+general router; `plane-and-classes` routes the second half into a corridor beside the first,
+and handing it *only* the pairs is what lets it do that on a board it is otherwise not routing.
+That is the case for net-class decomposition in one line — not "the expert routes the class
+better", but "the expert can only express the constraint when the class is what it is given".
+
+### The power stage is the largest single loss anyone has measured here
+
+92.4% → **74.7%**, 7 boards finished → 3, with every other stage held fixed and the same
+family on both sides of the change. Nine of sixteen instances lose nets and five lose forty
+points: `matrix-ldo-3v3__usb-c-power` goes from 100% to 60%.
+
+The stage table says why. Asked for two rails and nothing else, `maze-astar` takes the two
+shortest top-layer paths, spends **no vias**, and cuts the board; the three nets that follow
+cannot cross, and no later stage may rip up. Handed all five nets at once the same router
+spends 8 vias and finishes the board. Every routed net makes the next one harder — the
+premise the whole tournament is built on — and a stage boundary makes it worse from both
+sides: the early stage cannot see the nets it is about to strand, and the late stage cannot
+move the copper stranding it. This is the same shape as the spatial result above, where
+staging by geometry loses to not staging at all.
+
+### The plane stage deletes work that was already being deleted
+
+92.5% with it, 92.5% without, identical on all sixteen instances including the three
+`-plane` variants. The argument is sound — a poured ground is ~30% of the pads and its pads
+only need a via — but `maze-astar`, the general family, already models a pour as a net and was
+already doing it. The stage is worth having as insurance against a plane-blind general router,
+which is exactly the shipped autorouter's defect and exactly not `maze-astar`'s. It is not a
+source of completeness, and the sentence in this document that says it removes a third of the
+problem is describing the problem, not the result.
+
+Plane first against plane last is a non-question at stage granularity: 74.7% against 74.9%.
+The earlier 80.1%-vs-85.2% measurement was *inside* `plane-and-classes`, where the plane job
+competes with that family's own net ordering.
+
+### Where this leaves the compositions
+
+On this ruler, ranked by the column the fab-ready bar reads:
+
+| | mean routed | boards at 100% |
+|---|---|---|
+| `spatial-best` (escapes first + relay chain) | 94.3% | 8/16 |
+| `netclass:pairs` — and plain `maze-astar` | 92.4% / 92.5% | 7/16 |
+| relay | 90.6% | 5/16 |
+| portfolio `single` | 81.5% | 3/16 |
+
+**Two of the four compositions in this package are beaten by running one router**, and the
+one that is not wins by reordering rather than by specialising. Net-class decomposition earns
+its place for a quality tier, not for completeness: it is how a differential pair gets routed
+as a pair, and nothing else here does that.
+
+### What is not measured
+
+- **KiCad on the real boards.** All seven plans score 0 harness errors; none of the copper has
+  been through `kicad-cli pcb drc`.
+- **A power stage that is allowed to be polite.** The loss is caused by a stage optimising for
+  two nets it can see against thirty it cannot. A rail stage with a via budget, a layer
+  preference, or a corridor reservation is a different experiment and was not run.
+- **Any general router other than `maze-astar` in the catch-all.** The plane stage's verdict
+  is specifically against a plane-aware general family and would likely flip against one that
+  is not.
