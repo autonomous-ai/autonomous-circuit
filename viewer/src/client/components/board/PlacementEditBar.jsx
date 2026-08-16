@@ -1,8 +1,170 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Hammer, Loader2, Lock, LockOpen, Redo2, RotateCcw, RotateCw, TriangleAlert, Undo2, X } from "lucide-react";
+import {
+  CircleCheck,
+  CircleHelp,
+  Hammer,
+  Loader2,
+  Lock,
+  LockOpen,
+  Redo2,
+  RotateCcw,
+  RotateCw,
+  TriangleAlert,
+  Undo2,
+  X,
+} from "lucide-react";
 import { cn } from "@/ui/utils";
 import { ROTATION_STEPS, SNAP_STEPS } from "./boardSource.js";
 import { CCW, CW, DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placementRotate.js";
+
+/**
+ * What the gate said about the board as the file now has it.
+ *
+ * The whole point of the strip is that a drag writes a real file, and the
+ * question that follows a real write is "is it still legal". The gate answers
+ * that in a second or so on predicted geometry — the board on disk plus the
+ * moves the file is holding — so this is the one place in the app where an
+ * engineer finds out before a rebuild.
+ *
+ * Three rules the copy here obeys, because a verdict that overstates itself is
+ * worse than none:
+ *
+ *  - **"Not checked" is a state.** Null is not clean. Before anyone has asked,
+ *    and after a rebuild has made the last answer expire, it says so.
+ *  - **The geometry is named.** `predicted` means the board on screen has not
+ *    been compiled with these positions; the word is the gate's, not ours.
+ *  - **The turns are named.** The gate translates elements, it cannot rotate
+ *    them, so a pending rotation is geometry no verdict has seen — and a green
+ *    chip that quietly excluded it would be the exact lie this panel exists to
+ *    catch.
+ */
+function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
+  const [open, setOpen] = useState(false);
+  const counts = verdict?.counts || null;
+  const blocking = Number(counts?.error || 0);
+  const state = checking
+    ? "checking"
+    : !verdict
+      ? "unknown"
+      : verdict.status === "unavailable"
+        ? "unavailable"
+        : blocking
+          ? "blocked"
+          : "legal";
+
+  const label =
+    state === "checking"
+      ? "checking…"
+      : state === "unknown"
+        ? "not checked"
+        : state === "unavailable"
+          ? "check unavailable"
+          : blocking
+            ? `${blocking} blocking`
+            : "legal";
+
+  const findings = Array.isArray(verdict?.warnings) ? verdict.warnings : [];
+  const worst = findings
+    .filter((one) => one.severity === "error")
+    .concat(findings.filter((one) => one.severity === "warning"))
+    .slice(0, 6);
+
+  return (
+    <>
+      <span className="flex items-center gap-1" data-slot="placement-verdict" data-state={state}>
+        <button
+          type="button"
+          onClick={() => (verdict || checking ? setOpen((value) => !value) : onCheck?.())}
+          disabled={busy && !verdict}
+          data-slot="placement-verdict-chip"
+          title={
+            state === "unknown"
+              ? "Ask whether the board, with your changes, is still legal on copper"
+              : "What the check found, and what it could not see"
+          }
+          className={cn(
+            "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium transition-colors",
+            state === "legal" && "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+            state === "blocked" && "border-destructive/50 bg-destructive/15 text-destructive",
+            (state === "unknown" || state === "checking" || state === "unavailable") &&
+              "border-border/60 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {state === "checking" ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : state === "legal" ? (
+            <CircleCheck className="size-3" aria-hidden />
+          ) : state === "blocked" ? (
+            <TriangleAlert className="size-3" aria-hidden />
+          ) : (
+            <CircleHelp className="size-3" aria-hidden />
+          )}
+          {label}
+        </button>
+        {verdict && !checking ? (
+          <button
+            type="button"
+            onClick={() => onCheck?.()}
+            data-slot="placement-verdict-recheck"
+            title="Check again"
+            className="rounded border border-border/60 px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            recheck
+          </button>
+        ) : null}
+      </span>
+
+      {open && verdict ? (
+        <div data-slot="placement-verdict-detail" className="w-full space-y-1 text-[11px]">
+          <p className="text-muted-foreground">
+            {verdict.status === "unavailable" ? (
+              <>The check could not run: {verdict.reason || "no reason given"}.</>
+            ) : (
+              <>
+                {verdict.geometry === "predicted"
+                  ? `Graded on the built board with your ${verdict.moves?.length || 0} ${
+                      (verdict.moves?.length || 0) === 1 ? "move" : "moves"
+                    } applied — nothing has been recompiled.`
+                  : "Graded on the board as it was last built."}
+                {typeof verdict.elapsedMs === "number" ? ` ${Math.round(verdict.elapsedMs)}ms.` : ""}
+                {" "}
+                {counts?.warning || 0} to look at, {counts?.info || 0} noted.
+              </>
+            )}
+          </p>
+          {turnsPending ? (
+            <p className="text-amber-600 dark:text-amber-400">
+              {turnsPending} {turnsPending === 1 ? "turn is" : "turns are"} NOT in this check — the gate moves parts,
+              it cannot turn them. Rebuild to have a turn checked.
+            </p>
+          ) : null}
+          {worst.length ? (
+            <ul className="space-y-0.5">
+              {worst.map((one, at) => (
+                <li key={`${one.kind}-${one.part}-${at}`} className="flex gap-1.5">
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono",
+                      one.severity === "error" ? "text-destructive" : "text-muted-foreground",
+                    )}
+                  >
+                    {one.part || "board"}
+                  </span>
+                  <span className="min-w-0 text-muted-foreground">{one.detail || one.kind}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {Array.isArray(verdict.notChecked) && verdict.notChecked.length ? (
+            <p className="text-muted-foreground/80">
+              Not checked: {verdict.notChecked.map((entry) => entry.what).join(", ")}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * The strip that appears above the PCB canvas in move mode.
@@ -201,6 +363,14 @@ export default function PlacementEditBar({
           {placement.locked ? `${placement.label} is locked` : `Lock ${placement.label}`}
         </button>
       ) : null}
+
+      <VerdictChip
+        verdict={editor.verdict}
+        checking={editor.checking}
+        turnsPending={editor.turnsPending}
+        onCheck={editor.checkNow}
+        busy={busy}
+      />
 
       <button
         type="button"

@@ -1147,6 +1147,37 @@ export function remapSnapshot(snapshot, before, after) {
   return { byId: nextById, reasonById: nextReason };
 }
 
+/**
+ * Every move the file is holding that the built board has not seen yet.
+ *
+ * This is what turns a check on a stale artifact into a check on what the user
+ * is actually looking at. `circuit.json` was compiled from the positions the
+ * board had at build time; each bound placement carries that position as
+ * `anchor` and its current one as `x`/`y`, so the difference is exactly the
+ * translation the gate has to apply before it grades anything
+ * (`fastcheck.apply_moves`, and `board_fast_check`'s `moves` argument).
+ *
+ * All of them, not the last one: a user who drags three parts and then asks
+ * "is this legal" is asking about the board with all three moved. One move per
+ * request would grade two of them back where they started.
+ *
+ * A turn is not here and cannot be — the gate translates elements, it does not
+ * rotate them — which is why the caller counts pending rotations separately and
+ * says so rather than letting a verdict imply it covered them.
+ */
+export function pendingMoves(binding) {
+  const moves = [];
+  for (const bound of binding?.byId?.values() ?? []) {
+    const dx = Number(bound?.offset?.dx) || 0;
+    const dy = Number(bound?.offset?.dy) || 0;
+    if (!dx && !dy) continue;
+    const anchor = bound.anchor || {};
+    if (!Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.y))) continue;
+    moves.push({ anchor: { x: Number(anchor.x), y: Number(anchor.y) }, dx, dy });
+  }
+  return moves;
+}
+
 /** Freeze a binding's geometry so a later parse of the same file can reuse it. */
 export function geometrySnapshot(binding) {
   const byId = new Map();

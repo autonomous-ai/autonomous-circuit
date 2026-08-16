@@ -64,8 +64,16 @@ test("a drag writes the board file's own byte range, in the board file it names"
     await w.settle();
 
     const posts = w.server.requests.filter((one) => one.method === "POST");
-    assert.equal(posts.length, 1, "a drag is one write, not none and not two");
-    assert.equal(posts[0].pathname, "/api/board_source_write");
+    // One write, and one question about it. The write is the invariant this
+    // line has always guarded — not none, and never two, because a second
+    // write of the same drag would double the move. The verdict request beside
+    // it is the other half of the gesture (BoardWorkspace.verdict.render.test.js
+    // owns what it carries); asserting both here keeps a *third* request from
+    // arriving unnoticed.
+    assert.deepEqual(
+      posts.map((one) => one.command),
+      ["board_source_write", "board_fast_check"],
+    );
 
     const body = w.server.writes[0];
     assert.equal(body.id, "p1");

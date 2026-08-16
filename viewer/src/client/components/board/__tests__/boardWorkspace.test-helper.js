@@ -80,6 +80,26 @@ function fakeServer({ projectDir, projectId, boardFile }) {
     },
     /** Refuse the next write with this `{code, message}`, once. */
     refuseNextWrite: null,
+    /** Every `board_fast_check` body, oldest first — the gate is asked for a
+     *  verdict after an edit, and "was it asked at all" is the join that was
+     *  missing for a day: the command existed, worked, and no client code
+     *  named it. */
+    get checks() {
+      return requests.filter((one) => one.command === "board_fast_check").map((one) => one.body);
+    },
+    /** What the gate answers next. Shaped like the real one. */
+    nextCheck: {
+      ok: true,
+      status: "legal",
+      reason: "",
+      geometry: "as_built",
+      counts: { error: 0, warning: 2, info: 7 },
+      warnings: [],
+      moves: [],
+      checked: ["circuit.json element scan"],
+      notChecked: [{ what: "the copper pour", why: "cutouts were computed for the old position" }],
+      elapsedMs: 120,
+    },
   };
 
   const respond = (status, body) =>
@@ -97,6 +117,11 @@ function fakeServer({ projectDir, projectId, boardFile }) {
       const command = pathname.replace("/api/", "");
       const body = JSON.parse(init.body || "{}");
       requests.push({ method, pathname, command, body });
+      if (command === "board_fast_check") {
+        const answer = server.nextCheck;
+        if (answer?.throws) return respond(500, { code: "GATE_DOWN", message: answer.throws });
+        return respond(200, { ...answer, moves: body.moves || [] });
+      }
       if (command !== "board_source_write") return respond(404, { code: "NOT_FOUND", message: command });
       if (server.refuseNextWrite) {
         const refusal = server.refuseNextWrite;

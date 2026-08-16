@@ -16,6 +16,7 @@ import {
   maskCommentsAndStrings,
   moveEdits,
   parseBoardSource,
+  pendingMoves,
   readNumericProp,
   rebindPlacements,
   snapDelta,
@@ -364,4 +365,28 @@ test(
 
 test("describeMove says what changed in millimetres", () => {
   assert.equal(describeMove("U3", { x: 1, y: 2 }, { x: 3.5, y: 2 }), "U3 moved 2.5, 0 mm");
+});
+
+test("pendingMoves is every part the file has moved since the board was built", () => {
+  // The gate grades the built artifact plus these translations, so an anchor
+  // that never moved must not be in the list at all: sending `dx: 0` for 137
+  // parts would make every check on terminal-keyboard carry 137 no-ops.
+  const binding = {
+    byId: new Map([
+      ["a", { anchor: { x: 1, y: 2 }, offset: { dx: 0, dy: 0 } }],
+      ["b", { anchor: { x: -4.5, y: 6 }, offset: { dx: 2.5, dy: -0.75 } }],
+      ["c", { anchor: { x: 0, y: 0 }, offset: { dx: 0, dy: 3 } }],
+      // Unbound: nothing on the built board sits where this line says, so
+      // there is no anchor to translate from and it is dropped rather than
+      // guessed at.
+      ["d", { offset: { dx: 9, dy: 9 } }],
+    ]),
+  };
+
+  assert.deepEqual(pendingMoves(binding), [
+    { anchor: { x: -4.5, y: 6 }, dx: 2.5, dy: -0.75 },
+    { anchor: { x: 0, y: 0 }, dx: 0, dy: 3 },
+  ]);
+  assert.deepEqual(pendingMoves(null), []);
+  assert.deepEqual(pendingMoves({ byId: new Map() }), []);
 });

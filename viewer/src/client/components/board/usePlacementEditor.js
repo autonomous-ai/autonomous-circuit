@@ -25,6 +25,7 @@ import {
   lockEdits,
   moveEdits,
   parseBoardSource,
+  pendingMoves,
   rebindPlacements,
   remapSnapshot,
   rotateEdits,
@@ -78,6 +79,23 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   const [future, setFuture] = useState([]);
   const [changes, setChanges] = useState(0);
   const [lastChange, setLastChange] = useState("");
+  // The gate's answer about the board as it now stands, and whether one is in
+  // flight. Null means nobody has asked yet — which is not the same as clean,
+  // and the strip says so.
+  const [verdict, setVerdict] = useState(null);
+  const [checking, setChecking] = useState(false);
+  // Latest-wins. A drag can finish while the previous check is still running,
+  // and a stale answer arriving second would paint the board legal after the
+  // move that broke it.
+  const checkRunRef = useRef(0);
+  // Turns are counted, not measured: the gate translates elements, it cannot
+  // rotate them, so a pending rotation is geometry no verdict here has seen.
+  // Better to name the gap than to let a green chip imply it was covered.
+  const [turnsPending, setTurnsPending] = useState(0);
+  const turnsRef = useRef(0);
+  turnsRef.current = turnsPending;
+  const bindingRef = useRef(EMPTY_BINDING);
+  const wantCheckRef = useRef(false);
   const sourceRef = useRef("");
   sourceRef.current = source;
   // The file as the board on screen was built from. `changes` is a count of
@@ -170,6 +188,10 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     () => (parsed.ok ? rebindPlacements(parsed.placements, snapshot) : EMPTY_BINDING),
     [parsed, snapshot],
   );
+  // Read by `checkNow`, which must not be re-created on every parse: it is
+  // called from `write`, and a new identity there would rebuild every callback
+  // that writes.
+  bindingRef.current = binding;
 
   /**
    * Send one set of edits and adopt whatever the file says afterwards.
@@ -179,6 +201,54 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
    * offering to spend minutes rebuilding for it would be a lie about what
    * changed.
    */
+  /**
+   * Ask the gate whether the board, as the file now has it, is legal.
+   *
+   * The board on disk was compiled from the old positions, so the moves the
+   * file is holding go with the request (`pendingMoves`) and the gate grades
+   * predicted geometry — the thing on screen, not the thing on disk. It is the
+   * same gate the build runs, minus the one check that costs 1.5 seconds, and
+   * it carries its own blind spots in `notChecked`.
+   *
+   * Latest wins: a second drag can land while the first check is still out, and
+   * an older answer arriving second would paint the board legal after the move
+   * that broke it.
+   */
+  const checkNow = useCallback(async () => {
+    if (!projectId || !file) return null;
+    const run = (checkRunRef.current += 1);
+    setChecking(true);
+    try {
+      const result = await callApi("board_fast_check", {
+        id: projectId,
+        file,
+        moves: pendingMoves(bindingRef.current),
+      });
+      if (run !== checkRunRef.current) return null;
+      setVerdict({ ...result, turnsPending: turnsRef.current });
+      return result;
+    } catch (err) {
+      if (run !== checkRunRef.current) return null;
+      setVerdict({
+        status: "unavailable",
+        reason: err instanceof Error ? err.message : String(err),
+        turnsPending: turnsRef.current,
+      });
+      return null;
+    } finally {
+      if (run === checkRunRef.current) setChecking(false);
+    }
+  }, [projectId, file]);
+
+  // One render after a write, which is the first moment the binding describes
+  // the file the server now holds — and the request's whole content is the
+  // difference between that binding and the board that was built.
+  useEffect(() => {
+    if (!wantCheckRef.current) return;
+    wantCheckRef.current = false;
+    void checkNow();
+  }, [binding, checkNow]);
+
   const write = useCallback(
     async (edits, note, delta = 0) => {
       if (!edits.length) return true;
@@ -213,6 +283,17 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         setSource(result.text);
         setChanges((n) => (result.text === buildBaselineRef.current ? 0 : Math.max(0, n + delta)));
         if (note) setLastChange(note);
+        // Saving and grading are one gesture from the user's side. An edit that
+        // changed geometry and reported only "saved" is the state this app
+        // shipped in until 2026-08-16: the gate existed, worked, and nothing
+        // ever called it. A lock changes the file and not the board, so it does
+        // not spend seconds of CPU on a verdict that cannot have moved.
+        //
+        // Flagged, not called: the moves the request carries are read off the
+        // binding, and the binding for the text just written does not exist
+        // until React has re-rendered with it. Calling here sent `moves: []`
+        // and asked the gate about the board as it was before the drag.
+        if (delta !== 0) wantCheckRef.current = true;
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -221,7 +302,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         setBusy(false);
       }
     },
-    [projectId, file],
+    [projectId, file, checkNow],
   );
 
   /**
@@ -289,7 +370,10 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
               rotation: placement.rotationSpan ? placement.rotation : null,
             };
       const ok = await write(edits, note || describeRotate(placement.label, placement.rotation, degrees), +1);
-      if (ok) pushHistory(undoEntry);
+      if (ok) {
+        pushHistory(undoEntry);
+        setTurnsPending((n) => n + 1);
+      }
       return ok;
     },
     [binding, source, write, pushHistory],
@@ -343,6 +427,10 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       if (entry.inverse) {
         const reciprocal = { kind: "wrap", placementId: entry.placementId, label: entry.label, inverse: invertEdits(entry.inverse) };
         const ok = await write(entry.inverse, `${verb}: ${entry.label}`, delta);
+        // Undoing a turn takes the board back towards what was built; redoing
+        // one takes it further away. The count follows the geometry, not the
+        // number of gestures.
+        if (ok) setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
         return ok ? reciprocal : null;
       }
       const placement = binding.byId.get(entry.placementId);
@@ -368,6 +456,9 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
             ? rotateEdits(source, placement, entry.rotation)
             : moveEdits(source, placement, entry.x, entry.y);
       const ok = await write(edits, `${verb}: ${entry.label}`, entry.kind === "lock" ? 0 : delta);
+      if (ok && entry.kind === "rotate") {
+        setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
+      }
       return ok ? reciprocal : null;
     },
     [binding, source, write],
@@ -399,7 +490,19 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     buildBaselineRef.current = sourceRef.current;
     setChanges(0);
     setLastChange("");
+    setTurnsPending(0);
   }, []);
+
+  // A new build makes every earlier verdict a statement about a board that no
+  // longer exists — its findings were measured on the old copper with the old
+  // moves predicted on top. Dropping it is the honest default; the strip then
+  // says "not checked" rather than showing a green chip that has expired.
+  useEffect(() => {
+    checkRunRef.current += 1;
+    setVerdict(null);
+    setChecking(false);
+    setTurnsPending(0);
+  }, [buildKey]);
 
   return {
     file,
@@ -416,6 +519,12 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     lastChange,
     canUndo: history.length > 0,
     canRedo: future.length > 0,
+    // The gate's last word, whether one is in flight, how many turns it could
+    // not see, and the way to ask again.
+    verdict,
+    checking,
+    turnsPending,
+    checkNow,
     move,
     rotate,
     previewRotate,
