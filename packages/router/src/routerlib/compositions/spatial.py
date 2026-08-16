@@ -674,6 +674,7 @@ def route(
     experts: Mapping[str, str] | None = None,
     region_order: str = "hardest-first",
     boundary_clearance: float = 1.0,
+    escape_first: bool = False,
     crossing_chain: Sequence[str] = (),
     residue: Sequence[str] = (),
     partition_kwargs: Mapping | None = None,
@@ -737,6 +738,29 @@ def route(
             _stage(problem, label, router, scope, len(open_nets), before, merged, seconds)
         )
 
+    if region_order == "hardest-first":
+        order = sorted(part.regions, key=lambda r: r.difficulty_key)
+    elif region_order == "largest-first":
+        order = sorted(part.regions, key=lambda r: (-r.pad_count, r.id))
+    else:
+        order = sorted(part.regions, key=lambda r: r.id)
+
+    # 0. Optionally, the escapes before the crossings.
+    #
+    #    This contradicts the rule the rest of the module is built on, on
+    #    purpose. Fixing the crossings first is right when a region can be
+    #    solved many ways and only needs a legal edge; a 0.4mm-pitch escape is
+    #    the opposite — its interior nets have one or two channels out and a
+    #    crossing net can detour around the whole package. Measured on the
+    #    fine-pitch regions, which connect 22 of 88 with the expert and 28 of
+    #    88 with the global router when they go second.
+    attempted: set[str] = set()
+    if escape_first:
+        for region in [r for r in order if r.character == "fine-pitch"]:
+            attempted.add(region.id)
+            run_stage(region.id, region.expert, region.character,
+                      region.interior_nets)
+
     # 1. The crossings, at the boundary clearance, before anything else.
     run_stage(
         "crossing",
@@ -762,14 +786,13 @@ def route(
             clearance_scale=boundary_clearance,
         )
 
-    # 2. Each region, inside those fixed boundary conditions.
-    if region_order == "hardest-first":
-        order = sorted(part.regions, key=lambda r: r.difficulty_key)
-    elif region_order == "largest-first":
-        order = sorted(part.regions, key=lambda r: (-r.pad_count, r.id))
-    else:
-        order = sorted(part.regions, key=lambda r: r.id)
+    # 2. Each region, inside those fixed boundary conditions. A region that
+    #    already had its turn is not given a second one here: two stages under
+    #    one label would double-count the nets asked, and the honest place for
+    #    a second attempt is the residue chain.
     for region in order:
+        if region.id in attempted:
+            continue
         run_stage(region.id, region.expert, region.character, region.interior_nets)
 
     # 3. Whatever is left, to the followers, which is the relay applied to the

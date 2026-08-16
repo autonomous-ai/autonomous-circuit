@@ -50,9 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     print("-" * len(head))
     for arm in order:
         s = runs[arm]["summary"]
+        det = (f"{s['deterministic']}/{s['instances']}"
+               if s.get("deterministic") is not None else "n/m")
         print(f"{arm:<18}{s['meanCompleteness'] * 100:>11.1f}%"
               f"{s['cleanInstances']:>4}/{s['instances']:<3}"
-              f"{s['harnessErrors']:>12}{s['deterministic']:>4}/{s['instances']:<2}"
+              f"{s['harnessErrors']:>12}{det:>6}"
               f"{s['collidingCopperIds']:>11}{s['totalSeconds']:>9.0f}")
         if (s["meanCompletenessWithUniqueIds"] != s["meanCompleteness"]
                 or s["harnessErrorsWithUniqueIds"] != s["harnessErrors"]):
@@ -95,6 +97,28 @@ def main(argv: list[str] | None = None) -> int:
             lead = (f"crossing +{cross['added_nets']}/{cross['asked_nets']}"
                     if cross else "crossing: none")
             print(f"  {row['instance']:<48} {lead}  " + "  ".join(bits))
+
+    # Does the expert table earn its place? Same partition, same regions, same
+    # order in both arms, so a per-character hit rate is a like-for-like
+    # comparison of who routed the region.
+    if "spatial" in runs and "spatial-flat" in runs:
+        print("\nnets connected / nets asked, by region character")
+        print(f"{'character':<14}{'expert':>26}{'flat (global)':>16}")
+        tally: dict[str, dict[str, list[int]]] = {}
+        for arm in ("spatial", "spatial-flat"):
+            for row in runs[arm]["rows"]:
+                for stage in row["spatial"]["stages"]:
+                    got = tally.setdefault(stage["scope"], {}).setdefault(arm, [0, 0])
+                    got[0] += stage["added_nets"]
+                    got[1] += stage["asked_nets"]
+        for scope in sorted(tally):
+            expert = tally[scope].get("spatial", [0, 0])
+            flat = tally[scope].get("spatial-flat", [0, 0])
+            print(
+                f"{scope:<14}"
+                f"{expert[0]:>13}/{expert[1]:<12}"
+                f"{flat[0]:>8}/{flat[1]:<7}"
+            )
 
     if args.json_out:
         Path(args.json_out).write_text(

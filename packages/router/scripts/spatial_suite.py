@@ -57,6 +57,10 @@ ARMS = (
     # the space rather than after.
     "spatial-tight",
     "spatial-chain",
+    # Deliberately contradicts the crossings-first rule, for the one region
+    # class where both routers fail: a 0.4mm escape has one or two channels
+    # out, and a crossing net can detour round the whole package.
+    "spatial-escape-first",
 )
 
 #: ``spatial-tight``'s partition. Measured on the fixtures with no routing:
@@ -127,6 +131,9 @@ def run_one(arm: str, problem, budget, registry):
         options["partition_kwargs"] = TIGHT
     if arm == "spatial-chain":
         options["crossing_chain"] = FOLLOWERS
+    if arm == "spatial-escape-first":
+        options["escape_first"] = True
+        options["experts"] = {}
     result = spatial.route(problem, budget, registry, **options)
     return result.solution, {"spatial": result.as_dict()}
 
@@ -176,7 +183,11 @@ def main(argv: list[str] | None = None) -> int:
             "instance": problem.id,
             "arm": args.arm,
             "wallClockS": round(seconds, 3),
-            "deterministic": len(set(fingerprints)) == 1,
+            # ``null``, not ``true``, when the instance was routed once. A
+            # determinism verdict from a single run is not a measurement, and
+            # a column of vacuous ``true`` reads exactly like a checked one.
+            "deterministic": (len(set(fingerprints)) == 1) if args.runs > 1 else None,
+            "runs": args.runs,
             "fingerprints": fingerprints,
             # A colliding copper id is a false connection and an unchecked
             # short at once, so it is counted beside the score rather than
@@ -200,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"  {row['collidingCopperIds']} COLLIDING IDS "
                 f"(honest: {honest.completeness * 100:.1f}% / {honest.errors} err)"
             )
-        if not row["deterministic"]:
+        if row["deterministic"] is False:
             extra += "  NONDETERMINISTIC"
         print(scored.line() + extra, flush=True)
         if args.arm.startswith("spatial"):
@@ -233,7 +244,9 @@ def main(argv: list[str] | None = None) -> int:
         "harnessErrorsWithUniqueIds": sum(
             r["scoreWithUniqueIds"]["errors"] for r in rows
         ),
-        "deterministic": sum(1 for r in rows if r["deterministic"]),
+        "deterministic": (sum(1 for r in rows if r["deterministic"])
+                          if args.runs > 1 else None),
+        "runs": args.runs,
         "collidingCopperIds": sum(r["collidingCopperIds"] for r in rows),
         "totalSeconds": round(sum(r["wallClockS"] for r in rows), 1),
     }
