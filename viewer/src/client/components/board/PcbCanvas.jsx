@@ -10,6 +10,12 @@ import {
 } from "@/lib/boardIndex.js";
 import { FINE_STEP_MM, formatMm, snapDelta } from "./boardSource.js";
 import {
+  canvasKeyAction,
+  escapeLiveCommand,
+  pointerPressAction,
+  pointerReleaseAction,
+} from "./canvasPointer.js";
+import {
   CLICK_SLOP_PX,
   beginMove,
   cancelMove,
@@ -178,6 +184,7 @@ export default function PcbCanvas({
   snapStepMm = 0.5,
   onPlacementMove,
   onPlacementSelect,
+  onContextMenuRequest,
   onSelect,
   onHoverChange,
   onMeasureChange,
@@ -402,15 +409,46 @@ export default function PcbCanvas({
 
   const onPointerDown = useCallback(
     (event) => {
-      if (event.button !== 0) return;
       const point = boardPointFromEvent(event);
+      // What this press means is decided in one place for both canvases —
+      // `canvasPointer.pointerPressAction` — rather than by a chain of `if`s
+      // that drifts apart between them. This canvas rejected `button !== 0`
+      // outright, which is why right-drag-to-pan and the context menu, both
+      // shipped in the arbiter and both tested, never reached the surface an
+      // EE actually uses.
+      const canGrab = Boolean(
+        editing && point && index && (() => {
+          const placement = placementForHit(hitAt(point));
+          return placement && !placement.locked;
+        })(),
+      );
+      const action = pointerPressAction({
+        button: event.button,
+        measuring: Boolean(measuring && point),
+        canGrab,
+      });
+      if (action === "ignore") return;
       event.currentTarget.setPointerCapture?.(event.pointerId);
+      if (action === "pan") {
+        dragRef.current = {
+          mode: "pan",
+          button: event.button,
+          startX: event.clientX,
+          startY: event.clientY,
+          origin: viewStateRef.current,
+          moved: false,
+        };
+        return;
+      }
       if (measuring && point) {
         // The anchor lives on the drag ref, not in state: a pointermove can
         // arrive before React has re-rendered with the new state, and reading a
         // stale `measure` there makes every fast drag measure zero.
         setMeasure({ from: point, to: point });
-        dragRef.current = { mode: "measure", from: point, startX: event.clientX, startY: event.clientY };
+        dragRef.current = {
+          mode: "measure", button: event.button, from: point,
+          startX: event.clientX, startY: event.clientY,
+        };
         return;
       }
       if (editing && point && index) {
@@ -420,6 +458,7 @@ export default function PcbCanvas({
         if (placement && !placement.locked) {
           dragRef.current = {
             mode: "move",
+            button: event.button,
             placement,
             from: point,
             startX: event.clientX,
@@ -432,6 +471,7 @@ export default function PcbCanvas({
       }
       dragRef.current = {
         mode: "pan",
+        button: event.button,
         startX: event.clientX,
         startY: event.clientY,
         origin: viewStateRef.current,
@@ -503,12 +543,47 @@ export default function PcbCanvas({
     [boardPointFromEvent, hitAt, index, onHoverChange, onMeasureChange, snapStepMm],
   );
 
+  /**
+   * The right button, mid-command.
+   *
+   * `pointerdown` never fires for a second button while one is held, so the
+   * arbiter's `"cancel"` was unreachable from a press and an EE who
+   * right-clicked to get out of a drag watched the move commit anyway.
+   * `contextmenu` does fire. `escapeLiveCommand` decides, and it refuses to
+   * cancel a *pan*, because on macOS a right-drag fires this event on its own
+   * first frame and killing it there would break every pan.
+   */
+  const onContextMenu = useCallback((event) => {
+    if (!escapeLiveCommand(dragRef.current)) return;
+    event.preventDefault();
+    dragRef.current = null;
+    setMove(null);
+    setMeasure(null);
+    onMeasureChange?.(null);
+  }, [onMeasureChange]);
+
   const onPointerUp = useCallback(
     (event) => {
       const drag = dragRef.current;
       dragRef.current = null;
-      if (!drag) return;
-      if (drag.mode === "measure") return;
+      const release = pointerReleaseAction(drag);
+      if (release === "none") return;
+
+      // A right press that never travelled is Altium's context menu; one that
+      // travelled was a pan and is already done. Deciding it here rather than
+      // on the browser's `contextmenu` event is what keeps the two apart —
+      // macOS fires `contextmenu` on press, before the pointer can travel.
+      if (release === "menu") {
+        const point = boardPointFromEvent(event);
+        onContextMenuRequest?.({
+          point,
+          hit: point && index ? hitAt(point) : null,
+          placement: point && index ? placementForHit(hitAt(point)) : null,
+          client: { x: event.clientX, y: event.clientY },
+          source: "pcb",
+        });
+        return;
+      }
       if (drag.mode === "move") {
         const dropped = move;
         setMove(null);
@@ -571,24 +646,52 @@ export default function PcbCanvas({
     onHoverChange?.(null);
   }, [onHoverChange]);
 
-  // Space zeroes the delta origin (KiCad's relative-origin gesture).
+  // Every key this canvas answers is decided by `canvasKeyAction`, never here.
+  //
+  // The handler this replaces got two things wrong that only a real keyboard
+  // finds. It guarded on `activeElement?.tagName !== "INPUT"`, so typing a
+  // space into the chat composer — a `<textarea>` — silently moved the delta
+  // origin and every Δ in the HUD changed with nothing to say why. And it
+  // spent Space on the delta origin, which is Altium's rotate-while-dragging
+  // key; `Insert` is Altium's own key for the origin and is now the only one.
+  //
+  // Routing through the arbiter is also what lets the shortcut sheet stay
+  // honest: the sheet probes that pure function, so a key answered here can
+  // never be a key the sheet has never heard of.
   useEffect(() => {
     const onKey = (event) => {
-      // Escape abandons a drag in progress. Without it the only way out of a
-      // move you did not mean to start is to complete it.
-      if (event.key === "Escape" && dragRef.current?.mode === "move") {
+      const action = canvasKeyAction(event, {
+        dragging: Boolean(dragRef.current),
+        hasCursor: Boolean(cursor),
+      });
+      if (!action) return;
+      if (action.type === "cancel-drag") {
+        // Abandon the move and keep the selection: the part the user grabbed
+        // is still the part they are thinking about.
         dragRef.current = null;
         setMove(null);
+        setMeasure(null);
+        onMeasureChange?.(null);
         return;
       }
-      if (event.key === " " && cursor && document.activeElement?.tagName !== "INPUT") {
+      if (action.type === "delta-origin" && cursor) {
         setDeltaOrigin(cursor);
+        return;
       }
-      if (event.key === "Insert" && cursor) setDeltaOrigin(cursor);
+      if (action.type === "rotate") {
+        // Nothing on this canvas can turn a part yet — the rotate edit lives
+        // in the placement editor, and this canvas has no callback to reach
+        // it. Swallow the key rather than let it scroll the page: a spacebar
+        // that pages the board down mid-drag is worse than one that does
+        // nothing, and silently doing nothing is the misfire class this whole
+        // pass exists to remove. The Properties row and the edit strip both
+        // carry a working ↺/↻ today.
+        event.preventDefault();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cursor]);
+  }, [cursor, onMeasureChange]);
 
   // Leaving move mode must not leave a half-finished drag behind it.
   useEffect(() => {
@@ -951,6 +1054,7 @@ export default function PcbCanvas({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onContextMenu={onContextMenu}
       onPointerCancel={endDrag}
       onPointerLeave={onPointerLeave}
       onDoubleClick={fitToBoard}
