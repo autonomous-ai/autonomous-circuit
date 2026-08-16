@@ -317,15 +317,23 @@ def iou_warnings(
 # ---------------------------------------------------------------------------
 
 
-def run_tscircuit_checks(circuit_json_path: Path) -> list[Warning]:
+def run_tscircuit_checks(
+    circuit_json_path: Path, *, skip: Sequence[str] = ()
+) -> list[Warning]:
     """``runAllChecks`` via the packaged node helper. Findings become
     warnings with kind = the finding's type (severity error — the library
-    only reports genuine DRC failures). Never raises."""
+    only reports genuine DRC failures). Never raises.
+
+    ``skip`` drops named routing checks; only the IDE's sub-second edit gate
+    passes it, and only for ``checkTracesAreContiguous`` (1,491ms of 2,319ms
+    on terminal-keyboard). A build never skips — see the helper's own comment.
+    """
     try:
-        output = toolchain.run_node(
-            [toolchain.helper_js("run_all_checks.cjs"), str(circuit_json_path)],
-            timeout=_CHECKS_TIMEOUT_S,
-        )
+        args = [toolchain.helper_js("run_all_checks.cjs")]
+        if skip:
+            args.append(f"--skip={','.join(skip)}")
+        args.append(str(circuit_json_path))
+        output = toolchain.run_node(args, timeout=_CHECKS_TIMEOUT_S)
         findings = json.loads(output.strip().splitlines()[-1])
         if not isinstance(findings, list):
             return [check_failed("runAllChecks returned a non-list")]
@@ -1024,6 +1032,104 @@ def power_width_warnings(
         return warnings
     except Exception as exc:
         return [check_failed(f"power width scan raised {type(exc).__name__}: {exc}")]
+
+
+def trace_anchor_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
+    """A route that no longer touches the pad it claims to start or end on.
+
+    Written for the IDE's edit loop, and it exists because of a measured hole:
+    connectivity in circuit.json is carried **by id, never by geometry**.
+    ``checkEachPcbPortConnectedToPcbTraces`` walks
+    ``connected_source_port_ids``; ``_connectivity_index`` above keys on
+    ``subcircuit_connectivity_map_key``. Neither ever compares a pad's x/y to a
+    route's endpoint, so moving a part 2mm away from its own copper changes
+    nothing either of them can see.
+
+    Exactly one check in the whole stack notices — @tscircuit/checks'
+    ``checkTracesAreContiguous`` — and it is the single most expensive thing we
+    run: **1,491ms of a 2,319ms node leg** on terminal-keyboard (measured
+    2026-08-16, `each_check.cjs` per-check attribution). That is affordable
+    once per build and not affordable after a drag, which is why this exists as
+    a Python stand-in on the interactive path.
+
+    The rule is the narrowest one that catches the defect: every route point
+    carrying ``start_pcb_port_id``/``end_pcb_port_id`` must land **inside the
+    copper of a pad belonging to that port**. Nothing about widths, nothing
+    about clearances, nothing that duplicates a check we already run.
+
+    **It is a stand-in, not a replacement.** It cannot see a misaligned via, or
+    a trace with no endpoint annotation at all (504 of terminal-keyboard's
+    2,627 route points carry one). ``checkTracesAreContiguous`` stays in the
+    full build; this is what the sub-second gate has instead of it.
+    """
+    try:
+        pads_by_port: dict[str, list[dict]] = {}
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            if element.get("type") not in ("pcb_smtpad", "pcb_plated_hole"):
+                continue
+            port = element.get("pcb_port_id")
+            if isinstance(port, str) and port:
+                pads_by_port.setdefault(port, []).append(element)
+
+        names = _component_names(circuit_json)
+        pad_refdes: dict[str, str] = {}
+        for port, pads in pads_by_port.items():
+            for pad in pads:
+                owner = pad.get("pcb_component_id")
+                if isinstance(owner, str) and owner in names:
+                    pad_refdes[port] = names[owner]
+                    break
+
+        warnings: list[Warning] = []
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "pcb_trace":
+                continue
+            trace_id = str(element.get("pcb_trace_id") or "trace")
+            route = element.get("route")
+            if not isinstance(route, list):
+                continue
+            for point in route:
+                if not isinstance(point, dict):
+                    continue
+                px, py = point.get("x"), point.get("y")
+                if not isinstance(px, (int, float)) or not isinstance(py, (int, float)):
+                    continue
+                for key, end in (("start_pcb_port_id", "starts"),
+                                 ("end_pcb_port_id", "ends")):
+                    port = point.get(key)
+                    if not isinstance(port, str) or not port:
+                        continue
+                    pads = pads_by_port.get(port)
+                    # A port with no pad is a different defect and a different
+                    # check's business; silence here beats a second opinion.
+                    if not pads:
+                        continue
+                    gap = None
+                    for pad in pads:
+                        shape = _pad_copper(pad)
+                        if shape is None:
+                            continue
+                        distance = _copper_gap(shape, float(px), float(py),
+                                               float(px), float(py))
+                        gap = distance if gap is None else min(gap, distance)
+                    if gap is None or gap <= 0.0:
+                        continue
+                    warnings.append(
+                        _warning(
+                            pad_refdes.get(port, "board"),
+                            "trace_left_its_pad",
+                            f"trace {trace_id} {end} {gap:.3f}mm outside the "
+                            f"copper of {port} — the part moved and its route "
+                            "did not follow. The net is still connected in the "
+                            "netlist; it is not connected on the board.",
+                            "error",
+                        )
+                    )
+        return warnings
+    except Exception as exc:
+        return [check_failed(f"trace anchor scan raised {type(exc).__name__}: {exc}")]
 
 
 def _hole_floor(hole: dict, profile: FabProfile) -> float:
