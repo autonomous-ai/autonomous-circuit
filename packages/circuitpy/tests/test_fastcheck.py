@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -92,6 +93,70 @@ def _board(component_x: float = 0.0) -> list[dict]:
             ],
         },
     ]
+
+
+class SeverityAgreementTests(unittest.TestCase):
+    """The gate and the build must not disagree about a board neither changed.
+
+    Two legs report the same finding: `harvest_circuit_json` grades a
+    `pcb_trace_too_long_warning` element from its own suffix, and
+    `run_tscircuit_checks` grades everything `@tscircuit/checks` returns as
+    `error`. The build collects both and ends with `checks.dedupe`, so the
+    harvested `warning` copy is the one that reaches the sidecar. Counting both
+    copies here is what made all three shipped fab-ready boards read `blocked`
+    in the IDE.
+    """
+
+    def _elements(self) -> list[dict]:
+        return [
+            {
+                "type": "pcb_trace_too_long_warning",
+                "pcb_trace_too_long_warning_id": "w0",
+                "message": "PCB trace is 11.51mm long, exceeding the 10mm maximum",
+            },
+        ]
+
+    def test_the_node_leg_cannot_promote_a_finding_the_scan_called_a_warning(self) -> None:
+        elements = self._elements()
+        harvested = checks.harvest_circuit_json(elements)
+        self.assertEqual([w["severity"] for w in harvested], ["warning"])
+
+        # The node leg's copy of the same finding: identical kind, part and
+        # detail, graded `error` the way `run_tscircuit_checks` grades all of
+        # them.
+        node_copy = [dict(harvested[0], severity="error")]
+        original = checks.run_tscircuit_checks
+        checks.run_tscircuit_checks = lambda *_args, **_kwargs: node_copy
+        try:
+            with tempfile.TemporaryDirectory(prefix="fastcheck-severity-") as scratch:
+                path = Path(scratch) / "main.circuit.json"
+                path.write_text(json.dumps(elements), encoding="utf-8")
+                result = fastcheck.fast_check(path, project_root=Path(scratch))
+        finally:
+            checks.run_tscircuit_checks = original
+
+        self.assertEqual(result["counts"]["error"], 0, result["warnings"])
+        self.assertEqual(result["verdict"], "clean")
+        kept = [w for w in result["warnings"] if w["kind"] == "pcb_trace_too_long_warning"]
+        self.assertEqual(len(kept), 1, kept)
+        self.assertEqual(kept[0]["severity"], "warning")
+
+
+    def test_a_project_with_no_bible_still_gets_an_answer(self) -> None:
+        """`load_product` raises on a project with no `product.json`, and the
+        one response a gate may not give is "the answer went away"."""
+        with tempfile.TemporaryDirectory(prefix="fastcheck-no-product-") as scratch:
+            path = Path(scratch) / "main.circuit.json"
+            path.write_text(json.dumps(self._elements()), encoding="utf-8")
+            result = fastcheck.fast_check(path, project_root=Path(scratch), node=False)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["verdict"], "clean")
+        # And it says which leg it lost, in both places a caller reads.
+        self.assertIn("DFM limits: not run (no product.json)", result["checked"])
+        failed = [w for w in result["warnings"] if w["kind"] == "check_failed"]
+        self.assertEqual(len(failed), 1, result["warnings"])
+        self.assertIn("product.json", failed[0]["detail"])
 
 
 class TraceAnchorTests(unittest.TestCase):

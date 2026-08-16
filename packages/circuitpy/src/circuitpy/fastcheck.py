@@ -449,7 +449,20 @@ def fast_check(
     elements, applied = apply_moves(elements, list(moves))
     moved = any(report["ok"] for report in applied)
 
-    product = spec_mod.load_product(root)
+    # `load_product` raises `ProjectShapeError` on a project with no
+    # `product.json`, and this function's contract is that it never raises: the
+    # IDE asks for a verdict on whatever is open, and "the answer went away"
+    # is the one response a gate may not give. A missing bible costs the one
+    # leg that reads it (DFM: envelope, hole-to-copper, power width) and the
+    # cost is reported as a finding rather than swallowed.
+    preface: list[dict] = []
+    try:
+        product = spec_mod.load_product(root)
+    except Exception as exc:  # noqa: BLE001
+        product = None
+        preface.append(checks.check_failed(
+            f"DFM limits not checked: {type(exc).__name__}: {exc}"
+        ))
     profile = fab_mod.get_profile(
         fab if fab is not None else (os.environ.get("CIRCUIT_FAB", "").strip() or "jlcpcb")
     )
@@ -459,7 +472,7 @@ def fast_check(
     # artifact: the catalog scanner and the artifact snapshotter both watch
     # `boards/`, and a scratch file there would fire an `artifact_changed`
     # event and make the workspace refetch a board that never existed.
-    warnings: list[dict] = []
+    warnings: list[dict] = list(preface)
     with tempfile.TemporaryDirectory(prefix="circuit-fastcheck-") as scratch:
         node_input = path
         if moved:
@@ -478,7 +491,8 @@ def fast_check(
             warnings.extend(checks.harvest_circuit_json(elements))
             warnings.extend(checks.schematic_truth_warnings(elements))
             warnings.extend(checks.iou_warnings(elements, profile))
-            warnings.extend(checks.dfm_warnings(elements, product, profile))
+            if product is not None:
+                warnings.extend(checks.dfm_warnings(elements, product, profile))
             warnings.extend(checks.trace_anchor_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
@@ -486,6 +500,26 @@ def fast_check(
                 )
             )
             warnings.extend(pending.result())
+
+    # Same finding, two legs, two severities — and without this the IDE
+    # disagrees with the build about a board neither of them changed.
+    #
+    # `harvest_circuit_json` reads a `pcb_trace_too_long_warning` element and
+    # grades it `warning` from its own suffix; `run_tscircuit_checks` reports
+    # the identical finding from `@tscircuit/checks` and grades everything it
+    # returns `error`. `generation._scan` collects both too and ends with
+    # `checks.dedupe`, whose first-occurrence-wins keeps the harvested copy —
+    # which is why harness-puck's sidecar carries those two findings at
+    # `warning` and `fab.ready: true`. This leg was counting both copies, so
+    # the same artifact came back `blocked`, with two "errors" whose own kind
+    # ends in `_warning`, on all three shipped boards (measured 2026-08-16
+    # through `board_fast_check`: harness-puck 2, hydrate-coaster 1,
+    # terminal-keyboard 1).
+    #
+    # Deduping here rather than re-grading anything: the ordering that decides
+    # which copy survives is the build's, and one policy in two places is the
+    # bug, not the fix.
+    warnings = checks.dedupe(warnings)
 
     counts = {"error": 0, "warning": 0, "info": 0}
     for warning in warnings:
@@ -506,7 +540,8 @@ def fast_check(
             "circuit.json element scan",
             "schematic truth",
             "footprint IoU bands",
-            "DFM limits (hole-to-copper, power width, board envelope)",
+            "DFM limits (hole-to-copper, power width, board envelope)"
+            if product is not None else "DFM limits: not run (no product.json)",
             "trace anchors (a part that left its copper)",
             "verifylib: assembly, netclass, dc, review, thermal",
             f"@tscircuit/checks minus {', '.join(SKIPPED_NODE_CHECKS)}"
