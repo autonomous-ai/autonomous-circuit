@@ -35,8 +35,28 @@ see, so it would route straight through the pair. The other hook, ``<tracehint>`
 only reaches connections built from two-port ``source_trace`` rows; D+/D- reach
 the MCU through a *net*, and net connections never get hint points inserted.
 
-**So the pair is routed after the autorouter, in the space its own detour
-frees.** The old copper is deleted first, which is what makes room: a 51.71 mm
+**But the corridor CAN be reserved, and that is the way out for the boards
+this pass refuses.** Measured in the bundle 2026-08-16, correcting what the
+paragraph above used to imply: the obstacle builder has an explicit
+``element.type === "pcb_keepout"`` branch that pushes an oval or a rect with
+``connectedTo: []``, and the same for ``pcb_cutout``. A keepout is not copper,
+so nothing has to be deleted from the output — the autorouter simply refuses to
+enter it, and the pair pass can then lay its two legs in a channel that is
+guaranteed clear instead of hunting for one in the leftovers. The pair's
+endpoints are known at *placement* time, before any routing happens, so the
+reservation costs no extra build. That is what `harness-puck` and
+`terminal-keyboard` need, and it is the concrete shape of what
+`pipeline-v2.md` calls the v2 route stage.
+
+(The earlier reading of this file listed the obstacle set as components, pads,
+holes, vias and cutouts, and concluded that nothing could be reserved. That
+list is `getSimpleRouteJsonFromCircuitJson`'s *pre-filter*, not the obstacle
+builder, and it is why this pass shipped believing it had no option. The
+`pcb_trace` half of the claim stands: copper laid before the autorouter is
+still copper it routes straight through.)
+
+**As shipped today the pair is routed after the autorouter, in the space its
+own detour frees.** The old copper is deleted first, which is what makes room: a 51.71 mm
 wander vacates far more board than a 23 mm pair needs. Then one A* search finds
 the pair's **centreline** through a mask dilated by half the pair's span plus
 clearance, so both tracks are clear by construction, and the two tracks are that

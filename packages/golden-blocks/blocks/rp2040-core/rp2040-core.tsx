@@ -243,12 +243,21 @@ export const Rp2040Core = (props: {
           against the 0.09 floor, 5/5 gauntlet runs, identical to the micron;
           the 4-tie shape routes clean. Same-group ties are safe under the
           confirmed {1,2}/{3,4} pairing (LCSC symbol for C318884, 2026-08-15;
-          first-article continuity is still the final check), and the
-          declared internallyConnectedPins keeps the schematic truthful —
-          the ties fold into the symbol instead of drawing as a short. */}
+          first-article continuity is still the final check).
+
+          But the ties are declared through a NAMED NET, never pin-to-pin.
+          `internallyConnectedPins` was supposed to fold them into the symbol;
+          measured on the 2026-08-16 export it does that for the 50 keys and
+          not for these two, and `schematic_symbol_short` still fired on SW2
+          and SW3 on all three boards — the exact wire the EE read as a dead
+          button. A trace between two pins of one symbol is what gets drawn as
+          a loop across the contacts; two traces to the same net are drawn as
+          two labels. Identical copper, identical connectivity, and nothing
+          for a reviewer to misread. */}
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
-      <trace name={`TR_R13_sw`} from=".R13 > .pin2" to=".SW2 > .pin1" />
-      <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to=".SW2 > .pin1" />
+      <trace name={`TR_R13_sw`} from=".R13 > .pin2" to="net.BOOTSEL_SW" />
+      <trace name={`TR_SW2_p1`} from=".SW2 > .pin1" to="net.BOOTSEL_SW" />
+      <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to="net.BOOTSEL_SW" />
       <trace name={`TR_SW2_p3`} from=".SW2 > .pin3" to="net.GND" />
       <trace name={`TR_SW2_p4`} from=".SW2 > .pin4" to="net.GND" />
 
@@ -260,9 +269,10 @@ export const Rp2040Core = (props: {
         internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-15.5} schX={-14} schY={-10} />
       <trace name={`TR_R12_v`} from=".R12 > .pin1" to="net.V3_3" />
-      <trace name={`TR_R12_run`} from=".R12 > .pin2" to={`.${u} > .RUN`} />
-      <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to={`.${u} > .RUN`} />
-      <trace name={`TR_SW3_p2`} from=".SW3 > .pin2" to={`.${u} > .RUN`} />
+      <trace name={`TR_U_run`} from={`.${u} > .RUN`} to="net.RUN_SW" />
+      <trace name={`TR_R12_run`} from=".R12 > .pin2" to="net.RUN_SW" />
+      <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to="net.RUN_SW" />
+      <trace name={`TR_SW3_p2`} from=".SW3 > .pin2" to="net.RUN_SW" />
       <trace name={`TR_SW3_p3`} from=".SW3 > .pin3" to="net.GND" />
       <trace name={`TR_SW3_p4`} from=".SW3 > .pin4" to="net.GND" />
 

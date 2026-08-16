@@ -15,6 +15,8 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
+import os
 import re
 import zipfile
 from dataclasses import dataclass
@@ -416,14 +418,49 @@ def bom_summary(rows: list[dict]) -> dict[str, object]:
 
 
 
+def catalog_root() -> Path | None:
+    """Where the JLCPCB catalog mirror actually is, or None.
+
+    This used to be one hard-coded ``parents[4]`` hop, and it was wrong
+    everywhere it mattered. In the repo, ``packages/circuitpy/src/circuitpy/``
+    is four levels below the root; in the runtime a build actually uses,
+    ``skills/circuitcode/scripts/packages/circuitpy/`` is four levels below
+    *skills*, so the same expression pointed at ``skills/packages/...``, which
+    has never existed. The catalog came back empty, the Footprint column went
+    out blank on every BOM of every board, and nothing anywhere said so —
+    ledger #42's class again: a path counted in ``parents`` is a path that
+    breaks the moment the file is vendored somewhere else.
+
+    So: look for the directory instead of computing it, and let the caller say
+    when it is missing rather than shipping a blank column as if it were an
+    answer.
+    """
+    override = os.environ.get("CIRCUIT_PARTS_CATALOG")
+    candidates = [Path(override)] if override else []
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidates.append(parent / "packages" / "parts-catalog" / "catalog")
+        candidates.append(parent / "parts_catalog" / "catalog")
+    for candidate in candidates:
+        try:
+            if candidate.is_dir() and any(candidate.glob("*.json")):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def _catalog_packages() -> dict[str, str]:
     """LCSC number -> package string, from the local JLCPCB catalog mirror.
 
-    Authoritative, unlike inferring a package from copper. Missing catalog is
-    not an error — the columns simply stay blank, which is the honest answer.
+    Authoritative, unlike inferring a package from copper: the first attempt
+    measured the placed footprint and read every 0402 as an 0603, because land
+    patterns are larger than the bodies they name.
     """
-    root = Path(__file__).resolve().parents[4] / "packages" / "parts-catalog" / "catalog"
+    root = catalog_root()
     out: dict[str, str] = {}
+    if root is None:
+        return out
     try:
         files = sorted(root.glob("*.json"))
     except OSError:
@@ -482,8 +519,34 @@ def describe_components(circuit_json: "Sequence[dict]") -> dict[str, dict]:
             comment = f"{float(src['frequency']) / 1e6:g}MHz"
         if not comment:
             comment = str(src.get("ftype") or "").replace("simple_", "").replace("_", " ")
-        out[name] = {"comment": str(comment)}
+        out[name] = {
+            "comment": str(comment),
+            "placeable": _is_placeable(src),
+        }
     return out
+
+
+#: Things that appear in the design as components but cannot be bought or
+#: placed. A test point is bare copper with a name; it has no body, no
+#: package, and no LCSC number, and handing it to JLC means three red lines in
+#: the parts-match table that the user has to work out how to dismiss.
+_UNPLACEABLE_FTYPES = frozenset({"simple_test_point", "simple_fiducial"})
+
+
+def _is_placeable(source_component: dict) -> bool:
+    """Whether an assembler could pick this part and put it down.
+
+    Deliberately narrow: only the shapes that are *definitionally* bare copper
+    are excluded. "It has no part number" is not the test — a real part
+    somebody has not sourced yet still belongs on the BOM, showing red, so
+    they go and source it. Dropping those would hide the shortfall instead of
+    reporting it, which is the failure mode this whole packet exists to avoid.
+    """
+    ftype = str(source_component.get("ftype") or "")
+    if ftype not in _UNPLACEABLE_FTYPES:
+        return True
+    supplier = source_component.get("supplier_part_numbers") or {}
+    return bool(supplier) or bool(source_component.get("manufacturer_part_number"))
 
 
 def write_bom_csv(
@@ -503,6 +566,13 @@ def write_bom_csv(
         writer.writerow(profile.bom_columns)
         described = described or {}
         packages = _catalog_packages()
+        # Bare copper never reaches the fab's parts-match table (see
+        # `_is_placeable`). Dropped before grouping, so a group is never split
+        # across the boundary.
+        rows = [
+            row for row in rows
+            if described.get(row["designator"], {}).get("placeable", True)
+        ]
         for row in group_bom_rows(rows):
             # A grouped row's designators are all the same part, so the first
             # one describes the line.
@@ -525,8 +595,34 @@ def write_cpl_csv(exporter_cpl_text: str, path: Path, profile: FabProfile) -> Pa
         writer = csv.writer(handle)
         writer.writerow(profile.cpl_columns)
         for raw in reader:
-            writer.writerow([(raw.get(column) or "").strip() for column in profile.cpl_columns])
+            writer.writerow([
+                _cpl_cell(column, (raw.get(column) or "").strip())
+                for column in profile.cpl_columns
+            ])
     return path
+
+
+def _cpl_cell(column: str, value: str) -> str:
+    """One CPL field, tidied.
+
+    Rotation only. harness-puck shipped ``202.49999999999994`` for a part
+    placed at 202.5 degrees — binary floating point arriving in a file a human
+    reads and a machine parses. It places identically either way, but a
+    reviewer who sees fourteen decimal places on an angle stops trusting every
+    other number in the packet, and they are right to: a number printed to
+    more precision than it was measured with is a claim nobody made. Wrapped
+    into [0, 360) and printed to 4 decimals, which is finer than any
+    pick-and-place resolves.
+    """
+    if column != "Rotation":
+        return value
+    try:
+        angle = float(value)
+    except (TypeError, ValueError):
+        return value
+    if not math.isfinite(angle):
+        return value
+    return f"{round(angle % 360.0, 4):g}"
 
 
 def repackage_gerbers(source_zip: Path, dest_zip: Path) -> Path:

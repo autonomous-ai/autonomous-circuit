@@ -29,7 +29,7 @@ import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
 import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
 import { StatusLed } from "../blocks/status-led/status-led"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
-import { MountingHole } from "../blocks/glue"
+import { GndPour, MountingHole } from "../blocks/glue"
 
 /** Key pitch, millimetres. 10mm is the tightest the TS-1187A land pattern
  *  (dfn4_p3.6998mm_w7mm_pw0.75mm, 7.9mm across the pads) allows while still
@@ -329,5 +329,21 @@ export default () => (
       fontSize="1.4mm"
       anchorAlignment="center"
     />
+
+    {/* Ground plane on the bottom layer.
+
+        Three of the EE's findings are the same missing thing (review
+        2026-08-15). GND was routed as 0.2mm track, the same copper as a key
+        signal — a plane is what a rail's current path is supposed to be, and
+        a poured net is exempt from the width rule for that reason. The USB
+        pair had 0% reference: a differential pair over no plane has undefined
+        impedance and its return current goes wherever it can. And the copper
+        read as "messy" partly because every ground return was drawn as one
+        more line competing for the same channels.
+
+        GndPour, not a bare <copperpour>: the pour solver draws every round
+        obstacle as a 32-gon, so a nominal margin measures short at the chord
+        midpoints, and this board has six drills (ledger #2). */}
+    <GndPour layer="bottom" />
   </board>
 )

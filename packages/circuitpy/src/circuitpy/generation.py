@@ -40,6 +40,7 @@ from circuitpy import export_cache
 from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
 from circuitpy import kicad_schematic
+from circuitpy import powerwidth
 from circuitpy import review as review_mod
 from circuitpy import router_bridge
 from circuitpy import spec as spec_mod
@@ -149,6 +150,7 @@ SEED_ENV = "CIRCUIT_DETERMINISTIC_SEED"
 #: the same way the other stages are, because a pass that cannot be turned off
 #: cannot be measured against its own absence.
 DIFFPAIR_ENV = "CIRCUIT_DIFFPAIR"
+POWERWIDTH_ENV = "CIRCUIT_POWERWIDTH"
 PRELOAD_REL = ("determinism", "deterministic-run.mjs")
 #: The line the preload writes to stderr when it actually seeds. Kept in step
 #: with ``DETERMINISM_MARKER`` in ``deterministic-run.mjs``; a test pins that
@@ -325,6 +327,15 @@ def _routing_blockers(warnings: Sequence[dict]) -> list[dict]:
 
 def _diffpair_off() -> bool:
     return (os.environ.get(DIFFPAIR_ENV) or "").strip().lower() in {
+        "off",
+        "0",
+        "false",
+        "no",
+    }
+
+
+def _powerwidth_off() -> bool:
+    return (os.environ.get(POWERWIDTH_ENV) or "").strip().lower() in {
         "off",
         "0",
         "false",
@@ -902,6 +913,7 @@ def build_board(
     #: one whose repair gets reported. Escalation can throw an attempt away.
     circuit_normalizations: list[circuit_normalize.CircuitNormalization] = []
     diffpair_results: list[diffpair.DiffPairResult] = []
+    powerwidth_results: list[powerwidth.WidenResult] = []
     #: Stage 0b, one entry per compile attempt. Empty engine="off" rows are
     #: dropped from the sidecar; a stage that did nothing should not be noise.
     router_reports: list[dict] = []
@@ -996,6 +1008,26 @@ def build_board(
             diffpair_results.append(
                 diffpair.route_diff_pairs(
                     built_circuit_json, profile, grade=_grade
+                )
+            )
+        # Stage 0d: give the power and ground rails the copper their class
+        # deserves. EE review 2026-08-15, finding 4 — the autorouter has one
+        # width for the whole board, so a rail carrying everything gets the
+        # same 0.2mm as a button. This never moves a trace; it only takes the
+        # gap the router already left, and it is graded by the same gate as
+        # the pair pass. After 0c on purpose: the pair's geometry is a
+        # clearance rule the widening has to respect, not the other way round.
+        if not _powerwidth_off():
+            def _grade_power(elements: list, at: Path) -> list[dict]:
+                found: list[dict] = []
+                found.extend(checks.harvest_circuit_json(elements))
+                found.extend(checks.run_tscircuit_checks(at))
+                found.extend(checks.dfm_warnings(elements, product, profile))
+                return found
+
+            powerwidth_results.append(
+                powerwidth.widen_power_traces(
+                    built_circuit_json, profile, grade=_grade_power
                 )
             )
         try:
@@ -1169,6 +1201,16 @@ def build_board(
         for note in paired.notes:
             warnings.append(checks.check_failed(note))
 
+    # What the widening pass did to the attempt this build keeps. Reported on
+    # success as well as refusal: "GND is 0.5mm for 26% of its run" is the
+    # number a reviewer needs, and `dfm_power_trace_width` cannot carry it —
+    # that check reports the narrowest point, which is a different fact.
+    if powerwidth_results:
+        widened = powerwidth_results[
+            min(kept_attempt, len(powerwidth_results) - 1)
+        ]
+        warnings.extend(widened.findings())
+
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
@@ -1184,6 +1226,10 @@ def build_board(
     if diffpair_results:
         build_block["diffPair"] = diffpair_results[
             min(kept_attempt, len(diffpair_results) - 1)
+        ].as_dict()
+    if powerwidth_results:
+        build_block["powerWidth"] = powerwidth_results[
+            min(kept_attempt, len(powerwidth_results) - 1)
         ].as_dict()
 
     tool_versions = toolchain.versions()
@@ -1443,6 +1489,25 @@ def build_board(
                 profile,
                 described=fab_mod.describe_components(circuit_json),
             )
+            # A blank column is indistinguishable from "we do not know", and
+            # that is how every BOM this project ever shipped went out with an
+            # empty Footprint: the runtime that builds boards resolved the
+            # catalog to a directory that does not exist, and silence read as
+            # an answer. Say it out loud instead.
+            if fab_mod.catalog_root() is None:
+                warnings.append({
+                    "part": "bom.csv",
+                    "kind": "bom_catalog_missing",
+                    "detail": (
+                        "the JLCPCB parts catalog was not found, so the BOM's "
+                        "Footprint column is blank on every line. JLC's "
+                        "parts-match table uses that column to cross-check the "
+                        "part number against what the designer thought they "
+                        "were buying. Set CIRCUIT_PARTS_CATALOG, or re-run "
+                        "scripts/build/build-skill-runtimes.sh"
+                    ),
+                    "severity": "warning",
+                })
         if product.assembly and cpl_text:
             cpl_path = fab_mod.write_cpl_csv(cpl_text, fab_dir / profile.cpl_name, profile)
     except OSError as exc:

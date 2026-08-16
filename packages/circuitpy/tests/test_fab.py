@@ -148,6 +148,66 @@ class PacketWriters(unittest.TestCase):
             b",TP2,,\r\n",
         )
 
+    def test_bare_copper_never_reaches_the_parts_match_table(self) -> None:
+        """EE review follow-up: TP1/TP2/TP3 shipped as three BOM lines with no
+        part number — three red rows in JLC's matcher that the user has to work
+        out how to dismiss. A test point is copper with a name; there is
+        nothing to buy."""
+        rows = [
+            {"designator": "R1", "comment": "1k", "value": "",
+             "footprint": "0402", "lcsc": "C11702"},
+            {"designator": "TP1", "comment": "test point", "value": "",
+             "footprint": "", "lcsc": ""},
+        ]
+        described = {
+            "R1": {"comment": "1k", "placeable": True},
+            "TP1": {"comment": "test point", "placeable": False},
+        }
+        path = fab.write_bom_csv(
+            rows, self.dir / "bom.csv", PROFILE, described=described,
+        )
+        self.assertEqual(
+            path.read_bytes(),
+            b"Comment,Designator,Footprint,LCSC Part #\r\n1k,R1,0402,C11702\r\n",
+        )
+
+    def test_an_unsourced_real_part_stays_on_the_bom_showing_red(self) -> None:
+        """The exclusion is narrow on purpose. "No part number" is not the
+        test — a real part nobody has sourced yet belongs on the BOM so the
+        shortfall is visible. Dropping it would hide exactly what the packet
+        exists to report."""
+        rows = [{"designator": "U9", "comment": "some-mcu", "value": "",
+                 "footprint": "QFN-32", "lcsc": ""}]
+        described = {"U9": {"comment": "some-mcu", "placeable": True}}
+        path = fab.write_bom_csv(
+            rows, self.dir / "bom.csv", PROFILE, described=described,
+        )
+        self.assertIn(b"U9", path.read_bytes())
+
+    def test_the_catalog_is_found_from_the_vendored_runtime_too(self) -> None:
+        """The bug this pins: `catalog_root` was one hard-coded `parents[4]`
+        hop, correct in the repo and wrong in `skills/circuitcode/scripts/
+        packages/circuitpy/` — the runtime that actually builds boards. It
+        resolved to `skills/packages/parts-catalog/catalog`, which has never
+        existed, so every BOM ever shipped had a blank Footprint column and
+        nothing said so."""
+        self.assertIsNotNone(fab.catalog_root())
+        self.assertTrue(fab._catalog_packages())
+
+    def test_a_rotation_is_not_printed_to_fourteen_decimals(self) -> None:
+        """harness-puck shipped `202.49999999999994`. It places identically,
+        and a reviewer who sees that stops trusting every other number in the
+        packet."""
+        text = (
+            "Designator,Mid X,Mid Y,Layer,Rotation\n"
+            "U1,1.0,2.0,top,202.49999999999994\n"
+            "U2,3.0,4.0,top,-90\n"
+        )
+        path = fab.write_cpl_csv(text, self.dir / "cpl.csv", PROFILE)
+        rows = list(csv.DictReader(io.StringIO(path.read_text())))
+        self.assertEqual(rows[0]["Rotation"], "202.5")
+        self.assertEqual(rows[1]["Rotation"], "270")
+
     def test_cpl_csv_columns_exact(self) -> None:
         path = fab.write_cpl_csv(EXPORTER_CPL, self.dir / "cpl.csv", PROFILE)
         parsed = list(csv.reader(io.StringIO(path.read_text())))

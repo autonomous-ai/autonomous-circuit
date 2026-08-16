@@ -40,7 +40,7 @@ import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
 import { Ws2812Pixel } from "../blocks/ws2812-chain/ws2812-chain"
 import { SwTact } from "../blocks/sw-tact/sw-tact"
 import { StatusLed } from "../blocks/status-led/status-led"
-import { MountingHole } from "../blocks/glue"
+import { GndPour, MountingHole } from "../blocks/glue"
 
 /* ---- ring geometry ------------------------------------------------------ */
 const PIXELS = 8
@@ -272,5 +272,14 @@ export default () => (
     <silkscreentext text="3V3" pcbX={6.5} pcbY={-20.5} fontSize={1} />
     <silkscreentext text="LED3V3" pcbX={-8.5} pcbY={-20.5} fontSize={1} />
     <silkscreentext text="5V" pcbX={12} pcbY={-24.5} fontSize={1} />
+
+    {/* Ground plane on the bottom layer — see the same note on
+        terminal-keyboard. Three of the EE's 2026-08-15 findings are the same
+        missing thing: GND routed as signal-width track, a USB pair with 0%
+        reference plane, and copper that reads as messy because every ground
+        return is one more line in the same channels. GndPour, not a bare
+        <copperpour>: three M2 drills, and the pour solver's 32-gon measures
+        short at the chord midpoints (ledger #2). */}
+    <GndPour layer="bottom" />
   </board>
 )
