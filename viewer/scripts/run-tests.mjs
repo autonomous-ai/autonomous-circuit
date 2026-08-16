@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultTestRoots = [
@@ -62,10 +62,16 @@ if (!tests.length) {
 // stays inside that subset. `--experimental-default-type=module` is not
 // passed: it was removed in Node 23, and the viewer package is already
 // `"type": "module"`, so the default is module regardless.
+// `--import ./scripts/testHooks.mjs` registers the JSX transform and the `@`
+// alias before any test file loads. Plain `.ts` stays with Node's own
+// type-stripping; the hook only claims `.jsx`/`.tsx`, which Node cannot read
+// at all.
 const nodeFlags = [
   "--test",
   "--experimental-strip-types",
   "--no-warnings=ExperimentalWarning",
+  "--import",
+  pathToFileURL(path.join(packageRoot, "scripts", "testHooks.mjs")).href,
 ];
 
 const result = spawnSync(process.execPath, [...nodeFlags, ...tests], {
