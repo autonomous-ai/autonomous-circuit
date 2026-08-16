@@ -26,7 +26,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from circuitpy import toolchain
 from circuitpy.fab import FabProfile
@@ -80,6 +80,16 @@ def _component_names(circuit_json: Sequence[dict]) -> dict[str, str]:
     except Exception:
         pass
     return names
+
+
+def _f(value: Any) -> float | None:
+    """A number, or None. Circuit JSON carries "1.5mm" strings beside floats."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    try:
+        return float(str(value).strip().removesuffix("mm"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _localize(element: dict, names: dict[str, str]) -> str:
@@ -1032,6 +1042,129 @@ def power_width_warnings(
         return warnings
     except Exception as exc:
         return [check_failed(f"power width scan raised {type(exc).__name__}: {exc}")]
+
+
+def board_outline_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
+    """Copper that has left the board, on a board whose edge is not a rectangle.
+
+    The Python stand-in for ``@tscircuit/checks``' ``checkPcbComponentsOutOfBoard``
+    on the interactive path, and it exists for one measurement. Timed per check
+    on the three shipped boards (2026-08-16, `work/fastcheck-timing/timecheck4.cjs`):
+
+        board              outline vertices    checkPcbComponentsOutOfBoard
+        harness-puck                  2,205                       5,368 ms
+        hydrate-coaster               1,013                       1,523 ms
+        terminal-keyboard      none (a rect)                          49 ms
+
+    The cost is not the part count — terminal-keyboard has 137 components to
+    harness-puck's 61 — it is the **board outline**, which tscircuit emits as a
+    polygon of a couple of thousand points for anything with a radius on it. A
+    round board therefore cost five seconds of a gate that promises an answer
+    between a mouse-up and the next frame, and it was 84% of the whole answer.
+
+    Same defect, same severity, from the same geometry: every pad, hole and via
+    corner is tested against the outline by ray casting, after a bounding-box
+    reject that removes almost everything. ``dfm_edge_clearance`` already
+    covers the *rectangular* case (it measures against the board's bounding
+    box), so this is only ever the extra that a curved edge needs.
+
+    Never raises.
+    """
+    try:
+        board = next(
+            (
+                e
+                for e in circuit_json
+                if isinstance(e, dict) and e.get("type") == "pcb_board"
+            ),
+            None,
+        )
+        if board is None:
+            return []
+        outline = board.get("outline")
+        if not isinstance(outline, list) or len(outline) < 3:
+            # A rectangle. `dfm_edge_clearance` measures against the same
+            # rectangle and reports it in the fab's own language, so repeating
+            # it here would be two findings for one defect.
+            return []
+        polygon: list[tuple[float, float]] = []
+        for point in outline:
+            if not isinstance(point, dict):
+                continue
+            x, y = _f(point.get("x")), _f(point.get("y"))
+            if x is None or y is None:
+                continue
+            polygon.append((x, y))
+        if len(polygon) < 3:
+            return []
+        xs = [p[0] for p in polygon]
+        ys = [p[1] for p in polygon]
+        bounds = (min(xs), min(ys), max(xs), max(ys))
+
+        names = _component_names(circuit_json)
+        warnings: list[Warning] = []
+        seen: set[str] = set()
+        for element in circuit_json:
+            if not isinstance(element, dict):
+                continue
+            etype = element.get("type")
+            if etype not in ("pcb_smtpad", "pcb_via", "pcb_plated_hole", "pcb_hole"):
+                continue
+            x, y = _f(element.get("x")), _f(element.get("y"))
+            if x is None or y is None:
+                continue
+            half_w = (_f(element.get("width")) or _f(element.get("outer_diameter")) or 0.0) / 2
+            half_h = (_f(element.get("height")) or _f(element.get("outer_diameter")) or 0.0) / 2
+            corners = [
+                (x + sx * half_w, y + sy * half_h)
+                for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+            ] or [(x, y)]
+            outside = [c for c in corners if not _inside_polygon(c, polygon, bounds)]
+            if not outside:
+                continue
+            part = _localize(element, names)
+            if part in seen:
+                continue
+            seen.add(part)
+            far = max(outside, key=lambda c: abs(c[0] - x) + abs(c[1] - y))
+            warnings.append(
+                _warning(
+                    part,
+                    "component_outside_board",
+                    f"copper at ({far[0]:.3f}, {far[1]:.3f}) is outside the board outline",
+                    "error",
+                )
+            )
+        return warnings
+    except Exception as exc:  # noqa: BLE001
+        return [check_failed(f"board outline scan raised {type(exc).__name__}: {exc}")]
+
+
+def _inside_polygon(
+    point: tuple[float, float],
+    polygon: Sequence[tuple[float, float]],
+    bounds: tuple[float, float, float, float],
+) -> bool:
+    """Ray casting, with the bounding box in front of it.
+
+    The box rejects everything on a board where nothing has moved, which is the
+    common case by far; the ray only runs for copper near or past the edge.
+    """
+    x, y = point
+    if x < bounds[0] or x > bounds[2] or y < bounds[1] or y > bounds[3]:
+        return False
+    inside = False
+    count = len(polygon)
+    j = count - 1
+    for i in range(count):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        if (yi > y) != (yj > y):
+            span = yj - yi
+            if span != 0 and x < xi + (y - yi) * (xj - xi) / span:
+                inside = not inside
+        j = i
+    return inside
 
 
 def trace_anchor_warnings(circuit_json: Sequence[dict]) -> list[Warning]:

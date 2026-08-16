@@ -42,13 +42,36 @@ try {
 
 const checks = require("@tscircuit/checks")
 
-// The routing group is the only one reassembled by hand, because it is the only
-// one that has to be: `checkTracesAreContiguous` lives in it, and every one of
-// its ten members is exported. The other three groups are called as the library
-// composes them — `runAllPlacementChecks` reaches an internal
-// `checkCourtyardOverlap` that is NOT exported, and that check is precisely the
-// one that catches a dragged part landing on its neighbour, so hand-rolling the
-// placement group would have silently dropped the finding this gate is for.
+// Two groups are reassembled by hand, because two of them have to be. Both
+// lists are the exported members of the group, in the library's own order.
+//
+// The routing group holds `checkTracesAreContiguous` (1,491ms of a 2,319ms leg
+// on terminal-keyboard). The placement group holds `checkPcbComponentsOutOfBoard`,
+// which costs **5,368ms on harness-puck and 49ms on terminal-keyboard** — not
+// part count (61 components against 137) but the board *outline*, which
+// tscircuit emits as 2,205 points for a round board and omits entirely for a
+// rectangle. `circuitpy.checks.board_outline_warnings` does the same
+// containment test by ray casting in 194ms.
+//
+// An earlier version of this comment said the placement group could not be
+// composed because it reaches an internal `checkCourtyardOverlap` that is not
+// exported. Measured instead of assumed (2026-08-16, `work/fastcheck-timing/verifygroup.cjs`,
+// against `runAllPlacementChecks` on the shipped boards AND on deliberately
+// broken copies where the answer is not empty): **31 of 31 and 125 of 125
+// findings, byte-identical, nothing missing and nothing extra**. If a future
+// version of the library adds a member that is not exported, that script is how
+// you find out.
+const PLACEMENT_CHECKS = [
+  "checkPcbComponentOverlap",
+  "checkPadPadClearance",
+  "checkPcbComponentsOutOfBoard",
+  "checkViasInPads",
+  "checkViasOffBoard",
+  "checkConnectorAccessibleOrientation",
+  "checkTestPointAccessibility",
+  "checkSourceTracesMatchPcbTraceThickness",
+]
+
 const ROUTING_CHECKS = [
   "checkEachPcbPortConnectedToPcbTraces",
   "checkSourceTracesHavePcbTraces",
@@ -67,18 +90,14 @@ async function run() {
     return await checks.runAllChecks(circuitJson)
   }
   const findings = []
-  for (const group of [
-    checks.runAllPlacementChecks,
-    checks.runAllNetlistChecks,
-    checks.runAllPinSpecificationChecks,
-  ]) {
+  for (const group of [checks.runAllNetlistChecks, checks.runAllPinSpecificationChecks]) {
     findings.push(...(await group(circuitJson)))
   }
-  for (const name of ROUTING_CHECKS) {
+  for (const name of [...PLACEMENT_CHECKS, ...ROUTING_CHECKS]) {
     if (skip.has(name)) continue
     const check = checks[name]
     if (typeof check !== "function") continue
-    findings.push(...(check(circuitJson) || []))
+    findings.push(...((await check(circuitJson)) || []))
   }
   return findings
 }
@@ -86,7 +105,7 @@ async function run() {
 // A name in --skip that no group owns would silently do nothing, and a gate
 // that quietly runs a check it promised to drop is a gate that lies about its
 // own latency. Refuse instead.
-const skippable = new Set(ROUTING_CHECKS)
+const skippable = new Set([...PLACEMENT_CHECKS, ...ROUTING_CHECKS])
 for (const name of skip) {
   if (!skippable.has(name)) {
     process.stderr.write(`--skip does not know ${name}\n`)

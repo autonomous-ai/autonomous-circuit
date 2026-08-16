@@ -19,14 +19,32 @@ Three things make that answer honest rather than merely fast.
    result, not a footnote in the UI. Nothing here sees the copper pour, the fab
    packet, or what the router will do on the next build, and the caller is
    given those words to print.
-3. **It has a stand-in for the one check it drops.** ``checkTracesAreContiguous``
-   is the only thing in the whole stack that notices a part has left its copper,
-   and it costs 1,491ms. ``checks.trace_anchor_warnings`` catches the same
-   defect in 3.8ms; the node leg runs without it.
+3. **It has a stand-in for every check it drops.** Two are dropped, both
+   because they are the long pole on some board, and each has a Python
+   replacement measured against the same geometry:
 
-Measured on ``examples/terminal-keyboard`` (5,463 elements) — see the module
-test and the numbers in the commit message. The Python leg and the node leg run
-concurrently because neither touches the other's data.
+   - ``checkTracesAreContiguous`` is the only thing in the whole stack that
+     notices a part has left its copper, and costs **1,491ms** on
+     terminal-keyboard. ``checks.trace_anchor_warnings`` catches the same
+     defect in **3.8ms**.
+   - ``checkPcbComponentsOutOfBoard`` costs **5,368ms on harness-puck** — 84%
+     of that board's whole answer — against 49ms on terminal-keyboard. Not part
+     count (61 components against 137): the *board outline*, which tscircuit
+     emits as 2,205 points for a round board and omits for a rectangle.
+     ``checks.board_outline_warnings`` ray-casts the same containment in
+     **194ms**.
+
+**The whole answer, on all three shipped boards, warm** (2026-08-16, this
+module, `--disable-parts-engine` not involved — the gate never resolves parts):
+
+    harness-puck        6,332ms -> 726ms   (70x70 round, 2,442 elements)
+    hydrate-coaster     2,009ms -> 455ms   (80x80 squircle, 1,835 elements)
+    terminal-keyboard   1,949ms -> 753ms   (100x90 rect, 5,463 elements)
+
+All three boards, not the flattering one: an earlier version of this docstring
+quoted terminal-keyboard alone, which was the only board the promise held on.
+The Python leg and the node leg run concurrently because neither touches the
+other's data.
 
 CLI (one JSON line on stdout, last line wins — the house convention):
 
@@ -53,7 +71,7 @@ from circuitpy import checks, fab as fab_mod, spec as spec_mod, verify_bridge
 #: The check dropped from the node leg, and the reason it is affordable to drop.
 #: Kept as a constant because two places have to agree about it: the node
 #: invocation and the `checked`/`not_checked` bookkeeping the UI prints.
-SKIPPED_NODE_CHECKS = ("checkTracesAreContiguous",)
+SKIPPED_NODE_CHECKS = ("checkTracesAreContiguous", "checkPcbComponentsOutOfBoard")
 
 #: Anchor keying, to 0.1µm. Identical to `KEY` in `boardSource.js:436` — a
 #: placement binds to geometry by exact arithmetic or it does not bind, and the
@@ -494,6 +512,7 @@ def fast_check(
             if product is not None:
                 warnings.extend(checks.dfm_warnings(elements, product, profile))
             warnings.extend(checks.trace_anchor_warnings(elements))
+            warnings.extend(checks.board_outline_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
                     node_input, profile=profile, assembly_order=True
@@ -543,6 +562,7 @@ def fast_check(
             "DFM limits (hole-to-copper, power width, board envelope)"
             if product is not None else "DFM limits: not run (no product.json)",
             "trace anchors (a part that left its copper)",
+            "board outline (copper past a curved edge)",
             "verifylib: assembly, netclass, dc, review, thermal",
             f"@tscircuit/checks minus {', '.join(SKIPPED_NODE_CHECKS)}"
             if node else "@tscircuit/checks: not run",
