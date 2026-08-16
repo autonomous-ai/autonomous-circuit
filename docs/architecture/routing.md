@@ -566,11 +566,34 @@ and it lands the board with **7 vias against the incumbent's 16** at 3% more
 copper. That is the first end-to-end board where our router is straightforwardly
 better through the gate that ships boards.
 
-Read the gate for what it is: it compares **net count**, not legality. It
-guarantees the router can never cost a connection and guarantees nothing about
-the copper it accepts. That is only safe to lean on because legality is now
-measured at zero over 12 real boards and 3 example boards — the day that stops
-being true, the gate will not catch it.
+One cell is an anecdote, so all ten composition cells were built twice through
+the real pipeline, `CIRCUIT_ROUTER` off and `CIRCUIT_ROUTER=portfolio`
+(`gate-matrix-2026-08-16.json`):
+
+| | off | gated on |
+|---|---|---|
+| `fab.ready` | 6/10 | **6/10** |
+| blocking findings | 0 | **0** |
+| our copper kept | — | 5/10 |
+| router wall clock | — | 98.5s total, 21.7s worst |
+
+**Turning it on changes no board's verdict and adds no finding.** The gate
+declined our copper on exactly the five cells where it would have cost a net
+(`ours connects 15/17 nets against the autorouter's 17`) and kept it on the
+five where the count held. Where it was kept, vias mostly fall — 16 → 7 on
+`ldo-3v3__usb-c-power`, 40 → 36 on `rp2040-core__sw-tact`, 8 → 7 on
+`status-led__ws2812-chain` — and on `i2c-bus` they rise from 0 to 2.
+
+That last one is the honest reading of the gate: it compares **net count**, not
+legality and not quality. It guarantees the router can never cost a connection
+and guarantees nothing about the copper it accepts. Leaning on it is only safe
+because legality is now measured at zero over 12 real boards and 3 example
+boards — the day that stops being true, the gate will not catch it.
+
+**So: `CIRCUIT_ROUTER=portfolio` is safe to enable and buys via count, not
+fab-ready rate.** 6/10 either way. It is not the thing that makes a board
+shippable, and turning it on should not be read as one. `portfolio-force`
+stays measurement-only until completeness closes.
 
 ## What is still worse than the incumbent, said plainly
 
