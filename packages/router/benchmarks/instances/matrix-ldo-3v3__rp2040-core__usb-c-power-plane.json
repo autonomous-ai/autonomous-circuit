@@ -13,7 +13,7 @@
   ],
   "variant": "synthetic ground plane, bottom layer"
  },
- "placementHash": "9e5a322b9f85",
+ "placementHash": "d3146f582011",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -724,9 +724,9 @@
    "id": "pcb_smtpad_127",
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2",
    "x": -4.949955999999999,
-   "y": -15.605957,
-   "w": 0.5999733999999997,
-   "h": 1.3001751999999982,
+   "y": -15.605955999999999,
+   "w": 0.5999730000000003,
+   "h": 1.3001749999999994,
    "layers": [
     "top"
    ],
@@ -777,7 +777,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net2",
    "x": 1.450006,
    "y": -15.605855,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999720000000003,
    "layers": [
     "top"
@@ -821,7 +821,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
    "x": 0.65016,
    "y": -15.605855,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999720000000003,
    "layers": [
     "top"
@@ -884,8 +884,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net0",
    "x": -4.149957,
    "y": -15.60602,
-   "w": 0.5999733999999997,
-   "h": 1.2999974000000005,
+   "w": 0.5999739999999996,
+   "h": 1.2999969999999994,
    "layers": [
     "top"
    ],

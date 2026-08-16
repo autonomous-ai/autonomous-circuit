@@ -11,6 +11,106 @@ buys almost nothing; composing several buys 4 percentage points of
 completeness — and neither gets a board to the fab-ready bar, where the shipped
 autorouter still beats us on all three example boards.**
 
+> **Read the ruler before the numbers.** Everything in this document below
+> *The pad model* was measured against ruler `b3c77d55b171`, which modelled
+> every rectangular pad and keepout as its inscribed stadium. That model was
+> wrong by 0.21mm on a 1.0mm pad against a 0.09mm gate, and it is why the
+> harness ranking and the pipeline ranking disagreed. It was replaced on
+> 2026-08-16 (`56d69c365a72`). **The old tables are kept, not corrected**: they
+> are what that instrument said, and re-labelling them would hide the size of
+> the error. The corrected numbers are in the next section, and they are a new
+> baseline — not an improvement and not a regression.
+
+---
+
+## The pad model: a rectangle is a rectangle now
+
+`routerlib.geometry` measured every rectangle as its **inscribed stadium**. On a
+square pad that is the inscribed circle, so each corner protruded by
+`(√2−1)·w/2` — 0.21mm on a 1.0mm pad, against a 0.09mm clearance gate. Worst
+case measured: `maze-astar` on hydrate-coaster, a 2.34 × 3.6mm pad where the
+model reported 0.210mm of air and the trace sat 0.250mm *inside* the pad.
+
+The cause was upstream of the arithmetic. `routerlib.model.Pad` stored
+width, height and rotation and nothing else, so a `polygon` pad's vertices and a
+`circle` pad's radius were thrown away before any router or scorer saw them.
+Fixing the distance function alone would have left the data missing. So:
+
+* `Pad` carries a polygon outline and a corner radius, `Drill` its hole shape,
+  `Keepout` its rotation and outline. Instance schema `@2`.
+* One shape model — a convex core polygon swept by a radius — covers a trace,
+  a via, a pill, a rectangle, a rounded rectangle and a polygon pad. Distance is
+  the minimum over edge pairs when the cores are apart and the separating-axis
+  penetration depth when they overlap.
+* The 16 fixtures were **re-baselined in place**, not rebuilt: coordinates are
+  untouched so the 208 copper sets on disk stay scoreable, and every
+  `placementHash` moved once, recorded before-and-after in
+  `benchmarks/manifest.json`. All 16 empty-solution baselines are still zero
+  errors, so every new finding belongs to a router and not to a placement.
+
+### The same copper, re-scored
+
+208 cells, one minute, no routing: `scripts/rescore.py` replays each cell's
+`pcb_trace`/`pcb_via` elements and re-measures them. Every replay reproduced its
+via count and copper length exactly.
+
+| family | mean routed | clean | harness errors | KiCad copper errors, 12 real boards |
+|---|---|---|---|---|
+| `pathfinder-negotiated` | 94.0% | 2/16 | 131 | 80 |
+| `maze-astar` | 92.7% | 1/16 | 401 | 213 |
+| `plane-and-classes` | 90.1% | 1/16 | 725 | 513 |
+| `ripup-reroute` | 86.2% | 2/16 | 100 | 82 |
+| `meta-anneal` | 84.0% | 2/16 | 304 | 259 |
+| `meta-genetic` | 83.4% | 2/16 | 350 | 282 |
+| `topological-graph` | 78.9% | 2/16 | 137 | 75 |
+| `exact-and-structured` | 78.7% | 3/16 | 27 | 29 |
+| `baseline-pattern` | 57.3% | 2/16 | 37 | 32 |
+
+Harness-clean fell from 42 cells to 17. The findings the stadium was hiding are
+1854 clearance, 587 shorts, 520 vias inside a pad and 68 keepout entries.
+
+**The harness and KiCad now agree.** Rank the families by harness errors and by
+KiCad's copper errors on the 12 boards that rebuild to a byte-matching
+placement: Spearman **+0.93**, against **0.00** before — before, every family
+scored zero harness errors on those boards, so there was nothing to correlate.
+The per-family counts land within 20% of KiCad's on seven of nine. The two
+rankings in the tables further down this document disagreed because one of them
+was measured with a broken instrument, and that is now closed.
+
+### Told the truth, they route legally — and pathfinder pays for it
+
+Scoring honestly only says how wrong we were. The question worth asking is
+whether a router *routes better* when its own workspace stops lying to it, so
+the three leading families were re-run at the same budget and seed, planning
+against the corrected model. Same ruler on both sides.
+
+| family | routed before | routed after | clean before | clean after | harness errors before | after |
+|---|---|---|---|---|---|---|
+| `pathfinder-negotiated` | 94.0% | **81.2%** | 2/16 | 3/16 | 131 | **0** |
+| `maze-astar` | 92.7% | **92.5%** | 1/16 | **7/16** | 401 | **0** |
+| `exact-and-structured` | 78.7% | 75.7% | 3/16 | 4/16 | 27 | **0** |
+
+All three go to zero harness errors. What they pay is completely different, and
+that is the finding:
+
+* **`maze-astar` pays 0.2 points of completeness** — 324 nets to 325, one more —
+  and goes from 1 clean instance to 7. Its grid rasteriser was the thing being
+  lied to; told the truth it simply stops stamping copper into pad corners. It
+  is now the best family on this benchmark.
+* **`pathfinder-negotiated` pays 12.8 points** — 347 nets to 318, a loss of 29 —
+  for the same zero. Its negotiation prices congestion, and honest obstacles
+  make the board more congested than it could resolve inside its round budget.
+  It was the dominant family under the old ruler and it is not any more.
+* `exact-and-structured` pays 3 points and 13 nets, and stays the cheapest in
+  copper and vias.
+
+So the ranking changed twice over: once because the ruler was fixed, and again
+because two of the three leaders respond to the truth completely differently.
+**Zero harness errors is not the same claim as a clean board** — these routers
+ask `Workspace` for permission with the same shape model the scorer grades
+with, so the column is partly self-agreement. The independent KiCad number on
+the real boards is the one to read, and it is being measured.
+
 ---
 
 ## The problem is copper, and it is exactly specified
@@ -135,14 +235,17 @@ placement:
 | plane-and-classes | 93.5% | 350 | 18.31 |
 
 The two tables rank differently, and the reason is a bug in the ruler rather
-than a subtlety in the algorithms. `routerlib.geometry.rect_capsule` models a
-rectangular pad as its **inscribed stadium**, which rounds the corners inward
-by `(√2−1)·w/2` — 0.21mm on a 1.0mm square pad, more than twice the 0.09mm
-gate. A trace can sit a quarter of a millimetre inside a pad and score 0.21mm
-of clearance. Ranking all nine families by the harness key and taking the
-winner produces 220 real KiCad errors across the 12 real boards; ranking by the
+than a subtlety in the algorithms. `routerlib.geometry` modelled a rectangular
+pad as its **inscribed stadium**, which rounds the corners inward by
+`(√2−1)·w/2` — 0.21mm on a 1.0mm square pad, more than twice the 0.09mm gate. A
+trace can sit a quarter of a millimetre inside a pad and score 0.21mm of
+clearance. Ranking all nine families by the harness key and taking the winner
+produces 220 real KiCad errors across the 12 real boards; ranking by the
 pipeline's own answer produces 144 at the same completeness. The two disagree
-on 7 of 12 boards. Fixing the pad model is filed and not done.
+on 7 of 12 boards.
+
+**Fixed 2026-08-16** — see *The pad model* above. The two tables in this section
+are what ruler `b3c77d55b171` said and are kept for that reason.
 
 ---
 
@@ -341,7 +444,8 @@ Three specific things this comparison surfaced:
 - **Our harness scores all three boards at zero errors while KiCad finds 12, 35
   and 27.** The inscribed-stadium pad model is not somebody else's problem now.
   Until it is fixed, no harness-clean claim from this package means the board
-  is clean.
+  is clean. *(Fixed 2026-08-16. The A/B has not been re-run against the
+  corrected model, so every number in this table is still the old ruler's.)*
 - **We commit the exact defect the package was built to fix.** Six
   copper-to-hole findings on harness-puck against a 0.20mm rule: three distinct
   gaps of 0.00mm, 0.05mm and 0.10mm, each reported twice, naming `D14` and
@@ -375,10 +479,12 @@ rectangle, the worst offender sits 0.168mm inside it; measured the way
 
 That is the inscribed-stadium model again, and the keepout is where it does the
 most damage: on a long thin rectangle the stadium cuts 0.255mm off each corner,
-which is 2.8 times the clearance gate. `rect_capsule` is used for pads *and*
-keepouts, so one fix covers both — and this is the shortest path from "our
+which is 2.8 times the clearance gate. One shape model covers pads *and*
+keepouts, so one fix covered both — and this was the shortest path from "our
 router is interesting" to "our router does not break a board that was already
-fab-ready".
+fab-ready". Done 2026-08-16; the corrected harness charges 68 keepout entries
+across the 208 cells it used to see none of, and the re-run families place
+none. The flag has not been re-measured through the pipeline.
 
 ## What is still worse than the incumbent, said plainly
 

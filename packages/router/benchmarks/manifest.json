@@ -10,7 +10,7 @@
   {
    "id": "harness-puck",
    "file": "harness-puck.json",
-   "placementHash": "484d827bf5be",
+   "placementHash": "3e25860d1480",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -56,7 +56,7 @@
   {
    "id": "hydrate-coaster-plane",
    "file": "hydrate-coaster-plane.json",
-   "placementHash": "009ed77b5a70",
+   "placementHash": "038661e32725",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -103,7 +103,7 @@
   {
    "id": "hydrate-coaster",
    "file": "hydrate-coaster.json",
-   "placementHash": "009ed77b5a70",
+   "placementHash": "038661e32725",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -197,7 +197,7 @@
   {
    "id": "matrix-i2c-bus__ldo-3v3__usb-c-power",
    "file": "matrix-i2c-bus__ldo-3v3__usb-c-power.json",
-   "placementHash": "c503a0a2b65b",
+   "placementHash": "03ea2a833a57",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -247,7 +247,7 @@
   {
    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
    "file": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane.json",
-   "placementHash": "9e5a322b9f85",
+   "placementHash": "d3146f582011",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -298,7 +298,7 @@
   {
    "id": "matrix-ldo-3v3__rp2040-core__usb-c-power",
    "file": "matrix-ldo-3v3__rp2040-core__usb-c-power.json",
-   "placementHash": "9e5a322b9f85",
+   "placementHash": "d3146f582011",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -348,7 +348,7 @@
   {
    "id": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
    "file": "matrix-ldo-3v3__sensor-bme280__usb-c-power.json",
-   "placementHash": "3e0a7592775f",
+   "placementHash": "6a2ffdcbdcf4",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -398,7 +398,7 @@
   {
    "id": "matrix-ldo-3v3__usb-c-power",
    "file": "matrix-ldo-3v3__usb-c-power.json",
-   "placementHash": "05a446cd05ce",
+   "placementHash": "4785058fc112",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -447,7 +447,7 @@
   {
    "id": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
    "file": "matrix-ldo-3v3__usb-c-power__ws2812-chain.json",
-   "placementHash": "c535e430adde",
+   "placementHash": "b7815803c0e5",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -546,7 +546,7 @@
   {
    "id": "matrix-rp2040-core__usb-c-data",
    "file": "matrix-rp2040-core__usb-c-data.json",
-   "placementHash": "7b2be1b2b490",
+   "placementHash": "01ad0bb4b506",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -692,7 +692,7 @@
   {
    "id": "terminal-keyboard-plane",
    "file": "terminal-keyboard-plane.json",
-   "placementHash": "e57b004b4304",
+   "placementHash": "afdde4745cff",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -754,7 +754,7 @@
   {
    "id": "terminal-keyboard",
    "file": "terminal-keyboard.json",
-   "placementHash": "e57b004b4304",
+   "placementHash": "afdde4745cff",
    "source": {
     "gitHead": "806561d",
     "gitDirty": true,
@@ -814,8 +814,8 @@
   }
  ],
  "rebaseline": {
-  "at": "2026-08-16T07:41:44",
-  "gitHead": "9019152",
+  "at": "2026-08-16T08:15:01",
+  "gitHead": "aff429b",
   "why": "pads and keepouts are measured as their true shapes instead of their inscribed stadiums; shape joined the placement hash, so every hash moved once. Placement coordinates are unchanged \u2014 the fixtures were upgraded in place, not rebuilt.",
   "instances": [
    {
@@ -823,11 +823,11 @@
     "source": "examples/harness-puck/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "ef45db724309",
-    "newPlacementHash": "484d827bf5be",
+    "newPlacementHash": "3e25860d1480",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
-    "padsShaped": 228,
-    "padsUnmatched": 0,
+    "padsShaped": 224,
+    "padsUnmatched": 4,
     "polygonsRecovered": 4,
     "drillsShaped": 9,
     "keepoutsShaped": 4
@@ -837,7 +837,7 @@
     "source": "examples/hydrate-coaster/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "639e6cbc1e83",
-    "newPlacementHash": "009ed77b5a70",
+    "newPlacementHash": "038661e32725",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 174,
@@ -851,7 +851,7 @@
     "source": "examples/hydrate-coaster/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "639e6cbc1e83",
-    "newPlacementHash": "009ed77b5a70",
+    "newPlacementHash": "038661e32725",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 174,
@@ -879,7 +879,7 @@
     "source": "work/tournament/cells/i2c-bus__ldo-3v3__usb-c-power/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "f560c84c2481",
-    "newPlacementHash": "c503a0a2b65b",
+    "newPlacementHash": "03ea2a833a57",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 40,
@@ -893,7 +893,7 @@
     "source": "work/tournament/cells/ldo-3v3__rp2040-core__usb-c-power/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "218dc144c9c0",
-    "newPlacementHash": "9e5a322b9f85",
+    "newPlacementHash": "d3146f582011",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 147,
@@ -907,7 +907,7 @@
     "source": "work/tournament/cells/ldo-3v3__rp2040-core__usb-c-power/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "218dc144c9c0",
-    "newPlacementHash": "9e5a322b9f85",
+    "newPlacementHash": "d3146f582011",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 147,
@@ -921,7 +921,7 @@
     "source": "work/tournament/cells/ldo-3v3__sensor-bme280__usb-c-power/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "7c1624bfa745",
-    "newPlacementHash": "3e0a7592775f",
+    "newPlacementHash": "6a2ffdcbdcf4",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 48,
@@ -935,7 +935,7 @@
     "source": "work/tournament/cells/ldo-3v3__usb-c-power/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "7669e2c4a705",
-    "newPlacementHash": "05a446cd05ce",
+    "newPlacementHash": "4785058fc112",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 36,
@@ -949,7 +949,7 @@
     "source": "work/tournament/cells/ldo-3v3__usb-c-power__ws2812-chain/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "01f75a1daea6",
-    "newPlacementHash": "c535e430adde",
+    "newPlacementHash": "b7815803c0e5",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 62,
@@ -977,7 +977,7 @@
     "source": "work/tournament/cells/rp2040-core__usb-c-data/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "264e0c1d024a",
-    "newPlacementHash": "7b2be1b2b490",
+    "newPlacementHash": "01ad0bb4b506",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 143,
@@ -1019,7 +1019,7 @@
     "source": "examples/terminal-keyboard/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "289487d0ece3",
-    "newPlacementHash": "e57b004b4304",
+    "newPlacementHash": "afdde4745cff",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 354,
@@ -1033,7 +1033,7 @@
     "source": "examples/terminal-keyboard/boards/main.circuit.json",
     "oldSchema": "routerlib/instance@1",
     "oldPlacementHash": "289487d0ece3",
-    "newPlacementHash": "e57b004b4304",
+    "newPlacementHash": "afdde4745cff",
     "baselineErrorsBefore": 0,
     "baselineErrorsAfter": 0,
     "padsShaped": 354,

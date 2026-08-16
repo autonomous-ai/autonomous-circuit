@@ -391,14 +391,20 @@ ScoreKey = Callable[[RoutingProblem, RoutingSolution], tuple]
 def harness_key(problem: RoutingProblem, solution: RoutingSolution) -> tuple:
     """The package's own lexicographic score.
 
-    **Known biased.** ``routerlib.geometry.rect_capsule`` models a rectangular
-    pad as its inscribed stadium, so a trace can sit 0.21mm inside a 1.0mm
-    square pad and still measure 0.09mm of clearance. Measured on the same
-    tournament: ranking all nine families by this key and taking the winner
-    gives 220 real KiCad copper errors across the 12 real boards; ranking them
-    by the pipeline's own answer gives 144 at the same completeness, and the
-    two disagree on 7 of 12 boards. Use :func:`pipeline_key_factory` whenever a
-    real board is available.
+    **It was known biased and the bias is gone.** Until 2026-08-16
+    ``routerlib.geometry`` modelled a rectangular pad as its inscribed stadium,
+    so a trace could sit 0.21mm inside a 1.0mm square pad and still measure
+    0.09mm of clearance. Ranking all nine families by this key and taking the
+    winner gave 220 real KiCad copper errors across the 12 real boards against
+    144 for ranking by the pipeline's own answer, and the two disagreed on 7 of
+    12. With pads and keepouts measured as their true shapes, this key's error
+    count and KiCad's rank the families at Spearman +0.93.
+
+    That is agreement, not equivalence. This key still cannot see a short
+    through a plane island, and it is the same geometry the routers ask
+    permission with, so a family can agree with itself. Prefer
+    :func:`pipeline_key_factory` whenever a real board is available — an
+    independent engine is worth more than a correlated one.
     """
     return score_solution(problem, solution).key()
 

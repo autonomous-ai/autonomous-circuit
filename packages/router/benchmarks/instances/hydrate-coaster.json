@@ -8,7 +8,7 @@
   "kind": "example",
   "path": "/Users/d/code/autonomous-circuit/examples/hydrate-coaster/boards/main.circuit.json"
  },
- "placementHash": "009ed77b5a70",
+ "placementHash": "038661e32725",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -4203,7 +4203,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net0",
    "x": 2.40016,
    "y": -31.825854999999997,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999719999999968,
    "layers": [
     "top"
@@ -4437,8 +4437,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net0",
    "x": -2.3999569999999997,
    "y": -31.82602,
-   "w": 0.5999733999999997,
-   "h": 1.2999974000000023,
+   "w": 0.599974,
+   "h": 1.2999970000000012,
    "layers": [
     "top"
    ],
@@ -7026,9 +7026,9 @@
    "id": "pcb_smtpad_8",
    "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net1",
    "x": -3.199956,
-   "y": -31.825957,
-   "w": 0.5999734000000001,
-   "h": 1.3001751999999982,
+   "y": -31.825955999999998,
+   "w": 0.5999729999999999,
+   "h": 1.300175000000003,
    "layers": [
     "top"
    ],
@@ -7269,7 +7269,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_11_connectivity_net1",
    "x": 3.2000059999999997,
    "y": -31.825854999999997,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999719999999968,
    "layers": [
     "top"

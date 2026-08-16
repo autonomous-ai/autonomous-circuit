@@ -272,6 +272,14 @@ Re-scored on the same copper, the harness's error count per family now tracks
 KiCad's at **Spearman +0.93**, against **0.00** before — before, every family
 scored zero errors on the real boards, so there was no signal to correlate.
 
+`scripts/pad_corner_gap.py` is the tripwire, and it shares no code with
+`geometry.py`: it measures every pad-trace pair of every copper set on disk
+against its own rotated-rect, stadium and polygon arithmetic and reports any
+pair where the two disagree across the gate. That count was **3 to 137 per
+router**. It is now **0 for all fourteen**, over 224 copper sets. A non-zero
+number there is a regression in one of the two implementations, and they were
+written separately so that it means something.
+
 Routers design to this model, not only get graded by it. Every grid rasteriser
 in `algorithms/` stamps a shape against its core's outward edge lines: negative
 inside the shape, exact outside it, and a slight under-read in the wedge past a
@@ -464,8 +472,15 @@ benchmarks/
   instances/*.json committed fixtures
   manifest.json    what is on disk, with features and baselines
   tournament/      results-2026-08-16.json, portfolio-2026-08-16.json
-scripts/build_instances.py
-scripts/ab_incumbent.py   our copper vs the shipped autorouter, same board
+                   rescore-truepads-2026-08-16.json   the same copper, true shapes
+                   rerun-truepads-2026-08-16.json     re-routed against them
+scripts/build_instances.py    rebuild the fixtures from today's boards
+scripts/upgrade_instances.py  re-baseline them in place, printing every hash
+scripts/rescore.py            replay the copper on disk against a new ruler
+scripts/rescore_table.py      the corrected table, and the KiCad rank correlation
+scripts/rerun_table.py        routed-against-the-stadium vs routed-against-the-truth
+scripts/pad_corner_gap.py     the pad-model tripwire: independent arithmetic, must be 0
+scripts/ab_incumbent.py       our copper vs the shipped autorouter, same board
 ```
 
 ## Running it

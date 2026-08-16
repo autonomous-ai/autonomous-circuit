@@ -22,8 +22,9 @@ way in:
 * a keepout gets its rotation and, where it has one, its outline
 
 Shapes are copied from the board each instance came from, matched by pad id and
-refused unless the centre and size still agree to a nanometre — a drifted board
-cannot inject a foreign outline into a fixture.
+refused unless the centre and size still agree to within two coordinate quanta
+— a drifted board cannot inject a foreign outline into a fixture, and a pad that
+really moved moves by microns.
 
 The placement hash moves for every instance, on purpose: shape is part of the
 placement now, and the hash that ignored it was calling two different boards the
@@ -31,7 +32,7 @@ same board. Old and new are both recorded, per instance, in the manifest's
 ``rebaseline`` block, because a fixture that changes silently is worse than one
 that does not change at all.
 
-    python3.12 packages/router/scripts/upgrade_instances.py --check
+    python3.12 packages/router/scripts/upgrade_instances.py           # dry run
     python3.12 packages/router/scripts/upgrade_instances.py --write
 """
 
@@ -128,9 +129,18 @@ def upgrade(data: dict, source: Path | None) -> dict:
             continue
         pad["points"] = found["points"]
         pad["cornerRadiusMm"] = found["cornerRadiusMm"]
-        report["padsShaped"] += 1
         if found["points"]:
+            # A polygon pad's centre and size are derived from its vertices,
+            # and the two readers derive them differently: the old one boxed
+            # raw floats, the new one boxes vertices already snapped to the 1nm
+            # grid. Sub-nanometre either way — and enough to make a fresh read
+            # of the same board hash differently, which makes
+            # ``verify_real_board.py`` refuse a board that never moved. The
+            # fixture records what today's reader produces.
+            pad["x"], pad["y"] = found["x"], found["y"]
+            pad["w"], pad["h"] = found["w"], found["h"]
             report["polygonsRecovered"] += 1
+        report["padsShaped"] += 1
 
     for drill in data.get("drills", ()):
         drill["shape"] = drills.get(drill["id"], "pill")

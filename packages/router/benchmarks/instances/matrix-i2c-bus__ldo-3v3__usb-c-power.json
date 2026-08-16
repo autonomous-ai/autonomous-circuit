@@ -12,7 +12,7 @@
    "usb-c-power"
   ]
  },
- "placementHash": "c503a0a2b65b",
+ "placementHash": "03ea2a833a57",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -363,8 +363,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net4",
    "x": -4.949955999999999,
    "y": -8.155956999999999,
-   "w": 0.5999733999999997,
-   "h": 1.300175199999999,
+   "w": 0.5999730000000003,
+   "h": 1.3001750000000003,
    "layers": [
     "top"
    ],
@@ -415,7 +415,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net4",
    "x": 1.450006,
    "y": -8.155854999999999,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999719999999995,
    "layers": [
     "top"
@@ -459,7 +459,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net3",
    "x": 0.65016,
    "y": -8.155854999999999,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999719999999995,
    "layers": [
     "top"
@@ -502,9 +502,9 @@
    "id": "pcb_smtpad_23",
    "net": "unnamedsubcircuitsubcircuit_source_group_3_connectivity_net3",
    "x": -4.149957,
-   "y": -8.15602,
-   "w": 0.5999733999999997,
-   "h": 1.2999973999999987,
+   "y": -8.156020999999999,
+   "w": 0.5999739999999996,
+   "h": 1.2999969999999994,
    "layers": [
     "top"
    ],

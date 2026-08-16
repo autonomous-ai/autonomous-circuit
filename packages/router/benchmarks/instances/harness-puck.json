@@ -8,7 +8,7 @@
   "kind": "example",
   "path": "/Users/d/code/autonomous-circuit/examples/harness-puck/boards/main.circuit.json"
  },
- "placementHash": "484d827bf5be",
+ "placementHash": "3e25860d1480",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -8971,7 +8971,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net0",
    "x": 2.40016,
    "y": -26.825854999999997,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999720000000003,
    "layers": [
     "top"
@@ -9205,8 +9205,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net0",
    "x": -2.3999569999999997,
    "y": -26.82602,
-   "w": 0.5999733999999997,
-   "h": 1.2999974000000023,
+   "w": 0.599974,
+   "h": 1.2999969999999976,
    "layers": [
     "top"
    ],
@@ -12820,9 +12820,9 @@
    "id": "pcb_smtpad_8",
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net1",
    "x": -3.199956,
-   "y": -26.825957,
-   "w": 0.5999734000000001,
-   "h": 1.3001751999999982,
+   "y": -26.825955999999998,
+   "w": 0.5999729999999999,
+   "h": 1.3001749999999994,
    "layers": [
     "top"
    ],
@@ -13063,7 +13063,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_12_connectivity_net1",
    "x": 3.2000059999999997,
    "y": -26.825854999999997,
-   "w": 0.6000242,
+   "w": 0.6000239999999999,
    "h": 1.2999720000000003,
    "layers": [
     "top"

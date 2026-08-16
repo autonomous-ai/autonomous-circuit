@@ -1,0 +1,7823 @@
+{
+ "measuredAt": "2026-08-16",
+ "oldRulerHash": [
+  "b3c77d55b171"
+ ],
+ "newRulerHash": [
+  "56d69c365a72"
+ ],
+ "what": "the same copper, re-scored. Pads and keepouts are their true shapes now instead of their inscribed stadiums.",
+ "cells": [
+  {
+   "router": "baseline-pattern",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.388889,
+    "connectedNets": 14,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 84,
+    "copperMm": 970.5428
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.388889,
+    "connectedNets": 14,
+    "routableNets": 36,
+    "errors": 13,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 15
+    },
+    "errorKinds": {
+     "clearance": 13
+    },
+    "vias": 84,
+    "copperMm": 970.5428
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.46875,
+    "connectedNets": 15,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 79,
+    "copperMm": 456.0172
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.46875,
+    "connectedNets": 15,
+    "routableNets": 32,
+    "errors": 3,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 2
+    },
+    "vias": 79,
+    "copperMm": 456.0172
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.3125,
+    "connectedNets": 10,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 60,
+    "copperMm": 467.8723
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.3125,
+    "connectedNets": 10,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 3
+    },
+    "vias": 60,
+    "copperMm": 467.8723
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 2,
+    "copperMm": 3.634
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 2,
+    "copperMm": 3.634
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 18,
+    "copperMm": 139.4136
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 18,
+    "copperMm": 139.4136
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.411765,
+    "connectedNets": 7,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 67,
+    "copperMm": 303.5667
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.411765,
+    "connectedNets": 7,
+    "routableNets": 17,
+    "errors": 4,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4
+    },
+    "errorKinds": {
+     "clearance": 4
+    },
+    "vias": 67,
+    "copperMm": 303.5667
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.235294,
+    "connectedNets": 4,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 58,
+    "copperMm": 369.4716
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.235294,
+    "connectedNets": 4,
+    "routableNets": 17,
+    "errors": 4,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4
+    },
+    "errorKinds": {
+     "clearance": 4
+    },
+    "vias": 58,
+    "copperMm": 369.4716
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.4,
+    "connectedNets": 2,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 18,
+    "copperMm": 158.2581
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.4,
+    "connectedNets": 2,
+    "routableNets": 5,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 18,
+    "copperMm": 158.2581
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 132.0385
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 16,
+    "copperMm": 132.0385
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 36,
+    "copperMm": 319.2902
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 36,
+    "copperMm": 319.2902
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.214286,
+    "connectedNets": 3,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 42,
+    "copperMm": 216.2785
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.214286,
+    "connectedNets": 3,
+    "routableNets": 14,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 42,
+    "copperMm": 216.2785
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.190476,
+    "connectedNets": 4,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 46,
+    "copperMm": 323.5029
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.190476,
+    "connectedNets": 4,
+    "routableNets": 21,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 46,
+    "copperMm": 323.5029
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 20,
+    "copperMm": 157.1336
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 20,
+    "copperMm": 157.1336
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.662921,
+    "connectedNets": 59,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 159,
+    "copperMm": 1659.7463
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.662921,
+    "connectedNets": 59,
+    "routableNets": 89,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 159,
+    "copperMm": 1659.7463
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "baseline-pattern",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.651685,
+    "connectedNets": 58,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 158,
+    "copperMm": 1796.7828
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.651685,
+    "connectedNets": 58,
+    "routableNets": 89,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 158,
+    "copperMm": 1796.7828
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.666667,
+    "connectedNets": 24,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 12,
+    "copperMm": 609.8329
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.666667,
+    "connectedNets": 24,
+    "routableNets": 36,
+    "errors": 6,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 4
+    },
+    "vias": 12,
+    "copperMm": 609.8329
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 10,
+    "copperMm": 307.9877
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 10,
+    "copperMm": 307.9877
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 12,
+    "copperMm": 355.4988
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 12,
+    "copperMm": 355.4988
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 3.534
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 3.534
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 10,
+    "copperMm": 160.7239
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "short": 1
+    },
+    "errorKinds": {
+     "short": 1
+    },
+    "vias": 10,
+    "copperMm": 160.7239
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.705882,
+    "connectedNets": 12,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 226.4466
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.705882,
+    "connectedNets": 12,
+    "routableNets": 17,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 1
+    },
+    "vias": 8,
+    "copperMm": 226.4466
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.705882,
+    "connectedNets": 12,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 226.4466
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.705882,
+    "connectedNets": 12,
+    "routableNets": 17,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 1
+    },
+    "vias": 8,
+    "copperMm": 226.4466
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 2,
+    "copperMm": 109.3691
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 3,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "dfm_power_trace_width": 1,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 1
+    },
+    "vias": 2,
+    "copperMm": 109.3691
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 12,
+    "copperMm": 143.5792
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 12,
+    "copperMm": 143.5792
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 4,
+    "copperMm": 120.5608
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "short": 1
+    },
+    "errorKinds": {
+     "short": 1
+    },
+    "vias": 4,
+    "copperMm": 120.5608
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.642857,
+    "connectedNets": 9,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 4,
+    "copperMm": 150.1601
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.642857,
+    "connectedNets": 9,
+    "routableNets": 14,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 4,
+    "copperMm": 150.1601
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.619048,
+    "connectedNets": 13,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 205.5069
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.619048,
+    "connectedNets": 13,
+    "routableNets": 21,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 6,
+    "copperMm": 205.5069
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 96.3515
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 96.3515
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 14,
+    "copperMm": 974.722
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 14,
+    "copperMm": 974.722
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "exact-and-structured",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.775281,
+    "connectedNets": 69,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 14,
+    "copperMm": 1055.9406
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.775281,
+    "connectedNets": 69,
+    "routableNets": 89,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 14,
+    "copperMm": 1055.9406
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 67,
+    "copperMm": 1178.8316
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 68,
+    "warnings": 17,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 46,
+     "dfm_power_trace_width": 2,
+     "keepout": 3,
+     "short": 16,
+     "via_in_pad": 18
+    },
+    "errorKinds": {
+     "clearance": 31,
+     "keepout": 3,
+     "short": 16,
+     "via_in_pad": 18
+    },
+    "vias": 67,
+    "copperMm": 1178.8316
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 77,
+    "copperMm": 628.4666
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 45,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 37
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 2,
+     "via_in_pad": 37
+    },
+    "vias": 77,
+    "copperMm": 628.4666
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 55,
+    "copperMm": 818.9912
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 31,
+    "warnings": 8,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 16,
+     "dfm_power_trace_width": 2,
+     "keepout": 4,
+     "short": 3,
+     "via_in_pad": 14
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "keepout": 4,
+     "short": 3,
+     "via_in_pad": 14
+    },
+    "vias": 55,
+    "copperMm": 818.9912
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.1142
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 0,
+    "copperMm": 2.1142
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 9,
+    "copperMm": 110.4391
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "via_in_pad": 3
+    },
+    "vias": 9,
+    "copperMm": 110.4391
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 49,
+    "copperMm": 347.6403
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 40,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 14,
+     "dfm_power_trace_width": 1,
+     "short": 3,
+     "via_in_pad": 26
+    },
+    "errorKinds": {
+     "clearance": 11,
+     "short": 3,
+     "via_in_pad": 26
+    },
+    "vias": 49,
+    "copperMm": 347.6403
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 38,
+    "copperMm": 482.1846
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 36,
+    "warnings": 8,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "dfm_power_trace_width": 2,
+     "short": 4,
+     "via_in_pad": 13
+    },
+    "errorKinds": {
+     "clearance": 19,
+     "short": 4,
+     "via_in_pad": 13
+    },
+    "vias": 38,
+    "copperMm": 482.1846
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 12,
+    "copperMm": 138.0895
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 15,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "dfm_power_trace_width": 1,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 12,
+     "via_in_pad": 3
+    },
+    "vias": 12,
+    "copperMm": 138.0895
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 110.1377
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 8,
+    "copperMm": 110.1377
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 10,
+    "copperMm": 264.4268
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 24,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 15,
+     "short": 9,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 13,
+     "short": 9,
+     "via_in_pad": 2
+    },
+    "vias": 10,
+    "copperMm": 264.4268
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 29,
+    "copperMm": 360.7373
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 17,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 2,
+     "via_in_pad": 8
+    },
+    "errorKinds": {
+     "clearance": 9,
+     "via_in_pad": 8
+    },
+    "vias": 29,
+    "copperMm": 360.7373
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 50,
+    "copperMm": 545.9322
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 28,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "dfm_power_trace_width": 2,
+     "keepout": 2,
+     "short": 5,
+     "via_in_pad": 11
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "keepout": 2,
+     "short": 5,
+     "via_in_pad": 11
+    },
+    "vias": 50,
+    "copperMm": 545.9322
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.3022
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.3022
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 2,
+    "copperMm": 139.6745
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 7,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 2,
+    "copperMm": 139.6745
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.797753,
+    "connectedNets": 71,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 91,
+    "copperMm": 1698.9213
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.797753,
+    "connectedNets": 71,
+    "routableNets": 89,
+    "errors": 40,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 17,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 23
+    },
+    "errorKinds": {
+     "clearance": 15,
+     "short": 2,
+     "via_in_pad": 23
+    },
+    "vias": 91,
+    "copperMm": 1698.9213
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.808989,
+    "connectedNets": 72,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 79,
+    "copperMm": 2002.3527
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.808989,
+    "connectedNets": 72,
+    "routableNets": 89,
+    "errors": 33,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 20,
+     "dfm_power_trace_width": 2,
+     "keepout": 4,
+     "short": 2,
+     "via_in_pad": 10
+    },
+    "errorKinds": {
+     "clearance": 17,
+     "keepout": 4,
+     "short": 2,
+     "via_in_pad": 10
+    },
+    "vias": 79,
+    "copperMm": 2002.3527
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 67,
+    "copperMm": 1178.8316
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 68,
+    "warnings": 17,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 46,
+     "dfm_power_trace_width": 2,
+     "keepout": 3,
+     "short": 16,
+     "via_in_pad": 18
+    },
+    "errorKinds": {
+     "clearance": 31,
+     "keepout": 3,
+     "short": 16,
+     "via_in_pad": 18
+    },
+    "vias": 67,
+    "copperMm": 1178.8316
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 77,
+    "copperMm": 628.4666
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 45,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 37
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 2,
+     "via_in_pad": 37
+    },
+    "vias": 77,
+    "copperMm": 628.4666
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 55,
+    "copperMm": 818.9912
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 31,
+    "warnings": 8,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 16,
+     "dfm_power_trace_width": 2,
+     "keepout": 4,
+     "short": 3,
+     "via_in_pad": 14
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "keepout": 4,
+     "short": 3,
+     "via_in_pad": 14
+    },
+    "vias": 55,
+    "copperMm": 818.9912
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.1142
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 0,
+    "copperMm": 2.1142
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 9,
+    "copperMm": 110.4391
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "via_in_pad": 3
+    },
+    "vias": 9,
+    "copperMm": 110.4391
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 49,
+    "copperMm": 347.6403
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 40,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 14,
+     "dfm_power_trace_width": 1,
+     "short": 3,
+     "via_in_pad": 26
+    },
+    "errorKinds": {
+     "clearance": 11,
+     "short": 3,
+     "via_in_pad": 26
+    },
+    "vias": 49,
+    "copperMm": 347.6403
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 38,
+    "copperMm": 482.1846
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 36,
+    "warnings": 8,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "dfm_power_trace_width": 2,
+     "short": 4,
+     "via_in_pad": 13
+    },
+    "errorKinds": {
+     "clearance": 19,
+     "short": 4,
+     "via_in_pad": 13
+    },
+    "vias": 38,
+    "copperMm": 482.1846
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 12,
+    "copperMm": 138.0895
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 15,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "dfm_power_trace_width": 1,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 12,
+     "via_in_pad": 3
+    },
+    "vias": 12,
+    "copperMm": 138.0895
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 110.1377
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 8,
+    "copperMm": 110.1377
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 10,
+    "copperMm": 264.4268
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 24,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 15,
+     "short": 9,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 13,
+     "short": 9,
+     "via_in_pad": 2
+    },
+    "vias": 10,
+    "copperMm": 264.4268
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 29,
+    "copperMm": 360.7373
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 17,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 2,
+     "via_in_pad": 8
+    },
+    "errorKinds": {
+     "clearance": 9,
+     "via_in_pad": 8
+    },
+    "vias": 29,
+    "copperMm": 360.7373
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 50,
+    "copperMm": 545.9322
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 28,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "dfm_power_trace_width": 2,
+     "keepout": 2,
+     "short": 5,
+     "via_in_pad": 11
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "keepout": 2,
+     "short": 5,
+     "via_in_pad": 11
+    },
+    "vias": 50,
+    "copperMm": 545.9322
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.3022
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.3022
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 2,
+    "copperMm": 139.6745
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 7,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 2,
+    "copperMm": 139.6745
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.865169,
+    "connectedNets": 77,
+    "routableNets": 89,
+    "errors": 1,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_hole_clearance": 1,
+     "dfm_power_trace_width": 1
+    },
+    "vias": 114,
+    "copperMm": 1918.1496
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.865169,
+    "connectedNets": 77,
+    "routableNets": 89,
+    "errors": 40,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 18,
+     "dfm_hole_clearance": 1,
+     "dfm_power_trace_width": 1,
+     "via_in_pad": 24
+    },
+    "errorKinds": {
+     "clearance": 15,
+     "dfm_hole_clearance": 1,
+     "via_in_pad": 24
+    },
+    "vias": 114,
+    "copperMm": 1918.1496
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-astar-ripup",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 1,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_hole_clearance": 1,
+     "dfm_power_trace_width": 2
+    },
+    "vias": 90,
+    "copperMm": 2084.2469
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 35,
+    "warnings": 6,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 20,
+     "dfm_hole_clearance": 1,
+     "dfm_power_trace_width": 2,
+     "keepout": 5,
+     "short": 3,
+     "via_in_pad": 10
+    },
+    "errorKinds": {
+     "clearance": 16,
+     "dfm_hole_clearance": 1,
+     "keepout": 5,
+     "short": 3,
+     "via_in_pad": 10
+    },
+    "vias": 90,
+    "copperMm": 2084.2469
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.638889,
+    "connectedNets": 23,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 86,
+    "copperMm": 1198.4735
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.638889,
+    "connectedNets": 23,
+    "routableNets": 36,
+    "errors": 45,
+    "warnings": 16,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 42,
+     "short": 12,
+     "via_in_pad": 7
+    },
+    "errorKinds": {
+     "clearance": 26,
+     "short": 12,
+     "via_in_pad": 7
+    },
+    "vias": 86,
+    "copperMm": 1198.4735
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.53125,
+    "connectedNets": 17,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 61,
+    "copperMm": 507.7048
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.53125,
+    "connectedNets": 17,
+    "routableNets": 32,
+    "errors": 21,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 19,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 18,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "vias": 61,
+    "copperMm": 507.7048
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 62,
+    "copperMm": 719.9321
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 35,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 29,
+     "short": 7,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 26,
+     "short": 7,
+     "via_in_pad": 2
+    },
+    "vias": 62,
+    "copperMm": 719.9321
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 18,
+    "copperMm": 130.1196
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 10,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 18,
+    "copperMm": 130.1196
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.588235,
+    "connectedNets": 10,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 49,
+    "copperMm": 341.0231
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.588235,
+    "connectedNets": 10,
+    "routableNets": 17,
+    "errors": 17,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 9,
+     "short": 6,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 9,
+     "short": 6,
+     "via_in_pad": 2
+    },
+    "vias": 49,
+    "copperMm": 341.0231
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.529412,
+    "connectedNets": 9,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 40,
+    "copperMm": 428.5351
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.529412,
+    "connectedNets": 9,
+    "routableNets": 17,
+    "errors": 31,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 24,
+     "short": 7
+    },
+    "errorKinds": {
+     "clearance": 24,
+     "short": 7
+    },
+    "vias": 40,
+    "copperMm": 428.5351
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 156.0701
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 4
+    },
+    "vias": 16,
+    "copperMm": 156.0701
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 124.7645
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 6,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "short": 3
+    },
+    "vias": 16,
+    "copperMm": 124.7645
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 26,
+    "copperMm": 294.6932
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 21,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 11,
+     "short": 9,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 11,
+     "short": 9,
+     "via_in_pad": 1
+    },
+    "vias": 26,
+    "copperMm": 294.6932
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.571429,
+    "connectedNets": 8,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 24,
+    "copperMm": 272.0778
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.571429,
+    "connectedNets": 8,
+    "routableNets": 14,
+    "errors": 26,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 22,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 22,
+     "short": 4
+    },
+    "vias": 24,
+    "copperMm": 272.0778
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.380952,
+    "connectedNets": 8,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 24,
+    "copperMm": 368.0364
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.380952,
+    "connectedNets": 8,
+    "routableNets": 21,
+    "errors": 24,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 18,
+     "short": 7,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 16,
+     "short": 7,
+     "via_in_pad": 1
+    },
+    "vias": 24,
+    "copperMm": 368.0364
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 148.9771
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 16,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "short": 6
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 6
+    },
+    "vias": 16,
+    "copperMm": 148.9771
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 149,
+    "copperMm": 1906.064
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 22,
+    "warnings": 8,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 18,
+     "short": 8,
+     "via_in_pad": 4
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 8,
+     "via_in_pad": 4
+    },
+    "vias": 149,
+    "copperMm": 1906.064
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-greedy",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.741573,
+    "connectedNets": 66,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 124,
+    "copperMm": 2102.3816
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.741573,
+    "connectedNets": 66,
+    "routableNets": 89,
+    "errors": 21,
+    "warnings": 9,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "short": 3,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 16,
+     "short": 3,
+     "via_in_pad": 2
+    },
+    "vias": 124,
+    "copperMm": 2102.3816
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.194444,
+    "connectedNets": 7,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 561.2161
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.194444,
+    "connectedNets": 7,
+    "routableNets": 36,
+    "errors": 13,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 15
+    },
+    "errorKinds": {
+     "clearance": 13
+    },
+    "vias": 0,
+    "copperMm": 561.2161
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.21875,
+    "connectedNets": 7,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 35,
+    "copperMm": 231.504
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.21875,
+    "connectedNets": 7,
+    "routableNets": 32,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 1
+    },
+    "vias": 35,
+    "copperMm": 231.504
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.21875,
+    "connectedNets": 7,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 264.9954
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.21875,
+    "connectedNets": 7,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 0,
+    "copperMm": 264.9954
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.0,
+    "connectedNets": 0,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 0
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.0,
+    "connectedNets": 0,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 0
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 68.5503
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 68.5503
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.176471,
+    "connectedNets": 3,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 31,
+    "copperMm": 140.4708
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.176471,
+    "connectedNets": 3,
+    "routableNets": 17,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 31,
+    "copperMm": 140.4708
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.117647,
+    "connectedNets": 2,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 147.8195
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.117647,
+    "connectedNets": 2,
+    "routableNets": 17,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 0,
+    "copperMm": 147.8195
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 80.7315
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 0,
+    "copperMm": 80.7315
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 62.1602
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.2,
+    "connectedNets": 1,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 62.1602
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.111111,
+    "connectedNets": 1,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 125.919
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.111111,
+    "connectedNets": 1,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 125.919
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.071429,
+    "connectedNets": 1,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 78.8086
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.071429,
+    "connectedNets": 1,
+    "routableNets": 14,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 0,
+    "copperMm": 78.8086
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.095238,
+    "connectedNets": 2,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 167.1228
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.095238,
+    "connectedNets": 2,
+    "routableNets": 21,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 0,
+    "copperMm": 167.1228
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.285714,
+    "connectedNets": 2,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 68.884
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.285714,
+    "connectedNets": 2,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 68.884
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.606742,
+    "connectedNets": 54,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 33,
+    "copperMm": 959.1897
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.606742,
+    "connectedNets": 54,
+    "routableNets": 89,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 33,
+    "copperMm": 959.1897
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "maze-off-greedy",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.606742,
+    "connectedNets": 54,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 1012.919
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.606742,
+    "connectedNets": 54,
+    "routableNets": 89,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 0,
+    "copperMm": 1012.919
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 86,
+    "copperMm": 1187.5644
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.805556,
+    "connectedNets": 29,
+    "routableNets": 36,
+    "errors": 43,
+    "warnings": 18,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 44,
+     "short": 9,
+     "via_in_pad": 8
+    },
+    "errorKinds": {
+     "clearance": 26,
+     "short": 9,
+     "via_in_pad": 8
+    },
+    "vias": 86,
+    "copperMm": 1187.5644
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8125,
+    "connectedNets": 26,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 76,
+    "copperMm": 636.0817
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8125,
+    "connectedNets": 26,
+    "routableNets": 32,
+    "errors": 13,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 9,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 76,
+    "copperMm": 636.0817
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.75,
+    "connectedNets": 24,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 64,
+    "copperMm": 722.4182
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.75,
+    "connectedNets": 24,
+    "routableNets": 32,
+    "errors": 26,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 18,
+     "short": 3,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 17,
+     "short": 3,
+     "via_in_pad": 6
+    },
+    "vias": 64,
+    "copperMm": 722.4182
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 121.3663
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 4
+    },
+    "vias": 8,
+    "copperMm": 121.3663
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 51,
+    "copperMm": 363.2657
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 20,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "short": 5,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 13,
+     "short": 5,
+     "via_in_pad": 2
+    },
+    "vias": 51,
+    "copperMm": 363.2657
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 42,
+    "copperMm": 470.1846
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 36,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 24,
+     "short": 6,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 24,
+     "short": 6,
+     "via_in_pad": 6
+    },
+    "vias": 42,
+    "copperMm": 470.1846
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 148.5566
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 15,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "short": 7
+    },
+    "errorKinds": {
+     "clearance": 8,
+     "short": 7
+    },
+    "vias": 6,
+    "copperMm": 148.5566
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 118.5115
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "short": 4,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "short": 4,
+     "via_in_pad": 1
+    },
+    "vias": 6,
+    "copperMm": 118.5115
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 24,
+    "copperMm": 305.3327
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 22,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "short": 10,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 10,
+     "via_in_pad": 2
+    },
+    "vias": 24,
+    "copperMm": 305.3327
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.785714,
+    "connectedNets": 11,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 30,
+    "copperMm": 323.5372
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.785714,
+    "connectedNets": 11,
+    "routableNets": 14,
+    "errors": 30,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 21,
+     "short": 4,
+     "via_in_pad": 5
+    },
+    "errorKinds": {
+     "clearance": 21,
+     "short": 4,
+     "via_in_pad": 5
+    },
+    "vias": 30,
+    "copperMm": 323.5372
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 48,
+    "copperMm": 497.6512
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 27,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 14,
+     "short": 4,
+     "via_in_pad": 9
+    },
+    "errorKinds": {
+     "clearance": 14,
+     "short": 4,
+     "via_in_pad": 9
+    },
+    "vias": 48,
+    "copperMm": 497.6512
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 150.3279
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 9,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 3
+    },
+    "vias": 8,
+    "copperMm": 150.3279
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 134,
+    "copperMm": 2018.6921
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 17,
+    "warnings": 6,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 19,
+     "short": 2,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 13,
+     "short": 2,
+     "via_in_pad": 2
+    },
+    "vias": 134,
+    "copperMm": 2018.6921
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-anneal",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 134,
+    "copperMm": 2168.7032
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 28,
+    "warnings": 7,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 29,
+     "short": 3,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 22,
+     "short": 3,
+     "via_in_pad": 3
+    },
+    "vias": 134,
+    "copperMm": 2168.7032
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.75,
+    "connectedNets": 27,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 90,
+    "copperMm": 1198.1788
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.75,
+    "connectedNets": 27,
+    "routableNets": 36,
+    "errors": 41,
+    "warnings": 16,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 43,
+     "short": 9,
+     "via_in_pad": 5
+    },
+    "errorKinds": {
+     "clearance": 27,
+     "short": 9,
+     "via_in_pad": 5
+    },
+    "vias": 90,
+    "copperMm": 1198.1788
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.78125,
+    "connectedNets": 25,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 74,
+    "copperMm": 551.4438
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.78125,
+    "connectedNets": 25,
+    "routableNets": 32,
+    "errors": 18,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 11,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "vias": 74,
+    "copperMm": 551.4438
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.75,
+    "connectedNets": 24,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 70,
+    "copperMm": 702.5828
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.75,
+    "connectedNets": 24,
+    "routableNets": 32,
+    "errors": 36,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 24,
+     "short": 5,
+     "via_in_pad": 9
+    },
+    "errorKinds": {
+     "clearance": 22,
+     "short": 5,
+     "via_in_pad": 9
+    },
+    "vias": 70,
+    "copperMm": 702.5828
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.7625
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 121.3663
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 4
+    },
+    "vias": 8,
+    "copperMm": 121.3663
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 44,
+    "copperMm": 354.1507
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 22,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 16,
+     "short": 6
+    },
+    "errorKinds": {
+     "clearance": 16,
+     "short": 6
+    },
+    "vias": 44,
+    "copperMm": 354.1507
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 40,
+    "copperMm": 474.8532
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 39,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "short": 8,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 25,
+     "short": 8,
+     "via_in_pad": 6
+    },
+    "vias": 40,
+    "copperMm": 474.8532
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 148.5566
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 15,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "short": 7
+    },
+    "errorKinds": {
+     "clearance": 8,
+     "short": 7
+    },
+    "vias": 6,
+    "copperMm": 148.5566
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 118.3801
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 11,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "short": 4,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "short": 4,
+     "via_in_pad": 3
+    },
+    "vias": 6,
+    "copperMm": 118.3801
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 24,
+    "copperMm": 299.6979
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 24,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "short": 11,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 11,
+     "via_in_pad": 3
+    },
+    "vias": 24,
+    "copperMm": 299.6979
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 22,
+    "copperMm": 299.7891
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 26,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 17,
+     "short": 5,
+     "via_in_pad": 4
+    },
+    "errorKinds": {
+     "clearance": 17,
+     "short": 5,
+     "via_in_pad": 4
+    },
+    "vias": 22,
+    "copperMm": 299.7891
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 50,
+    "copperMm": 560.4358
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 32,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "short": 5,
+     "via_in_pad": 4
+    },
+    "errorKinds": {
+     "clearance": 23,
+     "short": 5,
+     "via_in_pad": 4
+    },
+    "vias": 50,
+    "copperMm": 560.4358
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 8,
+    "copperMm": 151.6709
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 3
+    },
+    "vias": 8,
+    "copperMm": 151.6709
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 161,
+    "copperMm": 2372.199
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 35,
+    "warnings": 15,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 36,
+     "short": 6,
+     "via_in_pad": 8
+    },
+    "errorKinds": {
+     "clearance": 21,
+     "short": 6,
+     "via_in_pad": 8
+    },
+    "vias": 161,
+    "copperMm": 2372.199
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "meta-genetic",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.831461,
+    "connectedNets": 74,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 172,
+    "copperMm": 3027.6883
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.831461,
+    "connectedNets": 74,
+    "routableNets": 89,
+    "errors": 34,
+    "warnings": 15,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 37,
+     "keepout": 1,
+     "short": 6,
+     "via_in_pad": 5
+    },
+    "errorKinds": {
+     "clearance": 22,
+     "keepout": 1,
+     "short": 6,
+     "via_in_pad": 5
+    },
+    "vias": 172,
+    "copperMm": 3027.6883
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.916667,
+    "connectedNets": 33,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 70,
+    "copperMm": 1425.7514
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.916667,
+    "connectedNets": 33,
+    "routableNets": 36,
+    "errors": 20,
+    "warnings": 7,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 17,
+     "dfm_power_trace_width": 2,
+     "keepout": 2,
+     "short": 4,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 12,
+     "keepout": 2,
+     "short": 4,
+     "via_in_pad": 2
+    },
+    "vias": 70,
+    "copperMm": 1425.7514
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.84375,
+    "connectedNets": 27,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 59,
+    "copperMm": 640.075
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.84375,
+    "connectedNets": 27,
+    "routableNets": 32,
+    "errors": 6,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1,
+     "short": 4,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 4,
+     "via_in_pad": 1
+    },
+    "vias": 59,
+    "copperMm": 640.075
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 70,
+    "copperMm": 918.0458
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.875,
+    "connectedNets": 28,
+    "routableNets": 32,
+    "errors": 8,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 7,
+     "dfm_power_trace_width": 2,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "vias": 70,
+    "copperMm": 918.0458
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 3.1608
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 3.1608
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 5,
+    "copperMm": 150.4175
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "keepout": 6
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "keepout": 6
+    },
+    "vias": 5,
+    "copperMm": 150.4175
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.882353,
+    "connectedNets": 15,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 48,
+    "copperMm": 428.3639
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.882353,
+    "connectedNets": 15,
+    "routableNets": 17,
+    "errors": 11,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "dfm_power_trace_width": 1,
+     "short": 6,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "short": 6,
+     "via_in_pad": 1
+    },
+    "vias": 48,
+    "copperMm": 428.3639
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.882353,
+    "connectedNets": 15,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 39,
+    "copperMm": 577.6777
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.882353,
+    "connectedNets": 15,
+    "routableNets": 17,
+    "errors": 15,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 7,
+     "dfm_power_trace_width": 2,
+     "keepout": 6,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "keepout": 6,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "vias": 39,
+    "copperMm": 577.6777
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 8,
+    "copperMm": 182.5064
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 9,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "dfm_power_trace_width": 2,
+     "keepout": 3
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "keepout": 3
+    },
+    "vias": 8,
+    "copperMm": 182.5064
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 139.6781
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 5,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "keepout": 5
+    },
+    "errorKinds": {
+     "keepout": 5
+    },
+    "vias": 6,
+    "copperMm": 139.6781
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 14,
+    "copperMm": 309.1629
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 10,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "keepout": 3,
+     "short": 1,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "keepout": 3,
+     "short": 1,
+     "via_in_pad": 3
+    },
+    "vias": 14,
+    "copperMm": 309.1629
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 33,
+    "copperMm": 392.053
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.928571,
+    "connectedNets": 13,
+    "routableNets": 14,
+    "errors": 5,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "dfm_power_trace_width": 2,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "vias": 33,
+    "copperMm": 392.053
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 47,
+    "copperMm": 591.0772
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 18,
+    "routableNets": 21,
+    "errors": 11,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "dfm_power_trace_width": 2,
+     "keepout": 4,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 4,
+     "keepout": 4,
+     "short": 3
+    },
+    "vias": 47,
+    "copperMm": 591.0772
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 3.0407
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 3.0407
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 164.8433
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 6,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 1
+    },
+    "vias": 6,
+    "copperMm": 164.8433
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.955056,
+    "connectedNets": 85,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 150,
+    "copperMm": 2604.6244
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.955056,
+    "connectedNets": 85,
+    "routableNets": 89,
+    "errors": 8,
+    "warnings": 17,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 24,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "short": 1
+    },
+    "vias": 150,
+    "copperMm": 2604.6244
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "pathfinder-negotiated",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.898876,
+    "connectedNets": 80,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 107,
+    "copperMm": 2220.8511
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.898876,
+    "connectedNets": 80,
+    "routableNets": 89,
+    "errors": 8,
+    "warnings": 13,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 20,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "short": 1
+    },
+    "vias": 107,
+    "copperMm": 2220.8511
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.777778,
+    "connectedNets": 28,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 42,
+    "copperMm": 845.1651
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.777778,
+    "connectedNets": 28,
+    "routableNets": 36,
+    "errors": 75,
+    "warnings": 13,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 61,
+     "dfm_power_trace_width": 2,
+     "short": 19,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 50,
+     "short": 19,
+     "via_in_pad": 6
+    },
+    "vias": 42,
+    "copperMm": 845.1651
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8125,
+    "connectedNets": 26,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 70,
+    "copperMm": 502.7846
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8125,
+    "connectedNets": 26,
+    "routableNets": 32,
+    "errors": 22,
+    "warnings": 10,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 28,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 19,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "vias": 70,
+    "copperMm": 502.7846
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.78125,
+    "connectedNets": 25,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 31,
+    "copperMm": 613.1984
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.78125,
+    "connectedNets": 25,
+    "routableNets": 32,
+    "errors": 64,
+    "warnings": 13,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 59,
+     "dfm_power_trace_width": 2,
+     "keepout": 6,
+     "short": 8,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 48,
+     "keepout": 6,
+     "short": 8,
+     "via_in_pad": 2
+    },
+    "vias": 31,
+    "copperMm": 613.1984
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.6634
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 1,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 0,
+    "copperMm": 2.6634
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 10,
+    "copperMm": 125.6763
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 23,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 16,
+     "dfm_power_trace_width": 2,
+     "short": 4,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 16,
+     "short": 4,
+     "via_in_pad": 3
+    },
+    "vias": 10,
+    "copperMm": 125.6763
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 17,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 63,
+    "copperMm": 388.8123
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 17,
+    "routableNets": 17,
+    "errors": 42,
+    "warnings": 10,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 40,
+     "dfm_power_trace_width": 2,
+     "short": 8,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 32,
+     "short": 8,
+     "via_in_pad": 2
+    },
+    "vias": 63,
+    "copperMm": 388.8123
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 28,
+    "copperMm": 346.6344
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 45,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 35,
+     "dfm_power_trace_width": 2,
+     "short": 10,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 32,
+     "short": 10,
+     "via_in_pad": 3
+    },
+    "vias": 28,
+    "copperMm": 346.6344
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 9,
+    "copperMm": 127.9063
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.6,
+    "connectedNets": 3,
+    "routableNets": 5,
+    "errors": 23,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 16,
+     "dfm_power_trace_width": 1,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 15,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "vias": 9,
+    "copperMm": 127.9063
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 11,
+    "copperMm": 116.743
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 24,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "dfm_power_trace_width": 2,
+     "short": 5,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 13,
+     "short": 5,
+     "via_in_pad": 6
+    },
+    "vias": 11,
+    "copperMm": 116.743
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 3,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 3
+    },
+    "vias": 14,
+    "copperMm": 278.5046
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 41,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 19,
+     "dfm_power_trace_width": 3,
+     "short": 16,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 19,
+     "short": 16,
+     "via_in_pad": 6
+    },
+    "vias": 14,
+    "copperMm": 278.5046
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 14,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 33,
+    "copperMm": 368.7124
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 14,
+    "routableNets": 14,
+    "errors": 44,
+    "warnings": 7,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 41,
+     "dfm_power_trace_width": 2,
+     "short": 4,
+     "via_in_pad": 4
+    },
+    "errorKinds": {
+     "clearance": 36,
+     "short": 4,
+     "via_in_pad": 4
+    },
+    "vias": 33,
+    "copperMm": 368.7124
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 32,
+    "copperMm": 391.7917
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.809524,
+    "connectedNets": 17,
+    "routableNets": 21,
+    "errors": 52,
+    "warnings": 6,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 48,
+     "dfm_power_trace_width": 2,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "errorKinds": {
+     "clearance": 44,
+     "short": 5,
+     "via_in_pad": 3
+    },
+    "vias": 32,
+    "copperMm": 391.7917
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8896
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8896
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 2,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 4,
+    "copperMm": 150.1627
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 26,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "dfm_power_trace_width": 2,
+     "short": 13,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 12,
+     "short": 13,
+     "via_in_pad": 1
+    },
+    "vias": 4,
+    "copperMm": 150.1627
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_hole_clearance": 2,
+     "dfm_power_trace_width": 2
+    },
+    "vias": 90,
+    "copperMm": 1409.2386
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.842697,
+    "connectedNets": 75,
+    "routableNets": 89,
+    "errors": 110,
+    "warnings": 15,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 102,
+     "dfm_hole_clearance": 2,
+     "dfm_power_trace_width": 2,
+     "short": 17,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 91,
+     "short": 17,
+     "via_in_pad": 2
+    },
+    "vias": 90,
+    "copperMm": 1409.2386
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "plane-and-classes",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.853933,
+    "connectedNets": 76,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 62,
+    "copperMm": 1607.4038
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.853933,
+    "connectedNets": 76,
+    "routableNets": 89,
+    "errors": 133,
+    "warnings": 13,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 111,
+     "dfm_power_trace_width": 2,
+     "keepout": 5,
+     "short": 22,
+     "via_in_pad": 6
+    },
+    "errorKinds": {
+     "clearance": 100,
+     "keepout": 5,
+     "short": 22,
+     "via_in_pad": 6
+    },
+    "vias": 62,
+    "copperMm": 1607.4038
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.666667,
+    "connectedNets": 24,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 92,
+    "copperMm": 1103.2236
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.666667,
+    "connectedNets": 24,
+    "routableNets": 36,
+    "errors": 14,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "dfm_power_trace_width": 2,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 11,
+     "short": 3
+    },
+    "vias": 92,
+    "copperMm": 1103.2236
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 76,
+    "copperMm": 495.0785
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "dfm_power_trace_width": 1,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 1,
+     "via_in_pad": 1
+    },
+    "vias": 76,
+    "copperMm": 495.0785
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 52,
+    "copperMm": 696.1529
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "dfm_power_trace_width": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "short": 1
+    },
+    "vias": 52,
+    "copperMm": 696.1529
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8882
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8882
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 18,
+    "copperMm": 140.2453
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 18,
+    "copperMm": 140.2453
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 56,
+    "copperMm": 342.0695
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 8,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "dfm_power_trace_width": 1,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 3
+    },
+    "vias": 56,
+    "copperMm": 342.0695
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.647059,
+    "connectedNets": 11,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 54,
+    "copperMm": 464.0252
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.647059,
+    "connectedNets": 11,
+    "routableNets": 17,
+    "errors": 7,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 7,
+     "dfm_power_trace_width": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 1
+    },
+    "vias": 54,
+    "copperMm": 464.0252
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 18,
+    "copperMm": 177.5373
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 5,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 1
+    },
+    "errorKinds": {
+     "clearance": 5
+    },
+    "vias": 18,
+    "copperMm": 177.5373
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 18,
+    "copperMm": 132.6692
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 1,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1,
+     "dfm_power_trace_width": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 18,
+    "copperMm": 132.6692
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 34,
+    "copperMm": 291.6105
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 8,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "short": 1
+    },
+    "vias": 34,
+    "copperMm": 291.6105
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 40,
+    "copperMm": 416.3097
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 2,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "dfm_power_trace_width": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 1,
+     "short": 1
+    },
+    "vias": 40,
+    "copperMm": 416.3097
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.761905,
+    "connectedNets": 16,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 3
+    },
+    "vias": 52,
+    "copperMm": 537.2212
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.761905,
+    "connectedNets": 16,
+    "routableNets": 21,
+    "errors": 4,
+    "warnings": 6,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 52,
+    "copperMm": 537.2212
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 151.9721
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 7,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 7
+    },
+    "errorKinds": {
+     "clearance": 7
+    },
+    "vias": 16,
+    "copperMm": 151.9721
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 238,
+    "copperMm": 1839.0972
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 6,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 1,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 1
+    },
+    "vias": 238,
+    "copperMm": 1839.0972
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-greedy-control",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 188,
+    "copperMm": 2022.0651
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 8,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "dfm_power_trace_width": 2,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 2
+    },
+    "vias": 188,
+    "copperMm": 2022.0651
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.694444,
+    "connectedNets": 25,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 96,
+    "copperMm": 1135.3577
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.694444,
+    "connectedNets": 25,
+    "routableNets": 36,
+    "errors": 14,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 12,
+     "dfm_power_trace_width": 2,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 3,
+     "via_in_pad": 1
+    },
+    "vias": 96,
+    "copperMm": 1135.3577
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.6875,
+    "connectedNets": 22,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 78,
+    "copperMm": 521.0218
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.6875,
+    "connectedNets": 22,
+    "routableNets": 32,
+    "errors": 6,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2,
+     "via_in_pad": 2
+    },
+    "vias": 78,
+    "copperMm": 521.0218
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 52,
+    "copperMm": 696.1529
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.625,
+    "connectedNets": 20,
+    "routableNets": 32,
+    "errors": 4,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 6,
+     "dfm_power_trace_width": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 3,
+     "short": 1
+    },
+    "vias": 52,
+    "copperMm": 696.1529
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8882
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8882
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 18,
+    "copperMm": 140.2453
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 2,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 18,
+    "copperMm": 140.2453
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 66,
+    "copperMm": 398.4481
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.941176,
+    "connectedNets": 16,
+    "routableNets": 17,
+    "errors": 11,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 1,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "errorKinds": {
+     "clearance": 8,
+     "short": 2,
+     "via_in_pad": 1
+    },
+    "vias": 66,
+    "copperMm": 398.4481
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 58,
+    "copperMm": 519.3398
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 11,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 11,
+     "dfm_power_trace_width": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 10,
+     "short": 1
+    },
+    "vias": 58,
+    "copperMm": 519.3398
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 18,
+    "copperMm": 177.5373
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 5,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 1
+    },
+    "errorKinds": {
+     "clearance": 5
+    },
+    "vias": 18,
+    "copperMm": 177.5373
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": true,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 18,
+    "copperMm": 132.6692
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 1,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1,
+     "dfm_power_trace_width": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 18,
+    "copperMm": 132.6692
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 34,
+    "copperMm": 291.6105
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 9,
+    "routableNets": 9,
+    "errors": 8,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "short": 1
+    },
+    "vias": 34,
+    "copperMm": 291.6105
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 38,
+    "copperMm": 450.8139
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 12,
+    "routableNets": 14,
+    "errors": 9,
+    "warnings": 4,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 8,
+     "dfm_power_trace_width": 2,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 3
+    },
+    "vias": 38,
+    "copperMm": 450.8139
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.761905,
+    "connectedNets": 16,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 3
+    },
+    "vias": 52,
+    "copperMm": 537.2212
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.761905,
+    "connectedNets": 16,
+    "routableNets": 21,
+    "errors": 4,
+    "warnings": 6,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 52,
+    "copperMm": 537.2212
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 16,
+    "copperMm": 151.9721
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 7,
+    "routableNets": 7,
+    "errors": 7,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 7
+    },
+    "errorKinds": {
+     "clearance": 7
+    },
+    "vias": 16,
+    "copperMm": 151.9721
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 238,
+    "copperMm": 1839.0972
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.786517,
+    "connectedNets": 70,
+    "routableNets": 89,
+    "errors": 6,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "dfm_power_trace_width": 1,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 1
+    },
+    "vias": 238,
+    "copperMm": 1839.0972
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "ripup-reroute",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.808989,
+    "connectedNets": 72,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 2
+    },
+    "vias": 184,
+    "copperMm": 2148.1228
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.808989,
+    "connectedNets": 72,
+    "routableNets": 89,
+    "errors": 12,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 2,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 9,
+     "short": 3
+    },
+    "vias": 184,
+    "copperMm": 2148.1228
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "harness-puck",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.694444,
+    "connectedNets": 25,
+    "routableNets": 36,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 27,
+    "copperMm": 670.7493
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.694444,
+    "connectedNets": 25,
+    "routableNets": 36,
+    "errors": 18,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 13,
+     "short": 6
+    },
+    "errorKinds": {
+     "clearance": 12,
+     "short": 6
+    },
+    "vias": 27,
+    "copperMm": 670.7493
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "hydrate-coaster-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 56,
+    "copperMm": 538.1381
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.65625,
+    "connectedNets": 21,
+    "routableNets": 32,
+    "errors": 1,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 1
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 56,
+    "copperMm": 538.1381
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "hydrate-coaster",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.59375,
+    "connectedNets": 19,
+    "routableNets": 32,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 16,
+    "copperMm": 418.8592
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.59375,
+    "connectedNets": 19,
+    "routableNets": 32,
+    "errors": 10,
+    "warnings": 5,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 10,
+     "dfm_power_trace_width": 1,
+     "short": 4
+    },
+    "errorKinds": {
+     "clearance": 6,
+     "short": 4
+    },
+    "vias": 16,
+    "copperMm": 418.8592
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-i2c-bus",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 3.2091
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 3.2091
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-i2c-bus__ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 7,
+    "copperMm": 170.0693
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 5,
+    "routableNets": 5,
+    "errors": 3,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 1
+    },
+    "vias": 7,
+    "copperMm": 170.0693
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 13,
+    "copperMm": 343.0488
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.823529,
+    "connectedNets": 14,
+    "routableNets": 17,
+    "errors": 8,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 5,
+     "short": 3
+    },
+    "vias": 13,
+    "copperMm": 343.0488
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-ldo-3v3__rp2040-core__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 9,
+    "copperMm": 317.363
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.764706,
+    "connectedNets": 13,
+    "routableNets": 17,
+    "errors": 5,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 3
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 3
+    },
+    "vias": 9,
+    "copperMm": 317.363
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-ldo-3v3__sensor-bme280__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 3,
+    "copperMm": 102.6322
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 4,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3,
+     "short": 2
+    },
+    "errorKinds": {
+     "clearance": 2,
+     "short": 2
+    },
+    "vias": 3,
+    "copperMm": 102.6322
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-ldo-3v3__usb-c-power",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 0,
+    "copperMm": 103.3806
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.8,
+    "connectedNets": 4,
+    "routableNets": 5,
+    "errors": 2,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 2,
+     "dfm_power_trace_width": 1
+    },
+    "errorKinds": {
+     "clearance": 2
+    },
+    "vias": 0,
+    "copperMm": 103.3806
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-ldo-3v3__usb-c-power__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 6,
+    "copperMm": 135.7819
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.777778,
+    "connectedNets": 7,
+    "routableNets": 9,
+    "errors": 1,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 3
+    },
+    "errorKinds": {
+     "clearance": 1
+    },
+    "vias": 6,
+    "copperMm": 135.7819
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-rp2040-core__sw-tact",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.714286,
+    "connectedNets": 10,
+    "routableNets": 14,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 10,
+    "copperMm": 255.7001
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.714286,
+    "connectedNets": 10,
+    "routableNets": 14,
+    "errors": 5,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 5
+    },
+    "errorKinds": {
+     "clearance": 5
+    },
+    "vias": 10,
+    "copperMm": 255.7001
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-rp2040-core__usb-c-data",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.666667,
+    "connectedNets": 14,
+    "routableNets": 21,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 14,
+    "copperMm": 455.7321
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.666667,
+    "connectedNets": 14,
+    "routableNets": 21,
+    "errors": 8,
+    "warnings": 2,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 9,
+     "short": 1
+    },
+    "errorKinds": {
+     "clearance": 7,
+     "short": 1
+    },
+    "vias": 14,
+    "copperMm": 455.7321
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-status-led",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 1.0,
+    "connectedNets": 1,
+    "routableNets": 1,
+    "errors": 0,
+    "warnings": 0,
+    "clean": true,
+    "violationsByKind": {},
+    "errorKinds": {},
+    "vias": 0,
+    "copperMm": 2.8764
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "matrix-status-led__ws2812-chain",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 2,
+    "copperMm": 101.7627
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.857143,
+    "connectedNets": 6,
+    "routableNets": 7,
+    "errors": 3,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 4
+    },
+    "errorKinds": {
+     "clearance": 3
+    },
+    "vias": 2,
+    "copperMm": 101.7627
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "terminal-keyboard-plane",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 0,
+    "clean": false,
+    "violationsByKind": {},
+    "vias": 24,
+    "copperMm": 1359.2273
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.752809,
+    "connectedNets": 67,
+    "routableNets": 89,
+    "errors": 29,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 25,
+     "short": 5
+    },
+    "errorKinds": {
+     "clearance": 24,
+     "short": 5
+    },
+    "vias": 24,
+    "copperMm": 1359.2273
+   },
+   "replayMatches": true
+  },
+  {
+   "router": "topological-graph",
+   "instance": "terminal-keyboard",
+   "ok": true,
+   "old": {
+    "rulerHash": "b3c77d55b171",
+    "completeness": 0.719101,
+    "connectedNets": 64,
+    "routableNets": 89,
+    "errors": 0,
+    "warnings": 1,
+    "clean": false,
+    "violationsByKind": {
+     "dfm_power_trace_width": 1
+    },
+    "vias": 26,
+    "copperMm": 1465.5207
+   },
+   "new": {
+    "rulerHash": "56d69c365a72",
+    "completeness": 0.719101,
+    "connectedNets": 64,
+    "routableNets": 89,
+    "errors": 40,
+    "warnings": 3,
+    "clean": false,
+    "violationsByKind": {
+     "clearance": 34,
+     "dfm_power_trace_width": 1,
+     "short": 8
+    },
+    "errorKinds": {
+     "clearance": 32,
+     "short": 8
+    },
+    "vias": 26,
+    "copperMm": 1465.5207
+   },
+   "replayMatches": true
+  }
+ ]
+}

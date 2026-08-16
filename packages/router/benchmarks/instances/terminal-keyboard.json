@@ -8,7 +8,7 @@
   "kind": "example",
   "path": "/Users/d/code/autonomous-circuit/examples/terminal-keyboard/boards/main.circuit.json"
  },
- "placementHash": "e57b004b4304",
+ "placementHash": "afdde4745cff",
  "rules": {
   "profile": "jlcpcb",
   "layerCount": 2,
@@ -6876,8 +6876,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net67",
    "x": -26.199956,
    "y": -38.325956999999995,
-   "w": 0.5999733999999997,
-   "h": 1.3001751999999982,
+   "w": 0.5999729999999985,
+   "h": 1.300175000000003,
    "layers": [
     "top"
    ],
@@ -6947,7 +6947,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net67",
    "x": -19.799993999999998,
    "y": -38.325855,
-   "w": 0.6000242,
+   "w": 0.6000240000000012,
    "h": 1.2999719999999968,
    "layers": [
     "top"
@@ -6991,7 +6991,7 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net83",
    "x": -20.59984,
    "y": -38.325855,
-   "w": 0.6000242,
+   "w": 0.6000240000000012,
    "h": 1.2999719999999968,
    "layers": [
     "top"
@@ -7035,8 +7035,8 @@
    "net": "unnamedsubcircuitsubcircuit_source_group_61_connectivity_net83",
    "x": -25.399957,
    "y": -38.32602,
-   "w": 0.5999733999999997,
-   "h": 1.2999974000000023,
+   "w": 0.5999739999999996,
+   "h": 1.2999970000000047,
    "layers": [
     "top"
    ],

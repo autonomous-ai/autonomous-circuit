@@ -1,16 +1,23 @@
-"""Measure the harness's pad model against the pad.
+"""Measure the harness's pad model against the pad. Independently.
 
-``routerlib.geometry.rect_capsule`` models a rectangular pad as its **inscribed
-stadium**. The docstring is honest about the direction of the error — "the model
-can miss a finding, it cannot invent one" — but nothing had measured the size of
-it. For a square pad the stadium is the inscribed circle, and each corner sticks
-out by ``(sqrt(2) - 1) * w / 2``: 0.21mm on a 1.0mm pad, which is more than
-twice the 0.09mm clearance gate.
+Written to size a defect and kept as the tripwire for it. Until 2026-08-16
+``routerlib.geometry`` modelled a rectangular pad as its **inscribed stadium**;
+for a square pad that is the inscribed circle, and each corner stuck out by
+``(sqrt(2) - 1) * w / 2`` — 0.21mm on a 1.0mm pad, more than twice the 0.09mm
+gate. Measured here over every routed cell, that was **3 to 137 pad-trace pairs
+per router** where the true pad overlapped copper the scorer called clear.
 
-This walks every (pad, trace segment) pair of a routed instance and computes the
-gap twice — once against the inscribed stadium the scorer uses, once against the
-true rotated rectangle — and reports the pairs where they disagree across the
-gate. Those pairs are exactly the violations the tournament scored as clean.
+It walks every (pad, trace segment) pair of a routed instance and computes the
+gap twice: once with ``routerlib.geometry.capsule_gap``, and once with the
+arithmetic in this file, which shares no code with it. A rotated rectangle is
+rotated into the pad's frame and measured against four edges; a stadium is
+measured against its spine; a polygon against its own edges. Any pair where the
+two disagree across the gate is reported.
+
+**The expected result is now zero, and a non-zero one is a regression** — either
+in the shape model or in this reference, and the two being written separately is
+the point. The check runs over the copper of every family on disk, which is a
+few hundred thousand pairs of real geometry.
 
     python3.12 scripts/pad_corner_gap.py --tournament work/tournament
 """
@@ -88,6 +95,73 @@ def seg_to_rect_gap(seg, pad) -> float:
     return best
 
 
+#: Shapes whose true outline is a stadium, not a rectangle. Measuring one of
+#: these against its bounding rectangle is the *reference* being wrong, which
+#: is how this script read 109 phantom misses on a model that was right.
+STADIUM_SHAPES = frozenset(
+    {"circle", "pill", "rotated_pill", "oval", "rotated_oval", "capsule"}
+)
+
+
+def seg_to_stadium_gap(seg, pad) -> float:
+    """Distance from a segment's centre line to a pill or a round pad."""
+    (ax, ay), (bx, by) = seg
+    cx, cy = pad.center.x, pad.center.y
+    radius = min(pad.width_mm, pad.height_mm) / 2.0
+    half = abs(pad.height_mm - pad.width_mm) / 2.0
+    if pad.height_mm >= pad.width_mm:
+        sx0, sy0, sx1, sy1 = cx, cy - half, cx, cy + half
+    else:
+        sx0, sy0, sx1, sy1 = cx - half, cy, cx + half, cy
+    if pad.rotation_deg:
+        theta = math.radians(pad.rotation_deg)
+        ct, st = math.cos(theta), math.sin(theta)
+
+        def spin(px, py):
+            dx, dy = px - cx, py - cy
+            return (cx + dx * ct - dy * st, cy + dx * st + dy * ct)
+
+        sx0, sy0 = spin(sx0, sy0)
+        sx1, sy1 = spin(sx1, sy1)
+    return max(0.0, _seg_seg_dist(ax, ay, bx, by, sx0, sy0, sx1, sy1) - radius)
+
+
+def seg_to_polygon_gap(seg, pad) -> float:
+    """Distance from a segment's centre line to a polygon pad's own outline."""
+    (ax, ay), (bx, by) = seg
+    verts = [(v.x, v.y) for v in pad.vertices]
+    n = len(verts)
+    inside = False
+    for px, py in ((ax, ay), (bx, by)):
+        crossings = False
+        j = n - 1
+        for i in range(n):
+            xi, yi = verts[i]
+            xj, yj = verts[j]
+            if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
+                crossings = not crossings
+            j = i
+        inside = inside or crossings
+    if inside:
+        return 0.0
+    best = math.inf
+    for i in range(n):
+        cx, cy = verts[i]
+        dx_, dy_ = verts[(i + 1) % n]
+        best = min(best, _seg_seg_dist(ax, ay, bx, by, cx, cy, dx_, dy_))
+    return best
+
+
+def reference_gap(seg, pad) -> float:
+    """The pad's true outline, measured by arithmetic that is not the
+    harness's. One dispatch, three shapes, no bounding boxes."""
+    if pad.vertices:
+        return seg_to_polygon_gap(seg, pad)
+    if (pad.shape or "rect").lower() in STADIUM_SHAPES:
+        return seg_to_stadium_gap(seg, pad)
+    return seg_to_rect_gap(seg, pad)
+
+
 def analyse(problem, solution, gate: float) -> dict:
     from routerlib.geometry import capsule_gap, pad_capsule, segment_capsule
 
@@ -110,7 +184,7 @@ def analyse(problem, solution, gate: float) -> dict:
                     continue
                 seen += 1
                 model_gap = capsule_gap(seg_cap, pad_capsule(pad))
-                true_gap = seg_to_rect_gap(((p0.x, p0.y), (p1.x, p1.y)), pad) - half
+                true_gap = reference_gap(((p0.x, p0.y), (p1.x, p1.y)), pad) - half
                 if model_gap >= gate > true_gap:
                     rec = {
                         "pad": pad.id,
