@@ -86,7 +86,7 @@ reporting a defect. Most of a day went into a via-in-pad that was never real.
 | Round | Date | Commit | 1 Fam | 2 Nav | 3 Edit | 4 Verdict | 5 Integrity | 6 Disc | 7 Boards | Total |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | 2026-08-16 | `80ad1c0` | 6 | 8 | 6 | 2 | 6 | 6 | 6 | **40** |
-| 2 | 2026-08-16 | `dc9b3ea` | — | — | — | — | — | — | — | running |
+| 2 | 2026-08-16 | `dc9b3ea` | 8 | 8 | 7 | 8 | 6 | 7 | 7 | **51** |
 
 Round 1 is written up in `docs/reviews/ide-panel-2026-08-16.md`; the judges'
 own reports are under `work/ide-panel/round<N>/`.
