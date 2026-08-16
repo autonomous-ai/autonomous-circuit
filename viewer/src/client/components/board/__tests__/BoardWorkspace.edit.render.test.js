@@ -358,3 +358,26 @@ test("undo refuses to overwrite somebody else's edit to the same part", async ()
     w.close();
   }
 });
+
+test("the turn buttons say what they will write, because 270 reads as a bug", async () => {
+  // `pcbRotation` counts counterclockwise, so turning a part clockwise from 0°
+  // writes 270. That is correct, and to anyone who then opens the board file
+  // it is indistinguishable from a broken button — so the button says it.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle();
+
+    const cw = w.find('[data-slot="placement-rotate-cw"]');
+    const ccw = w.find('[data-slot="placement-rotate-ccw"]');
+    assert.match(cw.title, /clockwise/);
+    assert.match(cw.title, /writes pcbRotation=\{270\}/);
+    assert.match(cw.title, /counts counterclockwise/);
+    assert.match(ccw.title, /writes pcbRotation=\{90\}/);
+  } finally {
+    w.close();
+  }
+});

@@ -167,6 +167,26 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
 }
 
 /**
+ * What a turn will do, and what it will write.
+ *
+ * The second half is the point. `pcbRotation` counts counterclockwise, which is
+ * the file's convention and the right one, so turning a part clockwise from 0°
+ * writes **270**. That is correct and it reads as a bug: an engineer who turns
+ * a part clockwise, opens the board file and finds 270 concludes the button is
+ * wrong. Saying it on the button costs nothing and answers the question before
+ * it is asked.
+ */
+function turnTitle(placement, direction, step) {
+  const command = commitRotateStep(placement, direction, step);
+  const way = direction === CW ? "clockwise" : "counterclockwise";
+  if (!command) return `${placement.label} is already there`;
+  return (
+    `Turn ${placement.label} ${step}° ${way} — writes pcbRotation={${command.to}} ` +
+    `(the board file counts counterclockwise from 0°)`
+  );
+}
+
+/**
  * The strip that appears above the PCB canvas in move mode.
  *
  * It exists to make one sentence unmissable before anyone drags anything:
@@ -320,7 +340,7 @@ export default function PlacementEditBar({
             onClick={() => turn(CCW)}
             data-slot="placement-rotate-ccw"
             data-rotate-via={placement.rotateVia}
-            title={refusal ? refusal.reason : `Turn ${placement.label} ${turnBy}° counterclockwise`}
+            title={refusal ? refusal.reason : turnTitle(placement, CCW, turnBy)}
             className={cn(
               "rounded border border-border/60 p-0.5 transition-colors hover:text-foreground disabled:opacity-40",
               refusal ? "opacity-50" : "",
@@ -334,7 +354,7 @@ export default function PlacementEditBar({
             onClick={() => turn(CW)}
             data-slot="placement-rotate-cw"
             data-rotate-via={placement.rotateVia}
-            title={refusal ? refusal.reason : `Turn ${placement.label} ${turnBy}° clockwise`}
+            title={refusal ? refusal.reason : turnTitle(placement, CW, turnBy)}
             className={cn(
               "rounded border border-border/60 p-0.5 transition-colors hover:text-foreground disabled:opacity-40",
               refusal ? "opacity-50" : "",
