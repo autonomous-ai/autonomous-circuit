@@ -20,6 +20,25 @@ that returns nothing is quoted as the evidence it is. All greps run 2026-08-16 o
 Scope note: a separate workstream is building the write path (move a component, it
 persists). Nothing here is that plumbing. This is the hand.
 
+> **Status, 2026-08-16 evening — this is a study, not a bug list, and part of it
+> has been fixed since it was written.** Everything below was measured before
+> `ec67807`/`6a209dc`. Since then the mouse grammar landed: right-drag pans,
+> right-click opens the context menu when idle and abandons the command when one
+> is running, Spacebar and Shift+Spacebar rotate the part on the cursor, and both
+> canvases route their keys through one arbiter (`boardKeymap.js`) instead of two
+> private handlers. `Ctrl+Z`/`Ctrl+Y` undo and redo a move. The count in §0 ("18
+> keys", "14 do nothing") is therefore historical: `cd viewer && node
+> scripts/shortcut-report.mjs` prints what the app answers *today*, derived from
+> the resolvers rather than from a list anyone maintains.
+>
+> What §0 says about the zoom buttons **still stands**: the tool rail prints `+`
+> and `−` beside them (`viewportTools.js:33-34`) and no handler answers either —
+> and in Altium those two keys step the layer stack, so printing them next to a
+> zoom control teaches a reflex that is wrong in both tools at once.
+>
+> Read the rest as the standing to-do list it is. Re-measure before acting on any
+> single line of it.
+
 ---
 
 ## 0. The headline
