@@ -8,7 +8,7 @@ import {
   pcbElementBox,
   pcbElementContains,
 } from "@/lib/boardIndex.js";
-import { formatMm } from "./boardSource.js";
+import { FINE_STEP_MM, formatMm, snapDelta } from "./boardSource.js";
 import {
   CLICK_SLOP_PX,
   beginMove,
