@@ -167,6 +167,38 @@ test("project CRUD over HTTP with IpcError on a missing project", async () => {
   }
 });
 
+// project_create, chat_start_turn and its two siblings were ported from Tauri
+// commands that name their argument struct, so they read `{req: {...}}` while
+// the other twenty commands read the body flat. Everyone who scripted the API
+// posted the flat shape, and project_create — whose name is optional — answered
+// 200 with a project called "New project" instead of theirs. An unread field
+// looked exactly like an absent one.
+test("a flat body reaches project_create, which used to silently name it 'New project'", async () => {
+  const s = await bootServer();
+  try {
+    const flat = await s.post("project_create", { name: "Flat Body" });
+    assert.equal(flat.status, 200);
+    assert.equal(flat.body.name, "Flat Body");
+
+    // The shipped client's shape still works, and wins if somebody sends both.
+    const wrapped = await s.post("project_create", { req: { name: "Wrapped" }, name: "Ignored" });
+    assert.equal(wrapped.body.name, "Wrapped");
+
+    // No name at all is still the placeholder — that is the "New project"
+    // button, not a dropped field, and the self-heal upgrades it later.
+    const blank = await s.post("project_create", {});
+    assert.equal(blank.body.name, "New project");
+
+    // The chat commands take both shapes too, and a flat body with no project
+    // is refused rather than routed at nothing.
+    const noProject = await s.post("chat_start_turn", { projectId: "nope", userMessage: "hi" });
+    assert.equal(noProject.status, 404);
+    assert.equal(noProject.body.code, "PROJECT_NOT_FOUND");
+  } finally {
+    s.close();
+  }
+});
+
 test("chat turn end-to-end over SSE: enveloped chat_events in order, plus catalog_changed from the watcher", async () => {
   const s = await bootServer({
     scenario: {

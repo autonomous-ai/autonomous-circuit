@@ -105,6 +105,26 @@ function readJsonBody(req) {
   });
 }
 
+/**
+ * The body of a command, whether it arrived wrapped in `req` or flat.
+ *
+ * Four commands (`project_create` and the three chat ones) were ported from
+ * the donor's Tauri signatures, where the argument struct is named — so they
+ * read `{req: {...}}` while every other command in this table reads its
+ * fields off the body directly. Two engineers building fleet boards posted
+ * `{"name": "..."}` because that is what the other twenty commands take, and
+ * `project_create` answered 200 with a project called "New project": the name
+ * is optional there, so an unread field looks exactly like an absent one.
+ *
+ * Both shapes now work. Wrapped wins when both are present, since that is
+ * what the shipped client sends.
+ */
+function envelope(body) {
+  const flat = body && typeof body === "object" ? body : {};
+  const wrapped = flat.req;
+  return wrapped && typeof wrapped === "object" ? wrapped : flat;
+}
+
 // ---------------------------------------------------------------------------
 // Prereq probes (contract §2 app_prereq_check: claude on PATH · node ≥22.12 ·
 // toolchain installed (toolchain/node_modules present) · python ≥3.10 ·
@@ -862,7 +882,7 @@ export function createCircuitServices({ env = process.env } = {}) {
 
     // projects
     project_list: async () => projects.list(),
-    project_create: async ({ req }) => projects.create(req?.name),
+    project_create: async (body) => projects.create(envelope(body).name),
     project_open: async ({ id }) => {
       requireProject(id);
       activeProjectId = String(id);
@@ -897,7 +917,8 @@ export function createCircuitServices({ env = process.env } = {}) {
     },
 
     // chat
-    chat_start_turn: async ({ req }) => {
+    chat_start_turn: async (body) => {
+      const req = envelope(body);
       const projectId = requireProject(req?.projectId);
       let message = String(req?.userMessage ?? "");
       const images = Array.isArray(req?.images) ? req.images : [];
@@ -917,7 +938,8 @@ export function createCircuitServices({ env = process.env } = {}) {
       });
       return { turnId };
     },
-    chat_approve_plan: async ({ req }) => {
+    chat_approve_plan: async (body) => {
+      const req = envelope(body);
       const projectId = requireProject(req?.projectId);
       const turnId = chat.startTurn({
         projectId,
@@ -926,7 +948,8 @@ export function createCircuitServices({ env = process.env } = {}) {
       });
       return { turnId };
     },
-    chat_request_plan_changes: async ({ req }) => {
+    chat_request_plan_changes: async (body) => {
+      const req = envelope(body);
       const projectId = requireProject(req?.projectId);
       const turnId = chat.startTurn({
         projectId,
