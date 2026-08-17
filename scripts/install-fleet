@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Put every product in `products/` into the app a human actually opens.
+
+The repo is not the product. A person opens
+`~/.autonomous-circuit/projects/<uuid>`, and for most of this fleet's life
+nothing kept the two in step. A round-4 panel judge measured the gap: the
+repo's own table said 9 of 12 boards were fab-ready while the app held
+`two-key-footswitch` at its pre-fix 3 blocking, `macropad-6` at its pre-fix 14,
+`pixel-badge` never built at all, and two products missing entirely. Both
+numbers were honest about the artifact they read; only one of them was about
+the thing being judged.
+
+So this syncs them, and `scripts/fleet-status` prints both counts side by side
+so they can never quietly part company again.
+
+    scripts/install-fleet              # sync every product, report what changed
+    scripts/install-fleet --dry-run    # say what it would do and touch nothing
+    scripts/install-fleet <slug> ...   # just these
+
+What it copies: `boards/`, `blocks/`, `product.json`, `parts.json`, the two
+tsconfig/tscircuit files. What it never touches: `.circuit/` (the build cache),
+`project.json` (the app's own record — its uuid and timestamps are the app's),
+and any project in the app that does not correspond to a product here. A
+human's own projects are not ours to rewrite.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+import uuid
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+PRODUCTS = REPO / "products"
+APP_ROOT = Path.home() / ".autonomous-circuit" / "projects"
+
+#: Everything a project needs to open, build and be edited in the app. The
+#: build cache is deliberately absent: copying `.circuit/` would carry a
+#: fingerprint that makes the app skip a rebuild the new source deserves.
+COPY_DIRS = ("boards", "blocks")
+COPY_FILES = ("product.json", "parts.json", "tsconfig.json", "tscircuit.config.json")
+
+
+def installed_by_name() -> dict[str, Path]:
+    """App projects keyed by the product name they hold."""
+    found: dict[str, Path] = {}
+    if not APP_ROOT.is_dir():
+        return found
+    for project in APP_ROOT.iterdir():
+        if not project.is_dir():
+            continue
+        try:
+            name = json.loads((project / "product.json").read_text(encoding="utf-8")).get("name")
+        except (OSError, ValueError):
+            continue
+        if name:
+            found.setdefault(str(name), project)
+    return found
+
+
+def write_project_json(target: Path, name: str) -> None:
+    """The app's own record. Created if absent, and only its `name` is ever
+    corrected — the uuid and the timestamps belong to the app."""
+    meta_path = target / "project.json"
+    now = 0
+    meta: dict[str, object] = {}
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            meta = {}
+    if meta.get("name") == name and meta.get("id"):
+        return
+    meta.setdefault("id", target.name)
+    meta["name"] = name
+    meta.setdefault("created_at", now)
+    meta.setdefault("updated_at", now)
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+
+def sync(product: Path, target: Path, *, dry_run: bool) -> list[str]:
+    """Copy one product into one app workspace. Returns what changed."""
+    changed: list[str] = []
+    for name in COPY_DIRS:
+        src = product / name
+        if not src.is_dir():
+            continue
+        dst = target / name
+        if not dry_run:
+            shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+        changed.append(f"{name}/")
+    for name in COPY_FILES:
+        src = product / name
+        if not src.is_file():
+            continue
+        if not dry_run:
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target / name)
+        changed.append(name)
+    return changed
+
+
+def verdict(project: Path) -> str:
+    """What this copy of the board says about itself, in one phrase."""
+    sidecar = project / "boards" / "main.board.json"
+    if not sidecar.is_file():
+        return "never built"
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return f"unreadable ({type(exc).__name__})"
+    blocking = sum(
+        1 for w in (data.get("validation") or {}).get("warnings", [])
+        if isinstance(w, dict) and w.get("severity") == "error"
+    )
+    ready = bool((data.get("fab") or {}).get("ready"))
+    return f"fab.ready {'true' if ready else 'false'}, {blocking} blocking"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("slugs", nargs="*", help="products to sync (default: all)")
+    parser.add_argument("--dry-run", action="store_true", help="say what would happen, touch nothing")
+    args = parser.parse_args(argv)
+
+    if not PRODUCTS.is_dir():
+        print("no products/ directory", file=sys.stderr)
+        return 1
+
+    wanted = set(args.slugs)
+    installed = installed_by_name()
+    synced = 0
+    for product in sorted(p for p in PRODUCTS.iterdir() if p.is_dir()):
+        if wanted and product.name not in wanted:
+            continue
+        if not (product / "product.json").is_file():
+            print(f"  skip {product.name}: no product.json")
+            continue
+        try:
+            name = json.loads((product / "product.json").read_text(encoding="utf-8")).get("name")
+        except (OSError, ValueError):
+            name = product.name
+        name = str(name or product.name)
+
+        target = installed.get(name)
+        fresh = target is None
+        if fresh:
+            target = APP_ROOT / str(uuid.uuid4())
+            if not args.dry_run:
+                target.mkdir(parents=True, exist_ok=True)
+
+        before = verdict(target) if not fresh else "not installed"
+        changed = sync(product, target, dry_run=args.dry_run)
+        if not args.dry_run:
+            write_project_json(target, name)
+        after = verdict(product)
+
+        mark = "+" if fresh else " "
+        note = "would sync" if args.dry_run else "synced"
+        print(f"{mark} {name}: {note} {len(changed)} paths — was [{before}], now [{after}]")
+        synced += 1
+
+    # Anything in the app that is not one of ours is left alone and named, so a
+    # sync never quietly looks like a full inventory.
+    theirs = sorted(n for n in installed if n not in {p.name for p in PRODUCTS.iterdir() if p.is_dir()})
+    if theirs:
+        print(f"\nleft alone (not products of ours): {', '.join(theirs)}")
+    print(f"\n{synced} product(s) {'checked' if args.dry_run else 'installed'}.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

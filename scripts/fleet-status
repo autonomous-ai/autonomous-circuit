@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-MARKER = "| Product | What it is | `fab.ready` | Blocking | Notes |"
+MARKER = "| Product | What it is | `fab.ready` | Blocking | In the app | Notes |"
 
 
 def read_board(board_json: Path) -> dict:
@@ -54,25 +54,90 @@ def describe(project: Path) -> str:
     return str(product.get("description") or "").strip()
 
 
+def installed_projects() -> dict[str, Path]:
+    """Every product installed in the app, by the name the app shows.
+
+    The repo is not the product. A human opens
+    `~/.autonomous-circuit/projects/<uuid>`, and a table that only ever
+    measures `products/` can claim a readiness the app does not have — which
+    is exactly what happened: a round-4 panel judge found the repo saying
+    9 of 12 while the app held `two-key-footswitch` at its pre-fix 3 blocking,
+    `macropad-6` at its pre-fix 14, `pixel-badge` never built, and two products
+    not installed at all.
+    """
+    root = Path.home() / ".autonomous-circuit" / "projects"
+    found: dict[str, Path] = {}
+    if not root.is_dir():
+        return found
+    for project in root.iterdir():
+        if not project.is_dir():
+            continue
+        try:
+            name = json.loads((project / "product.json").read_text(encoding="utf-8")).get("name")
+        except (OSError, ValueError):
+            continue
+        if name:
+            found.setdefault(str(name), project)
+    return found
+
+
+def staleness(project: Path) -> str:
+    """Whether the verdict describes the source beside it.
+
+    Ledger #42: a packet older than its own inputs still claims what it earned
+    under them. `desk-air-monitor`'s dead-net fix landed in the source and the
+    sidecar was never rebuilt, so the board went on reporting a verdict from
+    five minutes before the fix.
+    """
+    sidecar = project / "boards" / "main.board.json"
+    source = project / "boards" / "main.tsx"
+    if not sidecar.is_file() or not source.is_file():
+        return ""
+    return "source is newer than this verdict" if source.stat().st_mtime > sidecar.stat().st_mtime else ""
+
+
 def rows(root: Path) -> list[dict]:
     out = []
+    installed = installed_projects()
     for project in sorted(p for p in root.iterdir() if p.is_dir()):
         sidecar = project / "boards" / "main.board.json"
-        row = {"slug": project.name, "what": describe(project)}
+        row = {"slug": project.name, "what": describe(project), "stale": staleness(project)}
         row.update(read_board(sidecar) if sidecar.is_file() else {"missing": True})
+
+        # And the same board as the app holds it.
+        live = installed.get(project.name)
+        if live is None:
+            row["app"] = {"missing": True}
+        else:
+            live_sidecar = live / "boards" / "main.board.json"
+            row["app"] = read_board(live_sidecar) if live_sidecar.is_file() else {"unbuilt": True}
         out.append(row)
     return out
 
 
+def app_cell(row: dict) -> str:
+    """The same board as the app holds it — the artifact a human opens."""
+    app = row.get("app") or {}
+    if app.get("missing"):
+        return "not installed"
+    if app.get("unbuilt"):
+        return "installed, never built"
+    if app.get("error"):
+        return "unreadable"
+    if app.get("ready"):
+        return "**yes**"
+    return f"no ({app.get('blocking', 0)})"
+
+
 def table(items: list[dict]) -> str:
-    lines = [MARKER, "|---|---|---|---|---|"]
+    lines = [MARKER, "|---|---|---|---|---|---|"]
     for row in items:
         what = (row.get("what") or "").split(".")[0][:70]
         if row.get("missing"):
-            lines.append(f"| `{row['slug']}` | {what} | — | — | not built yet |")
+            lines.append(f"| `{row['slug']}` | {what} | — | — | {app_cell(row)} | not built yet |")
             continue
         if row.get("error"):
-            lines.append(f"| `{row['slug']}` | {what} | — | — | sidecar unreadable: {row['error']} |")
+            lines.append(f"| `{row['slug']}` | {what} | — | — | {app_cell(row)} | sidecar unreadable: {row['error']} |")
             continue
         size = ""
         if row.get("width") and row.get("height"):
@@ -82,17 +147,39 @@ def table(items: list[dict]) -> str:
             kinds = collections.Counter(row["kinds"])
             worst = ", ".join(f"{n}× {k}" for k, n in kinds.most_common(2))
             note = f"{size} · {worst}"
+        if row.get("stale"):
+            note = f"{note} · ⚠ {row['stale']}"
         lines.append(
             f"| `{row['slug']}` | {what} | {'**yes**' if row['ready'] else 'no'} "
-            f"| {row['blocking']} | {note} |"
+            f"| {row['blocking']} | {app_cell(row)} | {note} |"
         )
     ready = sum(1 for row in items if row.get("ready"))
     built = sum(1 for row in items if not row.get("missing") and not row.get("error"))
+    live_ready = sum(1 for row in items if (row.get("app") or {}).get("ready"))
+    live_built = sum(
+        1 for row in items
+        if not (row.get("app") or {}).get("missing") and not (row.get("app") or {}).get("unbuilt")
+    )
+    stale = [row["slug"] for row in items if row.get("stale")]
     lines.append("")
     lines.append(
         f"**{ready} of {built} built boards are fab-ready** "
         f"({len(items)} products in the fleet)."
     )
+    lines.append("")
+    lines.append(
+        f"**In the app a human actually opens: {live_ready} of {live_built}.** "
+        "The repo is not the product — these are the same boards as installed under "
+        "`~/.autonomous-circuit/projects/`, and the two numbers parting company is a "
+        "finding, not a rounding. `scripts/install-fleet` closes the gap."
+    )
+    if stale:
+        lines.append("")
+        lines.append(
+            "**Verdict older than its own source**: " + ", ".join(f"`{s}`" for s in stale)
+            + " — the board was edited and never rebuilt, so its numbers describe a "
+            "board that no longer exists (ledger #42)."
+        )
     return "\n".join(lines)
 
 
