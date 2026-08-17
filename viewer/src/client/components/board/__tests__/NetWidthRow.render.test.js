@@ -43,7 +43,10 @@ test("the ceiling, the pin that holds it, and the floor are all said out loud", 
   try {
     const text = ui.root.textContent.replace(/\s+/gu, " ");
     assert.match(text, /0\.2mm/, "what it is routed at now");
-    assert.match(text, /can take 0\.4mm/, "what the placement will allow");
+    assert.match(text, /its pads allow 0\.4mm/, "what the placement will allow");
+    // And that the number is a limit, not a promise: a board was reverted
+    // twice for reading it as one (ledger #31, 2026-08-17).
+    assert.match(text, /not a promise the router can route it/);
     assert.match(text, /held by U3\.IOVDD6/, "which pin decides it");
     assert.match(text, /under the 0\.5mm power floor/, "that the fab wants more than is possible");
     assert.deepEqual(ui.errors, []);

@@ -145,6 +145,19 @@ export function maskSource(text) {
       i += 1;
       continue;
     }
+    // An apostrophe inside JSX prose ("this net's own pads") is not a string
+    // quote, and treating it as one swallows every brace after it. The scanner
+    // then reports the file as unbalanced — loudly, which is the right failure
+    // and is how this was caught, but it made ordinary English a landmine in
+    // any file the sheet scans. A quote wedged between two word characters is
+    // an apostrophe in every JS grammar there is: `don't` cannot be a string
+    // start, because a string cannot begin immediately after an identifier.
+    if (c === "'" && /[A-Za-z]/.test(prev) && /[A-Za-z]/.test(next || "")) {
+      blank(i, mask);
+      prev = "'";
+      i += 1;
+      continue;
+    }
     if (c === '"' || c === "'") {
       i += 1;
       while (i < text.length && text[i] !== c) {

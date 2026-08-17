@@ -183,7 +183,7 @@ test("a trace width is set from Properties and undone like any other edit", asyn
 
     const row = w.find('[data-slot="net-width"]');
     assert.ok(row, "no width row for a selected net");
-    assert.match(row.textContent, /can take 0\.4mm/, "the measured ceiling is not on screen");
+    assert.match(row.textContent, /its pads allow 0\.4mm/, "the measured ceiling is not on screen");
 
     const input = w.find('[data-slot="net-width-input"]');
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;

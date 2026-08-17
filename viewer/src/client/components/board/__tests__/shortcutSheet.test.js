@@ -316,3 +316,43 @@ test("the sheet renders as groups of rows, one row per thing to learn", () => {
     assert.equal(new Set(ids).size, ids.length, `${group.id} repeats a row`);
   }
 });
+
+
+// An apostrophe in JSX prose is not a string quote.
+//
+// `NetWidthRow.jsx` gained the sentence "That is what this net's own pads
+// allow" and the scanner reported the whole file as ending inside two unclosed
+// braces — it had taken the apostrophe as a string start and swallowed every
+// brace after it. It failed loudly, which is the right failure and is why this
+// was caught immediately, but it made ordinary English a landmine in any file
+// the sheet scans, and the sheet scans the ones full of user-facing copy.
+test("prose with an apostrophe does not unbalance the scanner", () => {
+  const source = [
+    "export default function Row() {",
+    "  return (",
+    "    <div>",
+    "      <p>That is what this net's own pads allow, and it isn't a promise.</p>",
+    "      <button onKeyDown={(e) => { if (e.key === 'Enter') act(); }}>Set</button>",
+    "    </div>",
+    "  );",
+    "}",
+  ].join("\n");
+  // Balanced: the apostrophes did not open anything.
+  assert.doesNotThrow(() => scanKeyBindings(source, "Prose.jsx"));
+
+  // And on the real file that prompted this. `scanAll` is the entry point the
+  // sheet's honesty test uses and the one that threw; it must both survive the
+  // prose and still find NetWidthRow's Enter binding, because a scanner that
+  // goes quiet is as bad as one that throws.
+  assert.match(
+    read("NetWidthRow.jsx"),
+    /net's own pads/,
+    "the prose that broke the scanner is gone; keep a case that still has it",
+  );
+  const scanned = scanAll(INLINE_SOURCES.map((one) => ({ ...one, text: read(one.file) })));
+  const fromRow = scanned.filter((one) => String(one.file || "").includes("NetWidthRow"));
+  assert.ok(
+    fromRow.some((one) => String(one.combo || "").includes("Enter")),
+    `NetWidthRow's Enter binding was lost: ${JSON.stringify(scanned)}`,
+  );
+});

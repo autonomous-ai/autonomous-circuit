@@ -21,6 +21,18 @@ import { formatWidth } from "./netWidth.js";
  * The width is a *declaration*, not copper: it reaches the router on the next
  * build, so the row says "rebuild to apply" rather than pretending the board
  * changed. That is the same honesty the verdict chip owes a pending turn.
+ *
+ * **And the ceiling is a limit, not a promise.** `netwidth` fans bearings out
+ * of a net's own pads: it answers "what does this net's own geometry permit",
+ * and it does not model the congestion the rest of the board puts in the
+ * channel. Measured the hard way on 2026-08-17, widening eight fleet boards:
+ * seven took their measured width and `i2c-sensor-hub` was reverted **twice**
+ * — at V5 0.5mm and V3_3 0.4mm it came back `fab.ready: false` with three
+ * blocking findings including *two nets shorted*, and at V5 alone it came back
+ * with five, the wider rail having pushed a via into `J1.A6`'s pad. Both
+ * numbers were under the ceiling this row prints. So the row says what the
+ * number is and what it is not, because an engineer who reads "can take
+ * 0.5mm" as a guarantee will set it and rebuild into a scrapped board.
  */
 export default function NetWidthRow({ netName, widths, editor, onMeasure }) {
   const [draft, setDraft] = useState("");
@@ -76,7 +88,7 @@ export default function NetWidthRow({ netName, widths, editor, onMeasure }) {
               data-slot="net-width-ceiling"
               className={cn(ceilingBelowFloor ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}
             >
-              can take {row.ceiling_capped ? `${row.ceiling_mm}mm+` : `${row.ceiling_mm}mm`}
+              its pads allow {row.ceiling_capped ? `${row.ceiling_mm}mm+` : `${row.ceiling_mm}mm`}
               {row.ceiling_at ? ` — held by ${row.ceiling_at}` : ""}
               {ceilingBelowFloor ? `, under the ${floor}mm power floor` : ""}
             </span>
@@ -87,6 +99,17 @@ export default function NetWidthRow({ netName, widths, editor, onMeasure }) {
           </span>
         )}
       </div>
+
+      {/* The sentence that stops a scrapped board. The number above is what
+          this net's own pads permit; it says nothing about what the rest of
+          the board leaves in the channel, and a board has already been
+          reverted twice for taking it as a promise. */}
+      {row ? (
+        <p data-slot="net-width-caveat" className="ml-[88px] mt-0.5 text-[10px] leading-[14px] text-muted-foreground/70">
+          That is what this net's own pads allow, not a promise the router can
+          route it — congestion elsewhere can still refuse. Rebuild and check.
+        </p>
+      ) : null}
 
       <div className="ml-[88px] mt-1 flex items-center gap-1">
         <input
