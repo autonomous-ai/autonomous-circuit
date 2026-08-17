@@ -98,6 +98,27 @@ def base_id(placement_key: str) -> str:
     return str(placement_key).split(INSTANCE_SEP, 1)[0]
 
 
+#: How many of a parametric block an entry asks for, when it says so.
+#:
+#: `place_row(["ws2812-chain", "sw-tact"])` sizes the chain from its 4-pixel
+#: measurement bench, which is the right default and the wrong answer for a
+#: board with eight pixels on it. Entries may therefore be a bare id or a
+#: `(block_id, count)` pair, and the count is threaded all the way through —
+#: without it a real block set came back as a nonsense 149.8 x 51.4mm board and
+#: the engineer hand-placed two rows instead (`rgb-lamp-controller`,
+#: 2026-08-17, ~40 minutes).
+BlockSpec = "str | tuple[str, int]"
+
+
+def spec(entry) -> tuple[str, int | None]:
+    """`"ws2812-chain"` or `("ws2812-chain", 8)` -> `(id, count)`."""
+    if isinstance(entry, (tuple, list)):
+        block_id = str(entry[0])
+        count = int(entry[1]) if len(entry) > 1 and entry[1] else None
+        return block_id, count
+    return str(entry), None
+
+
 def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` relative to the block's origin.
 
@@ -144,7 +165,11 @@ def min_board_for(
     reach an edge and for the router to breathe."""
     if not block_ids:
         return (tables.MIN_BOARD_EDGE_MM, tables.MIN_BOARD_EDGE_MM)
-    sizes = [extent(b) for b in block_ids if b in BLOCK_BOX_MM]
+    sizes = [
+        extent(block_id, count=count)
+        for block_id, count in (spec(entry) for entry in block_ids)
+        if block_id in BLOCK_BOX_MM
+    ]
     if not sizes:
         return (tables.MIN_BOARD_EDGE_MM, tables.MIN_BOARD_EDGE_MM)
     cols = columns or max(1, int(len(sizes) ** 0.5 + 0.5))
@@ -171,7 +196,8 @@ def min_board_for(
 
 
 def place_row(block_ids: list[str], *, y: float = 0.0,
-              gap: float = BLOCK_GAP_MM) -> dict[str, tuple[float, float]]:
+              gap: float = BLOCK_GAP_MM,
+              seen: dict[str, int] | None = None) -> dict[str, tuple[float, float]]:
     """``pcbX``/``pcbY`` for a row of blocks, laid left to right and centred on
     the origin — **with each block's origin offset taken out**, so the copper
     lands where the arithmetic says it does.
@@ -180,13 +206,19 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
     measured box rather than by eye is the difference between a board that
     routes on the first build and one that spends three rounds on overlaps.
     """
-    boxes = [box(b) for b in block_ids]
+    specs = [spec(entry) for entry in block_ids]
+    boxes = [box(block_id, count=count) for block_id, count in specs]
     widths = [bx[2] - bx[0] for bx in boxes]
     total = sum(widths) + gap * (len(boxes) - 1)
     cursor = -total / 2.0
     out: dict[str, tuple[float, float]] = {}
-    seen: dict[str, int] = {}
-    for block_id, (min_x, min_y, max_x, max_y), width in zip(block_ids, boxes, widths):
+    # The instance counter belongs to the *caller* when there is one, because a
+    # board laid out in two rows counts its blocks once across both: two
+    # `sw-tact` in different rows each started at 1 with a per-row counter, both
+    # came back keyed `sw-tact`, and the second overwrote the first on merge —
+    # the same silent drop this counter exists to stop, one level up.
+    seen = {} if seen is None else seen
+    for (block_id, _count), (min_x, min_y, max_x, max_y), width in zip(specs, boxes, widths):
         # Where the box should land, then back out the origin offset.
         wanted_cx = cursor + width / 2.0
         wanted_cy = y
@@ -221,12 +253,24 @@ HOLE_DIAMETER_MM = 3.2
 HOLE_STRIP_MM = 6.4
 
 
+#: The widest board `place_board` will lay out before wrapping to a new row.
+#:
+#: JLCPCB's sample subsidy stops at 100 x 100mm — five boards for $2 inside it,
+#: about $9 outside (ledger #30). A planner that lays every block in one line
+#: walks straight past that: seven blocks came back as a **149.8 x 51.4mm**
+#: board, which is both unbuyable at the sample price and not what anyone would
+#: draw. The engineer who hit it hand-placed two rows instead and lost about
+#: forty minutes (`rgb-lamp-controller`, 2026-08-17).
+MAX_ROW_WIDTH_MM = 100.0
+
+
 def place_board(
     block_ids: list[str],
     *,
     gap: float = BLOCK_GAP_MM,
     margin: float = ROUTER_HALO_MM,
     mounting_holes: bool = True,
+    max_width_mm: float = MAX_ROW_WIDTH_MM,
 ) -> dict[str, object]:
     """A whole board plan: outline, placements, mounting holes.
 
@@ -238,7 +282,9 @@ def place_board(
       :data:`EDGE_BLOCKS` is placed against the outline rather than inline,
       because a USB socket in the middle of the board is not a product (and
       `pcb_connector_not_in_accessible_orientation` says so);
-    * **everything else in a row above it**, spaced by the measured boxes;
+    * **everything else in rows above it**, spaced by the measured boxes and
+      wrapped at ``max_width_mm`` so a board with six blocks on it does not come
+      out a metre wide and outside the fab's sample price;
     * **two mounting holes on opposite corners, in a reserved strip** — the
       board grows sideways to make room rather than dropping a drill on top of
       a footprint, which is what corner holes do on a board sized only for its
@@ -248,13 +294,47 @@ def place_board(
     Returns ``{"width_mm", "height_mm", "placements", "holes", "warnings"}``.
     ``warnings`` is empty on a plan that fits — check it, do not assume it.
     """
-    edge = [b for b in block_ids if b in EDGE_BLOCKS]
-    inner = [b for b in block_ids if b not in EDGE_BLOCKS]
+    # Entries may be `"ws2812-chain"` or `("ws2812-chain", 8)`; the count is
+    # kept with the block all the way to the sizing arithmetic, because a chain
+    # sized from its 4-pixel bench on a board that has eight of them is how a
+    # plan comes back half the width the board needs.
+    specs = [spec(entry) for entry in block_ids]
+    edge = [one for one in specs if one[0] in EDGE_BLOCKS]
+    inner = [one for one in specs if one[0] not in EDGE_BLOCKS]
 
-    edge_w = sum(extent(b)[0] for b in edge) + gap * max(0, len(edge) - 1)
-    edge_h = max((extent(b)[1] for b in edge), default=0.0)
-    inner_w = sum(extent(b)[0] for b in inner) + gap * max(0, len(inner) - 1)
-    inner_h = max((extent(b)[1] for b in inner), default=0.0)
+    def _extent(one: tuple[str, int | None]) -> tuple[float, float]:
+        return extent(one[0], count=one[1])
+
+    edge_w = sum(_extent(b)[0] for b in edge) + gap * max(0, len(edge) - 1)
+    edge_h = max((_extent(b)[1] for b in edge), default=0.0)
+
+    # Wrap the inner blocks into rows that fit. Greedy left to right, in the
+    # order given, because the order a board file lists its blocks in is
+    # usually the order they belong in — and a planner that reorders parts
+    # behind an engineer's back is one they stop trusting.
+    budget = max(max_width_mm - 2 * margin - (2 * HOLE_STRIP_MM if mounting_holes else 0.0),
+                 _extent(max(inner, key=lambda b: _extent(b)[0])[0:2])[0] if inner else 0.0)
+    inner_rows: list[list[tuple[str, int | None]]] = []
+    row: list[tuple[str, int | None]] = []
+    row_w = 0.0
+    for one in inner:
+        width = _extent(one)[0]
+        nudge = width if not row else width + gap
+        if row and row_w + nudge > budget:
+            inner_rows.append(row)
+            row, row_w = [one], width
+        else:
+            row.append(one)
+            row_w += nudge
+    if row:
+        inner_rows.append(row)
+
+    row_widths = [
+        sum(_extent(b)[0] for b in r) + gap * max(0, len(r) - 1) for r in inner_rows
+    ]
+    row_heights = [max((_extent(b)[1] for b in r), default=0.0) for r in inner_rows]
+    inner_w = max(row_widths, default=0.0)
+    inner_h = sum(row_heights) + gap * max(0, len(inner_rows) - 1)
 
     content_w = max(edge_w, inner_w)
     content_h = edge_h + inner_h + (gap if edge and inner else 0.0)
@@ -272,16 +352,20 @@ def place_board(
     height = max(_up(content_h + face + margin), tables.MIN_BOARD_EDGE_MM)
 
     placements: dict[str, tuple[float, float]] = {}
+    # One counter for the whole board, shared by every row below.
+    seen: dict[str, int] = {}
     if edge:
         # Bottom band: the connector's own geometry sits against the face
         # margin, close enough to the outline that a cable reaches it.
         placements.update(
-            place_row(edge, y=-height / 2.0 + face + edge_h / 2.0, gap=gap)
+            place_row(edge, y=-height / 2.0 + face + edge_h / 2.0, gap=gap, seen=seen)
         )
-    if inner:
-        placements.update(
-            place_row(inner, y=height / 2.0 - margin - inner_h / 2.0, gap=gap)
-        )
+    # Rows stack downward from the top margin, first row highest, so the
+    # reading order on the board matches the order in the board file.
+    cursor_y = height / 2.0 - margin
+    for one_row, row_h in zip(inner_rows, row_heights):
+        placements.update(place_row(one_row, y=cursor_y - row_h / 2.0, gap=gap, seen=seen))
+        cursor_y -= row_h + gap
 
     holes: list[dict[str, object]] = []
     if mounting_holes:
@@ -305,8 +389,12 @@ def place_board(
         {k: v for k, v in placements.items() if base_id(k) not in EDGE_BLOCKS},
         width, height, margin=margin,
     )
-    warnings += overlap_warnings(placements, gap=gap)
-    warnings += _hole_clearance_warnings(holes, placements)
+    # The plan knows the counts; the checks cannot infer them from a placement
+    # dict, so they are handed over rather than re-guessed.
+    ordered = edge + [one for one_row in inner_rows for one in one_row]
+    counts = {key: count for key, count in zip(placements, (one[1] for one in ordered)) if count}
+    warnings += overlap_warnings(placements, gap=gap, counts=counts)
+    warnings += _hole_clearance_warnings(holes, placements, counts=counts)
     warnings += price_tier_warnings(width, height)
     return {
         "width_mm": width,
@@ -358,7 +446,10 @@ def price_tier_warnings(width_mm: float, height_mm: float) -> list[dict[str, str
 
 
 def _hole_clearance_warnings(
-    holes: list[dict[str, object]], placements: dict[str, tuple[float, float]]
+    holes: list[dict[str, object]],
+    placements: dict[str, tuple[float, float]],
+    *,
+    counts: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     """A mounting hole landing on a footprint is a board nobody can screw down.
     Cheap to check here; expensive to discover in a fab packet."""
@@ -372,7 +463,7 @@ def _hole_clearance_warnings(
                 block_id = base_id(key)
                 if block_id not in BLOCK_BOX_MM:
                     continue
-                min_x, min_y, max_x, max_y = box(block_id)
+                min_x, min_y, max_x, max_y = box(block_id, count=(counts or {}).get(key))
                 dx = max(x + min_x - hx, 0.0, hx - (x + max_x))
                 dy = max(y + min_y - hy, 0.0, hy - (y + max_y))
                 if math.hypot(dx, dy) < radius + 0.5:
@@ -392,15 +483,23 @@ def _hole_clearance_warnings(
 
 
 def occupied_box(
-    placements: dict[str, tuple[float, float]]
+    placements: dict[str, tuple[float, float]],
+    *,
+    counts: dict[str, int] | None = None,
 ) -> tuple[float, float, float, float]:
-    """The board-coordinate box every placed block occupies, together."""
+    """The board-coordinate box every placed block occupies, together.
+
+    `counts` is keyed by placement key (`ws2812-chain`, `status-led#2`) and is
+    only needed for a parametric block: a placement dict cannot carry how many
+    pixels a chain has, and sizing an 8-pixel chain from the 4-pixel bench is
+    how a board comes out half the width it needs.
+    """
     corners = []
     for key, (x, y) in placements.items():
         block_id = base_id(key)
         if block_id not in BLOCK_BOX_MM:
             continue
-        min_x, min_y, max_x, max_y = box(block_id)
+        min_x, min_y, max_x, max_y = box(block_id, count=(counts or {}).get(key))
         corners.append((x + min_x, y + min_y, x + max_x, y + max_y))
     if not corners:
         return (0.0, 0.0, 0.0, 0.0)
@@ -418,6 +517,7 @@ def board_fits(
     height_mm: float,
     *,
     margin: float = EDGE_MARGIN_MM,
+    counts: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     """Does every placed block sit inside this outline, with margin?
 
@@ -432,7 +532,7 @@ def board_fits(
             block_id = base_id(key)
             if block_id not in BLOCK_BOX_MM:
                 continue
-            min_x, min_y, max_x, max_y = box(block_id)
+            min_x, min_y, max_x, max_y = box(block_id, count=(counts or {}).get(key))
             over = max(
                 -half_w + margin - (x + min_x),
                 -half_h + margin - (y + min_y),
@@ -458,7 +558,10 @@ def board_fits(
 
 
 def overlap_warnings(
-    placements: dict[str, tuple[float, float]], *, gap: float = BLOCK_GAP_MM
+    placements: dict[str, tuple[float, float]],
+    *,
+    gap: float = BLOCK_GAP_MM,
+    counts: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     """Catch colliding blocks before paying for a build. Never raises."""
     out: list[dict[str, str]] = []
@@ -468,7 +571,7 @@ def overlap_warnings(
             block_id = base_id(key)
             if block_id not in BLOCK_BOX_MM:
                 continue
-            min_x, min_y, max_x, max_y = box(block_id)
+            min_x, min_y, max_x, max_y = box(block_id, count=(counts or {}).get(key))
             # Reported by the placement's own key, so two of the same block
             # read as `status-led` and `status-led#2` rather than as one name
             # twice.

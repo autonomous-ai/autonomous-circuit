@@ -571,3 +571,32 @@ class RepeatedBlocks(unittest.TestCase):
         outside = layout.board_fits({"status-led#2": (200.0, 0.0)}, 40, 40)
         self.assertTrue(outside, "a repeated block off the board went unreported")
         self.assertEqual(outside[0]["part"], "status-led#2")
+
+    def test_a_parametric_block_is_sized_by_its_count(self) -> None:
+        # `rgb-lamp-controller`, 2026-08-17: eight pixels sized from the
+        # four-pixel measurement bench, so the plan came back half the width
+        # the board needed and the engineer hand-placed two rows instead.
+        four = layout.min_board_for(["ws2812-chain"])
+        eight = layout.min_board_for([("ws2812-chain", 8)])
+        self.assertGreater(eight[0], four[0], (four, eight))
+
+    def test_a_board_of_many_blocks_wraps_instead_of_growing_sideways(self) -> None:
+        # Seven blocks in one line came out 149.8 x 51.4mm — past JLC's
+        # 100 x 100mm sample envelope, which is $2 for five boards inside it and
+        # about $9 outside (ledger #30).
+        blocks = [
+            "usb-c-data", "ldo-3v3", "rp2040-core", ("ws2812-chain", 8),
+            "sw-tact", "sw-tact", "status-led",
+        ]
+        plan = layout.place_board(blocks)
+        self.assertLessEqual(plan["width_mm"], layout.MAX_ROW_WIDTH_MM)
+        # Every block still placed, including the repeat — wrapping must not
+        # lose one, which it did until the instance counter was shared across
+        # rows.
+        self.assertEqual(len(plan["placements"]), len(blocks))
+        self.assertIn("sw-tact", plan["placements"])
+        self.assertIn("sw-tact#2", plan["placements"])
+        self.assertNotEqual(plan["placements"]["sw-tact"], plan["placements"]["sw-tact#2"])
+        # And the plan it produces holds together: nothing overlapping, nothing
+        # off the outline it just sized.
+        self.assertEqual(plan["warnings"], [], plan["warnings"])
