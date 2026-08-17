@@ -74,6 +74,8 @@ import { userVisibleText } from "../components/chat/chatHistoryModel.js";
  *
  * @typedef {Object} ChatState
  * @property {string} currentProjectId
+ * @property {string} currentSessionId
+ * @property {{sessionId:string,title:string,updatedAt:number,messageCount:number}[]} conversationSummaries
  * @property {string} currentTurnId
  * @property {boolean} turnInProgress
  * @property {ChatTurn[]} history
@@ -88,6 +90,8 @@ import { userVisibleText } from "../components/chat/chatHistoryModel.js";
 /** @type {ChatState} */
 export const INITIAL_CHAT_STATE = Object.freeze({
   currentProjectId: "",
+  currentSessionId: "",
+  conversationSummaries: [],
   currentTurnId: "",
   turnInProgress: false,
   history: [],
@@ -422,6 +426,8 @@ function isUserCancelled(message) {
 // that keeps streaming after you switch away updates the right conversation.
 function sessionSlice(state) {
   return {
+    currentSessionId: state.currentSessionId,
+    conversationSummaries: state.conversationSummaries,
     history: state.history,
     currentTurnId: state.currentTurnId,
     turnInProgress: state.turnInProgress,
@@ -693,6 +699,7 @@ export function chatReducer(state, action, now = Date.now()) {
       });
       return {
         ...state,
+        currentSessionId: action.session.sessionId || state.currentSessionId,
         history,
         turnInProgress: action.session.turnInProgress === true,
         currentTurnId: action.session.turnInProgress ? state.currentTurnId : "",
@@ -702,6 +709,23 @@ export function chatReducer(state, action, now = Date.now()) {
     case "hydrate_session_complete":
       if (state.currentProjectId !== action.projectId) return state;
       return { ...state, isHydratingSession: false };
+    case "set_conversation_summaries":
+      if (state.currentProjectId !== action.projectId) return state;
+      return { ...state, conversationSummaries: action.summaries || [] };
+    case "set_session": {
+      if (state.currentProjectId !== action.projectId || state.turnInProgress) return state;
+      return {
+        ...state,
+        currentSessionId: action.sessionId || "",
+        history: [],
+        currentTurnId: "",
+        turnInProgress: false,
+        awaitingApproval: false,
+        activePlanTurnId: "",
+        lastError: "",
+        isHydratingSession: action.hydrating === true,
+      };
+    }
     case "queue_user_message": {
       const userTurn = {
         id: `user-${action.turnId}`,
@@ -732,6 +756,19 @@ export function chatReducer(state, action, now = Date.now()) {
             ];
       return {
         ...state,
+        conversationSummaries: state.conversationSummaries.map((summary) =>
+          summary.sessionId === state.currentSessionId
+            ? {
+                ...summary,
+                title:
+                  summary.messageCount === 0 || summary.title === "New chat"
+                    ? String(action.text || "New chat").replace(/\s+/g, " ").trim().slice(0, 54) || "New chat"
+                    : summary.title,
+                updatedAt: action.at,
+                messageCount: Math.max(1, Number(summary.messageCount || 0) + 1),
+              }
+            : summary,
+        ),
         history,
         currentTurnId: action.turnId,
         turnInProgress: true,
@@ -1061,7 +1098,7 @@ export async function startTurn(userMessage, { attachments = [], echoAs = "" } =
   if (!(await ensureClaudeReady(transport))) return null;
   // Read state AFTER the gate: an install wait can span minutes, and the user
   // may have switched projects or queued tokens in the meantime.
-  const state = getChatState();
+  let state = getChatState();
   if (!state.currentProjectId) {
     dispatch({ type: "set_error", message: "No project selected" });
     return null;
@@ -1088,6 +1125,7 @@ export async function startTurn(userMessage, { attachments = [], echoAs = "" } =
     // Keep the request shape identical to the text-only case unless images are
     // actually attached (additive `images` field; see transport + chat.rs).
     const request = { projectId: state.currentProjectId, userMessage: sentMessage };
+    if (state.currentSessionId) request.sessionId = state.currentSessionId;
     if (images.length) {
       request.images = images.map(({ name, mediaType, dataBase64 }) => ({
         name,
@@ -1096,6 +1134,21 @@ export async function startTurn(userMessage, { attachments = [], echoAs = "" } =
       }));
     }
     const response = await transport.chat_start_turn(request);
+    if (!state.currentSessionId && response?.sessionId) {
+      const summary = {
+        sessionId: response.sessionId,
+        title: echo.replace(/\s+/g, " ").trim().slice(0, 54) || "New chat",
+        updatedAt: Date.now(),
+        messageCount: 0,
+      };
+      dispatch({
+        type: "set_conversation_summaries",
+        projectId: state.currentProjectId,
+        summaries: [summary, ...state.conversationSummaries],
+      });
+      dispatch({ type: "set_session", projectId: state.currentProjectId, sessionId: response.sessionId });
+      state = getChatState();
+    }
     dispatch({
       type: "queue_user_message",
       turnId: response.turnId,
@@ -1127,10 +1180,9 @@ export async function approvePlan(planText, transport = getTransport()) {
   if (!state.awaitingApproval || !state.currentProjectId) return null;
   const turnId = state.activePlanTurnId;
   try {
-    const response = await transport.chat_approve_plan({
-      projectId: state.currentProjectId,
-      planText: String(planText || ""),
-    });
+    const request = { projectId: state.currentProjectId, planText: String(planText || "") };
+    if (state.currentSessionId) request.sessionId = state.currentSessionId;
+    const response = await transport.chat_approve_plan(request);
     dispatch({ type: "mark_plan", turnId, status: "approved" });
     return response;
   } catch (error) {
@@ -1153,10 +1205,9 @@ export async function requestPlanChanges(feedback, transport = getTransport()) {
   const text = String(feedback || "").trim();
   if (!text) return null;
   try {
-    const response = await transport.chat_request_plan_changes({
-      projectId: state.currentProjectId,
-      feedback: text,
-    });
+    const request = { projectId: state.currentProjectId, feedback: text };
+    if (state.currentSessionId) request.sessionId = state.currentSessionId;
+    const response = await transport.chat_request_plan_changes(request);
     // Show what the user asked to change, then supersede the old plan.
     dispatch({
       type: "queue_user_message",
@@ -1209,10 +1260,37 @@ export function setProject(projectId) {
 export async function hydrateSession(projectId, transport = getTransport()) {
   if (!projectId) return;
   try {
-    const session = await transport.chat_session_state(projectId);
+    let summaries = null;
+    if (typeof transport.chat_session_list === "function") {
+      try {
+        summaries = await transport.chat_session_list(projectId);
+      } catch {
+        summaries = null;
+      }
+    }
+    if (summaries) {
+      let state = getChatState();
+      if (state.currentProjectId !== projectId || state.turnInProgress) return;
+      dispatch({ type: "set_conversation_summaries", projectId, summaries });
+      if (!summaries.length) {
+        dispatch({ type: "hydrate_session_complete", projectId });
+        return;
+      }
+      const selected = summaries.some((item) => item.sessionId === state.currentSessionId)
+        ? state.currentSessionId
+        : summaries[0].sessionId;
+      dispatch({ type: "set_session", projectId, sessionId: selected, hydrating: true });
+    }
+    const active = getChatState();
+    const selectedSessionId = active.currentSessionId;
+    const session =
+      selectedSessionId && typeof transport.chat_session_read === "function"
+        ? await transport.chat_session_read(projectId, selectedSessionId)
+        : await transport.chat_session_state(projectId);
     const state = getChatState();
     if (
       state.currentProjectId !== projectId ||
+      (selectedSessionId && state.currentSessionId !== selectedSessionId) ||
       state.turnInProgress ||
       projectHasInFlightTurn(state.turnOwners, projectId)
     ) {
@@ -1229,6 +1307,55 @@ export async function hydrateSession(projectId, transport = getTransport()) {
     if (state.currentProjectId === projectId) {
       dispatch({ type: "hydrate_session_complete", projectId });
     }
+  }
+}
+
+export async function createConversation(transport = getTransport()) {
+  const state = getChatState();
+  if (!state.currentProjectId || state.turnInProgress) return null;
+  try {
+    const summary = await transport.chat_session_create(state.currentProjectId);
+    const summaries = [
+      summary,
+      ...state.conversationSummaries.filter((item) => item.sessionId !== summary.sessionId),
+    ];
+    dispatch({ type: "set_conversation_summaries", projectId: state.currentProjectId, summaries });
+    dispatch({
+      type: "set_session",
+      projectId: state.currentProjectId,
+      sessionId: summary.sessionId,
+      hydrating: false,
+    });
+    return summary;
+  } catch (error) {
+    dispatch({ type: "set_error", message: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+}
+
+export async function selectConversation(sessionId, transport = getTransport()) {
+  const state = getChatState();
+  const selected = String(sessionId || "");
+  if (!state.currentProjectId || !selected || state.turnInProgress) return false;
+  if (selected === state.currentSessionId) return true;
+  const projectId = state.currentProjectId;
+  dispatch({ type: "set_session", projectId, sessionId: selected, hydrating: true });
+  try {
+    const session =
+      typeof transport.chat_session_read === "function"
+        ? await transport.chat_session_read(projectId, selected)
+        : await transport.chat_session_state(projectId);
+    const latest = getChatState();
+    if (latest.currentProjectId !== projectId || latest.currentSessionId !== selected) return false;
+    dispatch({ type: "hydrate_session", session });
+    return true;
+  } catch (error) {
+    const latest = getChatState();
+    if (latest.currentProjectId === projectId && latest.currentSessionId === selected) {
+      dispatch({ type: "hydrate_session_complete", projectId });
+      dispatch({ type: "set_error", message: error instanceof Error ? error.message : String(error) });
+    }
+    return false;
   }
 }
 

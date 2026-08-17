@@ -178,6 +178,38 @@ function hasBoard(projectDir) {
   return false;
 }
 
+/** A genuinely new project contains only its metadata (and optionally inputs
+ * queued for its first prompt). Runtime/cache dirs and frozen block snapshots
+ * do not make it an existing design; any other regular workspace file does.
+ * This is intentionally broader than hasBoard(): an authored but not-yet-built
+ * boards/main.tsx is already a project and must never fall back to onboarding
+ * cards for an unrelated product. */
+function hasProjectContent(projectDir) {
+  const stack = [projectDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      if (entry.isDirectory()) {
+        if (!SKIP_DIR_NAMES.has(entry.name)) {
+          stack.push(path.join(dir, entry.name));
+        }
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const full = path.join(dir, entry.name);
+      if (full === metaPath(projectDir)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 function toSummary(projectDir, meta) {
   return {
     id: meta.id,
@@ -185,6 +217,7 @@ function toSummary(projectDir, meta) {
     createdAt: meta.created_at,
     updatedAt: meta.updated_at,
     hasModel: hasBoard(projectDir),
+    isNew: !hasProjectContent(projectDir),
   };
 }
 

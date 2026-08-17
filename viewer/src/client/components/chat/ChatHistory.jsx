@@ -218,8 +218,8 @@ export default function ChatHistory({
           className,
         )}
       >
-        <p>Describe the device you want to build.</p>
-        <p className="opacity-70">Circuit specs it, picks the parts, and designs the board — right here.</p>
+        <p>Start a conversation about this project.</p>
+        <p className="opacity-70">This chat has its own history and shares the project’s files.</p>
       </div>
     );
   }

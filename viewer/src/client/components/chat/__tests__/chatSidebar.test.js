@@ -14,6 +14,7 @@ import {
   resetChatStore,
   __setTransportForTesting,
 } from "../../../store/chat.js";
+import { shouldShowCreateStarters } from "../chatSidebarModel.js";
 
 test("ChatSidebar empty state: store starts with no history and no in-flight turn", () => {
   resetChatStore();
@@ -50,4 +51,38 @@ test("ChatSidebar wiring: attaching to a fresh transport produces a working even
     restore();
     resetChatStore();
   }
+});
+
+test("starter cards belong only to a genuinely new project, never an existing board", () => {
+  const base = { historyLength: 0, isHydratingSession: false };
+  assert.equal(
+    shouldShowCreateStarters({
+      ...base,
+      projectId: "new",
+      project: { id: "new", isNew: true, hasModel: false },
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowCreateStarters({
+      ...base,
+      projectId: "macropad",
+      project: { id: "macropad", isNew: false, hasModel: true },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowCreateStarters({ ...base, projectId: "macropad", project: undefined }),
+    false,
+    "an unresolved project fails closed instead of flashing unrelated starters",
+  );
+  assert.equal(
+    shouldShowCreateStarters({
+      ...base,
+      historyLength: 1,
+      projectId: "new",
+      project: { id: "new", isNew: true, hasModel: false },
+    }),
+    false,
+  );
 });

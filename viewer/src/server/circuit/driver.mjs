@@ -19,6 +19,7 @@ import { countWarnings, recordRevision } from "./revisions.mjs";
 import {
   circuitHome,
   claudeConfigDir,
+  parseLatestAiTitle,
   sessionJsonlPath,
   skipDirNames,
 } from "./projects.mjs";
@@ -65,6 +66,19 @@ export function uuidv5(name, namespace = CIRCUIT_SESSION_NS) {
  * across restarts, which is what `--session-id`/`--resume` need). */
 export function sessionIdForProject(projectId) {
   return uuidv5(String(projectId), CIRCUIT_SESSION_NS);
+}
+
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function resolvedSessionId(projectId, sessionId) {
+  const value = String(sessionId || sessionIdForProject(projectId));
+  if (!SESSION_ID_RE.test(value)) {
+    const error = new Error("invalid chat session id");
+    error.code = "INVALID_ARGUMENT";
+    error.statusCode = 400;
+    throw error;
+  }
+  return value;
 }
 
 /** Has Claude Code already persisted a session JSONL for this UUID? False on
@@ -1700,16 +1714,16 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     }
   }
 
-  function runTurn({ projectId, message, imagePaths, phase, turnId }) {
+  function runTurn({ projectId, sessionId, message, imagePaths, phase, turnId }) {
     const controller = new AbortController();
-    turns.set(turnId, { projectId, controller });
+    turns.set(turnId, { projectId, sessionId: resolvedSessionId(projectId, sessionId), controller });
     const workspace = projectDir(projectId);
-    const sessionId = sessionIdForProject(projectId);
-    const onEvent = (event) => emit(projectId, event);
+    const activeSessionId = resolvedSessionId(projectId, sessionId);
+    const onEvent = (event) => emit(projectId, { ...event, sessionId: activeSessionId });
 
     const run = spawnTurn({
       workspace,
-      sessionId,
+      sessionId: activeSessionId,
       message,
       imagePaths,
       turnId,
@@ -1735,9 +1749,10 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     return { run };
   }
 
-  function startTurn({ projectId, message, imagePaths = [], phase }) {
+  function startTurn({ projectId, sessionId, message, imagePaths = [], phase }) {
     const turnId = crypto.randomUUID();
-    const { run } = runTurn({ projectId, message, imagePaths, phase, turnId });
+    const activeSessionId = resolvedSessionId(projectId, sessionId);
+    const { run } = runTurn({ projectId, sessionId: activeSessionId, message, imagePaths, phase, turnId });
 
     if (phase === PHASE.PLAN) {
       // Autopilot: after a plan turn that PROPOSED a plan, build it — gated
@@ -1761,6 +1776,7 @@ export function createChatService({ projectDir, settings, emit, env = process.en
         const buildTurnId = crypto.randomUUID();
         runTurn({
           projectId,
+          sessionId: activeSessionId,
           message: approvedPlanMessage(proposedPlan),
           imagePaths: [],
           phase: PHASE.IMPLEMENT,
@@ -1782,17 +1798,17 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     return true;
   }
 
-  function turnInProgress(projectId) {
+  function turnInProgress(projectId, sessionId = "") {
     for (const entry of turns.values()) {
-      if (entry.projectId === projectId) {
+      if (entry.projectId === projectId && (!sessionId || entry.sessionId === sessionId)) {
         return true;
       }
     }
     return false;
   }
 
-  function sessionState(projectId) {
-    const sessionId = sessionIdForProject(projectId);
+  function sessionState(projectId, requestedSessionId = "") {
+    const sessionId = resolvedSessionId(projectId, requestedSessionId);
     let history = [];
     try {
       const contents = fs.readFileSync(
@@ -1803,7 +1819,51 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     } catch {
       history = [];
     }
-    return { sessionId, turnInProgress: turnInProgress(projectId), history };
+    return { sessionId, turnInProgress: turnInProgress(projectId, sessionId), history };
+  }
+
+  function sessionList(projectId) {
+    const workspace = projectDir(projectId);
+    const sessionsDir = path.dirname(sessionJsonlPath(workspace, sessionIdForProject(projectId), env));
+    let entries = [];
+    try {
+      entries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    const summaries = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+      const sessionId = entry.name.slice(0, -".jsonl".length);
+      if (!SESSION_ID_RE.test(sessionId)) continue;
+      const file = path.join(sessionsDir, entry.name);
+      try {
+        const contents = fs.readFileSync(file, "utf8");
+        const history = parseSessionHistory(contents);
+        if (!history.length) continue;
+        const firstUser = history.find((item) => item.role === "user");
+        const fallback = String(firstUser?.content || "New chat").replace(/\s+/g, " ").trim();
+        const title = parseLatestAiTitle(contents) || fallback.slice(0, 54) || "New chat";
+        const updatedAt = Math.max(
+          fs.statSync(file).mtimeMs,
+          ...history.map((item) => Number(item.at) || 0),
+        );
+        summaries.push({ sessionId, title, updatedAt, messageCount: history.length });
+      } catch {
+        // A transcript can be mid-write; omit it until the next refresh.
+      }
+    }
+    summaries.sort((a, b) => b.updatedAt - a.updatedAt || a.sessionId.localeCompare(b.sessionId));
+    return summaries;
+  }
+
+  function createSession(projectId) {
+    return {
+      sessionId: resolvedSessionId(projectId, crypto.randomUUID()),
+      title: "New chat",
+      updatedAt: Date.now(),
+      messageCount: 0,
+    };
   }
 
   function close() {
@@ -1813,5 +1873,5 @@ export function createChatService({ projectDir, settings, emit, env = process.en
     turns.clear();
   }
 
-  return { startTurn, cancelTurn, turnInProgress, sessionState, close };
+  return { startTurn, cancelTurn, turnInProgress, sessionState, sessionList, createSession, close };
 }

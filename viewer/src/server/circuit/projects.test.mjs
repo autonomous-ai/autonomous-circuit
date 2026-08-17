@@ -58,6 +58,7 @@ test("create writes snake_case pretty project.json and returns a camelCase summa
   assert.equal(summary.name, "My Board");
   assert.ok(summary.createdAt > 0);
   assert.equal(summary.hasModel, false);
+  assert.equal(summary.isNew, true);
 
   const raw = fs.readFileSync(path.join(root, summary.id, "project.json"), "utf8");
   assert.ok(raw.endsWith("\n"), "pretty file ends with a newline");
@@ -105,9 +106,27 @@ test("hasModel: a built *.circuit.json counts; plain json and skip-dirs do not",
   fs.mkdirSync(path.join(dir, "blocks"), { recursive: true });
   fs.writeFileSync(path.join(dir, "blocks", "reg.circuit.json"), "{}");
   assert.equal(store.get(p.id).hasModel, false, "plain json, caches, and blocks don't count");
+  assert.equal(store.get(p.id).isNew, false, "product/board metadata is already an existing design");
 
   fs.writeFileSync(path.join(dir, "boards", "main.circuit.json"), "{}");
   assert.equal(store.get(p.id).hasModel, true);
+  assert.equal(store.get(p.id).isNew, false);
+});
+
+test("isNew ignores first-prompt inputs and runtime caches, but not authored source", () => {
+  const root = tmpdir("circuit-projects-");
+  const store = createProjectsStore({ rootDir: root });
+  const p = store.create("X");
+  const dir = path.join(root, p.id);
+  fs.mkdirSync(path.join(dir, "inputs"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "inputs", "brief.png"), "image");
+  fs.mkdirSync(path.join(dir, ".circuit"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".circuit", "status.json"), "{}");
+  assert.equal(store.get(p.id).isNew, true);
+
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
+  assert.equal(store.get(p.id).isNew, false);
 });
 
 test("placeholder-name self-heal adopts the session JSONL's ai-title and persists it", () => {
