@@ -53,13 +53,23 @@ Four habits, applied without being asked:
    route the debug pair through the crystal cluster and the router comes back
    with a via shorted into the QFN pad field (measured 2026-08-11).
 6. **Say what routing effort the board needs.** `autorouterEffortLevel="5x"` is
-   the floor on every board; go to `"10x"` while the router is still missing
-   its own clearances. The same rp2040-core board is `fab.ready: false` with
-   five blocking KiCad findings at the default effort and `fab.ready: true`
-   with zero at `"5x"` — same design, only this prop changed. The pipeline's
-   own escalation cannot rescue it: that gate reads circuit.json, and
-   clearance and shorting verdicts only exist after the KiCad cross-check has
-   run, so the effort has to be declared rather than discovered.
+   the floor on every board. The same rp2040-core board is `fab.ready: false`
+   with five blocking KiCad findings at the default effort and `fab.ready:
+   true` with zero at `"5x"` — same design, only this prop changed.
+
+   **Your number is a floor, not a ceiling.** When the circuit.json scan shows
+   routing-class blockers the pipeline now climbs one rung on its own (5x →
+   10x), keeps the harder result only if it is strictly better, and says in the
+   sidecar what it tried and what it got. So do not hand-rebuild at a higher
+   effort to see: read the finding. If it says the retry ran and did not help,
+   the remaining lever is the placement.
+
+   **The one case it still cannot reach**: findings that only KiCad can see.
+   The escalation decides off the circuit.json scan, and `drc_violation` —
+   clearance, shorting, hole-clearance — is produced by the KiCad cross-check
+   several stages later, so a board whose *only* blockers are DRC ones gets no
+   retry. That is the case where declaring `"10x"` yourself is still the move,
+   and it is why the fleet's RP2040 boards were rebuilt by hand.
 
 ## Treat the device as a project
 

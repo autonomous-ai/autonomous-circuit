@@ -727,7 +727,12 @@ class RoutingEscalation(unittest.TestCase):
             ["[clearance]", "[shorting_items]", "[hole_clearance]", "Via"],
         )
 
-    def test_effort_is_injected_once_and_never_over_the_author(self) -> None:
+    def test_a_declared_effort_is_a_floor_the_retry_climbs_from(self) -> None:
+        # The escalation used to refuse any board that declared an effort, on
+        # the reading that the author's choice wins. Every board in the product
+        # fleet declares one — the skill tells engineers to — so the retry was
+        # unreachable for exactly the boards that needed it, and engineers
+        # rebuilt at a higher effort by hand instead. A declaration is a floor.
         import tempfile
 
         from circuitpy import generation
@@ -741,9 +746,20 @@ class RoutingEscalation(unittest.TestCase):
         )
         self.assertTrue(generation._set_autorouter_effort(board, "5x"))
         self.assertIn('autorouterEffortLevel="5x"', board.read_text())
-        # Idempotent: a second pass must not stack a second prop.
-        self.assertFalse(generation._set_autorouter_effort(board, "5x"))
+        # Replaced, not stacked: one prop, the new value.
+        self.assertTrue(generation._set_autorouter_effort(board, "10x"))
         self.assertEqual(board.read_text().count("autorouterEffortLevel"), 1)
+        self.assertIn('autorouterEffortLevel="10x"', board.read_text())
+
+        # The ladder climbs one rung and stops at the top. 100x is not a rung:
+        # measured at 28 minutes with no verdict, which is a hang, not a retry.
+        self.assertEqual(generation.next_effort(None), "1x")
+        self.assertEqual(generation.next_effort("default"), "1x")
+        self.assertEqual(generation.next_effort("5x"), "10x")
+        self.assertIsNone(generation.next_effort("10x"))
+        self.assertIsNone(generation.next_effort("100x"))
+        # A level we cannot read is not guessed at.
+        self.assertIsNone(generation.next_effort("turbo"))
 
         # An author who turned routing off meant it.
         off = tmp / "off.tsx"

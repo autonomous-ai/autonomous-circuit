@@ -53,6 +53,49 @@ BLOCK_BOX_MM: dict[str, tuple[float, float, float, float]] = {
 #: avoids `pcb_courtyard_overlap_error` while leaving a routing channel.
 BLOCK_GAP_MM = 2.0
 
+#: Some blocks need more than the floor. `rp2040-core`'s QFN-56 packs its
+#: escape fanout, QSPI cluster and RUN/reset corner into a footprint the size
+#: of `usb-c-power`'s, and three independent boards hit the same class of
+#: blocking KiCad finding — a DVDD via clearance violation, a hole clearance
+#: violation — entirely *inside the block's own footprint*, only cleared by
+#: widening the board-level gap to a neighbour well past 2mm:
+#: `i2c-sensor-hub` (2026-08-17) measured **5mm** sufficient after `10x`
+#: still blocked at 2mm; `macropad-6` widened 2mm to 6mm and cut 46
+#: blocking findings to 14 (the remainder was a different defect — an SWD
+#: trace crossing the RUN corner, not spacing). Three engineers independently
+#: rediscovering the same number is the planner failing to hand it out.
+#: 5mm is the smaller of the two confirmed-sufficient measurements, so it is
+#: a floor here too, not a guarantee — dense boards may still need more.
+BLOCK_GAP_OVERRIDE_MM: dict[str, float] = {
+    "rp2040-core": 5.0,
+}
+
+
+def pair_gap(a_id: str, b_id: str, *, gap: float = BLOCK_GAP_MM) -> float:
+    """The clear space two adjacent blocks need, at least ``gap``.
+
+    Either side can ask for more (`BLOCK_GAP_OVERRIDE_MM`); the pair gets the
+    larger of the two asks, because a dense block's routing headroom
+    requirement does not shrink because its neighbour is a simple one.
+    """
+    return max(
+        gap,
+        BLOCK_GAP_OVERRIDE_MM.get(a_id, 0.0),
+        BLOCK_GAP_OVERRIDE_MM.get(b_id, 0.0),
+    )
+
+
+def _sequential_gap_total(block_ids: list[str], *, gap: float = BLOCK_GAP_MM) -> float:
+    """Sum of the pairwise gaps between consecutive blocks in a row.
+
+    Equal to ``gap * (n - 1)`` when nothing asks for more — the shape every
+    caller had before per-block overrides existed.
+    """
+    return sum(
+        pair_gap(block_ids[i], block_ids[i + 1], gap=gap)
+        for i in range(len(block_ids) - 1)
+    )
+
 #: Keep whole blocks this far inside the board outline. Larger than the
 #: copper-to-edge rule (0.2mm) on purpose: that figure is where the fab
 #: *blocks*, and a board sized to the fab's floor has no room for the router to
@@ -182,8 +225,18 @@ def min_board_for(
         col_widths[col] = max(col_widths[col], width)
         row_heights[row] = max(row_heights[row], height)
 
-    total_w = sum(col_widths) + BLOCK_GAP_MM * (cols - 1) + 2 * EDGE_MARGIN_MM
-    total_h = sum(row_heights) + BLOCK_GAP_MM * (rows - 1) + 2 * EDGE_MARGIN_MM
+    # A floor must not under-count what place_row/place_board will actually
+    # charge for a dense block's gap override — applied to every gap in the
+    # grid rather than the exact pairs (this is a floor, not a layout), which
+    # only ever rounds a suggestion up, never down.
+    widest_ask = max(
+        (BLOCK_GAP_OVERRIDE_MM.get(block_id, 0.0)
+         for block_id, _count in (spec(entry) for entry in block_ids)),
+        default=0.0,
+    )
+    grid_gap = max(BLOCK_GAP_MM, widest_ask)
+    total_w = sum(col_widths) + grid_gap * (cols - 1) + 2 * EDGE_MARGIN_MM
+    total_h = sum(row_heights) + grid_gap * (rows - 1) + 2 * EDGE_MARGIN_MM
 
     def _up(value: float) -> float:
         """Round *up* to 0.1mm. Rounding to nearest here is how a board comes
@@ -209,7 +262,8 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
     specs = [spec(entry) for entry in block_ids]
     boxes = [box(block_id, count=count) for block_id, count in specs]
     widths = [bx[2] - bx[0] for bx in boxes]
-    total = sum(widths) + gap * (len(boxes) - 1)
+    ids = [block_id for block_id, _count in specs]
+    total = sum(widths) + _sequential_gap_total(ids, gap=gap)
     cursor = -total / 2.0
     out: dict[str, tuple[float, float]] = {}
     # The instance counter belongs to the *caller* when there is one, because a
@@ -218,7 +272,9 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
     # came back keyed `sw-tact`, and the second overwrote the first on merge —
     # the same silent drop this counter exists to stop, one level up.
     seen = {} if seen is None else seen
-    for (block_id, _count), (min_x, min_y, max_x, max_y), width in zip(specs, boxes, widths):
+    for index, ((block_id, _count), (min_x, min_y, max_x, max_y), width) in enumerate(
+        zip(specs, boxes, widths)
+    ):
         # Where the box should land, then back out the origin offset.
         wanted_cx = cursor + width / 2.0
         wanted_cy = y
@@ -234,7 +290,8 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
             round(wanted_cx - (min_x + max_x) / 2.0, 2),
             round(wanted_cy - (min_y + max_y) / 2.0, 2),
         )
-        cursor += width + gap
+        next_gap = pair_gap(ids[index], ids[index + 1], gap=gap) if index + 1 < len(ids) else 0.0
+        cursor += width + next_gap
     return out
 
 
@@ -319,7 +376,7 @@ def place_board(
     row_w = 0.0
     for one in inner:
         width = _extent(one)[0]
-        nudge = width if not row else width + gap
+        nudge = width if not row else width + pair_gap(row[-1][0], one[0], gap=gap)
         if row and row_w + nudge > budget:
             inner_rows.append(row)
             row, row_w = [one], width
@@ -329,15 +386,29 @@ def place_board(
     if row:
         inner_rows.append(row)
 
+    def _row_override(r: list[tuple[str, int | None]]) -> float:
+        """The most any block in this row asks for beyond the floor gap —
+        used at a row's own boundary (to its neighbour row, or to the edge
+        band) since a dense block needs headroom on every side it borders,
+        not only from the block beside it in its own row."""
+        return max((BLOCK_GAP_OVERRIDE_MM.get(one[0], 0.0) for one in r), default=0.0)
+
     row_widths = [
-        sum(_extent(b)[0] for b in r) + gap * max(0, len(r) - 1) for r in inner_rows
+        sum(_extent(b)[0] for b in r) + _sequential_gap_total([b[0] for b in r], gap=gap)
+        for r in inner_rows
     ]
     row_heights = [max((_extent(b)[1] for b in r), default=0.0) for r in inner_rows]
     inner_w = max(row_widths, default=0.0)
-    inner_h = sum(row_heights) + gap * max(0, len(inner_rows) - 1)
+    row_gaps = [
+        max(gap, _row_override(inner_rows[i]), _row_override(inner_rows[i + 1]))
+        for i in range(len(inner_rows) - 1)
+    ]
+    inner_h = sum(row_heights) + sum(row_gaps)
+
+    edge_inner_gap = max(gap, _row_override(inner_rows[0])) if (edge and inner_rows) else gap
 
     content_w = max(edge_w, inner_w)
-    content_h = edge_h + inner_h + (gap if edge and inner else 0.0)
+    content_h = edge_h + inner_h + (edge_inner_gap if edge and inner else 0.0)
     strip = HOLE_STRIP_MM if mounting_holes else 0.0
 
     # The bottom edge is the connector's face, not a routing channel: a plug
@@ -363,9 +434,10 @@ def place_board(
     # Rows stack downward from the top margin, first row highest, so the
     # reading order on the board matches the order in the board file.
     cursor_y = height / 2.0 - margin
-    for one_row, row_h in zip(inner_rows, row_heights):
+    for index, (one_row, row_h) in enumerate(zip(inner_rows, row_heights)):
         placements.update(place_row(one_row, y=cursor_y - row_h / 2.0, gap=gap, seen=seen))
-        cursor_y -= row_h + gap
+        row_gap = row_gaps[index] if index < len(row_gaps) else gap
+        cursor_y -= row_h + row_gap
 
     holes: list[dict[str, object]] = []
     if mounting_holes:
@@ -580,19 +652,24 @@ def overlap_warnings(
             for b_id, b_x0, b_y0, b_x1, b_y1 in items[i + 1:]:
                 dx = max(a_x0, b_x0) - min(a_x1, b_x1)
                 dy = max(a_y0, b_y0) - min(a_y1, b_y1)
+                # A dense block (rp2040-core) needs more than the floor gap
+                # from ANY neighbour, not only one it happens to be laid out
+                # beside — three boards independently found the floor
+                # insufficient and widened it by hand (BLOCK_GAP_OVERRIDE_MM).
+                pair = pair_gap(base_id(a_id), base_id(b_id), gap=gap)
                 # Rounding slack, not engineering slack: place_row rounds
                 # centres to 0.01mm, so a nominally exact `gap` lands a few
                 # microns short. A check that warns about its own output is a
                 # check people switch off.
                 slack = 0.02
-                if dx < gap - slack and dy < gap - slack:
+                if dx < pair - slack and dy < pair - slack:
                     out.append({
                         "part": f"{a_id},{b_id}",
                         "kind": "functional",
                         "severity": "warning",
                         "detail": (
                             f"{a_id} and {b_id} are {max(dx, dy):.1f}mm apart; "
-                            f"blocks need {gap:g}mm of clear space or their "
+                            f"blocks need {pair:g}mm of clear space or their "
                             "courtyards collide and routing is skipped"
                         ),
                     })

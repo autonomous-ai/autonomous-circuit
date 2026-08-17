@@ -220,6 +220,30 @@ ROUTING_ESCALATION_ENV = "CIRCUIT_ROUTING_ESCALATION"
 #: One rung. 10x/100x exist but the measured 5x gain is where the curve bends,
 #: and the time cost past it is not something a chat loop can absorb.
 ROUTING_ESCALATION_EFFORT = "5x"
+
+#: The dial's rungs, cheapest first, as a *ladder* rather than a single target.
+#:
+#: For most of this pipeline's life the escalation had one rung and one rule:
+#: set the prop to 5x, and if the author already set the prop, do nothing. That
+#: second half made the retry silently unreachable for exactly the boards that
+#: needed it. Every board in the product fleet declares an effort — the skill's
+#: own documentation tells engineers to — so declaring it *switched the ladder
+#: off*, and three engineers in a row hand-rebuilt at 10x, one at a time,
+#: guessing, while the pipeline sat on a mechanism built to do that for them.
+#: An engineer building `two-key-footswitch` (2026-08-17) reported it as their
+#: worst friction and read the cause as the finding kinds; the kinds were right
+#: all along (`dfm_hole_clearance` and routing-class `drc_violation` are both
+#: in the sets below) and the declaration was what stopped it.
+#:
+#: So a declared effort is a **floor, not a ceiling**: "route my board at least
+#: this hard" is what a designer means by it. The retry takes the next rung up
+#: from whatever the board asks for, and the cheaper attempt still stands
+#: unless the harder one is strictly better.
+#:
+#: 100x is deliberately not a rung. Measured on two-key-footswitch, 2026-08-17:
+#: 28 minutes with no verdict at all, killed. A rung nobody can wait for is not
+#: an escalation, it is a hang.
+EFFORT_LADDER = ("default", "1x", "2x", "5x", "10x")
 #: Bounded, but bounded as a safety valve rather than as a budget. At 1500s
 #: this was the second place the machine decided the board: terminal-keyboard
 #: at "5x" is ~17 minutes (1020s) on a quiet machine, and the measured load
@@ -266,6 +290,19 @@ ROUTING_ERROR_KINDS = frozenset(
 #: *all five* of them `drc_violation`, and the escalation never fired because
 #: the kind was not in the set above. The second substrate was reporting a
 #: routing failure and nothing was listening.
+#:
+#: **And it still is not, at stage 0b.** Adding this set did not fix that
+#: board, because the problem was never the set — it is the *timing*. The
+#: escalation decides off `_scan(circuit_json)`, and `drc_violation` is
+#: produced by the KiCad cross-check ~400 lines later in this same function.
+#: At the moment the retry is chosen, not one warning of this kind exists, so
+#: every branch below that reads a DRC type is dead at that call site. A board
+#: whose only blockers are DRC ones gets no retry and no explanation, which is
+#: why three engineers rebuilt at a higher effort by hand. Ledger #51 carries
+#: the fix: the escalation has to be able to see the second substrate's verdict
+#: before it decides, or the retry has to wrap more of the pipeline than the
+#: compile. Kept here rather than deleted because the set is correct and is
+#: what a later decision point will need.
 ROUTING_DRC_TYPES = frozenset(
     {
         "clearance",
@@ -663,23 +700,49 @@ def _declared_effort(board_source: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def next_effort(declared: str | None) -> str | None:
+    """The rung above ``declared``, or None when there is nothing above it.
+
+    An effort we do not recognise — a typo, or a level tscircuit grew after we
+    last looked — returns None rather than guessing a neighbour. Rebuilding a
+    board at a level the author did not ask for, chosen by a fuzzy match on a
+    word we could not read, is not a retry anybody asked for.
+    """
+    key = (declared or "default").strip() or "default"
+    if key not in EFFORT_LADDER:
+        return None
+    at = EFFORT_LADDER.index(key)
+    return EFFORT_LADDER[at + 1] if at + 1 < len(EFFORT_LADDER) else None
+
+
 def _set_autorouter_effort(board_source: Path, effort: str) -> bool:
-    """Add ``autorouterEffortLevel`` to the mirrored board source.
+    """Set ``autorouterEffortLevel`` on the mirrored board source.
 
     Only ever touches the copy inside ``.circuit/build/`` — the user's file is
     never rewritten, so "generated files are never hand-edited, nothing is
-    overwritten" still holds. Returns False when the author already set the
-    prop (their choice wins) or when the file has no ``<board>`` tag.
+    overwritten" still holds.
+
+    A value the author already declared is **replaced**, not respected: the
+    caller only ever hands this a rung strictly above what the board asks for
+    (see ``EFFORT_LADDER``), so the author's number is a floor and this is the
+    pipeline trying harder than the floor before giving up. Returns False when
+    the file has no ``<board>`` tag, or when routing is switched off entirely —
+    a pre-flight has nothing to escalate.
     """
     try:
         text = board_source.read_text(encoding="utf-8")
     except OSError:
         return False
-    if "autorouterEffortLevel" in text or "routingDisabled" in text:
+    if "routingDisabled" in text:
         return False
-    patched, count = _BOARD_TAG.subn(
-        f'<board autorouterEffortLevel="{effort}"', text, count=1
-    )
+    if "autorouterEffortLevel" in text:
+        patched, count = _EFFORT_RE.subn(
+            f'autorouterEffortLevel="{effort}"', text, count=1
+        )
+    else:
+        patched, count = _BOARD_TAG.subn(
+            f'<board autorouterEffortLevel="{effort}"', text, count=1
+        )
     if not count:
         return False
     try:
@@ -1094,7 +1157,20 @@ def build_board(
     kept_attempt = 0
     if _routing_blockers(warnings) and not _routing_escalation_off():
         entry_copy = work / rel_entry
-        if _set_autorouter_effort(entry_copy, ROUTING_ESCALATION_EFFORT):
+        # The rung above what the board asks for. A board already at the top of
+        # the ladder gets no retry — and says so, because "we tried harder and
+        # it did not help" and "there was nothing left to try" are different
+        # answers and only one of them is the engineer's cue to move the parts.
+        harder = next_effort(routing_effort)
+        if harder is None:
+            escalation_note = checks.check_failed(
+                f"the board declares autorouterEffortLevel=\"{routing_effort}\", "
+                f"which is the hardest routing pass this pipeline will run, so "
+                f"no retry was attempted. {len(_routing_blockers(warnings))} "
+                f"routing-class finding(s) survived it — the remaining lever is "
+                f"the placement, not the router."
+            )
+        elif _set_autorouter_effort(entry_copy, harder):
             # Keep attempt 1's whole output directory — circuit.json *and* the
             # review PNGs. Every downstream stage reads from built_dir, so
             # "keep the better attempt" has to mean the files too, not just
@@ -1120,8 +1196,8 @@ def build_board(
                 # already a real answer, so a failed retry is information,
                 # never a build failure.
                 escalation_note = checks.check_failed(
-                    f"the {ROUTING_ESCALATION_EFFORT} routing retry did not "
-                    f"finish ({exc}); reporting the default-effort build"
+                    f"the {harder} routing retry did not finish ({exc}); "
+                    f"reporting the {routing_effort}-effort build"
                 )
 
             keep_retry = False
@@ -1135,7 +1211,7 @@ def build_board(
             if keep_retry:
                 circuit_json = retry_json  # type: ignore[assignment]
                 warnings = retry_warnings
-                routing_effort = ROUTING_ESCALATION_EFFORT
+                routing_effort = harder
                 kept_attempt = len(circuit_normalizations) - 1
                 shutil.rmtree(kept, ignore_errors=True)
             else:
@@ -1143,6 +1219,22 @@ def build_board(
                 # artifacts back and report its verdict.
                 shutil.rmtree(built_dir, ignore_errors=True)
                 shutil.move(str(kept), str(built_dir))
+                if retry_json is not None and escalation_note is None:
+                    # A retry that ran and did not help is the single most
+                    # useful thing this stage knows, and it used to leave only
+                    # two numbers in `blockingByAttempt` for somebody to
+                    # notice. Three engineers rebuilt by hand at a higher
+                    # effort because nothing told them the pipeline already
+                    # had.
+                    escalation_note = checks.check_failed(
+                        f"routing was retried at autorouterEffortLevel="
+                        f"\"{harder}\" (up from {routing_effort}) and came back "
+                        f"with {blocking_by_attempt[-1]} blocking finding(s) "
+                        f"against {blocking_by_attempt[0]}, so the cheaper "
+                        f"build stands. Rebuilding this board at a higher "
+                        f"effort by hand will not clear it — the remaining "
+                        f"lever is the placement."
+                    )
 
     progress.stage("dfm")
     if escalation_note is not None:
