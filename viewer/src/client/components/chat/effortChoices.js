@@ -6,18 +6,23 @@
 // AllowedEffortLevels — keep all three in sync." Ours is the third copy; do not
 // invent a sixth level here.
 //
-// Where the pick goes, and why it is not a setting.
-// `viewer/src/server/circuit/settings.mjs` normalizes the settings file down to
-// exactly {hasOnboarded, autoBuild, model} and drops unknown keys, so an
-// `effort` field cannot survive `app_settings_write`. Until the driver learns
-// `--effort` (VIBE-NOTES §7, item 1) the level rides the turn as a model-facing
-// directive, appended the same way the view-context note already is and never
-// shown in the echoed bubble.
+// Where the pick goes. Two places, and it needs both.
 //
-// That is not a placeholder. `--effort` sets a reasoning budget, and Claude
-// Code's escalating thinking triggers are the same lever reached by a different
-// door. When the flag lands, delete `effortDirective` and pass `level` instead
-// — nothing else here changes.
+// `app_set_effort` persists the level and the driver spends it as the CLI's
+// `--effort` flag — the real reasoning budget. That is the lever; everything
+// else here is about what the budget buys.
+//
+// The directive below still rides the turn, appended the same way the
+// view-context note is and never shown in the echoed bubble. An earlier note
+// here said to delete it once the flag landed, and that was wrong: `--effort`
+// buys thinking, while "check every block's pin assignment against its declared
+// pinout and state the power budget arithmetic" is what we want the thinking
+// spent on. A budget with no direction gets spent on whatever the model already
+// wanted to do.
+//
+// (The flag landed on the server and the client did not call it for a day —
+// the pill said Max while every turn ran at the CLI's default. The guard
+// against a repeat is `commandsAreWired.test.mjs`.)
 //
 // Why this matters more for a board than for a mesh: Vibe's desktop driver
 // hard-pins `--effort low` for every phase

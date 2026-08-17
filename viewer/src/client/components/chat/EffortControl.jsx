@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/ui/utils";
-import { getEffort, setEffort } from "@/store/chat.js";
+import { getEffort, pushEffort, setEffort } from "@/store/chat.js";
 import { DEFAULT_EFFORT, EFFORT_HINTS, EFFORT_LABELS, EFFORT_LEVELS } from "./effortChoices.js";
 
 /**
@@ -21,15 +21,20 @@ import { DEFAULT_EFFORT, EFFORT_HINTS, EFFORT_LABELS, EFFORT_LEVELS } from "./ef
  * because there it is a paid-tier control. Ours is always live: Circuit runs on
  * the user's own Claude Code, so the effort is theirs to spend either way.
  *
- * The pick takes effect on the next turn (see effortChoices.js for where it
- * goes and why it is not an AppSettings field yet).
+ * The pick takes effect on the next turn: it is persisted server-side and
+ * spent as the CLI's `--effort` flag, with a model-facing directive riding the
+ * message to say what the budget should buy (see effortChoices.js).
  */
 export default function EffortControl({ className }) {
   const [effort, setLocal] = useState(DEFAULT_EFFORT);
 
-  // The store holds the live value; localStorage is only its backing.
+  // The store holds the live value; localStorage is only its backing. The pick
+  // is pushed on mount as well as on change: the level survives a restart in
+  // the browser, but the server it has to reach is a fresh process, and a pill
+  // reading "Max" over a server still on the default is the exact lie this
+  // control shipped with.
   useEffect(() => {
-    setLocal(getEffort());
+    setLocal(pushEffort(getEffort()));
   }, []);
 
   const pick = useCallback((level) => {

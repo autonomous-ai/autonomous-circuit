@@ -1279,10 +1279,34 @@ export function getEffort() {
   return activeEffort;
 }
 
+/**
+ * Hand the level to the server, which persists it and spends it as the CLI's
+ * `--effort` flag on the next turn.
+ *
+ * The flag is the whole point of the pill. It landed on the server — settings
+ * key, driver argument, three phases of the review loop — and no client code
+ * ever named the command, so for as long as it has existed every turn has run
+ * at the CLI's default while the pill said "Max". The prompt directive in
+ * effortChoices.js was the stand-in for this call and stays: it says what the
+ * budget should be *spent on*, which a flag cannot.
+ *
+ * Fire-and-forget. A pill click must not be eaten by a server that is down —
+ * the directive still rides the message, so the worst case is the old
+ * behaviour rather than a broken control.
+ */
+export function pushEffort(level = getEffort()) {
+  try {
+    Promise.resolve(getTransport().app_set_effort(level)).catch(() => {});
+  } catch {
+    /* no transport (tests, first paint) — the directive still carries it */
+  }
+  return level;
+}
+
 /** Choose the level for subsequent turns; returns the level actually stored. */
 export function setEffort(level) {
   activeEffort = writeStoredEffort(level);
-  return activeEffort;
+  return pushEffort(activeEffort);
 }
 
 /** Test seam — forget the cached pick so a fresh storage read happens. */

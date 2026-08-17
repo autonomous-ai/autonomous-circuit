@@ -578,6 +578,8 @@ const transportBase = {
     invoke<void>("app_submit_login_code", { code }),
   app_set_model: (model: string) =>
     invoke<AppSettings>("app_set_model", { model }),
+  app_set_effort: (effort: string) =>
+    invoke<AppSettings>("app_set_effort", { effort }),
 
   // catalog
   catalog_read: () => invoke<Catalog>("catalog_read"),

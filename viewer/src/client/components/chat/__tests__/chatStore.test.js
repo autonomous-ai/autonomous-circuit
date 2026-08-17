@@ -14,7 +14,9 @@ import {
   detachChatEventStream,
   dispatch,
   getChatState,
+  getEffort,
   hydrateSession,
+  setEffort,
   resetChatStore,
   setPendingViewContext,
   setProject,
@@ -395,6 +397,47 @@ test("attachChatEventStream is idempotent — second call replaces first", () =>
     detachChatEventStream();
     restore();
     resetChatStore();
+  }
+});
+
+// The pill's real lever. `app_set_effort` persists the level and the driver
+// spends it as the CLI's `--effort`; before this call existed on the client,
+// the pill could read "Max" while every turn ran at the CLI's default, because
+// only the prompt directive was leaving the browser.
+test("picking a level hands it to the server, and a server that refuses does not eat the click", async () => {
+  const posted = [];
+  const restore = __setTransportForTesting({
+    async app_set_effort(level) {
+      posted.push(level);
+      return {};
+    },
+  });
+  try {
+    assert.equal(setEffort("xhigh"), "xhigh");
+    await tick();
+    assert.deepEqual(posted, ["xhigh"]);
+    // An unknown level is normalised before it is stored *or* sent — the CLI
+    // never sees a word it does not have.
+    assert.equal(setEffort("turbo"), "high");
+    await tick();
+    assert.deepEqual(posted, ["xhigh", "high"]);
+  } finally {
+    restore();
+    __resetEffortForTesting("medium");
+  }
+
+  const rejecting = __setTransportForTesting({
+    async app_set_effort() {
+      throw new Error("server is down");
+    },
+  });
+  try {
+    assert.equal(setEffort("low"), "low", "the pick still applies locally");
+    await tick();
+    assert.equal(getEffort(), "low");
+  } finally {
+    rejecting();
+    __resetEffortForTesting("medium");
   }
 });
 
