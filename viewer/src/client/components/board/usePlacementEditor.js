@@ -35,6 +35,7 @@ import {
   wrapPreview,
 } from "./boardSource.js";
 import { commitRotateStep, rotateRefusal } from "./placementRotate.js";
+import { scanRefusals } from "./editEngine.js";
 import { widthEdits } from "./netWidth.js";
 
 async function callApi(command, args) {
@@ -239,6 +240,22 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     () => (parsed.ok ? rebindPlacements(parsed.placements, snapshot) : EMPTY_BINDING),
     [parsed, snapshot],
   );
+
+  /**
+   * Every positioned tag the file has that this editor cannot move, each with
+   * the reason in a sentence.
+   *
+   * `editEngine.scanRefusals` has produced these since the day it was written
+   * and **nothing imported it** — so a board whose keys are placed by named
+   * constants (`pcbX={COL_X}`) told an engineer nothing at all. Their words:
+   * "moving a key was impossible — named-constant coordinates make a placement
+   * invisible to the editor". It was not invisible; the app just never asked.
+   *
+   * The parser's own `skipped` list is the vaguer half of the same fact ("its
+   * position is written as text, not a number"); this names the tag, the line
+   * and the expression, which is what somebody needs to go and change it.
+   */
+  const refusals = useMemo(() => (state === "ready" ? scanRefusals(source).refused : []), [source, state]);
   // Read by `checkNow`, which must not be re-created on every parse: it is
   // called from `write`, and a new identity there would rebuild every callback
   // that writes.
@@ -762,6 +779,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     placements: binding,
     unmatched: binding.unmatched,
     skipped: parsed.skipped,
+    refusals,
     changes,
     lastChange,
     canUndo: history.length > 0,

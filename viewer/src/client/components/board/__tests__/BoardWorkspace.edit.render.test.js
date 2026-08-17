@@ -444,3 +444,35 @@ test("move mode outlines everything the file can move, so nothing has to be gues
     w.close();
   }
 });
+
+test("the strip says why a part cannot be dragged, in the words of the file", async () => {
+  // Reported by an engineer building `macropad-6`: "moving a key was
+  // impossible — named-constant coordinates make a placement invisible to the
+  // editor". It was not invisible. `editEngine.scanRefusals` has named every
+  // refused tag, its line and its expression since the day it was written, and
+  // **nothing imported the module** — the same built-and-never-wired shape as
+  // the verdict gate and the right mouse button before it.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const count = w.find('[data-slot="placement-edit-count"]');
+    assert.ok(count, "no count on the strip");
+
+    const toggle = w.find('[data-slot="placement-refusals-toggle"]');
+    assert.ok(toggle, "the refused parts are a number nobody can open");
+    assert.match(toggle.textContent, /\d+ cannot/);
+
+    click(toggle);
+    await w.settle();
+    const list = w.text('[data-slot="placement-refusals"]');
+    assert.ok(list.length > 0, "opening the list showed nothing");
+    // Every row names the tag and the line it is on, then says why in a
+    // sentence somebody can act on. hydrate-coaster's RP2040 is wrapped in a
+    // `<group>`, which is one of the reasons:
+    assert.match(list, /[A-Za-z0-9]+:\d+/, "a row that does not name its tag and line");
+    assert.match(list, /line to change|computed|loop|component/i);
+
+    assert.deepEqual(w.ui.errors, []);
+  } finally {
+    w.close();
+  }
+});

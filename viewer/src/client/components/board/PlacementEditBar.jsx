@@ -246,6 +246,10 @@ export default function PlacementEditBar({
   // so the first one on a given placement shows the diff and asks. The second
   // turn of the same part rewrites a literal and never reaches here.
   const [pendingWrap, setPendingWrap] = useState(null);
+  // "6 cannot" is a number somebody will ask about the first time they try to
+  // drag one of the six.
+  const [showRefusals, setShowRefusals] = useState(false);
+  const refusals = Array.isArray(editor.refusals) ? editor.refusals : [];
   const confirmedWraps = useRef(new Set());
 
   // A confirm panel names one placement and writes four lines of structure to
@@ -305,7 +309,23 @@ export default function PlacementEditBar({
       {ready ? (
         <span className="text-muted-foreground" data-slot="placement-edit-count">
           {total} {total === 1 ? "part or block" : "parts and blocks"} can be dragged
-          {unmatched ? ` · ${unmatched} cannot` : ""}
+          {refusals.length ? (
+            <>
+              {" · "}
+              <button
+                type="button"
+                data-slot="placement-refusals-toggle"
+                onClick={() => setShowRefusals((value) => !value)}
+                className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+              >
+                {refusals.length} cannot
+              </button>
+            </>
+          ) : unmatched ? (
+            ` · ${unmatched} cannot`
+          ) : (
+            ""
+          )}
           {/* Said before the key is pressed, not discovered on keystroke five:
               most of what our boards place is one of our own components, and
               turning one means writing a wrapper around it. */}
@@ -511,6 +531,23 @@ export default function PlacementEditBar({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {showRefusals && refusals.length ? (
+        <ul data-slot="placement-refusals" className="w-full space-y-0.5 text-[11px]">
+          {refusals.slice(0, 12).map((one, at) => (
+            <li key={`${one.tag}-${one.at}-${at}`} className="flex gap-1.5">
+              <span className="shrink-0 font-mono text-muted-foreground">
+                {one.tag}
+                <span className="opacity-60">:{one.line}</span>
+              </span>
+              <span className="min-w-0 text-muted-foreground">{one.reason}</span>
+            </li>
+          ))}
+          {refusals.length > 12 ? (
+            <li className="text-muted-foreground/70">…and {refusals.length - 12} more</li>
+          ) : null}
+        </ul>
       ) : null}
 
       {error ? (
