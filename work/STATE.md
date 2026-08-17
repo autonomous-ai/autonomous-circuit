@@ -47,17 +47,32 @@ from its suffix, `run_tscircuit_checks` grades everything `@tscircuit/checks`
 returns `error` — and the build ends with `checks.dedupe` (first wins → the
 warning copy) while the fast gate did not. Now it does. All three read `legal`.
 
-## The fleet (2026-08-17, midday)
+## The fleet (2026-08-17, afternoon)
 
 Twelve products, built with the app by AI electrical engineers who had never
 seen this codebase. `scripts/fleet-status --write` regenerates the table in
 `products/README.md` from each board's own sidecar, so it cannot flatter us.
 
-**6 of 9 built boards are fab-ready.** Two more (`bench-i2c-scanner`,
-`dual-rail-psu`) and one rebuild (`env-logger-usb`) are in flight. Every
-builder also writes `work/ee-feedback/<slug>.md`, and that file is the input to
-the next round of platform work — which is where nearly everything below came
-from.
+**9 of 12 built boards are fab-ready — in the repo *and* in the app**, which
+now agree. They did not before: a round-4 judge found the table claiming 9 of
+12 while the app a human actually opens held 6 of 10, with two products not
+installed at all. `scripts/install-fleet` syncs them and `fleet-status` prints
+both counts side by side, plus a flag for any board whose verdict was earned by
+a source that has since changed (compared by fingerprint, never by clock).
+
+The three that are not ready — `macropad-6`, `pixel-badge`, `bench-i2c-scanner`
+— all fail on the same defect, and it is inside `rp2040-core` rather than in
+any board: a via in the QFN's 0.4mm-pitch pad field (ledger #53). Every
+board-level lever is measured and ruled out: 5x, the automatic 10x escalation,
+a hand-declared 10x, and a wider block gap, which at 9mm made a board *worse*.
+It also blocks two green boards indirectly — `desk-air-monitor`'s dead button
+and `sensor-node-mini`'s dead USB pair both have correct fixes that regress
+into it (38, 12 and 3 blocking at the GPIOs tried), so both were reverted under
+the floor rule.
+
+Every builder also writes `work/ee-feedback/<slug>.md`, and that file is the
+input to the next round of platform work — which is where nearly everything
+below came from.
 
 ### What the fleet has cost us in defects, and what it bought
 
