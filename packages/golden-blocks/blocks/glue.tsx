@@ -150,7 +150,24 @@ export const GndPour = (props: {
  *
  * Default refdes `TP1`-`TP3`, reserved for this in the global v1 allocation.
  */
-export const DebugPort = (props: {
+/**
+ * A row of labelled pads on named nets — a header without a header.
+ *
+ * This is the component two engineers copied the internals of on the same day
+ * rather than import, because it was only ever called `DebugPort` and a board
+ * that wants "DATA / 5V / GND out to a strip" does not go looking for a debug
+ * port. It was always general: `nets`, `labels`, `pitch`, `padDiameter`,
+ * `prefix` and a rotation. `DebugPort` is now this with the SWD trio as
+ * defaults, so every board that already uses it is unchanged.
+ *
+ * Bare pads rather than a plated header on purpose: no drills means no
+ * keepouts and nothing for the router to squeeze around, and a 0.1" pitch
+ * still takes a soldered header when someone wants one.
+ *
+ *     <PadHeader prefix="J" nets={["LED_DATA", "V5", "GND"]}
+ *                labels={["DAT", "5V", "GND"]} pcbX={0} pcbY={20} />
+ */
+export const PadHeader = (props: {
   /** Refdes for the first pad; the rest count up. */
   prefix?: string
   /** Nets to land, in order. Defaults to the SWD trio. */
@@ -212,5 +229,11 @@ export const DebugPort = (props: {
     </group>
   )
 }
+
+/**
+ * The SWD trio, which is what most boards want a pad row for. Kept as its own
+ * name because every board in the fleet already imports it.
+ */
+export const DebugPort = (props: Parameters<typeof PadHeader>[0]) => <PadHeader {...props} />
 
 export { NPTH_TO_COPPER_MM }

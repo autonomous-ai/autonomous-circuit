@@ -43,7 +43,12 @@ Four habits, applied without being asked:
    terminates neither. If nothing does, the assembled board cannot be halted,
    single-stepped or recovered from a bad image — every part on it correct and
    the product useless. `board_plan().must_expose` names the nets; `DebugPort`
-   from `blocks/glue` lands them on three 2.54mm pads. Put it in open board
+   from `blocks/glue` lands them on three 2.54mm pads. **Any other row of
+   labelled pads is the same component under its own name** — `PadHeader`,
+   also from `blocks/glue`, takes `nets`, `labels`, `pitch` and `padDiameter`,
+   so an off-board strip connector or a bench breakout is one import rather
+   than a hand-copy of `DebugPort`'s internals (which is what two engineers
+   did on 2026-08-17 before it had a name they would look for). Put it in open board
    space, not inside the MCU block: three pads inside `rp2040-core`'s own box
    route the debug pair through the crystal cluster and the router comes back
    with a via shorted into the QFN pad field (measured 2026-08-11).
