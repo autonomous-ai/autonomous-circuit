@@ -83,8 +83,23 @@ export default () => (
        power/MCU pairing — needing 10x even after a favorable rotation, with
        5x left short on the USB-C data-pair fanout. Declaring 10x up front
        instead of spending a full 20-40 minute build discovering the same
-       shortfall a third time. */
-    autorouterEffortLevel="100x"
+       shortfall a third time.
+
+       At 10x this board still comes back fab.ready=false with 3 blocking
+       findings (dfm_hole_clearance + 2x drc_violation), all attributed to
+       U3 and geometrically inside rp2040-core's own footprint (a via near
+       its C4-C8 decoupling row, ~2.7mm off the chip's own origin) — same
+       signature as desk-air-monitor's documented DVDD via finding, on a
+       net this board never touches. Tried 100x once (this board's part
+       count is small, so the ladder's own "not something a chat loop can
+       absorb" warning seemed worth testing anyway): killed after ~28
+       minutes with no result and no partial verdict, well past the
+       terminal-keyboard 5x reference point of ~17 minutes for a much
+       busier board. Reverted to 10x — see
+       work/ee-feedback/two-key-footswitch.md. This is reported as a
+       library finding, not patched here: the defect sits inside a golden
+       block's own internal routing, not in anything this board placed. */
+    autorouterEffortLevel="10x"
     minTraceWidth="0.2mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
