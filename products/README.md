@@ -66,7 +66,7 @@ product, the friction is the point.
 | `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 10 | 82 × 58mm · 7× drc_violation, 1× pcb_trace_error |
 | `rgb-lamp-controller` | USB-C desk lamp controller: RP2040 brain driving 8 on-board WS2812 pix | **yes** | 0 | 84.9 × 68.6mm |
 | `sensor-node-mini` | Small always-on environment node: temperature, humidity and pressure o | **yes** | 0 | 80.9 × 45.9mm |
-| `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | no | 3 | 47.5 × 68.9mm · 2× drc_violation, 1× dfm_hole_clearance |
+| `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | **yes** | 0 | 47.5 × 68.9mm |
 | `usb-c-breakout` | USB-C receptacle broken out to labelled bench pads (VBUS, GND, CC1, CC | **yes** | 0 | 36 × 40.5mm |
 
 **8 of 12 built boards are fab-ready** (12 products in the fleet).

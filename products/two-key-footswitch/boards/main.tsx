@@ -108,33 +108,42 @@ export default () => (
     <UsbCData pcbX={-1.82} pcbY={-29.28} schX={-8} schY={10} />
 
     {/* ---- logic rail: V5 -> V3_3 -------------------------------------- */}
-    <Ldo3v3 pcbX={-12.54} pcbY={-4.83} schX={-2} schY={4} />
+    <Ldo3v3 pcbX={-12.54} pcbY={-1.82} schX={-2} schY={4} />
 
     {/* ---- the brain ------------------------------------------------------
         Explicit USB_DP/USB_DM traces off the chip pins: rp2040-core's own
         contract ("GPIOs are not netted by the block") and both reference
-        boards in this fleet do the pairing this way. */}
-    <Rp2040Core pcbX={-2.27} pcbY={17.74} schX={0} schY={0} />
+        boards in this fleet do the pairing this way.
+        pcbY re-derived 2026-08-17 (ledger #52/#53) from
+        circuitlib.layout.place_board(["rp2040-core","ldo-3v3","sw-tact",
+        "status-led","sw-tact","usb-c-data"], mounting_holes=False,
+        max_width_mm=47.5), which now routes every gap through pair_gap()
+        and so gives rp2040-core BLOCK_GAP_OVERRIDE_MM's 5mm from every
+        neighbour automatically — up from the ad hoc ~2.9mm this board
+        shipped with (17.74 -> 23.75, +6.01mm). warnings: []. */}
+    <Rp2040Core pcbX={-2.27} pcbY={23.75} schX={0} schY={0} />
     <trace name="TR_USB_DP" from=".U3 > .USB_DP" to="net.USB_DP" />
     <trace name="TR_USB_DM" from=".U3 > .USB_DM" to="net.USB_DM" />
 
     {/* ---- the two keys: push-to-talk (left), mute (right) --------------
         Active low into the RP2040's internal pull-ups, same convention as
         every sw-tact instance in this fleet (sw-tact/BLOCK.md). */}
-    <SwTact name="SW1" signal="PTT_BTN" pcbX={-0.62} pcbY={-6.76} schX={8} schY={-6} />
+    <SwTact name="SW1" signal="PTT_BTN" pcbX={-0.62} pcbY={-3.74} schX={8} schY={-6} />
     <trace name="TR_PTT" from=".U3 > .GPIO2" to="net.PTT_BTN" />
-    <SwTact name="SW10" signal="MUTE_BTN" pcbX={13.22} pcbY={-6.76} schX={14} schY={-6} />
+    <SwTact name="SW10" signal="MUTE_BTN" pcbX={13.22} pcbY={-3.74} schX={14} schY={-6} />
     <trace name="TR_MUTE" from=".U3 > .GPIO3" to="net.MUTE_BTN" />
 
     {/* ---- status LED: hard-wired to V3_3, proof of power --------------- */}
-    <StatusLed rail="V3_3" pcbX={6.3} pcbY={-7.82} schX={11} schY={-10} />
+    <StatusLed rail="V3_3" pcbX={6.3} pcbY={-4.8} schX={11} schY={-10} />
 
     {/* ---- debug port -----------------------------------------------------
-        Open board space, clear of rp2040-core's own box (SKILL.md: pads
-        inside the block's footprint route the debug pair through the
-        crystal cluster and come back shorted). 4.6mm clear of the RP2040's
-        top edge at this y, clear of both top mounting holes in x. */}
-    <DebugPort pcbX={0} pcbY={29} schX={0} schY={16} />
+        rp2040-core's new top edge (30.45) now sits exactly on the router
+        halo boundary the wider gap consumes, leaving no headroom above the
+        block — so the debug header moves beside rp2040-core instead of
+        above it, rotated 90 (pads run in y) the same way macropad-6's does
+        for the same reason. ~2.2mm clear of rp2040-core's left edge in x,
+        at the block's own pcbY, well clear of H3/H4 in both axes. */}
+    <DebugPort pcbX={-17} pcbY={23.75} pcbRotation={90} schX={0} schY={16} />
 
     {/* ---- ground pour, bottom layer --------------------------------------
         glue.tsx: "pour ground on any two-layer board with a differential
@@ -156,10 +165,14 @@ export default () => (
     <MountingHole name="H3" diameter={3.2} pcbX={-19.75} pcbY={30.45} />
     <MountingHole name="H4" diameter={3.2} pcbX={19.75} pcbY={30.45} />
 
-    {/* ---- silkscreen ---------------------------------------------------- */}
-    <silkscreentext text="TWO-KEY FOOTSWITCH" pcbX={0} pcbY={24.8} fontSize={1.6} />
-    <silkscreentext text="PTT" pcbX={-0.62} pcbY={-11.6} fontSize={1.2} />
-    <silkscreentext text="MUTE" pcbX={13.22} pcbY={-11.6} fontSize={1.2} />
+    {/* ---- silkscreen ----------------------------------------------------
+        Title moved from y=24.8 (2026-08-17): that sat just above
+        rp2040-core's OLD top edge (24.44); the block's new top edge is
+        30.45, so the old spot is now on top of the block itself. Moved
+        above rp2040-core and the mounting holes, inside the top margin. */}
+    <silkscreentext text="TWO-KEY FOOTSWITCH" pcbX={0} pcbY={33} fontSize={1.4} />
+    <silkscreentext text="PTT" pcbX={-0.62} pcbY={-8.6} fontSize={1.2} />
+    <silkscreentext text="MUTE" pcbX={13.22} pcbY={-8.6} fontSize={1.2} />
     <silkscreentext text="USB-C 5V" pcbX={-1.82} pcbY={-16} fontSize={1.2} />
   </board>
 )
