@@ -80,6 +80,24 @@ EDGE_MARGIN_MM = 1.5
 ROUTER_HALO_MM = 4.0
 
 
+#: How a repeated block is spelled in a placement dict: the first instance
+#: keeps the bare id, the rest get `#2`, `#3`. See `place_row`.
+INSTANCE_SEP = "#"
+
+
+def base_id(placement_key: str) -> str:
+    """The block a placement key names — `status-led#2` is a `status-led`.
+
+    Every consumer of a placement dict has to go through this, because the
+    alternative is what shipped until 2026-08-17: a second instance of a block
+    keyed `status-led#2` would not be found in `BLOCK_BOX_MM`, and each check
+    that walks the dict — overlap, hole clearance, board fit, occupied box —
+    would quietly skip it. A part the planner cannot see is a part it cannot
+    warn about.
+    """
+    return str(placement_key).split(INSTANCE_SEP, 1)[0]
+
+
 def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` relative to the block's origin.
 
@@ -167,11 +185,20 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
     total = sum(widths) + gap * (len(boxes) - 1)
     cursor = -total / 2.0
     out: dict[str, tuple[float, float]] = {}
+    seen: dict[str, int] = {}
     for block_id, (min_x, min_y, max_x, max_y), width in zip(block_ids, boxes, widths):
         # Where the box should land, then back out the origin offset.
         wanted_cx = cursor + width / 2.0
         wanted_cy = y
-        out[block_id] = (
+        # A board that wants two status LEDs asks for `status-led` twice, and
+        # keying the result by block id alone means the second one overwrites
+        # the first: the plan comes back one part short, silently, and every
+        # check downstream agrees with it because it never saw the part.
+        # Reported from a real build on 2026-08-17 (`desk-air-monitor`, two
+        # LEDs), where it was caught only by counting the dict.
+        seen[block_id] = seen.get(block_id, 0) + 1
+        key = block_id if seen[block_id] == 1 else f"{block_id}{INSTANCE_SEP}{seen[block_id]}"
+        out[key] = (
             round(wanted_cx - (min_x + max_x) / 2.0, 2),
             round(wanted_cy - (min_y + max_y) / 2.0, 2),
         )
@@ -271,11 +298,11 @@ def place_board(
     # Two margins, so two checks: an edge block is allowed inside the halo on
     # its face, everything else is not.
     warnings = board_fits(
-        {k: v for k, v in placements.items() if k in EDGE_BLOCKS},
+        {k: v for k, v in placements.items() if base_id(k) in EDGE_BLOCKS},
         width, height, margin=face,
     )
     warnings += board_fits(
-        {k: v for k, v in placements.items() if k not in EDGE_BLOCKS},
+        {k: v for k, v in placements.items() if base_id(k) not in EDGE_BLOCKS},
         width, height, margin=margin,
     )
     warnings += overlap_warnings(placements, gap=gap)
@@ -341,7 +368,8 @@ def _hole_clearance_warnings(
             hx = float(hole["pcbX"])  # type: ignore[arg-type]
             hy = float(hole["pcbY"])  # type: ignore[arg-type]
             radius = float(hole["diameter_mm"]) / 2.0  # type: ignore[arg-type]
-            for block_id, (x, y) in placements.items():
+            for key, (x, y) in placements.items():
+                block_id = base_id(key)
                 if block_id not in BLOCK_BOX_MM:
                     continue
                 min_x, min_y, max_x, max_y = box(block_id)
@@ -368,7 +396,8 @@ def occupied_box(
 ) -> tuple[float, float, float, float]:
     """The board-coordinate box every placed block occupies, together."""
     corners = []
-    for block_id, (x, y) in placements.items():
+    for key, (x, y) in placements.items():
+        block_id = base_id(key)
         if block_id not in BLOCK_BOX_MM:
             continue
         min_x, min_y, max_x, max_y = box(block_id)
@@ -399,7 +428,8 @@ def board_fits(
     out: list[dict[str, str]] = []
     try:
         half_w, half_h = width_mm / 2.0, height_mm / 2.0
-        for block_id, (x, y) in placements.items():
+        for key, (x, y) in placements.items():
+            block_id = base_id(key)
             if block_id not in BLOCK_BOX_MM:
                 continue
             min_x, min_y, max_x, max_y = box(block_id)
@@ -411,7 +441,7 @@ def board_fits(
             )
             if over > 0.01:
                 out.append({
-                    "part": block_id,
+                    "part": key,
                     "kind": "functional",
                     "severity": "warning",
                     "detail": (
@@ -434,11 +464,15 @@ def overlap_warnings(
     out: list[dict[str, str]] = []
     try:
         items = []
-        for block_id, (x, y) in placements.items():
+        for key, (x, y) in placements.items():
+            block_id = base_id(key)
             if block_id not in BLOCK_BOX_MM:
                 continue
             min_x, min_y, max_x, max_y = box(block_id)
-            items.append((block_id, x + min_x, y + min_y, x + max_x, y + max_y))
+            # Reported by the placement's own key, so two of the same block
+            # read as `status-led` and `status-led#2` rather than as one name
+            # twice.
+            items.append((key, x + min_x, y + min_y, x + max_x, y + max_y))
         for i, (a_id, a_x0, a_y0, a_x1, a_y1) in enumerate(items):
             for b_id, b_x0, b_y0, b_x1, b_y1 in items[i + 1:]:
                 dx = max(a_x0, b_x0) - min(a_x1, b_x1)

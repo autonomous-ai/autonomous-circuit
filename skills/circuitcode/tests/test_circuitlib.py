@@ -14,7 +14,7 @@ SKILL_ROOT = Path(__file__).resolve().parents[1]
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
-from circuitlib import golden, safety, tables  # noqa: E402
+from circuitlib import golden, layout, safety, tables  # noqa: E402
 from circuitlib.blocks import BLOCKS, block_for, missing_requirements  # noqa: E402
 from circuitlib.helpers import (  # noqa: E402
     board_plan,
@@ -527,3 +527,47 @@ class TablesSanity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepeatedBlocks(unittest.TestCase):
+    """A board that wants two of a block must get two placements.
+
+    Reported from a real build (`products/desk-air-monitor`, 2026-08-17): the
+    board needs two status LEDs, `place_row` keyed its output by block id, and
+    the second one overwrote the first. The plan came back one part short with
+    nothing said — and every check that walks a placement dict agreed with it,
+    because none of them ever saw the missing part. The engineer caught it by
+    counting the dict against their own block list.
+    """
+
+    def test_two_of_a_block_are_two_placements(self) -> None:
+        placed = layout.place_row(["status-led", "status-led", "sw-tact"])
+        self.assertEqual(len(placed), 3, placed)
+        self.assertIn("status-led", placed)
+        self.assertIn("status-led#2", placed)
+        # Two placements at the same coordinates would be the same bug wearing
+        # a different key.
+        self.assertNotEqual(placed["status-led"], placed["status-led#2"])
+
+    def test_every_check_still_sees_a_repeated_block(self) -> None:
+        # The other half of the defect: a key the checks cannot resolve is a
+        # part they silently skip, which is worse than losing it — the plan
+        # then *claims* to have checked a board it never looked at.
+        placed = layout.place_row(["status-led", "status-led"])
+        self.assertEqual(layout.base_id("status-led#2"), "status-led")
+
+        # Occupied box covers both, so it is wider than one LED alone.
+        one = layout.occupied_box({"status-led": placed["status-led"]})
+        both = layout.occupied_box(placed)
+        self.assertGreater(both[2] - both[0], one[2] - one[0])
+
+        # Overlap warnings can see the pair, and name them apart.
+        stacked = {"status-led": (0.0, 0.0), "status-led#2": (0.0, 0.0)}
+        warnings = layout.overlap_warnings(stacked)
+        self.assertTrue(warnings, "two blocks placed on top of each other went unreported")
+        self.assertIn("status-led#2", warnings[0]["part"])
+
+        # And board_fits sees it leave the outline.
+        outside = layout.board_fits({"status-led#2": (200.0, 0.0)}, 40, 40)
+        self.assertTrue(outside, "a repeated block off the board went unreported")
+        self.assertEqual(outside[0]["part"], "status-led#2")
