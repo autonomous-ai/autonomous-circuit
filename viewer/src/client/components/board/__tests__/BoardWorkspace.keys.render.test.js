@@ -19,6 +19,7 @@ import test from "node:test";
 
 import { click, key, pointer } from "../../../test/render.js";
 import { openWorkspace } from "./boardWorkspace.test-helper.js";
+import { parseBoardSource } from "../boardSource.js";
 
 /**
  * The state the keyboard tests start from.
@@ -368,6 +369,54 @@ test("E from a tab with no board on it brings the board with it", async () => {
     // And the tool on the rail reads as pressed, which is the other half of
     // "am I in it" for anyone whose eyes are on the canvas.
     assert.equal(w.ui.container.querySelector('[data-tool="edit"]').getAttribute("aria-pressed"), "true");
+  } finally {
+    w.close();
+  }
+});
+
+test("Ctrl+arrow nudges the selected part one step, and repeats while held", async () => {
+  // Altium: "Ctrl+Arrow Keys: Move selected objects in corresponding directions
+  // by one snap grid unit". It is the precision gesture an EE reaches for
+  // within a minute, and until now the arrow keys scrolled the page.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    assert.deepEqual({ x: r30.x, y: r30.y }, { x: -2, y: -6 });
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle();
+
+    const positionOf = (id) => {
+      const one = parseBoardSource(w.server.source).placements.find((p) => p.id === id);
+      return `${one.x},${one.y}`;
+    };
+
+    // One press, one step — the step the strip is set to (0.5mm by default).
+    key(window, "ArrowRight", { ctrlKey: true });
+    await w.settle(6);
+    assert.equal(positionOf("resistor[1]"), "-1.5,-6");
+
+    // Up is +y in board coordinates even though the screen counts down.
+    key(window, "ArrowUp", { ctrlKey: true });
+    await w.settle(6);
+    assert.equal(positionOf("resistor[1]"), "-1.5,-5.5");
+
+    // Held: every repeat is its own step and its own undo entry.
+    key(window, "ArrowLeft", { ctrlKey: true, repeat: true });
+    await w.settle(6);
+    key(window, "ArrowLeft", { ctrlKey: true, repeat: true });
+    await w.settle(6);
+    assert.equal(positionOf("resistor[1]"), "-2.5,-5.5");
+
+    // And each one is undoable on its own: one undo is one step back, not the
+    // whole run. Ten taps out is ten taps home, which is the bargain a
+    // repeating edit key makes.
+    click(w.find('[data-slot="placement-undo"]'));
+    await w.settle(6);
+    assert.equal(positionOf("resistor[1]"), "-2,-5.5");
+
+    assert.deepEqual(w.ui.errors, []);
   } finally {
     w.close();
   }

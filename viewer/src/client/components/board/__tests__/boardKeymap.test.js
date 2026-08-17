@@ -62,6 +62,12 @@ const TABLE = Object.freeze([
   // Zoom, on the keys the rail already prints beside its two buttons. All four
   // spellings, because `+` is Shift+`=` on most layouts and `_` is Shift+`-`:
   // a zoom key that only answers unshifted answers half the keyboards.
+  // Altium: Ctrl+arrows move the selection by one snap grid unit. Plain arrows
+  // are Altium's *cursor* keys and stay unbound here (see the resolver).
+  { key: "ArrowLeft", mods: { ctrlKey: true }, mode: { canNudge: true }, command: "nudge.left" },
+  { key: "ArrowRight", mods: { metaKey: true }, mode: { canNudge: true }, command: "nudge.right" },
+  { key: "ArrowUp", mods: { ctrlKey: true }, mode: { canNudge: true }, command: "nudge.up" },
+  { key: "ArrowDown", mods: { ctrlKey: true }, mode: { canNudge: true }, command: "nudge.down" },
   { key: "+", mods: { shiftKey: true }, command: "view.zoom-in" },
   { key: "=", command: "view.zoom-in" },
   { key: "-", command: "view.zoom-out" },
@@ -304,4 +310,25 @@ test("isTypingTarget catches the chat composer, not the canvas", () => {
   assert.equal(isTypingTarget({ tagName: "SELECT" }), true);
   assert.equal(resolveBoardKey(press("3"), { typing: isTypingTarget({ tagName: "SELECT" }) }), null);
   assert.equal(resolveBoardKey(press("1"), { typing: isTypingTarget({ tagName: "SELECT" }) }), null);
+});
+
+test("arrows are left to the browser when there is nothing to nudge", () => {
+  // A key that eats a scroll and does nothing is worse than one that scrolls.
+  for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]) {
+    assert.equal(resolveBoardKey(press(key, { ctrlKey: true }), {}), null, key);
+    assert.equal(resolveBoardKey(press(key, { ctrlKey: true }), { canNudge: false }), null, key);
+    // And plain arrows are never ours, even with something selected: in Altium
+    // they move the cursor, and moving a part instead is a silent geometry
+    // change nobody asked for.
+    assert.equal(resolveBoardKey(press(key), { canNudge: true }), null, `plain ${key}`);
+  }
+});
+
+test("a held nudge repeats, because ten steps is ten presses otherwise", () => {
+  assert.equal(
+    resolveBoardKey(press("ArrowLeft", { ctrlKey: true, repeat: true }), { canNudge: true }),
+    "nudge.left",
+  );
+  // The toggles do not: a held `E` at 25Hz is a flicker, not a gesture.
+  assert.equal(resolveBoardKey(press("e", { repeat: true }), {}), null);
 });

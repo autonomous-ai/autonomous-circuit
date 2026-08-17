@@ -182,6 +182,11 @@ export const PROBES = Object.freeze([
       { id: "always", state: { typing: false, canUndo: false }, when: "" },
       { id: "undo-waiting", state: { typing: false, canUndo: true }, when: "after you move a part" },
       { id: "redo-waiting", state: { typing: false, canRedo: true }, when: "after you undo something" },
+      {
+        id: "nudging",
+        state: { typing: false, canNudge: true },
+        when: "with a part selected in move mode",
+      },
     ],
   },
   {
@@ -407,6 +412,13 @@ export const SHORTCUT_COPY = Object.freeze({
 
   // edit
   "edit-mode.toggle": { group: "edit", order: 10, label: "Move parts — this writes your board file" },
+  // Four rows rather than one, because four keys is what a hand learns. The
+  // `when` is the whole rule: it is the selection that moves, by the step the
+  // strip is set to, and holding the key repeats it.
+  "nudge.left": { group: "edit", order: 12, label: "Nudge left one step", when: "with a part selected in move mode" },
+  "nudge.right": { group: "edit", order: 13, label: "Nudge right one step", when: "with a part selected in move mode" },
+  "nudge.up": { group: "edit", order: 14, label: "Nudge up one step", when: "with a part selected in move mode" },
+  "nudge.down": { group: "edit", order: 15, label: "Nudge down one step", when: "with a part selected in move mode" },
   "edit.undo": { group: "edit", order: 20, label: "Undo the last move" },
   "edit.redo": { group: "edit", order: 25, label: "Redo it" },
   "canvas.rotate.ccw": { group: "edit", order: 30, label: "Turn the part you are dragging left" },

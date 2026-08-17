@@ -789,6 +789,10 @@ export default function BoardWorkspace({
   const undoRef = useRef(null);
   undoRef.current = canEdit && editor.ready && editor.canUndo && !editor.busy ? editor.undo : null;
   const redoRef = useRef(null);
+  // The nudge, set below once the selected placement is known. A ref for the
+  // same reason undo and redo are: the key effect must not re-subscribe on
+  // every selection change, and the placement is computed far below it.
+  const nudgeRef = useRef(null);
   redoRef.current = canEdit && editor.ready && editor.canRedo && !editor.busy ? editor.redo : null;
 
   // --- keyboard, honouring Altium's bindings where a browser lets us.
@@ -803,6 +807,7 @@ export default function BoardWorkspace({
         typing: isTypingTarget(event.target),
         canUndo: Boolean(undoRef.current),
         canRedo: Boolean(redoRef.current),
+        canNudge: Boolean(nudgeRef.current),
       });
       if (!command) return;
       // Only the modified bindings are worth taking off the browser: ⌘M
@@ -890,6 +895,22 @@ export default function BoardWorkspace({
             });
           }
           break;
+        // One snap step per press, the step the strip is set to, in the
+        // direction the arrow points — board coordinates, so up is +y even
+        // though the screen counts down. Every press is its own write and its
+        // own undo entry: ten taps back is ten taps forward.
+        case "nudge.left":
+          nudgeRef.current?.(-snapStep, 0);
+          break;
+        case "nudge.right":
+          nudgeRef.current?.(snapStep, 0);
+          break;
+        case "nudge.up":
+          nudgeRef.current?.(0, snapStep);
+          break;
+        case "nudge.down":
+          nudgeRef.current?.(0, -snapStep);
+          break;
         case "units.toggle":
           setUnits((value) => (value === "mm" ? "mil" : "mm"));
           break;
@@ -929,7 +950,7 @@ export default function BoardWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode, viewing, activeTab, editing, zoomActivePane]);
+  }, [fitAll, singleLayerMode, viewing, activeTab, editing, zoomActivePane, snapStep]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";
@@ -981,6 +1002,23 @@ export default function BoardWorkspace({
     const id = editor.placements.byComponentKey.get(selection.key);
     return id ? editor.placements.byId.get(id) || null : null;
   }, [canEdit, activePlacementId, selection, editor.placements]);
+
+  // What Ctrl+arrow does, or null when there is nothing for it to do — which is
+  // also what tells the arbiter to leave the key to the browser rather than
+  // eat it. Locked is excluded on purpose: `editor.move` writes whatever it is
+  // given, and the canvas refuses a locked part before the drag starts, so the
+  // keyboard has to refuse it here or the lock would hold for the mouse and not
+  // for the arrows.
+  nudgeRef.current =
+    canEdit && editor.ready && !editor.busy && selectedPlacement && !selectedPlacement.locked
+      ? (dx, dy) =>
+          handlePlacementMove(selectedPlacement, {
+            x: selectedPlacement.x + dx,
+            y: selectedPlacement.y + dy,
+            dx,
+            dy,
+          })
+      : null;
 
   const pcbPane = (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">

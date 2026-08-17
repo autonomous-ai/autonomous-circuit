@@ -39,6 +39,10 @@ export const BOARD_COMMANDS = Object.freeze([
   "tab.3d",
   "tab.split",
   "edit-mode.toggle",
+  "nudge.left",
+  "nudge.right",
+  "nudge.up",
+  "nudge.down",
   "units.toggle",
   "highlight.cycle",
   "mask.decrease",
@@ -61,7 +65,20 @@ const COMMAND_SET = new Set(BOARD_COMMANDS);
  * The sibling arbiters made the same call for the same reason:
  * `canvasPointer.js` drops `event.repeat` outright.
  */
-const REPEATABLE = new Set(["mask.decrease", "mask.increase", "view.zoom-in", "view.zoom-out"]);
+const REPEATABLE = new Set([
+  "mask.decrease",
+  "mask.increase",
+  "view.zoom-in",
+  "view.zoom-out",
+  // A nudge is the one *edit* a held key may repeat, and it has to: one press
+  // is one snap step, so moving a part 5mm at 0.5mm steps is ten of them.
+  // Every repeat is its own write and its own undo entry, which is the same
+  // bargain Altium makes.
+  "nudge.left",
+  "nudge.right",
+  "nudge.up",
+  "nudge.down",
+]);
 
 /** True when `id` is something the workspace switch has to handle. */
 export function isBoardCommand(id) {
@@ -166,6 +183,23 @@ function resolveBoardKeyRaw(event, mode = {}) {
     // through to the browser rather than being eaten silently.
     if (lower === "z" && event.shiftKey) return mode.canRedo ? "edit.redo" : null;
     if (lower === "y") return mode.canRedo ? "edit.redo" : null;
+    // Altium: "Ctrl+Arrow Keys: Move selected objects in corresponding
+    // directions by one snap grid unit"
+    // (https://www.altium.com/documentation/altium-designer/shortcut-keys/pcb-editors).
+    // Plain arrows are deliberately NOT bound: in Altium they move the *cursor*,
+    // which this app does not have, and binding them to the selection would
+    // make an Altium hand move a part while expecting to move a crosshair —
+    // a silent geometry change, the worst misfire this arbiter can produce.
+    //
+    // `canNudge` is the caller's conjunction, the same shape `canUndo` uses:
+    // move mode is on, a placement is selected, the file can express its
+    // position, and no write is in flight. Without it the key is left to the
+    // browser, which scrolls — visible, harmless, and honest about the fact
+    // that nothing was selected.
+    if (key === "ArrowLeft") return mode.canNudge ? "nudge.left" : null;
+    if (key === "ArrowRight") return mode.canNudge ? "nudge.right" : null;
+    if (key === "ArrowUp") return mode.canNudge ? "nudge.up" : null;
+    if (key === "ArrowDown") return mode.canNudge ? "nudge.down" : null;
     if (lower === "m") return "measure.toggle"; // ALTIUM-NOTES §7: Ctrl+M measures
     if (key === "PageDown") return "view.fit"; // Altium: Ctrl+PgDn zoom to fit
     return null;
