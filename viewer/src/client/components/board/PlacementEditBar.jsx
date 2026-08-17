@@ -609,10 +609,28 @@ export default function PlacementEditBar({
         </p>
       ) : lastChange ? (
         <p data-slot="placement-edit-note" className="w-full text-muted-foreground">
+          {/* There is no Save button and there is not going to be one, so the
+              only thing that can tell an engineer their work is safe is this
+              line. Three panel rounds in a row found autosave real and never
+              stated anywhere in the UI — a person who does not know goes
+              looking for a Save, does not find one, and assumes the worst. */}
+          <span data-slot="placement-saved" className="text-emerald-600 dark:text-emerald-400">
+            Saved to {file || "the board file"}
+          </span>
+          {" — "}
           {lastChange}.
           {changes
             ? " The board below is still the last build — the copper has not moved with the part, and a turn does not show on screen until you rebuild."
             : ""}
+        </p>
+      ) : ready ? (
+        <p data-slot="placement-edit-note" className="w-full text-muted-foreground">
+          Every edit is written straight to{" "}
+          <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[11px]">
+            {file || "the board file"}
+          </code>{" "}
+          as you make it. There is no Save button — undo, the refusals above and the legality check are
+          what keep you safe instead.
         </p>
       ) : null}
     </div>

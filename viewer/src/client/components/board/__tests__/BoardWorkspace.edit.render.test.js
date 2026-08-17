@@ -128,10 +128,12 @@ test("the moved part is redrawn where the file now says, and the screen says the
       "the file says 0, -6 — the board below is still the last build at -2, -6",
     );
 
-    // And the strip: what changed, and that a rebuild is owed for it.
+    // And the strip: that the edit is saved, what changed, and that a rebuild
+    // is owed for it. The "Saved to …" prefix is the only thing in the app
+    // that tells an engineer their work is safe — there is no Save button.
     assert.equal(
       w.text('[data-slot="placement-edit-note"]'),
-      "R30 moved 2, 0 mm." +
+      "Saved to boards/main.tsx — R30 moved 2, 0 mm." +
         " The board below is still the last build — the copper has not moved with the part," +
         " and a turn does not show on screen until you rebuild.",
     );
@@ -167,7 +169,7 @@ test("undo sends the inverse edit, and the board file comes back byte for byte",
     // The only test of an undo that cannot be argued with.
     assert.equal(w.server.source, w.source, "the board file did not come back to what it was");
 
-    assert.equal(w.text('[data-slot="placement-edit-note"]'), "undid: R30.");
+    assert.match(w.text('[data-slot="placement-edit-note"]'), /undid: R30\./);
     // Nothing is owed to a rebuild any more: the file on disk is the file the
     // board on screen was built from.
     assert.equal(w.text('[data-slot="placement-rebuild"]'), "Rebuild");
@@ -541,6 +543,29 @@ test("an agent inserting a part above yours does not redirect your nudge onto a 
       const shown = w.text('[data-slot="placement-edit-error"]');
       assert.ok(shown.trim(), "the nudge did nothing and said nothing");
     }
+  } finally {
+    w.close();
+  }
+});
+
+// The editor autosaves and will never grow a Save button — that is a standing
+// product decision. Three panel rounds running found it real and stated
+// nowhere in the UI, and a person who does not know it goes looking for a
+// Save, does not find one, and assumes the worst about their work.
+test("the strip says where edits go before one is made, and says they are saved after", async () => {
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const before = w.text('[data-slot="placement-edit-note"]');
+    assert.match(before, /written straight to/, `nothing told the engineer where edits go: "${before}"`);
+    assert.match(before, /no Save button/);
+    assert.match(before, /boards\/main\.tsx/);
+
+    dragR30East(w);
+    await w.settle(6);
+
+    assert.equal(w.text('[data-slot="placement-edit-error"]'), "", "the drag was refused");
+    const saved = w.text('[data-slot="placement-saved"]');
+    assert.match(saved, /Saved to boards\/main\.tsx/, `no confirmation after a write: "${saved}"`);
   } finally {
     w.close();
   }
