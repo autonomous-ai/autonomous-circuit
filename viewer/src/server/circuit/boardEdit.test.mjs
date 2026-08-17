@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCircuitServices } from "./http.mjs";
-import { createEditQueue, planPlacementEdit } from "./boardEdit.mjs";
+import { createEditQueue, planPlacementEdit, sourceDrift } from "./boardEdit.mjs";
 import { pythonPathDirs, resolvePython, runFastCheck } from "./fastCheck.mjs";
 import { runNetWidths } from "./netWidths.mjs";
 import { AUTHOR, REVISION_KIND, readRevisions } from "./revisions.mjs";
@@ -667,5 +667,37 @@ test(
     });
     assert.equal(nothing.ok, false);
     assert.match(nothing.reason, /no net named/);
+  },
+);
+
+test(
+  "a verdict asked for with no moves says when the file has moved on",
+  { skip: TOOLCHAIN_READY ? false : "example board or pinned toolchain not present" },
+  async () => {
+    // The trap the first fleet build walked into: move a part with
+    // `board_source_write`, ask `board_fast_check` for a verdict, and be told
+    // `legal` — about the old geometry, because the gate grades `circuit.json`
+    // and nobody told it what the file now says.
+    //
+    // The server cannot compute the delta for them: `bindPlacements` matches by
+    // coordinate, so a moved literal stops binding and there is nothing left to
+    // measure against. What it can do is notice, and this is that.
+    const source = fs.readFileSync(path.join(EXAMPLE, "boards", "main.tsx"), "utf8");
+    const circuitJson = JSON.parse(
+      fs.readFileSync(path.join(EXAMPLE, "boards", "main.circuit.json"), "utf8"),
+    );
+
+    // As shipped, the file and the artifact agree.
+    assert.deepEqual(sourceDrift(source, circuitJson), { drifted: 0, total: 12 });
+
+    // Move <StatusLed> 2.8mm east in the source only.
+    const moved = source.replace("pcbX={-45.8}", "pcbX={-43}");
+    assert.notEqual(moved, source, "the fixture literal moved under this test");
+    assert.equal(sourceDrift(moved, circuitJson).drifted, 1);
+
+    // Neither an unparseable file nor an unbuilt board is drift — the gate has
+    // its own words for both, and inventing a number here would be worse.
+    assert.equal(sourceDrift("not tsx at all {{{", circuitJson).drifted, 0);
+    assert.equal(sourceDrift(source, []).drifted, 0);
   },
 );

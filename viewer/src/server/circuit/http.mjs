@@ -15,7 +15,13 @@ import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mj
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
-import { createEditQueue, planPlacementEdit, refuseWrittenBoard, writeAtomic } from "./boardEdit.mjs";
+import {
+  createEditQueue,
+  planPlacementEdit,
+  refuseWrittenBoard,
+  sourceDrift,
+  writeAtomic,
+} from "./boardEdit.mjs";
 import { runFastCheck } from "./fastCheck.mjs";
 import { runNetWidths } from "./netWidths.mjs";
 import {
@@ -785,11 +791,43 @@ export function createCircuitServices({ env = process.env } = {}) {
       }
       const root = fs.realpathSync(projects.projectDir(projectId));
       const stem = rel.slice("boards/".length, -".tsx".length);
-      return runFastCheck(path.join(root, "boards", `${stem}.circuit.json`), {
-        projectRoot: root,
-        moves: Array.isArray(moves) ? moves : [],
-        env,
-      });
+      const circuitJsonPath = path.join(root, "boards", `${stem}.circuit.json`);
+
+      const effective = Array.isArray(moves) ? moves : [];
+      const verdict = await runFastCheck(circuitJsonPath, { projectRoot: root, moves: effective, env });
+
+      // Asked with no moves, this grades the board that was BUILT. If the file
+      // has moved on since, that is the most expensive kind of wrong answer
+      // this command can give — an engineer moved a part with
+      // `board_source_write`, asked for a verdict, and was told `legal` about
+      // the old geometry (first fleet build, 2026-08-17). The server cannot
+      // compute the moves for them (see `sourceDrift`), so it says the verdict
+      // is about a board that is not the one in their file.
+      if (!effective.length && verdict?.ok !== false) {
+        try {
+          const drift = sourceDrift(
+            fs.readFileSync(path.join(root, rel), "utf8"),
+            JSON.parse(fs.readFileSync(circuitJsonPath, "utf8")),
+          );
+          if (drift.drifted > 0) {
+            verdict.notChecked = [
+              {
+                what: `${drift.drifted} part${drift.drifted === 1 ? "" : "s"} the board file has moved since this build`,
+                why:
+                  "this answer grades the board that was built. Pass `moves` " +
+                  "with the anchor each part was built at and how far it has " +
+                  "moved, or rebuild, and the verdict will be about the board " +
+                  "you are looking at.",
+              },
+              ...(Array.isArray(verdict.notChecked) ? verdict.notChecked : []),
+            ];
+            verdict.drifted = drift.drifted;
+          }
+        } catch {
+          // A board that cannot be read here is one the gate already reported on.
+        }
+      }
+      return verdict;
     },
 
     app_settings_read: async () => settings.readWire(),

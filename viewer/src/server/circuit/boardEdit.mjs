@@ -33,10 +33,12 @@ import {
   LOCK_COMMENT,
   formatMm,
   lockEdits,
+  bindPlacements,
   moveEdits,
   parseBoardSource,
   placementRangeReason,
 } from "../../client/components/board/boardSource.js";
+import { buildBoardIndex } from "../../client/lib/boardIndex.js";
 
 /** Refusals a caller can act on, mapped to HTTP by the command wrapper. */
 export const EDIT_ERROR = Object.freeze({
@@ -149,6 +151,45 @@ export function refuseWrittenBoard(text, previousText) {
     );
   }
   return "";
+}
+
+/**
+ * How far the board file has drifted from the board that was built.
+ *
+ * Answers the trap the first fleet build walked into: an engineer moved a part
+ * with `board_source_write` — byte ranges, which is what the canvas sends —
+ * then asked `board_fast_check` for a verdict and got **`legal`**, about the
+ * old geometry, because the gate grades `circuit.json` and nobody had told it
+ * what the file now says. The client knows to compute the moves and pass them;
+ * an API caller has no way to know that.
+ *
+ * The server cannot compute those moves for them, and it is worth writing down
+ * why rather than trying: `bindPlacements` matches a source placement to built
+ * geometry **by coordinate**, so the moment a literal changes, that placement
+ * stops binding — there is nothing left to measure a delta against. That is
+ * exactly why the client keeps a snapshot from build time and rebinds by
+ * placement id instead.
+ *
+ * What the server can do is notice, and say so. A count of placements the
+ * built board no longer has anywhere is the honest version of "this verdict is
+ * about a board that is not the one in your file".
+ *
+ * Never throws: a file that will not parse and a board that has never been
+ * built both report no drift, and the gate has its own words for both.
+ *
+ * @returns {{drifted: number, total: number}}
+ */
+export function sourceDrift(sourceText, circuitJson) {
+  try {
+    const parsed = parseBoardSource(String(sourceText || ""));
+    if (!parsed?.ok) return { drifted: 0, total: 0 };
+    const index = buildBoardIndex(circuitJson);
+    if (!index?.elements?.length) return { drifted: 0, total: 0 };
+    const bound = bindPlacements(parsed.placements, index);
+    return { drifted: bound.unmatched.length, total: parsed.placements.length };
+  } catch {
+    return { drifted: 0, total: 0 };
+  }
 }
 
 export function planPlacementEdit(source, edit) {
