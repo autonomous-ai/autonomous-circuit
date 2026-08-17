@@ -41,6 +41,218 @@ export const IMPACT = Object.freeze({
  * `impact` is the physical-board axis described above.
  */
 const ISSUES = Object.freeze({
+  // Four more KiCad codes the fleet emits that the dictionary did not carry,
+  // found by the test below walking every sidecar in the repo rather than by
+  // anybody remembering.
+  isolated_copper: {
+    title: "A piece of copper fill is cut off from its net",
+    meaning:
+      "The ground fill got split into an island that no longer touches the rest of the ground. It is dead metal: it does not carry current and it does not shield anything.",
+    impact: IMPACT.QUALITY,
+  },
+  copper_sliver: {
+    title: "A copper strand thin enough to break off",
+    meaning:
+      "A very narrow spike of copper. It can lift during etching and land somewhere it does not belong.",
+    impact: IMPACT.QUALITY,
+  },
+  solder_mask_bridge: {
+    title: "Two pads share one opening in the mask",
+    meaning:
+      "The green coating between two pads is missing, so molten solder can run from one to the other. This is the classic cause of a short that appears only after assembly.",
+    impact: IMPACT.BLOCKS,
+  },
+  hole_to_hole: {
+    title: "Two drilled holes are too close together",
+    meaning:
+      "The wall of board material between them is thin enough to break out while drilling.",
+    impact: IMPACT.BLOCKS,
+  },
+  // --- our own pipeline's kinds --------------------------------------------
+  //
+  // Every one of these fell through to the raw-identifier fallback until
+  // 2026-08-17, when a discoverability judge counted them on the app's own
+  // demo board: 16 of the 36 codes hydrate-coaster reports had no words,
+  // including `supplier footprint mismatch warning` 27 times over. A finding
+  // an engineer cannot read is a finding they learn to scroll past, and the
+  // ones below are ours — nobody else was going to name them.
+  supplier_footprint_mismatch_warning: {
+    title: "The part we ordered is not quite the shape the board expects",
+    meaning:
+      "The footprint drawn on the board and the one the supplier lists for this part number differ in size. Usually harmless on passives (an 0402 land pattern is drawn generously); worth a look on anything with fine pins.",
+    impact: IMPACT.QUALITY,
+  },
+  source_part_not_found_warning: {
+    title: "A part could not be looked up in the supplier catalogue",
+    meaning:
+      "The board still builds, but this line of the BOM has no confirmed part behind it, so nobody has checked it is buyable.",
+    impact: IMPACT.QUALITY,
+  },
+  review_decoupling_distant: {
+    title: "A decoupling capacitor sits far from the pin it protects",
+    meaning:
+      "The capacitor is meant to sit right beside its power pin. The further away it is, the less of the noise spike it can absorb.",
+    impact: IMPACT.QUALITY,
+  },
+  review_esd_unprotected: {
+    title: "A connector pin has nothing protecting it from static",
+    meaning:
+      "A pin that reaches the outside world can take a static shock from a finger or a cable. Boards ship like this all the time; it is a reliability call, not a defect.",
+    impact: IMPACT.QUALITY,
+  },
+  review_no_test_point: {
+    title: "A net nobody can probe",
+    meaning:
+      "There is no exposed pad on this net, so if the board misbehaves there is nowhere to put a meter or a scope.",
+    impact: IMPACT.QUALITY,
+  },
+  review_floating_pin: {
+    title: "A pin is connected to nothing",
+    meaning:
+      "An input left floating picks up whatever is in the air around it. If that is deliberate, it is fine; if not, it is a coin toss at power-on.",
+    impact: IMPACT.QUALITY,
+  },
+  thermal_regulator: {
+    title: "A regulator has to shed real heat",
+    meaning:
+      "This part drops voltage by turning the difference into heat. The number in the message is how much, and it decides whether it needs copper around it to spread that heat.",
+    impact: IMPACT.QUALITY,
+  },
+  dfm_power_trace_width: {
+    title: "A power rail is narrower than the rule for its current",
+    meaning:
+      "The track carrying this rail necks down somewhere along its run. Thin copper means voltage lost as heat before it reaches the part.",
+    impact: IMPACT.QUALITY,
+  },
+  power_width_widened: {
+    title: "A power rail was widened for you",
+    meaning:
+      "The pipeline took the gap the router left and made this rail as wide as it legally fits. Nothing to do — it is telling you what changed.",
+    impact: IMPACT.TOOLING,
+  },
+  power_width_refused: {
+    title: "A power rail could not be widened",
+    meaning:
+      "There was no room around the existing track to make it wider without breaking a clearance rule. Moving a part nearby is the lever.",
+    impact: IMPACT.QUALITY,
+  },
+  netclass_trace_width: {
+    title: "A track is not the width its net class asks for",
+    meaning:
+      "This net was given a width rule — because it carries current, or because it is half of a pair — and the routed copper does not meet it.",
+    impact: IMPACT.QUALITY,
+  },
+  netclass_pair_skew: {
+    title: "The two halves of a signal pair are different lengths",
+    meaning:
+      "USB and other fast pairs rely on both wires arriving together. A length difference makes them arrive apart, which shows up as an unreliable link rather than a dead one.",
+    impact: IMPACT.QUALITY,
+  },
+  netclass_pair_coupling: {
+    title: "A signal pair does not run together",
+    meaning:
+      "The two wires of a pair are supposed to stay side by side the whole way. Where they separate, the pair stops behaving like a pair.",
+    impact: IMPACT.QUALITY,
+  },
+  netclass_pair_reference: {
+    title: "A signal pair has no ground under it",
+    meaning:
+      "A fast pair needs unbroken ground beneath it to keep its impedance steady. Over a gap in the ground plane, it does not.",
+    impact: IMPACT.QUALITY,
+  },
+  diffpair_not_routed: {
+    title: "A signal pair was not routed as a pair",
+    meaning:
+      "The two wires were routed as ordinary signals. On USB that usually still enumerates; it is the difference between working and working reliably.",
+    impact: IMPACT.QUALITY,
+  },
+  diffpair_routed: {
+    title: "A signal pair was routed as a pair",
+    meaning: "The pass laid this pair down side by side. Nothing to do.",
+    impact: IMPACT.TOOLING,
+  },
+  dfa_edge_clearance: {
+    title: "A part sits close to the board edge",
+    meaning:
+      "Assembly machines hold the board by its edge. A part in that strip can be hard to place and hard to rework by hand.",
+    impact: IMPACT.QUALITY,
+  },
+  dfa_off_board: {
+    title: "A part is outside the board outline",
+    meaning: "There is nothing under it to solder to. This is a placement mistake, not a tolerance.",
+    impact: IMPACT.BLOCKS,
+  },
+  dfa_pin_pitch: {
+    title: "A part has very fine pins",
+    meaning:
+      "The gap between pins is small enough that assembly needs more care and rework by hand is difficult. It is a heads-up about cost and yield, not a fault.",
+    impact: IMPACT.QUALITY,
+  },
+  dfa_rotation_watchlist: {
+    title: "This part is one people fit the wrong way round",
+    meaning:
+      "Its orientation in the assembly file is worth checking by eye against the drawing. Diodes, LEDs and connectors are the usual suspects.",
+    impact: IMPACT.QUALITY,
+  },
+  gerber_silk_over_pad: {
+    title: "Printed text lands on a solderable pad",
+    meaning:
+      "Silkscreen ink on a pad stops solder wetting properly. The factory usually clips it, so the label loses a letter rather than the joint failing.",
+    impact: IMPACT.COSMETIC,
+  },
+  gerber_drill_extra: {
+    title: "The drill file has holes the design does not",
+    meaning:
+      "More holes were plotted than the design lists. Usually the pipeline's own via repair adding them after the design was written.",
+    impact: IMPACT.TOOLING,
+  },
+  gerber_mask_sliver_in_footprint: {
+    title: "A very thin strip of solder mask",
+    meaning:
+      "The green coating between two pads is thin enough that it may not survive the process. Two pads it was meant to separate could bridge.",
+    impact: IMPACT.QUALITY,
+  },
+  kicad_normalized: {
+    title: "The board was tidied before plotting",
+    meaning:
+      "Silkscreen was raised to the factory's minimum sizes before the gerbers were made. A record of what changed, not a problem.",
+    impact: IMPACT.TOOLING,
+  },
+  circuit_normalized: {
+    title: "The compiled board was repaired before it was judged",
+    meaning:
+      "The pipeline fixed something in its own output — a dangling via, usually — before running the checks. A record of what changed.",
+    impact: IMPACT.TOOLING,
+  },
+  schematic_truth_normalized: {
+    title: "The schematic drawing was corrected",
+    meaning:
+      "The drawing showed something the copper does not do, and it was redrawn to match. The board itself did not change.",
+    impact: IMPACT.TOOLING,
+  },
+  pour_clearance_repaired: {
+    title: "The ground pour was pulled back from something",
+    meaning:
+      "Copper fill was trimmed where it came too close to a hole or a track. A record of what changed.",
+    impact: IMPACT.TOOLING,
+  },
+  net_reaches_one_part: {
+    title: "A wire that goes nowhere",
+    meaning:
+      "Every pin on this net belongs to the same part, so whatever was meant to be on the other end is not on the board. The copper that exists is correct; the wire that does not exist is the problem.",
+    impact: IMPACT.QUALITY,
+  },
+  net_reaches_nothing: {
+    title: "A net that connects to nothing at all",
+    meaning: "This net is named in the design and touches no part.",
+    impact: IMPACT.QUALITY,
+  },
+  check_failed: {
+    title: "A check could not run",
+    meaning:
+      "One of the checks raised an error instead of an answer, so this part of the board was not examined. Not a pass — an absence.",
+    impact: IMPACT.TOOLING,
+  },
   // --- copper and drilling: the ones that make a board fail -----------------
   hole_clearance: {
     title: "A drilled hole sits too close to copper",
