@@ -290,7 +290,13 @@ export default function MessagesPanel({
                   event.stopPropagation();
                   onLocate?.(row);
                 }}
-                title={row.locatable ? "Zoom to this violation" : "This finding has no location on the board"}
+                title={
+                  row.locatable
+                    ? row.where === "schematic"
+                      ? "Show this on the schematic"
+                      : "Zoom to this violation"
+                    : row.unlocatableReason || "This finding has no location on the board"
+                }
                 data-slot="message-locate"
                 className={cn(
                   "shrink-0 rounded p-0.5 transition-colors",
@@ -478,7 +484,13 @@ function MessageGroupRow({ group, boardName, onSelect, onLocate, onPrefillNote }
                   event.stopPropagation();
                   onLocate?.(row);
                 }}
-                title={row.locatable ? "Zoom to this violation" : "This finding has no location on the board"}
+                title={
+                  row.locatable
+                    ? row.where === "schematic"
+                      ? "Show this on the schematic"
+                      : "Zoom to this violation"
+                    : row.unlocatableReason || "This finding has no location on the board"
+                }
                 data-slot="message-locate"
                 className={cn(
                   "shrink-0 rounded p-0.5 transition-colors",

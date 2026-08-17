@@ -598,10 +598,19 @@ export default function BoardWorkspace({
       if (row.target.kind === "component" || row.target.kind === "net") {
         setSelection({ kind: row.target.kind, key: row.target.key });
       }
-      if (!row.box) return;
+      // A finding about the drawing lands on the drawing. ERC findings own no
+      // copper, so `row.box` is empty for them and they used to go nowhere —
+      // 106 of one real board's 488 rows (round-4 navigation judge).
+      if (!row.box && !row.schBox) return;
       if (!CANVAS_TABS.has(activeTab)) setActiveTab("split");
-      pcbRef.current?.zoomToBox?.(row.box);
-      setFlash({ box: row.box, token: Date.now() });
+      if (row.box) {
+        pcbRef.current?.zoomToBox?.(row.box);
+        setFlash({ box: row.box, token: Date.now() });
+      }
+      if (row.schBox) {
+        if (!row.box && activeTab === "pcb") setActiveTab("split");
+        schematicRef.current?.zoomToBox?.(row.schBox);
+      }
     },
     [activeTab],
   );

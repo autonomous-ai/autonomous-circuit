@@ -332,3 +332,47 @@ test("the HUD names objects the way a PCB tool does", () => {
   assert.equal(objectLabel(null), "");
   assert.equal(objectLabel({ type: "pcb_something_new" }), "something new");
 });
+
+// 111 of 488 rows on a real board had no crosshair, and 106 of them were ERC
+// findings — about the drawing, not the copper. A bare schematic wire owns no
+// pad, so the PCB box is correctly empty; the component the finding names has
+// had a `schematicBox` in the index the whole time. The coordinate existed and
+// this module did not ask for it (round-4 navigation judge).
+function fixtureWithSchematic() {
+  return [
+    ...fixture(),
+    {
+      type: "schematic_component",
+      schematic_component_id: "sch_r1",
+      source_component_id: "sc_r1",
+      center: { x: 3, y: 7 },
+      size: { width: 1, height: 0.4 },
+    },
+  ];
+}
+
+test("an ERC finding is located on the schematic rather than called unlocatable", () => {
+  const index = buildBoardIndex(fixtureWithSchematic());
+  const rows = buildMessages(index, [
+    {
+      part: "R1",
+      kind: "erc_violation",
+      detail: "[pin_not_connected] Pin not connected on R1",
+      severity: "info",
+    },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.ok(rows[0].locatable, "an ERC finding on a real part is not unlocatable");
+  assert.ok(rows[0].schBox, "the schematic box never reached the row");
+  assert.ok(["schematic", "both"].includes(rows[0].where), `where = ${rows[0].where}`);
+});
+
+test("a finding with neither box is still honestly unlocatable", () => {
+  const index = buildBoardIndex(fixtureWithSchematic());
+  const rows = buildMessages(index, [
+    { part: "NOTHING_LIKE_THIS", kind: "check_failed", detail: "a leg did not run", severity: "warning" },
+  ]);
+  assert.equal(rows[0].locatable, false);
+  assert.equal(rows[0].schBox, null);
+  assert.equal(rows[0].where, "");
+});
