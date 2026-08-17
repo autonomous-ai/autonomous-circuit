@@ -71,6 +71,69 @@ BLOCK_GAP_OVERRIDE_MM: dict[str, float] = {
 }
 
 
+#: Content the planner has to make room for that is not a golden block: a
+#: `PadHeader` row, a testpoint band, a display window, a battery clip.
+#:
+#: Four boards have now hand-derived the same arithmetic — `usb-c-breakout`,
+#: `i2c-sensor-hub`, `env-logger-usb` and `dual-rail-psu` all grew their
+#: outline by hand and re-seated every coordinate to fit a pad row, each one
+#: re-deriving `place_board`'s internal edge-placement formula from the source
+#: to do it. Four independent rediscoveries of one number is the planner
+#: failing to hand it out (the rule at the bottom of `docs/lessons.md`: the fix
+#: belongs in the planner, never in advice a user has to remember).
+#:
+#: A reserve is a named box in the same coordinate system as a block, so
+#: everything downstream — row wrapping, gaps, `board_fits`, `overlap_warnings`
+#: — treats it exactly like one and needs no special case. It is registered
+#: rather than passed because `place_row`, `box` and both checks read the same
+#: table, and threading an override through five signatures to avoid one
+#: explicit call is worse.
+RESERVED_BOX_MM: dict[str, tuple[float, float, float, float]] = {}
+
+
+def reserve(name: str, width_mm: float, height_mm: float) -> str:
+    """Make room for something that is not a block. Returns ``name``.
+
+    Call before :func:`place_board`, then read the coordinate back out of the
+    plan's ``placements[name]`` and put your component there::
+
+        header = reserve("i2c-header", *pad_header_extent(4))
+        plan = place_board(["usb-c-data", "ldo-3v3", "rp2040-core", header])
+        x, y = plan["placements"]["i2c-header"]
+        # <PadHeader nets={...} pcbX={x} pcbY={y} />
+
+    The box is centred on its origin, which is what `PadHeader` and the other
+    glue components use — they lay their pads out symmetrically about their
+    own ``pcbX``/``pcbY``.
+
+    Idempotent: registering the same name twice replaces the box rather than
+    accumulating, so a script that reruns does not drift.
+    """
+    if width_mm <= 0 or height_mm <= 0:
+        raise ValueError(f"reserve({name!r}) needs a positive size, got {width_mm}x{height_mm}")
+    half_w, half_h = width_mm / 2.0, height_mm / 2.0
+    RESERVED_BOX_MM[name] = (-half_w, -half_h, half_w, half_h)
+    BLOCK_BOX_MM[name] = RESERVED_BOX_MM[name]
+    return name
+
+
+def pad_header_extent(
+    pads: int, *, pitch: float = 2.54, pad_diameter: float = 1.0, label_drop: float = 1.7
+) -> tuple[float, float]:
+    """The size of a `PadHeader` with ``pads`` pads — its numbers, not a guess.
+
+    Kept here and derived from the same three values the component uses so the
+    two cannot drift: pads march from ``-((n-1)*pitch)/2`` in ``+x``, and the
+    silkscreen label sits ``label_drop`` below the row, which is real content
+    a neighbouring block must not be placed on top of.
+    """
+    if pads < 1:
+        raise ValueError(f"a pad header needs at least one pad, got {pads}")
+    width = (pads - 1) * pitch + pad_diameter
+    height = pad_diameter / 2.0 + label_drop + 0.5  # pad top -> label baseline + text
+    return (round(width, 2), round(height, 2))
+
+
 def pair_gap(a_id: str, b_id: str, *, gap: float = BLOCK_GAP_MM) -> float:
     """The clear space two adjacent blocks need, at least ``gap``.
 
@@ -170,8 +233,12 @@ def box(block_id: str, *, count: int | None = None) -> tuple[float, float, float
     """
     if block_id not in BLOCK_BOX_MM:
         raise ValueError(
-            f"no measured box for {block_id!r} — build it with "
-            f"evals/measure_block_boxes.py and add it "
+            f"no measured box for {block_id!r}. If it is a golden block, build "
+            f"it with evals/measure_block_boxes.py and add it. If it is "
+            f"something else that needs board space — a pad header, a testpoint "
+            f"band, a display window — call "
+            f"layout.reserve({block_id!r}, width_mm, height_mm) first and pass "
+            f"the name in with the blocks "
             f"(have: {', '.join(sorted(BLOCK_BOX_MM))})"
         )
     min_x, min_y, max_x, max_y = BLOCK_BOX_MM[block_id]

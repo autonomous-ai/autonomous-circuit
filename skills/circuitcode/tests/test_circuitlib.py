@@ -600,3 +600,71 @@ class RepeatedBlocks(unittest.TestCase):
         # And the plan it produces holds together: nothing overlapping, nothing
         # off the outline it just sized.
         self.assertEqual(plan["warnings"], [], plan["warnings"])
+
+
+class ReservedSpace(unittest.TestCase):
+    """Room for content that is not a golden block.
+
+    Four boards hand-derived this arithmetic before it existed —
+    `usb-c-breakout`, `i2c-sensor-hub`, `env-logger-usb` and `dual-rail-psu`
+    each grew their outline and re-seated every coordinate by reading
+    `place_board`'s internals. Four rediscoveries of one number is the planner
+    failing to hand it out.
+    """
+
+    def tearDown(self) -> None:
+        # The registry is module state; a test that leaks a reserve into it
+        # changes every later plan's board size.
+        for name in list(layout.RESERVED_BOX_MM):
+            layout.RESERVED_BOX_MM.pop(name, None)
+            layout.BLOCK_BOX_MM.pop(name, None)
+
+    def test_a_reserve_gets_a_coordinate_and_the_board_grows_for_it(self) -> None:
+        blocks = ["usb-c-data", "ldo-3v3", "rp2040-core", "status-led"]
+        without = layout.place_board(list(blocks))
+        header = layout.reserve("i2c-header", *layout.pad_header_extent(4))
+        with_it = layout.place_board(list(blocks) + [header])
+
+        self.assertIn("i2c-header", with_it["placements"])
+        self.assertEqual(with_it["warnings"], [], with_it["warnings"])
+        # It occupies real board, so the plan is at least as large.
+        grew = (
+            with_it["width_mm"] * with_it["height_mm"]
+            >= without["width_mm"] * without["height_mm"]
+        )
+        self.assertTrue(grew, f"{without['width_mm']}x{without['height_mm']} -> "
+                              f"{with_it['width_mm']}x{with_it['height_mm']}")
+
+    def test_a_reserve_is_kept_clear_of_the_blocks_around_it(self) -> None:
+        # The point of the feature: `overlap_warnings` and `board_fits` treat
+        # it exactly like a block, with no special case, because it is one box
+        # in the same table.
+        header = layout.reserve("bench-pads", *layout.pad_header_extent(6))
+        plan = layout.place_board(
+            ["usb-c-power", "ldo-3v3", "status-led", "status-led", header]
+        )
+        self.assertEqual(plan["warnings"], [], plan["warnings"])
+        self.assertEqual(layout.overlap_warnings(plan["placements"]), [])
+
+    def test_the_header_extent_comes_from_the_component_s_own_numbers(self) -> None:
+        # Pads march from -((n-1)*pitch)/2 in +x — the same arithmetic
+        # PadHeader uses — so three pads at 2.54 span two pitches plus a pad.
+        width, height = layout.pad_header_extent(3, pitch=2.54, pad_diameter=1.0)
+        self.assertAlmostEqual(width, 2 * 2.54 + 1.0, places=2)
+        self.assertGreater(height, 1.7, "the silkscreen label is real content")
+        self.assertLess(layout.pad_header_extent(2)[0], layout.pad_header_extent(8)[0])
+        with self.assertRaises(ValueError):
+            layout.pad_header_extent(0)
+
+    def test_registering_twice_replaces_rather_than_accumulates(self) -> None:
+        layout.reserve("band", 10.0, 4.0)
+        layout.reserve("band", 20.0, 4.0)
+        self.assertEqual(layout.extent("band"), (20.0, 4.0))
+        with self.assertRaises(ValueError):
+            layout.reserve("bad", 0.0, 4.0)
+
+    def test_an_unregistered_name_says_how_to_register_it(self) -> None:
+        # The error an engineer meets is the one place to teach the feature.
+        with self.assertRaises(ValueError) as caught:
+            layout.box("display-window")
+        self.assertIn("layout.reserve", str(caught.exception))

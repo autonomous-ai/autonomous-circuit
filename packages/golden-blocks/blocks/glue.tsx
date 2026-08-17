@@ -187,12 +187,36 @@ export const PadHeader = (props: {
   pcbRotation?: number
   schX?: number
   schY?: number
+  /**
+   * Where the numbering starts. Two headers on one board both counted from 1
+   * and collided, and the workaround an engineer reached for was
+   * `prefix="TP4"` — which yields `TP41`-`TP44` and reads as a mistake in the
+   * BOM (dual-sensor-node, 2026-08-17). `startIndex={4}` gives `TP4`-`TP6`.
+   */
+  startIndex?: number
+  /**
+   * Per-pad trace width, same order as `nets`. `undefined` (or a shorter
+   * array) leaves that pad's trace at the board's own `minTraceWidth`.
+   *
+   * Added for dual-rail-psu (2026-08-17), a board with no MCU, where this
+   * header is where a rail's *only* copper ends and there was no way to ask
+   * for more than the board-wide default. Per `docs/architecture/rail-width.md`
+   * a `<trace thickness>` reaches the router as a per-net `nominalTraceWidth`
+   * — one declaration anywhere on a net sets the whole net — so it widens what
+   * the router searches for rather than stamping copper on afterwards.
+   * Declaring a width the placement cannot take has scrapped a board before
+   * (`fab.ready` true → false, 33 blocking): measure the ceiling with
+   * `python -m circuitpy.netwidth <project>` and pass only what it clears.
+   */
+  thickness?: (string | undefined)[]
 }) => {
   const prefix = props.prefix ?? "TP"
   const nets = props.nets ?? ["SWCLK", "SWD", "GND"]
   const labels = props.labels ?? ["CLK", "DIO", "GND"]
   const pitch = props.pitch ?? 2.54
   const diameter = props.padDiameter ?? 1.0
+  const startIndex = props.startIndex ?? 1
+  const thickness = props.thickness ?? []
   const first = -((nets.length - 1) * pitch) / 2
   return (
     <group
@@ -203,7 +227,7 @@ export const PadHeader = (props: {
       schY={props.schY ?? 0}
     >
       {nets.flatMap((net, i) => {
-        const name = `${prefix}${i + 1}`
+        const name = `${prefix}${startIndex + i}`
         return [
           <testpoint
             key={name}
@@ -216,7 +240,13 @@ export const PadHeader = (props: {
             schX={i * 2}
             schY={0}
           />,
-          <trace key={`${name}_t`} name={`TR_${name}`} from={`.${name} > .pin1`} to={`net.${net}`} />,
+          <trace
+            key={`${name}_t`}
+            name={`TR_${name}`}
+            from={`.${name} > .pin1`}
+            to={`net.${net}`}
+            {...(thickness[i] ? { thickness: thickness[i] } : {})}
+          />,
           <silkscreentext
             key={`${name}_s`}
             text={labels[i] ?? net}

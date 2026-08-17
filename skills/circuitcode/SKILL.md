@@ -246,6 +246,7 @@ spec the user can approve or redirect:
 | Iteration cap | `tables.MAX_REPAIR_ITERATIONS` |
 | How big a block is, and where it sits | `layout.box(block_id)` -> `(min_x, min_y, max_x, max_y)` around its origin |
 | **The whole board plan** | `layout.place_board([...])` -> outline + placements + holes + its own warnings |
+| Room for something that is not a block | `layout.reserve(name, w, h)` / `layout.pad_header_extent(pads)` — pass the name in with the blocks |
 | Where to put a row of blocks | `layout.place_row([...])` -> `{block: (pcbX, pcbY)}` (the primitive) |
 | How big the board must be | `layout.min_board_for([...], columns=n)` |
 | Will anything hang off the edge | `layout.board_fits(placements, w, h)` — run it *before* building |
@@ -362,6 +363,24 @@ it when the product needs you to — a round puck, a connector on the top edge �
 but then re-check with `layout.board_fits()` and `layout.overlap_warnings()`,
 which answer in milliseconds what `pcb_component_outside_board_error` answers
 after a ninety-second build.
+
+**Anything that is not a block needs a `reserve`.** A `PadHeader`, a testpoint
+band, a display window, a battery clip — the planner cannot make room for
+content it has never heard of, and four boards grew their outline and re-seated
+every coordinate by hand before this existed. Do not do that arithmetic:
+
+```python
+header = layout.reserve("i2c-header", *layout.pad_header_extent(4))
+plan = layout.place_board(["usb-c-data", "ldo-3v3", "rp2040-core", header])
+x, y = plan["placements"]["i2c-header"]   # then <PadHeader pcbX={x} pcbY={y} />
+```
+
+`pad_header_extent(pads, pitch=2.54, pad_diameter=1.0)` is derived from the
+component's own numbers, including the silkscreen label below the row, so the
+two cannot drift. For anything else, pass the size directly:
+`layout.reserve("oled-window", 27.0, 19.0)`. A reserve is a box in the same
+table as a block, so row wrapping, gaps, `board_fits` and `overlap_warnings`
+all treat it as one.
 
 ### 4. Edit `boards/main.tsx`
 

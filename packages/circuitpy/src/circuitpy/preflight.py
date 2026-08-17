@@ -33,6 +33,7 @@ it is a board worth paying a build for.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -90,9 +91,28 @@ NOT_CHECKED = (
 )
 
 #: How long a routerless compile may take before something is wrong with it.
-#: The measured cost is ~17s on our densest board; a minute is the ceiling on a
-#: loaded machine, and past that the engineer would rather know than wait.
-COMPILE_TIMEOUT_S = 300.0
+#:
+#: The measured cost is ~17s on our densest board, and the first version capped
+#: this at 300s on the reasoning that past five minutes the engineer would
+#: rather know than wait. That was wrong in the one situation where a cheap
+#: check matters most. An engineer building `env-logger-usb` (2026-08-17) hit
+#: the ceiling **three times in a row** and lost ~20 minutes, then reproduced
+#: the same board by hand in 15 seconds: the machine was carrying five
+#: concurrent builds, and the documented wall-clock load factor on this
+#: hardware is 5.2x on its own (see `generation.DEFAULT_BUILD_TIMEOUT_S`) —
+#: a fleet of agents pushes well past that. A timeout that fires under load
+#: does not save the engineer time, it costs them the whole answer and hands
+#: back nothing they can act on.
+#:
+#: So the ceiling is a safety valve, not a budget: generous enough that a busy
+#: machine still gets an answer, with `SLOW_COMPILE_S` below covering the other
+#: half — a pre-flight that took ten minutes says so, rather than quietly
+#: letting "17 seconds" stand as the promise.
+COMPILE_TIMEOUT_S = float(os.environ.get("CIRCUIT_PREFLIGHT_TIMEOUT_S") or 1800.0)
+
+#: Past this, the answer is still an answer but the speed claim is not true,
+#: and the result says which. ~7x the measured cost on the densest board.
+SLOW_COMPILE_S = 120.0
 
 _BOARD_TAG = re.compile(r"<board\b")
 
@@ -155,6 +175,7 @@ def preflight(
             pass
         source_path.write_text(patched, encoding="utf-8")
 
+        compile_started = time.perf_counter()
         try:
             toolchain.run_node(
                 [toolchain.tscircuit_cli_exe(), "build", entry_rel.as_posix()],
@@ -163,6 +184,7 @@ def preflight(
             )
         except Exception as exc:  # noqa: BLE001
             return _failed(f"the board did not compile: {type(exc).__name__}: {exc}", started)
+        compile_s = time.perf_counter() - compile_started
 
         stem = entry_rel.stem
         built = mirror / "dist" / "boards" / stem / "circuit.json"
@@ -183,6 +205,15 @@ def preflight(
             if severity in counts:
                 counts[severity] += 1
         dropped = len(graded.get("warnings", [])) - len(warnings)
+        if compile_s > SLOW_COMPILE_S:
+            # The verdict is sound; the promise on the tin is not. Said out
+            # loud so an engineer knows the machine is the problem and does not
+            # go looking for one in their board.
+            warnings.append(checks.check_failed(
+                f"this pre-flight took {compile_s:.0f}s, against ~17s on an idle "
+                f"machine — the box is loaded, not your board. The findings "
+                f"below are still exact"
+            ))
         return {
             "ok": True,
             "verdict": "clean" if counts["error"] == 0 else "blocked",
