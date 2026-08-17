@@ -19,6 +19,14 @@
  *   frugal. No regulator was invented for this: usb-c-breakout simply does
  *   not have a 3V3 rail to offer, and that is a real gap — see
  *   work/ee-feedback/usb-c-breakout.md.
+ * Rail width — measured, not guessed (docs/architecture/rail-width.md):
+ *   `python -m circuitpy.netwidth products/usb-c-breakout --rails` on this
+ *   placement, before anything was declared:
+ *     V5  ceiling 1.10mm (tightest pad U1.VBUS)  routed narrowest 0.20mm
+ *   V5 is the only rail on this board. Nothing here is placement-limited —
+ *   the RP2040 QFN that caps V3_3 at 0.4000mm on the MCU boards is not on
+ *   this one — so 0.5mm (the jlcpcb profile's warn_power_trace_mm floor)
+ *   is declared on the V5 trace below, well inside the measured ceiling.
  * Envelope: 36 x 40.5mm, 2 layers, 1.6mm — inside product.json's 36 x 41.
  *
  * Placement: circuitlib.layout.place_board(["usb-c-data", "status-led"])
@@ -73,7 +81,17 @@ export default () => (
     <testpoint name="TP5" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={3.81} pcbY={6.67} schX={6} schY={-6} />
     <testpoint name="TP6" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={6.35} pcbY={6.67} schX={9} schY={-6} />
 
-    <trace name="TR_TP1_VBUS" from=".TP1 > .pin1" to="net.V5" />
+    {/* V5 declared at 0.5mm — measured, not guessed. `thickness` reaches the
+        router as a per-net `nominalTraceWidth` and one declaration anywhere
+        on a net sets the whole net (docs/architecture/rail-width.md), so this
+        single trace widens every centimetre of V5 on the board. Declaring
+        blind has scrapped a board before (harness-puck: fab.ready true ->
+        false, 0 -> 33 blocking), so `circuitpy.netwidth` was run against this
+        placement first: V5 ceiling **1.10mm**, tightest pad U1.VBUS, routed
+        narrowest 0.20mm. 0.5mm is the fab profile's warn_power_trace_mm floor
+        and clears the ceiling with better than 2x to spare. There is no MCU
+        here, so no QFN fanout pinches this rail anywhere. */}
+    <trace name="TR_TP1_VBUS" from=".TP1 > .pin1" to="net.V5" thickness="0.5mm" />
     <trace name="TR_TP2_GND" from=".TP2 > .pin1" to="net.GND" />
     <trace name="TR_TP3_CC1" from=".TP3 > .pin1" to=".J1 > .CC1" />
     <trace name="TR_TP4_CC2" from=".TP4 > .pin1" to=".J1 > .CC2" />
