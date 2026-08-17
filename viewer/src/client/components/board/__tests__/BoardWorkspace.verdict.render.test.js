@@ -218,7 +218,15 @@ test("the chip never shows its own count as the whole truth when the build knows
       ...w.server.nextCheck,
       counts: { error: 1, warning: 2, info: 7 },
       warnings: [{ part: "U3", kind: "dfm_hole_clearance", severity: "error", detail: "a pad passes 0.150mm from a via" }],
-      lastBuild: { atEpochS: 1786936955, blocking: 3, invisibleHere: 2, invisibleKinds: ["drc_violation"], fabReady: false },
+      lastBuild: {
+        atEpochS: Math.round(Date.now() / 1000) - 12 * 60,
+        blocking: 3,
+        invisibleHere: 2,
+        warnings: 159,
+        invisibleWarningsHere: 145,
+        invisibleKinds: ["drc_violation"],
+        fabReady: false,
+      },
     };
 
     dragR30East(w);
@@ -232,9 +240,14 @@ test("the chip never shows its own count as the whole truth when the build knows
     click(chip);
     await w.settle();
     const detail = w.text('[data-slot="placement-verdict-detail"]');
-    assert.match(detail, /last full build found 3 blocking findings/);
+    assert.match(detail, /last full build \(12 min ago\) found 3 blocking findings/,
+      `the age of the other ruler's answer is not shown: ${detail}`);
     assert.match(detail, /drc_violation/, "the detail does not name the kind the gate is blind to");
     assert.match(detail, /one ruler out of two/);
+    // The warning tier, which is where most of KiCad's findings land. Counting
+    // only the blocking tier hid 141 of these behind a chip that said nothing.
+    assert.match(detail, /159 at warning level/, `the warning tier is still silent: ${detail}`);
+    assert.match(detail, /145 of those invisible here too/);
   } finally {
     w.close();
   }
@@ -250,7 +263,15 @@ test("a legal answer is not green while the build's KiCad findings stand", async
       ...w.server.nextCheck,
       counts: { error: 0, warning: 1, info: 3 },
       warnings: [],
-      lastBuild: { atEpochS: 1786936955, blocking: 2, invisibleHere: 2, invisibleKinds: ["drc_violation"], fabReady: false },
+      lastBuild: {
+        atEpochS: Math.round(Date.now() / 1000) - 60,
+        blocking: 2,
+        invisibleHere: 2,
+        warnings: 0,
+        invisibleWarningsHere: 0,
+        invisibleKinds: ["drc_violation"],
+        fabReady: false,
+      },
     };
 
     dragR30East(w);
@@ -266,7 +287,15 @@ test("a legal answer is not green while the build's KiCad findings stand", async
     // And a board the build called clean keeps its plain green word.
     w.server.nextCheck = {
       ...w.server.nextCheck,
-      lastBuild: { atEpochS: 1786936955, blocking: 0, invisibleHere: 0, invisibleKinds: [], fabReady: true },
+      lastBuild: {
+        atEpochS: Math.round(Date.now() / 1000) - 60,
+        blocking: 0,
+        invisibleHere: 0,
+        warnings: 0,
+        invisibleWarningsHere: 0,
+        invisibleKinds: [],
+        fabReady: true,
+      },
     };
     click(w.find('[data-slot="placement-verdict-recheck"]'));
     await w.settle(6);

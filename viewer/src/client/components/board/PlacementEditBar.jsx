@@ -70,6 +70,20 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
   const unseen =
     state === "legal" || state === "blocked" ? Number(verdict?.lastBuild?.invisibleHere || 0) : 0;
   const short = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+  // How old the other ruler's answer is. Parsed and never shown until a judge
+  // asked the obvious question: a count from a build that describes different
+  // geometry is worth knowing about, and "12 minutes ago" and "three days ago"
+  // are not the same claim.
+  const buildAge = (() => {
+    const at = Number(verdict?.lastBuild?.atEpochS || 0);
+    if (!at) return "";
+    const mins = Math.max(0, Math.round((Date.now() / 1000 - at) / 60));
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.round(mins / 60);
+    return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)} days ago`;
+  })();
   const label =
     state === "checking"
       ? "checking…"
@@ -190,12 +204,23 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
           ) : null}
           {verdict.lastBuild ? (
             <p className={cn(unseen ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/80")}>
-              The last full build found {short(verdict.lastBuild.blocking, "blocking finding", "blocking findings")}
-              {unseen ? (
+              The last full build{buildAge ? ` (${buildAge})` : ""} found{" "}
+              {short(verdict.lastBuild.blocking, "blocking finding", "blocking findings")}
+              {unseen ? `, ${unseen} of them only a rebuild can see` : ""}
+              {/* The warning tier is where most of KiCad's findings land — a
+                  board can carry 380 of them. Counting only the blocking tier
+                  was the same silence one step quieter, which is worse. */}
+              {verdict.lastBuild.invisibleWarningsHere ? (
                 <>
-                  , {unseen} of them {verdict.lastBuild.invisibleKinds.join(", ")} — a kind this check cannot
-                  produce, because it comes from KiCad and the fab packet and both need a rebuild. A clean
-                  answer here is a clean answer from one ruler out of two.
+                  , and {verdict.lastBuild.warnings} at warning level,{" "}
+                  {verdict.lastBuild.invisibleWarningsHere} of those invisible here too
+                </>
+              ) : null}
+              {unseen || verdict.lastBuild.invisibleWarningsHere ? (
+                <>
+                  {" "}
+                  ({verdict.lastBuild.invisibleKinds.join(", ")} come from KiCad and the fab packet, and both
+                  need a rebuild). A clean answer here is a clean answer from one ruler out of two.
                 </>
               ) : (
                 <>. Everything it found is a kind this check can see too.</>

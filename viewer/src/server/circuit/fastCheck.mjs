@@ -203,6 +203,11 @@ export function runFastCheck(circuitJsonPath, { projectRoot, moves = [], env = p
                 atEpochS: Number(parsed.last_build.at_epoch_s) || 0,
                 blocking: Number(parsed.last_build.blocking) || 0,
                 invisibleHere: Number(parsed.last_build.invisible_here) || 0,
+                // The warning tier, which is where most of the KiCad findings
+                // actually land: a board can hide 380 of them behind a chip
+                // that says nothing at all.
+                warnings: Number(parsed.last_build.warnings) || 0,
+                invisibleWarningsHere: Number(parsed.last_build.invisible_warnings_here) || 0,
                 invisibleKinds: Array.isArray(parsed.last_build.invisible_kinds)
                   ? parsed.last_build.invisible_kinds
                   : [],
