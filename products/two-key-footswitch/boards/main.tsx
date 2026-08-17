@@ -10,6 +10,29 @@
  * Rails: V5 (USB VBUS) -> V3_3 (ldo-3v3) -> MCU, switches' pull-ups, LED
  * Envelope: 47.5 x 68.9mm, 2 layers, 1.6mm — inside product.json's 48 x 70mm
  *
+ * Rail width — measured, not guessed (docs/architecture/rail-width.md):
+ *   `<trace thickness="…">` reaches the router as a per-net `nominalTraceWidth`
+ *   and one declaration anywhere on a net sets the whole net, so both rails are
+ *   declared once on ldo-3v3, the block where both of them are born. Declaring
+ *   blind has scrapped a board before (harness-puck, every rail at 0.5mm:
+ *   fab.ready true -> false, 0 -> 33 blocking, two nets shorted, all of it
+ *   inside the RP2040's fanout), so `python -m circuitpy.netwidth
+ *   products/two-key-footswitch --rails` was run against this placement first,
+ *   with nothing declared:
+ *     V5    ceiling 1.10mm (tightest pad U1.VBUS)     routed narrowest 0.20mm
+ *     V3_3  ceiling 0.40mm (tightest pad U3.IOVDD6)   routed narrowest 0.20mm
+ *   V5 has no MCU pin on it — USB VBUS, the ESD part, C1 and the LDO input —
+ *   so it takes 0.5mm, the jlcpcb profile's warn_power_trace_mm floor, with
+ *   better than 2x margin. V3_3 lands on the RP2040's QFN-56 and cannot have
+ *   0.5mm at any effort level: 0.400mm pitch with 0.200mm pads leaves
+ *   `2 x (0.400 - 0.100 - 0.100) = 0.400mm` and no placement change beats
+ *   arithmetic. So V3_3 is declared at its own measured ceiling, 0.4mm — 2x
+ *   the signal copper it was on, and the widest that pin field permits. The
+ *   profile still wants 0.5mm on a power net, so `dfm_power_trace_width`
+ *   stays as a warning on V3_3 by design; the geometry is the answer, not the
+ *   preference.
+ *
+ *
  * ldo-3v3 is NOT in the brief's block list but IS load-bearing: rp2040-core
  * requires net.V3_3 (circuitlib.blocks: requires=("V3_3","GND","USB_DP",
  * "USB_DM")) and usb-c-data only ever provides V5. circuitlib.helpers.
@@ -108,7 +131,11 @@ export default () => (
     <UsbCData pcbX={-1.82} pcbY={-29.28} schX={-8} schY={10} />
 
     {/* ---- logic rail: V5 -> V3_3 -------------------------------------- */}
-    <Ldo3v3 pcbX={-12.54} pcbY={-1.82} schX={-2} schY={4} />
+    {/* both rail widths declared here, once — see the header's measured
+        ceilings. V5 0.5mm (ceiling 1.10), V3_3 0.4mm (ceiling 0.40, the
+        RP2040 QFN-56's own arithmetic). */}
+    <Ldo3v3 vinThickness="0.5mm" voutThickness="0.4mm"
+      pcbX={-12.54} pcbY={-1.82} schX={-2} schY={4} />
 
     {/* ---- the brain ------------------------------------------------------
         Explicit USB_DP/USB_DM traces off the chip pins: rp2040-core's own
