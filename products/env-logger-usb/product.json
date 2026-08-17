@@ -1,0 +1,9 @@
+{
+  "name": "env-logger-usb",
+  "description": "USB-C environment logger that streams temperature, humidity and pressure over USB serial, with status LEDs, a start-stop button and a bench breakout for I2C and SWD",
+  "power": "usb-c-5v",
+  "envelopeMm": [99.6, 64],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
