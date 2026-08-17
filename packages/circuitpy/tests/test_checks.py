@@ -695,3 +695,70 @@ class PowerWidthMeasuresTheRailNotTheTaper(unittest.TestCase):
         # so nobody spends a build trying to fix it.
         self.assertIn("necks to 0.15mm at its pads", detail)
         self.assertIn("not something a width can fix", detail)
+
+
+class SilkscreenLegibility(unittest.TestCase):
+    """Two labels printed on top of each other read as one word.
+
+    An engineer building `usb-c-breakout` (2026-08-17) shipped a first build
+    whose pad legends read "VBUSGND" — two labels fused — and the only thing
+    that caught it was looking at the render. A board can be electrically
+    perfect and useless at the bench because the pad you need is the one whose
+    name ran into its neighbour's.
+    """
+
+    def _label(self, text: str, x: float, y: float, size: float = 1.0, **extra) -> dict:
+        return {
+            "type": "pcb_silkscreen_text",
+            "text": text,
+            "font_size": size,
+            "layer": "top",
+            "anchor_alignment": "center",
+            "anchor_position": {"x": x, "y": y},
+            **extra,
+        }
+
+    def test_two_labels_on_top_of_each_other_are_reported_with_both_names(self) -> None:
+        found = checks.silk_overlap_warnings([
+            self._label("VBUS", 0, 0),
+            self._label("GND", 1.0, 0),
+        ])
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["kind"], "silk_text_overlap")
+        self.assertIn("VBUS", found[0]["detail"])
+        self.assertIn("GND", found[0]["detail"])
+
+    def test_labels_that_clear_each_other_are_left_alone(self) -> None:
+        # A check that cries wolf about legible silkscreen is one people switch
+        # off, so the model deliberately under-estimates the glyph box.
+        self.assertEqual(
+            checks.silk_overlap_warnings([
+                self._label("VBUS", 0, 0),
+                self._label("GND", 6.0, 0),
+            ]),
+            [],
+        )
+        # Different layers cannot collide.
+        self.assertEqual(
+            checks.silk_overlap_warnings([
+                self._label("VBUS", 0, 0),
+                dict(self._label("GND", 0.2, 0), layer="bottom"),
+            ]),
+            [],
+        )
+
+    def test_a_rotated_label_is_skipped_rather_than_approximated(self) -> None:
+        # A 90-degree label's box is not this box turned, and guessing is how a
+        # check earns its reputation for false positives.
+        self.assertEqual(
+            checks.silk_overlap_warnings([
+                self._label("VBUS", 0, 0),
+                self._label("GND", 0.2, 0, ccw_rotation=90),
+            ]),
+            [],
+        )
+
+    def test_it_never_raises_on_junk(self) -> None:
+        for junk in ([], [None], [{"type": "pcb_silkscreen_text"}],
+                     [{"type": "pcb_silkscreen_text", "text": "X", "font_size": "big"}]):
+            self.assertEqual(checks.silk_overlap_warnings(junk), [])

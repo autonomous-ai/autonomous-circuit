@@ -536,6 +536,7 @@ def fast_check(
             if product is not None:
                 warnings.extend(checks.dfm_warnings(elements, product, profile))
             warnings.extend(checks.trace_anchor_warnings(elements))
+            warnings.extend(checks.silk_overlap_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
                     node_input, profile=profile, assembly_order=True
@@ -585,6 +586,7 @@ def fast_check(
             "DFM limits (hole-to-copper, power width, board envelope)"
             if product is not None else "DFM limits: not run (no product.json)",
             "trace anchors (a part that left its copper)",
+            "silkscreen labels printed over each other",
             "verifylib: assembly, netclass, dc, review, thermal",
             f"@tscircuit/checks minus {', '.join(SKIPPED_NODE_CHECKS)}"
             if node else "@tscircuit/checks: not run",

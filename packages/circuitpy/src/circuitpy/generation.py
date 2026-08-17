@@ -1064,6 +1064,10 @@ def build_board(
         found.extend(checks.run_tscircuit_checks(built_circuit_json))
         found.extend(checks.iou_warnings(elements, profile))
         found.extend(checks.dfm_warnings(elements, product, profile))
+        # Legibility: two labels printed on top of each other read as one word,
+        # and the only thing that ever caught that was somebody looking at the
+        # PNG (ledger #49).
+        found.extend(checks.silk_overlap_warnings(elements))
         return found
 
     first_timeout = (

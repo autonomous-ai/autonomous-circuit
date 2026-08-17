@@ -1105,6 +1105,99 @@ def power_width_warnings(
         return [check_failed(f"power width scan raised {type(exc).__name__}: {exc}")]
 
 
+#: Width of one silkscreen character as a fraction of the font size.
+#:
+#: tscircuit plots silkscreen with a single-stroke font. Measured on the boards
+#: we ship by comparing a label's plotted extent against its `font_size`: a
+#: character advances about 0.6 x the size and the glyph is about 0.72 x tall.
+#: Both are deliberately *slightly under* the truth — this check should be sure
+#: before it speaks, and a near-miss that reads fine on the plot is not worth a
+#: finding.
+SILK_CHAR_ADVANCE = 0.6
+SILK_CAP_HEIGHT = 0.72
+
+
+def _silk_box(element: dict) -> tuple[float, float, float, float] | None:
+    """The box a silkscreen label occupies, from its anchor and its size."""
+    anchor = element.get("anchor_position") or {}
+    x, y = _f(anchor.get("x")), _f(anchor.get("y"))
+    size = _f(element.get("font_size")) or 0.0
+    text = str(element.get("text") or "")
+    if x is None or y is None or size <= 0 or not text.strip():
+        return None
+    # Rotated labels are skipped rather than approximated: a 90-degree label's
+    # box is not this box turned, and guessing here would produce exactly the
+    # false positives that make a check ignorable.
+    if abs(_f(element.get("ccw_rotation")) or 0.0) > 1e-6:
+        return None
+    width = len(text) * size * SILK_CHAR_ADVANCE
+    height = size * SILK_CAP_HEIGHT
+    align = str(element.get("anchor_alignment") or "center")
+    left = x - width / 2
+    if "left" in align:
+        left = x
+    elif "right" in align:
+        left = x - width
+    bottom = y - height / 2
+    if "bottom" in align:
+        bottom = y
+    elif "top" in align:
+        bottom = y - height
+    return (left, bottom, left + width, bottom + height)
+
+
+def silk_overlap_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
+    """Two silkscreen labels printed on top of each other.
+
+    Nothing in the pipeline saw this. An engineer building `usb-c-breakout`
+    (2026-08-17) shipped a first build whose pad labels read **"VBUSGND"** —
+    two legends fused into one word — and the only thing that caught it was
+    looking at the PNG. A board can be electrically perfect and unusable at the
+    bench because the pad you need is the one whose name ran into its
+    neighbour's, and "read every silkscreen string in the render" is not a
+    check, it is a hope.
+
+    Only same-layer, unrotated pairs, and only a real overlap: this is a
+    warning about legibility, and one that cries wolf gets switched off.
+    """
+    try:
+        boxes: list[tuple[str, str, tuple[float, float, float, float]]] = []
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "pcb_silkscreen_text":
+                continue
+            box = _silk_box(element)
+            if box is None:
+                continue
+            boxes.append((str(element.get("text") or ""), str(element.get("layer") or "top"), box))
+
+        warnings: list[Warning] = []
+        seen: set[tuple[str, str]] = set()
+        for i, (text_a, layer_a, a) in enumerate(boxes):
+            for text_b, layer_b, b in boxes[i + 1:]:
+                if layer_a != layer_b:
+                    continue
+                overlap_x = min(a[2], b[2]) - max(a[0], b[0])
+                overlap_y = min(a[3], b[3]) - max(a[1], b[1])
+                if overlap_x <= 0.01 or overlap_y <= 0.01:
+                    continue
+                key = tuple(sorted((text_a, text_b)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                warnings.append(
+                    _warning(
+                        "board",
+                        "silk_text_overlap",
+                        f"silkscreen \"{text_a}\" and \"{text_b}\" overlap by "
+                        f"{min(overlap_x, overlap_y):.2f}mm on {layer_a} — they print as one "
+                        "word, and a label nobody can read is a pad nobody can find",
+                    )
+                )
+        return warnings
+    except Exception as exc:  # noqa: BLE001
+        return [check_failed(f"silk overlap scan raised {type(exc).__name__}: {exc}")]
+
+
 def trace_anchor_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
     """A route that no longer touches the pad it claims to start or end on.
 
