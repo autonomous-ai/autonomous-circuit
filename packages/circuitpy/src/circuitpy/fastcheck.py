@@ -452,6 +452,69 @@ NOT_CHECKED: tuple[dict[str, str], ...] = (
 )
 
 
+#: Finding kinds only the full gauntlet can produce. Each one needs an artifact
+#: that does not exist until a stage this gate skips has run: the converted
+#: KiCad board, the plotted gerbers, the exported BOM.
+#:
+#: This is not a list of things the gate is bad at — it is a list of things it
+#: is *structurally blind to*, which is why a count from here can be lower than
+#: the truth without anything being wrong. An engineer building
+#: `two-key-footswitch` (2026-08-17) read `counts.error: 1` and the real number
+#: was 3: two `drc_violation`s that only KiCad can see. They only caught it
+#: because they happened to diff the gate against the full build. "1 blocking
+#: finding" reads as *almost done*, and on a small board the gap is the whole
+#: story rather than a rounding error.
+FULL_BUILD_ONLY_KINDS = frozenset({
+    "drc_violation",
+    "erc_violation",
+    "gerber_pad_missing",
+    "gerber_drill_missing",
+    "gerber_drill_extra",
+    "gerber_mask_sliver",
+    "gerber_silk_on_pad",
+    "unverified_gerbers",
+    "bom_line_unorderable",
+    "bom_no_supplier_part",
+    "part_not_orderable",
+})
+
+
+def last_build_verdict(project_root: Path, circuit_json_path: Path) -> dict | None:
+    """What the last full build said about this board, read off its sidecar.
+
+    The gate's own count is the truth about *one ruler*. The sidecar holds the
+    other one, it is already on disk, and reading it costs a file open — so
+    reporting only the cheap number, when the expensive number is sitting right
+    there, is a choice to be less honest for free.
+
+    Returns None when there is no sidecar (never built) or it cannot be read;
+    a missing verdict and a passing one must not look the same, so the caller
+    prints nothing rather than something reassuring.
+    """
+    sidecar = circuit_json_path.parent / f"{circuit_json_path.name.split('.')[0]}.board.json"
+    if not sidecar.is_file():
+        return None
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+        stat = sidecar.stat()
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(data, dict):
+        return None
+    found = [
+        w for w in ((data.get("validation") or {}).get("warnings") or [])
+        if isinstance(w, dict) and w.get("severity") == "error"
+    ]
+    invisible = [w for w in found if str(w.get("kind")) in FULL_BUILD_ONLY_KINDS]
+    return {
+        "at_epoch_s": round(stat.st_mtime, 3),
+        "blocking": len(found),
+        "invisible_here": len(invisible),
+        "invisible_kinds": sorted({str(w.get("kind")) for w in invisible}),
+        "fab_ready": bool((data.get("fab") or {}).get("ready")),
+    }
+
+
 def fast_check(
     circuit_json_path: Path | str,
     *,
@@ -592,6 +655,9 @@ def fast_check(
             if node else "@tscircuit/checks: not run",
         ],
         "not_checked": [dict(entry) for entry in NOT_CHECKED],
+        # The other ruler's answer, if this board has ever been built. Costs a
+        # file open, and without it `counts.error` reads as the whole truth.
+        "last_build": last_build_verdict(root, path),
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
     }
 

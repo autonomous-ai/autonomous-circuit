@@ -256,6 +256,53 @@ class RealBoardTests(unittest.TestCase):
         self.assertIn("copper pour", blind)
         self.assertIn("fab packet", blind)
 
+    def test_the_verdict_carries_the_other_ruler_s_answer(self) -> None:
+        # A count with no scope on it reads as the whole truth. The engineer
+        # who built two-key-footswitch got `counts.error: 1` on a board whose
+        # real number was 3 — two `drc_violation`s, which need KiCad, which
+        # needs a compile — and only caught it by diffing against the build.
+        result = fastcheck.fast_check(EXAMPLE_JSON, project_root=EXAMPLE, node=False)
+        last = result["last_build"]
+        self.assertIsNotNone(last, "the example ships a sidecar; it was not read")
+
+        # Measured against the sidecar itself rather than against a number
+        # typed here, so this stays true when the example is rebuilt.
+        sidecar = json.loads(
+            (EXAMPLE / "boards" / "main.board.json").read_text(encoding="utf-8")
+        )
+        blocking = [
+            w for w in (sidecar.get("validation") or {}).get("warnings", [])
+            if w.get("severity") == "error"
+        ]
+        self.assertEqual(last["blocking"], len(blocking))
+        self.assertEqual(
+            last["invisible_here"],
+            sum(1 for w in blocking if w.get("kind") in fastcheck.FULL_BUILD_ONLY_KINDS),
+        )
+        self.assertEqual(last["fab_ready"], bool((sidecar.get("fab") or {}).get("ready")))
+        self.assertLessEqual(last["invisible_here"], last["blocking"])
+
+    def test_a_board_with_no_sidecar_reports_nothing_rather_than_zero(self) -> None:
+        # A missing verdict and a passing one must not look the same.
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="fastcheck-nosidecar-") as scratch:
+            boards = Path(scratch) / "boards"
+            boards.mkdir()
+            (boards / "main.circuit.json").write_text("[]", encoding="utf-8")
+            self.assertIsNone(
+                fastcheck.last_build_verdict(Path(scratch), boards / "main.circuit.json")
+            )
+
+    def test_the_kinds_it_cannot_see_are_the_ones_a_rebuild_produces(self) -> None:
+        # Both substrates KiCad owns, and the packet legs. If a kind is added
+        # to the gate itself it must come out of this set, or the UI will keep
+        # promising a rebuild for something already on screen.
+        self.assertIn("drc_violation", fastcheck.FULL_BUILD_ONLY_KINDS)
+        self.assertIn("erc_violation", fastcheck.FULL_BUILD_ONLY_KINDS)
+        self.assertNotIn("dfm_hole_clearance", fastcheck.FULL_BUILD_ONLY_KINDS)
+        self.assertNotIn("trace_left_its_pad", fastcheck.FULL_BUILD_ONLY_KINDS)
+
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

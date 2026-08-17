@@ -118,6 +118,7 @@ function unavailable(reason, startedAt) {
     geometry: "unknown",
     checked: [],
     notChecked: [],
+    lastBuild: null,
     elapsedMs: Date.now() - startedAt,
   };
 }
@@ -194,6 +195,20 @@ export function runFastCheck(circuitJsonPath, { projectRoot, moves = [], env = p
           moves: Array.isArray(parsed.moves) ? parsed.moves : [],
           checked: Array.isArray(parsed.checked) ? parsed.checked : [],
           notChecked: Array.isArray(parsed.not_checked) ? parsed.not_checked : [],
+          // What the last full build said, when there has been one. Without
+          // it, `counts.error` reads as the whole truth — and on the board
+          // that prompted this it said 1 where the real number was 3.
+          lastBuild: parsed.last_build && typeof parsed.last_build === "object"
+            ? {
+                atEpochS: Number(parsed.last_build.at_epoch_s) || 0,
+                blocking: Number(parsed.last_build.blocking) || 0,
+                invisibleHere: Number(parsed.last_build.invisible_here) || 0,
+                invisibleKinds: Array.isArray(parsed.last_build.invisible_kinds)
+                  ? parsed.last_build.invisible_kinds
+                  : [],
+                fabReady: parsed.last_build.fab_ready === true,
+              }
+            : null,
           elapsedMs: Date.now() - startedAt,
         });
       },

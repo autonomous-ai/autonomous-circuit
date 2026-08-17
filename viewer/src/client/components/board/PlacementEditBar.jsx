@@ -58,6 +58,18 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
   // decoration: the judge's words were that a green chip after a turn looks
   // identical to one that actually graded the turn.
   const turnsUnchecked = state === "legal" || state === "blocked" ? Number(turnsPending || 0) : 0;
+
+  // Findings the last full build reported that this gate is structurally blind
+  // to — `drc_violation` and friends need KiCad, which needs the converted
+  // board, which needs a compile. An engineer building `two-key-footswitch`
+  // (2026-08-17) read "1 blocking" here against a real 3, and only caught it
+  // because they happened to diff the gate against the build. One blocking
+  // finding reads as *almost done*; on a small board the gap is the whole
+  // story. So the number this chip shows is never allowed to be the only
+  // number on screen when a bigger one is known.
+  const unseen =
+    state === "legal" || state === "blocked" ? Number(verdict?.lastBuild?.invisibleHere || 0) : 0;
+  const short = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const label =
     state === "checking"
       ? "checking…"
@@ -65,11 +77,13 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
         ? "not checked"
         : state === "unavailable"
           ? "check unavailable"
-          : blocking
-            ? `${blocking} blocking${turnsUnchecked ? ` · ${turnsUnchecked} turn${turnsUnchecked === 1 ? "" : "s"} unchecked` : ""}`
-            : turnsUnchecked
-              ? `legal · ${turnsUnchecked} turn${turnsUnchecked === 1 ? "" : "s"} unchecked`
-              : "legal";
+          : [
+              blocking ? `${blocking} blocking` : unseen ? "legal here" : "legal",
+              unseen ? `${unseen} unseen` : "",
+              turnsUnchecked ? short(turnsUnchecked, "turn unchecked", "turns unchecked") : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
 
   const findings = Array.isArray(verdict?.warnings) ? verdict.warnings : [];
   const worst = findings
@@ -97,10 +111,10 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
           }
           className={cn(
             "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium transition-colors",
-            state === "legal" && !turnsUnchecked &&
+            state === "legal" && !turnsUnchecked && !unseen &&
               "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
             // Not green. The board may well be fine; this gate did not say so.
-            state === "legal" && turnsUnchecked &&
+            state === "legal" && (turnsUnchecked || unseen) &&
               "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300",
             state === "blocked" && "border-destructive/50 bg-destructive/15 text-destructive",
             (state === "unknown" || state === "checking" || state === "unavailable") &&
@@ -109,7 +123,7 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
         >
           {state === "checking" ? (
             <Loader2 className="size-3 animate-spin" aria-hidden />
-          ) : state === "legal" && turnsUnchecked ? (
+          ) : state === "legal" && (turnsUnchecked || unseen) ? (
             <CircleHelp className="size-3" aria-hidden />
           ) : state === "legal" ? (
             <CircleCheck className="size-3" aria-hidden />
@@ -173,6 +187,20 @@ function VerdictChip({ verdict, checking, turnsPending, onCheck, busy }) {
                 </li>
               ))}
             </ul>
+          ) : null}
+          {verdict.lastBuild ? (
+            <p className={cn(unseen ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/80")}>
+              The last full build found {short(verdict.lastBuild.blocking, "blocking finding", "blocking findings")}
+              {unseen ? (
+                <>
+                  , {unseen} of them {verdict.lastBuild.invisibleKinds.join(", ")} — a kind this check cannot
+                  produce, because it comes from KiCad and the fab packet and both need a rebuild. A clean
+                  answer here is a clean answer from one ruler out of two.
+                </>
+              ) : (
+                <>. Everything it found is a kind this check can see too.</>
+              )}
+            </p>
           ) : null}
           {Array.isArray(verdict.notChecked) && verdict.notChecked.length ? (
             <p className="text-muted-foreground/80">

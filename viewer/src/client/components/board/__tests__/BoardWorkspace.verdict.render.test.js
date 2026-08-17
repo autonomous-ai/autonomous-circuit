@@ -204,3 +204,76 @@ test("a trace width is set from Properties and undone like any other edit", asyn
     w.close();
   }
 });
+
+// A gate that answers "1 blocking" on a board the build says has 3 is not
+// wrong — it cannot run KiCad — but a number with no scope on it reads as the
+// whole truth. The engineer who built `two-key-footswitch` (2026-08-17) got
+// exactly these numbers from the command line and only caught the gap because
+// they happened to diff the gate against the full build. These are that
+// board's real figures.
+test("the chip never shows its own count as the whole truth when the build knows a bigger one", async () => {
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    w.server.nextCheck = {
+      ...w.server.nextCheck,
+      counts: { error: 1, warning: 2, info: 7 },
+      warnings: [{ part: "U3", kind: "dfm_hole_clearance", severity: "error", detail: "a pad passes 0.150mm from a via" }],
+      lastBuild: { atEpochS: 1786936955, blocking: 3, invisibleHere: 2, invisibleKinds: ["drc_violation"], fabReady: false },
+    };
+
+    dragR30East(w);
+    await w.settle(6);
+
+    const chip = w.find('[data-slot="placement-verdict-chip"]');
+    assert.ok(chip, "no verdict chip after the drag");
+    assert.match(chip.textContent, /1 blocking/, "the gate's own count went missing");
+    assert.match(chip.textContent, /2 unseen/, "the two findings this gate cannot produce are not on the chip");
+
+    click(chip);
+    await w.settle();
+    const detail = w.text('[data-slot="placement-verdict-detail"]');
+    assert.match(detail, /last full build found 3 blocking findings/);
+    assert.match(detail, /drc_violation/, "the detail does not name the kind the gate is blind to");
+    assert.match(detail, /one ruler out of two/);
+  } finally {
+    w.close();
+  }
+});
+
+// The other half, and the one that matters more: a *clean* answer on a board
+// whose last build had KiCad-only blockers must not look like a clean board.
+// Green here would be the whole defect, restated in a colour.
+test("a legal answer is not green while the build's KiCad findings stand", async () => {
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    w.server.nextCheck = {
+      ...w.server.nextCheck,
+      counts: { error: 0, warning: 1, info: 3 },
+      warnings: [],
+      lastBuild: { atEpochS: 1786936955, blocking: 2, invisibleHere: 2, invisibleKinds: ["drc_violation"], fabReady: false },
+    };
+
+    dragR30East(w);
+    await w.settle(6);
+
+    const chip = w.find('[data-slot="placement-verdict-chip"]');
+    assert.match(chip.textContent, /legal here · 2 unseen/, `chip read: ${chip.textContent}`);
+    assert.ok(
+      /amber/.test(chip.className),
+      `a legal-but-unseen chip is painted like a clean one: ${chip.className}`,
+    );
+
+    // And a board the build called clean keeps its plain green word.
+    w.server.nextCheck = {
+      ...w.server.nextCheck,
+      lastBuild: { atEpochS: 1786936955, blocking: 0, invisibleHere: 0, invisibleKinds: [], fabReady: true },
+    };
+    click(w.find('[data-slot="placement-verdict-recheck"]'));
+    await w.settle(6);
+    const clean = w.find('[data-slot="placement-verdict-chip"]');
+    assert.equal(clean.textContent.trim(), "legal", `a clean board no longer reads clean: ${clean.textContent}`);
+    assert.ok(/emerald/.test(clean.className), `a clean board lost its green: ${clean.className}`);
+  } finally {
+    w.close();
+  }
+});

@@ -1,0 +1,9 @@
+{
+  "name": "dual-sensor-node",
+  "description": "USB-C RP2040 node with two BME280s on one I2C bus (on-board + short pigtail) to compare indoor and outdoor air",
+  "power": "usb-c-5v",
+  "envelopeMm": [96, 68],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
