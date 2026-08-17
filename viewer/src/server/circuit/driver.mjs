@@ -1318,6 +1318,65 @@ function emitUnresolvedNote(turnId, label, remaining, onEvent) {
   });
 }
 
+//: Build litter and things no review round edits. `blocks/` is deliberately
+//: NOT here: a round may edit a vendored block, and one board did.
+const REVIEW_SNAPSHOT_SKIP = new Set([".circuit", "node_modules", ".git", "__pycache__"]);
+
+const REVIEW_SNAPSHOT_DIR = ".circuit/review-undo";
+
+/** Copy the workspace aside so a round that breaks the board can be undone.
+ *
+ * Lives under `.circuit/`, which the artifact snapshotter already ignores, so
+ * taking a backup never looks like the board changed.
+ */
+export function snapshotForUndo(workspace) {
+  const dest = path.join(workspace, REVIEW_SNAPSHOT_DIR);
+  try {
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(workspace)) {
+      if (REVIEW_SNAPSHOT_SKIP.has(entry)) continue;
+      fs.cpSync(path.join(workspace, entry), path.join(dest, entry), {
+        recursive: true,
+      });
+    }
+    return dest;
+  } catch (error) {
+    log(`review: could not snapshot the workspace (${error?.message || error})`);
+    return null;
+  }
+}
+
+/** Put the board back exactly as it was before the round.
+ *
+ * Restores artifacts as well as source. They were produced from the source
+ * being restored, so putting back one without the other would leave a sidecar
+ * describing a board that no longer exists — the failure this repo names as
+ * "one gate, two surfaces, opposite answers".
+ *
+ * Files the round created and the snapshot does not have are removed, or the
+ * undo would leave its own litter behind.
+ */
+export function restoreFromUndo(workspace, snapshotPath) {
+  if (!snapshotPath) return false;
+  try {
+    const kept = new Set(fs.readdirSync(snapshotPath));
+    for (const entry of fs.readdirSync(workspace)) {
+      if (REVIEW_SNAPSHOT_SKIP.has(entry) || kept.has(entry)) continue;
+      fs.rmSync(path.join(workspace, entry), { recursive: true, force: true });
+    }
+    for (const entry of kept) {
+      const target = path.join(workspace, entry);
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.cpSync(path.join(snapshotPath, entry), target, { recursive: true });
+    }
+    return true;
+  } catch (error) {
+    log(`review: could not undo the round (${error?.message || error})`);
+    return false;
+  }
+}
+
 /** Say which review phase is running, and how far through it is.
  *
  * The loop used to be silent to the user by design — it only wrote to the
@@ -1394,6 +1453,8 @@ export async function runReviewFixLoop({
   let regressed = false;
   const round = async (prompt) => {
     const readyBefore = workspaceFabReady(workspace);
+    // Only worth the copy when there is something to lose.
+    const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
     const didChange = await runReviewRound({
       claudePath,
       workspace,
@@ -1407,16 +1468,29 @@ export async function runReviewFixLoop({
     });
     if (readyBefore === true && workspaceFabReady(workspace) === false) {
       regressed = true;
-      log("review: a round made an orderable board un-orderable — stopping");
+      // Stopping was never enough. Twice this loop broke an orderable board
+      // and only the model's own diligence put it back; the guard itself left
+      // the damage where it fell. Undo it, then stop.
+      const undone = restoreFromUndo(workspace, undo);
+      log(
+        `review: a round made an orderable board un-orderable — ${
+          undone ? "undone, stopping" : "COULD NOT UNDO, stopping"
+        }`,
+      );
       onEvent?.({
         kind: "assistant_message",
         turnId,
-        text:
-          "_I stopped the automatic review: the last change made a board that " +
-          "could be ordered no longer orderable. The board is back in your " +
-          "hands rather than being polished further._",
+        text: undone
+          ? "_I stopped the automatic review: the last change made a board " +
+            "that could be ordered no longer orderable, so I put the board " +
+            "back the way it was. It is orderable again, and in your hands " +
+            "rather than being polished further._"
+          : "_I stopped the automatic review: the last change made a board " +
+            "that could be ordered no longer orderable, and I could not undo " +
+            "it. The board needs a look before it is sent anywhere._",
       });
     }
+    if (undo) fs.rmSync(undo, { recursive: true, force: true });
     return didChange;
   };
 

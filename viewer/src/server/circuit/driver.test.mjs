@@ -21,6 +21,9 @@ import {
   buildCraftPrompt,
   buildPanelPrompt,
   emitPhaseNote,
+  snapshotWorkspace,
+  snapshotForUndo,
+  restoreFromUndo,
   MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
@@ -481,6 +484,51 @@ test("a phase with several rounds shows which round it is on", () => {
     phase: "craft", round: 2, rounds: 3, detail: "reading the images",
   });
   assert.ok(seen[0].text.includes("craft 2/3"));
+});
+
+test("a broken round is undone, not just stopped", () => {
+  // Twice this loop broke an orderable board — wb2 tried three changes that
+  // each cost fab.ready, wb5 left it at 41 errors mid-panel — and both times
+  // only the model's own diligence put it back. The guard stopped the loop and
+  // left the damage where it fell.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "undo-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(ws, "blocks", "rp2040-core"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "GOOD");
+  fs.writeFileSync(path.join(ws, "boards", "main.board.json"), '{"fab":{"ready":true}}');
+  fs.writeFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "GOOD BLOCK");
+
+  const undo = snapshotForUndo(ws);
+  assert.ok(undo);
+
+  // the round edits the board, edits a vendored block, and drops litter
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "BROKEN");
+  fs.writeFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "BROKEN BLOCK");
+  fs.writeFileSync(path.join(ws, "boards", "scratch.tsx"), "LITTER");
+
+  assert.equal(restoreFromUndo(ws, undo), true);
+  assert.equal(fs.readFileSync(path.join(ws, "boards", "main.tsx"), "utf8"), "GOOD");
+  // blocks/ is restored too: a round may edit a vendored block, and one did
+  assert.equal(
+    fs.readFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "utf8"),
+    "GOOD BLOCK",
+  );
+  // and the undo leaves no litter of its own
+  assert.equal(fs.existsSync(path.join(ws, "boards", "scratch.tsx")), false);
+});
+
+test("the undo copy lives where the artifact watcher cannot see it", () => {
+  // Otherwise taking a backup would itself look like the board changed.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "undo-hidden-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "x");
+  const undo = snapshotForUndo(ws);
+  assert.ok(undo.includes(".circuit"));
+  assert.ok(!snapshotWorkspace(ws).has(path.join(".circuit", "review-undo", "boards", "main.tsx")));
+});
+
+test("restoring without a snapshot reports failure instead of pretending", () => {
+  assert.equal(restoreFromUndo("/nonexistent", null), false);
 });
 
 test("a single-round phase does not print a pointless 1/1", () => {
