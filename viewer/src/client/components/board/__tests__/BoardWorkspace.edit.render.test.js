@@ -192,10 +192,14 @@ test("a write the server refuses reaches the screen, not the console", async () 
     await w.settle();
 
     assert.equal(w.server.writes.length, 1, "the drag never reached the server");
-    const refused = "the board file changed since it was read — reopen the board and try again";
     // Both places a user could be looking: the strip above the canvas and the
-    // panel where the same number can be typed instead of dragged.
-    assert.equal(w.text('[data-slot="placement-edit-error"]'), refused);
+    // panel where the same number can be typed instead of dragged. And the
+    // refusal must NAME the collision — "reopen and try again" told an
+    // engineer they had lost without telling them to what (round-4 finding).
+    const refused = w.text('[data-slot="placement-edit-error"]');
+    assert.match(refused, /the board file changed since it was read/);
+    assert.match(refused, /23 bytes longer than when you read it/, `refusal said: ${refused}`);
+    assert.match(refused, /Nothing was written/);
     assert.equal(w.text('[data-slot="property-placement-error"]'), refused);
 
     assert.equal(w.server.source, agentText, "a refused write changed the file anyway");

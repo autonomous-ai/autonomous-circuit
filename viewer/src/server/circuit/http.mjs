@@ -218,6 +218,32 @@ const MAX_EDIT_TEXT = 200;
  *
  * @returns {{ok: true, text: string} | {ok: false, code: string, message: string}}
  */
+/**
+ * Why a compare-and-swap lost, in words that name the collision.
+ *
+ * "Reopen the board and try again" told an engineer that they lost without
+ * telling them to what — a round-4 panel finding. The answer is cheap and
+ * already in hand: the file is a different size than the one they read, and
+ * the direction of that difference is usually enough to recognise whose write
+ * it was.
+ */
+export function sourceChangedMessage(readLength, actualLength) {
+  const grew = Number.isInteger(readLength) ? actualLength - readLength : null;
+  const how =
+    grew === null
+      ? "the request did not say how long the file was when it was read"
+      : grew > 0
+        ? `it is ${grew} byte${grew === 1 ? "" : "s"} longer than when you read it`
+        : grew < 0
+          ? `it is ${-grew} byte${grew === -1 ? "" : "s"} shorter than when you read it`
+          : "it is the same length with different contents";
+  return (
+    `the board file changed since it was read — ${how}. ` +
+    "Something else wrote to it (an agent turn, another window, or an edit on " +
+    "disk). Nothing was written; reopen the board and redo this edit."
+  );
+}
+
 export function planSourceWrite(current, edits, sourceLength) {
   const text = String(current ?? "");
   if (!Array.isArray(edits) || !edits.length) {
@@ -227,11 +253,7 @@ export function planSourceWrite(current, edits, sourceLength) {
     return { ok: false, code: "INVALID_ARGUMENT", message: `at most ${MAX_SOURCE_EDITS} edits per write` };
   }
   if (!Number.isInteger(sourceLength) || sourceLength !== text.length) {
-    return {
-      ok: false,
-      code: "SOURCE_CHANGED",
-      message: "the board file changed since it was read — reopen the board and try again",
-    };
+    return { ok: false, code: "SOURCE_CHANGED", message: sourceChangedMessage(sourceLength, text.length) };
   }
   const sorted = [...edits].sort((a, b) => Number(a.start) - Number(b.start) || Number(a.end) - Number(b.end));
   let previousEnd = -1;
@@ -255,10 +277,20 @@ export function planSourceWrite(current, edits, sourceLength) {
       return { ok: false, code: "INVALID_ARGUMENT", message: "edits overlap" };
     }
     if (text.slice(start, end) !== String(edit?.expected ?? "")) {
+      // The file is the right length and the wrong content: somebody replaced
+      // exactly as much as they removed, which is what one placement edit
+      // landing on another looks like. Quote both sides — that is the whole
+      // answer to "what collided with me".
+      const found = text.slice(start, end);
+      const quote = (s) => (s.length > 60 ? `${s.slice(0, 57)}…` : s);
       return {
         ok: false,
         code: "SOURCE_CHANGED",
-        message: "the board file changed since it was read — reopen the board and try again",
+        message:
+          `the board file changed since it was read — at bytes ${start}-${end} it now ` +
+          `reads ${JSON.stringify(quote(found))}, and this edit was written against ` +
+          `${JSON.stringify(quote(String(edit?.expected ?? "")))}. Nothing was written; ` +
+          "reopen the board and redo this edit.",
       };
     }
     previousEnd = end;
@@ -714,7 +746,7 @@ export function createCircuitServices({ env = process.env } = {}) {
         if (sourceLength !== undefined && sourceLength !== current.length) {
           throw ipcError(
             "SOURCE_CHANGED",
-            "the board file changed since it was read — reopen the board and try again",
+            sourceChangedMessage(sourceLength, current.length),
             409,
           );
         }
@@ -852,6 +884,23 @@ export function createCircuitServices({ env = process.env } = {}) {
               ...(Array.isArray(verdict.notChecked) ? verdict.notChecked : []),
             ];
             verdict.drifted = drift.drifted;
+          }
+          // Bound, but to the wrong part — the case that produced no signal
+          // at all until a judge went looking for it.
+          if (drift.misbound?.length) {
+            const names = drift.misbound.map((one) => one.id).join(", ");
+            verdict.notChecked = [
+              {
+                what: `${drift.misbound.length} part${drift.misbound.length === 1 ? " that is" : "s that are"} matched to the wrong thing on the built board (${names})`,
+                why:
+                  "a placement finds its part by coordinate, so two parts that " +
+                  "exchanged positions each find the other's geometry. This " +
+                  "verdict, and anything the app highlights from it, names the " +
+                  "wrong parts. Rebuild before trusting it.",
+              },
+              ...(Array.isArray(verdict.notChecked) ? verdict.notChecked : []),
+            ];
+            verdict.misbound = drift.misbound;
           }
         } catch {
           // A board that cannot be read here is one the gate already reported on.

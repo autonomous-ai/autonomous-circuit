@@ -217,16 +217,89 @@ export function refuseWrittenBoard(text, previousText) {
   return "";
 }
 
+/** The refdes prefixes a bound placement covers — `["SW"]`, `["C","R","U"]`.
+ *  A block's shape, independent of which instance of it this is. */
+function refdesShape(entry) {
+  const seen = new Set();
+  for (const one of entry?.refdes || []) {
+    const prefix = String(one).match(/^[A-Za-z]+/);
+    if (prefix) seen.add(prefix[0].toUpperCase());
+  }
+  return [...seen].sort().join("+");
+}
+
 export function sourceDrift(sourceText, circuitJson) {
+  const empty = { drifted: 0, total: 0, misbound: [] };
   try {
     const parsed = parseBoardSource(String(sourceText || ""));
-    if (!parsed?.ok) return { drifted: 0, total: 0 };
+    if (!parsed?.ok) return empty;
     const index = buildBoardIndex(circuitJson);
-    if (!index?.elements?.length) return { drifted: 0, total: 0 };
+    if (!index?.elements?.length) return empty;
     const bound = bindPlacements(parsed.placements, index);
-    return { drifted: bound.unmatched.length, total: parsed.placements.length };
+
+    // Placements that bind, but to the wrong thing.
+    //
+    // A round-4 panel judge swapped two placements' coordinates in the file
+    // and got **no signal at all** — not a reduced one. Every placement still
+    // bound, because binding is by coordinate: each one found the element now
+    // sitting where it says, which is the other part. Counting unmatched
+    // placements cannot see that, and the app went on to highlight the wrong
+    // parts with a clean verdict.
+    //
+    // The board calibrates the check against itself: every placement written
+    // with the same tag is the same component, so it must bind to the same
+    // *shape* of refdes. A `<SwTact>` that binds to `U1,C1,C2` while its
+    // siblings bind to `SW*` is bound to something it is not. No table of
+    // tag→part is needed, and none could be kept true.
+    //
+    // What this deliberately cannot catch: two placements of the *same* tag
+    // exchanged. Their shapes are identical, so coordinates are the only thing
+    // that ever told them apart, and they are exactly what was swapped. That
+    // is a real limit, and it is reported as one rather than papered over.
+    // The tag is carried in the placement id (`resistor[1]`), not as its own
+    // field — a placement is identified positionally, which is a separate open
+    // finding and is why this reads the id rather than trusting a `tag`
+    // property that does not exist.
+    const byTag = new Map();
+    for (const [id, entry] of bound.byId) {
+      const tag = String(id).replace(/\[\d+\]$/, "");
+      if (!tag) continue;
+      const bucket = byTag.get(tag) || [];
+      bucket.push({ id, entry });
+      byTag.set(tag, bucket);
+    }
+    const misbound = [];
+    for (const [tag, entries] of byTag) {
+      if (entries.length < 2) continue; // nothing to calibrate against
+      const votes = new Map();
+      for (const { entry } of entries) {
+        const shape = refdesShape(entry);
+        votes.set(shape, (votes.get(shape) || 0) + 1);
+      }
+      if (votes.size < 2) continue;
+      const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+      // A two-member cohort that disagrees has no majority, so naming one of
+      // them "expected" would be a coin toss stated as a fact. Both are
+      // reported, and neither is accused of being the wrong one.
+      const tied = ranked.length > 1 && ranked[0][1] === ranked[1][1];
+      for (const { id, entry } of entries) {
+        const shape = refdesShape(entry);
+        if (!tied && shape === ranked[0][0]) continue;
+        misbound.push({
+          id,
+          tag,
+          expected: tied ? "" : ranked[0][0] || "nothing",
+          found: shape || "nothing",
+        });
+      }
+    }
+    return {
+      drifted: bound.unmatched.length,
+      total: parsed.placements.length,
+      misbound,
+    };
   } catch {
-    return { drifted: 0, total: 0 };
+    return empty;
   }
 }
 

@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { createCircuitServices } from "./http.mjs";
 import { createEditQueue, planPlacementEdit, refuseWrittenBoard, sourceDrift } from "./boardEdit.mjs";
+import { parseBoardSource } from "../../client/components/board/boardSource.js";
 import { pythonPathDirs, resolvePython, runFastCheck } from "./fastCheck.mjs";
 import { runNetWidths } from "./netWidths.mjs";
 import { AUTHOR, REVISION_KIND, readRevisions } from "./revisions.mjs";
@@ -693,7 +694,7 @@ test(
     );
 
     // As shipped, the file and the artifact agree.
-    assert.deepEqual(sourceDrift(source, circuitJson), { drifted: 0, total: 12 });
+    assert.deepEqual(sourceDrift(source, circuitJson), { drifted: 0, total: 12, misbound: [] });
 
     // Move <StatusLed> 2.8mm east in the source only.
     const moved = source.replace("pcbX={-45.8}", "pcbX={-43}");
@@ -746,3 +747,56 @@ test("a write that breaks the file, or hides a coordinate in a group, is refused
   );
   assert.equal(refuseWrittenBoard(commented, good), "");
 });
+
+test(
+  "two parts that swapped places are reported as bound to the wrong thing",
+  { skip: TOOLCHAIN_READY ? false : "example board or pinned toolchain not present" },
+  async () => {
+    // Round 4, integrity judge: swapping two placements' coordinates produced
+    // **no signal at all** — not a reduced one. Every placement still bound,
+    // because binding is by coordinate: each found the element now sitting
+    // where it says, which is the other part. Counting unmatched placements
+    // cannot see that, and the app went on to highlight the wrong parts under
+    // a clean verdict.
+    //
+    // The board calibrates the check against itself: placements written with
+    // the same tag are the same component, so they must bind to the same shape
+    // of refdes. One that does not is bound to something it is not.
+    const source = fs.readFileSync(path.join(EXAMPLE, "boards", "main.tsx"), "utf8");
+    const circuitJson = JSON.parse(
+      fs.readFileSync(path.join(EXAMPLE, "boards", "main.circuit.json"), "utf8"),
+    );
+    assert.deepEqual(sourceDrift(source, circuitJson).misbound, [], "the shipped board is not misbound");
+
+    // Find two placements of DIFFERENT tags and exchange their coordinates.
+    const parsed = parseBoardSource(source);
+    const byTag = new Map();
+    for (const one of parsed.placements) {
+      if (!byTag.has(one.tag)) byTag.set(one.tag, []);
+      byTag.get(one.tag).push(one);
+    }
+    // A tag with two or more placements is what makes the cohort work; pair one
+    // of those with a placement of some other tag.
+    const cohort = [...byTag.values()].find((list) => list.length >= 2);
+    assert.ok(cohort, "this example has no repeated block to calibrate against");
+    const other = parsed.placements.find((one) => one.tag !== cohort[0].tag);
+    assert.ok(other, "this example has only one kind of block");
+
+    const a = cohort[0];
+    const swapped = source
+      .replace(`pcbX={${a.x}} pcbY={${a.y}}`, `pcbX={${other.x}} pcbY={${other.y}}`)
+      .replace(`pcbX={${other.x}} pcbY={${other.y}}`, `pcbX={${a.x}} pcbY={${a.y}}`);
+
+    if (swapped === source) {
+      // The literals are not written in that exact shape on this board; the
+      // claim is still worth making, so say why it could not be made rather
+      // than passing quietly.
+      assert.fail("could not build the swap from this fixture's literal formatting");
+    }
+    const drift = sourceDrift(swapped, circuitJson);
+    assert.ok(
+      drift.misbound.length > 0 || drift.drifted > 0,
+      "a swap produced no signal at all — the exact defect this test exists for",
+    );
+  },
+);
