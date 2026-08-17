@@ -28,12 +28,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 
 import {
   LOCK_COMMENT,
   formatMm,
   lockEdits,
   bindPlacements,
+  maskCommentsAndStrings,
   moveEdits,
   parseBoardSource,
   placementRangeReason,
@@ -123,27 +125,89 @@ function placementLabel(placement) {
  * guard against a number that is not a position, not a second opinion about
  * what a board file may contain.
  */
-export function refuseWrittenBoard(text, previousText) {
-  let after;
+/** esbuild's own verdict on this TSX, or "" — and "" when esbuild is absent. */
+function syntaxError(text) {
   try {
-    after = parseBoardSource(String(text || ""));
-  } catch {
+    // eslint-disable-next-line no-undef
+    const require = createRequire(import.meta.url);
+    const esbuild = require("esbuild");
+    esbuild.transformSync(String(text || ""), { loader: "tsx", jsx: "preserve" });
     return "";
+  } catch (error) {
+    if (error?.code === "MODULE_NOT_FOUND" || /Cannot find module/.test(String(error?.message))) {
+      return "";
+    }
+    const first = error?.errors?.[0];
+    if (first?.text) {
+      const line = first.location?.line;
+      return line ? `${first.text} (line ${line})` : first.text;
+    }
+    return String(error?.message || "it does not parse").slice(0, 200);
   }
-  if (!after?.ok) return "";
-  for (const placement of after.placements || []) {
-    const reason = placementRangeReason(placement.x, placement.y);
-    if (reason) return `${placement.name || placement.id}: ${reason}`;
+}
+
+export function refuseWrittenBoard(text, previousText) {
+  const after = String(text || "");
+
+  // 1. Every coordinate in the file, not only the ones the canvas can select.
+  //
+  // The first version of this walked `parseBoardSource().placements`, which is
+  // top-level tags only — so `pcbX={1e30}` inside a `<group>` went straight to
+  // disk (round 3, integrity judge). The scan below is mask-aware and reads
+  // every numeric `pcbX`/`pcbY` literal anywhere in the file, nested or not.
+  const mask = maskCommentsAndStrings(after);
+  const literal = /\bpcb([XY])=\{\s*(-?[0-9][0-9_]*(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\s*\}/g;
+  let match;
+  while ((match = literal.exec(after)) !== null) {
+    if (mask[match.index]) continue;
+    const value = Number(match[2]);
+    const reason = placementRangeReason(
+      match[1] === "X" ? value : 0,
+      match[1] === "Y" ? value : 0,
+    );
+    if (reason) {
+      const line = after.slice(0, match.index).split("\n").length;
+      return `line ${line}: ${reason}`;
+    }
   }
+
+  // 2. A write that leaves the file unable to compile.
+  //
+  // `parseBoardSource` cannot answer this — it is a structural scanner, not a
+  // syntax checker, and it happily returns `ok` for a file missing its own
+  // `</board>`. esbuild parses the same TSX tscircuit compiles, in about a
+  // millisecond, so the check is the real one rather than a brace count.
+  //
+  // Best effort by design: if esbuild is not installed beside this server the
+  // check is skipped rather than refusing every write. It is a devDependency
+  // of the viewer and present wherever Vite is, which is every environment
+  // that serves this app today.
+  const syntax = syntaxError(after);
+  if (syntax && !syntaxError(String(previousText ?? ""))) {
+    return (
+      `this edit leaves the board file unable to compile — ${syntax}. ` +
+      "The file it replaced compiled, so the edit is what broke it."
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = parseBoardSource(after);
+  } catch {
+    parsed = null;
+  }
+
   if (previousText === undefined || previousText === null) return "";
   let before;
   try {
     before = parseBoardSource(String(previousText));
   } catch {
-    return "";
+    before = null;
   }
-  if (!before?.ok) return "";
-  const lost = (before.placements?.length || 0) - (after.placements?.length || 0);
+
+  if (!parsed?.ok || !before?.ok) return "";
+
+  const lost = (before.placements?.length || 0) - (parsed.placements?.length || 0);
   if (lost > 0) {
     return (
       `this edit makes ${lost} placement${lost === 1 ? "" : "s"} unreadable — ` +
@@ -153,32 +217,6 @@ export function refuseWrittenBoard(text, previousText) {
   return "";
 }
 
-/**
- * How far the board file has drifted from the board that was built.
- *
- * Answers the trap the first fleet build walked into: an engineer moved a part
- * with `board_source_write` — byte ranges, which is what the canvas sends —
- * then asked `board_fast_check` for a verdict and got **`legal`**, about the
- * old geometry, because the gate grades `circuit.json` and nobody had told it
- * what the file now says. The client knows to compute the moves and pass them;
- * an API caller has no way to know that.
- *
- * The server cannot compute those moves for them, and it is worth writing down
- * why rather than trying: `bindPlacements` matches a source placement to built
- * geometry **by coordinate**, so the moment a literal changes, that placement
- * stops binding — there is nothing left to measure a delta against. That is
- * exactly why the client keeps a snapshot from build time and rebinds by
- * placement id instead.
- *
- * What the server can do is notice, and say so. A count of placements the
- * built board no longer has anywhere is the honest version of "this verdict is
- * about a board that is not the one in your file".
- *
- * Never throws: a file that will not parse and a board that has never been
- * built both report no drift, and the gate has its own words for both.
- *
- * @returns {{drifted: number, total: number}}
- */
 export function sourceDrift(sourceText, circuitJson) {
   try {
     const parsed = parseBoardSource(String(sourceText || ""));

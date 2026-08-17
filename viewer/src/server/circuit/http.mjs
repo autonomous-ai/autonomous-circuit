@@ -647,9 +647,19 @@ export function createCircuitServices({ env = process.env } = {}) {
         // between two builds. The summary comes from the client because the
         // client is the only side that knows the gesture ("R30 moved 2, 0 mm");
         // this command sees byte ranges.
-        if (typeof summary === "string" && summary.trim()) {
-          recordEdit(root, { summary: summary.trim(), file: rel });
-        }
+        // A row goes in whatever the caller said. The summary is *better* when
+        // it comes from the side that watched the gesture ("R30 moved 2, 0 mm"),
+        // but an omitted one used to mean no row at all — so an API caller, or
+        // any client that forgot the field, edited the board and left the
+        // history looking like nothing happened between two builds (round 3,
+        // integrity judge). "Something changed and nobody said what" is a worse
+        // row than a good one and a much better row than none.
+        recordEdit(root, {
+          summary: (typeof summary === "string" && summary.trim())
+            ? summary.trim()
+            : `edited ${rel} (${planned.text.length - current.length >= 0 ? "+" : ""}${planned.text.length - current.length} bytes)`,
+          file: rel,
+        });
         return { file: rel, text: planned.text, sourceLength: planned.text.length };
       });
     },

@@ -1018,15 +1018,14 @@ export default function BoardWorkspace({
   // given, and the canvas refuses a locked part before the drag starts, so the
   // keyboard has to refuse it here or the lock would hold for the mouse and not
   // for the arrows.
+  // The delta, never an absolute target: a held key repeats faster than a round
+  // trip, and a target computed from the position on screen is stale for every
+  // repeat that lands mid-flight — which silently ate keystrokes until round 3
+  // caught it. `editor.nudgeBy` applies the delta inside the edit queue, to
+  // whatever the file says by then.
   nudgeRef.current =
-    canEdit && editor.ready && !editor.busy && selectedPlacement && !selectedPlacement.locked
-      ? (dx, dy) =>
-          handlePlacementMove(selectedPlacement, {
-            x: selectedPlacement.x + dx,
-            y: selectedPlacement.y + dy,
-            dx,
-            dy,
-          })
+    canEdit && editor.ready && selectedPlacement && !selectedPlacement.locked
+      ? (dx, dy) => editor.nudgeBy(selectedPlacement.id, dx, dy)
       : null;
 
   const pcbPane = (

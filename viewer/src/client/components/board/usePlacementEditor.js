@@ -19,6 +19,7 @@ import { getApiBase } from "@/lib/transport.ts";
 import {
   applyEdits,
   bindPlacements,
+  describeMove,
   describeRotate,
   formatDeg,
   formatMm,
@@ -524,6 +525,49 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
   );
 
   /**
+   * Move a placement by a delta, resolving its position when the move runs.
+   *
+   * The same fix `turnBy` needed, for the same reason and found the same way:
+   * a held `Ctrl`+arrow repeats faster than a round trip, every repeat computed
+   * its absolute target from the position *on screen*, and the ones that landed
+   * mid-flight asked for a coordinate that was already written — a no-op write
+   * and a swallowed keystroke (round 3, integrity judge). Applying the delta
+   * inside the queue, to whatever the file says by then, makes N presses N
+   * steps.
+   */
+  const nudgeBy = useCallback(
+    (placementId, dx, dy, note) =>
+      enqueue(async () => {
+        const placement = freshPlacement(placementId);
+        if (!placement) return false;
+        if (placement.locked) {
+          setError(`${placement.label} is locked. Unlock it to move it.`);
+          return false;
+        }
+        const x = placement.x + Number(dx || 0);
+        const y = placement.y + Number(dy || 0);
+        const edits = moveEdits(latestTextRef.current, placement, x, y);
+        if (!edits.length) return true;
+        const undoEntry = {
+          kind: "move",
+          placementId,
+          x: placement.x,
+          y: placement.y,
+          label: placement.label,
+          after: { x: Number(formatMm(x)), y: Number(formatMm(y)) },
+        };
+        const ok = await write(
+          edits,
+          note || describeMove(placement.label, { x: placement.x, y: placement.y }, { x, y }),
+          +1,
+        );
+        if (ok) pushHistory(undoEntry);
+        return ok;
+      }),
+    [enqueue, freshPlacement, write, pushHistory],
+  );
+
+  /**
    * Turn a placement one step, resolving the target when the turn runs.
    *
    * The difference from `rotate` is the whole fix for a dropped keystroke.
@@ -810,6 +854,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     turnsPending,
     checkNow,
     move,
+    nudgeBy,
     rotate,
     turnBy,
     setNetWidth,

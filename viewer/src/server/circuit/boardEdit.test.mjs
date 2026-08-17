@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCircuitServices } from "./http.mjs";
-import { createEditQueue, planPlacementEdit, sourceDrift } from "./boardEdit.mjs";
+import { createEditQueue, planPlacementEdit, refuseWrittenBoard, sourceDrift } from "./boardEdit.mjs";
 import { pythonPathDirs, resolvePython, runFastCheck } from "./fastCheck.mjs";
 import { runNetWidths } from "./netWidths.mjs";
 import { AUTHOR, REVISION_KIND, readRevisions } from "./revisions.mjs";
@@ -471,12 +471,11 @@ test("a byte-range write cannot put a part somewhere a board cannot be", async (
       sourceLength: before.length,
     });
     assert.equal(refused.status, 400);
-    // `1e30` is not caught as out of range — it is not caught as a *number*.
-    // The parser's grammar has no exponent, so the part stops appearing in the
-    // parse at all, which is the worse outcome: a board whose editor can no
-    // longer see a part it could see a moment ago, invisible until someone
-    // tries to drag it.
-    assert.match(refused.body.message, /unreadable/);
+    // Caught by the coordinate scan, which reads every numeric `pcbX`/`pcbY`
+    // literal in the file — nested ones included — rather than only the
+    // top-level placements the canvas can select. It names the line and the
+    // number, which is what somebody needs to go and look at it.
+    assert.match(refused.body.message, /line \d+: X is 1e\+30mm/);
     assert.equal(fs.readFileSync(app.board, "utf8"), before, "the refused write reached the file");
 
     // A coordinate the parser CAN read, and that is still nowhere a board
@@ -578,15 +577,21 @@ test("a human's drag lands in the board's own history", async () => {
     assert.equal(edits[0].author, AUTHOR.HUMAN);
     assert.equal(edits[0].file, "boards/main.tsx");
 
-    // A write with nothing to say adds no line: a lock is a real edit and
-    // "someone did something" is not worth a row in a history someone reads.
+    // A write with nothing to say still leaves a row. It used to leave none,
+    // which meant an API caller — or any client that forgot the field — could
+    // edit the board and leave the history looking like nothing happened
+    // between two builds (round 3, integrity judge). "Something changed and
+    // nobody said what" is a worse row than a good one and a far better row
+    // than silence.
     await app.post("board_source_write", {
       id: app.id,
       file: "boards/main.tsx",
       edits: [{ start: at, end: at + 1, text: "5", expected: "4" }],
       sourceLength: fs.readFileSync(app.board, "utf8").length,
     });
-    assert.equal(readRevisions(app.dir).filter((one) => one.kind === REVISION_KIND.EDIT).length, 1);
+    const rows = readRevisions(app.dir).filter((one) => one.kind === REVISION_KIND.EDIT);
+    assert.equal(rows.length, 2);
+    assert.match(rows[rows.length - 1].summary, /edited boards\/main\.tsx/);
   } finally {
     app.close();
   }
@@ -701,3 +706,43 @@ test(
     assert.equal(sourceDrift(source, []).drifted, 0);
   },
 );
+
+test("a write that breaks the file, or hides a coordinate in a group, is refused", () => {
+  // Round 3, integrity judge: the result bound walked `parseBoardSource`'s
+  // placements, which are top-level tags only, so a coordinate inside a
+  // `<group>` was unguarded; and a write that produced unparseable TSX was
+  // waved through on the reasoning that a broken file is the compiler's
+  // problem. It is not — the file parsed a moment ago, and this write is what
+  // broke it.
+  const good = `export default () => (
+  <board width="20mm" height="20mm">
+    <group pcbX={0} pcbY={0}>
+      <resistor name="R1" pcbX={1} pcbY={2} />
+    </group>
+  </board>
+)
+`;
+  assert.equal(refuseWrittenBoard(good, good), "");
+
+  const nested = good.replace("pcbX={1}", "pcbX={4000}");
+  assert.match(refuseWrittenBoard(nested, good), /±1000mm/);
+  assert.match(refuseWrittenBoard(nested, good), /^line \d+:/);
+
+  const broken = good.replace("</board>", "");
+  // esbuild's own words, with the line — `parseBoardSource` cannot answer
+  // this, since it is a structural scanner and returns `ok` for a file
+  // missing its own `</board>`.
+  assert.match(refuseWrittenBoard(broken, good), /unable to compile/);
+  assert.match(refuseWrittenBoard(broken, good), /closing "board" tag/);
+
+  // A file that was ALREADY unparseable is left alone: that is somebody else's
+  // mess, and refusing every edit to it would trap them in it.
+  assert.equal(refuseWrittenBoard(broken, broken), "");
+
+  // And a comment that mentions a huge number is not a coordinate.
+  const commented = good.replace(
+    "<group",
+    "{/* tried pcbX={1e30} once, do not */}\n    <group",
+  );
+  assert.equal(refuseWrittenBoard(commented, good), "");
+});

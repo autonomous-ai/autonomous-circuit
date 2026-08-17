@@ -421,3 +421,36 @@ test("Ctrl+arrow nudges the selected part one step, and repeats while held", asy
     w.close();
   }
 });
+
+test("a held nudge does not eat the keystrokes that land mid-write", async () => {
+  // Round 3, integrity judge: every repeat computed an absolute target from
+  // the position *on screen*, so the ones that arrived before the previous
+  // write returned asked for a coordinate that was already written — a no-op
+  // and a swallowed keystroke. The same defect the rotate taps had, and the
+  // same fix: the delta travels, and it is applied inside the edit queue to
+  // whatever the file says by then.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const r30 = w.placements.byId.get("resistor[1]");
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle();
+
+    const position = () =>
+      parseBoardSource(w.server.source).placements.find((one) => one.id === "resistor[1]");
+
+    // Four presses with no await between them — the shape of a held key.
+    key(window, "ArrowRight", { ctrlKey: true });
+    key(window, "ArrowRight", { ctrlKey: true, repeat: true });
+    key(window, "ArrowRight", { ctrlKey: true, repeat: true });
+    key(window, "ArrowRight", { ctrlKey: true, repeat: true });
+    await w.settle(12);
+
+    // Four steps of 0.5mm from -2, not one.
+    assert.equal(position().x, 0, `four presses moved it to ${position().x}`);
+    assert.equal(w.server.writes.length, 4, "a press that produced no write was swallowed");
+  } finally {
+    w.close();
+  }
+});
