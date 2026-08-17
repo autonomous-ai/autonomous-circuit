@@ -56,7 +56,7 @@ product, the friction is the point.
 
 | Product | What it is | `fab.ready` | Blocking | Notes |
 |---|---|---|---|---|
-| `bench-i2c-scanner` | USB-C bench tool that enumerates every device on an I2C bus and report | no | 4 | 91.9 × 63.8mm · 2× dfm_hole_clearance, 2× drc_violation |
+| `bench-i2c-scanner` | USB-C bench tool that enumerates every device on an I2C bus and report | no | 3 | 91.9 × 63.8mm · 2× drc_violation, 1× dfm_hole_clearance |
 | `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | **yes** | 0 | 61 × 64.8mm |
 | `dual-rail-psu` | USB-C bench supply brick: 5V and 3V3 broken out on labelled pad header | **yes** | 0 | 41.1 × 51mm |
 | `dual-sensor-node` | USB-C RP2040 node with two BME280s on one I2C bus (on-board + short pi | **yes** | 0 | 95.3 × 68mm |

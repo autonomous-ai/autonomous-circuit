@@ -1,0 +1,9 @@
+{
+  "name": "bench-i2c-scanner",
+  "description": "USB-C bench tool that enumerates every device on an I2C bus and reports the addresses it found, with two pad-header ports to hang a bus and a pass-through off it",
+  "power": "usb-c-5v",
+  "envelopeMm": [92, 64],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
