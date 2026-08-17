@@ -373,6 +373,13 @@ CLAIMED_FIXES: list[tuple[int, str, str, str]] = [
         "packages/circuitpy/tests/test_failure_corpus.py",
         r'id="a-pad-measured-unrotated"',
     ),
+    (
+        49,
+        "the planner asks a fixed 2mm floor for any block adjacent to "
+        "rp2040-core — three engineers independently discovered 5mm by hand",
+        "skills/circuitcode/circuitlib/layout.py",
+        r'BLOCK_GAP_OVERRIDE_MM: dict\[str, float\] = \{\s*\n\s*"rp2040-core": 5\.0,',
+    ),
 ]
 
 #: (ledger #, what it prevents, glob, regex that must NOT appear anywhere)
