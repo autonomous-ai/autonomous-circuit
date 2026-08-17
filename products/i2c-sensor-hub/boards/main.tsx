@@ -156,7 +156,7 @@ export default () => (
     {/* ---- silkscreen -------------------------------------------------------- */}
     <silkscreentext text="I2C SENSOR HUB" pcbX={0} pcbY={31.5} fontSize={2} />
     <silkscreentext text="BME280" pcbX={17.5} pcbY={13.5} fontSize={1.2} />
-    <silkscreentext text="I2C BUS" pcbX={-40} pcbY={20} fontSize={1.2} />
+    <silkscreentext text="I2C BUS" pcbX={8.94} pcbY={6.5} fontSize={1.2} />
     <silkscreentext text="PWR" pcbX={29.54} pcbY={12.5} fontSize={1.2} />
     <silkscreentext text="ACT" pcbX={-35} pcbY={29.6} fontSize={1.2} />
     <silkscreentext text="USER" pcbX={36.46} pcbY={13.9} fontSize={1.2} />

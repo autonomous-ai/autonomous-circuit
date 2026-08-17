@@ -1,12 +1,12 @@
 {
  "board": "main",
- "runId": "1a00d8c110b-d8a0",
+ "detail": "0 blocking",
+ "elapsedS": 666.8,
+ "runId": "1a00d992f07-e34c",
  "schema": 1,
- "stage": "compile",
  "stageCount": 7,
- "stageIndex": 1,
- "stageLabel": "Compiling the board",
- "startedAt": 1786933678.348,
- "state": "running",
- "updatedAt": 1786933678.348
+ "stageIndex": 7,
+ "startedAt": 1786934537.991,
+ "state": "done",
+ "updatedAt": 1786935204.789
 }
