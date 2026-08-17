@@ -1,0 +1,9 @@
+{
+  "name": "two-key-footswitch",
+  "description": "USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and mute, one status LED.",
+  "power": "usb-c-5v",
+  "envelopeMm": [48, 70],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

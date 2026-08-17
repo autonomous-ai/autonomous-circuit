@@ -57,8 +57,10 @@ product, the friction is the point.
 | Product | What it is | `fab.ready` | Blocking | Notes |
 |---|---|---|---|---|
 | `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | **yes** | 0 | 61 × 64.8mm |
-| `i2c-sensor-hub` | USB-C board that reads a BME280 and breaks its I2C bus out to a pad he | — | — | not built yet |
+| `i2c-sensor-hub` | USB-C board that reads a BME280 and breaks its I2C bus out to a pad he | no | 1 | 95 × 67mm · 1× drc_violation |
 | `macropad-6` | USB-C six-key macropad: 3x2 grid of tactile switches on 19 | — | — | not built yet |
-| `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | — | — | not built yet |
+| `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 10 | 82 × 58mm · 7× drc_violation, 1× pcb_trace_error |
+| `rgb-lamp-controller` | USB-C desk lamp controller: RP2040 brain driving 8 on-board WS2812 pix | **yes** | 0 | 84.9 × 68.6mm |
+| `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | no | 3 | 47.5 × 68.9mm · 2× drc_violation, 1× dfm_hole_clearance |
 
-**1 of 1 built boards are fab-ready** (4 products in the fleet).
+**2 of 5 built boards are fab-ready** (6 products in the fleet).

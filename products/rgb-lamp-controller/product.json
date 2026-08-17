@@ -1,0 +1,9 @@
+{
+  "name": "rgb-lamp-controller",
+  "description": "USB-C desk lamp controller: RP2040 brain driving 8 on-board WS2812 pixels plus a pad-out for more, mode and brightness buttons, status LED.",
+  "power": "usb-c-5v",
+  "envelopeMm": [90, 75],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

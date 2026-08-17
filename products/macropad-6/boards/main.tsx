@@ -120,25 +120,22 @@ const keyCells = () => {
           schX={sx}
           schY={sy}
         />,
-        // sw-tact only traces pin1 (signal) and pin4 (GND); pins 2 and 3 are
-        // the switch's own internal partners (internallyConnectedPins:
-        // [[pin1,pin2],[pin3,pin4]]), physically the same node, but the
-        // block leaves them electrically unrouted on the PCB. Left that way,
-        // a GndPour on this board floods right up to those two floating pads
-        // and the fast check came back with a drc_violation:shorting_items
-        // error against "" and GND on 3 of the 6 switches (SW11, SW12,
-        // SW14 — which ones depends on local pour geometry, not on anything
-        // wrong with those particular keys). Naming pin2/pin3 onto the nets
-        // they are already tied to inside the switch package removes the
-        // floating copper without changing what the switch does — not a
-        // block edit, just declaring a net the block's own doc already
-        // claims is true.
-        <trace
-          key={`tr${n}_p2`}
-          name={`TR_${net}_p2`}
-          from={`.${sw} > .pin2`}
-          to={`net.${net}`}
-        />,
+        // sw-tact only traces pin1 (signal) and pin4 (GND); pin3 is the
+        // switch's own internal partner of pin4 (internallyConnectedPins:
+        // [[pin1,pin2],[pin3,pin4]]), physically the same GND node, but the
+        // block leaves it electrically unrouted on the PCB. Left that way, a
+        // GndPour on this board floods right up to that floating pad and the
+        // fast check came back with a drc_violation:shorting_items error
+        // against "" and GND on 3 of the 6 switches (SW11, SW12, SW14 —
+        // which ones depends on local pour geometry, not on anything wrong
+        // with those particular keys). Naming pin3 onto the net it is
+        // already tied to inside the switch package removes the floating
+        // copper without changing what the switch does — not a block edit,
+        // just declaring a net the block's own doc already claims is true.
+        // (pin2, the signal-side partner, is left unrouted: nothing pours
+        // around a signal net, so a bare pin2 pad never triggered this class
+        // of error, and wiring it on the first attempt was what introduced a
+        // new V3_3/KEY0 short elsewhere on the board — reverted.)
         <trace
           key={`tr${n}_p3`}
           name={`TR_${net}_p3`}
@@ -177,13 +174,17 @@ export default () => (
        changed. Declared, not left to the pipeline's own escalation, because
        that escalation reads circuit.json and these findings only exist
        after the KiCad cross-check has already run.
-       Raised to "10x" on this board: the first fast check at "5x" came back
-       with a DVDD via clearance error (0.0900mm required, 0.0354mm actual)
-       and a U3 hole clearance error (0.185mm from a via against a 0.2mm
-       floor) right around rp2040-core's own decoupling — SKILL.md's own
-       guidance ("go to 10x while the router is still missing its own
-       clearances") names this exact symptom. */
-    autorouterEffortLevel="10x"
+       Tried "10x" on this board (SKILL.md: "go to 10x while the router is
+       still missing its own clearances") to chase a DVDD via clearance
+       error and a U3 hole clearance error seen at "5x". It made the same
+       class of finding worse, not better: the RP2040/flash QSPI cluster
+       went from 2 clearance-class errors to a dozen (new pcb_trace_error /
+       pcb_pad_trace_clearance_error entries inside U3/U4, plus a new
+       USB_DP/USB_DM via short that was not present at "5x"). Reverted to
+       the "5x" floor — the DVDD/U3 clearance findings are carried as an
+       accepted, reported defect rather than chased further (see
+       work/ee-feedback/macropad-6.md). */
+    autorouterEffortLevel="5x"
     minTraceWidth="0.2mm"
     minViaPadDiameter="0.6mm"
     minViaHoleDiameter="0.3mm"
