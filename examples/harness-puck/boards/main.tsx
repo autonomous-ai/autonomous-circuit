@@ -126,7 +126,17 @@ const PuckRing = () => {
             key={`${d}o`}
             name={`TR_${d}_dout`}
             from={`.${d} > .DOUT`}
-            to={`net.PX_${START_INDEX + i + 1}_DIN`}
+            // Last pixel's DOUT: the block's own contract (BLOCK.md) calls
+            // this deliberate — "a chain can always be extended" — but
+            // checks.floating_net_warnings (2026-08-17) doesn't know that
+            // and reads a net with one pin on it as a dropped wire. The
+            // check's own message names the fix: prefix NC* to say the pad
+            // is the point. Same copper, same pad, only the label changes.
+            to={
+              i === PIXELS - 1
+                ? `net.NC_PX_${START_INDEX + i + 1}_DIN`
+                : `net.PX_${START_INDEX + i + 1}_DIN`
+            }
           />,
         ]
       })}

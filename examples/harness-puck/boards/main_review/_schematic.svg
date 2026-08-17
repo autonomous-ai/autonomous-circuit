@@ -369,11 +369,11 @@
   " fill="rgba(255, 255, 255, 0.6)" stroke="rgb(132, 0, 0)" stroke-width="0.303518922508px"/><text class="net-label-text sch-net-label-text" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_100" x="907.0511239686186" y="498.80489424274" fill="rgb(132, 0, 0)" text-anchor="end" dominant-baseline="central" font-family="sans-serif" font-variant-numeric="tabular-nums" font-size="2.7316703025719997px" transform="">PX_17_DIN</text><path class="net-label sch-net-label" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_101" d="
     M 962.3067438112,497.2872996302
     L 963.1262449019716,495.76970501766
-    L 978.8869708180704,495.76970501766
-    L 978.8869708180704,498.80489424274
+    L 984.133801258492,495.76970501766
+    L 984.133801258492,498.80489424274
     L 963.1262449019716,498.80489424274
     Z
-  " fill="rgba(255, 255, 255, 0.6)" stroke="rgb(132, 0, 0)" stroke-width="0.303518922508px"/><text class="net-label-text sch-net-label-text" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_101" x="963.672578962486" y="497.2872996302" fill="rgb(132, 0, 0)" text-anchor="start" dominant-baseline="central" font-family="sans-serif" font-variant-numeric="tabular-nums" font-size="2.7316703025719997px" transform="">PX_18_DIN</text><path class="net-label sch-net-label" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_102" d="
+  " fill="rgba(255, 255, 255, 0.6)" stroke="rgb(132, 0, 0)" stroke-width="0.303518922508px"/><text class="net-label-text sch-net-label-text" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_101" x="963.672578962486" y="497.2872996302" fill="rgb(132, 0, 0)" text-anchor="start" dominant-baseline="central" font-family="sans-serif" font-variant-numeric="tabular-nums" font-size="2.7316703025719997px" transform="">NC_PX_18_DIN</text><path class="net-label sch-net-label" data-circuit-json-type="schematic_net_label" data-schematic-net-label-id="schematic_net_label_102" d="
     M 1007.8345821874,277.2360808119
     L 1008.6540832781716,275.71848619936003
     L 1025.2869202316099,275.71848619936003
