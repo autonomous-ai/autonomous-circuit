@@ -461,9 +461,10 @@ test("the panel gets exactly one driver round; its own loop is bounded inside", 
 });
 
 test("every review phase says what it is doing, because ninety minutes of silence reads as hung", () => {
-  // 2026-08-14, after watching a board for 98 minutes: "tao ngồi ko biết khi
-  // nào xong luôn. Hay ít ra nó cũng bắn tin lên là đang làm gì". The loop
-  // logged its phases to the server console and told the user nothing.
+  // 2026-08-14, from the user after watching a board for 98 minutes: they were
+  // sitting there with no idea when it would finish, and asked for it to at
+  // least say what it was doing. The loop logged its phases to the server
+  // console and told the user nothing.
   const seen = [];
   const onEvent = (e) => seen.push(e);
   emitPhaseNote("t1", onEvent, {
