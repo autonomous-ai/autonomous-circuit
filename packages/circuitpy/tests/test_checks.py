@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import circuitproj  # noqa: E402
 from circuitproj import EnvGuard, FIXTURES, load_fixture  # noqa: E402
 
-from circuitpy import checks  # noqa: E402
+from circuitpy import checks, fab  # noqa: E402
 from circuitpy.fab import get_profile  # noqa: E402
 from circuitpy.spec import ResolvedProduct  # noqa: E402
 
@@ -649,3 +649,49 @@ class Dedupe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PowerWidthMeasuresTheRailNotTheTaper(unittest.TestCase):
+    """`dfm_power_trace_width` used to be unsatisfiable by construction.
+
+    The router **tapers into a terminal pad narrower than the track** — that is
+    a documented behaviour of the shipped autorouter, not a defect — so the
+    minimum width over a whole route is always the pad, and on a board whose
+    pads are 0.2mm (every 0402, every QFN) the minimum can never reach a 0.5mm
+    floor. The check reported that minimum, so it fired on every board forever
+    whatever anyone did. Measured 2026-08-17: with V3_3 declared at its own
+    measured 0.4mm ceiling, terminal-keyboard still reported "routed at
+    0.2125mm" — the taper, not the rail.
+    """
+
+    def _board(self, run_width: float, pad_width: float) -> list[dict]:
+        # A 10mm rail: wide along its run, tapering to the pad over the last
+        # half-millimetre at each end.
+        route = [{"x": 0.0, "y": 0.0, "width": pad_width, "route_type": "wire", "layer": "top"}]
+        route.append({"x": 0.5, "y": 0.0, "width": pad_width, "route_type": "wire", "layer": "top"})
+        for x in (2.0, 4.0, 6.0, 8.0):
+            route.append({"x": x, "y": 0.0, "width": run_width, "route_type": "wire", "layer": "top"})
+        route.append({"x": 9.5, "y": 0.0, "width": pad_width, "route_type": "wire", "layer": "top"})
+        route.append({"x": 10.0, "y": 0.0, "width": pad_width, "route_type": "wire", "layer": "top"})
+        return [
+            {"type": "source_net", "source_net_id": "net_1", "name": "V5", "is_power": True},
+            {"type": "source_trace", "source_trace_id": "t1", "connected_source_net_ids": ["net_1"]},
+            {"type": "pcb_trace", "pcb_trace_id": "pt1", "source_trace_id": "t1", "route": route},
+        ]
+
+    def test_a_wide_rail_that_tapers_into_its_pads_is_not_reported(self) -> None:
+        profile = fab.get_profile("jlcpcb")
+        wide = self._board(run_width=float(profile.warn_power_trace_mm), pad_width=0.2)
+        self.assertEqual(checks.power_width_warnings(wide, profile), [])
+
+    def test_a_thin_rail_is_still_reported_and_names_both_numbers(self) -> None:
+        profile = fab.get_profile("jlcpcb")
+        thin = self._board(run_width=0.2, pad_width=0.15)
+        found = checks.power_width_warnings(thin, profile)
+        self.assertEqual(len(found), 1, found)
+        detail = found[0]["detail"]
+        self.assertIn("runs at 0.2mm", detail)
+        # And the neck is named as the router's doing rather than the board's,
+        # so nobody spends a build trying to fix it.
+        self.assertIn("necks to 0.15mm at its pads", detail)
+        self.assertIn("not something a width can fix", detail)

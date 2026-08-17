@@ -960,6 +960,33 @@ _POWER_NET_RE = re.compile(
 _GROUND_NET_RE = re.compile(r"^(gnd|agnd|dgnd|vss|ground)$", re.I)
 
 
+#: How far from a route's own terminal a point is still "the taper".
+#:
+#: The router steps the width down as it approaches a pad it cannot match, over
+#: a short run — 0.6mm covers the 0402 land patterns and the QFN pads on every
+#: board we ship, and is short enough that a genuinely thin *rail* is still
+#: measured. A window rather than "drop the first and last point", because the
+#: taper is a ladder of several points (`TRACE_WIDTH_SCHEDULE`), not one.
+TAPER_WINDOW_MM = 0.6
+
+
+def _within_taper(route: Sequence[dict], index: int) -> bool:
+    """Is this route point inside the taper at either end of its trace?"""
+    try:
+        point = route[index]
+        px, py = float(point.get("x")), float(point.get("y"))
+    except (TypeError, ValueError, IndexError):
+        return False
+    for end in (0, len(route) - 1):
+        try:
+            ex, ey = float(route[end].get("x")), float(route[end].get("y"))
+        except (TypeError, ValueError):
+            continue
+        if math.hypot(px - ex, py - ey) <= TAPER_WINDOW_MM:
+            return True
+    return False
+
+
 def power_width_warnings(
     circuit_json: Sequence[dict], profile: FabProfile
 ) -> list[Warning]:
@@ -1012,18 +1039,39 @@ def power_width_warnings(
             )
             if tid and nets:
                 trace_nets[tid] = nets
+        # Two numbers per net, because they mean different things and only one
+        # of them is anybody's fault.
+        #
+        # `run` is the narrowest point of the rail away from its terminals.
+        # `neck` is the narrowest point anywhere, which is always at a pad:
+        # the router **tapers into a terminal pad narrower than the track**
+        # (`getTerminalPadWidthLimit` / `getTaperWidthAtDistance` in the shipped
+        # bundle), so on a board whose pads are 0.2mm — every 0402, every QFN —
+        # the minimum over the whole route can never reach a 0.5mm floor. This
+        # check used to report that minimum, which made it **unsatisfiable by
+        # construction**: it fired on every board, forever, whatever anyone did,
+        # and a check nobody can action is a check people learn to scroll past.
+        #
+        # Measured 2026-08-17: with V3_3 declared at its own 0.4mm ceiling,
+        # terminal-keyboard still reported "routed at 0.2125mm" — the taper,
+        # not the rail.
         narrowest: dict[str, float] = {}
+        necked: dict[str, float] = {}
         for element in circuit_json:
             if not isinstance(element, dict) or element.get("type") != "pcb_trace":
                 continue
             nets = trace_nets.get(str(element.get("source_trace_id") or ""))
             if not nets:
                 continue
-            for segment in element.get("route") or []:
-                if not isinstance(segment, dict):
-                    continue
+            route = [seg for seg in element.get("route") or [] if isinstance(seg, dict)]
+            for index, segment in enumerate(route):
                 width = segment.get("width")
                 if not isinstance(width, (int, float)) or width <= 0:
+                    continue
+                for nid in nets:
+                    if nid not in necked or width < necked[nid]:
+                        necked[nid] = float(width)
+                if _within_taper(route, index):
                     continue
                 for nid in nets:
                     if nid not in narrowest or width < narrowest[nid]:
@@ -1032,16 +1080,24 @@ def power_width_warnings(
         for nid, width in sorted(narrowest.items(), key=lambda kv: net_name.get(kv[0], "")):
             if width >= floor - 1e-9:
                 continue
+            name = net_name.get(nid, nid)
+            neck = necked.get(nid)
+            tail = ""
+            if neck is not None and neck < width - 1e-9:
+                tail = (
+                    f" (it necks to {neck:g}mm at its pads, which is the router "
+                    "tapering into a pad narrower than the track — that part is "
+                    "not something a width can fix)"
+                )
             warnings.append(
                 _warning(
-                    net_name.get(nid, nid),
+                    name,
                     "dfm_power_trace_width",
-                    f"power net {net_name.get(nid, nid)} is routed at "
-                    f"{width:g}mm — the same copper as a signal. The current "
-                    "maths may pass on this board, but power at signal width "
-                    "is the wrong habit; the profile's power floor is "
-                    f"{floor:g}mm (warn_power_trace_mm — an EE moves the "
-                    "line there)",
+                    f"power net {name} runs at {width:g}mm — the same copper as "
+                    f"a signal{tail}. The current maths may pass on this board, "
+                    "but power at signal width is the wrong habit; the profile's "
+                    f"power floor is {floor:g}mm (warn_power_trace_mm — an EE "
+                    "moves the line there)",
                 )
             )
         return warnings
