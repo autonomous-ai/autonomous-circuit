@@ -590,3 +590,46 @@ test("a human's drag lands in the board's own history", async () => {
     app.close();
   }
 });
+
+test("what the server answers is exactly what is on disk, and nothing is left behind", async () => {
+  // Autosave's whole promise: the reply the client re-parses and the bytes the
+  // next build compiles are the same text. The write goes through a sibling
+  // temp file and a rename, so this also checks the temp file does not survive
+  // — a `.main.tsx.<pid>.tmp` left in `boards/` is a file the catalog scanner
+  // would show an engineer.
+  const app = await bootServer();
+  try {
+    const before = fs.readFileSync(app.board, "utf8");
+    const at = before.indexOf("pcbX={1}") + "pcbX={".length;
+
+    const wrote = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start: at, end: at + 1, text: "7", expected: "1" }],
+      sourceLength: before.length,
+      summary: "R1 moved 6, 0 mm",
+    });
+    assert.equal(wrote.status, 200);
+
+    const onDisk = fs.readFileSync(app.board, "utf8");
+    assert.equal(wrote.body.text, onDisk, "the reply and the file disagree");
+    assert.equal(wrote.body.sourceLength, onDisk.length);
+    assert.match(onDisk, /pcbX=\{7\}/);
+
+    const strays = fs.readdirSync(path.dirname(app.board)).filter((name) => name.includes(".tmp"));
+    assert.deepEqual(strays, [], "the atomic write left its temp file behind");
+
+    // And the compare-and-swap is against the file as it now is: replaying the
+    // same request writes nothing and says why.
+    const replay = await app.post("board_source_write", {
+      id: app.id,
+      file: "boards/main.tsx",
+      edits: [{ start: at, end: at + 1, text: "7", expected: "1" }],
+      sourceLength: before.length,
+    });
+    assert.equal(replay.status, 409);
+    assert.equal(fs.readFileSync(app.board, "utf8"), onDisk, "a refused replay changed the file");
+  } finally {
+    app.close();
+  }
+});
