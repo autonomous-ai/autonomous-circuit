@@ -254,6 +254,12 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
 #:   it is reported at all rather than passed in silence, but a board that
 #:   routes is a board that ships. Blocking here would refuse an orderable
 #:   board over a risk that has not happened.
+#: * `crystal_net_routed_tight` — the same margin, measured on the copper
+#:   instead of on the placement. Added 2026-08-17 after weather-badge-9 shipped
+#:   with 0.54mm of slack on routed copper while its placement figure showed a
+#:   quiet 1.66mm: the margin warning existed but only watched the lower bound,
+#:   so the tighter of the two measurements was the silent one. Advisory for the
+#:   same reason as `crystal_net_tight` — the board routes.
 #:
 #: * `gerber_mask_sliver` — escalated on 2026-08-11 and **retracted the same
 #:   day on measurement**. All ten sub-0.2mm mask webs on harness-puck sit

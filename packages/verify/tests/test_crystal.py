@@ -182,6 +182,59 @@ def test_a_routed_net_inside_the_ceiling_stays_clean():
     assert routed([(0, 0), (0, 6)]).findings == []
 
 
+# --- the margin, on the copper as well as on the placement ----------------
+
+
+def test_copper_inside_the_ceiling_but_inside_the_margin_is_tight():
+    """weather-badge-9, 2026-08-17. Placement showed 1.66mm of slack — quiet by
+    the margin rule — while the copper came back 9.46mm, 0.54mm from the line.
+    For one round the routed check only fired *above* the ceiling, so the
+    tighter of the two measurements was the silent one and the board shipped
+    reading clean."""
+    result = routed([(0, 0), (0, 9.46)])
+    assert "crystal_net_routed_tight" in kinds(result, "warning")
+
+
+def test_the_routed_tight_warning_prints_the_copper_and_its_margin():
+    detail = next(
+        f["detail"] for f in routed([(0, 0), (0, 9.46)]).findings
+        if f["kind"] == "crystal_net_routed_tight"
+    )
+    assert "9.46mm of copper" in detail
+    assert "0.54mm inside" in detail
+
+
+def test_exactly_the_margin_of_routed_slack_is_not_tight():
+    """The boundary is the same one placement uses, so the two measurements
+    cannot disagree about what 'inside the margin' means."""
+    at_margin = CRYSTAL_MAX_TRACE_LENGTH_MM - CRYSTAL_LENGTH_MARGIN_MM
+    assert routed([(0, 0), (0, at_margin)]).findings == []
+
+
+def test_routed_long_and_routed_tight_are_never_both_reported():
+    for length in (9.46, 12.0):
+        reported = [
+            f["kind"] for f in routed([(0, 0), (0, length)]).findings
+            if f["kind"] in ("crystal_net_routed_long", "crystal_net_routed_tight")
+        ]
+        assert len(reported) == 1, (length, reported)
+
+
+def test_vias_can_push_a_comfortable_planar_route_into_the_margin():
+    """7.5mm of planar copper has 2.5mm of slack and says nothing. The same
+    route through two vias spends 3.2mm on depth alone — 10.70mm, over. One
+    via, 9.10mm, is inside the ceiling and inside the margin."""
+    assert routed([(0, 0), (0, 7.5)]).findings == []
+    assert "crystal_net_routed_tight" in kinds(
+        routed([(0, 0), (0, 7.5)], vias=(0,)), "warning"
+    )
+
+
+def test_a_tight_copper_run_warns_and_never_blocks():
+    result = routed([(0, 0), (0, 9.46)])
+    assert not kinds(result, "error")
+
+
 def test_via_depth_reproduces_tscircuits_own_arithmetic():
     """9.51mm planar + 2 vias at 1.6mm = 12.71mm, which is the figure
     tscircuit's pcb_trace_too_long_warning reports for the same trace. Five
@@ -233,10 +286,20 @@ def test_placement_and_routing_are_different_kinds():
 
 def test_an_undeclared_thickness_understates_and_says_so():
     """Without a thickness the via depth is unknown, so the routed length is
-    the planar figure and understates. Silence there would read as measured."""
+    the planar figure and understates. Silence there would read as measured.
+
+    The understatement is visible in the verdict itself: this trace is 9.5mm
+    planar plus two vias, which with a declared 1.6mm board is 12.70mm and a
+    `crystal_net_routed_long`. Undeclared, it can only see 9.5mm and reports the
+    weaker `crystal_net_routed_tight` — the margin is what keeps it from
+    reporting nothing at all, and coverage says why the figure is soft."""
     result = routed([(0, 0), (0, 9.5)], vias=(0, 1), thickness=None)
     assert any("thickness is not declared" in b for b in result.coverage.blind)
-    assert result.findings == []   # 9.5mm planar alone is inside the ceiling
+    assert "crystal_net_routed_tight" in kinds(result, "warning")
+    assert "crystal_net_routed_long" not in kinds(result)
+    assert "crystal_net_routed_long" in kinds(
+        routed([(0, 0), (0, 9.5)], vias=(0, 1)), "warning"
+    )
 
 
 # --- what it does and does not look at ------------------------------------

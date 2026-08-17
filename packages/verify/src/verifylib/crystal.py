@@ -38,10 +38,21 @@ crossing a single millimetre of board.
 Straight-line distance is a *lower bound*, so the placement measurement can
 never catch the routing case. Both run; the worse one wins.
 
-**The margin warning.** A connection under
+**The margin warning, on both measurements.** A connection under
 ``CRYSTAL_LENGTH_MARGIN_MM`` of slack passes today and breaks on any nudge.
 harness-puck shipped at 0.12mm of margin with a source comment admitting that
 another 0.5mm re-broke routing. Silence there would be a lie.
+
+The margin has to be applied to the copper as well as to the placement, and for
+one round of this check it was not. Measured on weather-badge-9, 2026-08-17:
+``Y1.pin1`` sat 8.34mm pad to pad — 1.66mm of slack, comfortably quiet — while
+the copper on that net came back at **9.46mm**, 0.54mm inside the ceiling. The
+placement margin passed it, the routed check only fired above the ceiling, and
+the board went out reading clean at half a millimetre of room. The same mistake
+this module was written to stop, made one level down: a measurement that is a
+lower bound cannot carry the warning for the thing it bounds. Both measurements
+now warn under the margin (``crystal_net_tight`` for placement,
+``crystal_net_routed_tight`` for copper), and neither ever blocks.
 
 **What this cannot see.** A crystal whose pins were never placed (reported as
 coverage). Oscillators and resonators, which tscircuit does not put under the
@@ -131,7 +142,8 @@ def _routed_findings(
             if not trace.segments:
                 continue
             length = trace.copper_length(thickness)
-            if length <= CRYSTAL_MAX_TRACE_LENGTH_MM:
+            slack = CRYSTAL_MAX_TRACE_LENGTH_MM - length
+            if slack >= CRYSTAL_LENGTH_MARGIN_MM:
                 continue
             if thickness and trace.via_count:
                 breakdown = (
@@ -150,21 +162,37 @@ def _routed_findings(
                     "Shorten the detour — move the parts closer or clear what "
                     "the router is routing around"
                 )
-            findings.append(
-                finding(
-                    crystal.name,
-                    "crystal_net_routed_long",
-                    f"{who} is routed as {length:.2f}mm of copper"
-                    f"{breakdown}, {length - CRYSTAL_MAX_TRACE_LENGTH_MM:.2f}mm "
-                    f"over the {CRYSTAL_MAX_TRACE_LENGTH_MM:g}mm ceiling. The "
-                    f"parts are placed close enough; the copper between them is "
-                    f"not. The board still routes and still ships — this is an "
-                    f"oscillator running on a longer antenna than its design "
-                    f"guide asks for, not a board that cannot be built. "
-                    f"{advice}",
-                    "warning",
+            if slack < 0:
+                findings.append(
+                    finding(
+                        crystal.name,
+                        "crystal_net_routed_long",
+                        f"{who} is routed as {length:.2f}mm of copper"
+                        f"{breakdown}, {-slack:.2f}mm over the "
+                        f"{CRYSTAL_MAX_TRACE_LENGTH_MM:g}mm ceiling. The "
+                        f"parts are placed close enough; the copper between them "
+                        f"is not. The board still routes and still ships — this "
+                        f"is an oscillator running on a longer antenna than its "
+                        f"design guide asks for, not a board that cannot be "
+                        f"built. {advice}",
+                        "warning",
+                    )
                 )
-            )
+            else:
+                findings.append(
+                    finding(
+                        crystal.name,
+                        "crystal_net_routed_tight",
+                        f"{who} is routed as {length:.2f}mm of copper"
+                        f"{breakdown}, only {slack:.2f}mm inside the "
+                        f"{CRYSTAL_MAX_TRACE_LENGTH_MM:g}mm ceiling. Placement "
+                        f"has more room than this — the copper is what is close "
+                        f"to the line, so the placement figure alone reads as "
+                        f"safe and is not. One extra detour or one via and this "
+                        f"net is over. {advice}",
+                        "warning",
+                    )
+                )
     if board.traces and not thickness:
         coverage.skip(
             "board thickness is not declared, so via depth could not be added "
