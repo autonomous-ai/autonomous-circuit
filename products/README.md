@@ -61,8 +61,8 @@ product, the friction is the point.
 | `macropad-6` | USB-C six-key macropad: 3x2 grid of tactile switches on 19 | no | 14 | 66 × 84mm · 7× drc_violation, 3× pcb_via_trace_clearance_error |
 | `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 10 | 82 × 58mm · 7× drc_violation, 1× pcb_trace_error |
 | `rgb-lamp-controller` | USB-C desk lamp controller: RP2040 brain driving 8 on-board WS2812 pix | **yes** | 0 | 84.9 × 68.6mm |
-| `sensor-node-mini` | Small always-on environment node: temperature, humidity and pressure o | — | — | not built yet |
+| `sensor-node-mini` | Small always-on environment node: temperature, humidity and pressure o | **yes** | 0 | 80.9 × 45.9mm |
 | `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | no | 3 | 47.5 × 68.9mm · 2× drc_violation, 1× dfm_hole_clearance |
 | `usb-c-breakout` | USB-C receptacle broken out to labelled bench pads (VBUS, GND, CC1, CC | **yes** | 0 | 36 × 40.5mm |
 
-**4 of 7 built boards are fab-ready** (8 products in the fleet).
+**5 of 8 built boards are fab-ready** (8 products in the fleet).
