@@ -380,17 +380,39 @@ const GROUP_IDS = new Set(SHORTCUT_GROUPS.map((group) => group.id));
  */
 export const SHORTCUT_COPY = Object.freeze({
   // navigate
-  "tab.schematic": { group: "navigate", order: 10, label: "Schematic" },
+  "tab.schematic": {
+    group: "navigate",
+    order: 10,
+    label: "Schematic",
+    note: "Altium's 1 is Board Planning mode, which this app does not have; it has a schematic pane, which Altium's PCB editor does not.",
+  },
   "tab.pcb": { group: "navigate", order: 20, label: "Board layout" },
   "tab.3d": { group: "navigate", order: 30, label: "3D" },
   "tab.split": { group: "navigate", order: 40, label: "Schematic and board side by side" },
   "layers.show": { group: "navigate", order: 50, label: "Show the layer bar" },
+  "properties.toggle": {
+    group: "navigate",
+    order: 55,
+    label: "Show or hide the Properties panel",
+    note: "Altium's F11 too. Ours is docked rather than floating, so hiding it gives the canvas its width back.",
+  },
+  "properties.focus": {
+    group: "navigate",
+    order: 56,
+    label: "Type the selected part's position instead of dragging it",
+    note: "Altium opens properties-on-the-fly with Tab while placing; this puts the caret in the X box.",
+  },
   "messages.toggle": { group: "navigate", order: 60, label: "Show or hide the messages drawer" },
 
   // select
   "selection.clear": { group: "select", order: 10, label: "Drop the selection" },
   "filter.clear": { group: "select", order: 20, label: "Clear the highlight filter" },
-  "highlight.cycle": { group: "select", order: 30, label: "Cycle how the rest of the board is dimmed" },
+  "highlight.cycle": {
+    group: "select",
+    order: 30,
+    label: "Cycle how the rest of the board is dimmed",
+    note: "Altium's plain M is the Move menu. Moving here is E then a drag; M is free, so it carries the dimming instead.",
+  },
   "mask.decrease": { group: "select", order: 40, label: "Show more of the dimmed board" },
   "mask.increase": { group: "select", order: 50, label: "Show less of the dimmed board" },
 
@@ -481,6 +503,10 @@ export function buildShortcutSheet(bindings = allBindings()) {
     const row = byId.get(binding.id) || {
       id: binding.id,
       label: copy.label,
+      // Where our key differs from the tool an EE arrives from, the sheet says
+      // so. A gesture that exists and means something else is worse than one
+      // that is missing, because nobody finds out until they have done it.
+      note: copy.note || "",
       order: copy.order ?? 999,
       group: copy.group,
       combos: [],

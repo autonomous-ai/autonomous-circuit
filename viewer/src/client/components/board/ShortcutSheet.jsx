@@ -76,7 +76,9 @@ export function ShortcutSheet({ open, onOpenChange }) {
       .map((group) => ({
         ...group,
         rows: group.rows.filter((row) =>
-          `${row.label} ${row.combos.join(" ")} ${row.when} ${row.id}`.toLowerCase().includes(needle),
+          `${row.label} ${row.combos.join(" ")} ${row.when} ${row.note || ""} ${row.id}`
+            .toLowerCase()
+            .includes(needle),
         ),
       }))
       .filter((group) => group.rows.length > 0);
@@ -142,6 +144,19 @@ export function ShortcutSheet({ open, onOpenChange }) {
                         {row.label}
                         {row.when ? (
                           <span className="text-muted-foreground"> — {row.when}</span>
+                        ) : null}
+                        {/* Where our key means something other than what the
+                            same key means in Altium, say so here. A gesture
+                            that exists and does something else is worse than a
+                            missing one: nobody finds out until they have done
+                            it. */}
+                        {row.note ? (
+                          <span
+                            data-slot="shortcut-note"
+                            className="mt-0.5 block text-[11px] leading-4 text-muted-foreground/80"
+                          >
+                            {row.note}
+                          </span>
                         ) : null}
                       </dd>
                     </div>

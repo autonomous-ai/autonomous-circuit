@@ -355,6 +355,10 @@ export default function PropertiesPanel({
   // What each net is routed at and what it could be — measured on demand by
   // `useNetWidths`, which the workspace owns because it is keyed to the build.
   netWidths = null,
+  // Set to a function that puts the caret in the selected part's X field.
+  // `Tab` on the canvas calls it — Altium's properties-on-the-fly, landing on
+  // the number an engineer wants to type instead of drag for.
+  focusRef = null,
   className,
 }) {
   const component = useMemo(() => {

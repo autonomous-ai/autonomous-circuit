@@ -140,6 +140,9 @@ export default function BoardWorkspace({
   const [hudVisible, setHudVisible] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [messagesOpen, setMessagesOpen] = useState(true);
+  // Properties is docked, not floating, so hiding it is how an engineer on a
+  // laptop gets the canvas width back. Altium's F11 does the same thing.
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [hover, setHover] = useState(null);
   const [flash, setFlash] = useState(null);
   const [pcbView, setPcbView] = useState({ scale: 0 });
@@ -802,6 +805,8 @@ export default function BoardWorkspace({
   // same reason undo and redo are: the key effect must not re-subscribe on
   // every selection change, and the placement is computed far below it.
   const nudgeRef = useRef(null);
+  // Set by PropertiesPanel; puts the caret in the selected part's X field.
+  const focusPropertiesRef = useRef(null);
   redoRef.current = canEdit && editor.ready && editor.canRedo && !editor.busy ? editor.redo : null;
 
   // --- keyboard, honouring Altium's bindings where a browser lets us.
@@ -922,6 +927,21 @@ export default function BoardWorkspace({
           break;
         case "units.toggle":
           setUnits((value) => (value === "mm" ? "mil" : "mm"));
+          break;
+        // Altium's F11. Ours is a docked panel rather than a floating one, so
+        // the toggle buys the canvas a third of the width back — which on a
+        // laptop is the difference between seeing a fanout and not.
+        case "properties.toggle":
+          setPropertiesOpen((value) => !value);
+          break;
+        // Altium's Tab is properties-on-the-fly while placing. Ours puts the
+        // caret in the X field of the selected part, which is the same intent
+        // — "let me type the number instead of dragging for it" — and it only
+        // binds when there is a part to type for, so tabbing through the page
+        // still works for anyone navigating by keyboard.
+        case "properties.focus":
+          setPropertiesOpen(true);
+          focusPropertiesRef.current?.();
           break;
         case "highlight.cycle":
           setHighlightMethod((value) => nextHighlightMethod(value));
@@ -1421,8 +1441,9 @@ export default function BoardWorkspace({
                     plain-language tabs it duplicates the same numbers in EDA
                     words and steals a third of the width from the thing that
                     is trying to explain them. */}
-                {PLAIN_TABS.has(activeTab) ? null : (
+                {PLAIN_TABS.has(activeTab) || !propertiesOpen ? null : (
                   <PropertiesPanel
+                    focusRef={focusPropertiesRef}
                     index={index}
                     sidecar={effectiveSidecar}
                     selection={selection}

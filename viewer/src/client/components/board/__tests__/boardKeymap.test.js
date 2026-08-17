@@ -54,6 +54,11 @@ const TABLE = Object.freeze([
   { key: "e", command: "edit-mode.toggle" },
   { key: "f", command: "view.fit" },
   { key: "q", command: "units.toggle" },
+  // Altium's own two: F11 shows/hides the Properties panel, Tab opens
+  // properties-on-the-fly while placing. Tab only binds when there is a part
+  // to type coordinates for, so tabbing through the page still works.
+  { key: "F11", command: "properties.toggle" },
+  { key: "Tab", command: "properties.focus", mode: { canNudge: true } },
   { key: "m", command: "highlight.cycle" },
   { key: "[", command: "mask.decrease" },
   { key: "]", command: "mask.increase" },

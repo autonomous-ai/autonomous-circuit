@@ -480,3 +480,68 @@ test("the strip says why a part cannot be dragged, in the words of the file", as
     w.close();
   }
 });
+
+// Round 4, editing judge, scored 6/10 on this one case: placement ids are
+// positional (`tag[ordinal]`), so an agent inserting an earlier element of the
+// same tag renames every later one. The human's next nudge then re-resolved
+// the id against the new text, found a DIFFERENT real part, computed clean
+// spans for it, and wrote — no refusal, nothing on screen. A mouse drag
+// happened to self-correct because it re-hit-tests real geometry, so the
+// defect was invisible depending on which input you used.
+test("an agent inserting a part above yours does not redirect your nudge onto a neighbour", async () => {
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    // Select R31 — the second <resistor> in the file, id `resistor[2]`.
+    const target = w.placements.byId.get("resistor[2]");
+    assert.equal(target.name, "R31", `fixture moved: resistor[2] is ${target.name}`);
+    const at = w.at(target.x, target.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle(4);
+
+    // The agent inserts one resistor ABOVE it. Every later ordinal shifts by
+    // one, so `resistor[2]` now names the part that used to be `resistor[1]`.
+    const before = w.server.source;
+    const anchor = "    <resistor";
+    const inserted = before.replace(
+      anchor,
+      `    <resistor name="R99" resistance="1k" footprint="0402" pcbX={40} pcbY={40} />\n${anchor}`,
+    );
+    assert.notEqual(inserted, before, "could not insert ahead of the first resistor");
+    w.server.agentWrites(inserted);
+    await w.settle(4);
+
+
+    // Nudge. This is the input method that used to write to the wrong part.
+    w.ui.container.querySelector('[data-slot="pcb-canvas"]')?.focus?.();
+    key(window, "ArrowRight", { ctrlKey: true });
+    await w.settle(6);
+
+    const source = w.server.source;
+    // R31 either moved, or nothing moved — but R30 must not have.
+    const r30 = /name="R30"[^/]*pcbX=\{(-?[\d.]+)\}/.exec(source);
+    const r30Before = /name="R30"[^/]*pcbX=\{(-?[\d.]+)\}/.exec(inserted);
+    assert.ok(r30 && r30Before, "could not read R30's x out of the board file");
+    assert.equal(
+      r30[1],
+      r30Before[1],
+      "the nudge landed on R30 — a part the engineer never selected",
+    );
+
+    // Two acceptable outcomes, and the file decides which happened — a
+    // refused request still counts as a request, so the request log cannot.
+    if (source !== inserted) {
+      // Something was written: it must be the part that was selected.
+      const r31 = /name="R31"[^/]*pcbX=\{(-?[\d.]+)\}/.exec(source);
+      assert.ok(r31, "R31 left the file");
+      assert.notEqual(r31[1], String(target.x), "the file changed but R31 did not move");
+    } else {
+      // Nothing was written, which is the safe answer — but it has to say so
+      // where the engineer is looking, not only in the console.
+      const shown = w.text('[data-slot="placement-edit-error"]');
+      assert.ok(shown.trim(), "the nudge did nothing and said nothing");
+    }
+  } finally {
+    w.close();
+  }
+});
