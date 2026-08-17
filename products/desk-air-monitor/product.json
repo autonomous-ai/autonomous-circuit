@@ -1,0 +1,9 @@
+{
+  "name": "desk-air-monitor",
+  "description": "USB-C desk device that reads temperature, humidity and pressure and shows status on two LEDs, with a tactile button.",
+  "power": "usb-c-5v",
+  "envelopeMm": [62, 66],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

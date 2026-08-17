@@ -1,0 +1,149 @@
+/**
+ * i2c-sensor-hub — USB-C board that reads a BME280 and breaks its I2C bus
+ * out to a bare-pad header so other sensors can hang off it.
+ *
+ * dialect: tscircuit@0.0.2279 (pinned — repo toolchain/package.json)
+ *
+ * Blocks used: usb-c-data, ldo-3v3, rp2040-core, i2c-bus, sensor-bme280,
+ * status-led x2, sw-tact, glue.tsx (MountingHole, DebugPort)
+ * Rails: V5 (USB VBUS) -> ldo-3v3 -> V3_3 (logic, sensor, bus pull-ups)
+ * Envelope: 95 x 67 mm, 2 layers, 1.6mm — product.json's envelope is set to
+ * exactly this (95 x 67), inside JLC's 100 x 100mm $2-for-5 sample envelope.
+ *
+ * No pin-header block exists in the golden library (checked blocks/README.md
+ * and the catalog — only testpoint/pad glue). Per the assignment brief, the
+ * SDA/SCL/3V3/GND breakout is landed as four bare pads, same pattern
+ * examples/hydrate-coaster uses for its debug port: testpoint,
+ * footprintVariant="pad". A human solders a 4-pin 2.54mm header on if they
+ * want one; the copper is there either way.
+ *
+ * Layout intent
+ *   Placement for usb-c-data/ldo-3v3/rp2040-core/i2c-bus/sensor-bme280/
+ *   status-led(PWR)/sw-tact comes straight from circuitlib.layout.place_board
+ *   on that block set — zero overlap/fit warnings at 94.8 x 51.4mm. The board
+ *   here is grown to 95 x 67mm (board rect is centred at origin, so height
+ *   grows symmetrically) to open a clear band above the RP2040/bus row for
+ *   the activity LED, the debug port and the breakout pads — furniture that
+ *   set has no slot for. usb-c-data is re-seated to hug the new, farther-away
+ *   bottom edge (place_board's formula, evaluated at the new height) so the
+ *   receptacle mouth still sits at the board edge instead of floating in the
+ *   extra headroom.
+ *
+ * Pin allocation (RP2040, U3)
+ *   GPIO4   I2C_SDA      to i2c-bus / sensor-bme280 (default SDA net)
+ *   GPIO5   I2C_SCL      to i2c-bus / sensor-bme280 (default SCL net)
+ *   GPIO2   LED_ACT      activity LED (LED2), firmware-driven
+ *   GPIO3   BTN_USER     user button, active low, internal pull-up
+ *   USB_DP/USB_DM        to usb-c-data (explicit trace off the chip pins,
+ *                        per rp2040-core's own contract and the
+ *                        hydrate-coaster reference board)
+ *   SWCLK/SWD            landed on DebugPort, not left dangling
+ *   LED1 (PWR) is hard-wired to V3_3 — proof of power the firmware can't lie
+ *   about, same convention as hydrate-coaster's LED1.
+ *
+ * Every part below is a golden block or glue (a resistor is inside a block;
+ * the only glue here is mounting holes, the debug port, and four bare pads).
+ * Nothing was invented from a datasheet.
+ */
+
+import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
+import { Ldo3v3 } from "../blocks/ldo-3v3/ldo-3v3"
+import { Rp2040Core } from "../blocks/rp2040-core/rp2040-core"
+import { I2cBus } from "../blocks/i2c-bus/i2c-bus"
+import { SensorBme280 } from "../blocks/sensor-bme280/sensor-bme280"
+import { StatusLed } from "../blocks/status-led/status-led"
+import { SwTact } from "../blocks/sw-tact/sw-tact"
+import { MountingHole, DebugPort, GndPour } from "../blocks/glue"
+
+export default () => (
+  <board
+    width="95mm"
+    height="67mm"
+    thickness={1.6}
+    /* 5x is the SKILL.md floor; this board pairs usb-c-data with
+       rp2040-core, the exact combination the reference board
+       (examples/hydrate-coaster) needed 10x to clear on its USB-C data-pair
+       fanout even after a favorable rotation. Declaring 10x up front instead
+       of discovering the same shortfall on a second build. */
+    autorouterEffortLevel="10x"
+    minTraceWidth="0.15mm"
+    minViaPadDiameter="0.6mm"
+    minViaHoleDiameter="0.3mm"
+  >
+    {/* ---- power entry: USB-C on the bottom edge, 5V + the USB 2.0 pair ---- */}
+    <UsbCData pcbX={-1.82} pcbY={-22.29} schX={-46} schY={0} />
+
+    {/* ---- logic rail: V5 -> V3_3 ------------------------------------------ */}
+    <Ldo3v3 pcbX={-32.79} pcbY={11.41} schX={-24} schY={0} />
+
+    {/* ---- the brain --------------------------------------------------------
+        Unrotated: the usb-c-data / rp2040-core gap here (3.8mm) is wider than
+        the same unrotated pairing measured elsewhere, and there is no
+        competing dense fanout (no cup-sense electrodes) forcing the chip's
+        far side toward the connector, so the 180deg rotation hydrate-coaster
+        needed is not repeated here. */}
+    <Rp2040Core pcbX={-12.87} pcbY={15.0} schX={0} schY={0} />
+    <trace name="TR_USB_DP" from=".U3 > .USB_DP" to="net.USB_DP" />
+    <trace name="TR_USB_DM" from=".U3 > .USB_DM" to="net.USB_DM" />
+
+    {/* ---- I2C bus: exactly one pull-up pair, then the sensor -------------- */}
+    <I2cBus pcbX={5.94} pcbY={9.49} schX={20} schY={8} />
+    <SensorBme280 pcbX={14.5} pcbY={9.49} schX={20} schY={0} />
+    <trace name="TR_SDA" from=".U3 > .GPIO4" to="net.SDA" />
+    <trace name="TR_SCL" from=".U3 > .GPIO5" to="net.SCL" />
+
+    {/* ---- indicators --------------------------------------------------------
+        LED1 (PWR) hard-wired to the rail: proof of power the firmware cannot
+        lie about. LED2 (ACT) is firmware-driven off GPIO2. */}
+    <StatusLed led="LED1" r="R20" rail="V3_3" pcbX={26.54} pcbY={8.43} schX={0} schY={-14} />
+    <StatusLed led="LED2" r="R21" rail="LED_ACT" pcbX={-35} pcbY={26} schX={6} schY={-14} />
+    <trace name="TR_LED_ACT" from=".U3 > .GPIO2" to="net.LED_ACT" />
+
+    {/* ---- user button, active low into GPIO3 with the internal pull-up ---- */}
+    <SwTact name="SW1" signal="BTN_USER" pcbX={33.46} pcbY={9.49} schX={30} schY={-8} />
+    <trace name="TR_BTN_USER" from=".U3 > .GPIO3" to="net.BTN_USER" />
+
+    {/* ---- debug port --------------------------------------------------------
+        Open board space, clear of the RP2040's own box (SKILL.md: pads inside
+        the block's footprint route the debug pair through the crystal
+        cluster and come back shorted). 2.6mm clear of the RP2040's top edge
+        at this y. */}
+    <DebugPort pcbX={-10} pcbY={26.5} schX={-10} schY={14} />
+
+    {/* ---- bus breakout: no pin-header block in the golden library (a
+        library gap, noted in work/ee-feedback), so this is four bare pads —
+        the same testpoint/footprintVariant="pad" pattern
+        examples/hydrate-coaster uses for its own debug port. A human solders
+        a 2.54mm 4-pin header on when they want one.
+        Named TP4-TP7 (DebugPort already owns TP1-3): the BOM gate only
+        excuses bare copper from needing an LCSC number when the refdes
+        prefix is TP/FID/MH/H *and* carries a digit — PAD_SDA etc. tripped
+        `part_not_orderable` as a blocking error on the first check because
+        the prefix didn't match (measured 2026-08-17). */}
+    <testpoint name="TP4" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={15} pcbY={26.5} schX={30} schY={14} />
+    <testpoint name="TP5" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={17.54} pcbY={26.5} schX={32} schY={14} />
+    <testpoint name="TP6" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={20.08} pcbY={26.5} schX={34} schY={14} />
+    <testpoint name="TP7" footprintVariant="pad" padShape="circle" padDiameter="1mm" pcbX={22.62} pcbY={26.5} schX={36} schY={14} />
+    <trace name="TR_TP4_SDA" from=".TP4 > .pin1" to="net.SDA" />
+    <trace name="TR_TP5_SCL" from=".TP5 > .pin1" to="net.SCL" />
+    <trace name="TR_TP6_3V3" from=".TP6 > .pin1" to="net.V3_3" />
+    <trace name="TR_TP7_GND" from=".TP7 > .pin1" to="net.GND" />
+    <silkscreentext text="SDA" pcbX={15} pcbY={28.3} fontSize={1} />
+    <silkscreentext text="SCL" pcbX={17.54} pcbY={28.3} fontSize={1} />
+    <silkscreentext text="3V3" pcbX={20.08} pcbY={28.3} fontSize={1} />
+    <silkscreentext text="GND" pcbX={22.62} pcbY={28.3} fontSize={1} />
+
+    {/* ---- mechanics: M3 in the reserved corner strip ---------------------- */}
+    <MountingHole name="H1" diameter={3.2} pcbX={-44.3} pcbY={-30.3} />
+    <MountingHole name="H2" diameter={3.2} pcbX={44.3} pcbY={30.3} />
+
+    {/* ---- silkscreen -------------------------------------------------------- */}
+    <silkscreentext text="I2C SENSOR HUB" pcbX={0} pcbY={31.5} fontSize={2} />
+    <silkscreentext text="BME280" pcbX={14.5} pcbY={13.5} fontSize={1.2} />
+    <silkscreentext text="I2C BUS" pcbX={-40} pcbY={20} fontSize={1.2} />
+    <silkscreentext text="PWR" pcbX={26.54} pcbY={12.5} fontSize={1.2} />
+    <silkscreentext text="ACT" pcbX={-35} pcbY={29.6} fontSize={1.2} />
+    <silkscreentext text="USER" pcbX={33.46} pcbY={13.9} fontSize={1.2} />
+    <silkscreentext text="USB-C 5V" pcbX={-1.82} pcbY={-9} fontSize={1.2} />
+  </board>
+)

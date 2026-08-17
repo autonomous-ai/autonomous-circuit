@@ -1,0 +1,12 @@
+{
+ "board": "main",
+ "runId": "1a00d75118e-c81d",
+ "schema": 1,
+ "stage": "compile",
+ "stageCount": 7,
+ "stageIndex": 1,
+ "stageLabel": "Compiling the board",
+ "startedAt": 1786932171.151,
+ "state": "running",
+ "updatedAt": 1786932171.151
+}

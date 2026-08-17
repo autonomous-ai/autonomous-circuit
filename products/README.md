@@ -56,4 +56,9 @@ product, the friction is the point.
 
 | Product | What it is | `fab.ready` | Blocking | Notes |
 |---|---|---|---|---|
-| _(the first entries land as the team finishes them)_ | | | | |
+| `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | **yes** | 0 | 61 × 64.8mm |
+| `i2c-sensor-hub` | USB-C board that reads a BME280 and breaks its I2C bus out to a pad he | — | — | not built yet |
+| `macropad-6` | USB-C six-key macropad: 3x2 grid of tactile switches on 19 | — | — | not built yet |
+| `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | — | — | not built yet |
+
+**1 of 1 built boards are fab-ready** (4 products in the fleet).

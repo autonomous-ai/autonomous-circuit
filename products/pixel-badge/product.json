@@ -1,0 +1,9 @@
+{
+  "name": "pixel-badge",
+  "description": "a wearable conference badge: 8 addressable RGB pixels across the top, two buttons to change patterns, USB-C for power and firmware",
+  "power": "usb-c-5v",
+  "envelopeMm": [83, 59],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

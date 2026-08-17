@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""The fleet table, regenerated from the sidecars rather than from memory.
+
+A table of boards that someone updates by hand is a table that drifts, and the
+one thing this fleet is for is knowing — without asking anyone — how many real
+products the tool has actually carried to fab-ready. So the numbers come from
+each board's own `main.board.json`, the file the pipeline writes and the
+review loop gates on.
+
+    scripts/fleet-status            # print the table
+    scripts/fleet-status --write    # rewrite the table inside products/README.md
+
+Never invents a row: a product with no sidecar is listed as "not built yet",
+because a missing verdict and a passing one must not look the same.
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+MARKER = "| Product | What it is | `fab.ready` | Blocking | Notes |"
+
+
+def read_board(board_json: Path) -> dict:
+    try:
+        data = json.loads(board_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+    warnings = (data.get("validation") or {}).get("warnings") or []
+    counts = collections.Counter(str(w.get("severity")) for w in warnings)
+    board = data.get("board") or {}
+    return {
+        "ready": bool((data.get("fab") or {}).get("ready")),
+        "blocking": counts.get("error", 0),
+        "warning": counts.get("warning", 0),
+        "info": counts.get("info", 0),
+        "width": board.get("widthMm"),
+        "height": board.get("heightMm"),
+        "bom": (data.get("bom") or {}).get("lines"),
+        "kinds": [w.get("kind") for w in warnings if w.get("severity") == "error"],
+    }
+
+
+def describe(project: Path) -> str:
+    try:
+        product = json.loads((project / "product.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    return str(product.get("description") or "").strip()
+
+
+def rows(root: Path) -> list[dict]:
+    out = []
+    for project in sorted(p for p in root.iterdir() if p.is_dir()):
+        sidecar = project / "boards" / "main.board.json"
+        row = {"slug": project.name, "what": describe(project)}
+        row.update(read_board(sidecar) if sidecar.is_file() else {"missing": True})
+        out.append(row)
+    return out
+
+
+def table(items: list[dict]) -> str:
+    lines = [MARKER, "|---|---|---|---|---|"]
+    for row in items:
+        what = (row.get("what") or "").split(".")[0][:70]
+        if row.get("missing"):
+            lines.append(f"| `{row['slug']}` | {what} | — | — | not built yet |")
+            continue
+        if row.get("error"):
+            lines.append(f"| `{row['slug']}` | {what} | — | — | sidecar unreadable: {row['error']} |")
+            continue
+        size = ""
+        if row.get("width") and row.get("height"):
+            size = f"{row['width']:g} × {row['height']:g}mm"
+        note = size
+        if row["blocking"]:
+            kinds = collections.Counter(row["kinds"])
+            worst = ", ".join(f"{n}× {k}" for k, n in kinds.most_common(2))
+            note = f"{size} · {worst}"
+        lines.append(
+            f"| `{row['slug']}` | {what} | {'**yes**' if row['ready'] else 'no'} "
+            f"| {row['blocking']} | {note} |"
+        )
+    ready = sum(1 for row in items if row.get("ready"))
+    built = sum(1 for row in items if not row.get("missing") and not row.get("error"))
+    lines.append("")
+    lines.append(
+        f"**{ready} of {built} built boards are fab-ready** "
+        f"({len(items)} products in the fleet)."
+    )
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write", action="store_true", help="rewrite products/README.md's table")
+    args = parser.parse_args(argv)
+
+    root = REPO / "products"
+    if not root.is_dir():
+        print("no products/ directory yet", file=sys.stderr)
+        return 1
+    rendered = table(rows(root))
+    if not args.write:
+        print(rendered)
+        return 0
+
+    readme = root / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    at = text.find(MARKER)
+    if at == -1:
+        print("products/README.md has no fleet table to replace", file=sys.stderr)
+        return 1
+    readme.write_text(text[:at] + rendered + "\n", encoding="utf-8")
+    print(f"wrote {readme.relative_to(REPO)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

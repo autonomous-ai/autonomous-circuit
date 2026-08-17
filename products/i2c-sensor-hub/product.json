@@ -1,0 +1,9 @@
+{
+  "name": "i2c-sensor-hub",
+  "description": "USB-C board that reads a BME280 and breaks its I2C bus out to a pad header so other sensors can hang off it",
+  "power": "usb-c-5v",
+  "envelopeMm": [95, 67],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
