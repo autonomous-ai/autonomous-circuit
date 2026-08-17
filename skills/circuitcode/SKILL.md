@@ -279,9 +279,18 @@ knowing the user?** If yes, pick it and move on.
 # Full build — the normal case. Pass the board file, absolute path.
 python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
 
-# Cheap structural check — compile + circuit-json scan + checks library only.
-# No kicad, no fab export, artifacts discarded. Use before paying for a full run.
+# Structural check — compile + circuit-json scan + checks library. The fab
+# packet is built and discarded, so this costs about what a full build costs
+# and is NOT a cheap pre-flight (measured 2026-08-17: same findings, same
+# minutes). Use it when you want a verdict without a packet, not to save time.
 python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
+
+# Sub-second verdict on a board that has ALREADY been built, with optional
+# placement moves applied in memory. This is the fast gate: ~0.5-0.9s on the
+# boards we ship, no compile at all. It cannot see anything a rebuild would
+# change — the copper pour, what the router will do next, the fab packet — and
+# it says so in `not_checked`.
+python -m circuitpy.fastcheck /abs/project --board boards/main.circuit.json
 
 # Review pass — re-surface warnings and regenerate the review images
 # without rebuilding. Returns the PNG paths.
