@@ -474,6 +474,26 @@ export function allBindings() {
   return [...probeAll(), ...INLINE_BINDINGS];
 }
 
+/**
+ * The key for one command, for a caller that has a command and wants a key —
+ * the app menu, which shows the shortcut beside each row so it teaches the
+ * keyboard rather than replacing it.
+ *
+ * Derived from the same probe as everything else here, so a menu can never
+ * print a key the app does not answer to. Returns "" when a command has no
+ * binding, which is a legitimate state (a menu-only action).
+ */
+let comboCache = null;
+export function comboFor(command) {
+  if (!comboCache) {
+    comboCache = new Map();
+    for (const binding of allBindings()) {
+      if (!comboCache.has(binding.id)) comboCache.set(binding.id, binding.combo);
+    }
+  }
+  return comboCache.get(String(command || "")) || "";
+}
+
 /** Binding ids with no line of copy. The test's teeth in one direction. */
 export function bindingsMissingCopy(bindings = allBindings()) {
   return [...new Set(bindings.filter((row) => !SHORTCUT_COPY[row.id]).map((row) => row.id))].sort();

@@ -23,6 +23,8 @@ import { isEditableTarget } from "@/ui/dom";
 import { transport, isTauriRuntime } from "@/lib/transport.ts";
 import circuitLogoUrl from "@/assets/favicon.png";
 import { OPEN_SHORTCUT_SHEET_EVENT } from "./board/ShortcutSheet.jsx";
+import { BOARD_MENU_ITEMS, runBoardMenuCommand } from "./board/boardMenuCommands.js";
+import { comboFor } from "./board/shortcutSheet.js";
 
 /**
  * In-window menu bar (Windows-style row) mirroring the native macOS application
@@ -270,6 +272,34 @@ export default function WindowMenuBar() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* The board's own commands. Three panel rounds reported that where
+          this bar renders at all it carried nothing but the webview's text
+          Cut/Copy/Paste — so "Undo" in the Edit menu above undoes typing, not
+          a part move, which is a trap rather than a gap. These are the board's,
+          they run the same handler the keys do, and each shows the key so the
+          menu teaches the shortcut instead of replacing it. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Board</DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={4} className="min-w-56">
+          {BOARD_MENU_ITEMS.map((item, at) =>
+            item === null ? (
+              <DropdownMenuSeparator key={`sep-${at}`} />
+            ) : (
+              <DropdownMenuItem
+                key={item.command}
+                data-slot={`board-menu-${item.command}`}
+                onSelect={() => runBoardMenuCommand(item.command)}
+              >
+                {item.label}
+                {comboFor(item.command) ? (
+                  <DropdownMenuShortcut>{comboFor(item.command)}</DropdownMenuShortcut>
+                ) : null}
+              </DropdownMenuItem>
+            ),
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <DropdownMenu>
         <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Help</DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={4} className="min-w-44">
@@ -287,6 +317,9 @@ export default function WindowMenuBar() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Minimize / Zoom / Close Window need a desktop shell to mean
+          anything; in a browser tab they are three dead rows. */}
+      {showWindowControls ? (
       <DropdownMenu>
         <DropdownMenuTrigger className={MENU_TRIGGER_CLASS}>Window</DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={4} className="min-w-44">
@@ -296,6 +329,7 @@ export default function WindowMenuBar() {
           <DropdownMenuItem onSelect={() => void windowAction("close")}>Close Window</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      ) : null}
 
       {/* Draggable region: fills the gap between the menus and the window
           controls so the user can move the (undecorated, Windows-only) window

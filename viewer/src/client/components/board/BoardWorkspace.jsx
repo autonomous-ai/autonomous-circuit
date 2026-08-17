@@ -20,6 +20,7 @@ import { useChatStore } from "@/store/chat.js";
 import { triggerBlobDownload } from "@/ui/download.js";
 import Board3DView from "./Board3DView.jsx";
 import BoardActions from "./BoardActions.jsx";
+import { BOARD_COMMAND_EVENT } from "./boardMenuCommands.js";
 import BoardOrientationCube from "./BoardOrientationCube.jsx";
 import BoardTreeSidebar from "./BoardTreeSidebar.jsx";
 import RevisionPager from "./RevisionPager.jsx";
@@ -824,19 +825,17 @@ export default function BoardWorkspace({
   // space, because the two bugs this replaced were both resolution bugs rather
   // than dispatch bugs: `L` reaching the wrong surface, and Ctrl+Z reaching
   // nothing at all. This effect is now only the dispatch.
-  useEffect(() => {
-    const onKey = (event) => {
-      const command = resolveBoardKey(event, {
-        typing: isTypingTarget(event.target),
-        canUndo: Boolean(undoRef.current),
-        canRedo: Boolean(redoRef.current),
-        canNudge: Boolean(nudgeRef.current),
-      });
-      if (!command) return;
-      // Only the modified bindings are worth taking off the browser: ⌘M
-      // minimizes a window and ⌘Z runs the webview's own text undo. The plain
-      // letters collide with nothing.
-      if (event.metaKey || event.ctrlKey) event.preventDefault();
+  /**
+   * Every board command, in one place, reachable by more than one road.
+   *
+   * It used to live inline in the keydown handler, which meant a key was the
+   * only way to reach any of it — and the app menu, which is where a person
+   * who does not know the keys goes looking, carried nothing but the
+   * webview's own text Cut/Copy/Paste. Three panel rounds reported that. A
+   * command an engineer can only reach by already knowing its key is not a
+   * command they can find.
+   */
+  const runBoardCommand = useCallback((command) => {
       switch (command) {
         case "edit.undo":
           undoRef.current?.();
@@ -985,10 +984,37 @@ export default function BoardWorkspace({
         default:
           break;
       }
+  }, [fitAll, singleLayerMode, viewing, activeTab, editing, zoomActivePane, snapStep]);
+
+  useEffect(() => {
+    const onKey = (event) => {
+      const command = resolveBoardKey(event, {
+        typing: isTypingTarget(event.target),
+        canUndo: Boolean(undoRef.current),
+        canRedo: Boolean(redoRef.current),
+        canNudge: Boolean(nudgeRef.current),
+      });
+      if (!command) return;
+      // Only the modified bindings are worth taking off the browser: ⌘M
+      // minimizes a window and ⌘Z runs the webview's own text undo. The plain
+      // letters collide with nothing.
+      if (event.metaKey || event.ctrlKey) event.preventDefault();
+      runBoardCommand(command);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, singleLayerMode, viewing, activeTab, editing, zoomActivePane, snapStep]);
+  }, [runBoardCommand]);
+
+  // The app menu's Board items. Same commands, same handler — the menu cannot
+  // drift from the keyboard because there is only one of it.
+  useEffect(() => {
+    const onMenu = (event) => {
+      const command = String(event?.detail?.command || "");
+      if (command) runBoardCommand(command);
+    };
+    window.addEventListener(BOARD_COMMAND_EVENT, onMenu);
+    return () => window.removeEventListener(BOARD_COMMAND_EVENT, onMenu);
+  }, [runBoardCommand]);
 
   const hoverNetName = useMemo(() => {
     if (!hover?.netKey || !index) return hover?.label || "";

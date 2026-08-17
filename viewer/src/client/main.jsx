@@ -10,7 +10,7 @@ import { shouldOnboard } from "./components/onboarding/onboardingHelpers.js";
 import AccountScreen from "./components/workbench/AccountScreen.jsx";
 import faviconUrl from "./assets/favicon.ico";
 import "./styles/globals.css";
-import { isWindowsPlatform, transport } from "./lib/transport.ts";
+import { transport } from "./lib/transport.ts";
 import { attachCatalogStream, useCatalogStore } from "./store/catalog.ts";
 import { selectBoardEntries, selectPartsEntry } from "./lib/boardModel.js";
 import { isStagePending } from "./components/board/stageState.js";
@@ -269,7 +269,17 @@ function AppRoot() {
   // The in-window menu bar duplicates the native macOS menu and only earns its
   // place on Windows, which has no native global menu bar; macOS and Linux
   // hide it. When hidden, the workspace + chat reclaim the full height.
-  const showWindowMenuBar = isWindowsPlatform();
+  // Every platform, not just Windows.
+  //
+  // This gate came from the donor, a Tauri desktop app where macOS got a
+  // *native* menu in the OS menu bar and this row was the Windows stand-in for
+  // it. Circuit is a web app — `isTauriRuntime` says so in as many words — so
+  // there is no native menu on any platform, and on macOS and Linux the gate
+  // meant no menu at all. Three panel rounds reported "no app menu off
+  // Windows"; the menu was never missing, its condition had simply stopped
+  // being true. Window controls stay gated on a real desktop shell inside the
+  // bar itself.
+  const showWindowMenuBar = true;
 
   // On a phone-width viewport the create/chat panel becomes full-screen (the
   // primary task) instead of a fixed sidebar squeezed next to the board stage.
