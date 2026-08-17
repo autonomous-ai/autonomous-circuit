@@ -1,4 +1,4 @@
-"""The sub-second verdict on a placement edit — and an honest list of what it
+"""The ~1s verdict on a placement edit — and an honest list of what it
 cannot see.
 
 A drag in the IDE changes one numeric literal in ``boards/<stem>.tsx``. The
@@ -47,6 +47,16 @@ All three boards, not the flattering one: an earlier version of this docstring
 quoted terminal-keyboard alone, which was the only board the promise held on.
 The Python leg and the node leg run concurrently because neither touches the
 other's data.
+
+**Every one of those numbers was taken on a quiet machine, and that is half a
+measurement.** Re-timed 2026-08-17 on terminal-keyboard at load average
+**15.5** (a fleet of build agents running alongside): **1,102 / 1,304 /
+1,135ms** for this module, and a panel judge measured 1.04-1.16s through the
+HTTP path on the same box. So the honest claim is *about a second, and under
+load a little over* — not "sub-second", which is what the word above promised
+and what a busy machine does not deliver. The shape of the answer is unchanged
+and the gate is still two to three orders of magnitude cheaper than the build
+it stands in for; the adjective was the thing that was wrong.
 
 CLI (one JSON line on stdout, last line wins — the house convention):
 
@@ -700,7 +710,7 @@ def fast_check(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m circuitpy.fastcheck",
-        description="Sub-second verdict on a board, with placement moves applied.",
+        description="Grade a built board in about a second, with placement moves applied.",
     )
     parser.add_argument("project", type=Path, help="the project root")
     parser.add_argument("--board", default="boards/main.circuit.json",

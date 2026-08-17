@@ -305,7 +305,7 @@ python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
 # use `circuit` when you want a board.
 python -m circuitpy.preflight /abs/project --board boards/main.tsx
 
-# Sub-second verdict on a board that has ALREADY been built, with optional
+# ~1s verdict on a board that has ALREADY been built, with optional
 # placement moves applied in memory. This is the fast gate: ~0.5-0.9s on the
 # boards we ship, no compile at all. It cannot see anything a rebuild would
 # change — the copper pour, what the router will do next, the fab packet — and
