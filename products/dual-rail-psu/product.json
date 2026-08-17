@@ -1,0 +1,17 @@
+{
+  "name": "dual-rail-psu",
+  "description": "USB-C bench supply brick: 5V and 3V3 broken out on labelled pad headers, one status LED per rail, so a laptop charger can feed a breadboard without a bench PSU. No MCU on this board.",
+  "power": "usb-c-5v",
+  "envelopeMm": [42, 52],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true,
+  "powerBudget": {
+    "source": "USB-C VBUS, 5V. usb-c-power's 5.1k/5.1k CC pulldowns advertise a UFP sink; no PD negotiation, so a source may offer anywhere from 500mA (USB 2.0 default) up to 3A depending on what it decides to give a plain resistor-only sink. usb-c-power's own BLOCK.md budgets conservatively at 5V @ 1.5A for a JLC 1oz 2-layer board — that is the number this board's V5 header and copper are sized to, not the connector's ceiling.",
+    "V5_header": "Fed straight off VBUS, no regulation, no fusing beyond what the charger itself does. Budgeted 1.5A continuous (usb-c-power's own board budget). IPC-2221 (10C rise, 1oz external) only needs 0.525mm for 1.5A; declared at 0.5mm to also clear the fab profile's warn_power_trace_mm advisory floor, after circuitpy.netwidth confirmed every V5 pad on this placement can escape at 0.5mm or wider (see boards/main.tsx header comment for the measured ceiling).",
+    "ldo": "AMS1117-3.3 (ldo-3v3), 5V in / 3.3V out, SOT-223. BLOCK.md rates it <=500mA continuous on a JLC 1oz 2-layer board with a poured tab. Dropout ~1.3V at full load is irrelevant from a 5V source. Dissipation is (5 - 3.3) x I = 1.7 x I: 0.51W at 300mA, 0.85W at 500mA (both from BLOCK.md, not re-measured here) -- this board runs it at the rated ceiling because delivering current to the header is the whole product, and 0.85W on an SOT-223 tab with the pad's own copper as the only heatsink (no extra V3_3 pour added) is BLOCK.md's stated limit, not a margin above it.",
+    "V3_3_header": "Budgeted 500mA continuous, the LDO's own rated ceiling. IPC-2221 only needs 0.127mm (the fab floor) at 500mA/10C -- declared at 0.5mm to clear the same warn_power_trace_mm floor as V5, again only after netwidth confirmed the placement's V3_3 pads can take it.",
+    "status_leds": "Two status-led instances, ~1.2mA each (V3_3 instance at default rail, V5 instance with rail=\"V5\" -- brighter at ~2.9mA per usb-c-breakout's precedent for running the block off 5V). Both are rounding error against the rail budgets above and are not counted against the 1.5A / 500mA figures.",
+    "worst_case_board_current": "LDO input current (up to ~500mA drawn from V5 to make 3.3V) plus whatever the V5 header itself draws, plus both LEDs (~4.1mA) -- all well inside usb-c-power's 1.5A V5 budget with the V3_3 header's 500mA fully loaded at the same time."
+  }
+}
