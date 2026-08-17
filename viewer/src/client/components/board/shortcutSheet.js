@@ -325,6 +325,14 @@ export const INLINE_BINDINGS = Object.freeze([
     effect: "25a7a750",
   },
   {
+    id: "net-width.commit",
+    surface: "net-width",
+    file: "NetWidthRow.jsx",
+    combo: "Enter",
+    when: "in the net Width box",
+    effect: "3a007515",
+  },
+  {
     id: "move-exact.units",
     surface: "move-exact",
     file: "BoardContextMenu.jsx",
@@ -344,6 +352,7 @@ export const INLINE_SOURCES = Object.freeze([
   { surface: "3d", file: "Board3DView.jsx" },
   { surface: "properties", file: "PropertiesPanel.jsx" },
   { surface: "move-exact", file: "BoardContextMenu.jsx" },
+  { surface: "net-width", file: "NetWidthRow.jsx" },
 ]);
 
 // --- the words ---------------------------------------------------------------
@@ -412,6 +421,7 @@ export const SHORTCUT_COPY = Object.freeze({
 
   // edit
   "edit-mode.toggle": { group: "edit", order: 10, label: "Move parts — this writes your board file" },
+  "net-width.commit": { group: "edit", order: 46, label: "Apply the trace width you typed" },
   // Four rows rather than one, because four keys is what a hand learns. The
   // `when` is the whole rule: it is the selection that moves, by the step the
   // strip is set to, and holding the key repeats it.

@@ -204,3 +204,42 @@ export function widthEdits(source, net, mm, { anchorPort = "" } = {}) {
     edits: [{ start: closing, end: closing, text: insert, expected: "" }],
   };
 }
+
+/**
+ * A pin on this net that the board file can name, as a tscircuit selector.
+ *
+ * Only needed when the net is wired entirely inside a block: the board file
+ * then has no trace to mark, and a board-level trace between one of the net's
+ * own pins and the net gives the router the width without adding copper,
+ * because that connection already exists. `.U2 > .VOUT` is the spelling
+ * tscircuit uses and the one every trace in our board files already carries.
+ *
+ * Read off the built board rather than the source, because the source is
+ * exactly what does not mention this net.
+ */
+export function anchorPortForNet(index, netKey) {
+  const elements = index?.elements;
+  if (!index || !netKey || !Array.isArray(elements)) return "";
+  const sourcePorts = new Map();
+  const refdesById = new Map();
+  for (const element of elements) {
+    if (!element || typeof element !== "object") continue;
+    if (element.type === "source_port") sourcePorts.set(String(element.source_port_id), element);
+    else if (element.type === "source_component") {
+      refdesById.set(String(element.source_component_id), String(element.name || ""));
+    }
+  }
+  const net = index.netByKey?.get(netKey);
+  for (const id of net?.pcbElementIds || []) {
+    const element = index.byId?.get(id);
+    if (!element || (element.type !== "pcb_smtpad" && element.type !== "pcb_plated_hole")) continue;
+    const pcbPort = index.byId?.get(String(element.pcb_port_id || ""));
+    const source = sourcePorts.get(String(pcbPort?.source_port_id || ""));
+    if (!source) continue;
+    const refdes = refdesById.get(String(source.source_component_id || ""));
+    const pin = String(source.name || "");
+    // A pin with no name is a pin the file cannot address; keep looking.
+    if (refdes && pin) return `.${refdes} > .${pin}`;
+  }
+  return "";
+}

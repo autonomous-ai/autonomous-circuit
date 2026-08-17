@@ -37,6 +37,7 @@ import PartsPanel from "./PartsPanel.jsx";
 import PcbCanvas from "./PcbCanvas.jsx";
 import PlacementEditBar from "./PlacementEditBar.jsx";
 import usePlacementEditor from "./usePlacementEditor.js";
+import useNetWidths from "./useNetWidths.js";
 import { isTypingTarget, resolveBoardKey } from "./boardKeymap.js";
 import BoardContextMenu from "./BoardContextMenu.jsx";
 import { OPEN_SHORTCUT_SHEET_EVENT, ShortcutSheetHost } from "./ShortcutSheet.jsx";
@@ -466,6 +467,14 @@ export default function BoardWorkspace({
   // that has since been rewritten, and a drag would move the wrong element by
   // exactly the amount the board has changed since.
   const canEdit = editing && !viewing;
+  // What a net can be routed at, measured on demand. Keyed to the build,
+  // because a ceiling is a property of the placement.
+  const netWidths = useNetWidths({
+    projectId: currentProjectId || "",
+    stem: selectedStem,
+    buildKey: circuitJsonUrl,
+    enabled: !viewing,
+  });
   const editor = usePlacementEditor({
     projectId: currentProjectId || "",
     stem: selectedStem,
@@ -1429,6 +1438,7 @@ export default function BoardWorkspace({
                     activePlacementId={activePlacementId}
                     onPlacementMove={handlePlacementMove}
                     onPlacementRotate={handlePlacementRotate}
+                    netWidths={netWidths}
                   />
                 )}
               </div>

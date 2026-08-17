@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Lock, LockOpen, RotateCcw, RotateCw } from "lucide-react";
 import { cn } from "@/ui/utils";
+import NetWidthRow from "./NetWidthRow.jsx";
+import { anchorPortForNet } from "./netWidth.js";
 import { partPlainName, partRole } from "@/lib/plainLanguage.js";
 import { lcscUrl } from "./boardData.js";
 import { refusalForHit } from "./placementDrag.js";
@@ -350,6 +352,9 @@ export default function PropertiesPanel({
   activePlacementId = "",
   onPlacementMove,
   onPlacementRotate,
+  // What each net is routed at and what it could be — measured on demand by
+  // `useNetWidths`, which the workspace owns because it is keyed to the build.
+  netWidths = null,
   className,
 }) {
   const component = useMemo(() => {
@@ -429,7 +434,17 @@ export default function PropertiesPanel({
           placementProps={placementProps}
         />
       ) : null}
-      {net ? <NetProperties net={net} index={index} fmt={fmt} onSelect={onSelect} /> : null}
+      {net ? (
+        <NetProperties
+          net={net}
+          index={index}
+          fmt={fmt}
+          onSelect={onSelect}
+          editor={editor}
+          canEdit={canEdit}
+          netWidths={netWidths}
+        />
+      ) : null}
       {!component && !net && loosePlacement ? (
         <>
           <div className="border-b border-border/40 px-3 py-2">
@@ -534,7 +549,7 @@ function ComponentProperties({ component, index, partsByLcscMap, fmt, onSelect, 
   );
 }
 
-function NetProperties({ net, index, fmt, onSelect }) {
+function NetProperties({ net, index, fmt, onSelect, editor, canEdit, netWidths }) {
   const members = [...net.componentKeys]
     .map((key) => index?.componentBySourceId.get(key))
     .filter(Boolean)
@@ -549,6 +564,18 @@ function NetProperties({ net, index, fmt, onSelect }) {
         <Row label="Named">{net.unnamed ? <span className="text-amber-400">no — synthesised</span> : "yes"}</Row>
       </Section>
       <Section title="Routing">
+        {/* The EE review's finding 4, where an engineer can act on it: what
+            this net is routed at, what the placement will let it be, and a box
+            to change it. Only in move mode — it writes the board file. */}
+        {canEdit && netWidths ? (
+          <NetWidthRow
+            netName={net.name}
+            widths={netWidths}
+            editor={editor}
+            anchorPort={anchorPortForNet(index, net.key)}
+            onMeasure={netWidths.measure}
+          />
+        ) : null}
         <Row label="Pins">{net.pinCount || null}</Row>
         <Row label="Length">{net.lengthMm ? fmt(net.lengthMm) : null}</Row>
         <Row label="Vias">{vias || null}</Row>

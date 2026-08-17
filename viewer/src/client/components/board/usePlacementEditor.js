@@ -35,6 +35,7 @@ import {
   wrapPreview,
 } from "./boardSource.js";
 import { commitRotateStep, rotateRefusal } from "./placementRotate.js";
+import { widthEdits } from "./netWidth.js";
 
 async function callApi(command, args) {
   const response = await fetch(`${getApiBase()}/api/${command}`, {
@@ -557,6 +558,40 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     [enqueue, freshPlacement, write, pushHistory],
   );
 
+  /**
+   * Declare how wide a net is routed, or clear the declaration.
+   *
+   * The EE review's finding 4 as an edit a human makes: `<trace thickness=…>`
+   * reaches the autorouter as a per-net `nominalTraceWidth` it holds while it
+   * searches, and one declaration anywhere on a net sets the whole net. This
+   * writes exactly one.
+   *
+   * `anchorPort` is only needed for a net wired entirely inside a block — the
+   * board file then has no trace to mark, and a board-level trace between a
+   * pin on the net and the net gives the router the number without adding
+   * copper (the connection already exists). The caller finds the pin, because
+   * only the caller has the built board's port list.
+   *
+   * Returns the refusal rather than throwing it: "V3_3 is wired inside a
+   * block" is something to print next to the box, not an exception.
+   */
+  const setNetWidth = useCallback(
+    (net, mm, { anchorPort = "" } = {}) =>
+      enqueue(async () => {
+        const planned = widthEdits(latestTextRef.current, net, mm, { anchorPort });
+        if (!planned.ok) {
+          setError(planned.reason);
+          return planned;
+        }
+        // Geometry the gate cannot predict: a width changes what the *router*
+        // does next build, not where anything sits now. Counted as a change so
+        // the rebuild button lights up, and not as a move.
+        const ok = await write(planned.edits, planned.summary, +1);
+        return ok ? { ok: true, summary: planned.summary } : { ok: false, reason: "the write was refused" };
+      }),
+    [enqueue, write],
+  );
+
   /** The four lines a wrap is about to write, so a confirm can show the diff
    *  itself rather than a description of it. Empty for every other path. */
   const previewRotate = useCallback(
@@ -740,6 +775,7 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
     move,
     rotate,
     turnBy,
+    setNetWidth,
     previewRotate,
     setLock,
     undo,
