@@ -68,35 +68,45 @@ export default () => (
   >
     {/* power + USB device entry, bottom edge, facing out. Paired with
         rp2040-core to its left, which drives the same USB_DP/USB_DM net
-        names — no explicit trace needed, same net by name. */}
-    <UsbCData pcbX={13.2} pcbY={-23.83} schX={-30} schY={0} />
+        names — no explicit trace needed, same net by name.
+        pcbX moved +2.49mm (2026-08-17, ledger #52/#53): the old x=13.2 left
+        only 2.51mm to rp2040-core's right edge; pair_gap() now wants 5mm
+        from rp2040-core on every side (BLOCK_GAP_OVERRIDE_MM), so this
+        opens that gap to 5.0mm exactly. Still 3.47mm clear of status-led
+        to its right — floor (2mm) is fine there, it has no override. */}
+    <UsbCData pcbX={15.69} pcbY={-23.83} schX={-30} schY={0} />
 
     {/* the brain, bottom-left, sharing the bottom band with usb-c-data
         rather than stacking above it — stacking the two vertically (as
         place_board() would do by default) needs ~46mm of board height on
         its own; side by side needs ~25mm, which is why they are laid out
-        this way instead of top-to-bottom. */}
+        this way instead of top-to-bottom. Position unchanged — its
+        neighbours moved away from it instead, see each one's own note. */}
     <Rp2040Core pcbX={-11.12} pcbY={-7.28} schX={0} schY={0} />
 
-    {/* logic rail: V5 -> V3_3 (RP2040 + flash only) */}
-    <Ldo3v3 u="U2" cin="C2" cout="C3" voutNet="V3_3" pcbX={-7.67} pcbY={8.62} schX={-15} schY={6} />
+    {/* logic rail: V5 -> V3_3 (RP2040 + flash only)
+        pcbY moved +2.5mm (2026-08-17): old y=8.62 left rp2040-core only
+        2.5mm below (needs 5mm now) and 2.5mm below the pixel row above it
+        (unchanged, still needs the 2mm floor — see Ws2812Chain's own note
+        for where that room came from). */}
+    <Ldo3v3 u="U2" cin="C2" cout="C3" voutNet="V3_3" pcbX={-7.67} pcbY={11.12} schX={-15} schY={6} />
 
     {/* pixel rail: V5 -> V3_3_LED (the row only, its own SOT-223 —
         see the header note on why this is a second regulator, not a
-        second use of U2) */}
-    <Ldo3v3 u="U5" cin="C20" cout="C21" voutNet="V3_3_LED" pcbX={5.43} pcbY={8.62} schX={-15} schY={-6} />
+        second use of U2). Same +2.5mm y move as U2, same reason. */}
+    <Ldo3v3 u="U5" cin="C20" cout="C21" voutNet="V3_3_LED" pcbX={5.43} pcbY={11.12} schX={-15} schY={-6} />
 
     {/* extra bulk on the pixel rail: 8 WS2812s switching three channels
         each is a fast, spiky load the two per-regulator 10uF caps alone
         don't fully flatten (harness-puck carries the same two-cap pattern
         on its ring; one is enough at this pixel count and this proximity
-        to U5). */}
+        to U5). Moved with U5, same +2.5mm. */}
     <capacitor
       name="C22"
       capacitance="10uF"
       footprint="0805"
       pcbX={16}
-      pcbY={8.62}
+      pcbY={11.12}
       schX={-8}
       schY={-6}
       schRotation="90deg"
@@ -109,16 +119,36 @@ export default () => (
         level on a badge pinned to a shirt. This is the golden ws2812-chain
         block used exactly as shipped (count=8), not a hand-rolled ring like
         harness-puck's — a straight row is exactly what this block already
-        does, so composing it needed no board-level pixel wiring at all. */}
+        does, so composing it needed no board-level pixel wiring at all.
+        This is the one geometry this board may NOT move sideways or
+        reshape — it stays a straight line across the top edge. pcbY moved
+        +2.5mm (17.89 -> 20.39, 2026-08-17): that is purely to hand U2/U5
+        the room they needed against rp2040-core's wider gap below them —
+        the row itself is untouched otherwise, and this still leaves
+        6.3mm clear of the board's top edge (more than the router's own
+        4mm halo). */}
     <Ws2812Chain
       count={PIXELS}
       dinNet="LED_DATA"
       rail="V3_3_LED"
       pcbX={-24.23}
-      pcbY={17.89}
+      pcbY={20.39}
       schX={10}
       schY={16}
     />
+
+    {/* Test point on the chain's own unused net (2026-08-17): floating_net_
+        warnings() (packages/circuitpy/src/circuitpy/checks.py) flagged
+        `PX_18_DIN` reaching only D17 — the last pixel's DOUT, per
+        ws2812-chain/BLOCK.md's PX_{start+count}_DIN convention (start=10,
+        count=8 -> PX_18_DIN), same defect and same fix as
+        rgb-lamp-controller's TP4: land the chain's own trailing net on a
+        pad instead of leaving it a dead end. This is glue, not a new
+        circuit — the net already exists inside the block. */}
+    <testpoint name="TP4" footprintVariant="pad" padShape="circle" padDiameter="1mm"
+      pcbX={31} pcbY={20.39} schX={18} schY={16} />
+    <trace name="TR_TP4" from=".TP4 > .pin1" to="net.PX_18_DIN" />
+    <silkscreentext text="DATA" pcbX={31} pcbY={18.7} fontSize={1} />
 
     {/* pattern controls, right edge, thumb reach. SW1/SW4 per sw-tact's own
         convention — rp2040-core already owns SW2 (BOOTSEL) and SW3 (RESET). */}
@@ -136,17 +166,22 @@ export default () => (
     {/* SWD/SWCLK out to copper a probe can reach — left strip, open board
         space, well clear of rp2040-core's own footprint (see rp2040-core's
         BLOCK.md and glue.tsx's DebugPort doc: landing this inside the MCU
-        block's box routes the pair through the crystal cluster). */}
-    <DebugPort pcbX={-30} pcbY={-15} schX={-30} schY={-16} />
+        block's box routes the pair through the crystal cluster).
+        pcbX moved -30 -> -31 (2026-08-17): the old spot cleared
+        rp2040-core's left edge by only ~4.3mm; -31 opens that to >=5mm,
+        matching the same BLOCK_GAP_OVERRIDE_MM this board's other
+        rp2040-core neighbours now honour. */}
+    <DebugPort pcbX={-31} pcbY={-15} schX={-30} schY={-16} />
 
     {/* two mounting holes, left/right edge, clear of every footprint */}
     <MountingHole name="H1" diameter={3.2} pcbX={37.8} pcbY={0} />
     <MountingHole name="H2" diameter={3.2} pcbX={-37.8} pcbY={0} />
 
-    {/* silkscreen: the name, and the rails at a glance */}
+    {/* silkscreen: the name, and the rails at a glance. V3_3/LED3_3 labels
+        moved +2.5mm in y with their regulators. */}
     <silkscreentext text="PIXEL BADGE" pcbX={0} pcbY={-27.5} fontSize={1.4} />
-    <silkscreentext text="V3_3" pcbX={-7.67} pcbY={3.5} fontSize={0.9} />
-    <silkscreentext text="LED3_3" pcbX={5.43} pcbY={3.5} fontSize={0.9} />
+    <silkscreentext text="V3_3" pcbX={-7.67} pcbY={6} fontSize={0.9} />
+    <silkscreentext text="LED3_3" pcbX={5.43} pcbY={6} fontSize={0.9} />
 
     {/* Ground plane, bottom layer — the same reasoning as harness-puck and
         terminal-keyboard: GND on signal-width track, an unreferenced USB

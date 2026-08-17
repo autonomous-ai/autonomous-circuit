@@ -63,7 +63,7 @@ product, the friction is the point.
 | `env-logger-usb` | USB-C environment logger that streams temperature, humidity and pressu | **yes** | 0 | 99.6 × 64mm |
 | `i2c-sensor-hub` | USB-C board that reads a BME280 and breaks its I2C bus out to a pad he | **yes** | 0 | 95 × 67mm |
 | `macropad-6` | USB-C six-key macropad: 3x2 grid of tactile switches on 19 | no | 10 | 66 × 84mm · 5× drc_violation, 3× pcb_via_trace_clearance_error, 1× pcb_placement_error |
-| `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 10 | 82 × 58mm · 7× drc_violation, 1× pcb_trace_error |
+| `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 9 | 82 × 58mm · 6× drc_violation, 2× pcb_via_trace_clearance_error, 1× dfm_hole_clearance |
 | `rgb-lamp-controller` | USB-C desk lamp controller: RP2040 brain driving 8 on-board WS2812 pix | **yes** | 0 | 84.9 × 68.6mm |
 | `sensor-node-mini` | Small always-on environment node: temperature, humidity and pressure o | **yes** | 0 | 80.9 × 45.9mm |
 | `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | **yes** | 0 | 47.5 × 68.9mm |
