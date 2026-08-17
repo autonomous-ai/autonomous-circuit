@@ -26,6 +26,32 @@
  * Every part below either comes from a golden block or is glue (LEDs,
  * pull-ups, holes, pour, debug pads all ship inside their blocks or
  * blocks/glue). Nothing here was invented from a datasheet.
+ *
+ * Rail width — measured, not guessed (docs/architecture/rail-width.md):
+ *   `<trace thickness="…">` reaches the router as a per-net `nominalTraceWidth`
+ *   and one declaration anywhere on a net sets the whole net, so the rail is
+ *   declared once on ldo-3v3, the block where both rails are born. Declaring
+ *   blind has scrapped a board whole before (harness-puck, every rail at
+ *   0.5mm: fab.ready true -> false, 0 -> 33 blocking, two nets shorted, all
+ *   of it inside the RP2040's fanout), so `python -m circuitpy.netwidth
+ *   products/desk-air-monitor --rails` was run against this placement first,
+ *   with nothing declared:
+ *     V5    ceiling 1.10mm (tightest pad U1.VBUS)     routed narrowest 0.2mm
+ *     V3_3  ceiling 0.40mm (tightest pad U3.IOVDD6)   routed narrowest 0.2mm
+ *   V5 is declared at 0.5mm — the jlcpcb profile's warn_power_trace_mm floor,
+ *   less than half the measured ceiling. No MCU pin sits on it (USB VBUS, the
+ *   ESD part, C1, the LDO input), so nothing on that net is placement-limited.
+ *
+ *   **V3_3 is deliberately left undeclared.** Its ceiling is exactly 0.4000mm
+ *   — `2 x (0.400 pitch - 0.100 pad half-width - 0.100 clearance)` on the
+ *   RP2040's QFN-56 — so 0.5mm is arithmetically impossible here, and 0.4mm
+ *   was tried on this fleet and graded: on two boards it bought 0.025mm at
+ *   the narrowest point, and on i2c-sensor-hub (2026-08-17) it produced
+ *   fab.ready false with 3 blocking findings, including *Items shorting two
+ *   nets (V3_3 and GND)* on a 1.5mm track beside U3's fanout. 33 of this
+ *   board's pads are on that pin field. The rail's worst point is at a QFN
+ *   pin either way, so the declaration buys almost no copper and can cost the
+ *   whole board. Reverted there, and not repeated here.
  */
 
 import { UsbCData } from "../blocks/usb-c-data/usb-c-data"
@@ -59,7 +85,10 @@ export default () => (
     <UsbCData pcbX={-1.82} pcbY={-27.23} schX={-8} schY={8} />
 
     {/* logic rail: V5 -> V3_3 */}
-    <Ldo3v3 pcbX={13.64} pcbY={18.11} schX={-2} schY={4} />
+    {/* V5 declared at 0.5mm here, once — see the header for the measured
+        ceiling (1.10mm) and for why V3_3 is left alone. */}
+    <Ldo3v3 vinThickness="0.5mm"
+      pcbX={13.64} pcbY={18.11} schX={-2} schY={4} />
 
     {/* the brain */}
     <Rp2040Core pcbX={-8.57} pcbY={21.7} schX={0} schY={0} />

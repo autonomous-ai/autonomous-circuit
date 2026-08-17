@@ -61,6 +61,29 @@ export const Ldo3v3 = (props: {
   cout?: string
   vinNet?: string
   voutNet?: string
+  /**
+   * Track width for the input rail (V5) and the output rail (V3_3), e.g.
+   * `"0.5mm"`. Default: unset, i.e. the board's `minTraceWidth`.
+   *
+   * This block is where both rails of an MCU board are born, which makes it
+   * the one place a per-net width can be declared once and reach all of it.
+   * Per `docs/architecture/rail-width.md`, `<trace thickness="…">` arrives at
+   * the router as a per-net `nominalTraceWidth` and **one declaration
+   * anywhere on a net sets the whole net** — so this widens what the router
+   * searches for rather than stamping copper on afterwards, and it widens
+   * every consumer of the rail, not just the LDO's own legs.
+   *
+   * **Measure before you pass anything.** Declaring a width the placement
+   * cannot take scrapped a board whole (harness-puck, every rail at 0.5mm:
+   * `fab.ready` true → false, 0 → 33 blocking findings, two nets shorted).
+   * `python -m circuitpy.netwidth <project> --rails` reports the widest track
+   * each net's own pads can escape at; pass only what that clears, and never
+   * round up. On an RP2040 board the QFN-56's 0.400mm pitch caps V3_3 at
+   * exactly 0.4000mm — `2 × (0.400 − 0.100 − 0.100)` — which no effort level
+   * or placement change can beat.
+   */
+  vinThickness?: string
+  voutThickness?: string
   pcbX?: number
   pcbY?: number
   schX?: number
@@ -71,6 +94,8 @@ export const Ldo3v3 = (props: {
   const cout = props.cout ?? "C3"
   const vin = props.vinNet ?? "V5"
   const vout = props.voutNet ?? "V3_3"
+  const vinW = props.vinThickness
+  const voutW = props.voutThickness
   return (
     <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Ams1117_33 name={u} pcbX={0} pcbY={0} schX={0} schY={0} />
@@ -79,13 +104,13 @@ export const Ldo3v3 = (props: {
       <capacitor name={cout} capacitance="10uF" footprint="0805" pcbX={5} pcbY={-6} schX={3} schY={-2}
         schRotation="90deg" supplierPartNumbers={{ jlcpcb: ["C15850"] }} />
 
-      <trace name={`TR_${u}_vin`} from={`.${u} > .VIN`} to={`net.${vin}`} />
-      <trace name={`TR_${u}_vout`} from={`.${u} > .VOUT`} to={`net.${vout}`} />
-      <trace name={`TR_${u}_tab`} from={`.${u} > .TAB`} to={`net.${vout}`} />
+      <trace name={`TR_${u}_vin`} from={`.${u} > .VIN`} to={`net.${vin}`} thickness={vinW} />
+      <trace name={`TR_${u}_vout`} from={`.${u} > .VOUT`} to={`net.${vout}`} thickness={voutW} />
+      <trace name={`TR_${u}_tab`} from={`.${u} > .TAB`} to={`net.${vout}`} thickness={voutW} />
       <trace name={`TR_${u}_gnd`} from={`.${u} > .GND`} to="net.GND" />
-      <trace name={`TR_${cin}_v`} from={`.${cin} > .pin1`} to={`net.${vin}`} />
+      <trace name={`TR_${cin}_v`} from={`.${cin} > .pin1`} to={`net.${vin}`} thickness={vinW} />
       <trace name={`TR_${cin}_g`} from={`.${cin} > .pin2`} to="net.GND" />
-      <trace name={`TR_${cout}_v`} from={`.${cout} > .pin1`} to={`net.${vout}`} />
+      <trace name={`TR_${cout}_v`} from={`.${cout} > .pin1`} to={`net.${vout}`} thickness={voutW} />
       <trace name={`TR_${cout}_g`} from={`.${cout} > .pin2`} to="net.GND" />
     </group>
   )
