@@ -603,10 +603,18 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
         // Geometry the gate cannot predict: a width changes what the *router*
         // does next build, not where anything sits now. Counted as a change so
         // the rebuild button lights up, and not as a move.
+        //
+        // Undoable like everything else on this strip. A width edit can add a
+        // whole line to the board file (a net wired inside a block gets a
+        // board-level trace), so the inverse is the recorded bytes rather than
+        // a recomputed value — the same mechanism the rotation wrap uses, and
+        // the reason ⌘Z after Set did nothing until now.
+        const inverse = invertEdits(planned.edits);
         const ok = await write(planned.edits, planned.summary, +1);
+        if (ok) pushHistory({ kind: "width", placementId: net, label: net, inverse });
         return ok ? { ok: true, summary: planned.summary } : { ok: false, reason: "the write was refused" };
       }),
-    [enqueue, write],
+    [enqueue, write, pushHistory],
   );
 
   /** The four lines a wrap is about to write, so a confirm can show the diff
@@ -656,12 +664,23 @@ export default function usePlacementEditor({ projectId, stem, index, buildKey, e
       // tag is no longer a top-level placement. Inverting the inverse is what
       // makes a wrap redoable.
       if (entry.inverse) {
-        const reciprocal = { kind: "wrap", placementId: entry.placementId, label: entry.label, inverse: invertEdits(entry.inverse) };
+        // The kind is carried rather than assumed: this branch replays recorded
+        // bytes, which is how both a rotation wrap and a net-width declaration
+        // are undone, and only one of those is a turn.
+        const reciprocal = {
+          kind: entry.kind || "wrap",
+          placementId: entry.placementId,
+          label: entry.label,
+          inverse: invertEdits(entry.inverse),
+        };
         const ok = await write(entry.inverse, `${verb}: ${entry.label}`, delta);
         // Undoing a turn takes the board back towards what was built; redoing
         // one takes it further away. The count follows the geometry, not the
-        // number of gestures.
-        if (ok) setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
+        // number of gestures — and a width is not geometry the gate predicts,
+        // so it never touches this count.
+        if (ok && (entry.kind || "wrap") === "wrap") {
+          setTurnsPending((n) => Math.max(0, n + (delta < 0 ? -1 : 1)));
+        }
         return ok ? reciprocal : null;
       }
       const placement = freshPlacement(entry.placementId);

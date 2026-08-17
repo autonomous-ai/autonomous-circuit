@@ -117,6 +117,26 @@ function fakeServer({ projectDir, projectId, boardFile }) {
       const command = pathname.replace("/api/", "");
       const body = JSON.parse(init.body || "{}");
       requests.push({ method, pathname, command, body });
+      if (command === "board_net_widths") {
+        // Measured server-side by a Python leg that fans 180 bearings out of
+        // every pad; the numbers here are terminal-keyboard's real ones so the
+        // UI is exercised against a shape it will actually receive.
+        return respond(200, {
+          ok: true,
+          nets: (body.nets || []).map((net) => ({
+            net,
+            rail: true,
+            ceiling_mm: 0.4,
+            ceiling_at: "U3.IOVDD6",
+            ceiling_capped: false,
+            narrowest_mm: 0.2,
+            declared_mm: null,
+            pads: 25,
+          })),
+          powerFloorMm: 0.5,
+          minTraceMm: 0.1,
+        });
+      }
       if (command === "board_fast_check") {
         const answer = server.nextCheck;
         if (answer?.throws) return respond(500, { code: "GATE_DOWN", message: answer.throws });

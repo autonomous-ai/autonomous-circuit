@@ -156,3 +156,51 @@ test("a turn the gate could not grade is on the chip, not only inside it", async
     w.close();
   }
 });
+
+test("a trace width is set from Properties and undone like any other edit", async () => {
+  // Round 3's finding: `setNetWidth` wrote the file and pushed no history, so
+  // ⌘Z after Set did nothing — the only edit on this strip that was not
+  // undoable. A width edit can add a whole line to the board file (a net wired
+  // inside a block gets a board-level trace), so its inverse is the recorded
+  // bytes, the same way a rotation wrap is undone.
+  const w = await openWorkspace({ example: "hydrate-coaster" });
+  try {
+    const before = w.server.source;
+
+    // Select a part, then one of its nets — the way a person reaches a net.
+    const r30 = w.placements.byId.get("resistor[1]");
+    const at = w.at(r30.x, r30.y);
+    pointer(w.canvas, "down", at);
+    pointer(w.canvas, "up", at);
+    await w.settle(4);
+
+    const netLink = [...w.ui.container.querySelectorAll('[data-slot="property-net-link"]')].find(
+      (node) => node.textContent.trim() === "CAP_DRIVE",
+    );
+    assert.ok(netLink, "no way to reach a net from the part that is on it");
+    click(netLink);
+    await w.settle(6);
+
+    const row = w.find('[data-slot="net-width"]');
+    assert.ok(row, "no width row for a selected net");
+    assert.match(row.textContent, /can take 0\.4mm/, "the measured ceiling is not on screen");
+
+    const input = w.find('[data-slot="net-width-input"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(input, "0.4");
+    input.dispatchEvent(new window.Event("input", { bubbles: true }));
+    await w.settle();
+    click(w.find('[data-slot="net-width-apply"]'));
+    await w.settle(8);
+
+    assert.match(w.server.source, /to="net\.CAP_DRIVE" thickness="0\.4mm"/, "the width never reached the file");
+
+    const undo = w.find('[data-slot="placement-undo"]');
+    assert.ok(undo && !undo.disabled, "a width edit left nothing to undo");
+    click(undo);
+    await w.settle(8);
+    assert.equal(w.server.source, before, "undo did not restore the file byte for byte");
+  } finally {
+    w.close();
+  }
+});
