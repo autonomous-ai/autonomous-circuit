@@ -56,10 +56,11 @@ product, the friction is the point.
 
 | Product | What it is | `fab.ready` | Blocking | Notes |
 |---|---|---|---|---|
+| `bench-i2c-scanner` | USB-C bench tool that enumerates every device on an I2C bus and report | no | 3 | 91.9 × 63.8mm · 2× drc_violation, 1× dfm_hole_clearance |
 | `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | **yes** | 0 | 61 × 64.8mm |
-| `dual-rail-psu` | USB-C bench supply brick: 5V and 3V3 broken out on pad headers with a power LED per rail, so a laptop charger can feed a breadboard without a bench PSU. No MCU. | **yes** | 0 | 41.1 × 51mm |
+| `dual-rail-psu` | USB-C bench supply brick: 5V and 3V3 broken out on labelled pad header | **yes** | 0 | 41.1 × 51mm |
 | `dual-sensor-node` | USB-C RP2040 node with two BME280s on one I2C bus (on-board + short pi | **yes** | 0 | 95.3 × 68mm |
-| `env-logger-usb` | USB-C environment logger streaming temperature, humidity and pressure over USB serial, with power/logging/error LEDs, a start-stop button and a bench I2C+SWD breakout | **yes** | 0 | 99.6 × 64mm |
+| `env-logger-usb` | USB-C environment logger that streams temperature, humidity and pressu | **yes** | 0 | 99.6 × 64mm |
 | `i2c-sensor-hub` | USB-C board that reads a BME280 and breaks its I2C bus out to a pad he | **yes** | 0 | 95 × 67mm |
 | `macropad-6` | USB-C six-key macropad: 3x2 grid of tactile switches on 19 | no | 14 | 66 × 84mm · 7× drc_violation, 3× pcb_via_trace_clearance_error |
 | `pixel-badge` | a wearable conference badge: 8 addressable RGB pixels across the top,  | no | 10 | 82 × 58mm · 7× drc_violation, 1× pcb_trace_error |
@@ -68,4 +69,4 @@ product, the friction is the point.
 | `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | no | 3 | 47.5 × 68.9mm · 2× drc_violation, 1× dfm_hole_clearance |
 | `usb-c-breakout` | USB-C receptacle broken out to labelled bench pads (VBUS, GND, CC1, CC | **yes** | 0 | 36 × 40.5mm |
 
-**8 of 11 built boards are fab-ready** (11 products in the fleet).
+**8 of 12 built boards are fab-ready** (12 products in the fleet).
