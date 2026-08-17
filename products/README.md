@@ -57,7 +57,7 @@ product, the friction is the point.
 | Product | What it is | `fab.ready` | Blocking | In the app | Notes |
 |---|---|---|---|---|---|
 | `bench-i2c-scanner` | USB-C bench tool that enumerates every device on an I2C bus and report | no | 3 | no (3) | 91.9 × 63.8mm · 2× drc_violation, 1× dfm_hole_clearance |
-| `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | no | 3 | **yes** | 61 × 64.8mm · 2× drc_violation, 1× dfm_hole_clearance · ⚠ source is newer than this verdict |
+| `desk-air-monitor` | USB-C desk device that reads temperature, humidity and pressure and sh | **yes** | 0 | **yes** | 61 × 64.8mm · ⚠ source is newer than this verdict |
 | `dual-rail-psu` | USB-C bench supply brick: 5V and 3V3 broken out on labelled pad header | **yes** | 0 | **yes** | 41.1 × 51mm |
 | `dual-sensor-node` | USB-C RP2040 node with two BME280s on one I2C bus (on-board + short pi | **yes** | 0 | **yes** | 95.3 × 68mm |
 | `env-logger-usb` | USB-C environment logger that streams temperature, humidity and pressu | **yes** | 0 | **yes** | 99.6 × 64mm |
@@ -69,7 +69,7 @@ product, the friction is the point.
 | `two-key-footswitch` | USB-C RP2040 footswitch with two heavy-press keys for push-to-talk and | **yes** | 0 | **yes** | 47.5 × 68.9mm |
 | `usb-c-breakout` | USB-C receptacle broken out to labelled bench pads (VBUS, GND, CC1, CC | **yes** | 0 | **yes** | 36 × 40.5mm |
 
-**8 of 12 built boards are fab-ready** (12 products in the fleet).
+**9 of 12 built boards are fab-ready** (12 products in the fleet).
 
 **In the app a human actually opens: 9 of 12.** The repo is not the product — these are the same boards as installed under `~/.autonomous-circuit/projects/`, and the two numbers parting company is a finding, not a rounding. `scripts/install-fleet` closes the gap.
 

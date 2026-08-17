@@ -82,18 +82,44 @@ def installed_projects() -> dict[str, Path]:
 
 
 def staleness(project: Path) -> str:
-    """Whether the verdict describes the source beside it.
+    """Whether the verdict describes the board beside it.
 
     Ledger #42: a packet older than its own inputs still claims what it earned
-    under them. `desk-air-monitor`'s dead-net fix landed in the source and the
-    sidecar was never rebuilt, so the board went on reporting a verdict from
-    five minutes before the fix.
+    under them. Ledger #39 is the same thing one level out — a golden block
+    moved its geometry and the board composing it was never rebuilt, so a
+    committed packet claimed `fab.ready: true` for a board that routes nothing.
+
+    **By content, not by clock.** The first version compared mtimes and cried
+    wolf the moment an engineer reverted a board to byte-identical source: the
+    bytes were the ones the verdict was earned on and the file was newer, so a
+    correct board was flagged. The sidecar already records
+    `source.fingerprint`, which folds the entry TSX, `product.json`,
+    `parts.json` and every local import including `blocks/` — so recomputing it
+    answers exactly the right question and answers it exactly.
     """
     sidecar = project / "boards" / "main.board.json"
     source = project / "boards" / "main.tsx"
     if not sidecar.is_file() or not source.is_file():
         return ""
-    return "source is newer than this verdict" if source.stat().st_mtime > sidecar.stat().st_mtime else ""
+    try:
+        recorded = (json.loads(sidecar.read_text(encoding="utf-8")).get("source") or {})
+    except (OSError, ValueError):
+        return ""
+    if not recorded.get("fingerprint"):
+        return ""
+    try:
+        sys.path.insert(0, str(REPO / "packages" / "circuitpy" / "src"))
+        from circuitpy.source_hash import board_source_hash  # noqa: PLC0415
+        identity = board_source_hash(source, project)
+    except Exception:  # noqa: BLE001 - advisory; never break the table
+        return ""
+    if identity.source_fingerprint == recorded["fingerprint"]:
+        return ""
+    if identity.source_hash != recorded.get("hash"):
+        return "the board file changed and was never rebuilt"
+    # Same entry file, different graph: a block, the bible or the parts lock
+    # moved under it. This is ledger #39, and it is the one nobody notices.
+    return "a block or product.json changed under this board and it was never rebuilt"
 
 
 def rows(root: Path) -> list[dict]:
@@ -176,9 +202,13 @@ def table(items: list[dict]) -> str:
     if stale:
         lines.append("")
         lines.append(
-            "**Verdict older than its own source**: " + ", ".join(f"`{s}`" for s in stale)
-            + " — the board was edited and never rebuilt, so its numbers describe a "
-            "board that no longer exists (ledger #42)."
+            "**Verdict does not describe this board**: "
+            + ", ".join(f"`{s}`" for s in stale)
+            + ". Something under it changed and it was never rebuilt, so its numbers "
+            "were earned by a board that no longer exists — the entry file (ledger "
+            "#42) or a block, `product.json` or `parts.json` beneath it (ledger #39, "
+            "the one nobody notices). Compared by content, never by clock: a revert "
+            "to byte-identical source is not stale."
         )
     return "\n".join(lines)
 
