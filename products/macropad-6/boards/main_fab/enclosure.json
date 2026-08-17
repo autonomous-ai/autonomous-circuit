@@ -1,0 +1,174 @@
+{
+ "board": {
+  "centerMm": [
+   0.0,
+   0.0
+  ],
+  "heightMm": 84.0,
+  "name": "main",
+  "outline": "rect",
+  "thicknessMm": 1.6,
+  "widthMm": 66.0
+ },
+ "clearance": {
+  "bottomMm": 0.0,
+  "confidence": "modelled",
+  "topMm": 0.8
+ },
+ "connectors": [
+  {
+   "bodyMm": [
+    9.85,
+    6.498
+   ],
+   "edge": "bottom",
+   "edgeGapMm": 1.496,
+   "note": "needs a cutout in the bottom wall (body sits 1.496mm from the board edge)",
+   "refdes": "J1",
+   "rotationDeg": 0.0,
+   "xMm": -1.82,
+   "yMm": -37.255
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 7.1,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW10",
+   "rotationDeg": 0.0,
+   "xMm": -19.05,
+   "yMm": 32.675
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 7.1,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW11",
+   "rotationDeg": 0.0,
+   "xMm": 0.0,
+   "yMm": 32.675
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 7.1,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW12",
+   "rotationDeg": 0.0,
+   "xMm": 19.05,
+   "yMm": 32.675
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 10.45,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW13",
+   "rotationDeg": 0.0,
+   "xMm": -19.05,
+   "yMm": 13.625
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 26.15,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW14",
+   "rotationDeg": 0.0,
+   "xMm": 0.0,
+   "yMm": 13.625
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 10.45,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW15",
+   "rotationDeg": 0.0,
+   "xMm": 19.05,
+   "yMm": 13.625
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 22.975,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW2",
+   "rotationDeg": 0.0,
+   "xMm": -2.98,
+   "yMm": -16.8
+  },
+  {
+   "bodyMm": [
+    7.0,
+    4.45
+   ],
+   "edge": null,
+   "edgeGapMm": 10.52,
+   "note": "interior \u2014 reachable only with the case open",
+   "refdes": "SW3",
+   "rotationDeg": 0.0,
+   "xMm": -18.98,
+   "yMm": -16.8
+  }
+ ],
+ "entryKind": "enclosure",
+ "generator": "circuitpy",
+ "mountingHoles": [
+  {
+   "diameterMm": 2.7,
+   "fastener": "M2",
+   "name": "H1",
+   "xMm": -22.0,
+   "yMm": -36.0
+  },
+  {
+   "diameterMm": 2.7,
+   "fastener": "M2",
+   "name": "H3",
+   "xMm": -22.0,
+   "yMm": 38.0
+  },
+  {
+   "diameterMm": 2.7,
+   "fastener": "M2",
+   "name": "H2",
+   "xMm": 22.0,
+   "yMm": -36.0
+  },
+  {
+   "diameterMm": 2.7,
+   "fastener": "M2",
+   "name": "H4",
+   "xMm": 22.0,
+   "yMm": 38.0
+  }
+ ],
+ "notes": [
+  "Coordinates are millimetres, board centre at the origin, x right and y up, viewed from the top.",
+  "Mounting holes are unplated drills of 1.8mm or more; anything smaller belongs to a footprint.",
+  "4 mounting holes."
+ ]
+}

@@ -2,7 +2,7 @@
   "name": "macropad-6",
   "description": "USB-C six-key macropad: 3x2 grid of tactile switches on 19.05mm pitch, RP2040 brain, one status LED",
   "power": "usb-c-5v",
-  "envelopeMm": [66, 80],
+  "envelopeMm": [66, 84],
   "layers": 2,
   "fab": "jlcpcb",
   "assembly": true

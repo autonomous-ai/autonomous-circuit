@@ -17,7 +17,7 @@
  * the block the MCU actually needs is not inventing a circuit; hand-drawing
  * a regulator from a datasheet would have been.
  *
- * Envelope: 66 x 80 mm, 2 layers, 1.6mm — inside product.json's 66 x 80,
+ * Envelope: 66 x 84 mm, 2 layers, 1.6mm — inside product.json's 66 x 84,
  * and inside the 100 x 100mm JLCPCB $2-for-5 sample tier with room to spare.
  *
  * Six keys wired straight to GPIOs — no matrix, no diodes. A diode matrix
@@ -46,9 +46,9 @@
  * make room for the key field above (place_board's own two default holes
  * are not used — this board's mounting-hole strategy differs, see below).
  * On top of that validated cluster:
- *   - the 3x2 key field sits 2.1mm above rp2040-core's box (the tallest
- *     block in the row), with a 4mm router halo (ROUTER_HALO_MM) above it —
- *     key field spans x=[-22.55,+22.55], y=[+9.5,+32.99] on this board.
+ *   - the 3x2 key field sits 6mm above rp2040-core's box (the tallest block
+ *     in the row), with a 4mm router halo (ROUTER_HALO_MM) above it — key
+ *     field spans x=[-22.55,+22.55], y=[+11.4,+34.9] on this board.
  *   - the SWD debug port sits 2mm clear of rp2040-core's own box, in open
  *     board space rather than inside it — three pads inside that box
  *     measured a via shorted into the QFN pad field on 2026-08-11 — rotated
@@ -60,6 +60,23 @@
  *     the nearest switch pad and >=2.6mm clear of the board edge before this
  *     file was written (the same clearance formula `_hole_clearance_
  *     warnings()` uses), not discovered after a failed build.
+ *
+ * Why 6mm, not the 2mm BLOCK_GAP_MM floor: the first full build (gap=2mm,
+ * 66x80mm) came back fab.ready=false with 64 KiCad errors, every one of them
+ * *inside* rp2040-core's own U3/U4 QSPI-flash cluster — nothing to do with
+ * the keys, USB, LED or LDO. rp2040-core's own decoupling row (C4-C8) sits
+ * at group-relative y=+6, i.e. only 2.8mm short of the key field's bottom
+ * edge at the 2mm gap — so six GPIO escape traces plus the SWD pair from
+ * DebugPort all had to funnel through the same narrow corridor as the
+ * block's own via-dense decoupling. BLOCK_GAP_MM=2mm is sized to keep
+ * *courtyards* from touching; it says nothing about whether there is room
+ * left over to *route through* that gap once a board adds its own traffic
+ * on top — which is exactly what happened here. Confirmed non-placement:
+ * re-running the identical file (same effort level) gave 11 errors, then 64,
+ * then 64 again — the router's solution in that corridor is unstable run to
+ * run, and a wider corridor is the only lever available from this file (see
+ * work/ee-feedback/macropad-6.md for the full sequence and the "10x" attempt
+ * that was tried and reverted).
  *
  * Every part below either comes from a golden block or is glue (silkscreen,
  * mounting holes). Nothing here was invented from a datasheet.
@@ -73,24 +90,24 @@ import { SwTact } from "../blocks/sw-tact/sw-tact"
 import { GndPour, MountingHole, DebugPort } from "../blocks/glue"
 
 const BOARD_W = 66
-const BOARD_H = 80
+const BOARD_H = 84
 
 /** Standard mechanical-keycap pitch. */
 const PITCH = 19.05
 
 /** Measured placements — see the header for how each was derived. */
 const USB_X = -1.82
-const USB_Y = -34.83
+const USB_Y = -36.83
 const RP_X = -10.98
-const RP_Y = 0.7
+const RP_Y = -1.3
 const LED_X = 8.47
-const LED_Y = -5.87
+const LED_Y = -7.87
 const LDO_X = 16.07
-const LDO_Y = -2.89
+const LDO_Y = -4.89
 const DEBUG_X = -26.7
-const DEBUG_Y = 0.7
+const DEBUG_Y = -1.3
 /** Vertical centre of the 2x3 key field. */
-const KEY_CY = 21.25
+const KEY_CY = 23.15
 
 const KEY_LEGEND = ["1", "2", "3", "4", "5", "6"]
 
@@ -224,16 +241,16 @@ export default () => (
         hole-to-copper model, so it will lay a track 0.1mm from the drill and
         the drill's own tolerance can cut it; MountingHole's keepout is what
         the router actually reads. */}
-    <MountingHole name="H1" diameter={2.7} pcbX={-22} pcbY={-34} />
-    <MountingHole name="H2" diameter={2.7} pcbX={22} pcbY={-34} />
-    <MountingHole name="H3" diameter={2.7} pcbX={-22} pcbY={36} />
-    <MountingHole name="H4" diameter={2.7} pcbX={22} pcbY={36} />
+    <MountingHole name="H1" diameter={2.7} pcbX={-22} pcbY={-36} />
+    <MountingHole name="H2" diameter={2.7} pcbX={22} pcbY={-36} />
+    <MountingHole name="H3" diameter={2.7} pcbX={-22} pcbY={38} />
+    <MountingHole name="H4" diameter={2.7} pcbX={22} pcbY={38} />
 
     <silkscreentext
       text="MACROPAD-6"
       layer="top"
       pcbX={0}
-      pcbY={-38}
+      pcbY={-40}
       fontSize="1.4mm"
       anchorAlignment="center"
     />
