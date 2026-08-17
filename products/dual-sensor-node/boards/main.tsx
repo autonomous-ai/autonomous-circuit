@@ -11,6 +11,27 @@
  * Rails: V5 (USB VBUS) -> ldo-3v3 -> V3_3 (logic, both sensors, bus pull-ups)
  * Envelope: 95.3 x 68 mm, 2 layers, 1.6mm — inside product.json's 96 x 68.
  *
+ * Rail width — measured, not guessed (docs/architecture/rail-width.md):
+ *   `<trace thickness="…">` reaches the router as a per-net `nominalTraceWidth`
+ *   and one declaration anywhere on a net sets the whole net, so both rails are
+ *   declared once on ldo-3v3, the block where both are born. Declaring blind
+ *   has scrapped a board whole before (harness-puck, every rail at 0.5mm:
+ *   fab.ready true -> false, 0 -> 33 blocking, two nets shorted, all of it in
+ *   the RP2040's fanout), so `python -m circuitpy.netwidth
+ *   products/dual-sensor-node --rails` was run against this placement first,
+ *   with nothing declared:
+ *     V5    ceiling 1.10mm (tightest pad U1.VBUS)     routed narrowest 0.15mm
+ *     V3_3  ceiling 0.40mm (tightest pad U3.IOVDD6)   routed narrowest 0.15mm
+ *   No MCU pin sits on V5 (USB VBUS, the ESD part, C1, the LDO input), so it
+ *   takes 0.5mm — the jlcpcb profile's warn_power_trace_mm floor — with more
+ *   than 2x margin on the measured ceiling. V3_3 lands on the RP2040's QFN-56
+ *   and cannot have 0.5mm at any effort level: 0.400mm pitch with 0.200mm pads
+ *   leaves `2 x (0.400 - 0.100 - 0.100) = 0.400mm`, and no placement change
+ *   beats arithmetic. So V3_3 is declared at its own measured ceiling, 0.4mm.
+ *   The profile still prefers 0.5mm on a power net, so `dfm_power_trace_width`
+ *   stays on V3_3 by design — the geometry is the answer, not the preference.
+ *   This board carries 39 V3_3 pads, the most in the fleet.
+ *
  * TWO SENSORS ON ONE BUS — the point of this build
  *   `sensor-bme280` hardwires SDO to GND (address 0x76) with no prop to move
  *   it. BLOCK.md/REVIEW.md both say the second sensor needs "SDO at VDDIO
@@ -103,7 +124,11 @@ export default () => (
     <UsbCData pcbX={-1.82} pcbY={-28.83} schX={-46} schY={0} />
 
     {/* ---- logic rail: V5 -> V3_3 ------------------------------------------ */}
-    <Ldo3v3 pcbX={-33.07} pcbY={14.61} schX={-24} schY={0} />
+    {/* both rail widths declared here, once — see the header's measured
+        ceilings. V5 0.5mm (ceiling 1.10), V3_3 0.4mm (ceiling 0.40, the
+        RP2040 QFN-56's own arithmetic). */}
+    <Ldo3v3 vinThickness="0.5mm" voutThickness="0.4mm"
+      pcbX={-33.07} pcbY={14.61} schX={-24} schY={0} />
 
     {/* ---- the brain --------------------------------------------------------- */}
     <Rp2040Core pcbX={-13.15} pcbY={18.2} schX={0} schY={0} />
