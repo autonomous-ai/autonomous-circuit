@@ -96,18 +96,34 @@ const BOARD_H = 84
 const PITCH = 19.05
 
 /** Measured placements — see the header for how each was derived. */
+/* Re-derived 2026-08-17 (ledger #52/#53): circuitlib.layout.pair_gap() now
+ * gives rp2040-core BLOCK_GAP_OVERRIDE_MM's 5mm from every neighbour
+ * automatically (up from the 2mm floor this board used to widen by hand to
+ * 6mm around one specific pair). Bottom cluster re-run through
+ * layout.place_board(["usb-c-data","rp2040-core","status-led","ldo-3v3"],
+ * mounting_holes=False) (56 x 54.4mm, warnings: []); x-coordinates carry
+ * straight over (place_board's row-wrap is independent of board height),
+ * y-coordinates are the same place_row arithmetic re-solved for this
+ * board's actual 84mm height so the cluster still sits on the bottom edge
+ * (USB_Y comes back bit-for-bit the value this file already had — the
+ * connector's distance from the board's bottom edge never depended on the
+ * gap). Key field kept at its fixed 19.05mm pitch — see the header note —
+ * and re-seated 5mm (the override) above rp2040-core's new top edge
+ * instead of the old ad hoc clearance. DebugPort re-seated beside
+ * rp2040-core's new left edge, same channel width as before.
+ */
 const USB_X = -1.82
 const USB_Y = -36.83
-const RP_X = -10.98
-const RP_Y = -1.3
-const LED_X = 8.47
-const LED_Y = -7.87
-const LDO_X = 16.07
-const LDO_Y = -4.89
-const DEBUG_X = -26.7
-const DEBUG_Y = -1.3
+const RP_X = -12.48
+const RP_Y = 1.64
+const LED_X = 9.97
+const LED_Y = -4.93
+const LDO_X = 17.57
+const LDO_Y = -1.95
+const DEBUG_X = -27.18
+const DEBUG_Y = 1.64
 /** Vertical centre of the 2x3 key field. */
-const KEY_CY = 23.15
+const KEY_CY = 25.09
 
 const KEY_LEGEND = ["1", "2", "3", "4", "5", "6"]
 
@@ -240,11 +256,16 @@ export default () => (
         MountingHole, never a bare <hole> — the autorouter has no
         hole-to-copper model, so it will lay a track 0.1mm from the drill and
         the drill's own tolerance can cut it; MountingHole's keepout is what
-        the router actually reads. */}
+        the router actually reads.
+        H3/H4 moved from x=22 to x=25.5 (2026-08-17): the key field's new
+        KEY_CY pushed its top-right/top-left corners to (22.55, 36.835),
+        1.29mm from a hole at (22, 38) — under the 1.85mm floor. x=25.5
+        clears that corner by 3.17mm and still keeps >=2.6mm off the board
+        edge. */}
     <MountingHole name="H1" diameter={2.7} pcbX={-22} pcbY={-36} />
     <MountingHole name="H2" diameter={2.7} pcbX={22} pcbY={-36} />
-    <MountingHole name="H3" diameter={2.7} pcbX={-22} pcbY={38} />
-    <MountingHole name="H4" diameter={2.7} pcbX={22} pcbY={38} />
+    <MountingHole name="H3" diameter={2.7} pcbX={-25.5} pcbY={38} />
+    <MountingHole name="H4" diameter={2.7} pcbX={25.5} pcbY={38} />
 
     <silkscreentext
       text="MACROPAD-6"

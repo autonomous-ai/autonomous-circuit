@@ -1,12 +1,12 @@
 {
  "board": "main",
- "detail": "14 blocking",
- "elapsedS": 451.81,
- "runId": "1a00d9aa15e-e3e8",
+ "detail": "10 blocking",
+ "elapsedS": 459.21,
+ "runId": "1a00de6a147-140d5",
  "schema": 1,
  "stageCount": 7,
  "stageIndex": 7,
- "startedAt": 1786934632.799,
+ "startedAt": 1786939613.512,
  "state": "done",
- "updatedAt": 1786935084.606
+ "updatedAt": 1786940072.721
 }

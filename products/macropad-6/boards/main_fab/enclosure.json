@@ -35,12 +35,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.1,
+   "edgeGapMm": 5.16,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW10",
    "rotationDeg": 0.0,
    "xMm": -19.05,
-   "yMm": 32.675
+   "yMm": 34.615
   },
   {
    "bodyMm": [
@@ -48,12 +48,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.1,
+   "edgeGapMm": 5.16,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW11",
    "rotationDeg": 0.0,
    "xMm": 0.0,
-   "yMm": 32.675
+   "yMm": 34.615
   },
   {
    "bodyMm": [
@@ -61,12 +61,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 7.1,
+   "edgeGapMm": 5.16,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW12",
    "rotationDeg": 0.0,
    "xMm": 19.05,
-   "yMm": 32.675
+   "yMm": 34.615
   },
   {
    "bodyMm": [
@@ -79,7 +79,7 @@
    "refdes": "SW13",
    "rotationDeg": 0.0,
    "xMm": -19.05,
-   "yMm": 13.625
+   "yMm": 15.565
   },
   {
    "bodyMm": [
@@ -87,12 +87,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 26.15,
+   "edgeGapMm": 24.21,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW14",
    "rotationDeg": 0.0,
    "xMm": 0.0,
-   "yMm": 13.625
+   "yMm": 15.565
   },
   {
    "bodyMm": [
@@ -105,7 +105,7 @@
    "refdes": "SW15",
    "rotationDeg": 0.0,
    "xMm": 19.05,
-   "yMm": 13.625
+   "yMm": 15.565
   },
   {
    "bodyMm": [
@@ -113,12 +113,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 22.975,
+   "edgeGapMm": 25.02,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW2",
    "rotationDeg": 0.0,
-   "xMm": -2.98,
-   "yMm": -16.8
+   "xMm": -4.48,
+   "yMm": -13.86
   },
   {
    "bodyMm": [
@@ -126,12 +126,12 @@
     4.45
    ],
    "edge": null,
-   "edgeGapMm": 10.52,
+   "edgeGapMm": 9.02,
    "note": "interior \u2014 reachable only with the case open",
    "refdes": "SW3",
    "rotationDeg": 0.0,
-   "xMm": -18.98,
-   "yMm": -16.8
+   "xMm": -20.48,
+   "yMm": -13.86
   }
  ],
  "entryKind": "enclosure",
@@ -140,16 +140,16 @@
   {
    "diameterMm": 2.7,
    "fastener": "M2",
-   "name": "H1",
-   "xMm": -22.0,
-   "yMm": -36.0
+   "name": "H3",
+   "xMm": -25.5,
+   "yMm": 38.0
   },
   {
    "diameterMm": 2.7,
    "fastener": "M2",
-   "name": "H3",
+   "name": "H1",
    "xMm": -22.0,
-   "yMm": 38.0
+   "yMm": -36.0
   },
   {
    "diameterMm": 2.7,
@@ -162,7 +162,7 @@
    "diameterMm": 2.7,
    "fastener": "M2",
    "name": "H4",
-   "xMm": 22.0,
+   "xMm": 25.5,
    "yMm": 38.0
   }
  ],
