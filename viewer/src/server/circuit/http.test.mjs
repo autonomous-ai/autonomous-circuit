@@ -306,6 +306,38 @@ test("chat_session_state rehydrates history (with blocks) from the session JSONL
     assert.equal(state.body.history[1].blocks.length, 2);
     assert.equal(state.body.history[1].blocks[1].tool, "Bash");
     assert.equal(state.body.history[1].blocks[1].status, "ok");
+
+    const created = await s.post("chat_session_create", { projectId: project.id });
+    assert.equal(created.status, 200);
+    assert.equal(created.body.title, "New chat");
+    assert.notEqual(created.body.sessionId, sessionId);
+
+    const secondJsonl = sessionJsonlPath(workspace, created.body.sessionId, s.env);
+    fs.writeFileSync(
+      secondJsonl,
+      [
+        JSON.stringify({
+          type: "user",
+          message: { role: "user", content: "route the power rail" },
+          timestamp: "2026-08-02T05:00:00.000Z",
+        }),
+        JSON.stringify({ type: "ai-title", aiTitle: "Power routing" }),
+      ].join("\n"),
+    );
+    const sessions = await s.post("chat_session_list", { projectId: project.id });
+    assert.equal(sessions.status, 200);
+    assert.deepEqual(
+      new Set(sessions.body.map((item) => item.sessionId)),
+      new Set([sessionId, created.body.sessionId]),
+    );
+    assert.equal(sessions.body.find((item) => item.sessionId === created.body.sessionId).title, "Power routing");
+
+    const selected = await s.post("chat_session_state", {
+      projectId: project.id,
+      sessionId: created.body.sessionId,
+    });
+    assert.equal(selected.body.sessionId, created.body.sessionId);
+    assert.equal(selected.body.history[0].content, "route the power rail");
   } finally {
     s.close();
   }

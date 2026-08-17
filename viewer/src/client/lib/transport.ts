@@ -107,6 +107,7 @@ export interface ImageAttachment {
 
 export interface StartTurnRequest {
   projectId: string;
+  sessionId?: string;
   userMessage: string;
   /**
    * Optional reference images. The backend persists each into the project's
@@ -117,16 +118,26 @@ export interface StartTurnRequest {
 
 export interface StartTurnResponse {
   turnId: string;
+  sessionId?: string;
 }
 
 export interface ApprovePlanRequest {
   projectId: string;
+  sessionId?: string;
   planText: string;
 }
 
 export interface RequestPlanChangesRequest {
   projectId: string;
+  sessionId?: string;
   feedback: string;
+}
+
+export interface ChatSessionSummary {
+  sessionId: string;
+  title: string;
+  updatedAt: number;
+  messageCount: number;
 }
 
 // A rehydrated assistant turn carries structured `blocks` so a reloaded turn
@@ -172,7 +183,7 @@ export type ChatEvent = (
   | { kind: "artifact_changed"; turnId: string; file: string; reason: "new" | "modified" }
   | { kind: "turn_end"; turnId: string }
   | { kind: "error"; turnId: string; message: string }
-) & { projectId: string };
+) & { projectId: string; sessionId?: string };
 
 // Settings wire-shape padding ------------------------------------------------
 // (The donor AppSettings shape rides the settings wire; FilamentKind survives
@@ -190,6 +201,8 @@ export interface ProjectSummary {
   createdAt: number;
   updatedAt: number;
   hasModel: boolean;
+  /** True only while the workspace contains metadata/inputs but no design. */
+  isNew?: boolean;
 }
 
 export interface CreateProjectRequest {
@@ -610,6 +623,12 @@ const transportBase = {
     invoke<void>("chat_cancel_turn", { turnId }),
   chat_session_state: (projectId: string) =>
     invoke<ChatSessionState>("chat_session_state", { projectId }),
+  chat_session_read: (projectId: string, sessionId: string) =>
+    invoke<ChatSessionState>("chat_session_state", { projectId, sessionId }),
+  chat_session_list: (projectId: string) =>
+    invoke<ChatSessionSummary[]>("chat_session_list", { projectId }),
+  chat_session_create: (projectId: string) =>
+    invoke<ChatSessionSummary>("chat_session_create", { projectId }),
 
   // project
   project_list: () => invoke<ProjectSummary[]>("project_list"),

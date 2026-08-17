@@ -981,39 +981,50 @@ export function createCircuitServices({ env = process.env } = {}) {
       projects.touch(projectId);
       const turnId = chat.startTurn({
         projectId,
+        sessionId: req?.sessionId,
         message,
         imagePaths,
         phase: PHASE.PLAN,
       });
-      return { turnId };
+      return { turnId, sessionId: String(req?.sessionId || sessionIdForProject(projectId)) };
     },
     chat_approve_plan: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
       const turnId = chat.startTurn({
         projectId,
+        sessionId: req?.sessionId,
         message: approvedPlanMessage(String(req?.planText ?? "")),
         phase: PHASE.IMPLEMENT,
       });
-      return { turnId };
+      return { turnId, sessionId: String(req?.sessionId || sessionIdForProject(projectId)) };
     },
     chat_request_plan_changes: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
       const turnId = chat.startTurn({
         projectId,
+        sessionId: req?.sessionId,
         message: String(req?.feedback ?? ""),
         phase: PHASE.PLAN,
       });
-      return { turnId };
+      return { turnId, sessionId: String(req?.sessionId || sessionIdForProject(projectId)) };
     },
     chat_cancel_turn: async ({ turnId }) => {
       chat.cancelTurn(String(turnId || ""));
       return null;
     },
-    chat_session_state: async ({ projectId }) => {
+    chat_session_state: async ({ projectId, sessionId }) => {
       requireProject(projectId);
-      return chat.sessionState(String(projectId));
+      return chat.sessionState(String(projectId), String(sessionId || ""));
+    },
+    chat_session_list: async ({ projectId }) => {
+      requireProject(projectId);
+      return chat.sessionList(String(projectId));
+    },
+    chat_session_create: async ({ projectId }) => {
+      requireProject(projectId);
+      return chat.createSession(String(projectId));
     },
   };
 

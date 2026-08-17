@@ -6,12 +6,14 @@ import { CHAT_MIN_WIDTH, clampChatWidth } from "@/workbench/chatLayout";
 import ChatHistory from "./ChatHistory";
 import ChatInput from "./ChatInput";
 import ChatStatusLine from "./ChatStatusLine";
+import ChatTabs from "./ChatTabs";
 import ChatErrorContent from "./ChatErrorContent";
 import ClaudeSetupDialog from "./ClaudeSetupDialog";
 import CreateStarters from "../create/CreateStarters";
 import { FOCUS_CHAT_INPUT_EVENT } from "./chatInputHelpers";
 // import ActionButtons from "./ActionButtons";
 import { MessageSquare } from "lucide-react";
+import { shouldShowCreateStarters } from "./chatSidebarModel";
 
 const SIDEBAR_WIDTH = 440;
 const SIDEBAR_WIDTH_STORAGE_KEY = "panda.chatSidebar.width";
@@ -75,12 +77,16 @@ export default function ChatSidebar({
   const history = useChatStore((state) => state.history);
   const isHydratingSession = useChatStore((state) => state.isHydratingSession);
   const projectId = useChatStore((state) => state.currentProjectId);
-  const currentProjectName = useProjectsStore((state) => {
-    const current = state.projects.find((project) => project.id === state.currentProjectId);
-    return current?.name || "";
+  const currentProject = useProjectsStore((state) =>
+    state.projects.find((project) => project.id === projectId),
+  );
+  const currentProjectName = currentProject?.name || "";
+  const showCreateStarters = shouldShowCreateStarters({
+    projectId,
+    project: currentProject,
+    historyLength: history.length,
+    isHydratingSession,
   });
-  const isEmpty = history.length === 0;
-  const showCenteredEmpty = isEmpty && !isHydratingSession;
   const summaryTitle = currentProjectName.trim() || (history.length ? "Untitled chat" : "New chat");
 
   const resizeStateRef = useRef(null);
@@ -210,20 +216,23 @@ export default function ChatSidebar({
         className="absolute left-0 top-0 z-40 h-full w-1.5 -translate-x-1/2 cursor-col-resize touch-none bg-transparent transition-colors hover:bg-primary/30"
       />
 
-      <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border/60 px-3.5">
-        <MessageSquare className="size-4 text-muted-foreground" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <div
-            className="truncate text-sm font-semibold leading-normal tracking-tight "
-            title={summaryTitle}
-          >
-            {summaryTitle}
+      <header className="shrink-0 border-b border-border/60">
+        <div className="flex h-11 items-center gap-2.5 px-3.5">
+          <MessageSquare className="size-4 text-muted-foreground" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <div
+              className="truncate text-sm font-semibold leading-normal tracking-tight "
+              title={summaryTitle}
+            >
+              {summaryTitle}
+            </div>
           </div>
         </div>
+        <ChatTabs />
       </header>
 
       <div className="min-h-0 flex-1">
-        {showCenteredEmpty ? (
+        {showCreateStarters ? (
           <div
             data-slot="chat-empty-composer"
             className="flex h-full min-h-0 flex-col transition-opacity duration-200"
@@ -263,7 +272,7 @@ export default function ChatSidebar({
         </div>
       ) : null}
 
-      {showCenteredEmpty ? null : (
+      {showCreateStarters ? null : (
         <>
           <ChatStatusLine />
           <ChatInput ref={chatInputRef} />

@@ -11,6 +11,7 @@ import {
   __setTransportForTesting,
   attachChatEventStream,
   cancelTurn,
+  createConversation,
   detachChatEventStream,
   dispatch,
   getChatState,
@@ -20,6 +21,7 @@ import {
   resetChatStore,
   setPendingViewContext,
   setProject,
+  selectConversation,
   startTurn,
 } from "../../../store/chat.js";
 
@@ -270,6 +272,81 @@ test("setProject rehydrates history from the persisted session", async () => {
     assert.equal(state.history[1].role, "assistant");
     assert.equal(state.history[1].blocks[0].text, "Here is the plan.");
     assert.equal(state.isHydratingSession, false);
+  } finally {
+    restore();
+    resetChatStore();
+  }
+});
+
+test("a project lists multiple chats and opens the newest transcript", async () => {
+  resetChatStore();
+  const reads = [];
+  const summaries = [
+    { sessionId: "s-new", title: "Fix the USB route", updatedAt: 20, messageCount: 4 },
+    { sessionId: "s-old", title: "Choose the switches", updatedAt: 10, messageCount: 8 },
+  ];
+  const restore = __setTransportForTesting({
+    async chat_session_list(projectId) {
+      assert.equal(projectId, "macropad");
+      return summaries;
+    },
+    async chat_session_read(projectId, sessionId) {
+      reads.push([projectId, sessionId]);
+      return {
+        sessionId,
+        turnInProgress: false,
+        history: [{ role: "user", content: sessionId, at: 1 }],
+      };
+    },
+  });
+  try {
+    setProject("macropad");
+    await tick();
+    assert.deepEqual(reads, [["macropad", "s-new"]]);
+    assert.equal(getChatState().currentSessionId, "s-new");
+    assert.deepEqual(getChatState().conversationSummaries, summaries);
+    assert.equal(getChatState().history[0].userText, "s-new");
+  } finally {
+    restore();
+    resetChatStore();
+  }
+});
+
+test("new/select chat stays inside the selected project", async () => {
+  resetChatStore();
+  const reads = [];
+  const restore = __setTransportForTesting({
+    async chat_session_state() {
+      return { sessionId: "legacy", turnInProgress: false, history: [] };
+    },
+    async chat_session_create(projectId) {
+      assert.equal(projectId, "macropad");
+      return { sessionId: "s-2", title: "New chat", updatedAt: 30, messageCount: 0 };
+    },
+    async chat_session_read(projectId, sessionId) {
+      reads.push([projectId, sessionId]);
+      return {
+        sessionId,
+        turnInProgress: false,
+        history: [{ role: "user", content: "older chat", at: 1 }],
+      };
+    },
+  });
+  try {
+    setProject("macropad");
+    await tick();
+    const created = await createConversation();
+    assert.equal(created.sessionId, "s-2");
+    assert.equal(getChatState().currentProjectId, "macropad");
+    assert.equal(getChatState().currentSessionId, "s-2");
+    dispatch({
+      type: "set_conversation_summaries",
+      projectId: "macropad",
+      summaries: [created, { sessionId: "s-1", title: "Old", updatedAt: 1, messageCount: 1 }],
+    });
+    assert.equal(await selectConversation("s-1"), true);
+    assert.deepEqual(reads, [["macropad", "s-1"]]);
+    assert.equal(getChatState().history[0].userText, "older chat");
   } finally {
     restore();
     resetChatStore();

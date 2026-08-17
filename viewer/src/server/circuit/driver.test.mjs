@@ -4,6 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -523,6 +524,48 @@ test("parseSessionHistory strips the attachment note and resolves tool errors", 
   assert.equal(history[0].content, "make it darker");
   assert.equal(history[1].blocks[0].status, "error");
   assert.equal(parseSessionHistory("garbage\n{bad}\n").length, 0);
+});
+
+test("chat service lists and reads multiple independent sessions in one project", () => {
+  const dir = tmpdir("circuit-many-chats-");
+  const workspace = path.join(dir, "workspace");
+  const cfg = path.join(dir, "cfg");
+  fs.mkdirSync(workspace, { recursive: true });
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: cfg };
+  const ids = [crypto.randomUUID(), crypto.randomUUID()];
+  for (const [index, sessionId] of ids.entries()) {
+    const file = sessionJsonlPath(workspace, sessionId, env);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      [
+        JSON.stringify({
+          type: "user",
+          message: { role: "user", content: index ? "Route the power rail" : "Choose the switches" },
+          timestamp: `2026-08-0${index + 1}T00:00:00.000Z`,
+        }),
+        JSON.stringify({ type: "ai-title", aiTitle: index ? "Power routing" : "Switch selection" }),
+      ].join("\n"),
+    );
+    fs.utimesSync(file, new Date(index + 1), new Date(index + 1));
+  }
+  const chat = createChatService({
+    projectDir: () => workspace,
+    settings: { read: () => ({ autoBuild: false }) },
+    emit: () => {},
+    env,
+  });
+  try {
+    const list = chat.sessionList("macropad");
+    assert.deepEqual(list.map((item) => item.sessionId), [ids[1], ids[0]]);
+    assert.deepEqual(list.map((item) => item.title), ["Power routing", "Switch selection"]);
+    assert.equal(chat.sessionState("macropad", ids[0]).history[0].content, "Choose the switches");
+    const created = chat.createSession("macropad");
+    assert.equal(created.title, "New chat");
+    assert.notEqual(created.sessionId, ids[0]);
+  } finally {
+    chat.close();
+  }
 });
 
 test("recoverPlanFromTranscript prefers the last substantial text block over thinking", () => {
