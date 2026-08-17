@@ -1131,6 +1131,9 @@ def build_board(
         # and the only thing that ever caught that was somebody looking at the
         # PNG (ledger #49).
         found.extend(checks.silk_overlap_warnings(elements))
+        # A connection nobody made produces no element to be wrong about, so
+        # every other check on this list passes a board with dead wiring.
+        found.extend(checks.floating_net_warnings(elements))
         return found
 
     first_timeout = (

@@ -1198,6 +1198,145 @@ def silk_overlap_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
         return [check_failed(f"silk overlap scan raised {type(exc).__name__}: {exc}")]
 
 
+#: Nets that legitimately touch one part and nothing else. A test point is a
+#: named pad by definition, and a no-connect is a declaration that the pin goes
+#: nowhere on purpose.
+_LONELY_NET_EXEMPT = ("TP", "TEST", "NC", "NO_CONNECT", "DNP", "RESERVED", "SPARE")
+
+
+def floating_net_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
+    """A named net that reaches only one component — or none.
+
+    Lesson F, in the one place it had not been looked for yet: *an absent value
+    is a claim, and nothing checks a claim nobody makes*. Every connectivity
+    check in this stack asks whether a connection that exists is correct.
+    Nothing asked whether a connection that **should** exist is there at all,
+    because a missing wire produces no element to be wrong about.
+
+    Measured across the twelve boards in the repo on 2026-08-17, and it found
+    three real defects on boards carrying ``fab.ready: true``:
+
+    * ``sensor-node-mini`` — ``USB_DP`` and ``USB_DM`` reach only U3. The board
+      composes ``usb-c-power``, which has no data pins, so the RP2040's USB
+      pair terminates in nothing: a USB device that cannot do USB, and no way
+      to flash it except SWD.
+    * ``desk-air-monitor`` — ``BTN1`` reaches only SW1. The button is wired to
+      itself; nothing reads it.
+    * ``pixel-badge`` and ``harness-puck`` — ``PX_18_DIN`` reaches only D17,
+      the end of a pixel chain that never gets its data in.
+
+    All four boards route, plot, gate and pass every other check we own,
+    because every trace they *do* have is correct. This is deliberately not
+    scoped to power rails: the failure that prompted it was an engineer
+    composing ``rp2040-core`` without ``ldo-3v3``, which would leave ``V3_3``
+    lonely, and the same shape catches a dead button.
+
+    Needs no routing, so it runs in the 17s pre-flight as well as the build —
+    which is the whole point, since the alternative is finding it after a
+    forty-minute build or, as here, not at all.
+
+    Graded ``warning`` rather than ``error`` on purpose: a one-part net can be
+    intentional (a mounting-hole net, a reserved pin), and three shipped boards
+    would flip from ready to blocked on a call that is the fleet owner's to
+    make. The detail says plainly that it is a functional defect.
+    """
+    try:
+        ports = {
+            str(e.get("source_port_id")): e
+            for e in circuit_json
+            if isinstance(e, dict) and e.get("type") == "source_port"
+        }
+        components = {
+            str(e.get("source_component_id")): e
+            for e in circuit_json
+            if isinstance(e, dict) and e.get("type") == "source_component"
+        }
+        nets = {
+            str(e.get("source_net_id")): str(e.get("name") or "")
+            for e in circuit_json
+            if isinstance(e, dict) and e.get("type") == "source_net"
+        }
+        if not nets:
+            return []
+
+        # Union-find over every id a trace joins. Connectivity here is by id
+        # and a net is only one of the things a trace may name: a port-to-port
+        # trace joins two pins with no net element at all, so counting a net's
+        # own members would miss every component reached that way.
+        parent = {key: key for key in list(ports) + list(nets)}
+
+        def find(key: str) -> str:
+            while parent[key] != key:
+                parent[key] = parent[parent[key]]
+                key = parent[key]
+            return key
+
+        for element in circuit_json:
+            if not isinstance(element, dict) or element.get("type") != "source_trace":
+                continue
+            joined = [
+                str(i)
+                for i in list(element.get("connected_source_port_ids") or [])
+                + list(element.get("connected_source_net_ids") or [])
+                if str(i) in parent
+            ]
+            for other in joined[1:]:
+                a, b = find(joined[0]), find(other)
+                if a != b:
+                    parent[a] = b
+
+        members: dict[str, list[str]] = {}
+        for key in parent:
+            members.setdefault(find(key), []).append(key)
+
+        warnings: list[Warning] = []
+        for group in members.values():
+            names = sorted(nets[m] for m in group if m in nets and nets[m])
+            if not names:
+                continue
+            if any(
+                name.upper().startswith(_LONELY_NET_EXEMPT) or "TESTPOINT" in name.upper()
+                for name in names
+            ):
+                continue
+            reached = sorted(
+                {
+                    str(components.get(str(ports[m].get("source_component_id")), {}).get("name") or "")
+                    for m in group
+                    if m in ports
+                }
+                - {""}
+            )
+            if len(reached) > 1:
+                continue
+            label = " / ".join(names)
+            if reached:
+                warnings.append(
+                    _warning(
+                        reached[0],
+                        "net_reaches_one_part",
+                        f"net {label} reaches only {reached[0]} — every pin on it "
+                        f"belongs to the same part, so whatever was meant to be on "
+                        f"the other end of this net is not on the board. The copper "
+                        f"that exists is correct, which is why nothing else reports "
+                        f"it; the wire that does not exist is the defect. Either "
+                        f"connect it, or name it TP*/NC* to say the pad is the point",
+                    )
+                )
+            else:
+                warnings.append(
+                    _warning(
+                        "board",
+                        "net_reaches_nothing",
+                        f"net {label} is declared and connects to no component at "
+                        f"all — it exists in the design and touches nothing",
+                    )
+                )
+        return warnings
+    except Exception as exc:  # noqa: BLE001
+        return [check_failed(f"floating net scan raised {type(exc).__name__}: {exc}")]
+
+
 def trace_anchor_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
     """A route that no longer touches the pad it claims to start or end on.
 

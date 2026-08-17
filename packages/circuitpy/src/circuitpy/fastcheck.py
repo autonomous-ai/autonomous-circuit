@@ -600,6 +600,9 @@ def fast_check(
                 warnings.extend(checks.dfm_warnings(elements, product, profile))
             warnings.extend(checks.trace_anchor_warnings(elements))
             warnings.extend(checks.silk_overlap_warnings(elements))
+            # A wire that was never drawn leaves no element to be wrong about,
+            # so nothing else in this stack can see it.
+            warnings.extend(checks.floating_net_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
                     node_input, profile=profile, assembly_order=True

@@ -762,3 +762,93 @@ class SilkscreenLegibility(unittest.TestCase):
         for junk in ([], [None], [{"type": "pcb_silkscreen_text"}],
                      [{"type": "pcb_silkscreen_text", "text": "X", "font_size": "big"}]):
             self.assertEqual(checks.silk_overlap_warnings(junk), [])
+
+
+class FloatingNets(unittest.TestCase):
+    """A wire nobody drew leaves no element to be wrong about.
+
+    Every other connectivity check in this stack asks whether a connection
+    that exists is correct. This one asks whether a connection that should
+    exist is there at all — and the first time it ran over the repo it found
+    dead wiring on three boards carrying `fab.ready: true`.
+    """
+
+    @staticmethod
+    def _board(traces):
+        """Two parts, three nets, and whatever traces the test wants."""
+        elements = [
+            {"type": "source_component", "source_component_id": "sc_u3", "name": "U3"},
+            {"type": "source_component", "source_component_id": "sc_j1", "name": "J1"},
+            {"type": "source_port", "source_port_id": "sp_u3_dp", "source_component_id": "sc_u3"},
+            {"type": "source_port", "source_port_id": "sp_u3_vcc", "source_component_id": "sc_u3"},
+            {"type": "source_port", "source_port_id": "sp_j1_dp", "source_component_id": "sc_j1"},
+            {"type": "source_port", "source_port_id": "sp_j1_vcc", "source_component_id": "sc_j1"},
+            {"type": "source_net", "source_net_id": "sn_dp", "name": "USB_DP"},
+            {"type": "source_net", "source_net_id": "sn_v5", "name": "V5"},
+            {"type": "source_net", "source_net_id": "sn_tp", "name": "TP_SPARE"},
+        ]
+        return elements + list(traces)
+
+    @staticmethod
+    def _trace(ports, nets):
+        return {
+            "type": "source_trace",
+            "connected_source_port_ids": list(ports),
+            "connected_source_net_ids": list(nets),
+        }
+
+    def test_a_net_that_reaches_one_part_is_reported_with_the_part_named(self) -> None:
+        # USB_DP is wired to the MCU and to nothing else — the exact shape of
+        # sensor-node-mini, which composes usb-c-power (no data pins) and
+        # leaves the RP2040's USB pair terminating in air.
+        board = self._board([
+            self._trace(["sp_u3_dp"], ["sn_dp"]),
+            self._trace(["sp_u3_vcc", "sp_j1_vcc"], ["sn_v5"]),
+        ])
+        found = checks.floating_net_warnings(board)
+        self.assertEqual([w["kind"] for w in found], ["net_reaches_one_part"])
+        self.assertEqual(found[0]["part"], "U3")
+        self.assertIn("USB_DP", found[0]["detail"])
+        self.assertEqual(found[0]["severity"], "warning")
+
+    def test_a_net_two_parts_share_is_never_reported(self) -> None:
+        board = self._board([
+            self._trace(["sp_u3_dp", "sp_j1_dp"], ["sn_dp"]),
+            self._trace(["sp_u3_vcc", "sp_j1_vcc"], ["sn_v5"]),
+        ])
+        self.assertEqual(checks.floating_net_warnings(board), [])
+
+    def test_connectivity_is_followed_through_port_to_port_traces(self) -> None:
+        # A trace may join two pins and name no net at all. Counting a net's
+        # own members would call this net lonely when it is fully wired: the
+        # net reaches U3 directly, and J1 only through the second trace.
+        board = self._board([
+            self._trace(["sp_u3_dp"], ["sn_dp"]),
+            self._trace(["sp_u3_dp", "sp_j1_dp"], []),
+            self._trace(["sp_u3_vcc", "sp_j1_vcc"], ["sn_v5"]),
+        ])
+        self.assertEqual(checks.floating_net_warnings(board), [])
+
+    def test_a_test_point_net_is_the_pad_being_the_point(self) -> None:
+        board = self._board([
+            self._trace(["sp_u3_dp", "sp_j1_dp"], ["sn_dp"]),
+            self._trace(["sp_u3_vcc", "sp_j1_vcc"], ["sn_v5"]),
+            self._trace(["sp_u3_vcc"], ["sn_tp"]),
+        ])
+        self.assertEqual(checks.floating_net_warnings(board), [])
+
+    def test_a_declared_net_wired_to_nothing_is_reported_against_the_board(self) -> None:
+        board = self._board([
+            self._trace(["sp_u3_dp", "sp_j1_dp"], ["sn_dp"]),
+            self._trace(["sp_u3_vcc", "sp_j1_vcc"], ["sn_v5"]),
+        ])
+        # sn_tp is exempt by name; give the board a plain one that goes nowhere.
+        board.append({"type": "source_net", "source_net_id": "sn_dead", "name": "SENSOR_INT"})
+        found = checks.floating_net_warnings(board)
+        self.assertEqual([w["kind"] for w in found], ["net_reaches_nothing"])
+        self.assertEqual(found[0]["part"], "board")
+
+    def test_it_never_raises_on_junk(self) -> None:
+        for junk in ([], [None], [{"type": "source_net"}],
+                     [{"type": "source_trace", "connected_source_port_ids": None}]):
+            self.assertEqual(checks.floating_net_warnings(junk), [])
