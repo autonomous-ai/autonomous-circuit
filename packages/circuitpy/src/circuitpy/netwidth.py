@@ -289,3 +289,63 @@ def declared_widths(elements: Sequence[dict]) -> dict[str, float]:
             if name:
                 out[name] = max(out.get(name, value), value)
     return {k: round(v, _ROUND) for k, v in out.items()}
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """One JSON line: what each named net is routed at, and what it could be.
+
+    The house convention — exactly one line on stdout, last line wins, so a
+    stray print upstream cannot kill an answer the app is waiting on.
+
+        python -m circuitpy.netwidth <project> --board boards/main.circuit.json \\
+            --net V5 --net V3_3
+    """
+    import argparse
+    import json
+    import sys
+    from pathlib import Path
+
+    from circuitpy import fab as fab_mod
+
+    parser = argparse.ArgumentParser(
+        prog="python -m circuitpy.netwidth",
+        description="How wide each net is routed, and how wide the placement lets it be.",
+    )
+    parser.add_argument("project", type=Path, help="the project root")
+    parser.add_argument("--board", default="boards/main.circuit.json",
+                        help="circuit.json, relative to the project root")
+    parser.add_argument("--net", action="append", default=[],
+                        help="measure this net by name (repeatable)")
+    parser.add_argument("--rails", action="store_true",
+                        help="measure every power and ground net")
+    parser.add_argument("--fab", default=None, help="fab profile id (default: jlcpcb)")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    root = args.project.expanduser().resolve()
+    path = root / args.board
+    try:
+        elements = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({"ok": False, "error": f"cannot read {path.name}: {exc}", "nets": []}))
+        return 1
+    profile = fab_mod.get_profile(args.fab or "jlcpcb")
+    try:
+        rows = net_width_report(
+            elements, profile, nets=args.net or None, rails_only=bool(args.rails)
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}", "nets": []}))
+        return 1
+    print(json.dumps({
+        "ok": True,
+        "nets": rows,
+        # The floor the fab profile holds power nets to, so the app can say
+        # "wants 0.5, can have 0.4" without owning the number itself.
+        "power_floor_mm": float(profile.warn_power_trace_mm),
+        "min_trace_mm": float(profile.min_trace_mm),
+    }))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

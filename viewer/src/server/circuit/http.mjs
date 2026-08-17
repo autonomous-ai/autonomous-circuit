@@ -17,6 +17,7 @@ import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import { createEditQueue, planPlacementEdit, refuseWrittenBoard, writeAtomic } from "./boardEdit.mjs";
 import { runFastCheck } from "./fastCheck.mjs";
+import { runNetWidths } from "./netWidths.mjs";
 import {
   PHASE,
   approvedPlanMessage,
@@ -742,6 +743,32 @@ export function createCircuitServices({ env = process.env } = {}) {
           },
           check,
         };
+      });
+    },
+
+    /**
+     * How wide a net is routed, and how wide the placement lets it be.
+     *
+     * The number an engineer needs *before* they widen a rail: on
+     * terminal-keyboard, V5 can take 1.1mm and V3_3 cannot exceed 0.4000mm
+     * because of the RP2040's own pad pitch, so the EE review's "make them
+     * 0.5-1.0mm" is free on one and impossible on the other. Read-only, and
+     * seconds rather than milliseconds — the caller asks for the net the user
+     * is looking at, not for all of them.
+     */
+    board_net_widths: async ({ id, file, nets = [], rails = false }) => {
+      const projectId = requireProject(id);
+      const rel = boardSourceRelPath(file);
+      if (!rel) {
+        throw ipcError("INVALID_ARGUMENT", "only a board under boards/ can be measured", 400);
+      }
+      const root = fs.realpathSync(projects.projectDir(projectId));
+      const stem = rel.slice("boards/".length, -".tsx".length);
+      return runNetWidths(path.join(root, "boards", `${stem}.circuit.json`), {
+        projectRoot: root,
+        nets,
+        rails: Boolean(rails),
+        env,
       });
     },
 

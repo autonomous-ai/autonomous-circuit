@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { createCircuitServices } from "./http.mjs";
 import { createEditQueue, planPlacementEdit } from "./boardEdit.mjs";
 import { pythonPathDirs, resolvePython, runFastCheck } from "./fastCheck.mjs";
+import { runNetWidths } from "./netWidths.mjs";
 import { AUTHOR, REVISION_KIND, readRevisions } from "./revisions.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -633,3 +634,38 @@ test("what the server answers is exactly what is on disk, and nothing is left be
     app.close();
   }
 });
+
+test(
+  "board_net_widths measures what a rail could be, not just what it is",
+  { skip: TOOLCHAIN_READY ? false : "example board or pinned toolchain not present" },
+  async () => {
+    // The two numbers the EE review's finding 4 turns on, on the board it was
+    // written about: V5 can take 1.1mm and V3_3 cannot exceed 0.4mm, because a
+    // track leaving a QFN-56 pad at 0.400mm pitch is 2 x (0.4 - 0.1 - 0.1)
+    // wide and no wider. One is free; the other is impossible at any effort.
+    const measured = await runNetWidths(path.join(EXAMPLE, "boards", "main.circuit.json"), {
+      projectRoot: EXAMPLE,
+      nets: ["V3_3", "V5"],
+    });
+    assert.equal(measured.ok, true, measured.reason);
+    const byNet = Object.fromEntries(measured.nets.map((row) => [row.net, row]));
+
+    assert.ok(Math.abs(byNet.V3_3.ceiling_mm - 0.4) < 0.001, JSON.stringify(byNet.V3_3));
+    assert.match(byNet.V3_3.ceiling_at, /^U3\./, "the ceiling must name the pin that holds it");
+    assert.ok(Math.abs(byNet.V5.ceiling_mm - 1.1) < 0.001, JSON.stringify(byNet.V5));
+
+    // What it is today, which is the other half of the sentence: 0.2mm against
+    // a 0.5mm power floor.
+    assert.ok(Math.abs(byNet.V3_3.narrowest_mm - 0.2) < 0.001);
+    assert.equal(byNet.V3_3.declared_mm, null);
+    assert.equal(measured.powerFloorMm, 0.5);
+
+    // A net nobody named is not measured — this costs seconds per net and the
+    // caller is a person looking at one of them.
+    const nothing = await runNetWidths(path.join(EXAMPLE, "boards", "main.circuit.json"), {
+      projectRoot: EXAMPLE,
+    });
+    assert.equal(nothing.ok, false);
+    assert.match(nothing.reason, /no net named/);
+  },
+);
