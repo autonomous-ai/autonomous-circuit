@@ -109,49 +109,30 @@ nothing composes and a check no gate calls.
 
 ## The score
 
+**Round 1: 40/70. Round 2: 51/70. Round 3: 51/70. Round 4: 50/70** — rubric in
+`docs/reviews/ide-panel-rubric.md`, write-ups in
+`docs/reviews/ide-panel-2026-08-16.md` and `-08-17.md`, judges' own reports
+under `work/ide-panel/round<N>/`.
 
-**Round 1: 40/70. Round 2: 51/70**, same day, same rubric
-(`docs/reviews/ide-panel-rubric.md`, write-up in
-`docs/reviews/ide-panel-2026-08-16.md`, judges' own reports under
-`work/ide-panel/round<N>/`). Verdict went 2 → 8 once the gate the app had never
-called was called. Nothing is at 9 or 10 yet and nothing should be.
+Round 4 went **down one, and the tool is better for it.** Editing fell 8 → 6
+and Board readiness 7 → 6, both because a judge *built* a case an earlier round
+had only described, and both cases were real. Integrity went 6 → 8 with all
+four claimed fixes re-driven and held. A score that only ever rises is
+measuring the judges, not the product.
 
-## Open, ranked — this is the next round's queue
+| Lens | R2 | R3 | R4 |
+|---|---|---|---|
+| Familiarity | 8 | 8 | 8 |
+| Navigation & sight | 8 | 8 | 8 |
+| Editing | 7 | 8 | **6** |
+| Verdict | 8 | 8 | 7 |
+| Integrity | 6 | 6 | **8** |
+| Discoverability | 6 | 7 | 7 |
+| Board readiness | 6 | 7 | **6** |
 
-1. **Three boards need re-placing at the new block gap, and four need their
-   dead wiring fixed.** Both are dispatched and in flight. The gap is measured
-   (13 → 1 blocking) but no *product* board has been carried onto it yet,
-   because every placement in a shipped board is a frozen literal — the planner
-   fix does nothing for an existing board until somebody re-derives it.
-2. **Promote `net_reaches_one_part` from `warning` to `error`** once those four
-   boards are clean. It is graded low today only because flipping three shipped
-   boards from ready to blocked is Dee's call, not a commit's.
-3. **Integrity is the lowest lens (6).** Four of round 3's five findings were
-   fixed in `bf92bac`; the score cannot move until a judge re-drives them.
-   Everything a fix claims has to be verified by someone who did not write it.
-4. **Editing (7).** `board_edit_apply` still has no client caller — now
-   *declared* as agent-only with a written reason in `commandsAreWired.test.mjs`
-   rather than silently unused, but the decision stands either way. Placement
-   ids are still positional (`tag[ordinal]`), so an agent inserting an earlier
-   element of the same tag silently renames every later one.
-5. **Ledger #51(b), and measured as low value**: the escalation decides off the
-   circuit.json scan, so KiCad's `drc_violation` — the kind that actually
-   blocks the RP2040 boards — does not exist yet when the retry is chosen.
-   Fixing the timing means either a cheap DRC probe before the decision or a
-   retry that wraps more of the pipeline. **10x does not move this class**
-   (ledger #52's A/B), so this buys less than it costs today.
-6. **Every board's third human edit is our defect, and it is the same one on
-   all three: the USB pair** (ledger #12). Two boards have no corridor for it,
-   the third has the connector-side leg unrouted. `reserve.py` is built and
-   tested (48 tests) and **not wired into `build_board`**, because on both
-   refusing boards the reserved rebuild currently comes back *worse*
-   (`147b958`) — the corridor has to get cheaper first.
-7. **No parts lock on two boards** (ledger #46): writing one fills the BOM's
-   Footprint column and takes `fab.ready` from true to false, because the USB-C
-   receptacle's hybrid SMD/through-hole footprint loses its plated holes in the
-   plot. Platform defect, understood, unfixed.
-8. Router track (separate agents): composition beats the relay, the incumbent
-   still wins on all three boards, `CIRCUIT_ROUTER` stays off by default.
+Every must-fix from round 4 was worked the same day. None of it counts as
+score until someone who did not write it re-drives it — that rule is why the
+number is trustworthy at all.
 
 ## The loop
 
@@ -164,6 +145,14 @@ re-run the panel to see whether the number moved.
 
 ## Log
 
+- 2026-08-17 afternoon — Panel round 4 complete (50/70) and every must-fix
+  worked the same day. Fleet at **9 of 12 fab-ready, in the repo and in the
+  app**, which now agree because `scripts/install-fleet` exists and
+  `scripts/fleet-status` prints both numbers side by side — a judge found the
+  repo claiming 9 of 12 while the app a human opens held 6 of 10. Everything
+  converges on one defect: `rp2040-core`'s internal fanout (ledger #53), which
+  now blocks three products directly and two more indirectly, because fixing
+  their dead wiring regresses into it. A specialist is on the block itself.
 - 2026-08-17 midday — Fleet to twelve products, 6 of 9 built boards green.
   Seven platform fixes, all traced to a board somebody was trying to finish
   (see the fleet section above). Ledger gained #51, #52, #53 and lesson H.
