@@ -1,0 +1,9 @@
+{
+  "name": "sensor-node-mini",
+  "description": "Small always-on environment node: temperature, humidity and pressure over I2C, one status LED, RP2040 brain, powered from USB-C (power only, no data — programmed once over SWD).",
+  "power": "usb-c-5v",
+  "envelopeMm": [84, 48],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

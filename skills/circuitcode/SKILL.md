@@ -285,6 +285,15 @@ python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
 # minutes). Use it when you want a verdict without a packet, not to save time.
 python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
 
+# PRE-FLIGHT — the placement verdict, without paying for routing. ~17s on a
+# dense board against 20-40 minutes for a build, because it compiles with
+# `routingDisabled` and grades what is left: overlapping parts, a footprint
+# that is not the part, a component off the board, a hole in a pad, pad-to-pad
+# clearance, assembly risks, board size and price tier, decoupling distance.
+# It sees NOTHING about copper and says so. Use it every time you move a part;
+# use `circuit` when you want a board.
+python -m circuitpy.preflight /abs/project --board boards/main.tsx
+
 # Sub-second verdict on a board that has ALREADY been built, with optional
 # placement moves applied in memory. This is the fast gate: ~0.5-0.9s on the
 # boards we ship, no compile at all. It cannot see anything a rebuild would

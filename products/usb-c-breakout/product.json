@@ -1,0 +1,9 @@
+{
+  "name": "usb-c-breakout",
+  "description": "USB-C receptacle broken out to labelled bench pads (VBUS, GND, CC1, CC2, D+, D-) with a power LED, for hooking a bench supply or logic analyser to a USB-C cable",
+  "power": "usb-c-5v",
+  "envelopeMm": [36, 41],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}
