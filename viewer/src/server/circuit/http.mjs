@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 
-import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
+import { createProjectsStore, projectsRootDir, circuitHome, currentUserId } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
@@ -1068,6 +1068,7 @@ export function createCircuitServices({ env = process.env } = {}) {
         formatTurnLog({
           phase: `api:${commandName}`,
           projectId,
+          userId: currentUserId(env),
           elapsedMs: Date.now() - startedAtMs,
           exit: "ok",
         })
@@ -1081,6 +1082,7 @@ export function createCircuitServices({ env = process.env } = {}) {
         formatTurnLog({
           phase: `api:${commandName}`,
           projectId,
+          userId: currentUserId(env),
           elapsedMs: Date.now() - startedAtMs,
           // An expected refusal (`error.code`) and a bug are different events
           // and reading them as one is how a broken deploy looks healthy.

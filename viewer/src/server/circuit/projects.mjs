@@ -49,6 +49,38 @@ export function projectsRootDir(env = process.env) {
   return path.join(circuitHome(env), "projects");
 }
 
+/** Who the server is acting for, until there is anyone to ask.
+ *
+ * There is no login and no session; `CIRCUIT_USER_ID` is a single hardcoded
+ * identity, `"local"` by default. It exists to fill the `user=` column the
+ * turn log already prints, so that column is exercised and read by something
+ * before real auth arrives rather than being introduced at the same moment as
+ * the thing that populates it.
+ *
+ * `pre-deploy.md` P0.1 asks for more than this: per-user project directories,
+ * so one account cannot read another's boards. That is deliberately NOT here —
+ * changing the projects root also changes the encoded Claude session directory
+ * (`encodeCwd` maps every non-alphanumeric character to `-`), so every existing
+ * board would keep its artifacts, lose its chat history, and hand `--resume` a
+ * session id it can no longer find. Partitioning is a migration, not a
+ * constant, and this repo is R&D for now.
+ *
+ * Sanitised even though nothing can currently set it to anything odd: the day
+ * this becomes request-derived is the day a `..` in it walks into another
+ * user's boards, and it costs one line while it is still a constant.
+ */
+export function currentUserId(env = process.env) {
+  const raw = String(env?.CIRCUIT_USER_ID || "").trim();
+  if (!raw) {
+    return "local";
+  }
+  const safe = raw
+    .replace(/[^A-Za-z0-9._-]/g, "-") // separators and everything exotic
+    .replace(/\.{2,}/g, "-") // `..` anywhere, not only at the front
+    .replace(/^[.-]+|[.-]+$/g, ""); // no leading/trailing dot or dash
+  return safe || "local";
+}
+
 /** Claude Code's config dir. The `claude` CLI honors CLAUDE_CONFIG_DIR, so we
  * read the same env for session JSONL lookups (and tests point it at a temp
  * dir instead of the real `~/.claude`). */

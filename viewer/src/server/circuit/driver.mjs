@@ -20,6 +20,7 @@ import { addUsage, formatTurnLog, newUsage, readResultLine } from "./usage.mjs";
 import {
   circuitHome,
   claudeConfigDir,
+  currentUserId,
   parseLatestAiTitle,
   sessionJsonlPath,
   skipDirNames,
@@ -1290,6 +1291,7 @@ export async function spawnTurn({
     formatTurnLog({
       turnId,
       projectId,
+      userId: currentUserId(env),
       phase,
       model: state.result?.model || model || undefined,
       effort,

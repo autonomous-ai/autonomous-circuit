@@ -9,6 +9,7 @@ import {
   readResultLine,
   weigh,
 } from "./usage.mjs";
+import { currentUserId } from "./projects.mjs";
 
 /** A `result` line shaped like the real ones, with weather-badge-13's own
  * whole-session counters on it (measured 2026-08-18). */
@@ -158,4 +159,33 @@ test("an error never breaks the one-line contract", () => {
 test("a runaway error message is capped", () => {
   const line = formatTurnLog({ exit: "error", error: "x".repeat(5000) });
   assert.ok(line.length < 400, `line was ${line.length} chars`);
+});
+
+// ---------------------------------------------------------------------------
+// The user column, before there is a login
+// ---------------------------------------------------------------------------
+
+test("there is a user id to attribute a turn to", () => {
+  assert.equal(currentUserId({}), "local");
+  assert.equal(currentUserId({ CIRCUIT_USER_ID: "  " }), "local");
+  assert.equal(currentUserId({ CIRCUIT_USER_ID: "tri" }), "tri");
+});
+
+test("the user id is sanitised while it is still a constant", () => {
+  // Nothing can set this to anything odd today. The day it becomes
+  // request-derived is the day a `..` in it reads someone else's boards, and
+  // it costs one line now rather than an incident later.
+  assert.equal(currentUserId({ CIRCUIT_USER_ID: "a/b" }), "a-b");
+  assert.equal(currentUserId({ CIRCUIT_USER_ID: "tri.luong" }), "tri.luong");
+  for (const hostile of ["../../etc", "..", "...", "./.", "/", "..%2f..", "  ../x  "]) {
+    const id = currentUserId({ CIRCUIT_USER_ID: hostile });
+    assert.doesNotMatch(id, /\.\./, `${hostile} -> ${id}`);
+    assert.doesNotMatch(id, /[/\\]/, `${hostile} -> ${id}`);
+    assert.ok(id.length > 0, hostile);
+  }
+});
+
+test("the turn line carries the user it was for", () => {
+  const line = formatTurnLog({ turnId: "t1", userId: currentUserId({}), exit: "ok" });
+  assert.ok(line.includes("user=local"), line);
 });
