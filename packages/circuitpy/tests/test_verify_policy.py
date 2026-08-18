@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from circuitpy import verify_bridge
+from circuitpy import checks, verify_bridge
 from circuitpy.fab import (
     VERIFY_BLOCKING_KINDS,
     VERIFY_ESCALATED_KINDS,
@@ -83,6 +83,27 @@ def test_a_tight_crystal_net_warns_and_never_blocks():
     to let anyone order a board that builds."""
     out = apply_verify_policy([_finding("crystal_net_tight", "warning")], PROFILE)
     assert out[0]["severity"] == "warning"
+
+
+def test_a_declined_repair_is_advisory_and_never_stops_a_board():
+    """A repair that ran, looked and chose not to act has examined everything
+    and withheld nothing. Contrast `check_failed`, which means a step did not
+    happen at all. Reported as the same thing, it put "a check could not
+    finish" on weather-badge-12 and -13 — both `fab.ready` with zero errors."""
+    finding = checks.repair_declined("no via position clears every obstacle")
+    assert finding["kind"] == "repair_declined"
+    assert finding["severity"] == "info"
+    graded = apply_verify_policy([finding], PROFILE)
+    assert graded[0]["severity"] == "info"
+    assert fab_ready(graded, "kicad-cli") is True
+
+
+def test_a_declined_repair_is_not_in_either_policy_set():
+    """It must stay out by name, not by luck: the unclassified default caps at
+    warning, and an advisory that reads as a warning is the same false alarm
+    one notch quieter."""
+    assert "repair_declined" not in VERIFY_BLOCKING_KINDS
+    assert "repair_declined" not in VERIFY_ESCALATED_KINDS
 
 
 def test_an_unclassified_kind_can_never_block():

@@ -1489,6 +1489,8 @@ def build_board(
                 )
             for note in normalization.notes:
                 warnings.append(checks.check_failed(note))
+            for note in normalization.declined:
+                warnings.append(checks.repair_declined(note))
         if kicad_sch is not None:
             # Stage 3b: hold the converted *schematic* to the design's own
             # netlist before anyone reads it, the same posture as 3a for the

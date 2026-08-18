@@ -51,6 +51,34 @@ test("plainIssue names a known code and admits an unknown one", () => {
   assert.equal(unknown.meaning, "", "an unknown code gets no invented meaning");
 });
 
+test("a repair that declined does not read as a check that could not run", () => {
+  // weather-badge-12 and -13, 2026-08-18: both fab.ready with zero errors,
+  // and both showed "a check could not finish" marked blocking. The pipeline
+  // never blocked on it — `check_failed` is in neither policy set — so the app
+  // was contradicting the verdict it was rendering.
+  const declined = plainIssue("repair_declined");
+  assert.equal(declined.known, true);
+  assert.notEqual(declined.impact, IMPACT.BLOCKS);
+  assert.doesNotMatch(declined.meaning, /not examined|absence/i);
+
+  // The row above keeps its teeth: a step that truly did not run is still a
+  // reason not to ship, and splitting these must not soften it.
+  assert.equal(plainIssue("check_failed").impact, IMPACT.BLOCKS);
+});
+
+test("a declined repair never marks its group blocking", () => {
+  const [group] = groupFindings([
+    row({ kind: "repair_declined", severity: "info", detail: "the dead-end(s) on net(s) 2 were left as the router laid them" }),
+  ]);
+  assert.equal(group.code, "repair_declined");
+  assert.equal(group.blocking, false);
+
+  const [failed] = groupFindings([
+    row({ kind: "check_failed", severity: "warning", detail: "could not read board.kicad_pcb" }),
+  ]);
+  assert.equal(failed.blocking, true);
+});
+
 test("groupFindings collapses a wall of rows into issues, blocking first", () => {
   const rows = [
     ...Array.from({ length: 400 }, (_, i) => row({ severity: "info", part: `R${i}`, detail: "[text_height] Text height out of range" })),

@@ -52,6 +52,25 @@ def check_failed(detail: str, part: str = "board") -> Warning:
     return _warning(part, "check_failed", detail)
 
 
+def repair_declined(detail: str, part: str = "board") -> Warning:
+    """A repair pass ran, looked, and chose to change nothing.
+
+    Distinct from :func:`check_failed` on purpose. `check_failed` means a step
+    the board was entitled to did not happen, so some part of it is unexamined
+    — an absence, and a reason not to ship. This means the opposite: the step
+    ran, saw the whole picture, and declined because acting was the more
+    dangerous option. Nothing is unexamined; the condition is still measured by
+    whichever gate owns it.
+
+    Kept out of the pipeline's blocking and escalated sets, and reported at
+    `info`, because the board is not worse for it. Measured 2026-08-18:
+    weather-badge-12 and -13 both shipped `fab.ready` with zero errors while
+    the app showed "a check could not finish" and marked it blocking — the one
+    verdict contradicting itself across two surfaces.
+    """
+    return _warning(part, "repair_declined", detail, "info")
+
+
 # ---------------------------------------------------------------------------
 # Stage 1: circuit.json element scan.
 # ---------------------------------------------------------------------------

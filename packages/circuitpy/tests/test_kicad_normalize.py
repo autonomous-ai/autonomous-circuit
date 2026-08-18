@@ -227,15 +227,49 @@ def test_a_b_cu_track_ending_in_open_space_is_left_alone(tmp_path):
     assert "F.Cu B.Cu" not in path.read_text().replace("(layers F.Cu F.Paste F.Mask)", "")
 
 
-def test_a_dead_end_with_no_room_for_a_via_is_skipped_and_noted(tmp_path):
-    """Two same-row pads whose neighbours leave 0.2mm gaps: no round via
-    clears both, so the dead-end must NOT be bridged with a shorting via, and
-    the skip is reported."""
+def _no_room_board(tmp_path):
+    """Two same-row pads whose neighbours leave 0.2mm gaps: no round via clears
+    both, so the dead-end must NOT be bridged with a shorting via."""
     body = DEAD_END_BOARD.replace(
         '      (at 2.6 3 0)',
         '      (at 2.1 3 0)',
     )
-    path = _write(tmp_path, body)
-    result = normalize_for_fab(path, PROFILE)
+    return _write(tmp_path, body)
+
+
+def test_a_dead_end_with_no_room_for_a_via_is_skipped_and_reported(tmp_path):
+    result = normalize_for_fab(_no_room_board(tmp_path), PROFILE)
     assert result.vias_bridged == 0
-    assert any("could not find a safe placement" in n for n in result.notes)
+    assert result.declined
+    assert "left as the router laid them" in result.declined[0]
+
+
+def test_declining_to_place_a_via_is_not_a_failed_step(tmp_path):
+    """The distinction this list exists for. `notes` means something the board
+    was entitled to did not happen and part of it is unexamined. This pass ran,
+    read every pad, trace, via and pour, and chose not to act — the safer of
+    the two options, and the one #11 was written in blood for.
+
+    Reported as a failure it put "a check could not finish" on weather-badge-12
+    and -13, both `fab.ready` with zero errors, and the app marked it blocking
+    while the pipeline did not. One verdict, two surfaces, opposite answers."""
+    result = normalize_for_fab(_no_room_board(tmp_path), PROFILE)
+    assert result.notes == []
+
+
+def test_a_step_that_genuinely_could_not_run_still_lands_in_notes(tmp_path):
+    """The other side of the split has to keep working, or this trades a false
+    alarm for a silence."""
+    missing = tmp_path / "nope.kicad_pcb"
+    result = normalize_for_fab(missing, PROFILE)
+    assert any("could not read" in n for n in result.notes)
+    assert result.declined == []
+
+
+def test_the_reason_names_the_net_and_says_who_judges_it(tmp_path):
+    """A declined repair still has to be actionable: which net, why nothing
+    was placed, and where the condition is still being measured."""
+    detail = normalize_for_fab(_no_room_board(tmp_path), PROFILE).declined[0]
+    assert "net" in detail
+    assert "clears every pad" in detail
+    assert "DRC" in detail
