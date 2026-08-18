@@ -29,6 +29,7 @@ import {
   buildStructurePrompt,
   collectBoardWarnings,
   createChatService,
+  DEFAULT_MAX_TURNS,
   diffSnapshots,
   isBlocking,
   isElectrical,
@@ -1219,4 +1220,92 @@ test("workspaceFabReady skips the directories the walker is told to skip", () =>
     JSON.stringify({ fab: { ready: false } }),
   );
   assert.equal(workspaceFabReady(dir), true, "a stale copy must not veto");
+});
+
+// ---------------------------------------------------------------------------
+// P0.2 / P0.3 — admission control
+// ---------------------------------------------------------------------------
+
+test("a second turn on the same project is refused, not raced", () => {
+  // Two `claude --resume <sessionId>` children on one session collide. The
+  // inherited footgun in CLAUDE.md — "Session ID already in use" — is exactly
+  // this. `turnInProgress` existed and guarded board-source writes; the turn
+  // that creates the collision was never gated on it.
+  const dir = tmpdir("circuit-lock-");
+  const { chat } = makeChatHarness({
+    dir,
+    autoBuild: false,
+    scenario: { plan: { lines: [assistant([{ type: "text", text: "thinking" }])], sleepAfterMs: 4000 } },
+  });
+  try {
+    assert.ok(chat.startTurn({ projectId: "proj-1", message: "go", phase: PHASE.PLAN }));
+    assert.equal(chat.turnInProgress("proj-1"), true);
+    let err = null;
+    try {
+      chat.startTurn({ projectId: "proj-1", message: "again", phase: PHASE.PLAN });
+    } catch (error) {
+      err = error;
+    }
+    assert.ok(err, "the second turn must be refused, not started");
+    assert.equal(err.code, "TURN_RUNNING");
+    assert.equal(err.statusCode, 409);
+  } finally {
+    chat.close();
+  }
+});
+
+test("a different project is not blocked by someone else's turn", () => {
+  // The lock is per project, not a global mutex. Getting this wrong turns a
+  // collision guard into a one-user-at-a-time server.
+  const dir = tmpdir("circuit-lock-");
+  const { chat } = makeChatHarness({
+    dir,
+    autoBuild: false,
+    scenario: { plan: { lines: [assistant([{ type: "text", text: "thinking" }])], sleepAfterMs: 4000 } },
+  });
+  try {
+    chat.startTurn({ projectId: "proj-1", message: "go", phase: PHASE.PLAN });
+    assert.ok(chat.startTurn({ projectId: "proj-2", message: "go", phase: PHASE.PLAN }));
+  } finally {
+    chat.close();
+  }
+});
+
+test("the server refuses an admission past the concurrency cap", () => {
+  // `turns` was unbounded in one process: ten users pressing build is ten CLI
+  // children and ten routers, and each build turn spawns up to seven review
+  // children of its own.
+  const dir = tmpdir("circuit-cap-");
+  const logPath = path.join(dir, "log.jsonl");
+  const scenarioPath = writeScenario(dir, {
+    plan: { lines: [assistant([{ type: "text", text: "thinking" }])], sleepAfterMs: 4000 },
+  });
+  const chat = createChatService({
+    projectDir: (id) => path.join(dir, "projects", id),
+    settings: { read: () => ({ autoBuild: false, model: "" }) },
+    emit: () => {},
+    env: {
+      ...makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg"), logPath }),
+      CIRCUIT_MAX_TURNS: "2",
+    },
+  });
+  try {
+    chat.startTurn({ projectId: "p1", message: "go", phase: PHASE.PLAN });
+    chat.startTurn({ projectId: "p2", message: "go", phase: PHASE.PLAN });
+    let err = null;
+    try {
+      chat.startTurn({ projectId: "p3", message: "go", phase: PHASE.PLAN });
+    } catch (error) {
+      err = error;
+    }
+    assert.ok(err, "the third turn must be refused past a cap of 2");
+    assert.equal(err.code, "TOO_MANY_TURNS");
+    assert.equal(err.statusCode, 503);
+  } finally {
+    chat.close();
+  }
+});
+
+test("the cap is a number an operator can move without a deploy", () => {
+  assert.equal(DEFAULT_MAX_TURNS, 4);
 });

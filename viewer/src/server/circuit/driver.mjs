@@ -1978,6 +1978,35 @@ export function attachmentNote(rels) {
  * fired — plan-present, not plan-non-empty) chains straight into a build turn
  * when `autoBuild !== false`.
  */
+/** Ceiling on turns running at once, server-wide.
+ *
+ * `turns` was an unbounded in-memory Map in one process: ten people pressing
+ * build was ten `claude` CLI children and ten routers on one box, and the
+ * multiplier is worse than it looks — autopilot chains a build turn after
+ * every plan turn, and a build turn spawns up to seven review children of its
+ * own, each rebuilding the board.
+ *
+ * Four is not a tuned number and does not pretend to be. It is small enough
+ * that a laptop survives being asked, and `CIRCUIT_MAX_TURNS` moves it without
+ * a deploy. The measured input: one board is 43-147 minutes of near-constant
+ * CPU, so concurrency here is not a throughput knob, it is a blast radius.
+ */
+export const DEFAULT_MAX_TURNS = 4;
+
+function maxTurns(env) {
+  const raw = Number(env?.CIRCUIT_MAX_TURNS);
+  return Number.isFinite(raw) && raw >= 1 ? Math.trunc(raw) : DEFAULT_MAX_TURNS;
+}
+
+function busyError(code, message, statusCode = 409) {
+  // Shaped for `sendIpcError`, without importing the HTTP layer into the
+  // driver: it reads `code`, `message` and `statusCode` off any thrown value.
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
 export function createChatService({ projectDir, settings, emit, env = process.env }) {
   const turns = new Map(); // turnId -> { projectId, controller }
 
@@ -2036,6 +2065,38 @@ export function createChatService({ projectDir, settings, emit, env = process.en
   function startTurn({ projectId, sessionId, message, imagePaths = [], phase }) {
     const turnId = crypto.randomUUID();
     const activeSessionId = resolvedSessionId(projectId, sessionId);
+
+    // P0.2. Two `claude --resume <sessionId>` children on one session collide,
+    // and the inherited footgun in CLAUDE.md — "Session ID already in use" —
+    // is exactly this. `turnInProgress` already existed and was already wired
+    // into `refuseIfBuilding` to protect *board-source writes*; the turn that
+    // creates the collision was never gated on it.
+    //
+    // Guarded here rather than at the three `chat_start_turn` call sites, so a
+    // fourth entry point cannot be added without it. Autopilot deliberately
+    // does not pass through: it calls `runTurn` directly, and by then the plan
+    // turn has already been removed from `turns` (the delete runs in an
+    // earlier link of the same promise chain), so it would pass anyway — but
+    // an approved plan is a continuation, not a second user asking.
+    if (turnInProgress(projectId, activeSessionId)) {
+      throw busyError(
+        "TURN_RUNNING",
+        "this project already has a turn running — wait for it or cancel it",
+      );
+    }
+
+    // P0.3. The cap is checked at admission only. Work already admitted —
+    // an autopilot build, a review round — runs to completion rather than
+    // being killed halfway, because a half-built board is worse than a slow
+    // one.
+    const limit = maxTurns(env);
+    if (turns.size >= limit) {
+      throw busyError(
+        "TOO_MANY_TURNS",
+        `the server is already running ${turns.size} board turn(s); try again when one finishes`,
+        503,
+      );
+    }
     const { run } = runTurn({ projectId, sessionId: activeSessionId, message, imagePaths, phase, turnId });
 
     if (phase === PHASE.PLAN) {
