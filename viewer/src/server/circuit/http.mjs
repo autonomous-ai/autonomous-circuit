@@ -15,6 +15,7 @@ import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mj
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
+import { formatTurnLog } from "./usage.mjs";
 import {
   createEditQueue,
   planPlacementEdit,
@@ -1048,13 +1049,45 @@ export function createCircuitServices({ env = process.env } = {}) {
       sendIpcError(res, error);
       return;
     }
+    // Every command, not only the ones that throw. Until now a successful
+    // command was completely invisible: nothing recorded who asked for what or
+    // how long it took, so the first sign of an outage was a user saying so.
+    // Bodies are deliberately not logged — they carry chat text and pasted
+    // images — but the project it was about and how long it ran are the two
+    // things every question starts from.
+    const startedAtMs = Date.now();
+    const projectId =
+      body && typeof body === "object" && typeof body.projectId === "string"
+        ? body.projectId
+        : "";
     try {
       const result = await handler(body && typeof body === "object" ? body : {});
       sendJson(res, 200, result ?? null);
+      console.log(
+        LOG_TAG,
+        formatTurnLog({
+          phase: `api:${commandName}`,
+          projectId,
+          elapsedMs: Date.now() - startedAtMs,
+          exit: "ok",
+        })
+      );
     } catch (error) {
       if (!error?.code) {
         console.error(LOG_TAG, `${commandName} failed:`, error);
       }
+      console.log(
+        LOG_TAG,
+        formatTurnLog({
+          phase: `api:${commandName}`,
+          projectId,
+          elapsedMs: Date.now() - startedAtMs,
+          // An expected refusal (`error.code`) and a bug are different events
+          // and reading them as one is how a broken deploy looks healthy.
+          exit: error?.code ? "refused" : "error",
+          error: error?.code || error?.message || String(error),
+        })
+      );
       sendIpcError(res, error);
     }
   }

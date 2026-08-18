@@ -16,6 +16,7 @@ import readline from "node:readline";
 import { spawn } from "node:child_process";
 
 import { countWarnings, recordRevision } from "./revisions.mjs";
+import { addUsage, formatTurnLog, newUsage, readResultLine } from "./usage.mjs";
 import {
   circuitHome,
   claudeConfigDir,
@@ -530,6 +531,7 @@ export function newStreamState() {
     anyTextEmitted: false, // per-turn
     planProposed: false,
     questionsAsked: false,
+    result: null, // the `result` line's bill, once it arrives
   };
 }
 
@@ -760,6 +762,11 @@ export function parseStreamLine(line, turnId, state) {
     case "user":
       return fromUser(obj, turnId, state);
     case "result":
+      // The bill rides this line and used to be dropped with it. Recorded
+      // before the text is considered, so a turn whose text was already
+      // emitted still gets metered — `fromResult` returns early in that case,
+      // which is every normal turn.
+      state.result = readResultLine(obj);
       return fromResult(obj, turnId, state);
     default:
       return [];
@@ -1071,6 +1078,7 @@ export async function spawnTurn({
   imagePaths = [],
   turnId,
   phase,
+  projectId = "",
   model = "",
   effort = "",
   onEvent,
@@ -1078,6 +1086,12 @@ export async function spawnTurn({
   env = process.env,
 }) {
   onEvent({ kind: "turn_start", turnId, phase: phaseTag(phase) });
+
+  // Everything this turn spends, main child and every review child, landing on
+  // one line at the end. Started here so a turn that dies early still reports
+  // how long it took to die.
+  const startedAtMs = Date.now();
+  const spend = newUsage();
 
   const fail = (msg) => {
     onEvent({ kind: "error", turnId, message: msg });
@@ -1239,6 +1253,24 @@ export async function spawnTurn({
       turnId,
       model,
       onEvent,
+      onMeter: (m) => {
+        if (m?.record) {
+          addUsage(spend, m.record);
+        }
+        if (m?.exit && m.exit !== "ok") {
+          // A review round that never started, crashed, or emitted no result
+          // line used to be indistinguishable from one that ran clean.
+          log(
+            formatTurnLog({
+              turnId,
+              projectId,
+              phase: "review",
+              exit: m.exit,
+              error: m.error,
+            })
+          );
+        }
+      },
       signal,
       env,
     });
@@ -1248,7 +1280,30 @@ export async function spawnTurn({
     onEvent({ kind: "error", turnId, message: "cancelled" });
   }
   onEvent({ kind: "turn_end", turnId });
-  log(`turn ${phase} end session=${shortId(sessionId)}${cancelled ? " (cancelled)" : ""}`);
+
+  // One line, one turn, with the whole bill on it — main turn plus every
+  // review child. Review rounds are 23-39% of a board's weighted spend
+  // (measured on weather-badge-10/-11/-13), so a meter that reads only the
+  // main turn is not a meter.
+  addUsage(spend, state.result);
+  log(
+    formatTurnLog({
+      turnId,
+      projectId,
+      phase,
+      model: state.result?.model || model || undefined,
+      effort,
+      elapsedMs: Date.now() - startedAtMs,
+      usage: spend,
+      costUsd: spend.costUsd || undefined,
+      exit: cancelled
+        ? "cancel"
+        : state.result?.isError || !sawOutput
+          ? "error"
+          : "ok",
+      error: state.result?.apiErrorStatus || undefined,
+    })
+  );
   return { proposedPlan, cancelled, sawOutput };
 }
 
@@ -1264,6 +1319,7 @@ async function runReviewRound({
   effort = "",
   prompt,
   onEvent,
+  onMeter,
   signal,
   env,
 }) {
@@ -1272,12 +1328,30 @@ async function runReviewRound({
   let child;
   try {
     child = spawnClaude(claudePath, args, { workspace, env });
-  } catch {
-    return false; // best-effort: a build that can't be reviewed just ends
+  } catch (error) {
+    // Best-effort still: a build that cannot be reviewed just ends. But it
+    // says so now — this used to return a bare `false`, which is the same
+    // value a round that ran and changed nothing returns.
+    onMeter?.({ exit: "spawn_failed", error: error?.message || String(error) });
+    return false;
   }
   child.stdin.on("error", () => {});
   child.stdin.end(streamJsonInput(prompt));
-  child.stderr.resume();
+
+  // Buffered, not drained. Same 8192 cap and the same reason as the main turn:
+  // a child that dies on a bad session id or an auth failure prints why here
+  // and nothing on stdout, and `resume()` threw that away — a review round
+  // that never started read exactly like one that ran clean.
+  let stderrBuf = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    if (debugEnabled()) {
+      process.stderr.write(`[circuit:claude:review:err] ${chunk}`);
+    }
+    if (stderrBuf.length < 8192) {
+      stderrBuf += chunk;
+    }
+  });
 
   const onAbort = () => killChild(child);
   if (signal) {
@@ -1287,15 +1361,61 @@ async function runReviewRound({
       signal.addEventListener("abort", onAbort, { once: true });
     }
   }
-  if (debugEnabled()) {
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => process.stderr.write(`[circuit:claude:review] ${chunk}`));
-  } else {
-    child.stdout.resume(); // drain so a full pipe can't deadlock the child
-  }
+  // Still drained continuously — an undrained pipe deadlocks the child, and a
+  // craft round on a real board runs for tens of minutes. Only the last
+  // non-empty line is kept, which is this repo's own "one JSON line, last line
+  // wins" convention and costs one string rather than a transcript.
+  //
+  // That line is the `result` line, and it carries the whole bill. Measured
+  // across weather-badge-10/-11/-13: review rounds are 23-39% of a board's
+  // weighted spend, and `resume()` was throwing all of it on the floor.
+  let lastLine = "";
+  let partial = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    if (debugEnabled()) {
+      process.stderr.write(`[circuit:claude:review] ${chunk}`);
+    }
+    const text = partial + chunk;
+    const lines = text.split("\n");
+    partial = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.trim()) {
+        lastLine = line;
+      }
+    }
+    if (partial.length > 1_000_000) {
+      partial = ""; // a line this long is not stream-json; do not hold it
+    }
+  });
   await waitForExit(child);
+  if (partial.trim()) {
+    lastLine = partial;
+  }
   if (signal) {
     signal.removeEventListener("abort", onAbort);
+  }
+
+  if (onMeter) {
+    let record = null;
+    try {
+      record = readResultLine(JSON.parse(lastLine));
+    } catch {
+      record = null; // not JSON, or not a result line — reported as such below
+    }
+    onMeter({
+      record,
+      exit: record
+        ? record.isError
+          ? "error"
+          : "ok"
+        : child.exitCode === 0
+          ? "no_result_line"
+          : "crashed",
+      code: child.exitCode,
+      signal: child.signalCode,
+      error: record?.isError || child.exitCode !== 0 ? stderrBuf.trim() || null : null,
+    });
   }
 
   const post = snapshotWorkspace(workspace);
@@ -1420,6 +1540,7 @@ export async function runReviewFixLoop({
   turnId,
   model = "",
   onEvent,
+  onMeter,
   signal,
   env = process.env,
 }) {
@@ -1463,6 +1584,7 @@ export async function runReviewFixLoop({
       model,
       prompt,
       onEvent,
+      onMeter,
       signal,
       env,
     });
@@ -1889,6 +2011,7 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       imagePaths,
       turnId,
       phase,
+      projectId,
       model: activeModel(),
       effort: activeEffort(),
       onEvent,
