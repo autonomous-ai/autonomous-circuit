@@ -1451,9 +1451,15 @@ def build_board(
     # -- Stage 3 + 5: second substrate + shipping gerbers. -------------------
     gerber_source = "tscircuit"
     kicad_gerbers_zip: Path | None = None
+    # Bound here, not inside the branch below: the KiCad project zip at the end
+    # of this function reads `kicad_pcb` unconditionally, so a machine without
+    # kicad-cli never entered the branch, never bound the name, and died with
+    # `UnboundLocalError` instead of degrading. "kicad-cli is optional to build,
+    # required to ship" is the contract; a missing tool has to leave a `None`
+    # behind, not a hole.
+    kicad_sch: Path | None = None
+    kicad_pcb: Path | None = None
     if toolchain.kicad_cli_exe() is not None:
-        kicad_sch: Path | None = None
-        kicad_pcb: Path | None = None
         try:
             kicad_sch = _cached("kicad_sch", "board.kicad_sch", ".kicad_sch")
             kicad_pcb = _cached("kicad_pcb", "board.kicad_pcb", ".kicad_pcb")
