@@ -171,35 +171,9 @@ export const Rp2040Core = (props: {
           bottom-centre pin of the QFN-56, so the whole crystal cluster (Y1 +
           C15/C16 + the 1k XOUT series R11) sits in the strip directly below
           the chip, every endpoint within 9.1mm of XIN. Found independently by
-          two boards; keep the cluster together if you move it.
-
-          ROTATION IS LOAD-BEARING TOO (2026-08-12). On a four_pin crystal the
-          two signal pads sit DIAGONALLY: pin1 (XIN) and pin3 (XOUT) can never
-          both face the chip. Unrotated, pin1 lands on the far bottom-left
-          corner — the furthest point of the package from XIN — so the router
-          had to go around the crystal's own body to reach it. `270deg` swings
-          pin1 to the near top-left instead.
-
-          Measured on a built board, same source, one variable changed:
-
-            Y1.pin1 -> C15.pin1   6.86mm + 2 vias = 10.06mm  ->  5.01mm, NO vias
-            Y1.pin1 -> U3.XIN    13.86mm + 2 vias = 17.06mm  -> 13.70mm + 2 vias
-
-          Two crystal findings became one, total warnings 208 -> 202, and DFA
-          was byte-identical (9 findings, same kinds) — the rotation buys copper
-          without costing clearance. `90deg` is the WRONG way and was measured
-          too: it puts pin1 bottom-right and makes four traces over-length
-          instead of three.
-
-          The XIN run is unfinished business and is NOT a placement problem: its
-          straight line is now 5.98mm and the router still lays 13.70mm, going
-          5mm left and through two vias, because the top layer directly under
-          the QFN's bottom edge is full of the other 56 pins' fan-out. Fixing
-          that needs route hints (`routeHintPointProps` takes `via` and
-          `toLayer`), not moving parts. */}
+          two boards; keep the cluster together if you move it. */}
       <crystal name={y} frequency="12MHz" loadCapacitance="10pF" pinVariant="four_pin"
-        footprint="crystal" pcbX={0} pcbY={-10.5} pcbRotation="270deg"
-        schX={-14} schY={6}
+        footprint="crystal" pcbX={0} pcbY={-10.5} schX={-14} schY={6}
         supplierPartNumbers={{ jlcpcb: ["C20625731"] }} />
 
       {/* --- Rails ------------------------------------------------------- */}
