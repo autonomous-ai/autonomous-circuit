@@ -28,6 +28,7 @@ from pathlib import Path
 from verifylib import (
     assembly,
     corners,
+    crystal,
     dc,
     gerber_truth,
     model,
@@ -43,6 +44,7 @@ CHECKS = {
     "netclass": (False, "current capacity, via bottlenecks, pair skew"),
     "dc": (False, "DC operating point over the real netlist"),
     "corners": (False, "the same solve at every tolerance corner"),
+    "crystal": (False, "crystal net length against the router's hard ceiling"),
     "review": (False, "the electrical half of an EE design review"),
     "thermal": (False, "dissipation against package ratings, at peak load"),
     "gerber": (True, "the shipped packet, reconciled against the design"),
@@ -78,6 +80,8 @@ def run_one(name: str, circuit_json: str, gerbers: str | None, trials: int) -> d
             result = dc.check(board)
         elif name == "corners":
             result = corners.check(board, trials=trials)
+        elif name == "crystal":
+            result = crystal.check(board)
         elif name == "review":
             result = review.check(board)
         elif name == "thermal":

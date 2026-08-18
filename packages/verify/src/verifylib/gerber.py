@@ -75,6 +75,12 @@ class Flash:
     x: float
     y: float
     aperture: Aperture
+    #: ``%LPC`` — this flash *removes* what is under it instead of adding ink.
+    #: How a plotter subtracts one layer from another: KiCad's
+    #: ``--subtract-soldermask`` knocks the pad shapes out of the silkscreen
+    #: this way. A reader blind to it sees the strokes that were erased and
+    #: reports ink that is not on the board.
+    clear: bool = False
 
     @property
     def rect(self) -> Rect:
@@ -291,6 +297,7 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
     pending_macro: list[str] | None = None
     pending_macro_name: str | None = None
     region: Region | None = None
+    clear = False  # %LPC until the next %LPD
 
     for raw in text.splitlines():
         line = raw.strip()
@@ -320,7 +327,10 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
             if "TF.FileFunction," in line:
                 layer.file_function = line.split("TF.FileFunction,", 1)[1].rstrip("*%")
             continue
-        if line.startswith("%TO") or line.startswith("%TD") or line.startswith("%LP"):
+        # `%LP` used to be skipped here with the attribute commands. It is not
+        # an attribute — it decides whether what follows adds ink or removes
+        # it — so it falls through to the polarity handler below.
+        if line.startswith("%TO") or line.startswith("%TD"):
             continue
         if line.startswith("%MO"):
             layer.units = "in" if "IN" in line else "mm"
@@ -351,6 +361,13 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
                     code, shape, params, _macro_size(body, params), macro=True
                 )
             layer.apertures[code] = aperture
+            continue
+
+        if line.startswith("%LP"):
+            # Layer polarity. Dark adds ink, clear removes it. Everything
+            # plotted after the command carries that polarity until the next
+            # one, so this is state, not geometry.
+            clear = line[3:4].upper() == "C"
             continue
 
         if line.startswith("%"):
@@ -392,11 +409,11 @@ def parse_gerber(text: str, *, path: str = "<memory>") -> GerberLayer:
                 x, y = nx, ny
                 continue
             if op == "1":
-                if current is not None:
+                if current is not None and not clear:
                     layer.draws.append(Draw(x, y, nx, ny, current))
             elif op == "3":
                 if current is not None:
-                    layer.flashes.append(Flash(nx, ny, current))
+                    layer.flashes.append(Flash(nx, ny, current, clear=clear))
             x, y = nx, ny
             continue
 

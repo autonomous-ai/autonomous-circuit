@@ -247,12 +247,6 @@ const ISSUES = Object.freeze({
     meaning: "This net is named in the design and touches no part.",
     impact: IMPACT.QUALITY,
   },
-  check_failed: {
-    title: "A check could not run",
-    meaning:
-      "One of the checks raised an error instead of an answer, so this part of the board was not examined. Not a pass — an absence.",
-    impact: IMPACT.TOOLING,
-  },
   // --- copper and drilling: the ones that make a board fail -----------------
   hole_clearance: {
     title: "A drilled hole sits too close to copper",
@@ -610,7 +604,8 @@ const ISSUES = Object.freeze({
   },
   check_failed: {
     title: "A check could not finish",
-    meaning: "One step of the build stopped before it could give an answer, so its result is unknown.",
+    meaning:
+      "One step of the build stopped before it could give an answer, so this part of the board was not examined. Not a pass — an absence.",
     impact: IMPACT.BLOCKS,
   },
 

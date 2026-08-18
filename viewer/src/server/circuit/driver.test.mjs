@@ -19,6 +19,12 @@ import {
   attachmentNote,
   buildCommandArgs,
   buildCraftPrompt,
+  buildPanelPrompt,
+  emitPhaseNote,
+  snapshotWorkspace,
+  snapshotForUndo,
+  restoreFromUndo,
+  MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
   collectBoardWarnings,
@@ -430,6 +436,106 @@ test("review prompts gate on their warning sets; craft prompt always builds", ()
   assert.ok(craft.includes("_pcb.png"));
   assert.ok(craft.includes("decoupling"));
   assert.ok(craft.includes("mounting"));
+});
+
+test("the panel prompt makes the last stage the driver's job, not a question", () => {
+  // 2026-08-14: a turn finished a fab-ready board and ASKED the user whether
+  // to run the panel. Two turns earlier, same wording in the skill, it ran it
+  // unprompted. The person waiting has no way to know a stage is owed, so the
+  // mandatory part moved out of prose and into the loop.
+  const panel = buildPanelPrompt();
+  assert.ok(panel.includes("design-review"));
+  assert.ok(/do not ask/i.test(panel));
+  assert.ok(panel.includes("fab-ready"));
+});
+
+test("a turn that already ran the panel is told to say so rather than pay twice", () => {
+  // A wasted panel is about half an hour, so the round asks before it spends.
+  const panel = buildPanelPrompt();
+  assert.ok(panel.includes("NO_CHANGES"));
+  assert.ok(/ALREADY ran/i.test(panel));
+});
+
+test("the panel gets exactly one driver round; its own loop is bounded inside", () => {
+  assert.equal(MAX_PANEL_ROUNDS, 1);
+});
+
+test("every review phase says what it is doing, because ninety minutes of silence reads as hung", () => {
+  // 2026-08-14, from the user after watching a board for 98 minutes: they were
+  // sitting there with no idea when it would finish, and asked for it to at
+  // least say what it was doing. The loop logged its phases to the server
+  // console and told the user nothing.
+  const seen = [];
+  const onEvent = (e) => seen.push(e);
+  emitPhaseNote("t1", onEvent, {
+    phase: "the expert panel", round: 1, rounds: 1,
+    detail: "seven lenses score the board",
+  });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].kind, "text_delta");   // no new ChatEvent kind: §3 is name-coupled
+  assert.equal(seen[0].turnId, "t1");
+  assert.ok(seen[0].text.includes("the expert panel"));
+  assert.ok(seen[0].text.includes("seven lenses"));
+  assert.ok(/takes a few minutes/.test(seen[0].text));
+});
+
+test("a phase with several rounds shows which round it is on", () => {
+  const seen = [];
+  emitPhaseNote("t1", (e) => seen.push(e), {
+    phase: "craft", round: 2, rounds: 3, detail: "reading the images",
+  });
+  assert.ok(seen[0].text.includes("craft 2/3"));
+});
+
+test("a broken round is undone, not just stopped", () => {
+  // Twice this loop broke an orderable board — wb2 tried three changes that
+  // each cost fab.ready, wb5 left it at 41 errors mid-panel — and both times
+  // only the model's own diligence put it back. The guard stopped the loop and
+  // left the damage where it fell.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "undo-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(ws, "blocks", "rp2040-core"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "GOOD");
+  fs.writeFileSync(path.join(ws, "boards", "main.board.json"), '{"fab":{"ready":true}}');
+  fs.writeFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "GOOD BLOCK");
+
+  const undo = snapshotForUndo(ws);
+  assert.ok(undo);
+
+  // the round edits the board, edits a vendored block, and drops litter
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "BROKEN");
+  fs.writeFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "BROKEN BLOCK");
+  fs.writeFileSync(path.join(ws, "boards", "scratch.tsx"), "LITTER");
+
+  assert.equal(restoreFromUndo(ws, undo), true);
+  assert.equal(fs.readFileSync(path.join(ws, "boards", "main.tsx"), "utf8"), "GOOD");
+  // blocks/ is restored too: a round may edit a vendored block, and one did
+  assert.equal(
+    fs.readFileSync(path.join(ws, "blocks", "rp2040-core", "b.tsx"), "utf8"),
+    "GOOD BLOCK",
+  );
+  // and the undo leaves no litter of its own
+  assert.equal(fs.existsSync(path.join(ws, "boards", "scratch.tsx")), false);
+});
+
+test("the undo copy lives where the artifact watcher cannot see it", () => {
+  // Otherwise taking a backup would itself look like the board changed.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "undo-hidden-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "x");
+  const undo = snapshotForUndo(ws);
+  assert.ok(undo.includes(".circuit"));
+  assert.ok(!snapshotWorkspace(ws).has(path.join(".circuit", "review-undo", "boards", "main.tsx")));
+});
+
+test("restoring without a snapshot reports failure instead of pretending", () => {
+  assert.equal(restoreFromUndo("/nonexistent", null), false);
+});
+
+test("a single-round phase does not print a pointless 1/1", () => {
+  const seen = [];
+  emitPhaseNote("t1", (e) => seen.push(e), { phase: "the expert panel", round: 1, rounds: 1 });
+  assert.ok(!seen[0].text.includes("1/1"));
 });
 
 // ---------------------------------------------------------------------------

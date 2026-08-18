@@ -201,6 +201,11 @@ VERIFY_BLOCKING_KINDS: frozenset[str] = frozenset({
     "dc_rail_overload",
     "thermal_resistor_power",
     "netclass_trace_width",
+    # The router refuses to route the board at all. Over the crystal-net
+    # ceiling, tscircuit skips autorouting for the WHOLE board and every trace
+    # comes back missing, so the packet describes a board with no copper on it.
+    # There is no version of this that ships.
+    "crystal_net_too_long",
 })
 
 #: Findings this fab raises from `warning` to `error`. Each needs a reason
@@ -217,10 +222,44 @@ VERIFY_ESCALATED_KINDS: frozenset[str] = frozenset({
     # once the board is assembled, so the board can never run the firmware it
     # was designed for. "Arrives and is useless" is exactly the bar.
     "review_debug_unreachable",
+    # Ink on a solderable surface stops the joint wetting; the fab's own
+    # remedy is to clip the silk unasked, which costs the reference designator
+    # instead. Same family, same consequence and the same single-place fix as
+    # `gerber_silk_line_width` above.
+    #
+    # Escalated only once that fix existed. Measured 2026-08-13: every board
+    # this pipeline had produced carried this (13 strokes on one, 70 on
+    # another) and the board source could not clear it — those designators come
+    # from the converter, not the TSX. Blocking then would have made every
+    # board un-orderable over something no agent could fix. The gerber plot now
+    # passes `--subtract-soldermask`, boards come out with zero, and this
+    # escalation is the guard that keeps them that way.
+    "gerber_silk_over_pad",
 })
 
 #: Deliberately NOT escalated, with the reasoning recorded so the next person
 #: does not have to re-derive it:
+#:
+#: * `crystal_net_routed_long` — the copper the router laid exceeds the crystal
+#:   ceiling even though the parts are placed inside it (a detour, or vias at a
+#:   full board thickness each). Measured 2026-08-12: **all four** boards in
+#:   this repo carry one, 10.09mm to 20.93mm against a 10mm line, and every
+#:   figure matches tscircuit's own `pcb_trace_too_long_warning` exactly. The
+#:   router routed them anyway and the fab will build them. Blocking here would
+#:   make every board this repo has ever produced un-orderable over an
+#:   oscillator that is marginal, not broken. Contrast `crystal_net_too_long`,
+#:   which blocks because the router refuses to lay any copper at all.
+#: * `crystal_net_tight` — a connection with under 1mm of slack routes today.
+#:   It is one nudge from taking the whole board's routing down, which is why
+#:   it is reported at all rather than passed in silence, but a board that
+#:   routes is a board that ships. Blocking here would refuse an orderable
+#:   board over a risk that has not happened.
+#: * `crystal_net_routed_tight` — the same margin, measured on the copper
+#:   instead of on the placement. Added 2026-08-17 after weather-badge-9 shipped
+#:   with 0.54mm of slack on routed copper while its placement figure showed a
+#:   quiet 1.66mm: the margin warning existed but only watched the lower bound,
+#:   so the tighter of the two measurements was the silent one. Advisory for the
+#:   same reason as `crystal_net_tight` — the board routes.
 #:
 #: * `gerber_mask_sliver` — escalated on 2026-08-11 and **retracted the same
 #:   day on measurement**. All ten sub-0.2mm mask webs on harness-puck sit

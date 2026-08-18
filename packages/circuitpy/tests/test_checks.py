@@ -336,6 +336,82 @@ class KicadReportParsing(unittest.TestCase):
         self.assertEqual(warnings[0]["severity"], "info")
 
 
+class KicadRepeatCollapsing(unittest.TestCase):
+    """One line per rule that floods, and per-instance lines for one that does
+    not. Measured on a real board: 529 KiCad findings became 26, which is the
+    difference between a verdict an agent reads and one it skims."""
+
+    @staticmethod
+    def _report(count: int, *, type_tag: str = "endpoint_off_grid") -> dict:
+        return {
+            "violations": [
+                {
+                    "type": type_tag,
+                    "severity": "warning",
+                    "description": "Symbol pin or wire end off connection grid",
+                    "items": [{"description": f"Pad R{i}.pin1"}],
+                }
+                for i in range(1, count + 1)
+            ]
+        }
+
+    def test_a_rule_that_floods_becomes_one_line_with_its_count(self) -> None:
+        warnings = checks.parse_kicad_report(self._report(133), kind="drc_violation")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("x133", warnings[0]["detail"])
+        self.assertIn("endpoint_off_grid", warnings[0]["detail"])
+
+    def test_the_collapsed_line_still_says_what_the_rule_was(self) -> None:
+        detail = checks.parse_kicad_report(self._report(10), kind="drc_violation")[0]["detail"]
+        self.assertIn("off connection grid", detail)   # the example survives
+        self.assertIn("R1", detail)                    # and where to look
+        self.assertIn("kicad report", detail)          # and where the rest are
+
+    def test_a_rule_that_fires_twice_is_two_problems_and_stays_split(self) -> None:
+        """Below the threshold each violation keeps its own line and its own
+        location. A rule that fires twice really is two problems."""
+        warnings = checks.parse_kicad_report(self._report(2), kind="drc_violation")
+        self.assertEqual(len(warnings), 2)
+        self.assertNotIn("x2", warnings[0]["detail"])
+
+    def test_severity_is_part_of_the_group_so_an_error_never_hides_in_infos(self) -> None:
+        """`clearance` keeps whatever severity KiCad gave it — unlike the
+        noise-floor tags, which `_kicad_severity` pins to info. One blocking
+        clearance among seven advisory ones must stay visible as its own line."""
+        report = self._report(8, type_tag="clearance")
+        report["violations"][0]["severity"] = "error"
+        warnings = checks.parse_kicad_report(report, kind="drc_violation")
+        errors = [w for w in warnings if w["severity"] == "error"]
+        self.assertEqual(len(errors), 1)
+        self.assertNotIn("x8", errors[0]["detail"])
+
+    def test_different_rules_never_merge(self) -> None:
+        report = {
+            "violations": (
+                self._report(6, type_tag="silk_overlap")["violations"]
+                + self._report(6, type_tag="lib_symbol_issues")["violations"]
+            )
+        }
+        warnings = checks.parse_kicad_report(report, kind="drc_violation")
+        tags = {w["detail"].split("]")[0] for w in warnings}
+        self.assertEqual(len(warnings), 2)
+        self.assertEqual(len(tags), 2)
+
+    def test_nothing_is_dropped_only_folded(self) -> None:
+        """Every rule that fired still appears. Collapsing is not filtering —
+        silence would read as a pass."""
+        report = {
+            "violations": (
+                self._report(20, type_tag="a")["violations"]
+                + self._report(1, type_tag="b")["violations"]
+                + self._report(5, type_tag="c")["violations"]
+            )
+        }
+        warnings = checks.parse_kicad_report(report, kind="drc_violation")
+        tags = {w["detail"][1:w["detail"].index("]")] for w in warnings}
+        self.assertEqual(tags, {"a", "b", "c"})
+
+
 class DfmGate(unittest.TestCase):
     def _board(self, width: float = 20, height: float = 20, thickness: float = 1.6) -> dict:
         return {

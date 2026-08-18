@@ -637,7 +637,16 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
     """Silkscreen ink on a solderable surface. Visible only in the gerbers:
     ``circuit.json`` has silkscreen and pads but nothing computes the
     intersection, and KiCad's own ``silk_over_copper`` is pinned to info in our
-    noise floor because the converted footprints produce too much of it."""
+    noise floor because the converted footprints produce too much of it.
+
+    **Subtraction counts.** A plotter can knock the pads out of the silkscreen
+    with clear-polarity flashes (``%LPC``) rather than by moving the text, and
+    the strokes stay in the file — erased, but present. Measured on a real
+    board: the same 1460 draws before and after ``--subtract-soldermask``, with
+    21 clear-polarity apertures added on top. Counting strokes alone reports
+    ink that is not on the board, so a stroke covered by a clear flash is not a
+    hit here.
+    """
     out: list[Finding] = []
     for silk_role, mask_role in (("silk_top", "mask_top"), ("silk_bottom", "mask_bottom")):
         silk = packet.layers.get(silk_role)
@@ -647,6 +656,7 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
         openings = [poly.bounds for poly in _openings(mask)]
         if not openings:
             continue
+        knockouts = [f.rect for f in silk.flashes if f.clear]
         grid = _Grid(
             [(rect.center[0], rect.center[1], rect) for rect in openings], cell=2.0
         )
@@ -665,6 +675,10 @@ def _silk_over_pads(packet: gbr.Packet) -> list[Finding]:
                 )
                 overlap = stroke.gap_to(rect)
                 if overlap < 0:
+                    # Erased by a clear-polarity flash? Then there is no ink
+                    # here to complain about, whatever the stroke list says.
+                    if any(stroke.gap_to(k) < 0 for k in knockouts):
+                        break
                     hits += 1
                     if worst is None or -overlap > worst[0]:
                         worst = (-overlap, mid[0])

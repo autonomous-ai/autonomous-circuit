@@ -864,6 +864,18 @@ export function workspaceFabReady(dir) {
 export const MAX_STRUCTURE_ROUNDS = 2;
 export const MAX_ELECTRICAL_ROUNDS = 3;
 export const MAX_CRAFT_ROUNDS = 2;
+//: The panel is the last stage of every board. The skill has said so in
+//: capitals since it was written — "hand it to the panel — always", "not an
+//: optional extra", "finishing a board without a panel verdict is a defect in
+//: your turn" — and on 2026-08-14 a turn finished a fab-ready board and asked
+//: the user whether to run it instead. Two turns before it had run it
+//: unprompted. Same instruction, same wording, different choice: that is what
+//: an instruction is, and it is why the mandatory part belongs here rather
+//: than in prose the model may weigh.
+//:
+//: One round. The panel runs its own bounded loop internally; the driver's job
+//: is only to guarantee it happens at all.
+export const MAX_PANEL_ROUNDS = 1;
 
 /** Read every `*.board.json` sidecar under `dir` (skip-list honored) and
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
@@ -982,6 +994,24 @@ export function buildCraftPrompt(hints = []) {
       `${warningLines(hints)}\n`;
   }
   return body;
+}
+
+/** Phase 4: the expert panel, which the skill calls the last stage of every
+ * board. Asks first whether it already ran this turn, because a turn that did
+ * the right thing on its own must not pay for it twice — a wasted panel is
+ * about half an hour. */
+export function buildPanelPrompt() {
+  return (
+    "This board is fab-ready, so the panel is the one stage still owed.\n\n" +
+    "If you ALREADY ran the design-review skill during this turn and acted on " +
+    "its must-fix notes, reply with exactly NO_CHANGES and stop — do not run " +
+    "it twice.\n\n" +
+    "Otherwise run the design-review skill on this project now. Route its " +
+    "must-fix notes back into the board source, regenerate, and stop when the " +
+    "panel is satisfied or when it reports nothing that has to change. Do not " +
+    "ask whether to run it: it is not optional, and the person waiting has no " +
+    "way to know it is owed.\n"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1288,6 +1318,87 @@ function emitUnresolvedNote(turnId, label, remaining, onEvent) {
   });
 }
 
+//: Build litter and things no review round edits. `blocks/` is deliberately
+//: NOT here: a round may edit a vendored block, and one board did.
+const REVIEW_SNAPSHOT_SKIP = new Set([".circuit", "node_modules", ".git", "__pycache__"]);
+
+const REVIEW_SNAPSHOT_DIR = ".circuit/review-undo";
+
+/** Copy the workspace aside so a round that breaks the board can be undone.
+ *
+ * Lives under `.circuit/`, which the artifact snapshotter already ignores, so
+ * taking a backup never looks like the board changed.
+ */
+export function snapshotForUndo(workspace) {
+  const dest = path.join(workspace, REVIEW_SNAPSHOT_DIR);
+  try {
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(workspace)) {
+      if (REVIEW_SNAPSHOT_SKIP.has(entry)) continue;
+      fs.cpSync(path.join(workspace, entry), path.join(dest, entry), {
+        recursive: true,
+      });
+    }
+    return dest;
+  } catch (error) {
+    log(`review: could not snapshot the workspace (${error?.message || error})`);
+    return null;
+  }
+}
+
+/** Put the board back exactly as it was before the round.
+ *
+ * Restores artifacts as well as source. They were produced from the source
+ * being restored, so putting back one without the other would leave a sidecar
+ * describing a board that no longer exists — the failure this repo names as
+ * "one gate, two surfaces, opposite answers".
+ *
+ * Files the round created and the snapshot does not have are removed, or the
+ * undo would leave its own litter behind.
+ */
+export function restoreFromUndo(workspace, snapshotPath) {
+  if (!snapshotPath) return false;
+  try {
+    const kept = new Set(fs.readdirSync(snapshotPath));
+    for (const entry of fs.readdirSync(workspace)) {
+      if (REVIEW_SNAPSHOT_SKIP.has(entry) || kept.has(entry)) continue;
+      fs.rmSync(path.join(workspace, entry), { recursive: true, force: true });
+    }
+    for (const entry of kept) {
+      const target = path.join(workspace, entry);
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.cpSync(path.join(snapshotPath, entry), target, { recursive: true });
+    }
+    return true;
+  } catch (error) {
+    log(`review: could not undo the round (${error?.message || error})`);
+    return false;
+  }
+}
+
+/** Say which review phase is running, and how far through it is.
+ *
+ * The loop used to be silent to the user by design — it only wrote to the
+ * server log. That is fine when it takes a minute; it is not fine at ninety.
+ * A person watching a board build for an hour and a half with no phase, no
+ * round count and no idea a panel is even owed cannot tell working from hung,
+ * and the honest reading is the pessimistic one.
+ *
+ * Uses `text_delta` like :func:`emitUnresolvedNote` rather than a new event
+ * kind: the ChatEvent union is name-coupled to the client (contract §3), and a
+ * status line is not worth an edit on both sides of it.
+ */
+export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail }) {
+  const of = rounds > 1 ? ` ${round}/${rounds}` : "";
+  onEvent?.({
+    kind: "text_delta",
+    turnId,
+    text: `\n\n_Checking: ${phase}${of}${detail ? ` — ${detail}` : ""}. `
+      + "Each round rebuilds the board, so this takes a few minutes._",
+  });
+}
+
 /**
  * The silent 3-phase post-build review loop (contract §2, donor caps 2/3/2):
  *
@@ -1342,6 +1453,8 @@ export async function runReviewFixLoop({
   let regressed = false;
   const round = async (prompt) => {
     const readyBefore = workspaceFabReady(workspace);
+    // Only worth the copy when there is something to lose.
+    const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
     const didChange = await runReviewRound({
       claudePath,
       workspace,
@@ -1355,16 +1468,29 @@ export async function runReviewFixLoop({
     });
     if (readyBefore === true && workspaceFabReady(workspace) === false) {
       regressed = true;
-      log("review: a round made an orderable board un-orderable — stopping");
+      // Stopping was never enough. Twice this loop broke an orderable board
+      // and only the model's own diligence put it back; the guard itself left
+      // the damage where it fell. Undo it, then stop.
+      const undone = restoreFromUndo(workspace, undo);
+      log(
+        `review: a round made an orderable board un-orderable — ${
+          undone ? "undone, stopping" : "COULD NOT UNDO, stopping"
+        }`,
+      );
       onEvent?.({
         kind: "assistant_message",
         turnId,
-        text:
-          "_I stopped the automatic review: the last change made a board that " +
-          "could be ordered no longer orderable. The board is back in your " +
-          "hands rather than being polished further._",
+        text: undone
+          ? "_I stopped the automatic review: the last change made a board " +
+            "that could be ordered no longer orderable, so I put the board " +
+            "back the way it was. It is orderable again, and in your hands " +
+            "rather than being polished further._"
+          : "_I stopped the automatic review: the last change made a board " +
+            "that could be ordered no longer orderable, and I could not undo " +
+            "it. The board needs a look before it is sent anywhere._",
       });
     }
+    if (undo) fs.rmSync(undo, { recursive: true, force: true });
     return didChange;
   };
 
@@ -1377,6 +1503,12 @@ export async function runReviewFixLoop({
     if (!prompt) break;
     snapshot("structure", i + 1, all);
     log(`review structure round ${i + 1}: ${blocking.length} blocking warning(s)`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "structure",
+      round: i + 1,
+      rounds: MAX_STRUCTURE_ROUNDS,
+      detail: `${blocking.length} finding(s) that stop the board being made`,
+    });
     changed = (await round(prompt)) || changed;
   }
   if (aborted() || regressed) return changed;
@@ -1397,6 +1529,12 @@ export async function runReviewFixLoop({
     if (!prompt) break;
     snapshot("electrical", i + 1, all);
     log(`review electrical round ${i + 1}: ${electrical.length} electrical warning(s)`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "electrical function",
+      round: i + 1,
+      rounds: MAX_ELECTRICAL_ROUNDS,
+      detail: `${electrical.length} thing(s) that would stop it working`,
+    });
     changed = (await round(prompt)) || changed;
   }
   if (aborted() || regressed) return changed;
@@ -1417,6 +1555,12 @@ export async function runReviewFixLoop({
     if (aborted() || regressed) return changed;
     snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "craft",
+      round: i + 1,
+      rounds: MAX_CRAFT_ROUNDS,
+      detail: "reading the schematic and PCB images",
+    });
     const roundChanged = await round(buildCraftPrompt(hints));
     changed = roundChanged || changed;
     if (!roundChanged) {
@@ -1428,6 +1572,23 @@ export async function runReviewFixLoop({
       );
     }
   }
+  // Phase 4 — the panel. Only for a board that reached fab-ready: the skill's
+  // rule is "the moment fab.ready is true", and a board still failing has
+  // nothing for seven lenses to score.
+  for (let i = 0; i < MAX_PANEL_ROUNDS; i += 1) {
+    if (aborted() || regressed) return changed;
+    if (workspaceFabReady(workspace) !== true) break;
+    snapshot("panel", i + 1, collectBoardWarnings(workspace));
+    log(`review panel round ${i + 1}`);
+    emitPhaseNote(turnId, onEvent, {
+      phase: "the expert panel",
+      round: i + 1,
+      rounds: MAX_PANEL_ROUNDS,
+      detail: "seven lenses score the board before anyone pays a fab",
+    });
+    changed = (await round(buildPanelPrompt())) || changed;
+  }
+
   snapshot("final", 0, collectBoardWarnings(workspace));
   return changed;
 }

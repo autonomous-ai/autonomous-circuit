@@ -428,10 +428,34 @@ class Trace:
     net_key: str | None
     net_name: str | None
     segments: list[TraceSegment] = field(default_factory=list)
+    #: How many times this trace changes layer. Each one is copper running
+    #: through the board, not across it — see :meth:`copper_length`.
+    via_count: int = 0
 
     @property
     def length(self) -> float:
+        """Planar length: what the trace covers looking down at the board.
+
+        This is the number the pair-skew and width checks want. It is **not**
+        the length the router budgets against — for that see
+        :meth:`copper_length`.
+        """
         return sum(s.length for s in self.segments)
+
+    def copper_length(self, board_thickness_mm: float | None) -> float:
+        """Total copper the signal travels, vias included.
+
+        A via is not free: the signal drops through the full board thickness
+        and climbs back. Measured against tscircuit's own
+        ``pcb_trace_too_long_warning`` on a 1.6mm board, planar + one thickness
+        per via reproduces its figure exactly (9.509mm planar + 2 vias =
+        12.709mm, matching to three decimals). Falls back to the planar length
+        when the board never declared a thickness, which *understates* — the
+        caller should say so rather than let it read as measured.
+        """
+        if not board_thickness_mm or self.via_count <= 0:
+            return self.length
+        return self.length + self.via_count * board_thickness_mm
 
     @property
     def min_width(self) -> float | None:
@@ -498,6 +522,9 @@ class Board:
         self._port_net: dict[str, str] = {}       # source_port_id -> net key
         self._pcb_port_net: dict[str, str] = {}   # pcb_port_id -> net key
         self._read_nets()
+
+        self._pad_by_source_port: dict[str, Pad] = {}
+        self._read_port_pads()
 
         self.traces: list[Trace] = []
         self._read_traces()
@@ -702,6 +729,21 @@ class Board:
             if key:
                 self._pcb_port_net[str(pcb_port.get("pcb_port_id") or "")] = key
 
+    def _read_port_pads(self) -> None:
+        """``source_port_id -> Pad``, the copper a schematic pin actually lands
+        on. Two hops: ``pcb_port`` carries the source id, and a pad carries the
+        pcb port id. Geometry checks that must work *before* routing need this
+        — pads exist whether or not a trace was ever laid."""
+        pcb_to_source = {
+            str(e.get("pcb_port_id") or ""): str(e.get("source_port_id") or "")
+            for e in self.of_type("pcb_port")
+        }
+        for component in self.components:
+            for pad in component.pads:
+                source_port = pcb_to_source.get(pad.port_id or "")
+                if source_port:
+                    self._pad_by_source_port[source_port] = pad
+
     def _read_traces(self) -> None:
         source_nets = {
             str(e.get("source_net_id")): e.get("subcircuit_connectivity_map_key")
@@ -759,6 +801,11 @@ class Board:
                     net_key=key,
                     net_name=net.label if net else None,
                     segments=segments,
+                    via_count=sum(
+                        1
+                        for p in (e.get("route") or [])
+                        if isinstance(p, dict) and p.get("route_type") == "via"
+                    ),
                 )
             )
 
@@ -798,6 +845,11 @@ class Board:
     def net_of_port(self, source_port_id: str) -> Net | None:
         key = self._port_net.get(source_port_id)
         return self.net_by_key.get(key) if key else None
+
+    def pad_of_source_port(self, source_port_id: str) -> Pad | None:
+        """The copper a schematic pin lands on, or ``None`` when the pin was
+        never placed (a do-not-place part, or a footprint short of pads)."""
+        return self._pad_by_source_port.get(source_port_id)
 
     def net_named(self, name: str) -> Net | None:
         for net in self.nets:

@@ -33,7 +33,9 @@ from typing import Any
 from circuitpy.fab import FabProfile, apply_verify_policy
 
 #: Checks that read circuit.json. They run at stage 4, beside the DFM gate.
-CIRCUIT_JSON_CHECKS = ("assembly", "netclass", "dc", "review", "thermal")
+CIRCUIT_JSON_CHECKS = (
+    "assembly", "netclass", "dc", "review", "thermal", "crystal",
+)
 #: Checks that read the shipped packet. Stage 5b, after the gerbers exist.
 PACKET_CHECKS = ("gerber",)
 
@@ -78,6 +80,7 @@ def _load() -> dict[str, Any] | None:
         from verifylib import (  # noqa: PLC0415
             assembly,
             corners,
+            crystal,
             dc,
             gerber_truth,
             model,
@@ -91,6 +94,7 @@ def _load() -> dict[str, Any] | None:
     _MODULES = {
         "assembly": assembly,
         "corners": corners,
+        "crystal": crystal,
         "dc": dc,
         "gerber_truth": gerber_truth,
         "model": model,
@@ -152,6 +156,7 @@ def check_circuit_json(
         "dc": lambda: modules["dc"].check(board),
         "review": lambda: modules["review"].check(board),
         "thermal": lambda: modules["thermal"].check(board),
+        "crystal": lambda: modules["crystal"].check(board),
     }
     for name in CIRCUIT_JSON_CHECKS:
         try:
