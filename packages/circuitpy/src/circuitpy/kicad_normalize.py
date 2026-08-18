@@ -65,7 +65,18 @@ class Normalization:
     vias_bridged: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
+    #: A step of this pass could not run: a file that would not read, a parse
+    #: that threw. Something the board was entitled to and did not get, which
+    #: is why the pipeline reports these as `check_failed` and the app treats
+    #: them as a reason not to ship.
     notes: list[str] = field(default_factory=list)
+    #: A repair that ran, looked, and correctly chose to do nothing. Nothing
+    #: is missing and nothing is unexamined — the condition it declined to
+    #: touch is still measured by DRC, which is the gate that decides.
+    #: Reporting these as failures put "a check could not finish" on boards
+    #: that were `fab.ready` with zero errors (weather-badge-12 and -13,
+    #: 2026-08-18), which is the app disagreeing with its own verdict.
+    declined: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
@@ -629,9 +640,16 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
             if not placed:
                 skipped.add(seg.net)
     if skipped:
-        result.notes.append(
-            "via-bridge could not find a safe placement for nets "
-            f"{', '.join(sorted(skipped))} (dead-end left for DRC to report)"
+        # Declined, not failed. There was no via position that cleared every
+        # obstacle, so none was invented — the posture #11 was written in
+        # blood for. The dead-end stays, DRC measures it, and DRC decides.
+        result.declined.append(
+            "the dead-end(s) on net(s) "
+            f"{', '.join(sorted(skipped))} were left as the router laid them: "
+            "no via position clears every pad, trace, via and pour at once, "
+            "and a via placed without that margin is how a repair pass "
+            "creates the clearance violation it exists to remove. DRC sees "
+            "the same copper and reports it there if it matters"
         )
     if not placements:
         return text

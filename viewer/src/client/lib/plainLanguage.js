@@ -608,6 +608,16 @@ const ISSUES = Object.freeze({
       "One step of the build stopped before it could give an answer, so this part of the board was not examined. Not a pass — an absence.",
     impact: IMPACT.BLOCKS,
   },
+  // The opposite of the row above, and it used to share it. A repair pass that
+  // ran, saw the whole board and chose to change nothing has examined
+  // everything and withheld nothing; the condition it left alone is still
+  // measured by the gate that owns it.
+  repair_declined: {
+    title: "An automatic fix decided not to act",
+    meaning:
+      "The build tried to repair something, looked at the surrounding copper, and found no change it could make safely — so it left the board as the router drew it and let the normal checks judge it. Nothing was skipped.",
+    impact: IMPACT.QUALITY,
+  },
 
   // --- the router asking for a decision --------------------------------------
   // Not a defect. The connections it is about are already reported as their own
