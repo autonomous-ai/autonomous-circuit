@@ -385,6 +385,105 @@ class KicadRepeatCollapsing(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertNotIn("x8", errors[0]["detail"])
 
+    @staticmethod
+    def _weather_badge_12() -> dict:
+        """The violation that blocked weather-badge-12, verbatim in shape.
+
+        Item descriptions and coordinates are the ones the board actually
+        produced; `pos` is KiCad's own field, present on every item of every
+        violation in a real report."""
+        return {
+            "violations": [
+                {
+                    "type": "clearance",
+                    "severity": "error",
+                    "description": "Clearance violation ( clearance 0.0900 mm; actual 0.0674 mm)",
+                    "items": [
+                        {
+                            "description": "Via [V3_3] on F.Cu - B.Cu",
+                            "pos": {"x": 95.808, "y": 116.78},
+                        },
+                        {
+                            "description": "Pad 2 [GND] of C40 on F.Cu",
+                            "pos": {"x": 96.29, "y": 116.16},
+                        },
+                    ],
+                }
+            ]
+        }
+
+    def test_a_clearance_names_both_things_it_is_between(self) -> None:
+        """The defect that cost weather-badge-12 nine build attempts: the
+        verdict named the via and dropped the pad, so "too close to something"
+        was the whole diagnosis. C40 is the part that had to move."""
+        detail = checks.parse_kicad_report(
+            self._weather_badge_12(), kind="drc_violation"
+        )[0]["detail"]
+        self.assertIn("Via [V3_3]", detail)
+        self.assertIn("C40", detail)
+
+    def test_it_carries_the_coordinates_kicad_already_measured(self) -> None:
+        detail = checks.parse_kicad_report(
+            self._weather_badge_12(), kind="drc_violation"
+        )[0]["detail"]
+        self.assertIn("(95.808, 116.780)", detail)
+        self.assertIn("(96.290, 116.160)", detail)
+
+    def test_the_measurement_is_not_pushed_out_by_the_location(self) -> None:
+        """Both numbers still have to be there — where it is never replaces how
+        far over it is."""
+        detail = checks.parse_kicad_report(
+            self._weather_badge_12(), kind="drc_violation"
+        )[0]["detail"]
+        self.assertIn("0.0900", detail)
+        self.assertIn("0.0674", detail)
+        self.assertIn("[clearance]", detail)
+
+    def test_a_violation_with_one_item_still_reads_cleanly(self) -> None:
+        """Most ERC rules name a single object. It gets named, without a
+        dangling separator implying a second side that does not exist."""
+        detail = checks.parse_kicad_report(self._report(1), kind="drc_violation")[0]["detail"]
+        self.assertIn("R1", detail)
+        self.assertNotIn("<->", detail)
+
+    def test_an_item_without_a_position_is_still_named(self) -> None:
+        report = self._weather_badge_12()
+        for item in report["violations"][0]["items"]:
+            item.pop("pos")
+        detail = checks.parse_kicad_report(report, kind="drc_violation")[0]["detail"]
+        self.assertIn("Via [V3_3]", detail)
+        self.assertIn("C40", detail)
+        self.assertNotIn("@", detail)
+
+    def test_a_malformed_items_list_never_raises(self) -> None:
+        for items in (None, "not a list", [None, 3], [{}], []):
+            report = self._weather_badge_12()
+            report["violations"][0]["items"] = items
+            warnings = checks.parse_kicad_report(report, kind="drc_violation")
+            self.assertEqual(len(warnings), 1, items)
+            self.assertIn("0.0674", warnings[0]["detail"], items)
+
+    def test_the_collapsed_example_carries_a_location_too(self) -> None:
+        """A flooding rule keeps one worked example. That example is the only
+        instance anyone sees, so it is the one that most needs to say where."""
+        report = {"violations": [
+            {
+                "type": "silk_edge_clearance",
+                "severity": "warning",
+                "description": "Silkscreen clipped by board edge",
+                "items": [
+                    {"description": "Segment on Edge.Cuts", "pos": {"x": 73.55, "y": 140.95}},
+                    {"description": f"Segment of J{i} on F.Silkscreen",
+                     "pos": {"x": 93.711, "y": 141.174}},
+                ],
+            }
+            for i in range(1, 9)
+        ]}
+        warnings = checks.parse_kicad_report(report, kind="drc_violation")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("x8", warnings[0]["detail"])
+        self.assertIn("(73.550, 140.950)", warnings[0]["detail"])
+
     def test_different_rules_never_merge(self) -> None:
         report = {
             "violations": (

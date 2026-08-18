@@ -492,12 +492,54 @@ def _collapse_kicad_repeats(warnings: list[Warning]) -> list[Warning]:
                 kind,
                 f"[{tag}] x{len(members)} — {example}"
                 + (f" (on {where})" if where else "")
-                + ". Same rule every time; per-instance coordinates are in the "
-                "kicad report",
+                + ". Same rule every time; the location above is one instance, "
+                "the rest are in the kicad report",
                 severity,
             )
         )
     return out
+
+
+#: How many of a violation's objects to name. KiCad reports clearance,
+#: shorting and courtyard rules as a *pair*; anything past two is a pile-up and
+#: the first two are enough to find it.
+KICAD_ITEMS_NAMED = 2
+
+
+def _violation_sides(items: object) -> str:
+    """``A @ (x, y) <-> B @ (x, y)`` for the objects a violation is between.
+
+    A clearance is a distance between **two** things. Naming one of them and
+    dropping the other is not a location — it is "this via is too close to
+    something", which no agent can act on and no human can find.
+
+    Measured on weather-badge-12, 2026-08-18: the board was blocked by
+    ``0.0674mm actual against 0.0900mm`` and the verdict named only
+    ``Via [V3_3] on F.Cu - B.Cu``. The other side was ``Pad 2 [GND] of C40`` —
+    the decoupling capacitor of the first WS2812 pixel, and the thing that
+    actually had to move. Nine build attempts went past before that was known,
+    because it was only ever in the raw kicad report nobody reads.
+
+    101 of the 362 violations on weather-badge-11's real DRC report carry two
+    or more items, and every item already carries a ``pos``. This throws none
+    of it away.
+    """
+    if not isinstance(items, list):
+        return ""
+    sides: list[str] = []
+    for item in items[:KICAD_ITEMS_NAMED]:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("description") or "").strip()
+        pos = item.get("pos")
+        if isinstance(pos, dict):
+            x, y = pos.get("x"), pos.get("y")
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                at = f"({x:.3f}, {y:.3f})"
+                text = f"{text} @ {at}" if text else at
+        if text:
+            sides.append(text)
+    return " <-> ".join(sides)
 
 
 def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
@@ -537,6 +579,9 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
             type_tag = str(violation.get("type") or "")
             severity = _kicad_severity(severity, type_tag, kind)
             detail = f"[{type_tag}] {description}".strip() if type_tag else description
+            sides = _violation_sides(items)
+            if sides:
+                detail = f"{detail or 'violation'} — between {sides}"
             warnings.append(_warning(part, kind, detail or "violation", severity))
         return _collapse_kicad_repeats(warnings)
     except Exception as exc:
