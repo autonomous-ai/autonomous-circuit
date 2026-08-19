@@ -11,6 +11,7 @@ projects; the corpus is the instrument, so it should be one command.
     scripts/board-table.py --netlist       # copper netlist vs circuit.json, per board
     scripts/board-table.py --pour          # is the ground pour actually one piece
     scripts/board-table.py --boot          # assert the RP2040 boot chain, every board
+    scripts/board-table.py --margin        # how close a passing board is to failing
 
 Reads the `.board.json` sidecars under ~/.autonomous-circuit/projects (or
 $CIRCUIT_PROJECTS). Counts *instances*, not rows: `_collapse_kicad_repeats`
@@ -556,6 +557,73 @@ def pour():
         )
 
 
+#: The effort ladder the pipeline climbs, weakest first. A board that arrives
+#: at the last rung has nothing left to escalate to.
+EFFORT_LADDER = ("default", "1x", "2x", "5x", "10x")
+
+
+def margin():
+    """How close is a passing board to not passing?
+
+    `fab.ready = True` says a board cleared the gate. It does not say by how
+    much, and the two are very different facts. Measured on weather-badge-15,
+    2026-08-19: moving one decoupling capacitor 5.6mm — a change that is
+    unambiguously an improvement, and that cleared the finding it was aimed at
+    — cost the board its verdict, to a 0.093mm clearance violation against a
+    0.1mm minimum, on a part 11.5mm from anything that moved. Nothing collided.
+    The router re-solved the board and one net landed 7 micrometres inside the
+    limit.
+
+    So the question this answers is not "did it pass" but "what did it have
+    left". Three numbers say it:
+
+      rung      where on the effort ladder the board settled. The last rung
+                means `check_failed` has already said "no retry was attempted"
+      blocking  findings the repair pass had to clear on the way, per attempt.
+                Zero is a board that routed clean; anything else is a board
+                that needed rescuing
+      headroom  rungs still unused above where it landed
+    """
+    print(
+        f"{'board':22s} {'ready':6s} {'rung':8s} {'headroom':>9s} {'attempts':>9s} "
+        f"{'blocking/attempt':>18s}  note"
+    )
+    tight = 0
+    total = 0
+    for name, _project, sidecar in load():
+        build = sidecar.get("build", {})
+        ready = sidecar.get("fab", {}).get("ready")
+        effort = str(build.get("autorouterEffort"))
+        blocking = build.get("blockingByAttempt") or []
+        try:
+            rung = EFFORT_LADDER.index(effort)
+            headroom = len(EFFORT_LADDER) - 1 - rung
+        except ValueError:
+            headroom = -1
+        note = ""
+        if ready:
+            total += 1
+            if headroom == 0 and any(blocking):
+                tight += 1
+                note = "top rung, needed rescuing — one nudge from failing"
+            elif headroom == 0:
+                note = "top rung, but routed clean"
+            elif any(blocking):
+                note = f"needed rescuing, {headroom} rung(s) still unused"
+        print(
+            f"{name:22s} {str(ready):6s} {effort:8s} "
+            f"{('-' if headroom < 0 else str(headroom)):>9s} "
+            f"{str(build.get('attempts')):>9s} "
+            f"{str(blocking):>18s}  {note}"
+        )
+    if total:
+        print(
+            f"\n{tight} of {total} ready boards sit on the last rung of the "
+            f"ladder having needed the repair pass to get there."
+        )
+
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules", action="store_true", help="DRC/ERC rules by instance")
@@ -564,6 +632,7 @@ def main():
     parser.add_argument("--netlist", action="store_true", help="copper netlist vs circuit.json")
     parser.add_argument("--pour", action="store_true", help="is the ground pour one piece")
     parser.add_argument("--boot", action="store_true", help="assert the RP2040 boot chain")
+    parser.add_argument("--margin", action="store_true", help="how close a passing board is to failing")
     args = parser.parse_args()
     if args.rules:
         rules()
@@ -577,6 +646,8 @@ def main():
         pour()
     elif args.boot:
         boot()
+    elif args.margin:
+        margin()
     else:
         summary()
 

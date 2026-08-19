@@ -561,10 +561,148 @@ def _violation_sides(items: object) -> str:
     return " <-> ".join(sides)
 
 
-def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
+#: KiCad reports one ``isolated_copper`` per filled polygon it cannot tie to
+#: the net. That is the right question asked of the wrong object here:
+#: ``circuit-json-to-kicad`` writes a pour as a **triangle mesh**, one
+#: 3-vertex ``filled_polygon`` per triangle, and KiCad's connectivity treats
+#: each as its own island. Measured on weather-badge-15, 2026-08-19: 2423
+#: triangles in the B.Cu ground zone, 199 of them reported isolated — and the
+#: same 2423 triangles union across their shared edges into **one** region of
+#: 3040mm², 100% of the pour. Corpus-wide the rule is 2394 instances over 17
+#: boards, the largest warning-severity category there is, and every one of
+#: them describes the mesh rather than the copper.
+#:
+#: So the finding is not suppressed, it is **re-measured**. Union the mesh; if
+#: the pour really is one piece the rule is demoted to `info` with the count
+#: that proves it, and if it really is in pieces the rule keeps the severity
+#: KiCad gave it. A pour that is not a triangle mesh is left alone entirely —
+#: on that shape KiCad's own island analysis is the right one.
+_ISOLATED_COPPER = "isolated_copper"
+
+
+def _zone_triangles(text: str) -> dict[str, list[list[tuple[float, float]]]]:
+    """``{zone key: [triangle, ...]}`` for every triangle-meshed zone.
+
+    A zone whose fill is not made entirely of 3-vertex polygons is omitted:
+    this only knows how to re-measure a mesh.
+    """
+    zones: dict[str, list[list[tuple[float, float]]]] = {}
+    for index, match in enumerate(re.finditer(r"\(zone\b", text)):
+        block = _sexp_block(text, match.start())
+        triangles: list[list[tuple[float, float]]] = []
+        meshed = True
+        for poly in re.finditer(r"\(filled_polygon\b", block):
+            points = [
+                (round(float(x), 6), round(float(y), 6))
+                for x, y in re.findall(
+                    r"\(xy ([-\d.]+) ([-\d.]+)\)", _sexp_block(block, poly.start())
+                )
+            ]
+            if len(points) != 3:
+                meshed = False
+                break
+            triangles.append(points)
+        if meshed and len(triangles) > 1:
+            net = re.search(r'\(net_name\s*"([^"]*)"', block)
+            zones[f"{net.group(1) if net else '?'}#{index}"] = triangles
+    return zones
+
+
+def _sexp_block(text: str, start: int) -> str:
+    """The balanced-paren block beginning at ``start``."""
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return text[start:]
+
+
+def _mesh_pieces(triangles: list[list[tuple[float, float]]]) -> tuple[int, float, float]:
+    """``(pieces, total area mm², largest piece's share)`` for a triangle mesh.
+
+    Two triangles are the same piece when they share an edge, so this is a
+    union-find over unordered vertex pairs — the same union `board-table.py
+    --pour` runs, kept here because the answer has to reach the verdict.
+    """
+    parent = list(range(len(triangles)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    edges: dict[tuple, list[int]] = {}
+    for i, triangle in enumerate(triangles):
+        for a in range(3):
+            edges.setdefault(
+                tuple(sorted((triangle[a], triangle[(a + 1) % 3]))), []
+            ).append(i)
+    for shared in edges.values():
+        for other in shared[1:]:
+            ra, rb = find(shared[0]), find(other)
+            if ra != rb:
+                parent[ra] = rb
+
+    areas: dict[int, float] = {}
+    for i, ((x1, y1), (x2, y2), (x3, y3)) in enumerate(triangles):
+        areas[find(i)] = areas.get(find(i), 0.0) + abs(
+            x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)
+        ) / 2
+    total = sum(areas.values())
+    largest = max(areas.values()) if areas else 0.0
+    return len(areas), total, (largest / total if total else 0.0)
+
+
+def _remeasure_isolated_copper(
+    warnings: list[Warning], kicad_pcb: object
+) -> list[Warning]:
+    """Judge ``isolated_copper`` on the copper instead of on the mesh."""
+    try:
+        path = Path(str(kicad_pcb))
+        if not path.is_file():
+            return warnings
+        zones = _zone_triangles(path.read_text(encoding="utf-8", errors="replace"))
+        if not zones:
+            return warnings
+        verdicts = {key: _mesh_pieces(tris) for key, tris in zones.items()}
+        # The demotion is only honest when *every* meshed zone unions whole.
+        if any(pieces != 1 for pieces, _total, _share in verdicts.values()):
+            return warnings
+        pieces = sum(len(t) for t in zones.values())
+        area = sum(total for _p, total, _s in verdicts.values())
+        note = (
+            f"the pour is written as {pieces} triangles across "
+            f"{len(zones)} zone(s); unioned across shared edges it is one "
+            f"connected region of {area:.0f}mm2, so these islands are the "
+            f"mesh and not the copper"
+        )
+        out: list[Warning] = []
+        for warning in warnings:
+            if _ISOLATED_COPPER in str(warning.get("detail", "")):
+                warning = dict(warning)
+                warning["severity"] = "info"
+                warning["detail"] = f"{warning['detail']} — re-measured: {note}"
+            out.append(warning)
+        return out
+    except Exception:  # noqa: BLE001 - a re-measurement that fails must not
+        return warnings  # change the verdict it was only meant to sharpen
+
+
+def parse_kicad_report(
+    report: object, *, kind: str, kicad_pcb: object | None = None
+) -> list[Warning]:
     """A kicad-cli ``--format json`` ERC/DRC report -> warnings with the given
     kind (``erc_violation`` / ``drc_violation``). Accepts a dict, JSON text,
-    or a path. Never raises."""
+    or a path. Never raises.
+
+    ``kicad_pcb`` is the board the report was produced from. Given it,
+    ``isolated_copper`` is re-measured against the real copper — see
+    ``_remeasure_isolated_copper``."""
     try:
         if isinstance(report, (str, Path)) and Path(str(report)).is_file():
             report = json.loads(Path(str(report)).read_text(encoding="utf-8"))
@@ -602,6 +740,8 @@ def parse_kicad_report(report: object, *, kind: str) -> list[Warning]:
             if sides:
                 detail = f"{detail or 'violation'} — between {sides}"
             warnings.append(_warning(part, kind, detail or "violation", severity))
+        if kicad_pcb is not None:
+            warnings = _remeasure_isolated_copper(warnings, kicad_pcb)
         return _collapse_kicad_repeats(warnings)
     except Exception as exc:
         return [check_failed(f"kicad report parse failed ({kind}): {exc}")]

@@ -25,6 +25,7 @@ default keeps it off the critical path.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
@@ -34,10 +35,14 @@ from circuitpy.fab import FabProfile, apply_verify_policy
 
 #: Checks that read circuit.json. They run at stage 4, beside the DFM gate.
 CIRCUIT_JSON_CHECKS = (
-    "assembly", "netclass", "dc", "review", "thermal", "crystal",
+    "assembly", "netclass", "dc", "review", "thermal", "crystal", "pour",
 )
 #: Checks that read the shipped packet. Stage 5b, after the gerbers exist.
 PACKET_CHECKS = ("gerber",)
+
+#: Checks imported individually so one absent module cannot take the rest
+#: down. Every name here must also be tolerated as missing by its runner.
+_OPTIONAL_MODULES = ("pour",)
 
 CORNERS_ENV = "CIRCUIT_VERIFY_CORNERS"
 DISABLE_ENV = "CIRCUIT_VERIFY_OFF"
@@ -102,6 +107,18 @@ def _load() -> dict[str, Any] | None:
         "review": review,
         "thermal": thermal,
     }
+    # Newer checks import one at a time. `_ensure_path()` prefers a *vendored*
+    # verifylib beside the skill runtime, and a runtime vendored before a check
+    # existed does not carry it — inside the block above, that one missing name
+    # takes all nine others down with it and the verdict comes back as a single
+    # `verify_unavailable` line, which reads like a missing toolchain rather
+    # than the regression it is. Same trap as `1e7ac6a`: a missing tool has to
+    # leave a None behind, not a hole.
+    for name in _OPTIONAL_MODULES:
+        try:
+            _MODULES[name] = importlib.import_module(f"verifylib.{name}")
+        except Exception:  # noqa: BLE001, PERF203
+            continue
     return _MODULES
 
 
@@ -157,8 +174,11 @@ def check_circuit_json(
         "review": lambda: modules["review"].check(board),
         "thermal": lambda: modules["thermal"].check(board),
         "crystal": lambda: modules["crystal"].check(board),
+        "pour": lambda: modules["pour"].check(board),
     }
     for name in CIRCUIT_JSON_CHECKS:
+        if name in _OPTIONAL_MODULES and name not in modules:
+            continue  # vendored runtime predates this check; the rest still run
         try:
             findings.extend(runners[name]().findings)
         except Exception as exc:  # noqa: BLE001

@@ -1581,7 +1581,9 @@ def build_board(
                     ok_codes=(0, 5),
                 )
                 warnings.extend(
-                    checks.parse_kicad_report(drc_json, kind="drc_violation")
+                    checks.parse_kicad_report(
+                        drc_json, kind="drc_violation", kicad_pcb=kicad_pcb
+                    )
                 )
             except (RuntimeError, TimeoutError) as exc:
                 warnings.append(checks.check_failed(f"kicad DRC failed: {exc}"))

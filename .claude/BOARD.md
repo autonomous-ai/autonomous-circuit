@@ -222,10 +222,102 @@ change and `parts-book` owns it.
 **Nothing was shipped.** The repo's blocks are untouched; both runs live in a
 scratchpad copy.
 
+## Done 2026-08-19 — the three P0s
+
+Branch `feat/see-the-pour-properly`, on top of `6c3f6cd` (PR #5 merged).
+
+### #18 · `isolated_copper` is re-measured, not suppressed
+
+`circuit-json-to-kicad` writes a pour as a **triangle mesh** — one 3-vertex
+`filled_polygon` per triangle — and KiCad's connectivity treats each as its own
+island. That is the right question asked of the wrong object, and it is the
+largest warning-severity category in the corpus: **2394 instances over 17
+boards**, every one of them describing the mesh rather than the copper.
+
+`checks._remeasure_isolated_copper` unions the mesh across shared edges and
+judges the rule on the answer. On weather-badge-15: 2623 triangles across 2
+zones union into **one connected region**, so the rule drops to `info` carrying
+the count that proves it. A pour that really is in pieces keeps the severity
+KiCad gave it, and a pour that is not a mesh is left to KiCad entirely — on
+that shape KiCad's island analysis is the right one.
+
+One trap caught on review before it shipped: `verify_bridge._load()` imports
+every check inside **one** `try`, and `_ensure_path()` prefers a *vendored*
+verifylib beside the skill runtime. A runtime vendored before `pour` existed
+does not carry it — so adding `pour` to that block would have made the one
+missing name take all nine others down, and the verdict would have come back
+as a single `verify_unavailable` line reading like a missing toolchain rather
+than the regression it was. Optional checks now import one at a time. Proven by
+simulating the absence: nine modules survive, `pour` is skipped. Exactly the
+trap `1e7ac6a` already paid for once.
+
+It was tempting to put `isolated_copper` in `KICAD_NOISE_FLOOR` and be done. A
+floor pins a rule *unconditionally*, which would have traded 2394 false alarms
+for one silent real one the first time a pour genuinely fragmented. Measuring
+it costs a union and keeps the finding.
+
+7 tests, including the one that matters: **a pour that really is in pieces must
+keep its severity.** If that ever goes green while demoting, this is a filter.
+
+### #14 · Something finally asks whether there is a ground plane
+
+New check `verifylib/pour.py`, wired into `CIRCUIT_JSON_CHECKS` and the CLI.
+Grepped first to be sure the hole was real: `netclass._ground_shapes` reads
+pours when they exist and **nothing anywhere required one**. Run over the
+corpus it produces exactly the shape the measurement predicted:
+
+```
+ground_pour_missing    warning    4 boards   weather-badge-5 (fab.ready=True),
+                                             harness-puck, terminal-keyboard,
+                                             hydrate-coaster
+ground_pour_one_sided  info      17 boards   poured on bottom, never on top
+ground_pour_partial    warning    0 boards
+```
+
+`hydrate-coaster` is the case a naive check would pass: it *has* two copper
+pours, on `top`, and **neither is on the ground net**. Counting pours instead
+of ground pours calls that board fine.
+
+**It does not block, on purpose.** The bar is "block only what makes the
+delivered board unusable or the order refused", and a plane-less board is
+neither — every ready board has `unconnected_items = 0`, so no pad depends on
+pour copper to reach its net. The line lives on the fab profile where an EE
+moves it in one place. 10 tests.
+
+### #21 · How close is a passing board to not passing — measured
+
+`scripts/board-table.py --margin`. `fab.ready = True` says a board cleared the
+gate and says nothing about by how much, and after the decoupling experiment
+those are visibly different facts.
+
+```
+10 of 18 ready boards sit on the last rung of the effort ladder
+   having needed the repair pass to get there.
+```
+
+Three more needed rescuing with one rung still unused; only two boards reached
+the top rung routed clean. On the ten, `check_failed` has already said in
+plain words that no retry was attempted because there is nothing harder to try.
+So the answer to "is every board one perturbation from losing its verdict" is
+**not all, but most of the ones at 10x** — and weather-badge-15, which lost
+`fab.ready` to a 7µm clearance 11.5mm from the change, is one of the ten.
+
+This is the number that governs #16, #15 and #20: every one of them moves
+copper, and on ten boards there is nothing left to absorb the move.
+
+### Not done here
+
+`packages/circuitpy` arrives with **59 pre-existing test failures** on
+`tests/test_reserve.py` and friends — verified by stashing this branch and
+re-running: identical count, so they are on `main` and not from this work. The
+`verify` suite is green: **184 passed** (174 before this branch, +10 for
+`pour`). `circuitpy/tests/test_checks.py` + `test_fab.py`: 128 passed.
+
 ## Open
 
-- **#14 · Gate on the pour.** A board with no zone must not reach `fab.ready`.
-  `weather-badge-5` did.
+- **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
+  reports it. Whether it should *block* is now a one-line decision on the fab
+  profile, deliberately left to an EE.
 - **#15 · Pour the top layer too**, or say in writing why bottom-only is the
   design.
 - **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
@@ -233,15 +325,15 @@ scratchpad copy.
   routing margin to absorb it moving out. Needs a decision — grow the box and
   re-lay the boards, or a smaller package (BOM change, `parts-book`). See the
   measurement above.
-- **#21 · The boards pass with no headroom.** `10x` is the top of the ladder and
-  wb-15 arrives there with `blockingByAttempt [2]` and nothing to escalate to.
-  Worth measuring across the corpus: how many boards are one perturbation away
-  from losing `fab.ready`, and is the answer "all of them".
+- **#21 · The boards pass with no headroom.** **MEASURED** — 10 of 18 ready
+  boards sit on the last rung having needed the repair pass. Still open as a
+  *decision*: the ladder needs a rung above 10x, or the boards need to route
+  clean at a lower one. Until then #16, #15 and #20 are all gambling.
 - **#17 · Derive the USB skew budget from the interface speed** rather than
   hardcoding the High Speed figure (`verifylib/netclass.py:61`).
-- **#18 · Stop `isolated_copper` from firing on a triangulated pour** — union
-  the mesh before judging it, the way `--pour` does. 2394 instances of noise
-  is what buried A and B.
+- **#18 · Stop `isolated_copper` from firing on a triangulated pour.** **DONE**
+  — re-measured rather than suppressed; a genuinely fragmented pour still
+  warns.
 - **#19 · Fix the `.kicad_sch` export.** 2246 parity findings and the file a
   human opens is wrong.
 - **#12 · Route hints for the crystal net.** Unchanged, still the only untried
@@ -265,6 +357,14 @@ scratchpad copy.
 - **A tool's output format is not the thing it describes.** 2423
   `filled_polygon` entries looked like 2423 fragments of copper and were one
   triangulated plane. KiCad made the same mistake. Union before judging.
+- **One `try` around ten imports is nine hostages.** Adding a check to a
+  shared import block means a runtime that predates the check loses every
+  check. The failure even disguises itself as a missing toolchain. Import
+  what is optional one at a time.
+- **A floor silences a rule; a measurement keeps it.** `isolated_copper` could
+  have gone into `KICAD_NOISE_FLOOR` in one line. That pins a rule
+  unconditionally, and would have traded 2394 false alarms for one silent real
+  one the first time a pour genuinely fragmented. Re-measure, then judge.
 - **A correct fix can still fail, and the failure can be 7µm away from
   anything you touched.** Moving a decoupling cap 9.65mm -> 4.07mm cleared its
   finding, improved two others, and lost `fab.ready` to a clearance violation

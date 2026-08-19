@@ -42,7 +42,7 @@ def test_every_check_runs_and_reports_its_own_time(project):
     names = {c["name"].split("[")[0] for c in report["checks"]}
     assert names == {
         "assembly", "netclass", "dc", "corners", "review", "thermal", "crystal",
-        "gerber_truth",
+        "pour", "gerber_truth",
     }
     assert all("seconds" in c for c in report["checks"])
 
