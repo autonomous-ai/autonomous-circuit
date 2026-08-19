@@ -556,10 +556,53 @@ on the defect is not evidence about it. `packages/circuitpy`: 472 passed.
 
 **Nothing here touches #15.** `fcu_regions` is `0->0` on all 12 — not one board
 in `products/` pours on top, so this run demonstrates the #18 half only.
-Whether outlining also clears the kicad-cli segfault is still open, and the
-bisect that would answer it (`tp/bisect.py`, wb-16's top pour) never printed
-its minimal crashing set — it was mid-run when the session ended. #15 stays
-blocked until that is re-run against this pass.
+
+## Measured 2026-08-19 — #15 is NOT the mesh, and the mesh theory is refuted
+
+The claim above — *"fix the converter's pour emission and both close"* — is
+**wrong**, and now measured rather than argued. Run wb-16's top-pour board
+(`tp/main.kicad_pcb`, 5800 fills) through the outlining pass and DRC it:
+
+```
+main.kicad_pcb      5800 fills   exit=139
+outlined            5757 -> 15   exit=139     (0.43s to outline)
+```
+
+Same segfault. Delta-debugging the outlined board, one zone at a time:
+
+- **B.Cu's 18 zones alone: exit 0.** **F.Cu's 28 zones alone: exit 139.** The
+  crash lives entirely on the top pour.
+- Shrunk to a **single sufficient zone: #40, F.Cu, net GND, one fill, 288
+  vertices.** That zone alone on an otherwise empty board segfaults kicad-cli.
+- That fill **visits one vertex — `(92.738553, 96.8101)` — four times.**
+  Exactly the trigger the via pass already had written into `_fracture` as the
+  reason it will not anchor twice on one vertex. **The converter writes such a
+  zone by itself**: zone 40 is byte-identical before and after the outlining
+  pass, which never touched it (it was already one polygon).
+- Split that ring into simple loops at its own repeats, area preserved exactly,
+  change nothing else → **exit 0.** The 4-visit vertex is the crash, proven by
+  removal.
+
+**So #15 was never blocked on the triangle mesh.** It is blocked on the
+converter emitting a pour outline that touches itself at a point, and
+kicad-cli dying on it.
+
+### And that is not the whole of it either
+
+Splitting zone 40 and re-running the *full* board still segfaults. Shrinking
+again lands on **three F.Cu GND zones together (#29, #33, #40)**, none of which
+repeats a vertex at all. So there is a second cause that only appears when
+several top-layer zones coexist, and it is not the 4-visit rule.
+
+**The split used in that experiment is also not a usable repair.** Decomposing
+zone 40's ring produced four loops, one of them with **negative area** — a
+hole. Emitted as its own `filled_polygon` that hole becomes solid copper, so
+the arithmetic held while the copper did not. Any real fix has to keep holes as
+holes; that is what `_fracture` exists to do and the repair belongs there.
+
+**#15 remains blocked, with a much smaller search left**: one named zone, one
+named vertex, one reproducer that runs in 3 seconds, and one further cause to
+find among three zones.
 
 ## Open
 
@@ -568,10 +611,11 @@ blocked until that is re-run against this pass.
   profile, deliberately left to an EE.
 - **#15 · Pour the top layer too.** **MEASURED on weather-badge-16** — the
   router takes it at no cost in headroom and `netclass_pair_reference` clears.
-  **Still blocked**: kicad-cli segfaults on the doubled triangle mesh (2639 ->
-  5800 polygons, exit 139, reproducible). #22 is the candidate fix and is now
-  in; whether it clears the segfault is **unmeasured** — re-run wb-16's top
-  pour through the outlining pass to find out.
+  **Still blocked, but not on what this board said.** #22 outlines that pour
+  (5757 -> 15 polygons, 0.43s) and it **still** exits 139. The crash is one
+  F.Cu zone whose fill visits one vertex four times, written that way by the
+  converter — plus a second cause among three coexisting F.Cu zones. See the
+  measurement above. The mesh theory is refuted.
 - **#22 · Make the converter emit a pour as an outline, not a mesh.** **DONE
   for the noise half** — 12/12 boards in `products/` outline with identical
   plotted copper and no other rule moving; see the section above. The #15 half
@@ -626,6 +670,16 @@ commit); pushing there sends the work nowhere anyone reads.
   the same reports is what proves it. A before/after delta built on a capped
   number is not a delta. Find the uncapped measure — here, the gerber region
   count — before writing anything down.
+- **Two things that both look broken are not therefore the same break.** #18
+  and #15 were filed as one converter defect with two symptoms, and the
+  sentence "fix the pour emission and both close" sat on this board as if it
+  had been measured. It had not. #18 closed and #15 did not move a single exit
+  code. A shared cause is a hypothesis until one fix is shown to close both.
+- **Area arithmetic is not copper.** Splitting a self-touching ring into loops
+  kept the signed-area sum exact and still would have filled a hole with
+  copper, because one loop came out negative and a `filled_polygon` has no
+  winding. An invariant that holds on the numbers can still be false about the
+  board.
 - **A bounded search reports as a clean decline.** `_fracture` stopped after 32
   candidate anchors and said "this pour is not something I understand", which
   read as a property of four boards. It was a property of the cap: the anchor
