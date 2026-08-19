@@ -63,6 +63,12 @@ class Normalization:
     text_thickened: int = 0
     strokes_widened: int = 0
     vias_bridged: int = 0
+    #: Pour zones whose triangle mesh was re-expressed as outlines, and the
+    #: `filled_polygon` count before and after, so the size of the change is
+    #: on the record rather than asserted.
+    pours_outlined: int = 0
+    pour_polygons_before: int = 0
+    pour_polygons_after: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
     #: A step of this pass could not run: a file that would not read, a parse
@@ -82,7 +88,7 @@ class Normalization:
     def changed(self) -> bool:
         return bool(
             self.text_resized or self.text_thickened or self.strokes_widened
-            or self.vias_bridged
+            or self.vias_bridged or self.pours_outlined
         )
 
     def summary(self) -> str:
@@ -112,6 +118,12 @@ class Normalization:
             parts.append(
                 f"{self.vias_bridged} missing via(s) added under a B.Cu "
                 "dead-end at a top-only pad"
+            )
+        if self.pours_outlined:
+            parts.append(
+                f"{self.pours_outlined} pour zone(s) re-expressed as outlines "
+                f"({self.pour_polygons_before} triangles -> "
+                f"{self.pour_polygons_after} polygon(s))"
             )
         return "; ".join(parts)
 
@@ -255,6 +267,11 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
         # Second pass: bridge B.Cu dead-ends that stop under a top-only pad.
         # Runs after (not instead of) the silk floors; both edit the same file.
         text = _fix_dead_end_vias(text, profile, result)
+
+        # Third pass: re-express a triangulated pour as its outline. Runs LAST
+        # on purpose — the via pass reads `filled_polygon` for clearance, and
+        # it must keep seeing exactly the geometry it sees today.
+        text = _outline_pours(text, result)
 
         if text != original:
             pcb_path.write_text(text, encoding="utf-8")
@@ -668,4 +685,560 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
     for va, vb in _balanced_spans(text, "  (via"):
         insert_at = vb
     text = text[:insert_at] + "\n" + body + text[insert_at:]
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Pours: the converter writes a plane as a triangle mesh; KiCad wants outlines.
+# ---------------------------------------------------------------------------
+#
+# Measured 2026-08-19 across the corpus: `circuit-json-to-kicad` writes a copper
+# pour as a **triangle mesh** — one 3-vertex `filled_polygon` per triangle, 2403
+# of them on pixel-badge, 2423 on weather-badge-15. The copper those triangles
+# describe is continuous; union them across shared edges and pixel-badge's plane
+# is one region of 4179.79mm2. The mesh is the only thing that is in pieces.
+#
+# That representation is not cosmetic. It costs three separate things:
+#
+#   * KiCad's connectivity treats each triangle as its own island and calls 199
+#     of them isolated — 2394 `isolated_copper` instances over 17 boards, the
+#     largest warning-severity category in the corpus, every one of them noise.
+#     `checks._remeasure_isolated_copper` unions the mesh to judge the rule
+#     honestly; this removes the reason it has to.
+#   * `kicad-cli pcb drc` **segfaults** on a board with two triangulated pours
+#     (5800 polygons / 1.67MB, `exit=139`, reproduced 4/4). That is what blocks
+#     pouring the top layer, and a crashed gate is the one failure shape this
+#     pipeline must never have.
+#   * The B.Cu gerber inflates to 457KB and 2639 G36 regions against 64KB on
+#     F.Cu — a real CAM risk even when the copper is fine.
+#
+# One defect, three symptoms. The converter is upstream and we do not control
+# it, so the fix goes where the silk floors and the dead-end vias already go:
+# the `.kicad_pcb` between the converter and `kicad-cli`, the one file every
+# board passes through.
+#
+# **This changes the spelling and not the copper, and that distinction is
+# load-bearing.** The rejected `solder_mask_min_width` change (see the module
+# docstring) altered a representation while leaving the geometry untouched and
+# made a check *worse* — a placebo. Here the representation is precisely what
+# segfaults kicad-cli and what KiCad's island analysis mis-reads. So the fix is
+# held to the strictest possible faithfulness bar: the fractured outlines must
+# reproduce the mesh's area **exactly, in integer nanometres**, or the zone is
+# left exactly as the converter produced it. Everything is quantised to nm
+# (KiCad's own internal unit, and what six decimal places of mm already spell),
+# so "exactly" means exactly and not within a tolerance.
+#
+# **The convention this imitates is KiCad's own.** Asked to refill this very
+# board, `kicad-cli pcb drc --refill-zones --save-board` writes a pour with
+# holes as a *single* `filled_polygon`: 4253 vertices carrying 38 repeated ones,
+# which is 19 keyhole slits. A hole is not a separate element in this format; it
+# is cut into the outline by a zero-width corridor. So that is what gets
+# written here. (Refilling was measured as the alternative fix and rejected:
+# KiCad reads the converter's 24-polygon zone outline differently and left the
+# main plane with *no fill at all*. It also hands the fill computation to KiCad,
+# which would move copper the netlist comparison just proved faithful.)
+#
+# A zone that is not a mesh is left to KiCad entirely — on that shape KiCad's
+# own island analysis is the right one, exactly as `_remeasure_isolated_copper`
+# already decided.
+
+#: Nanometres per millimetre. Every pour coordinate is quantised to this grid
+#: before any geometry runs, so unions, containment and area are integer exact.
+#: The converter already writes six decimal places of mm, which is this grid.
+_POUR_SCALE = 1_000_000
+
+_XY_RE = re.compile(r"\(xy\s+([-0-9.eE+]+)\s+([-0-9.eE+]+)\s*\)")
+_LAYER_RE = re.compile(r"\(layer\s+\"?([^)\"\s]+)\"?\s*\)")
+
+
+def _ring_area2(ring: list[tuple[int, int]]) -> int:
+    """Twice the signed area of a ring. Positive is counter-clockwise."""
+    total = 0
+    for i in range(len(ring)):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % len(ring)]
+        total += x1 * y2 - x2 * y1
+    return total
+
+
+def _mesh_rings(
+    triangles: list[list[tuple[int, int]]],
+) -> list[list[tuple[int, int]]] | None:
+    """Union a triangle mesh into its boundary rings, or ``None`` if it is not
+    a clean mesh.
+
+    Pure combinatorics, no floating point on the copper and no boolean
+    geometry: a triangle edge shared by two triangles is interior, an edge that
+    appears once is boundary. Orient every triangle counter-clockwise first and
+    the boundary edges chain head-to-tail into closed rings — outer boundaries
+    come out counter-clockwise (positive area), holes clockwise (negative).
+
+    **Pinch points are the case that makes this more than a walk.** A poured
+    plane routinely squeezes to nothing between two pads and touches itself at
+    a single vertex — 21 times on weather-badge-16's top pour, which is the
+    board that blocks #15. At such a vertex two boundary chains arrive and two
+    leave, and pairing them wrongly stitches two separate regions into one
+    figure-of-eight. The pairing is decided by direction, not by chance: a
+    boundary keeps copper on its left, so the wedge of copper at a vertex runs
+    counter-clockwise from an outgoing edge round to an incoming one. Each
+    chain therefore continues along the first outgoing edge found rotating
+    **clockwise** from the one it arrived on.
+
+    **A collapsed triangle is dropped, not declined.** The converter emits a
+    few triangles whose three points are collinear — 3 of 2325 on
+    `rgb-lamp-controller`, strung along one diagonal. They enclose no copper,
+    so removing them cannot move the plane, and the caller's exact-area check
+    still has to account for the result either way. Refusing the zone over
+    them cost that board its whole pour for nothing.
+
+    Anything that is still not a manifold triangulation — two triangles
+    covering the same ground, a vertex where more boundary leaves than arrives
+    — returns ``None``, and the caller leaves the zone alone. Declining is
+    free; a silently mangled plane is not.
+    """
+    edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+    for tri in triangles:
+        if len(tri) != 3:
+            return None
+        if _ring_area2(tri) == 0:
+            continue  # collapsed: three collinear points, no copper to union
+        if _ring_area2(tri) < 0:
+            tri = tri[::-1]
+        for i in range(3):
+            edge = (tri[i], tri[(i + 1) % 3])
+            if edge in edges:
+                return None  # two triangles wound the same way over one edge
+            edges.add(edge)
+
+    outgoing: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    incoming: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for tail, head in edges:
+        if (head, tail) in edges:
+            continue  # interior: some other triangle covers the far side
+        outgoing.setdefault(tail, []).append(head)
+        incoming.setdefault(head, []).append(tail)
+    if not outgoing:
+        return None
+
+    successor: dict[
+        tuple[tuple[int, int], tuple[int, int]],
+        tuple[tuple[int, int], tuple[int, int]],
+    ] = {}
+    for vertex, leaving in outgoing.items():
+        arriving = incoming.get(vertex, [])
+        if len(arriving) != len(leaving):
+            return None
+        if len(leaving) == 1:
+            successor[(arriving[0], vertex)] = (vertex, leaving[0])
+            continue
+        bearings = [
+            math.atan2(q[1] - vertex[1], q[0] - vertex[0]) for q in leaving
+        ]
+        taken: set[int] = set()
+        for tail in arriving:
+            arrival = math.atan2(tail[1] - vertex[1], tail[0] - vertex[0])
+            pick = None
+            for j, bearing in enumerate(bearings):
+                if j in taken:
+                    continue
+                turn = (arrival - bearing) % (2 * math.pi)
+                if turn == 0.0:
+                    turn = 2 * math.pi  # a zero-width spike doubles back
+                if pick is None or turn < pick[0]:
+                    pick = (turn, j)
+            if pick is None:
+                return None
+            taken.add(pick[1])
+            successor[(tail, vertex)] = (vertex, leaving[pick[1]])
+
+    rings: list[list[tuple[int, int]]] = []
+    walked: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+    for edge in successor:
+        if edge in walked:
+            continue
+        ring: list[tuple[int, int]] = []
+        cursor = edge
+        while cursor not in walked:
+            walked.add(cursor)
+            ring.append(cursor[0])
+            cursor = successor[cursor]
+        if cursor != edge:
+            return None  # walked into an earlier ring: not a set of loops
+        rings.append(ring)
+    if len(walked) != len(successor):
+        return None
+    return rings or None
+
+
+def _ring_contains(outer: list[tuple[int, int]], ring: list[tuple[int, int]]) -> bool:
+    """Is ``ring`` inside ``outer``?
+
+    Voted over sampled edge midpoints rather than decided by one vertex: where
+    a pour pinches, a hole can share a vertex with the region around it, and a
+    single sample taken exactly on the boundary answers neither yes nor no.
+    """
+    step = max(1, len(ring) // 12)
+    inside = total = 0
+    for i in range(0, len(ring), step):
+        a, b = ring[i], ring[(i + 1) % len(ring)]
+        total += 1
+        if _point_in_ring(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), outer):
+            inside += 1
+    return inside * 2 > total
+
+
+def _point_in_ring(
+    point: tuple[float, float], ring: list[tuple[int, int]]
+) -> bool:
+    """Crossing-number containment. Points exactly on the ring are undefined,
+    and never asked about here: every point tested is a bridge midpoint."""
+    px, py = point
+    inside = False
+    for i in range(len(ring)):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % len(ring)]
+        if (y1 > py) != (y2 > py):
+            crossing = x1 + (py - y1) * (x2 - x1) / (y2 - y1)
+            if px < crossing:
+                inside = not inside
+    return inside
+
+
+def _orient(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> int:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _between(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> bool:
+    """``c`` lies strictly inside segment ``ab``, given it is already collinear."""
+    if c == a or c == b:
+        return False
+    return (
+        min(a[0], b[0]) <= c[0] <= max(a[0], b[0])
+        and min(a[1], b[1]) <= c[1] <= max(a[1], b[1])
+    )
+
+
+def _blocks(
+    a: tuple[int, int], b: tuple[int, int],
+    c: tuple[int, int], d: tuple[int, int],
+) -> bool:
+    """Does edge ``cd`` stop the bridge ``ab`` from being drawn?
+
+    Sharing an endpoint is fine and expected — the bridge starts and ends on
+    rings whose edges meet it there. Anything else that touches is not: a
+    proper crossing, a collinear overlap, or an endpoint landing in the middle
+    of the other segment would all put the slit somewhere it does not belong.
+    """
+    if max(a[0], b[0]) < min(c[0], d[0]) or max(c[0], d[0]) < min(a[0], b[0]):
+        return False
+    if max(a[1], b[1]) < min(c[1], d[1]) or max(c[1], d[1]) < min(a[1], b[1]):
+        return False
+    o1, o2 = _orient(a, b, c), _orient(a, b, d)
+    o3, o4 = _orient(c, d, a), _orient(c, d, b)
+    if o1 == 0 and o2 == 0:
+        # Collinear. Only an overlap of more than a single point is a problem.
+        return _between(a, b, c) or _between(a, b, d) or _between(c, d, a) \
+            or _between(c, d, b) or (a in (c, d) and b in (c, d))
+    if (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0) and o1 and o2 and o3 and o4:
+        return True
+    if o1 == 0 and _between(a, b, c):
+        return True
+    if o2 == 0 and _between(a, b, d):
+        return True
+    if o3 == 0 and _between(c, d, a):
+        return True
+    if o4 == 0 and _between(c, d, b):
+        return True
+    return False
+
+
+def _is_reflex(ring: list[tuple[int, int]], index: int) -> bool:
+    """Reflex, for a counter-clockwise ring. A collinear vertex counts as
+    reflex: that is the conservative answer, and every candidate the caller
+    takes from here is validated against the whole boundary anyway."""
+    before = ring[index - 1]
+    here = ring[index]
+    after = ring[(index + 1) % len(ring)]
+    return _orient(before, here, after) <= 0
+
+
+def _in_triangle(
+    point: tuple[int, int],
+    a: tuple[float, float], b: tuple[float, float], c: tuple[float, float],
+) -> bool:
+    def side(p: tuple[float, float], q: tuple[float, float]) -> float:
+        return (q[0] - p[0]) * (point[1] - p[1]) - (q[1] - p[1]) * (point[0] - p[0])
+
+    d1, d2, d3 = side(a, b), side(b, c), side(c, a)
+    return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+
+
+def _bridge_vertex(
+    ring: list[tuple[int, int]], mouth: tuple[int, int]
+) -> int | None:
+    """Which vertex of ``ring`` the hole at ``mouth`` can be joined to.
+
+    Eberly's hole-cutting rule, and the reason it is this rule rather than
+    "the nearest vertex": the outline of a poured plane is often a bare
+    rectangle, so the nearest *vertex* to a hole in the middle of the board is
+    a far corner and the segment to it crosses every other hole on the way.
+    Casting a ray instead is what makes the choice local.
+
+    Cast +x from the hole's rightmost point, take the first edge it meets, and
+    bridge to that edge's right-hand endpoint. If any reflex vertex of the
+    outline sits inside the triangle those three points make, it is in the way,
+    and the one at the shallowest angle from the ray takes its place.
+
+    Holes are cut right-to-left, so nothing still waiting can lie to the right
+    of the ray, and only the outline this walks is ever in the way.
+    """
+    mx, my = mouth
+    hit_x: float | None = None
+    hit_edge: int | None = None
+    for i in range(len(ring)):
+        a = ring[i]
+        b = ring[(i + 1) % len(ring)]
+        if (a[1] > my) == (b[1] > my):
+            continue
+        crossing = a[0] + (my - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+        if crossing < mx:
+            continue
+        if hit_x is None or crossing < hit_x:
+            hit_x, hit_edge = crossing, i
+    if hit_edge is None:
+        return None
+
+    a, b = ring[hit_edge], ring[(hit_edge + 1) % len(ring)]
+    chosen = hit_edge if a[0] >= b[0] else (hit_edge + 1) % len(ring)
+
+    corner = (float(mx), float(my))
+    entry = (hit_x, float(my))
+    best: tuple[float, float] | None = None
+    for i in range(len(ring)):
+        vertex = ring[i]
+        if vertex == mouth or i == chosen:
+            continue
+        if not _is_reflex(ring, i):
+            continue
+        if not _in_triangle(vertex, corner, entry, ring[chosen]):
+            continue
+        dx, dy = vertex[0] - mx, vertex[1] - my
+        rank = (abs(math.atan2(dy, dx)), float(dx * dx + dy * dy))
+        if best is None or rank < best:
+            best, chosen = rank, i
+    return chosen
+
+
+def _fracture(
+    outer: list[tuple[int, int]],
+    holes: list[list[tuple[int, int]]],
+) -> list[tuple[int, int]] | None:
+    """Cut every hole into the outline with a zero-width keyhole slit.
+
+    This is the shape KiCad's own filler writes (measured: 4253 vertices with
+    19 repeated pairs on a refilled pixel-badge), because the format has no way
+    to say "hole" — a `filled_polygon` is one closed outline and that is all.
+
+    Holes are taken right-to-left so a hole cut earlier becomes part of the
+    outline the next ray can land on, which is what lets a hole reach the plane
+    through another hole when that is the only way out. Every bridge the rule
+    picks is then checked against the whole boundary before it is used, and if
+    the rule's answer somehow touches something it should not, **every** other
+    vertex is tried in turn, nearest first. It has to be every one: the ray
+    routinely lands on a slit cut for an earlier hole, whose two endpoints are
+    the doubled vertices this may not anchor on, and on a coarse outline the
+    next vertex that works can be a hundred places down the list. Only when
+    the whole ring has been tried does this return ``None``, and the caller
+    leaves the whole zone as the converter wrote it.
+    """
+    ring = list(outer)
+    ordered = sorted(holes, key=lambda h: max(p[0] for p in h), reverse=True)
+    pending = list(ordered)
+
+    for hole in ordered:
+        pending.remove(hole)
+        pivot = max(range(len(hole)), key=lambda i: (hole[i][0], hole[i][1]))
+        mouth = hole[pivot]
+        rotated = hole[pivot:] + hole[:pivot]
+
+        obstacles = [
+            (other[i], other[(i + 1) % len(other)])
+            for other in pending + [hole]
+            for i in range(len(other))
+        ]
+
+        preferred = _bridge_vertex(ring, mouth)
+        candidates = [] if preferred is None else [preferred]
+        candidates += sorted(
+            range(len(ring)),
+            key=lambda i: (ring[i][0] - mouth[0]) ** 2 + (ring[i][1] - mouth[1]) ** 2,
+        )
+
+        # Both of these are fixed for the whole sweep over one hole, and
+        # rebuilding them per candidate is what made a *bounded* sweep look
+        # necessary. Hoisted, the sweep is one pass over the ring per
+        # candidate, and it can afford to try every vertex — which it must:
+        # measured on `i2c-sensor-hub`, the first anchor that works is the
+        # 124th nearest, because the pour's outline is coarse there and every
+        # vertex within 14mm of that hole is either already carrying a slit or
+        # screened off by one.
+        edges = [(ring[i], ring[(i + 1) % len(ring)]) for i in range(len(ring))]
+        blocking = edges + obstacles
+        visits: dict[tuple[int, int], int] = {}
+        for point in ring:
+            visits[point] = visits.get(point, 0) + 1
+
+        chosen = None
+        for index in candidates:
+            anchor = ring[index]
+            if anchor == mouth:
+                continue
+            # Never let a third slit meet at one point. `kicad-cli pcb drc`
+            # segfaults on a fill whose outline visits the same vertex four
+            # times — measured on weather-badge-16's F.Cu pour, reproduced
+            # with that one zone as the only zone on the board. Two slits per
+            # vertex is what KiCad's own filler writes; this pass will not
+            # write more.
+            if visits[anchor] > 1:
+                continue
+            if any(_blocks(anchor, mouth, c, d) for c, d in blocking):
+                continue
+            midpoint = ((anchor[0] + mouth[0]) / 2, (anchor[1] + mouth[1]) / 2)
+            if not _point_in_ring(midpoint, outer):
+                continue
+            if any(_point_in_ring(midpoint, other) for other in holes):
+                continue
+            chosen = index
+            break
+
+        if chosen is None:
+            return None
+        ring = ring[: chosen + 1] + rotated + [rotated[0]] + ring[chosen:]
+
+    return ring
+
+
+def _fill_blocks(block: str) -> list[tuple[int, int]]:
+    return _balanced_spans(block, "(filled_polygon")
+
+
+def _render_fill(layer: str, ring: list[tuple[int, int]]) -> str:
+    def mm(value: int) -> str:
+        text = f"{value / _POUR_SCALE:.6f}".rstrip("0").rstrip(".")
+        return text if text not in ("", "-0") else "0"
+
+    points = "\n".join(f"        (xy {mm(x)} {mm(y)})" for x, y in ring)
+    return (
+        "    (filled_polygon\n"
+        f"      (layer {layer})\n"
+        "      (pts\n"
+        f"{points}\n"
+        "      )\n"
+        "    )"
+    )
+
+
+def _outline_zone(block: str, result: Normalization) -> str | None:
+    """One zone's mesh, re-expressed as outlines. ``None`` means: not touched."""
+    spans = _fill_blocks(block)
+    if len(spans) < 2:
+        return None  # a single polygon is already an outline
+
+    fills: list[tuple[str, list[tuple[int, int]]]] = []
+    for start, end in spans:
+        chunk = block[start:end]
+        layer = _LAYER_RE.search(chunk)
+        if layer is None:
+            return None
+        ring = [
+            (round(float(x) * _POUR_SCALE), round(float(y) * _POUR_SCALE))
+            for x, y in _XY_RE.findall(chunk)
+        ]
+        if len(ring) != 3:
+            return None  # not a mesh; KiCad's own island analysis is right here
+        fills.append((layer.group(1), ring))
+
+    # Everything between the fills must be whitespace, or splicing them out
+    # would take something else with it.
+    for (_, end), (start, _) in zip(spans, spans[1:]):
+        if block[end:start].strip():
+            return None
+
+    by_layer: dict[str, list[list[tuple[int, int]]]] = {}
+    for layer, ring in fills:
+        by_layer.setdefault(layer, []).append(ring)
+
+    rendered: list[str] = []
+    produced = 0
+    for layer, triangles in by_layer.items():
+        rings = _mesh_rings(triangles)
+        if rings is None:
+            return None
+        outers = [r for r in rings if _ring_area2(r) > 0]
+        holes = [r for r in rings if _ring_area2(r) < 0]
+        if not outers:
+            return None
+
+        assigned: dict[int, list[list[tuple[int, int]]]] = {
+            i: [] for i in range(len(outers))
+        }
+        for hole in holes:
+            # Smallest containing outer wins: a hole inside an island that is
+            # itself inside a bigger region belongs to the island.
+            owner, best = None, None
+            for i, outer in enumerate(outers):
+                if not _ring_contains(outer, hole):
+                    continue
+                area = _ring_area2(outer)
+                if best is None or area < best:
+                    owner, best = i, area
+            if owner is None:
+                return None  # a hole outside every region: not a plane we know
+            assigned[owner].append(hole)
+
+        outline_area = 0
+        for i, outer in enumerate(outers):
+            ring = _fracture(outer, assigned[i])
+            if ring is None:
+                return None
+            outline_area += _ring_area2(ring)
+            rendered.append(_render_fill(layer, ring))
+            produced += 1
+
+        # The whole justification for this pass is that it re-spells copper
+        # without moving it. Integer nanometres make that checkable exactly,
+        # so it is checked exactly: a slit contributes nothing to the shoelace
+        # sum because it is walked once in each direction.
+        if sum(abs(_ring_area2(t)) for t in triangles) != outline_area:
+            return None
+
+    first, last = spans[0][0], spans[-1][1]
+    result.pours_outlined += 1
+    result.pour_polygons_before += len(spans)
+    result.pour_polygons_after += produced
+    return block[:first] + "\n".join(rendered) + block[last:]
+
+
+def _outline_pours(text: str, result: Normalization) -> str:
+    """Re-express every triangulated pour in the board as its outline."""
+    already_outlines = 0
+    for start, end in reversed(_balanced_spans(text, "(zone")):
+        block = text[start:end]
+        if len(_fill_blocks(block)) < 2:
+            already_outlines += 1
+            continue
+        rewritten = _outline_zone(block, result)
+        if rewritten is None:
+            result.declined.append(
+                "a pour zone was left exactly as the converter wrote it: its "
+                "fills are not a clean triangle mesh, so KiCad's own reading "
+                "of that copper is the right one"
+            )
+            continue
+        text = text[:start] + rewritten + text[end:]
+    if already_outlines:
+        result.declined.append(
+            f"{already_outlines} pour zone(s) were already single outlines "
+            "rather than meshes and were left untouched"
+        )
     return text
