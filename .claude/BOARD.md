@@ -4,10 +4,15 @@
 Everything below the SUPERSEDED line is history — keep it, do not trust its
 SHAs.**
 
-**Scope changed: make these boards printable and actually working. Deploy is
-not ours any more.** PR #4 (P0.2 turn lock / P0.3 concurrency cap / P0.4
-metering / `user=`) is open and out of scope — leave it or close it; it does
-not touch boards.
+**Scope: board quality only — will a board that comes back from the fab and
+gets flashed actually work, and is it good rather than merely working.**
+
+**Deploy is not ours and is not tracked here.** Everything about deployment,
+metering, turn locks and concurrency — PR #4, `docs/deployment.md`,
+`docs/pre-deploy.md`, and every section below the SUPERSEDED line mentioning
+them — is out of scope. Do not reopen it, do not add "ready for deploy" or
+"deployed" states to this board. If a board task turns out to need one of
+those documents, that is a signal the task is not a board task.
 
 ---
 
@@ -145,13 +150,93 @@ output: re-running DRC without that flag produces none of it. **The exported
 `.kicad_sch` is the broken artifact, not the board** — and it ships in
 `kicad-project.zip`, which is what a human opens.
 
+## Settled by measurement, 2026-08-19 — #16 is real, and it does not fit
+
+`ldo-3v3` puts `Cin` at `(-2, -6)` while the AMS1117's `VIN` pad is at
+`(+2.93, +2.30)`. Centre-to-pin that is **9.65mm**, which is the 9.7mm the
+check reports, on all 17 boards, identically. The cause is named and it is one
+line of one block.
+
+Moving it does not work, and the reason is worth more than the fix.
+
+**Run 1 — `Cin` to `(6.4, 2.3)`.** `fab.ready` True -> False, **66 errors**.
+One cause, cleanly: U2's courtyard overlaps C2's by **0.292mm**, which is a
+placement error, and *"Autorouting was skipped because 1 PCB placement error
+was found"* — so all 30 traces went missing as a cascade. The 0.292mm is also
+the correction: C2's courtyard half-extent is 1.68mm, U2's courtyard ends at
+x=5.012, so the first legal centre is x=6.692.
+
+**Run 2 — `Cin` to `(7.0, 2.3)`**, 0.308mm of courtyard clear. One variable
+against a base rebuilt from the same source. Both 10x, both seeded, base
+reproduces the app's own build exactly bar the 30 `supplier_footprint_mismatch`
+rows that `CIRCUIT_PARTS_ENGINE=off` cannot produce. 279.9s vs 279.3s.
+
+```
+                                   base    moved
+fab.ready                          True    False
+error                                 0        1
+warning                              27       28
+info                                 30       29
+DRC/ERC instances                  1060     1061
+blockingByAttempt                   [2]      [3]
+
+review_decoupling_distant             5 ->    4   the U2 finding cleared
+crystal_net_routed_long               2 ->    1   better
+pcb_trace_too_long_warning            2 ->    1   better
+pcb_pad_trace_clearance_error         0 ->    1   BLOCKING
+dfm_hole_clearance                    0 ->    1
+drc_violation                        16 ->   17
+```
+
+**The fix worked and the board still failed.** The blocking error is
+`Pad .R1 > .pin1 and trace [.J1 > port.GND1, .R1 > port.cathode] are too close
+(clearance 0.093mm, minimum 0.1mm)` — **7 micrometres short**, on R1 at
+`(-1.51, -12.83)`, about **11.5mm from anything that moved**. Nothing collided.
+The router re-solved the whole board and one net landed 7µm inside the limit.
+
+### The finding under the finding: there is no routing headroom
+
+`check_failed` says it in the sidecar's own words:
+
+> the board declares `autorouterEffortLevel="10x"`, which is the hardest
+> routing pass this pipeline will run, so no retry was attempted. 2
+> routing-class finding(s) survived
+
+Base passes with `blockingByAttempt [2]` — two blocking findings that the
+repair pass cleans up — at the **top rung of the effort ladder**, with nothing
+above it to escalate to. So a board that reads `fab.ready = True` is not a
+board that passed comfortably; it is a board that passed with two findings of
+margin and no next gear. Any placement change is a coin flip, and this one
+landed 7µm on the wrong side.
+
+That is why **#16 cannot ship as a cap move**. There is no room inside the
+block's own box either: the box is `(-4.18, -6.7, 6.42, 2.85)`, `max_y` **is**
+VIN's pad edge, and the first legal centre east of U2 is x=6.692 — already
+outside. The cap has to leave the box, the box has to grow ~2mm, and every
+board using `ldo-3v3` has to be re-laid out with the room. Options, none free:
+grow the box and re-run `evals/measure_block_boxes.py --write`; or fit a
+smaller package near VIN (an 0603 courtyard is ~1.1mm half-width against
+0805's 1.68, which would put the box growth near 0.6mm) — but that is a BOM
+change and `parts-book` owns it.
+
+**Nothing was shipped.** The repo's blocks are untouched; both runs live in a
+scratchpad copy.
+
 ## Open
 
 - **#14 · Gate on the pour.** A board with no zone must not reach `fab.ready`.
   `weather-badge-5` did.
 - **#15 · Pour the top layer too**, or say in writing why bottom-only is the
   design.
-- **#16 · Move U2's input cap.** One fix in the block, 17 boards.
+- **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
+  **blocked**: the cap does not fit inside the block's box and the board has no
+  routing margin to absorb it moving out. Needs a decision — grow the box and
+  re-lay the boards, or a smaller package (BOM change, `parts-book`). See the
+  measurement above.
+- **#21 · The boards pass with no headroom.** `10x` is the top of the ladder and
+  wb-15 arrives there with `blockingByAttempt [2]` and nothing to escalate to.
+  Worth measuring across the corpus: how many boards are one perturbation away
+  from losing `fab.ready`, and is the answer "all of them".
 - **#17 · Derive the USB skew budget from the interface speed** rather than
   hardcoding the High Speed figure (`verifylib/netclass.py:61`).
 - **#18 · Stop `isolated_copper` from firing on a triangulated pour** — union
@@ -180,6 +265,11 @@ output: re-running DRC without that flag produces none of it. **The exported
 - **A tool's output format is not the thing it describes.** 2423
   `filled_polygon` entries looked like 2423 fragments of copper and were one
   triangulated plane. KiCad made the same mistake. Union before judging.
+- **A correct fix can still fail, and the failure can be 7µm away from
+  anything you touched.** Moving a decoupling cap 9.65mm -> 4.07mm cleared its
+  finding, improved two others, and lost `fab.ready` to a clearance violation
+  11.5mm from the change. Judge a block edit on the whole warning delta, never
+  on the finding it was aimed at.
 - **Ask what a passing check cannot see.** The refdes-level netlist comparison
   returned 19/19 IDENTICAL and was blind to a pin transposition on the one net
   that starts the chip. A check that cannot fail on the defect you care about
