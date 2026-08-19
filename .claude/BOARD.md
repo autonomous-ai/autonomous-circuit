@@ -305,6 +305,32 @@ So the answer to "is every board one perturbation from losing its verdict" is
 This is the number that governs #16, #15 and #20: every one of them moves
 copper, and on ten boards there is nothing left to absorb the move.
 
+### Confirmed end to end, not just in tests
+
+Rebuilt weather-badge-15 through the real pipeline on the new code, 265.3s,
+against the app's own sidecar as the control:
+
+```
+fab.ready                     True -> True          unchanged
+error                            0 -> 0             unchanged
+warning                         28 -> 26
+info                            59 -> 32
+isolated_copper            warning -> info          re-measured, count attached
+ground_pour_one_sided        absent -> info         the new check ran
+verify_unavailable                    absent        nothing lost
+```
+
+Every delta accounts for: **-30** `supplier_footprint_mismatch` (29 info + 1
+warning) that `CIRCUIT_PARTS_ENGINE=off` cannot produce, **-1 warning / +1
+info** for `isolated_copper` moving, **+1 info** for `ground_pour_one_sided`.
+28-1-1 = 26 and 59-29+1+1 = 32. Nothing else moved.
+
+And the check that mattered most after the import split: all ten other verify
+families are still present at their original counts — `crystal_net_routed_long`
+2, `netclass_pair_*` 4, `review_decoupling_distant` 5, `thermal_regulator` 1,
+`diffpair_not_routed` 1, `dfa_off_board` 1, `dfm_power_trace_width` 2,
+`review_esd_unprotected` 1 — and `verify_unavailable` never appears.
+
 ### Not done here
 
 `packages/circuitpy` arrives with **59 pre-existing test failures** on
