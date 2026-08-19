@@ -1082,6 +1082,16 @@ def _fracture(
         # 124th nearest, because the pour's outline is coarse there and every
         # vertex within 14mm of that hole is either already carrying a slit or
         # screened off by one.
+        #
+        # What an unbounded sweep costs, measured rather than feared, on the
+        # largest pour that exists here (weather-badge-16 with a top pour,
+        # 3134 triangles, 19 holes, a 2903-point ring): the whole pass takes
+        # **0.43s**, and a single hole exhausting every candidate — the
+        # give-up path, which no board in `products/` takes — takes **1.7s**.
+        # One is the ceiling per zone, not one per hole: the first hole with
+        # no anchor returns `None` below and the zone is done. A work budget
+        # here would buy 1.7s back and cost a pour, which is the trade this
+        # function was just fixed for making.
         edges = [(ring[i], ring[(i + 1) % len(ring)]) for i in range(len(ring))]
         blocking = edges + obstacles
         visits: dict[tuple[int, int], int] = {}
