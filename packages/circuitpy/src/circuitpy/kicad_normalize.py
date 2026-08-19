@@ -1404,6 +1404,20 @@ def _render_polygon(ring: list[tuple[int, int]]) -> str:
     return "(polygon\n      (pts\n" + points + "\n      )\n    )"
 
 
+def _with_priority(zone: str, priority: int, existing: re.Match[str] | None) -> str:
+    """Set a zone's fill priority, adding the field if it had none."""
+    if existing is not None:
+        return zone.replace(existing.group(0), f"(priority {priority})", 1)
+    anchor = re.search(r"\(uuid\s+[0-9a-fA-F-]+\)", zone)
+    if anchor is None:
+        return zone
+    return (
+        zone[: anchor.end()]
+        + f"\n    (priority {priority})"
+        + zone[anchor.end():]
+    )
+
+
 def _untangle_zones(text: str, result: Normalization) -> str:
     """Separate every zone whose outline touches itself.
 
@@ -1495,6 +1509,8 @@ def _untangle_zones(text: str, result: Normalization) -> str:
             continue
 
         uuid_match = re.search(r"\(uuid\s+([0-9a-fA-F-]+)\)", block)
+        priority_match = re.search(r"\(priority\s+(\d+)\)", block)
+        base_priority = int(priority_match.group(1)) if priority_match else 0
         pieces: list[str] = []
         for i, region in enumerate(regions):
             piece = block[:poly_start] + _render_polygon(region) + block[poly_end:]
@@ -1504,6 +1520,15 @@ def _untangle_zones(text: str, result: Normalization) -> str:
                     f"(uuid {uuid.uuid5(_ZONE_NAMESPACE, uuid_match.group(1) + str(i))})",
                     1,
                 )
+            # Regions that met at a point still meet at it, and KiCad calls two
+            # zones that touch intersecting: "intersecting zones must have
+            # distinct priorities", at error severity. Measured on
+            # weather-badge-17 — 3 of its 8 `zones_intersect` were this pass
+            # talking to itself. Distinct priorities settle it and move no
+            # copper: the regions share a point, and a point has no area for a
+            # priority to decide.
+            if i:
+                piece = _with_priority(piece, base_priority + i, priority_match)
             mine = [f for f, owner in zip(fills, placed) if owner == i]
             spans = _fill_blocks(piece)
             if spans:

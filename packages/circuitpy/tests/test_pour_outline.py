@@ -422,3 +422,29 @@ def test_a_hole_that_meets_its_region_is_walked_not_bridged():
 
     assert outline.count(pinch) == 4
     assert max(r.count(pinch) for r in regions) == 2
+
+
+def test_the_zones_a_split_makes_carry_distinct_priorities():
+    """KiCad calls two zones that touch each other intersecting, and
+    "intersecting zones must have distinct priorities" is an error. The regions
+    a split makes still meet at the point they were joined at, so 3 of
+    weather-badge-17's 8 `zones_intersect` were this pass talking to itself.
+    Priorities settle it and decide nothing: the regions share a point, and a
+    point has no area for a priority to decide."""
+    import re
+
+    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+
+    assert re.findall(r"\(priority (\d+)\)", text) == ["1", "2"]
+
+
+def test_a_zone_that_already_had_a_priority_keeps_counting_from_it():
+    import re
+
+    zone = _zone_with_outline(PINWHEEL, [PINWHEEL]).replace(
+        "    (polygon\n", "    (priority 4)\n    (polygon\n", 1
+    )
+
+    text = _untangle_zones(zone, Normalization())
+
+    assert re.findall(r"\(priority (\d+)\)", text) == ["4", "5", "6"]
