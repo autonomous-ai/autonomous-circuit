@@ -33,6 +33,7 @@ from verifylib import (
     gerber_truth,
     model,
     netclass,
+    pour,
     review,
     thermal,
 )
@@ -45,6 +46,7 @@ CHECKS = {
     "dc": (False, "DC operating point over the real netlist"),
     "corners": (False, "the same solve at every tolerance corner"),
     "crystal": (False, "crystal net length against the router's hard ceiling"),
+    "pour": (False, "is there a ground plane, on which layers, covering how much"),
     "review": (False, "the electrical half of an EE design review"),
     "thermal": (False, "dissipation against package ratings, at peak load"),
     "gerber": (True, "the shipped packet, reconciled against the design"),
@@ -76,6 +78,8 @@ def run_one(name: str, circuit_json: str, gerbers: str | None, trials: int) -> d
             result = assembly.check(board)
         elif name == "netclass":
             result = netclass.check(board)
+        elif name == "pour":
+            result = pour.check(board)
         elif name == "dc":
             result = dc.check(board)
         elif name == "corners":

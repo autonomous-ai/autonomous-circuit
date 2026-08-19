@@ -1027,3 +1027,179 @@ class FloatingNets(unittest.TestCase):
         for junk in ([], [None], [{"type": "source_net"}],
                      [{"type": "source_trace", "connected_source_port_ids": None}]):
             self.assertEqual(checks.floating_net_warnings(junk), [])
+
+
+class IsolatedCopperIsMeasuredOnTheCopperNotTheMesh(unittest.TestCase):
+    """``circuit-json-to-kicad`` writes a pour as a triangle mesh, so KiCad's
+    island analysis counts triangles and calls almost all of them isolated.
+
+    Measured on weather-badge-15, 2026-08-19: 2423 triangles in the B.Cu ground
+    zone, 199 reported isolated, and the same 2423 union across shared edges
+    into **one** region of 3040mm². Corpus-wide that is 2394 instances over 17
+    boards — the largest warning-severity category there is, and all of it the
+    mesh rather than the copper.
+
+    The rule is therefore re-measured, never blanket-suppressed: a pour that
+    really is in pieces has to keep the severity KiCad gave it, or this trades
+    2394 false alarms for one silent real one.
+    """
+
+    @staticmethod
+    def _report(count: int = 6) -> dict:
+        return {
+            "violations": [
+                {
+                    "type": "isolated_copper",
+                    "severity": "warning",
+                    "description": "Isolated copper fill",
+                    "items": [{"description": "Zone [GND] on B.Cu, priority 0"}],
+                }
+                for _ in range(count)
+            ]
+        }
+
+    @staticmethod
+    def _pcb(triangles: list[tuple], path: Path) -> str:
+        """A .kicad_pcb carrying one zone filled with the given triangles."""
+        polys = "".join(
+            "(filled_polygon (layer B.Cu) (pts "
+            + " ".join(f"(xy {x} {y})" for x, y in tri)
+            + "))"
+            for tri in triangles
+        )
+        path.write_text(
+            f'(kicad_pcb (version 20241229) (zone (net_name "GND") {polys}))',
+            encoding="utf-8",
+        )
+        return str(path)
+
+    def setUp(self) -> None:
+        self._dir = Path(__file__).resolve().parent / "_tmp_isolated_copper"
+        self._dir.mkdir(exist_ok=True)
+
+    def tearDown(self) -> None:
+        for child in self._dir.iterdir():
+            child.unlink()
+        self._dir.rmdir()
+
+    #: Two triangles sharing the edge (1,0)-(0,1): one square, one piece.
+    _JOINED = [
+        ((0, 0), (1, 0), (0, 1)),
+        ((1, 0), (0, 1), (1, 1)),
+    ]
+    #: The same two triangles moved apart: two pieces, no shared edge.
+    _SPLIT = [
+        ((0, 0), (1, 0), (0, 1)),
+        ((9, 9), (10, 9), (9, 10)),
+    ]
+
+    def test_without_the_board_the_rule_keeps_kicads_severity(self) -> None:
+        """The re-measurement is opt-in. A caller that cannot supply the board
+        gets exactly what KiCad said, unchanged."""
+        warnings = checks.parse_kicad_report(self._report(), kind="drc_violation")
+        self.assertEqual([w["severity"] for w in warnings], ["warning"])
+
+    def test_a_mesh_that_unions_whole_is_demoted_to_advice(self) -> None:
+        pcb = self._pcb(self._JOINED, self._dir / "joined.kicad_pcb")
+        warnings = checks.parse_kicad_report(
+            self._report(), kind="drc_violation", kicad_pcb=pcb
+        )
+        self.assertEqual([w["severity"] for w in warnings], ["info"])
+
+    def test_the_demotion_carries_the_measurement_that_justifies_it(self) -> None:
+        pcb = self._pcb(self._JOINED, self._dir / "joined.kicad_pcb")
+        detail = checks.parse_kicad_report(
+            self._report(), kind="drc_violation", kicad_pcb=pcb
+        )[0]["detail"]
+        self.assertIn("re-measured", detail)
+        self.assertIn("2 triangles", detail)
+        self.assertIn("one connected region", detail)
+
+    def test_a_pour_that_really_is_in_pieces_keeps_its_severity(self) -> None:
+        """The whole point. If this ever demotes, the check is a filter."""
+        pcb = self._pcb(self._SPLIT, self._dir / "split.kicad_pcb")
+        warnings = checks.parse_kicad_report(
+            self._report(), kind="drc_violation", kicad_pcb=pcb
+        )
+        self.assertEqual([w["severity"] for w in warnings], ["warning"])
+        self.assertNotIn("re-measured", warnings[0]["detail"])
+
+    def test_a_pour_that_is_not_a_mesh_is_left_to_kicad(self) -> None:
+        """On a real polygon fill KiCad's own island analysis is the right
+        one, so this must not touch it."""
+        path = self._dir / "polygon.kicad_pcb"
+        path.write_text(
+            '(kicad_pcb (zone (net_name "GND") '
+            "(filled_polygon (layer B.Cu) (pts (xy 0 0) (xy 9 0) (xy 9 9) (xy 0 9))) "
+            "(filled_polygon (layer B.Cu) (pts (xy 20 20) (xy 21 20) (xy 21 21) (xy 20 21)))"
+            "))",
+            encoding="utf-8",
+        )
+        warnings = checks.parse_kicad_report(
+            self._report(), kind="drc_violation", kicad_pcb=str(path)
+        )
+        self.assertEqual([w["severity"] for w in warnings], ["warning"])
+
+    def test_other_rules_are_never_touched(self) -> None:
+        pcb = self._pcb(self._JOINED, self._dir / "joined.kicad_pcb")
+        report = {
+            "violations": [
+                {
+                    "type": "copper_sliver",
+                    "severity": "warning",
+                    "description": "Copper sliver (B.Cu)",
+                    "items": [{"description": "board"}],
+                }
+            ]
+        }
+        warnings = checks.parse_kicad_report(
+            report, kind="drc_violation", kicad_pcb=pcb
+        )
+        self.assertEqual([w["severity"] for w in warnings], ["warning"])
+
+    def test_a_board_that_cannot_be_read_leaves_the_verdict_alone(self) -> None:
+        """A re-measurement that fails must not change the verdict it was only
+        meant to sharpen."""
+        for junk in (str(self._dir / "absent.kicad_pcb"), "", None):
+            warnings = checks.parse_kicad_report(
+                self._report(), kind="drc_violation", kicad_pcb=junk
+            )
+            self.assertEqual([w["severity"] for w in warnings], ["warning"])
+
+
+class AGateThatCrashedIsNotAGateThatPassed(unittest.TestCase):
+    """Measured on weather-badge-16, 2026-08-19.
+
+    The board added one line to weather-badge-15 — a second `GndPour` on the
+    top layer — and `kicad-cli pcb drc` segfaulted on the result (exit -11 from
+    the pipeline, reproducible by hand at exit 139) because the two triangulated
+    pours came to 5800 filled polygons against wb-15's 2639.
+
+    Its sixteen `drc_violation` warnings did not get fixed. They went missing.
+    The board came out `warning 27 -> 11` and `fab.ready = True`, so **a gate
+    that crashed read exactly like a gate that passed, only better** — which is
+    the one failure shape this pipeline must never have.
+    """
+
+    def test_a_crashed_gate_is_an_error_and_therefore_stops_the_board(self) -> None:
+        warning = checks.gate_did_not_run("kicad DRC", "kicad-cli failed (exit -11)")
+        self.assertEqual(warning["severity"], "error")
+        self.assertFalse(fab.fab_ready([warning], "kicad-cli"))
+
+    def test_it_says_the_findings_are_absent_rather_than_resolved(self) -> None:
+        detail = checks.gate_did_not_run("kicad DRC", "boom")["detail"]
+        self.assertIn("kicad DRC", detail)
+        self.assertIn("boom", detail)
+        self.assertIn("absent from the verdict", detail)
+
+    def test_it_is_a_kind_of_its_own_so_check_failed_stays_advisory(self) -> None:
+        """`check_failed` also carries notes that are not failures — the effort
+        ladder reports "no retry was attempted" through it. Blocking on that
+        kind would stop boards over a note."""
+        self.assertEqual(checks.gate_did_not_run("x", "y")["kind"], "gate_did_not_run")
+        self.assertEqual(checks.check_failed("y")["kind"], "check_failed")
+        self.assertEqual(checks.check_failed("y")["severity"], "warning")
+        self.assertTrue(fab.fab_ready([checks.check_failed("a note")], "kicad-cli"))
+
+    def test_a_board_whose_gate_ran_clean_is_still_ready(self) -> None:
+        self.assertTrue(fab.fab_ready([], "kicad-cli"))
