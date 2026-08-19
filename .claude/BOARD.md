@@ -339,13 +339,87 @@ re-running: identical count, so they are on `main` and not from this work. The
 `verify` suite is green: **184 passed** (174 before this branch, +10 for
 `pour`). `circuitpy/tests/test_checks.py` + `test_fab.py`: 128 passed.
 
+## weather-badge-16, 2026-08-19 — the 22nd board, built to be measured
+
+Built as a **one-variable experiment against weather-badge-15**, not as a copy
+for the count. Identical source but for one line: a second `<GndPour />` on the
+top layer. That single line is the whole of #15, and #15 is the item every
+board in the corpus carries. Criteria were written before the build ran
+(`wb16-compare.py`).
+
+### The routing answer is yes, and it is emphatic
+
+```
+                         wb-15    wb-16
+fab.ready                 True     True
+error                        0        0
+effort rung                10x      10x
+blockingByAttempt          [2]      [2]
+ground_pour_one_sided     info    GONE
+netclass_pair_reference      1 ->    0
+```
+
+The router took the top pour at **no cost in headroom** — same rung, same
+blocking count — and the diff pair's return path went from a warning to
+nothing, which is precisely what a top pour is for. #21's worry did not land
+here: adding copper is not the same kind of perturbation as moving a part.
+
+### And the gate lied about it
+
+`drc_violation` fell **16 -> 0** and warnings **27 -> 11**. None of that was an
+improvement:
+
+```
+check_failed: kicad DRC failed: kicad-cli failed (exit -11): no output
+```
+
+`-11` is SIGSEGV. Reproduced by hand, deterministically, `exit=139`. Two
+triangulated pours instead of one takes the board from **2639 to 5800** filled
+polygons and 0.99MB to 1.67MB, and kicad-cli dies on it.
+
+So the sixteen DRC findings were not fixed, they went **missing** — and the
+board came out reading *cleaner than the control*, still `fab.ready = True`.
+
+**A gate that crashed looked exactly like a gate that passed, only better.**
+That is the one failure shape this pipeline must never have, and the asymmetry
+that allowed it was already in the code: kicad-cli *absent* produces a blocking
+`unverified_gerbers`, because gerbers nobody could check must not ship;
+kicad-cli *invoked and dead* produced a `check_failed` warning and shipped. A
+gate that was present and died is strictly worse evidence than one that was
+never there, so it cannot be the softer verdict.
+
+Fixed: new `checks.gate_did_not_run`, error severity, so `fab_ready` stops the
+board. Kept distinct from `check_failed`, which is advisory and also carries
+notes that are not failures at all — the effort ladder says "no retry was
+attempted" through it, and blanket-blocking that kind would stop boards over a
+note. The ERC leg deliberately stays advisory: every ERC kind is pinned to
+`info` by `KICAD_NOISE_FLOOR`, so an ERC leg that dies loses nothing that could
+ever have blocked.
+
+### What this makes of #15
+
+**Not a design limit — a converter limit, and the same one as #18.** The router
+routes it, the electrical result improves, and the thing that breaks is
+kicad-cli choking on a pour written as thousands of triangles instead of a
+polygon outline. #18 was that defect making noise; #15 is that defect blocking
+a real improvement. Fix the converter's pour emission and both close.
+
+Until then #15 is blocked on the toolchain, and wb-16 is the board that proves
+it rather than the note that says nobody tried.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
   reports it. Whether it should *block* is now a one-line decision on the fab
   profile, deliberately left to an EE.
-- **#15 · Pour the top layer too**, or say in writing why bottom-only is the
-  design.
+- **#15 · Pour the top layer too.** **MEASURED on weather-badge-16** — the
+  router takes it at no cost in headroom and `netclass_pair_reference` clears.
+  **Blocked on the toolchain**: kicad-cli segfaults on the doubled triangle
+  mesh (2639 -> 5800 polygons, exit 139, reproducible). Same converter defect
+  as #18.
+- **#22 · Make the converter emit a pour as an outline, not a mesh.** One
+  defect makes 2394 findings of noise (#18) *and* blocks the top pour (#15).
+  Two P0s, one cause.
 - **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
   **blocked**: the cap does not fit inside the block's box and the board has no
   routing margin to absorb it moving out. Needs a decision — grow the box and
@@ -383,6 +457,11 @@ re-running: identical count, so they are on `main` and not from this work. The
 - **A tool's output format is not the thing it describes.** 2423
   `filled_polygon` entries looked like 2423 fragments of copper and were one
   triangulated plane. KiCad made the same mistake. Union before judging.
+- **A gate that crashed reads as a gate that passed, only better.** wb-16 lost
+  sixteen DRC findings to a segfault and came out looking cleaner than its
+  control, still `fab.ready`. Whenever a check can fail, ask what its silence
+  looks like — and make "did not run" louder than "ran and found nothing", not
+  quieter.
 - **One `try` around ten imports is nine hostages.** Adding a check to a
   shared import block means a runtime that predates the check loses every
   check. The failure even disguises itself as a missing toolchain. Import

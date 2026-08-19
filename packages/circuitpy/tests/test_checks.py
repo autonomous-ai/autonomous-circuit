@@ -1165,3 +1165,41 @@ class IsolatedCopperIsMeasuredOnTheCopperNotTheMesh(unittest.TestCase):
                 self._report(), kind="drc_violation", kicad_pcb=junk
             )
             self.assertEqual([w["severity"] for w in warnings], ["warning"])
+
+
+class AGateThatCrashedIsNotAGateThatPassed(unittest.TestCase):
+    """Measured on weather-badge-16, 2026-08-19.
+
+    The board added one line to weather-badge-15 — a second `GndPour` on the
+    top layer — and `kicad-cli pcb drc` segfaulted on the result (exit -11 from
+    the pipeline, reproducible by hand at exit 139) because the two triangulated
+    pours came to 5800 filled polygons against wb-15's 2639.
+
+    Its sixteen `drc_violation` warnings did not get fixed. They went missing.
+    The board came out `warning 27 -> 11` and `fab.ready = True`, so **a gate
+    that crashed read exactly like a gate that passed, only better** — which is
+    the one failure shape this pipeline must never have.
+    """
+
+    def test_a_crashed_gate_is_an_error_and_therefore_stops_the_board(self) -> None:
+        warning = checks.gate_did_not_run("kicad DRC", "kicad-cli failed (exit -11)")
+        self.assertEqual(warning["severity"], "error")
+        self.assertFalse(fab.fab_ready([warning], "kicad-cli"))
+
+    def test_it_says_the_findings_are_absent_rather_than_resolved(self) -> None:
+        detail = checks.gate_did_not_run("kicad DRC", "boom")["detail"]
+        self.assertIn("kicad DRC", detail)
+        self.assertIn("boom", detail)
+        self.assertIn("absent from the verdict", detail)
+
+    def test_it_is_a_kind_of_its_own_so_check_failed_stays_advisory(self) -> None:
+        """`check_failed` also carries notes that are not failures — the effort
+        ladder reports "no retry was attempted" through it. Blocking on that
+        kind would stop boards over a note."""
+        self.assertEqual(checks.gate_did_not_run("x", "y")["kind"], "gate_did_not_run")
+        self.assertEqual(checks.check_failed("y")["kind"], "check_failed")
+        self.assertEqual(checks.check_failed("y")["severity"], "warning")
+        self.assertTrue(fab.fab_ready([checks.check_failed("a note")], "kicad-cli"))
+
+    def test_a_board_whose_gate_ran_clean_is_still_ready(self) -> None:
+        self.assertTrue(fab.fab_ready([], "kicad-cli"))

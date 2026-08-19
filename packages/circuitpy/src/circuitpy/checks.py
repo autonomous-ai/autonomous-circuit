@@ -52,6 +52,40 @@ def check_failed(detail: str, part: str = "board") -> Warning:
     return _warning(part, "check_failed", detail)
 
 
+def gate_did_not_run(gate: str, detail: str, part: str = "board") -> Warning:
+    """A gate crashed, so the board is unexamined where it claims to be clean.
+
+    **Error severity, on purpose.** `fab_ready` is "zero errors and the gerbers
+    came from kicad-cli", so this stops the board — and it has to, because the
+    alternative is the shape measured on weather-badge-16, 2026-08-19:
+    `kicad-cli pcb drc` segfaulted (exit -11, reproducible by hand at exit 139)
+    on a board whose two triangulated pours came to 5800 filled polygons. Its
+    sixteen `drc_violation` warnings did not get fixed, they went *missing* —
+    and against weather-badge-15 the board read `warning 27 -> 11` and
+    `fab.ready = True`. **A gate that crashed looked exactly like a gate that
+    passed, only better.**
+
+    The pipeline already takes the opposite view one step over: kicad-cli
+    *absent* produces a `kicad_unavailable` info and a blocking
+    `unverified_gerbers`, because gerbers nobody could check must not ship.
+    A gate that was present, was invoked, and died is strictly worse evidence
+    than one that was never there, so it cannot be the softer verdict.
+
+    Distinct from :func:`check_failed`, which is advisory and is also used for
+    notes that are not failures at all (the effort ladder says "no retry was
+    attempted" through it). Blanket-blocking `check_failed` would stop boards
+    over a note; this names the case where a *gate's* findings are missing.
+    """
+    return _warning(
+        part,
+        "gate_did_not_run",
+        f"the {gate} gate did not run, so this board is unchecked where it "
+        f"reads clean — {detail}. Findings this gate would have produced are "
+        f"absent from the verdict, not resolved by it",
+        "error",
+    )
+
+
 def repair_declined(detail: str, part: str = "board") -> Warning:
     """A repair pass ran, looked, and chose to change nothing.
 

@@ -1549,6 +1549,11 @@ def build_board(
                     checks.parse_kicad_report(erc_json, kind="erc_violation")
                 )
             except (RuntimeError, TimeoutError) as exc:
+                # Advisory, unlike the DRC leg below. Every ERC kind is pinned
+                # to `info` by KICAD_NOISE_FLOOR because the converter does not
+                # emit KiCad-recognised connectivity, so an ERC leg that dies
+                # loses nothing that could ever have blocked. Escalate this the
+                # day those kinds come off the floor.
                 warnings.append(checks.check_failed(f"kicad ERC failed: {exc}"))
         if kicad_pcb is not None:
             # Give kicad this fab's design rules before asking its opinion.
@@ -1586,7 +1591,7 @@ def build_board(
                     )
                 )
             except (RuntimeError, TimeoutError) as exc:
-                warnings.append(checks.check_failed(f"kicad DRC failed: {exc}"))
+                warnings.append(checks.gate_did_not_run("kicad DRC", str(exc)))
             # Shipping gerbers come from the converted board (the verified path).
             gerber_dir = built_dir / "kicad-gerbers"
             try:
