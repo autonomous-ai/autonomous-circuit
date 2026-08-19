@@ -168,8 +168,9 @@ output: re-running DRC without that flag produces none of it. **The exported
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
-- **#13 · `scripts/board-table.py`.** **DONE** — branch
-  `feat/board-table-instrument`.
+- **#13 · `scripts/board-table.py`.** **DONE, in review** — PR
+  [#5](https://github.com/autonomous-ai/autonomous-circuit/pull/5), branch
+  `feat/board-table-instrument`, 3 commits on `upstream/main`.
 
 ## Lessons paid for
 
