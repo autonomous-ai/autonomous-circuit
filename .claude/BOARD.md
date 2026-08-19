@@ -600,13 +600,14 @@ hole. Emitted as its own `filled_polygon` that hole becomes solid copper, so
 the arithmetic held while the copper did not. Any real fix has to keep holes as
 holes; that is what `_fracture` exists to do and the repair belongs there.
 
-### Fixed. A zone that touches itself becomes several zones
+### Fixed. A self-touching outline is re-spelled as the outlines it is made of
 
-A zone may carry exactly one `(polygon)`, so a self-touching outline cannot be
-re-spelled in place — it has to become several zones, same net, same layer,
-same fill rules, one region each, every fill kept by whichever region contains
-it. The holes are the part that has to be right: a hole that meets its region
-at a point is **walked out and back from that point** rather than bridged to,
+A zone carries **as many `(polygon)` blocks as its shape needs** — the main
+ground pour on every board in `products/` has between 8 and 22 — and their
+union is the zone. So the crashing outline never needed the zone broken up: it
+needed replacing, in place, by the several simple outlines it decomposes into.
+The holes are the part that has to be right: a hole that meets its region at a
+point is **walked out and back from that point** rather than bridged to,
 because a bridge spends the shared vertex twice more and rebuilds the crash.
 
 Measured end to end on wb-16's top-pour board, through `normalize_for_fab`:
@@ -632,28 +633,28 @@ built twice, differing in one line. Both builds outside
 | **`fab.ready`** | **True** | **False** |
 | `netclass_pair_reference` | 1 | **0** |
 | `ground_pour_one_sided` | 1 | **0** |
-| `clearance` (error) | 0 | **47** |
+| `clearance` (error) | 0 | **41** |
 | `hole_clearance` (error) | 0 | **5** |
 | `solder_mask_bridge` (error) | 0 | **4** |
 | `zones_intersect` (error) | 0 | **3** |
 | `copper_sliver` | 1 | 8 |
 | `isolated_copper` | 16 | 43 |
-| **every other finding class — 30 of them** | **identical** | **identical** |
+| **every other finding class — 29 of them** | **identical** | **identical** |
 
 **The routing claim holds and the electrical claim holds.** The router takes
 the top pour at the same effort and the same `blockingByAttempt [2]`, and
 `netclass_pair_reference` — the finding that says 30% of USB_DP has no ground
 under it — **clears**.
 
-**The board still does not ship, and now it says so.** 59 error-severity DRC
-instances the pour brings with it, led by 47 clearance violations between the
+**The board still does not ship, and now it says so.** 53 error-severity DRC
+instances the pour brings with it, led by 41 clearance violations between the
 F.Cu zone and the tracks it was poured over: 0.0465mm against a 0.15mm floor.
 That is the pour being laid without the clearance the tracks need, and it is a
 real defect in the board, not in the gate.
 
 **That is the whole difference from wb-16.** Same experiment, and last time it
 came back `fab.ready = True` looking cleaner than its control because sixteen
-DRC findings had been eaten by a segfault. This time DRC ran, found 59 reasons,
+DRC findings had been eaten by a segfault. This time DRC ran, found 53 reasons,
 and the board refused. A gate that can see is worth more than a gate that
 passes.
 
@@ -673,8 +674,8 @@ tracks — not a converter one.
   zone per region and wb-16's top-pour board goes exit 139 -> exit 0 with the
   plotted copper identical on both layers. Re-run as **weather-badge-17**
   against its own bottom-only control: `netclass_pair_reference` clears, and
-  the board is `fab.ready = False` on **59 error-severity DRC instances the
-  pour brings** — 47 of them clearance, 0.0465mm against a 0.15mm floor.
+  the board is `fab.ready = False` on **53 error-severity DRC instances the
+  pour brings** — 41 of them clearance, 0.0465mm against a 0.15mm floor.
   **Now an engineering question, not a toolchain one**: the pour needs
   clearance to the tracks already routed under it. See the wb-17 table above.
 - **#22 · Make the converter emit a pour as an outline, not a mesh.** **DONE,
@@ -731,12 +732,23 @@ commit); pushing there sends the work nowhere anyone reads.
   the same reports is what proves it. A before/after delta built on a capped
   number is not a delta. Find the uncapped measure — here, the gerber region
   count — before writing anything down.
-- **A repair can invent the finding it is judged by.** Splitting a
-  self-touching zone made three new zones that still touch at the point they
-  were joined at, and KiCad calls touching zones intersecting — at error
+- **A repair can invent the finding it is judged by.** The first cut split a
+  self-touching zone into three zones, which still touched at the point they
+  were parted at — and KiCad calls touching zones intersecting, at error
   severity. Three of wb-17's eight `zones_intersect` were the pass arguing with
   itself. Always ask what a repair *adds* to the report, not only what it
   removes.
+- **Measure the pass, not the function.** Two corpus sweeps called
+  `_outline_pours` directly and were written up as "all 12 boards re-measured
+  after every change". The fourth pass was never in that loop and had run on no
+  board but wb-16 and wb-17. Pointing the same sweep at `normalize_for_fab`
+  cost one edit and turned a sentence that was not true into one that is: the
+  pass fires **0 times** on all 12.
+- **A skip with no note is a check that was never asked for.** The first cut
+  examined a zone's outline only when the zone had exactly one `(polygon)` and
+  said nothing about the rest — which is the main pour zone on every board
+  there is, 14 zones across the corpus, and the ones most likely to
+  self-touch. Every give-up in this pass records a reason now.
 - **Two things that both look broken are not therefore the same break.** #18
   and #15 were filed as one converter defect with two symptoms, and the
   sentence "fix the pour emission and both close" sat on this board as if it
