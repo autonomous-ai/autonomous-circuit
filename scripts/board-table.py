@@ -10,6 +10,7 @@ projects; the corpus is the instrument, so it should be one command.
     scripts/board-table.py --errors        # every error-severity finding, with its board
     scripts/board-table.py --netlist       # copper netlist vs circuit.json, per board
     scripts/board-table.py --pour          # is the ground pour actually one piece
+    scripts/board-table.py --boot          # assert the RP2040 boot chain, every board
 
 Reads the `.board.json` sidecars under ~/.autonomous-circuit/projects (or
 $CIRCUIT_PROJECTS). Counts *instances*, not rows: `_collapse_kicad_repeats`
@@ -236,37 +237,228 @@ def _cj_nets(circuit_json):
     return {k: v for k, v in groups.items() if len(v) > 1}
 
 
+def _cj_pad_nets(circuit_json):
+    """{(refdes, pad number): net class} from a circuit.json.
+
+    `pcb_smtpad.port_hints[0]` is the pad number and `pcb_port` carries the
+    logical pin, so a pad number can be tied to a net class without matching
+    any coordinates.
+    """
+    of = lambda t: [e for e in circuit_json if e.get("type") == t]
+    comp = {c["source_component_id"]: c.get("name") for c in of("source_component")}
+    pcb_comp = {
+        c["pcb_component_id"]: comp.get(c["source_component_id"])
+        for c in of("pcb_component")
+    }
+    pcb_port = {p["pcb_port_id"]: p["source_port_id"] for p in of("pcb_port")}
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    for trace in of("source_trace"):
+        ids = (trace.get("connected_source_port_ids") or []) + (
+            trace.get("connected_source_net_ids") or []
+        )
+        for other in ids[1:]:
+            union(ids[0], other)
+    for internal in of("source_component_internal_connection"):
+        ids = internal.get("source_port_ids") or []
+        for other in ids[1:]:
+            union(ids[0], other)
+    pads = {}
+    for element in circuit_json:
+        if element.get("type") not in ("pcb_smtpad", "pcb_plated_hole"):
+            continue
+        port = pcb_port.get(element.get("pcb_port_id"))
+        ref = pcb_comp.get(element.get("pcb_component_id"))
+        hints = [str(h) for h in (element.get("port_hints") or [])]
+        if port and ref and hints:
+            pads[(ref, hints[0])] = find(port)
+    return pads
+
+
+def _pcb_pad_nets(text):
+    """{(refdes, pad name): net name} from a .kicad_pcb. Netless pads omitted."""
+    pads = {}
+    for m in re.finditer(r"\(footprint\b", text):
+        block = _sexp_block(text, m.start())
+        ref = re.search(r'\(property "Reference"\s+"([^"]*)"', block)
+        if not ref:
+            continue
+        for pm in re.finditer(r'\(pad\s+"([^"]*)"', block):
+            pad = _sexp_block(block, pm.start())
+            net = re.search(r'\(net \d+ "([^"]*)"\)', pad)
+            if net:
+                pads[(ref.group(1), pm.group(1))] = net.group(1)
+    return pads
+
+
 def netlist():
     """Is the copper the fab receives the netlist the source asked for?
 
-    The gerbers are plotted from the converted `.kicad_pcb`, so the question
-    that decides whether a fabbed board can work is whether that board's pad
-    nets partition the pins the same way `circuit.json` — the IR of record —
-    does. Compared on refdes groups with multiplicity, because the two models
-    name pins differently and naming is not the question.
+    The gerbers are plotted from the converted `.kicad_pcb`, so this is the
+    question that decides whether a fabbed board can work at all. Compared
+    **pad for pad**: every pad number is tied to its net class on both sides
+    and the two maps must be a bijection. A refdes-level comparison would miss
+    a transposition — swap `U3.XIN` with `U3.XOUT` and the set of refdes on
+    each net is unchanged while the oscillator is dead. Pad-level catches it,
+    because `Y1.pin1` and `C15.pin1` stay behind on the original net and the
+    class splits.
+
+      split   one source net lands on several copper nets
+      merge   several source nets land on one copper net
     """
-    print(f"{'board':22s} {'ready':6s} {'cj':>4s} {'pcb':>4s} {'same':>5s}  verdict")
-    for name, _project, sidecar in load():
-        directory = os.path.join(PROJECTS, _project, "boards")
+    print(
+        f"{'board':22s} {'ready':6s} {'pads':>5s} {'compared':>9s} {'nets':>5s} "
+        f"{'split':>6s} {'merge':>6s}"
+    )
+    for name, project, sidecar in load():
+        directory = os.path.join(PROJECTS, project, "boards")
         stem = sidecar.get("board", {}).get("path", "").removesuffix(".circuit.json")
         circuit = os.path.join(directory, f"{stem}.circuit.json")
         project_zip = os.path.join(directory, f"{stem}_fab", "kicad-project.zip")
         ready = str(sidecar.get("fab", {}).get("ready"))
         if not (os.path.exists(circuit) and os.path.exists(project_zip)):
-            print(f"{name:22s} {ready:6s} {'-':>4s} {'-':>4s} {'-':>5s}  artifact missing")
+            print(f"{name:22s} {ready:6s}  artifact missing")
             continue
         with open(circuit) as fh:
-            source = _cj_nets(json.load(fh))
-        copper = _pcb_nets(_kicad_pcb(project_zip))
-        a = collections.Counter(frozenset(r for r, _ in v) for v in source.values())
-        b = collections.Counter(frozenset(r for r, _ in v) for v in copper.values())
-        same = sum((a & b).values())
-        verdict = (
-            "IDENTICAL"
-            if a == b
-            else f"DIFFERS source-only={sum((a - b).values())} copper-only={sum((b - a).values())}"
+            source = _cj_pad_nets(json.load(fh))
+        copper = _pcb_pad_nets(_kicad_pcb(project_zip))
+        common = set(source) & set(copper)
+        forward = collections.defaultdict(set)
+        reverse = collections.defaultdict(set)
+        for pad in common:
+            forward[source[pad]].add(copper[pad])
+            reverse[copper[pad]].add(source[pad])
+        split = [k for k, v in forward.items() if len(v) > 1]
+        merge = [k for k, v in reverse.items() if len(v) > 1]
+        print(
+            f"{name:22s} {ready:6s} {len(source):5d} {len(common):9d} {len(forward):5d} "
+            f"{len(split):6d} {len(merge):6d}"
         )
-        print(f"{name:22s} {ready:6s} {len(source):4d} {len(copper):4d} {same:5d}  {verdict}")
+        for net in (split + merge)[:3]:
+            print(f"      !! {sorted(forward.get(net) or reverse.get(net))[:3]}")
+
+
+#: What has to be true before an RP2040 comes out of reset and shows up as a
+#: BOOTSEL drive. Each entry is (label, predicate over the net a pin sits on).
+BOOT_CHAIN = (
+    ("VREG", "VREG_IN on a rail and VREG_VOUT on DVDD with its own class"),
+    ("XTAL", "XIN and XOUT on different nets, XIN reaching the crystal"),
+    ("QSPI", "all six QSPI pins landing on the flash"),
+    ("SS_PU", "QSPI_SS carrying a pull-up resistor"),
+    ("RUN_PU", "RUN carrying a pull-up resistor"),
+    ("USB_R", "USB_DP and USB_DM each through a series resistor"),
+    ("BOOTSEL", "QSPI_SS reachable from a button"),
+    ("SWD", "SWCLK reaching something other than the chip"),
+)
+
+
+def boot():
+    """Assert the RP2040 boot chain on every board, not on one board read by eye.
+
+    A netlist can be faithfully converted and still not boot. These are the
+    connections that decide it, checked against `circuit.json` through pin
+    aliases so `U4.HOLD` and `U4.IO3` are the same pin.
+    """
+    labels = [label for label, _ in BOOT_CHAIN]
+    print(f"{'board':22s}" + "".join(f"{l:>9s}" for l in labels))
+    for name, project, sidecar in load():
+        directory = os.path.join(PROJECTS, project, "boards")
+        stem = sidecar.get("board", {}).get("path", "").removesuffix(".circuit.json")
+        circuit = os.path.join(directory, f"{stem}.circuit.json")
+        if not os.path.exists(circuit):
+            continue
+        with open(circuit) as fh:
+            data = json.load(fh)
+        of = lambda t: [e for e in data if e.get("type") == t]
+        comp = {c["source_component_id"]: c.get("name") for c in of("source_component")}
+        parent = {}
+
+        def find(x):
+            parent.setdefault(x, x)
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+
+        for trace in of("source_trace"):
+            ids = (trace.get("connected_source_port_ids") or []) + (
+                trace.get("connected_source_net_ids") or []
+            )
+            for other in ids[1:]:
+                union(ids[0], other)
+        for internal in of("source_component_internal_connection"):
+            ids = internal.get("source_port_ids") or []
+            for other in ids[1:]:
+                union(ids[0], other)
+        alias, members = {}, collections.defaultdict(set)
+        for port in of("source_port"):
+            ref = comp.get(port["source_component_id"])
+            root = find(port["source_port_id"])
+            members[root].add((ref, port.get("name")))
+            for hint in {port.get("name"), *(port.get("port_hints") or [])}:
+                if hint:
+                    alias[(ref, str(hint).lower())] = root
+        net_name = {}
+        for net in of("source_net"):
+            net_name[find(net["source_net_id"])] = net.get("name")
+
+        def on(ref, pin):
+            root = alias.get((ref, pin.lower()))
+            return root, members.get(root) or set(), net_name.get(root)
+
+        if ("U3", "xin") not in alias:
+            print(f"{name:22s} (no RP2040)")
+            continue
+        _, _, rail = on("U3", "VREG_IN")
+        vout_root, vout_pins, _ = on("U3", "VREG_VOUT")
+        vin_root = alias.get(("U3", "vreg_in"))
+        xin, xin_pins, _ = on("U3", "XIN")
+        xout = alias.get(("U3", "xout"))
+        _, ss_pins, _ = on("U3", "QSPI_SS")
+        _, run_pins, _ = on("U3", "RUN")
+        _, dp_pins, _ = on("U3", "USB_DP")
+        _, dm_pins, _ = on("U3", "USB_DM")
+        _, swclk_pins, _ = on("U3", "SWCLK")
+        results = [
+            rail in ("V3_3", "V5")
+            and vin_root != vout_root
+            and any(r == "U3" and p.startswith("DVDD") for r, p in vout_pins),
+            xin is not None and xout is not None and xin != xout
+            and any(r.startswith("Y") for r, _ in xin_pins),
+            all(
+                any(r == "U4" for r, _ in on("U3", pin)[1])
+                for pin in ("QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD2",
+                            "QSPI_SD3", "QSPI_SS")
+            ),
+            any(r.startswith("R") for r, _ in ss_pins),
+            any(r.startswith("R") for r, _ in run_pins),
+            any(r.startswith("R") for r, _ in dp_pins)
+            and any(r.startswith("R") for r, _ in dm_pins),
+            any(r.startswith("SW") for r, _ in ss_pins)
+            or any(
+                r.startswith("SW")
+                for r, _ in (members.get(alias.get(("R13", "pin2"))) or set())
+            ),
+            len(swclk_pins) > 1,
+        ]
+        print(f"{name:22s}" + "".join(f"{'ok' if r else 'FAIL':>9s}" for r in results))
 
 
 def pour():
@@ -356,6 +548,7 @@ def main():
     parser.add_argument("--errors", action="store_true", help="every error-severity finding")
     parser.add_argument("--netlist", action="store_true", help="copper netlist vs circuit.json")
     parser.add_argument("--pour", action="store_true", help="is the ground pour one piece")
+    parser.add_argument("--boot", action="store_true", help="assert the RP2040 boot chain")
     args = parser.parse_args()
     if args.rules:
         rules()
@@ -367,6 +560,8 @@ def main():
         netlist()
     elif args.pour:
         pour()
+    elif args.boot:
+        boot()
     else:
         summary()
 
