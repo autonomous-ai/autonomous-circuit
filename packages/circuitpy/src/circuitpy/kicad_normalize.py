@@ -69,13 +69,11 @@ class Normalization:
     pours_outlined: int = 0
     pour_polygons_before: int = 0
     pour_polygons_after: int = 0
-    #: Zones whose outline touched itself at a point and had to become several
-    #: zones, one per region, because `kicad-cli pcb drc` segfaults on a
-    #: polygon that visits one vertex four times and a zone may carry only one
-    #: outline. `zones_untangled` counts the zones that were split,
-    #: `zones_from_untangling` the zones they became.
-    zones_untangled: int = 0
-    zones_from_untangling: int = 0
+    #: Zone outlines and fills that touched themselves and were re-spelled as
+    #: the several simple polygons they are made of, because `kicad-cli pcb
+    #: drc` segfaults on a polygon that visits one vertex four times.
+    outlines_untangled: int = 0
+    outline_polygons_after: int = 0
     fills_untangled: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
@@ -97,7 +95,7 @@ class Normalization:
         return bool(
             self.text_resized or self.text_thickened or self.strokes_widened
             or self.vias_bridged or self.pours_outlined
-            or self.zones_untangled or self.fills_untangled
+            or self.outlines_untangled or self.fills_untangled
         )
 
     def summary(self) -> str:
@@ -134,11 +132,11 @@ class Normalization:
                 f"({self.pour_polygons_before} triangles -> "
                 f"{self.pour_polygons_after} polygon(s))"
             )
-        if self.zones_untangled:
+        if self.outlines_untangled:
             parts.append(
-                f"{self.zones_untangled} self-touching zone(s) separated into "
-                f"{self.zones_from_untangling} zone(s), which is what kicad-cli "
-                "can read without crashing"
+                f"{self.outlines_untangled} self-touching zone outline(s) "
+                f"re-spelled as {self.outline_polygons_after} simple polygon(s), "
+                "which is what kicad-cli can read without crashing"
             )
         if self.fills_untangled:
             parts.append(
@@ -774,11 +772,6 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
 #: The converter already writes six decimal places of mm, which is this grid.
 _POUR_SCALE = 1_000_000
 
-#: Namespace for the uuids of the zones a self-touching zone becomes. uuid5 of
-#: the original's uuid, so a rebuild of the same board writes the same file —
-#: `test_determinism` is not a formality here, the app diffs artifact mtimes.
-_ZONE_NAMESPACE = uuid.UUID("2f1d0c9e-6b4a-5d7e-9c3f-8a1b2c3d4e5f")
-
 _XY_RE = re.compile(r"\(xy\s+([-0-9.eE+]+)\s+([-0-9.eE+]+)\s*\)")
 _LAYER_RE = re.compile(r"\(layer\s+\"?([^)\"\s]+)\"?\s*\)")
 
@@ -1404,29 +1397,21 @@ def _render_polygon(ring: list[tuple[int, int]]) -> str:
     return "(polygon\n      (pts\n" + points + "\n      )\n    )"
 
 
-def _with_priority(zone: str, priority: int, existing: re.Match[str] | None) -> str:
-    """Set a zone's fill priority, adding the field if it had none."""
-    if existing is not None:
-        return zone.replace(existing.group(0), f"(priority {priority})", 1)
-    anchor = re.search(r"\(uuid\s+[0-9a-fA-F-]+\)", zone)
-    if anchor is None:
-        return zone
-    return (
-        zone[: anchor.end()]
-        + f"\n    (priority {priority})"
-        + zone[anchor.end():]
-    )
-
-
 def _untangle_zones(text: str, result: Normalization) -> str:
-    """Separate every zone whose outline touches itself.
+    """Re-spell every zone outline and fill that touches itself.
 
-    A `filled_polygon` that does it is re-spelled in place, one polygon per
-    region. A zone *outline* that does it cannot be: the format allows a zone
-    exactly one `(polygon)`, so the zone becomes several zones — same net, same
-    layer, same fill rules, one region each, and each fill kept by whichever
-    region contains it. Nothing about the copper changes; what changes is that
-    kicad-cli will read it.
+    `kicad-cli pcb drc` segfaults on a polygon that visits one vertex four
+    times, and the converter writes them: weather-badge-16's top pour has one
+    F.Cu zone, 288 vertices, the vertex at (92.738553, 96.8101) four times, and
+    that zone alone on an otherwise empty board is enough to crash it.
+
+    A zone carries as many `(polygon)` blocks as its shape needs — the main
+    ground pour on every board in `products/` has between 8 and 22 — and their
+    union is the zone. So a self-touching outline never needs the zone split
+    up: it needs replacing, in place, by the several simple outlines it is
+    made of. Same for a `filled_polygon`. Regions that came apart are disjoint
+    but for the point they met at, so the union is unchanged and no zone gains
+    a neighbour to intersect with.
     """
     for start, end in reversed(_balanced_spans(text, "(zone")):
         block = text[start:end]
@@ -1434,8 +1419,6 @@ def _untangle_zones(text: str, result: Normalization) -> str:
         if layer is None:
             continue
 
-        # The fills first: they are self-contained, and if the zone then has
-        # to be split they are already in one-region-per-polygon form.
         for fill_start, fill_end in reversed(_fill_blocks(block)):
             ring = _ring_of(block[fill_start:fill_end])
             if not _visits_over_the_limit(ring):
@@ -1455,90 +1438,28 @@ def _untangle_zones(text: str, result: Normalization) -> str:
             )
             result.fills_untangled += 1
 
-        outlines = _balanced_spans(block, "(polygon")
-        if len(outlines) != 1:
-            text = text[:start] + block + text[end:]
-            continue
-        poly_start, poly_end = outlines[0]
-        outline = _ring_of(block[poly_start:poly_end])
-        if not _visits_over_the_limit(outline):
-            text = text[:start] + block + text[end:]
-            continue
-
-        regions = _regions_of(outline)
-        if regions is None or len(regions) < 2:
+        for poly_start, poly_end in reversed(_balanced_spans(block, "(polygon")):
+            outline = _ring_of(block[poly_start:poly_end])
+            if not _visits_over_the_limit(outline):
+                continue
+            regions = _regions_of(outline)
             if regions is None:
                 result.declined.append(
                     "a zone outline that touches itself was left as the "
                     "converter wrote it: its regions are not ones this pass "
-                    "can separate without moving copper. kicad-cli may not be "
-                    "able to read this board"
+                    "can separate without moving copper. If kicad-cli cannot "
+                    "read this board, this is the zone to look at"
                 )
-            text = text[:start] + block + text[end:]
-            continue
-
-        fills = [_ring_of(block[a:b]) for a, b in _fill_blocks(block)]
-        placed: list[int] = []
-        for fill in fills:
-            owner, best = None, None
-            for i, region in enumerate(regions):
-                # A fill that *is* the region — which is what a zone poured to
-                # its own outline gives — samples entirely on the boundary, and
-                # a containment test asked about a ring and itself answers
-                # neither yes nor no. Identity is checked first for that
-                # reason, not as an optimisation.
-                if set(fill) == set(region):
-                    owner, best = i, _ring_area2(region)
-                    break
-                if not _ring_contains(region, fill):
-                    continue
-                area = _ring_area2(region)
-                if best is None or area < best:
-                    owner, best = i, area
-            placed.append(-1 if owner is None else owner)
-        if any(owner < 0 for owner in placed):
-            # A fill belonging to no region means the split is not a faithful
-            # reading of this zone. Copper that lands in every piece, or in
-            # none, is copper this pass invented or dropped.
-            result.declined.append(
-                "a zone outline that touches itself was left as the converter "
-                "wrote it: one of its fills sits in none of the regions the "
-                "outline separates into, so splitting it would move copper"
+                continue
+            block = (
+                block[:poly_start]
+                + "\n    ".join(_render_polygon(r) for r in regions)
+                + block[poly_end:]
             )
-            text = text[:start] + block + text[end:]
-            continue
+            result.outlines_untangled += 1
+            result.outline_polygons_after += len(regions)
 
-        uuid_match = re.search(r"\(uuid\s+([0-9a-fA-F-]+)\)", block)
-        priority_match = re.search(r"\(priority\s+(\d+)\)", block)
-        base_priority = int(priority_match.group(1)) if priority_match else 0
-        pieces: list[str] = []
-        for i, region in enumerate(regions):
-            piece = block[:poly_start] + _render_polygon(region) + block[poly_end:]
-            if uuid_match is not None:
-                piece = piece.replace(
-                    uuid_match.group(0),
-                    f"(uuid {uuid.uuid5(_ZONE_NAMESPACE, uuid_match.group(1) + str(i))})",
-                    1,
-                )
-            # Regions that met at a point still meet at it, and KiCad calls two
-            # zones that touch intersecting: "intersecting zones must have
-            # distinct priorities", at error severity. Measured on
-            # weather-badge-17 — 3 of its 8 `zones_intersect` were this pass
-            # talking to itself. Distinct priorities settle it and move no
-            # copper: the regions share a point, and a point has no area for a
-            # priority to decide.
-            if i:
-                piece = _with_priority(piece, base_priority + i, priority_match)
-            mine = [f for f, owner in zip(fills, placed) if owner == i]
-            spans = _fill_blocks(piece)
-            if spans:
-                body = "\n".join(_render_fill(layer.group(1), f) for f in mine)
-                piece = piece[: spans[0][0]] + body + piece[spans[-1][1]:]
-            pieces.append(piece)
-
-        text = text[:start] + "\n  ".join(pieces) + text[end:]
-        result.zones_untangled += 1
-        result.zones_from_untangling += len(pieces)
+        text = text[:start] + block + text[end:]
     return text
 
 

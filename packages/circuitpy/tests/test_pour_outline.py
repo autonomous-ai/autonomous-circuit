@@ -339,42 +339,66 @@ def test_the_regions_of_a_pinwheel_carry_all_of_its_copper():
     assert not any(_visits_over_the_limit(r) for r in regions)
 
 
-def test_a_zone_whose_outline_touches_itself_becomes_several_zones():
+def test_a_zone_whose_outline_touches_itself_is_re_spelled_in_place():
+    """A zone carries as many `(polygon)` blocks as its shape needs — the main
+    ground pour on every board in `products/` has between 8 and 22, and their
+    union is the zone. So the crashing outline never needed the zone split up:
+    it needed replacing by the simple outlines it is made of. Measured: same
+    board, DRC exit 139 -> 0, plotted copper identical on both layers, and
+    nothing gains a neighbour to intersect with."""
     result = Normalization()
     text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), result)
 
-    assert result.zones_untangled == 1
-    assert result.zones_from_untangling == 3
-    assert len(_balanced_spans(text, "(zone")) == 3
+    assert result.outlines_untangled == 1
+    assert result.outline_polygons_after == 3
+    assert len(_balanced_spans(text, "(zone")) == 1  # still one zone
+    assert len(_balanced_spans(text, "(polygon")) == 3
     assert text.count("(") == text.count(")")
 
 
-def test_the_zones_it_becomes_do_not_share_a_uuid():
-    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
-
+def test_it_does_not_renumber_or_reprioritise_anything():
+    """An earlier cut split the zone into three, which needed fresh uuids and
+    distinct priorities — and still created 3 of weather-badge-17's 8
+    `zones_intersect`, because the pieces went on touching at the point they
+    were parted at. In place, there is nothing to number."""
     import re
 
-    uuids = re.findall(r"\(uuid ([0-9a-f-]+)\)", text)
-    assert len(uuids) == 3
-    assert len(set(uuids)) == 3
-
-
-def test_splitting_a_zone_is_deterministic():
-    """The app diffs artifact mtimes; a uuid that moved every build would make
-    every rebuild look like a change."""
-    once = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
-    twice = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
-
-    assert once == twice
-
-
-def test_every_fill_lands_in_exactly_one_of_the_new_zones():
-    """A fill copied into two zones is copper this pass invented. Measured on
-    weather-badge-16 as +98.7mm² of F.Cu — caught by the gerber area, which is
-    why the area is compared and not assumed."""
     text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
 
-    assert len(_fill_blocks(text)) == 3  # one region each, not three copies each
+    assert text.count("(uuid ") == 1
+    assert re.findall(r"\(priority (\d+)\)", text) == []
+
+
+def test_every_polygon_of_a_multi_polygon_zone_is_examined():
+    """The branch this replaces skipped any zone that did not carry exactly one
+    `(polygon)` — which is the main pour zone on every board there is, and
+    silently."""
+    result = Normalization()
+    square = [(20, 20), (30, 20), (30, 30), (20, 30)]
+    zone = _zone_with_outline(square, [square])
+    zone = zone.replace(
+        "    (polygon\n",
+        "    (polygon\n      (pts\n"
+        + "\n".join(f"        (xy {x} {y})" for x, y in PINWHEEL)
+        + "\n      )\n    )\n    (polygon\n",
+        1,
+    )
+
+    text = _untangle_zones(zone, result)
+
+    assert result.outlines_untangled == 1
+    assert result.outline_polygons_after == 3
+    assert len(_balanced_spans(text, "(polygon")) == 4  # 3 regions + the square
+
+
+def test_untangling_is_idempotent():
+    once = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+    second = Normalization()
+    twice = _untangle_zones(once, second)
+
+    assert twice == once
+    assert second.outlines_untangled == 0
+    assert second.fills_untangled == 0
 
 
 def test_a_zone_that_does_not_touch_itself_is_left_alone():
@@ -384,7 +408,7 @@ def test_a_zone_that_does_not_touch_itself_is_left_alone():
     text = _untangle_zones(original, result)
 
     assert text == original
-    assert result.zones_untangled == 0
+    assert result.outlines_untangled == 0
 
 
 def test_the_real_crashing_zone_separates_into_regions():
@@ -422,29 +446,3 @@ def test_a_hole_that_meets_its_region_is_walked_not_bridged():
 
     assert outline.count(pinch) == 4
     assert max(r.count(pinch) for r in regions) == 2
-
-
-def test_the_zones_a_split_makes_carry_distinct_priorities():
-    """KiCad calls two zones that touch each other intersecting, and
-    "intersecting zones must have distinct priorities" is an error. The regions
-    a split makes still meet at the point they were joined at, so 3 of
-    weather-badge-17's 8 `zones_intersect` were this pass talking to itself.
-    Priorities settle it and decide nothing: the regions share a point, and a
-    point has no area for a priority to decide."""
-    import re
-
-    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
-
-    assert re.findall(r"\(priority (\d+)\)", text) == ["1", "2"]
-
-
-def test_a_zone_that_already_had_a_priority_keeps_counting_from_it():
-    import re
-
-    zone = _zone_with_outline(PINWHEEL, [PINWHEEL]).replace(
-        "    (polygon\n", "    (priority 4)\n    (polygon\n", 1
-    )
-
-    text = _untangle_zones(zone, Normalization())
-
-    assert re.findall(r"\(priority (\d+)\)", text) == ["4", "5", "6"]
