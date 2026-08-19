@@ -281,25 +281,40 @@ def _cj_pad_nets(circuit_json):
             continue
         port = pcb_port.get(element.get("pcb_port_id"))
         ref = pcb_comp.get(element.get("pcb_component_id"))
-        hints = [str(h) for h in (element.get("port_hints") or [])]
-        if port and ref and hints:
-            pads[(ref, hints[0])] = find(port)
+        if not (port and ref):
+            continue
+        # The two models spell a pad differently: circuit.json hints read
+        # `pin13`, `unnamed_platedhole1`, `thermalpad`; KiCad names the same
+        # pads `13`, `2`, `57`. Key on every spelling a hint can produce, or
+        # 30% of the pads — U3's thermal pad and every J1 shell pin among them,
+        # all of them on a rail — never get compared at all.
+        for hint in map(str, element.get("port_hints") or []):
+            for key in {hint, hint.removeprefix("pin")}:
+                pads.setdefault((ref, key), find(port))
     return pads
 
 
 def _pcb_pad_nets(text):
-    """{(refdes, pad name): net name} from a .kicad_pcb. Netless pads omitted."""
+    """{(refdes, pad name): net name} from a .kicad_pcb. Netless pads omitted.
+
+    A footprint's last pad is also keyed as `thermalpad`: a QFN's exposed pad
+    is the part's real ground connection and circuit.json names it that way.
+    """
     pads = {}
     for m in re.finditer(r"\(footprint\b", text):
         block = _sexp_block(text, m.start())
         ref = re.search(r'\(property "Reference"\s+"([^"]*)"', block)
         if not ref:
             continue
+        last = None
         for pm in re.finditer(r'\(pad\s+"([^"]*)"', block):
             pad = _sexp_block(block, pm.start())
             net = re.search(r'\(net \d+ "([^"]*)"\)', pad)
             if net:
                 pads[(ref.group(1), pm.group(1))] = net.group(1)
+                last = (ref.group(1), pm.group(1))
+        if ref.group(1) and last in pads:
+            pads.setdefault((last[0], "thermalpad"), pads[last])
     return pads
 
 

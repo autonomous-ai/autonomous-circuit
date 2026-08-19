@@ -23,9 +23,18 @@ One command now answers this: `scripts/board-table.py` (`--rules --netconflict
 **1. The netlist the fab receives is the netlist the source asked for.**
 `--netlist` compares **pad for pad**: `pcb_smtpad.port_hints[0]` gives the pad
 number, `pcb_port` gives the pin, and the map from source net class to copper
-net must be a bijection. **2669 pads compared across 19 boards, 0 splits,
-0 merges.** Gerbers are plotted from that board, so this is the whole question
-of electrical faithfulness and it passes.
+net must be a bijection. **3286 of 3817 pads compared across 19 boards — 86.1%
+— 0 splits, 0 merges.** Gerbers are plotted from that board, so this is the
+whole question of electrical faithfulness and it passes.
+
+The 531 uncompared pads are, every one of them, **pads KiCad carries with no
+net at all** — unused RP2040 GPIO, J1's SBU and shield pins, the redundant
+terminal of each 4-pin tactile. There is nothing on the copper side to compare
+them against. No pad on a rail is left out: the first version of this check
+missed 30% of pads, U3's thermal pad and every J1 shell pin among them, purely
+because circuit.json spells a pad `pin13` / `thermalpad` where KiCad spells it
+`13` / `57`. That is a key mismatch in the *check*, and it was hiding exactly
+the pads whose net matters most.
 
 A first version of this check compared *refdes* groups and returned 19/19
 IDENTICAL — but it could not have seen a transposition: swap `U3.XIN` with
