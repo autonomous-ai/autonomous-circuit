@@ -23,11 +23,17 @@ from pathlib import Path
 
 from circuitpy.kicad_normalize import (
     Normalization,
+    _MAX_VERTEX_VISITS,
+    _balanced_spans,
     _fill_blocks,
     _fracture,
     _mesh_rings,
     _outline_pours,
+    _regions_of,
     _ring_area2,
+    _simple_loops,
+    _untangle_zones,
+    _visits_over_the_limit,
     _POUR_SCALE,
 )
 
@@ -250,3 +256,169 @@ def test_the_fixture_is_quantised_to_the_nanometre_grid():
         for x, y in ring:
             assert isinstance(x, int) and isinstance(y, int)
     assert _POUR_SCALE == 1_000_000
+
+
+# --- a zone whose outline touches itself -----------------------------------
+
+# `kicad-cli pcb drc` segfaults (exit 139) on a polygon that visits one vertex
+# four times. weather-badge-16's top pour has exactly one such zone, written
+# that way by the converter, and that zone alone on an otherwise empty board
+# is enough to crash it — which is the whole of #15.
+
+def _zone_with_outline(
+    outline: list[tuple[float, float]],
+    fills: list[list[tuple[float, float]]],
+    layer: str = "F.Cu",
+) -> str:
+    def pts(ring, indent="        "):
+        return "\n".join(f"{indent}(xy {x} {y})" for x, y in ring)
+
+    body = "\n".join(
+        "    (filled_polygon\n"
+        f"      (layer {layer})\n"
+        "      (pts\n"
+        f"{pts(f)}\n"
+        "      )\n"
+        "    )"
+        for f in fills
+    )
+    return (
+        "(kicad_pcb\n"
+        "  (zone\n"
+        "    (net 2)\n"
+        "    (net_name GND)\n"
+        f"    (layer {layer})\n"
+        "    (uuid 1201e620-7aa7-2861-0750-36e26c06ba9d)\n"
+        "    (polygon\n"
+        "      (pts\n"
+        f"{pts(outline)}\n"
+        "      )\n"
+        "    )\n"
+        f"{body}\n"
+        "  )\n"
+        ")\n"
+    )
+
+
+# Three wedges meeting at the origin. Two loops joined at a point visit it
+# **twice**, which is exactly what a keyhole slit costs and is allowed; it
+# takes a third to go over the limit, which is why the real defect is a
+# four-visit vertex and not a figure of eight.
+PINWHEEL = [
+    (0, 0), (10, -1), (10, 1),        # east
+    (0, 0), (1, 10), (-1, 10),        # north
+    (0, 0), (-10, 1), (-10, -1),      # west
+]
+WEDGE_AREA2 = 20 * 10 ** 12           # 2x 10mm2, in square nanometres
+
+
+def test_a_ring_that_touches_itself_is_recognised():
+    ring = [(round(x * 1_000_000), round(y * 1_000_000)) for x, y in PINWHEEL]
+
+    assert _visits_over_the_limit(ring)
+    assert not _visits_over_the_limit(ring[:6])  # two wedges, two visits: fine
+    assert _MAX_VERTEX_VISITS == 2
+
+
+def test_a_pinwheel_splits_into_its_three_wedges():
+    ring = [(round(x * 1_000_000), round(y * 1_000_000)) for x, y in PINWHEEL]
+
+    loops = _simple_loops(ring)
+
+    assert len(loops) == 3
+    assert [abs(_ring_area2(loop)) for loop in loops] == [WEDGE_AREA2] * 3
+
+
+def test_the_regions_of_a_pinwheel_carry_all_of_its_copper():
+    ring = [(round(x * 1_000_000), round(y * 1_000_000)) for x, y in PINWHEEL]
+
+    regions = _regions_of(ring)
+
+    assert regions is not None and len(regions) == 3
+    assert sum(_ring_area2(r) for r in regions) == _ring_area2(ring)
+    assert not any(_visits_over_the_limit(r) for r in regions)
+
+
+def test_a_zone_whose_outline_touches_itself_becomes_several_zones():
+    result = Normalization()
+    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), result)
+
+    assert result.zones_untangled == 1
+    assert result.zones_from_untangling == 3
+    assert len(_balanced_spans(text, "(zone")) == 3
+    assert text.count("(") == text.count(")")
+
+
+def test_the_zones_it_becomes_do_not_share_a_uuid():
+    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+
+    import re
+
+    uuids = re.findall(r"\(uuid ([0-9a-f-]+)\)", text)
+    assert len(uuids) == 3
+    assert len(set(uuids)) == 3
+
+
+def test_splitting_a_zone_is_deterministic():
+    """The app diffs artifact mtimes; a uuid that moved every build would make
+    every rebuild look like a change."""
+    once = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+    twice = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+
+    assert once == twice
+
+
+def test_every_fill_lands_in_exactly_one_of_the_new_zones():
+    """A fill copied into two zones is copper this pass invented. Measured on
+    weather-badge-16 as +98.7mm² of F.Cu — caught by the gerber area, which is
+    why the area is compared and not assumed."""
+    text = _untangle_zones(_zone_with_outline(PINWHEEL, [PINWHEEL]), Normalization())
+
+    assert len(_fill_blocks(text)) == 3  # one region each, not three copies each
+
+
+def test_a_zone_that_does_not_touch_itself_is_left_alone():
+    result = Normalization()
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    original = _zone_with_outline(square, [square])
+    text = _untangle_zones(original, result)
+
+    assert text == original
+    assert result.zones_untangled == 0
+
+
+def test_the_real_crashing_zone_separates_into_regions():
+    """weather-badge-16's F.Cu zone: 288 vertices, one of them visited four
+    times, and kicad-cli dies on it. Splitting it is what makes the board
+    readable — measured end to end, DRC exit 139 -> 0, with the plotted copper
+    area identical on both layers."""
+    doc = json.loads(
+        (FIXTURES / "weather-badge-16-touching-zone.json").read_text()
+    )
+    outline = [tuple(p) for p in doc["outline"]]
+
+    assert doc["worst_visits"] == 4
+    assert _visits_over_the_limit(outline)
+
+    regions = _regions_of(outline)
+
+    assert regions is not None
+    assert len(regions) == 3
+    assert sum(_ring_area2(r) for r in regions) == doc["area2"] == _ring_area2(outline)
+    assert not any(_visits_over_the_limit(r) for r in regions)
+
+
+def test_a_hole_that_meets_its_region_is_walked_not_bridged():
+    """The crashing zone's hole shares the pinch vertex with the region around
+    it. Bridging to it would spend that vertex twice more and rebuild the
+    crash; walking out and back spends it once."""
+    doc = json.loads(
+        (FIXTURES / "weather-badge-16-touching-zone.json").read_text()
+    )
+    outline = [tuple(p) for p in doc["outline"]]
+    pinch = max(set(outline), key=outline.count)
+
+    regions = _regions_of(outline)
+
+    assert outline.count(pinch) == 4
+    assert max(r.count(pinch) for r in regions) == 2

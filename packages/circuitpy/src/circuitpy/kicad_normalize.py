@@ -69,6 +69,14 @@ class Normalization:
     pours_outlined: int = 0
     pour_polygons_before: int = 0
     pour_polygons_after: int = 0
+    #: Zones whose outline touched itself at a point and had to become several
+    #: zones, one per region, because `kicad-cli pcb drc` segfaults on a
+    #: polygon that visits one vertex four times and a zone may carry only one
+    #: outline. `zones_untangled` counts the zones that were split,
+    #: `zones_from_untangling` the zones they became.
+    zones_untangled: int = 0
+    zones_from_untangling: int = 0
+    fills_untangled: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
     #: A step of this pass could not run: a file that would not read, a parse
@@ -89,6 +97,7 @@ class Normalization:
         return bool(
             self.text_resized or self.text_thickened or self.strokes_widened
             or self.vias_bridged or self.pours_outlined
+            or self.zones_untangled or self.fills_untangled
         )
 
     def summary(self) -> str:
@@ -124,6 +133,17 @@ class Normalization:
                 f"{self.pours_outlined} pour zone(s) re-expressed as outlines "
                 f"({self.pour_polygons_before} triangles -> "
                 f"{self.pour_polygons_after} polygon(s))"
+            )
+        if self.zones_untangled:
+            parts.append(
+                f"{self.zones_untangled} self-touching zone(s) separated into "
+                f"{self.zones_from_untangling} zone(s), which is what kicad-cli "
+                "can read without crashing"
+            )
+        if self.fills_untangled:
+            parts.append(
+                f"{self.fills_untangled} self-touching fill(s) re-spelled as "
+                "one polygon per region"
             )
         return "; ".join(parts)
 
@@ -272,6 +292,13 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
         # on purpose — the via pass reads `filled_polygon` for clearance, and
         # it must keep seeing exactly the geometry it sees today.
         text = _outline_pours(text, result)
+
+        # Fourth pass: separate any zone whose outline touches itself. Runs
+        # after the outlining because that pass can only produce rings that
+        # already obey the two-visit rule; what this catches is what the
+        # converter wrote directly, and it is the whole of #15 — one such zone
+        # on weather-badge-16's top pour segfaults kicad-cli on its own.
+        text = _untangle_zones(text, result)
 
         if text != original:
             pcb_path.write_text(text, encoding="utf-8")
@@ -747,6 +774,11 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
 #: The converter already writes six decimal places of mm, which is this grid.
 _POUR_SCALE = 1_000_000
 
+#: Namespace for the uuids of the zones a self-touching zone becomes. uuid5 of
+#: the original's uuid, so a rebuild of the same board writes the same file —
+#: `test_determinism` is not a formality here, the app diffs artifact mtimes.
+_ZONE_NAMESPACE = uuid.UUID("2f1d0c9e-6b4a-5d7e-9c3f-8a1b2c3d4e5f")
+
 _XY_RE = re.compile(r"\(xy\s+([-0-9.eE+]+)\s+([-0-9.eE+]+)\s*\)")
 _LAYER_RE = re.compile(r"\(layer\s+\"?([^)\"\s]+)\"?\s*\)")
 
@@ -1132,12 +1164,14 @@ def _fill_blocks(block: str) -> list[tuple[int, int]]:
     return _balanced_spans(block, "(filled_polygon")
 
 
-def _render_fill(layer: str, ring: list[tuple[int, int]]) -> str:
-    def mm(value: int) -> str:
-        text = f"{value / _POUR_SCALE:.6f}".rstrip("0").rstrip(".")
-        return text if text not in ("", "-0") else "0"
+def _mm(value: int) -> str:
+    """Nanometres back to the six-decimal millimetres the file is written in."""
+    text = f"{value / _POUR_SCALE:.6f}".rstrip("0").rstrip(".")
+    return text if text not in ("", "-0") else "0"
 
-    points = "\n".join(f"        (xy {mm(x)} {mm(y)})" for x, y in ring)
+
+def _render_fill(layer: str, ring: list[tuple[int, int]]) -> str:
+    points = "\n".join(f"        (xy {_mm(x)} {_mm(y)})" for x, y in ring)
     return (
         "    (filled_polygon\n"
         f"      (layer {layer})\n"
@@ -1227,6 +1261,260 @@ def _outline_zone(block: str, result: Normalization) -> str | None:
     result.pour_polygons_before += len(spans)
     result.pour_polygons_after += produced
     return block[:first] + "\n".join(rendered) + block[last:]
+
+
+#: A ring that visits one vertex this many times or more is what kicad-cli
+#: dies on. Measured, and measured twice: weather-badge-16's F.Cu pour has one
+#: zone — 288 vertices, one of them visited four times, written that way by the
+#: converter — and that zone alone on an otherwise empty board segfaults
+#: `kicad-cli pcb drc` (exit 139). Replace its outline with a bounding box and
+#: the same board completes. Two visits is what a keyhole slit costs and what
+#: KiCad's own filler writes, so two is allowed and three is not.
+_MAX_VERTEX_VISITS = 2
+
+
+def _simple_loops(ring: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
+    """Split a ring that touches itself into the loops it is made of.
+
+    Walk it keeping the path so far; the moment a vertex already on that path
+    comes round again, everything since is a closed loop and is lifted off.
+    What is left when the walk ends is the last loop. Loops of fewer than three
+    points enclose nothing and are dropped.
+    """
+    loops: list[list[tuple[int, int]]] = []
+    path: list[tuple[int, int]] = []
+    seen: dict[tuple[int, int], int] = {}
+    for point in ring:
+        if point in seen:
+            cut = seen[point]
+            loop = path[cut:]
+            if len(loop) >= 3:
+                loops.append(loop)
+            for stale in path[cut:]:
+                seen.pop(stale, None)
+            path = path[:cut]
+        seen[point] = len(path)
+        path.append(point)
+    if len(path) >= 3:
+        loops.append(path)
+    return loops
+
+
+def _splice_at_touch(
+    outer: list[tuple[int, int]], hole: list[tuple[int, int]]
+) -> list[tuple[int, int]] | None:
+    """Walk a hole that already meets the outline at a point.
+
+    `_fracture` bridges a hole to the boundary because normally there is a gap
+    to cross. When the hole and the region share a vertex there is nothing to
+    cross: the walk goes out along the hole from that point and comes back to
+    it. Doing it as a bridge instead would spend the shared vertex twice on top
+    of the once it already costs, which is the four-visit crash.
+    """
+    shared = set(outer) & set(hole)
+    if not shared:
+        return None
+    meet = next(p for p in outer if p in shared)
+    i, j = outer.index(meet), hole.index(meet)
+    return outer[:i] + hole[j:] + hole[:j] + outer[i:]
+
+
+def _regions_of(
+    ring: list[tuple[int, int]],
+) -> list[list[tuple[int, int]]] | None:
+    """One ring that touches itself, re-expressed as one ring per region.
+
+    Positive loops are copper and negative loops are holes in it, the same
+    reading `_outline_zone` gives a unioned mesh. Each hole goes back into the
+    smallest region that contains it — spliced at the point they share, or
+    bridged by `_fracture` when they share none. ``None`` means the shape is
+    not one this understands, and the caller leaves it alone.
+
+    Guarded twice, because this rewrites plotted copper: the regions must sum
+    to exactly the area the original ring enclosed, and none of them may visit
+    a vertex more than twice — which is the whole point of doing it.
+    """
+    loops = _simple_loops(ring)
+    outers = [loop for loop in loops if _ring_area2(loop) > 0]
+    holes = [loop for loop in loops if _ring_area2(loop) < 0]
+    if not outers:
+        return None
+
+    owned: dict[int, list[list[tuple[int, int]]]] = {
+        i: [] for i in range(len(outers))
+    }
+    for hole in holes:
+        owner, best = None, None
+        for i, outer in enumerate(outers):
+            if not _ring_contains(outer, hole):
+                continue
+            area = _ring_area2(outer)
+            if best is None or area < best:
+                owner, best = i, area
+        if owner is None:
+            return None
+        owned[owner].append(hole)
+
+    regions: list[list[tuple[int, int]]] = []
+    for i, outer in enumerate(outers):
+        region = list(outer)
+        bridged: list[list[tuple[int, int]]] = []
+        for hole in owned[i]:
+            spliced = _splice_at_touch(region, hole)
+            if spliced is None:
+                bridged.append(hole)
+            else:
+                region = spliced
+        if bridged:
+            cut = _fracture(region, bridged)
+            if cut is None:
+                return None
+            region = cut
+        regions.append(region)
+
+    if sum(_ring_area2(r) for r in regions) != _ring_area2(ring):
+        return None
+    for region in regions:
+        visits: dict[tuple[int, int], int] = {}
+        for point in region:
+            visits[point] = visits.get(point, 0) + 1
+        if max(visits.values()) > _MAX_VERTEX_VISITS:
+            return None
+    return regions
+
+
+def _ring_of(chunk: str) -> list[tuple[int, int]]:
+    return [
+        (round(float(x) * _POUR_SCALE), round(float(y) * _POUR_SCALE))
+        for x, y in _XY_RE.findall(chunk)
+    ]
+
+
+def _visits_over_the_limit(ring: list[tuple[int, int]]) -> bool:
+    visits: dict[tuple[int, int], int] = {}
+    for point in ring:
+        visits[point] = visits.get(point, 0) + 1
+    return bool(visits) and max(visits.values()) > _MAX_VERTEX_VISITS
+
+
+def _render_polygon(ring: list[tuple[int, int]]) -> str:
+    points = "\n".join(
+        f"        (xy {_mm(x)} {_mm(y)})" for x, y in ring
+    )
+    return "(polygon\n      (pts\n" + points + "\n      )\n    )"
+
+
+def _untangle_zones(text: str, result: Normalization) -> str:
+    """Separate every zone whose outline touches itself.
+
+    A `filled_polygon` that does it is re-spelled in place, one polygon per
+    region. A zone *outline* that does it cannot be: the format allows a zone
+    exactly one `(polygon)`, so the zone becomes several zones — same net, same
+    layer, same fill rules, one region each, and each fill kept by whichever
+    region contains it. Nothing about the copper changes; what changes is that
+    kicad-cli will read it.
+    """
+    for start, end in reversed(_balanced_spans(text, "(zone")):
+        block = text[start:end]
+        layer = _LAYER_RE.search(block)
+        if layer is None:
+            continue
+
+        # The fills first: they are self-contained, and if the zone then has
+        # to be split they are already in one-region-per-polygon form.
+        for fill_start, fill_end in reversed(_fill_blocks(block)):
+            ring = _ring_of(block[fill_start:fill_end])
+            if not _visits_over_the_limit(ring):
+                continue
+            regions = _regions_of(ring)
+            if regions is None:
+                result.declined.append(
+                    "a zone fill that touches itself was left as the converter "
+                    "wrote it: its regions are not ones this pass can separate "
+                    "without moving copper"
+                )
+                continue
+            block = (
+                block[:fill_start]
+                + "\n".join(_render_fill(layer.group(1), r) for r in regions)
+                + block[fill_end:]
+            )
+            result.fills_untangled += 1
+
+        outlines = _balanced_spans(block, "(polygon")
+        if len(outlines) != 1:
+            text = text[:start] + block + text[end:]
+            continue
+        poly_start, poly_end = outlines[0]
+        outline = _ring_of(block[poly_start:poly_end])
+        if not _visits_over_the_limit(outline):
+            text = text[:start] + block + text[end:]
+            continue
+
+        regions = _regions_of(outline)
+        if regions is None or len(regions) < 2:
+            if regions is None:
+                result.declined.append(
+                    "a zone outline that touches itself was left as the "
+                    "converter wrote it: its regions are not ones this pass "
+                    "can separate without moving copper. kicad-cli may not be "
+                    "able to read this board"
+                )
+            text = text[:start] + block + text[end:]
+            continue
+
+        fills = [_ring_of(block[a:b]) for a, b in _fill_blocks(block)]
+        placed: list[int] = []
+        for fill in fills:
+            owner, best = None, None
+            for i, region in enumerate(regions):
+                # A fill that *is* the region — which is what a zone poured to
+                # its own outline gives — samples entirely on the boundary, and
+                # a containment test asked about a ring and itself answers
+                # neither yes nor no. Identity is checked first for that
+                # reason, not as an optimisation.
+                if set(fill) == set(region):
+                    owner, best = i, _ring_area2(region)
+                    break
+                if not _ring_contains(region, fill):
+                    continue
+                area = _ring_area2(region)
+                if best is None or area < best:
+                    owner, best = i, area
+            placed.append(-1 if owner is None else owner)
+        if any(owner < 0 for owner in placed):
+            # A fill belonging to no region means the split is not a faithful
+            # reading of this zone. Copper that lands in every piece, or in
+            # none, is copper this pass invented or dropped.
+            result.declined.append(
+                "a zone outline that touches itself was left as the converter "
+                "wrote it: one of its fills sits in none of the regions the "
+                "outline separates into, so splitting it would move copper"
+            )
+            text = text[:start] + block + text[end:]
+            continue
+
+        uuid_match = re.search(r"\(uuid\s+([0-9a-fA-F-]+)\)", block)
+        pieces: list[str] = []
+        for i, region in enumerate(regions):
+            piece = block[:poly_start] + _render_polygon(region) + block[poly_end:]
+            if uuid_match is not None:
+                piece = piece.replace(
+                    uuid_match.group(0),
+                    f"(uuid {uuid.uuid5(_ZONE_NAMESPACE, uuid_match.group(1) + str(i))})",
+                    1,
+                )
+            mine = [f for f, owner in zip(fills, placed) if owner == i]
+            spans = _fill_blocks(piece)
+            if spans:
+                body = "\n".join(_render_fill(layer.group(1), f) for f in mine)
+                piece = piece[: spans[0][0]] + body + piece[spans[-1][1]:]
+            pieces.append(piece)
+
+        text = text[:start] + "\n  ".join(pieces) + text[end:]
+        result.zones_untangled += 1
+        result.zones_from_untangling += len(pieces)
+    return text
 
 
 def _outline_pours(text: str, result: Normalization) -> str:
