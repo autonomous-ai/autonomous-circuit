@@ -439,11 +439,54 @@ It was true when read and it was not the end of the story.
 | kicad-cli segfaults on the two-pour board | **holds** — 4/4 by hand on the kept artifact, `exit=139`, 5800 polygons / 1.67MB |
 | a crashed gate left the board `fab.ready` and looking cleaner | **holds** — that build is on disk |
 | `gate_did_not_run` blocks it | **holds** — unit-tested; the live observation was mid-flight |
-| the router takes a top pour at no cost in headroom | **from build #1 only** — being re-measured in isolation |
+| the router takes a top pour at no cost in headroom | **holds** — re-measured in isolation, same rung, same `[2]` |
 | wb-16 is a board with a top pour | **false now** |
 
 The re-run lives in the scratchpad, outside the app's workspace, because an
 experiment cannot share a directory with an agent whose job is to repair it.
+Its result is the section below, and it confirms every surviving claim.
+
+### Re-run in isolation — every claim now rests on an uncontaminated build
+
+Same source, built in the scratchpad where no review loop can reach it. The top
+pour survived into the artifact this time (`{'bottom': 18, 'top': 28}`).
+
+```
+                                  wb-15   top-pour (isolated)
+fab.ready                          True                 False
+error                                 0                     1
+warning                              27                    10
+info                                 30                    27
+rung / blocking                     10x  [2]          10x  [2]
+
+gate_did_not_run                      0 ->    1     <- the fix fires, cleanly
+netclass_pair_reference               1 ->    0     <- the top pour did its job
+drc_violation (warning)              16 ->    0     <- absent, not resolved
+drc_violation (info)                  3 ->    0     <- same
+```
+
+And the cause, measured on all three artifacts side by side:
+
+```
+board                  bytes  polygons   kicad-cli pcb drc
+wb-15                 988003      2639   exit=0
+wb-16 (as it stands)  988003      2639   exit=0
+top-pour (isolated)  1668979      5800   exit=139
+```
+
+**Everything now holds on evidence that no other agent touched:**
+
+- The router takes a top pour at **no cost in headroom** — same rung, same
+  `blockingByAttempt [2]`.
+- `netclass_pair_reference` **clears**, which is the electrical point of it.
+- kicad-cli **segfaults deterministically** on the doubled triangle mesh.
+- `gate_did_not_run` **stops the board**, on a real build rather than a unit
+  test — `fab.ready = False`, and the sixteen missing DRC findings are now
+  named as missing instead of read as absent.
+
+That last line is the whole fix working end to end: the same board that
+yesterday would have shipped `fab.ready = True` looking cleaner than its
+control now refuses, and says why.
 
 ### What this makes of #15
 
