@@ -608,7 +608,9 @@ blocked until that is re-run against this pass.
   [#6](https://github.com/autonomous-ai/autonomous-circuit/pull/6)
   (`feat/see-the-pour-properly`) merged 2026-08-19, `4839f0c` on
   `upstream/main`.
-- **#22 · the outlined pour** is on branch `feat/pour-as-outline`.
+- **#22 · the outlined pour** is on PR
+  [#7](https://github.com/autonomous-ai/autonomous-circuit/pull/7)
+  (`feat/pour-as-outline`), **open, awaiting review**.
 
 **Remotes, because this cost a moment:** `upstream` is
 `github.com/autonomous-ai/autonomous-circuit` and is where every PR above
