@@ -396,6 +396,55 @@ note. The ERC leg deliberately stays advisory: every ERC kind is pinned to
 `info` by `KICAD_NOISE_FLOOR`, so an ERC leg that dies loses nothing that could
 ever have blocked.
 
+### Correction, same day: the wb-16 verdict was read mid-flight
+
+Everything above about the crash is sound. **What was reported as the board's
+final state was not.**
+
+`weather-badge-16` lives under `~/.autonomous-circuit/projects`, the workspace
+the app owns, and the Vite dev server was running the whole time. Its silent
+review loop saw a board that had lost its verdict, **removed the top pour**,
+rewrote the comment around it in its own words, and rebuilt. `main.tsx` mtime
+`11:29:42`; the comment it left reads:
+
+> *Bottom ONLY on build #1, deliberately. A previous revision of this file also
+> poured `top` as an explicit unmeasured experiment and that build never
+> reached a fab.ready verdict, so the experiment produced no evidence and cost
+> the board its first shot.*
+
+That is the review loop doing exactly its job on a workspace it owns, and it is
+fatal to an experiment. So:
+
+```
+wb-15 vs wb-16, as they now stand
+  error 0 -> 0    warning 27 -> 27    info 30 -> 30
+  per-kind delta: NONE — the two boards produce identical findings
+  pour 2423 triangles, one piece, 3040mm2 — identical
+  netlist 173 pads compared, 0 split / 0 merge; boot chain 8/8
+  rung 10x, blockingByAttempt [2] — identical
+```
+
+**weather-badge-16 is currently a twin of weather-badge-15.** The one line that
+made it an experiment is gone.
+
+This board's own rule, broken by the person writing it down: *never report
+mid-flight state as final*. `fab.ready: False` with `gate_did_not_run` was
+observed and reported while another agent was concurrently editing the source.
+It was true when read and it was not the end of the story.
+
+**What survives the correction, and what does not:**
+
+| claim | status |
+|---|---|
+| kicad-cli segfaults on the two-pour board | **holds** — 4/4 by hand on the kept artifact, `exit=139`, 5800 polygons / 1.67MB |
+| a crashed gate left the board `fab.ready` and looking cleaner | **holds** — that build is on disk |
+| `gate_did_not_run` blocks it | **holds** — unit-tested; the live observation was mid-flight |
+| the router takes a top pour at no cost in headroom | **from build #1 only** — being re-measured in isolation |
+| wb-16 is a board with a top pour | **false now** |
+
+The re-run lives in the scratchpad, outside the app's workspace, because an
+experiment cannot share a directory with an agent whose job is to repair it.
+
 ### What this makes of #15
 
 **Not a design limit — a converter limit, and the same one as #18.** The router
@@ -457,6 +506,14 @@ it rather than the note that says nobody tried.
 - **A tool's output format is not the thing it describes.** 2423
   `filled_polygon` entries looked like 2423 fragments of copper and were one
   triangulated plane. KiCad made the same mistake. Union before judging.
+- **An experiment cannot live in a workspace an agent owns.** wb-16's top pour
+  was reverted by the app's silent review loop between two of this session's
+  own builds — correct behaviour for that loop, and it deleted the variable
+  under test. Build experiments outside `~/.autonomous-circuit/projects`.
+- **This board's oldest lesson caught its own author.** `fab.ready: False` was
+  read, reported as confirmation, and was mid-flight — another agent was
+  editing the source at that moment. Before calling a verdict final, check
+  nothing else is writing to the workspace.
 - **A gate that crashed reads as a gate that passed, only better.** wb-16 lost
   sixteen DRC findings to a segfault and came out looking cleaner than its
   control, still `fab.ready`. Whenever a check can fail, ask what its silence
