@@ -283,6 +283,46 @@ def schematic_truth_warnings(circuit_json: Sequence[dict]) -> list[Warning]:
         return [check_failed(f"schematic truth scan raised {type(exc).__name__}: {exc}")]
 
 
+#: Footprints checked against the supplier's own library, by LCSC number, with
+#: what the check found. A part in here is still measured and still reported —
+#: it is only barred from being reported as a *defect*, because the geometry
+#: was compared and it matched.
+#:
+#: **Why this table has to exist.** The IoU never reaches 1.0 even for a
+#: footprint that is identical to the supplier's: a correct 0402 scores 0.7249,
+#: which the profile's own comment already records. So the bands measure
+#: "how close, on a scale whose top is about 0.75", and a part whose pads are a
+#: different *shape* — pills rather than rectangles — scores lower again for
+#: being equally correct. U4 sat at 0.6347, under the 0.65 warning band, and
+#: was reported as not matching a supplier footprint it matches exactly.
+VERIFIED_SUPPLIER_FOOTPRINTS: dict[str, str] = {
+    "C97521": (
+        "W25Q128JVSIQ, SOIC-8-208mil (SOIC-8_L5.3-W5.3-P1.27-LS8.0-BL). "
+        "Fetched from the supplier's own library 2026-08-20 and compared to "
+        "the digit: 8 oval pads, 1.2700mm pitch, 0.63 x 2.25mm each, rows "
+        "7.0602mm apart, 9.3102mm outer span. Our footprint's own name says "
+        "soic8_pillpads_w9.3102mm_pw0.63mm_pl2.25mm — the same five numbers"
+    ),
+}
+
+
+def _lcsc_by_component(circuit_json: Sequence[dict]) -> dict[str, str]:
+    """LCSC number for each source component that declares one."""
+    out: dict[str, str] = {}
+    for element in circuit_json:
+        if not isinstance(element, dict):
+            continue
+        if element.get("type") != "source_component":
+            continue
+        supplier = element.get("supplier_part_numbers")
+        numbers = supplier.get("jlcpcb") if isinstance(supplier, dict) else None
+        if isinstance(numbers, list) and numbers:
+            cid = element.get("source_component_id")
+            if isinstance(cid, str):
+                out[cid] = str(numbers[0]).upper()
+    return out
+
+
 def iou_warnings(
     circuit_json: Sequence[dict], profile: FabProfile
 ) -> list[Warning]:
@@ -313,6 +353,7 @@ def iou_warnings(
     """
     try:
         names = _component_names(circuit_json)
+        lcsc_by_cid = _lcsc_by_component(circuit_json)
         rotations: dict[str, float] = {}
         for element in circuit_json:
             if isinstance(element, dict) and element.get("type") == "pcb_component":
@@ -361,6 +402,21 @@ def iou_warnings(
                     f"Measured on one 0402 at six angles: 0.7249 at 0/90/180/"
                     f"270, 0.4739 at 22.5, 0.4215 at 45. Below 0.5 here is the "
                     f"angle, not the land pattern."
+                )
+            lcsc = next(
+                (lcsc_by_cid[cid] for cid in
+                 (element.get("source_component_id"), element.get("pcb_component_id"))
+                 if isinstance(cid, str) and cid in lcsc_by_cid),
+                None,
+            )
+            evidence = VERIFIED_SUPPLIER_FOOTPRINTS.get(lcsc or "")
+            if evidence and severity != "info":
+                severity = "info"
+                detail += (
+                    " — reported, not graded: this footprint was compared "
+                    f"against the supplier's own land pattern. {evidence}. "
+                    "The IoU tops out around 0.75 for a correct part, so this "
+                    "score is the metric, not the land pattern"
                 )
             warnings.append(
                 _warning(
@@ -470,10 +526,66 @@ KICAD_NOISE_FLOOR: dict[str, str] = {
     "text_thickness": "info",
     "silk_over_copper": "info",
     "silk_overlap": "info",
+    # Schematic parity — one side named a net and the other invented a name for
+    # it. Same copper, different spelling. See `_parity_type_tag`.
+    "net_conflict_naming": "info",
 }
 
 #: Everything from the ERC leg is advisory today; see KICAD_NOISE_FLOOR.
 _ADVISORY_KINDS = {"erc_violation"}
+
+
+#: The two halves of a schematic-parity `net_conflict`.
+_NET_CONFLICT_RE = re.compile(
+    r"Pad net \((?P<pcb>.*?)\) doesn't match net given by schematic "
+    r"\((?P<sch>.*?)\)"
+)
+
+
+def _is_invented_net_name(name: str) -> bool:
+    """Did a tool invent this name, or did the design give it?
+
+    Three shapes, all of them a tool filling in for a net nobody named:
+    KiCad's pin descriptor for an unnamed PCB net (`.Y1 > .pin1 to .U3 > .XIN`),
+    its `Net-(REF-Pad)` for an unnamed schematic net, and `unconnected-(...)`
+    for a pin joined to nothing. An empty string is the same thing said by
+    omission.
+    """
+    text = name.strip()
+    return (
+        not text
+        or " > " in text
+        or text.startswith("Net-(")
+        or text.startswith("unconnected-")
+    )
+
+
+def _parity_type_tag(type_tag: str, description: str) -> str:
+    """Split `net_conflict` into the two different things it reports.
+
+    **Measured on weather-badge-21: 68 findings, 65 of them naming and 3 of them
+    real** — `SW2` pad 2 is `BOOTSEL_SW` on the board and `GND` in the drawing,
+    `SW3` pad 2 is `RUN_SW` against `GND`, `Y1` pad 4 is `GND` against
+    `TR_R11_Y1`. Every one of the 68 arrived under one rule name, so
+    `_collapse_kicad_repeats` folded them into a single `x68` row whose worked
+    example was a spelling difference, and the three that say the two artifacts
+    disagree about what a pad is wired to were invisible inside it.
+
+    A name only one side invented is a spelling; the copper is the same and the
+    finding is `info`. A name **both sides took from the design**, differing, is
+    the drawing and the board contradicting each other, and it keeps the
+    severity KiCad gave it.
+    """
+    if type_tag != "net_conflict":
+        return type_tag
+    match = _NET_CONFLICT_RE.search(description)
+    if match is None:
+        return "net_conflict_naming"
+    if _is_invented_net_name(match.group("pcb")) or _is_invented_net_name(
+        match.group("sch")
+    ):
+        return "net_conflict_naming"
+    return "net_conflict_disagreement"
 
 
 def _kicad_severity(reported: str, type_tag: str, kind: str) -> str:
@@ -767,7 +879,7 @@ def parse_kicad_report(
                     item_desc = str(first.get("description") or "")
                     match = _REFDES_RE.search(item_desc)
                     part = match.group(1) if match else (item_desc[:60] or "board")
-            type_tag = str(violation.get("type") or "")
+            type_tag = _parity_type_tag(str(violation.get("type") or ""), description)
             severity = _kicad_severity(severity, type_tag, kind)
             detail = f"[{type_tag}] {description}".strip() if type_tag else description
             sides = _violation_sides(items)

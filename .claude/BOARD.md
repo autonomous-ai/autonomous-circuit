@@ -104,7 +104,7 @@ risk even though the copper is fine.
 | **D2** | **The diffpair findings that are not about timing**: `diffpair_not_routed` on 5 boards ("no corridor wide enough for the pair exists"), coupling as low as **2% of the run**, and `netclass_pair_reference` — 30% of USB_DP_CONN has no ground under it. These are impedance and return path, and unlike D they are real | 5–6 boards | no |
 | **E** | Crystal net over the 10mm ceiling, 2 vias each — see #12, unchanged | 16 findings, 12 boards | no |
 | **F** | `holes_co_located` (101), `copper_sliver` (46), `hole_to_hole` 0.10mm vs 0.1995mm min (8) | 20 / 16 / 2 boards | no |
-| **G** | U4 flash footprint IoU 0.6347 — **still unresolved**, needs one network fetch for C97521's land pattern; see #11 | 18/18 | no |
+| **G** | U4 flash footprint IoU 0.6347 — **RESOLVED 2026-08-20**: fetched C97521's land pattern and ours is identical to the digit. The metric tops out near 0.75, so the score was the ruler; see #11 | 18/18 | no |
 
 **A and B are the two that decide whether a board is good rather than merely
 working.** A plane-less board passing the gate is the same class of hole this
@@ -743,20 +743,54 @@ this board.
   boards sit on the last rung having needed the repair pass. Still open as a
   *decision*: the ladder needs a rung above 10x, or the boards need to route
   clean at a lower one. Until then #16, #15 and #20 are all gambling.
-- **#17 · Derive the USB skew budget from the interface speed** rather than
-  hardcoding the High Speed figure (`verifylib/netclass.py:61`).
+- **#17 · Derive the USB skew budget from the interface speed.** **DONE.**
+  Read off the controller's LCSC number; unknown controllers keep the strict
+  High Speed budget. Measured across all 24 boards on disk: 24/24 recognised as
+  Full Speed, `netclass_pair_skew` warnings **28 -> 0**, replaced by 28 `info`
+  lines that still carry the millimetres.
 - **#18 · Stop `isolated_copper` from firing on a triangulated pour.** **DONE**
   — re-measured rather than suppressed; a genuinely fragmented pour still
   warns.
-- **#19 · Fix the `.kicad_sch` export.** 2246 parity findings and the file a
-  human opens is wrong.
+- **#19 · Fix the `.kicad_sch` export.** **RE-MEASURED, AND SPLIT IN TWO.**
+  On weather-badge-21 it is 68 `net_conflict`, not 2246, and **65 of the 68 are
+  a spelling difference between two tools** — one side names a net and the
+  other invents `.Y1 > .pin1 to .U3 > .XIN` or `Net-(LED1-Pad1)` for it. Those
+  now report at `info`. **The other 3 are the drawing and the board
+  contradicting each other** and now report separately, with the pad:
+
+  ```
+  SW2 pad 2   board BOOTSEL_SW   schematic GND
+  SW3 pad 2   board RUN_SW       schematic GND
+  Y1  pad 4   board GND          schematic TR_R11_Y1
+  ```
+
+  All three are a 4-pad part folded onto a 2-pin symbol — the same shape as the
+  50 keys that started `kicad_schematic`. **The board is the one that is
+  right**: its netlist was compared pad for pad against `circuit.json` with 0
+  splits and 0 merges. So the drawing is wrong on 3 pins, and
+  `normalize_schematic_truth` reports *"0 pins disagree"* after its own pass.
+  **Two of our own measurements contradict each other, and that is the next
+  thing to look at** — not the naming.
+- **#19b · Reconcile the schematic normaliser with KiCad's parity.** New. One
+  says 0 wrong pins, the other says 3, on the same file. Until that is settled
+  neither number can be quoted.
 - **#12 · Route hints for the crystal net.** **LEVER MEASURED, AND SHUT.**
   weather-badge-19 routes a 7.94mm hop as 26.21mm of copper through 2 vias.
   Our own router declines every poured board, and forced it does not route the
   crystal net at all (285 errors, 4 nets open). Three remaining levers are
   named in the measurement above.
 - **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
-- **#11 · U4 footprint.** Unchanged, still needs the network fetch.
+- **#11 · U4 footprint.** **DONE — the fetch was made and the footprint is
+  right.** C97521's own land pattern, 2026-08-20: 8 oval pads, 1.2700mm pitch,
+  0.63 x 2.25mm each, rows 7.0602mm apart, 9.3102mm outer span. Our footprint's
+  own name carries the same five numbers
+  (`soic8_pillpads_w9.3102mm_pw0.63mm_pl2.25mm`). **Identical, and it still
+  scores 0.6347** — under the 0.65 warning band, while a *correct* 0402 scores
+  0.7249. The IoU tops out near 0.75 for a correct part, so the score was the
+  metric and the pill pads cost it again for not being rectangles. Recorded in
+  `VERIFIED_SUPPLIER_FOOTPRINTS`: still measured, still reported, no longer
+  graded as a defect. **0.6347 meant "different"; it now means nothing at
+  all.**
 - **#9 · read `packages/router/`.** **NOW PRICED.** routerlib refuses every
   poured board outright (`router_bridge.py:180`) — which is every board we
   build — and with the gate opened it connects 29/33 nets on
