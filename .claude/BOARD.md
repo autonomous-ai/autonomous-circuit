@@ -750,8 +750,11 @@ this board.
   warns.
 - **#19 · Fix the `.kicad_sch` export.** 2246 parity findings and the file a
   human opens is wrong.
-- **#12 · Route hints for the crystal net.** Unchanged, still the only untried
-  lever.
+- **#12 · Route hints for the crystal net.** **LEVER MEASURED, AND SHUT.**
+  weather-badge-19 routes a 7.94mm hop as 26.21mm of copper through 2 vias.
+  Our own router declines every poured board, and forced it does not route the
+  crystal net at all (285 errors, 4 nets open). Three remaining levers are
+  named in the measurement above.
 - **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
 - **#11 · U4 footprint.** Unchanged, still needs the network fetch.
 - **#9 · read `packages/router/`.** **NOW PRICED.** routerlib refuses every
