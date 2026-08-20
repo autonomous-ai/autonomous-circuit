@@ -470,10 +470,66 @@ KICAD_NOISE_FLOOR: dict[str, str] = {
     "text_thickness": "info",
     "silk_over_copper": "info",
     "silk_overlap": "info",
+    # Schematic parity — one side named a net and the other invented a name for
+    # it. Same copper, different spelling. See `_parity_type_tag`.
+    "net_conflict_naming": "info",
 }
 
 #: Everything from the ERC leg is advisory today; see KICAD_NOISE_FLOOR.
 _ADVISORY_KINDS = {"erc_violation"}
+
+
+#: The two halves of a schematic-parity `net_conflict`.
+_NET_CONFLICT_RE = re.compile(
+    r"Pad net \((?P<pcb>.*?)\) doesn't match net given by schematic "
+    r"\((?P<sch>.*?)\)"
+)
+
+
+def _is_invented_net_name(name: str) -> bool:
+    """Did a tool invent this name, or did the design give it?
+
+    Three shapes, all of them a tool filling in for a net nobody named:
+    KiCad's pin descriptor for an unnamed PCB net (`.Y1 > .pin1 to .U3 > .XIN`),
+    its `Net-(REF-Pad)` for an unnamed schematic net, and `unconnected-(...)`
+    for a pin joined to nothing. An empty string is the same thing said by
+    omission.
+    """
+    text = name.strip()
+    return (
+        not text
+        or " > " in text
+        or text.startswith("Net-(")
+        or text.startswith("unconnected-")
+    )
+
+
+def _parity_type_tag(type_tag: str, description: str) -> str:
+    """Split `net_conflict` into the two different things it reports.
+
+    **Measured on weather-badge-21: 68 findings, 65 of them naming and 3 of them
+    real** — `SW2` pad 2 is `BOOTSEL_SW` on the board and `GND` in the drawing,
+    `SW3` pad 2 is `RUN_SW` against `GND`, `Y1` pad 4 is `GND` against
+    `TR_R11_Y1`. Every one of the 68 arrived under one rule name, so
+    `_collapse_kicad_repeats` folded them into a single `x68` row whose worked
+    example was a spelling difference, and the three that say the two artifacts
+    disagree about what a pad is wired to were invisible inside it.
+
+    A name only one side invented is a spelling; the copper is the same and the
+    finding is `info`. A name **both sides took from the design**, differing, is
+    the drawing and the board contradicting each other, and it keeps the
+    severity KiCad gave it.
+    """
+    if type_tag != "net_conflict":
+        return type_tag
+    match = _NET_CONFLICT_RE.search(description)
+    if match is None:
+        return "net_conflict_naming"
+    if _is_invented_net_name(match.group("pcb")) or _is_invented_net_name(
+        match.group("sch")
+    ):
+        return "net_conflict_naming"
+    return "net_conflict_disagreement"
 
 
 def _kicad_severity(reported: str, type_tag: str, kind: str) -> str:
@@ -767,7 +823,7 @@ def parse_kicad_report(
                     item_desc = str(first.get("description") or "")
                     match = _REFDES_RE.search(item_desc)
                     part = match.group(1) if match else (item_desc[:60] or "board")
-            type_tag = str(violation.get("type") or "")
+            type_tag = _parity_type_tag(str(violation.get("type") or ""), description)
             severity = _kicad_severity(severity, type_tag, kind)
             detail = f"[{type_tag}] {description}".strip() if type_tag else description
             sides = _violation_sides(items)

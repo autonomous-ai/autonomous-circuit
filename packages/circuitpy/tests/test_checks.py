@@ -822,6 +822,108 @@ class Dedupe(unittest.TestCase):
         self.assertEqual(out, [a, b])
 
 
+
+class SchematicParityNetConflict(unittest.TestCase):
+    """`net_conflict` is two different things wearing one rule name.
+
+    Measured on weather-badge-21: 68 findings, 65 of them a spelling difference
+    between two tools and 3 of them the drawing and the board disagreeing about
+    what a pad is wired to. All 68 arrived under one name, so the collapse
+    folded them into a single `x68` row whose example was a spelling — and the
+    three that matter were invisible inside it.
+    """
+
+    @staticmethod
+    def _conflict(pcb: str, sch: str, refdes: str = "SW2"):
+        return {
+            "type": "net_conflict",
+            "severity": "warning",
+            "description": (
+                f"Pad net ({pcb}) doesn't match net given by schematic ({sch})"
+            ),
+            "items": [{"description": f"Pad 2 [{pcb}] of {refdes} on F.Cu"}],
+        }
+
+    def _parse(self, *conflicts):
+        return checks.parse_kicad_report(
+            {"schematic_parity": list(conflicts)}, kind="drc_violation"
+        )
+
+    def test_a_name_only_the_pcb_invented_is_a_spelling(self):
+        (warning,) = self._parse(
+            self._conflict(".Y1 > .pin1 to .U3 > .XIN", "TR_Y1_xin")
+        )
+        self.assertEqual(warning["severity"], "info")
+        self.assertIn("net_conflict_naming", warning["detail"])
+
+    def test_a_name_only_the_schematic_invented_is_a_spelling(self):
+        (warning,) = self._parse(
+            self._conflict(".R24 > .pin2 to .LED1 > .anode", "Net-(LED1-Pad1)")
+        )
+        self.assertEqual(warning["severity"], "info")
+
+    def test_an_unconnected_placeholder_is_a_spelling(self):
+        (warning,) = self._parse(self._conflict("", "unconnected-(J1-B8-Pad5)"))
+        self.assertEqual(warning["severity"], "info")
+
+    def test_two_design_names_that_differ_is_the_artifacts_contradicting(self):
+        (warning,) = self._parse(self._conflict("BOOTSEL_SW", "GND"))
+        self.assertEqual(warning["severity"], "warning")
+        self.assertIn("net_conflict_disagreement", warning["detail"])
+        self.assertIn("BOOTSEL_SW", warning["detail"])
+        self.assertIn("GND", warning["detail"])
+
+    def test_the_real_ones_do_not_collapse_into_the_spelling_row(self):
+        """The whole point. 65 spellings and 3 disagreements go in; one info
+        row and three separate warnings come out, each keeping its own pad."""
+        spellings = [
+            self._conflict(f".R{i} > .pin2 to .U3 > .IO{i}", f"TR_net_{i}")
+            for i in range(65)
+        ]
+        real = [
+            self._conflict("BOOTSEL_SW", "GND", "SW2"),
+            self._conflict("RUN_SW", "GND", "SW3"),
+            self._conflict("GND", "TR_R11_Y1", "Y1"),
+        ]
+
+        warnings = self._parse(*spellings, *real)
+
+        naming = [w for w in warnings if "net_conflict_naming" in w["detail"]]
+        disagreements = [
+            w for w in warnings if "net_conflict_disagreement" in w["detail"]
+        ]
+        self.assertEqual(len(naming), 1, naming)
+        self.assertIn("x65", naming[0]["detail"])
+        self.assertEqual(len(disagreements), 3, disagreements)
+        self.assertEqual({w["part"] for w in disagreements}, {"SW2", "SW3", "Y1"})
+
+    def test_a_conflict_it_cannot_parse_is_treated_as_a_spelling(self):
+        """Not as a defect. A message shape this does not recognise is not
+        evidence that two artifacts disagree."""
+        (warning,) = self._parse(
+            {
+                "type": "net_conflict",
+                "severity": "warning",
+                "description": "No corresponding pin found in schematic",
+                "items": [{"description": "Pad 1 of R9 on F.Cu"}],
+            }
+        )
+        self.assertEqual(warning["severity"], "info")
+
+    def test_other_rules_are_untouched(self):
+        (warning,) = checks.parse_kicad_report(
+            {"violations": [{
+                "type": "clearance", "severity": "error",
+                "description": "Clearance violation",
+                "items": [{"description": "Track [GND] on F.Cu near R1"}],
+            }]},
+            kind="drc_violation",
+        )
+        self.assertEqual(warning["severity"], "error")
+        self.assertIn("[clearance]", warning["detail"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
 
