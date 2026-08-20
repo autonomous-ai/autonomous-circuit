@@ -34,7 +34,10 @@ from verifylib.loads import lookup
 from verifylib.model import Board, Net
 from verifylib.rules import (
     DEFAULT_DELTA_T_C,
+    FULL_SPEED_USB_CONTROLLERS,
     JLCPCB_2LAYER,
+    USB_FS_SKEW_BUDGET_MM,
+    USB_HS_SKEW_BUDGET_MM,
     ipc2221_current_a,
     ipc2221_width_mm,
 )
@@ -58,8 +61,9 @@ _REGULATOR_HINTS = ("ams1117", "ldo", "lm1117", "xc6206", "me6211", "tlv7")
 _VIN_HINTS = ("vin", "in", "vi")
 _VOUT_HINTS = ("vout", "out", "vo")
 
-#: USB 2.0 intra-pair skew budget. 150ps at ~6.7ps/mm on FR-4 microstrip.
-USB_SKEW_BUDGET_MM = 3.8
+#: USB 2.0 intra-pair skew budget, High Speed. Kept as a name because it was
+#: the whole rule for a while; the number and the reason now live in `rules`.
+USB_SKEW_BUDGET_MM = USB_HS_SKEW_BUDGET_MM
 
 #: Differential-pair coupling (EE review 2026-08-15, finding 3). Skew is the
 #: length story; this is the geometry story: D+/D- must *travel together* —
@@ -356,27 +360,76 @@ def _diff_pairs(board: Board) -> list[tuple[Net, Net]]:
     return pairs
 
 
+def usb_speed(board: Board) -> tuple[str, str | None]:
+    """Which USB speed this board's pair carries, and what said so.
+
+    Read off the controller's LCSC number, because that is the identity
+    `parts-book` locks and the only exact one on a BOM. A board with no
+    controller this knows about is High Speed — the strict answer, and the
+    right direction for a guess.
+    """
+    for component in board.components:
+        lcsc = str(component.lcsc or "").upper()
+        part = FULL_SPEED_USB_CONTROLLERS.get(lcsc)
+        if part:
+            return "full", part
+    return "high", None
+
+
 @never_raises
 def _diff_pair_skew(board: Board) -> list[Finding]:
-    """USB 2.0 intra-pair skew, from routed length. Length arithmetic, not
-    simulation — the same thing KiCad's ``skew`` constraint does."""
+    """USB 2.0 intra-pair skew, from routed length, against the budget the
+    board's own interface speed sets.
+
+    Length arithmetic, not simulation — the same thing KiCad's ``skew``
+    constraint does. What changed is which number it is held to. The 150ps
+    figure is a **High Speed** limit and it used to be applied to every board
+    unconditionally, so 14 of 17 were marked for missing a budget that does not
+    apply to them: an RP2040's USB is Full Speed only, a 12Mbps bit is 83.3ns,
+    and the worst skew ever measured here — 17.13mm, about 114ps — is one part
+    in seven hundred of a bit.
+
+    Full Speed is reported rather than judged. Silence would be the other
+    mistake: the number is still measured and still said out loud, at `info`,
+    once it passes the figure a High Speed board would have been held to.
+    """
     out: list[Finding] = []
+    speed, controller = usb_speed(board)
+    budget = USB_HS_SKEW_BUDGET_MM if speed == "high" else USB_FS_SKEW_BUDGET_MM
     for net, partner in _diff_pairs(board):
         length_p = sum(t.length for t in board.traces_on(net))
         length_n = sum(t.length for t in board.traces_on(partner))
         if length_p <= 0 or length_n <= 0:
             continue
         skew = abs(length_p - length_n)
-        if skew <= USB_SKEW_BUDGET_MM:
+        measured = (
+            f"{net.label} routes {length_p:.2f}mm and {partner.label} "
+            f"{length_n:.2f}mm — {skew:.2f}mm of intra-pair skew"
+        )
+        if budget is None:
+            if skew <= USB_HS_SKEW_BUDGET_MM:
+                continue
+            out.append(
+                finding(
+                    f"{net.label},{partner.label}",
+                    "netclass_pair_skew_unbudgeted",
+                    f"{measured}. {controller}'s USB is Full Speed only, and "
+                    "Full Speed sets no intra-pair skew limit — at 12Mbps a bit "
+                    "is 83.3ns, so this is a fraction of a percent of one. "
+                    "Measured and reported; there is no budget to hold it to",
+                    "info",
+                )
+            )
+            continue
+        if skew <= budget:
             continue
         out.append(
             finding(
                 f"{net.label},{partner.label}",
                 "netclass_pair_skew",
-                f"{net.label} routes {length_p:.2f}mm and {partner.label} "
-                f"{length_n:.2f}mm — {skew:.2f}mm of intra-pair skew against "
-                f"a {USB_SKEW_BUDGET_MM:g}mm budget (USB 2.0, ~150ps on FR-4). "
-                "Length-match the pair or shorten the longer leg",
+                f"{measured} against a {budget:g}mm budget (USB 2.0 High "
+                "Speed, ~150ps on FR-4). Length-match the pair or shorten the "
+                "longer leg",
                 "warning",
             )
         )

@@ -205,6 +205,72 @@ def test_a_skewed_pair_is_caught_with_both_lengths():
     assert "30.00mm" in detail and "48.00mm" in detail and "18.00mm" in detail
 
 
+# --- the budget comes from the interface speed, not from a constant ---------
+#
+# 150ps is a USB 2.0 **High Speed** limit and it used to be applied to every
+# board unconditionally, so 14 of 17 were marked for missing a budget that does
+# not apply to them: an RP2040's USB is Full Speed only, a 12Mbps bit is 83.3ns,
+# and the worst skew ever measured here — 17.13mm, about 114ps — is one part in
+# seven hundred of a bit.
+
+RP2040_LCSC = "C2040"
+
+
+def _pair_board_with(controller_lcsc, length_p=30.0, length_n=48.0) -> Board:
+    elements = [fixtures.board(60, 40)]
+    elements.append(fixtures.net(0, "USB_DP"))
+    elements.append(fixtures.net(1, "USB_DM"))
+    elements.append(fixtures.trace_on("tp", 0, [(0, 2), (length_p, 2)]))
+    elements.append(fixtures.trace_on("tn", 1, [(0, -2), (length_n, -2)]))
+    elements.extend(fixtures.component(
+        "U3", index=3, x=-20, y=10, ftype="simple_chip", lcsc=controller_lcsc,
+    ))
+    return Board(elements)
+
+
+def test_a_full_speed_controller_is_read_off_its_lcsc_number():
+    speed, part = netclass.usb_speed(_pair_board_with(RP2040_LCSC))
+    assert (speed, part) == ("full", "RP2040")
+
+
+def test_an_unknown_controller_is_held_to_the_strict_budget():
+    """A check that cannot tell should not be the lenient one."""
+    speed, part = netclass.usb_speed(_pair_board_with("C999999"))
+    assert (speed, part) == ("high", None)
+
+    result = netclass.check(_pair_board_with("C999999"))
+    assert "netclass_pair_skew" in kinds(result)
+
+
+def test_a_full_speed_board_is_not_marked_against_a_high_speed_budget():
+    result = netclass.check(_pair_board_with(RP2040_LCSC))
+
+    assert "netclass_pair_skew" not in kinds(result)
+
+
+def test_but_the_number_is_still_measured_and_still_said_out_loud():
+    """Silence would be the other mistake."""
+    result = netclass.check(_pair_board_with(RP2040_LCSC))
+
+    reported = [
+        f for f in result.findings
+        if f["kind"] == "netclass_pair_skew_unbudgeted"
+    ]
+    assert len(reported) == 1, result.findings
+    assert reported[0]["severity"] == "info"
+    detail = reported[0]["detail"]
+    assert "18.00mm" in detail and "RP2040" in detail and "83.3ns" in detail
+
+
+def test_a_full_speed_pair_inside_the_high_speed_budget_says_nothing():
+    """The report-only finding is not noise on every board — it fires only
+    where the old rule would have fired."""
+    result = netclass.check(_pair_board_with(RP2040_LCSC, 30.0, 31.0))
+
+    assert "netclass_pair_skew" not in kinds(result)
+    assert "netclass_pair_skew_unbudgeted" not in kinds(result)
+
+
 # --- pair coupling (EE review 2026-08-15, finding 3; report-only) ---------
 
 

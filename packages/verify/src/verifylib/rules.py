@@ -187,6 +187,30 @@ CRYSTAL_MAX_TRACE_LENGTH_MM = 10.0
 #: records that another 0.5mm re-broke routing — that is not a pass.
 CRYSTAL_LENGTH_MARGIN_MM = 1.0
 
+#: Intra-pair skew budget for USB 2.0 **High Speed**: the spec's 150ps at
+#: ~6.7ps/mm on FR-4 microstrip.
+USB_HS_SKEW_BUDGET_MM = 3.8
+
+#: **Full Speed has no intra-pair skew limit to hold a board to.** A 12Mbps bit
+#: is 83.3ns; the 150ps High Speed figure is 1/555th of it, and the worst skew
+#: ever measured on our boards — 17.13mm, about 114ps — is 1/700th of a bit.
+#: Applying the High Speed number to a Full Speed interface marked 14 of 17
+#: boards for a reason that does not exist on any of them.
+USB_FS_SKEW_BUDGET_MM: float | None = None
+
+#: USB controllers whose interface is Full Speed only, by LCSC part number.
+#: LCSC because it is the identity `parts-book` locks and the one thing on a
+#: BOM that is exact — a manufacturer string is a spelling, and a refdes is a
+#: position. The value is the part it names, for the finding to quote.
+#:
+#: A board with no controller in this table is measured against the High Speed
+#: budget, which is the strict answer and the safe direction for a guess: a
+#: check that cannot tell should not be the lenient one. Coverage says which
+#: way it went, so a silent default cannot be mistaken for a measurement.
+FULL_SPEED_USB_CONTROLLERS: dict[str, str] = {
+    "C2040": "RP2040",
+}
+
 
 # ---------------------------------------------------------------------------
 # Packages whose zero-rotation convention differs between EDA output and
