@@ -152,3 +152,46 @@ test("placeholder-name self-heal adopts the session JSONL's ai-title and persist
   fs.writeFileSync(jsonl, '{"type":"ai-title","aiTitle":"Something Else"}\n');
   assert.equal(store.get(p.id).name, "Chosen Name");
 });
+
+test("the project label follows the board when an agent renames it", () => {
+  // Measured three times in two days: a build asked to improve a board renames
+  // it — product.json, the silkscreen, the header comment — and nothing carried
+  // that back, so a slot labelled weather-badge-17 held a board calling itself
+  // weather-badge-18, and weather-badge-19 held weather-badge-20. The board is
+  // the thing that exists and the thing every artifact is stamped with.
+  const root = tmpdir("circuit-projects-");
+  const store = createProjectsStore({ rootDir: root });
+  const p = store.create("weather-badge-19");
+  const workspace = path.join(root, p.id);
+
+  fs.writeFileSync(
+    path.join(workspace, "product.json"),
+    JSON.stringify({ name: "weather-badge-20" }),
+  );
+
+  assert.equal(store.get(p.id).name, "weather-badge-20");
+  // Written through, so the next reader does not have to re-derive it.
+  const meta = JSON.parse(fs.readFileSync(path.join(workspace, "project.json"), "utf8"));
+  assert.equal(meta.name, "weather-badge-20");
+});
+
+test("a project with no product.json keeps the name it was given", () => {
+  const root = tmpdir("circuit-projects-");
+  const store = createProjectsStore({ rootDir: root });
+  const p = store.create("Just A Name");
+
+  assert.equal(store.get(p.id).name, "Just A Name");
+});
+
+test("an unreadable or nameless product.json never blanks the label", () => {
+  const root = tmpdir("circuit-projects-");
+  const store = createProjectsStore({ rootDir: root });
+  const p = store.create("Keeps This");
+  const workspace = path.join(root, p.id);
+
+  fs.writeFileSync(path.join(workspace, "product.json"), "{ not json");
+  assert.equal(store.get(p.id).name, "Keeps This");
+
+  fs.writeFileSync(path.join(workspace, "product.json"), JSON.stringify({ name: "  " }));
+  assert.equal(store.get(p.id).name, "Keeps This");
+});

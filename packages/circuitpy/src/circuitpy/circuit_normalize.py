@@ -76,11 +76,19 @@ class CircuitNormalization:
     rings_opened: int = 0
     vertices_dropped: int = 0
     stale_via_in_pad_dropped: int = 0
+    #: Vias the router emitted more than once for one drilled hole — one per
+    #: spanning-tree branch that lands on the same junction. Physically one
+    #: hole; in the artifact, up to four.
+    vias_deduped: int = 0
+    vias_before: int = 0
     notes: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
-        return bool(self.rings_opened or self.stale_via_in_pad_dropped)
+        return bool(
+            self.rings_opened or self.stale_via_in_pad_dropped
+            or self.vias_deduped
+        )
 
     def summary(self) -> str:
         parts = []
@@ -94,6 +102,13 @@ class CircuitNormalization:
             parts.append(
                 f"{self.stale_via_in_pad_dropped} via-in-pad error(s) dropped: "
                 "the via center is not inside the named pad's bounding box"
+            )
+        if self.vias_deduped:
+            parts.append(
+                f"{self.vias_deduped} duplicate via(s) merged "
+                f"({self.vias_before} -> {self.vias_before - self.vias_deduped}) "
+                "— one drilled hole was written once per spanning-tree branch "
+                "that landed on it"
             )
         return "; ".join(parts)
 
@@ -248,6 +263,87 @@ def _falsified_via_in_pad(element: dict, elements: Sequence[dict]) -> bool:
     return True
 
 
+#: A via's centre this close to another's is the same drilled hole. One
+#: nanometre — a hundred thousand times finer than any fab positions a drill,
+#: and the duplicates measured are bit-identical anyway.
+_SAME_VIA_MM = 1e-6
+
+
+def _via_key(via: dict) -> tuple[Any, ...] | None:
+    """What makes two via records the same drilled hole, or ``None`` for
+    "cannot tell, do not merge".
+
+    The net is the part that has to be right. `connected_source_net_id` is
+    ``null`` on every via the router writes — keying on it would merge vias of
+    *different* nets that happen to coincide, which is a short, and the only
+    failure here that would ship copper. `subcircuit_connectivity_map_key` is
+    the field that actually carries the net (27 distinct values across
+    weather-badge-19's 133 vias, and every duplicate group agreed on it), so
+    that is the key, and a via without one is never merged.
+
+    The layer pair is stored in both orders — `["bottom","top"]` on two of the
+    four duplicates measured and `["top","bottom"]` on the other two — so it is
+    compared as a set.
+    """
+    net = via.get("subcircuit_connectivity_map_key")
+    if not net:
+        return None
+    x, y = via.get("x"), via.get("y")
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return None
+    layers = via.get("layers")
+    layer_key: Any
+    if isinstance(layers, list):
+        layer_key = frozenset(str(layer) for layer in layers)
+    else:
+        layer_key = frozenset(
+            str(via.get(k)) for k in ("from_layer", "to_layer") if via.get(k)
+        )
+    if not layer_key:
+        return None
+    quantum = _SAME_VIA_MM
+    return (
+        str(net),
+        round(float(x) / quantum),
+        round(float(y) / quantum),
+        via.get("outer_diameter"),
+        via.get("hole_diameter"),
+        layer_key,
+    )
+
+
+def _dedupe_vias(elements: Sequence[Any]) -> tuple[list[Any], int, int]:
+    """Keep one ``pcb_via`` per drilled hole, in document order.
+
+    The router routes a net as several spanning-tree branches and each branch
+    drops its own via where it changes layer, so a junction several branches
+    share is written several times: measured on weather-badge-19, 133 vias at
+    113 distinct positions, one point carrying four. KiCad reads that as
+    `holes_co_located` and a fab reads it as drilling the same hole twice.
+
+    The first record wins, which keeps the pass deterministic. Each duplicate
+    names a different `pcb_trace_id`, and that is the one thing lost — `diffpair`
+    skips a via whose trace it is about to delete, and after this it sees one
+    trace id where there were several. Safe here because every duplicate group
+    shares a net (checked, not assumed: the key above carries the net), so the
+    branches stand or fall together.
+    """
+    seen: set[tuple[Any, ...]] = set()
+    kept: list[Any] = []
+    total = dropped = 0
+    for element in elements:
+        if isinstance(element, dict) and element.get("type") == "pcb_via":
+            total += 1
+            key = _via_key(element)
+            if key is not None:
+                if key in seen:
+                    dropped += 1
+                    continue
+                seen.add(key)
+        kept.append(element)
+    return kept, dropped, total
+
+
 def normalize_circuit_json(path: Path) -> CircuitNormalization:
     """Open closed polygon pads in ``path`` and drop what that falsifies.
 
@@ -280,16 +376,23 @@ def normalize_circuit_json(path: Path) -> CircuitNormalization:
                     result.vertices_dropped += dropped
             repaired.append(element)
 
-        if not result.rings_opened:
+        repaired, result.vias_deduped, result.vias_before = _dedupe_vias(repaired)
+
+        if not result.rings_opened and not result.vias_deduped:
             return result  # nothing was invalidated, so nothing is rewritten
 
-        kept = [
-            e for e in repaired
-            if not (isinstance(e, dict)
-                    and e.get("type") == "pcb_placement_error"
-                    and _falsified_via_in_pad(e, repaired))
-        ]
-        result.stale_via_in_pad_dropped = len(repaired) - len(kept)
+        if result.rings_opened:
+            # Only a ring that was opened can falsify a via-in-pad error; a
+            # deduped via changes no geometry, so it invalidates no finding.
+            kept = [
+                e for e in repaired
+                if not (isinstance(e, dict)
+                        and e.get("type") == "pcb_placement_error"
+                        and _falsified_via_in_pad(e, repaired))
+            ]
+            result.stale_via_in_pad_dropped = len(repaired) - len(kept)
+        else:
+            kept = repaired
 
         text = json.dumps(kept, indent=2)
         # Prove the rewrite before it replaces the artifact of record.

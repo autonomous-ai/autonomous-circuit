@@ -247,5 +247,169 @@ class TheUpstreamCheckItself(unittest.TestCase):
         self.assertEqual(clean, [])
 
 
+# ---------------------------------------------------------------------------
+# One drilled hole, written once per spanning-tree branch
+# ---------------------------------------------------------------------------
+
+#: The junction weather-badge-19 wrote four times: same point, same diameters,
+#: same net, four `pcb_trace_id`s — `mst10`, `mst12`, `mst14`, `mst36`. A
+#: spanning-tree branch drops its own via where it changes layer, so a junction
+#: several branches share is emitted several times. KiCad reads that as
+#: `holes_co_located`; a fab reads it as drilling the same hole twice.
+GND = "unnamedsubcircuitsubcircuit_source_group_16_connectivity_net1"
+SCL = "unnamedsubcircuitsubcircuit_source_group_16_connectivity_net8"
+
+
+def routed_via(x, y, via_id, trace_id, net=GND, layers=("bottom", "top")):
+    return {
+        "type": "pcb_via",
+        "pcb_via_id": via_id,
+        "x": x,
+        "y": y,
+        "outer_diameter": 0.6,
+        "hole_diameter": 0.3,
+        "layers": list(layers),
+        "from_layer": layers[0],
+        "to_layer": layers[1],
+        "pcb_trace_id": trace_id,
+        "subcircuit_connectivity_map_key": net,
+    }
+
+
+class DuplicateVias(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(__file__).resolve().parent / "_tmp_dup_vias"
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        self.tmp.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run(self, elements):
+        path = write(self.tmp, elements)
+        result = normalize_circuit_json(path)
+        return result, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_four_branches_landing_on_one_junction_leave_one_via(self):
+        X, Y = -18.366666007623476, 4.840000999999999
+        result, kept = self._run([
+            routed_via(X, Y, "pcb_via_78", "source_net_1_mst10_0"),
+            routed_via(X, Y, "pcb_via_80", "source_net_1_mst12_0"),
+            routed_via(X, Y, "pcb_via_83", "source_net_1_mst14_0",
+                       layers=("top", "bottom")),
+            routed_via(X, Y, "pcb_via_99", "source_net_1_mst36_0",
+                       layers=("top", "bottom")),
+        ])
+
+        vias = [e for e in kept if e["type"] == "pcb_via"]
+        self.assertEqual(len(vias), 1, vias)
+        self.assertEqual(result.vias_deduped, 3)
+        self.assertEqual(result.vias_before, 4)
+
+    def test_the_layer_pair_is_compared_as_a_set(self):
+        """Two of the four duplicates measured carry `["bottom","top"]` and two
+        carry `["top","bottom"]`. Compared in order, half of them survive."""
+        result, kept = self._run([
+            routed_via(1.0, 2.0, "a", "n_mst0_0", layers=("bottom", "top")),
+            routed_via(1.0, 2.0, "b", "n_mst1_0", layers=("top", "bottom")),
+        ])
+
+        self.assertEqual(len([e for e in kept if e["type"] == "pcb_via"]), 1)
+        self.assertEqual(result.vias_deduped, 1)
+
+    def test_two_nets_meeting_at_one_point_are_never_merged(self):
+        """The failure that would ship copper. `connected_source_net_id` is
+        null on every via the router writes, so a key built on it would read
+        two nets as one and short them."""
+        result, kept = self._run([
+            routed_via(5.0, 5.0, "a", "source_net_1_mst0_0", net=GND),
+            routed_via(5.0, 5.0, "b", "source_net_8_mst0_0", net=SCL),
+        ])
+
+        self.assertEqual(len([e for e in kept if e["type"] == "pcb_via"]), 2)
+        self.assertEqual(result.vias_deduped, 0)
+
+    def test_a_via_with_no_net_is_left_alone(self):
+        """Cannot tell, so do not merge."""
+        one = routed_via(5.0, 5.0, "a", "t0")
+        two = routed_via(5.0, 5.0, "b", "t1")
+        del one["subcircuit_connectivity_map_key"]
+        del two["subcircuit_connectivity_map_key"]
+
+        result, kept = self._run([one, two])
+
+        self.assertEqual(len([e for e in kept if e["type"] == "pcb_via"]), 2)
+        self.assertEqual(result.vias_deduped, 0)
+
+    def test_vias_a_hole_apart_are_two_holes(self):
+        result, kept = self._run([
+            routed_via(5.0, 5.0, "a", "n_mst0_0"),
+            routed_via(5.6, 5.0, "b", "n_mst1_0"),
+        ])
+
+        self.assertEqual(len([e for e in kept if e["type"] == "pcb_via"]), 2)
+        self.assertEqual(result.vias_deduped, 0)
+
+    def test_a_board_with_no_duplicates_is_not_rewritten(self):
+        elements = [routed_via(1.0, 1.0, "a", "n_mst0_0")]
+        path = write(self.tmp, elements)
+        before = path.read_text(encoding="utf-8")
+
+        result = normalize_circuit_json(path)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+
+    def test_deduping_survives_a_board_with_no_closed_rings(self):
+        """The guard this pass had to move. `normalize_circuit_json` used to
+        return the moment no polygon ring was opened, so a board with duplicate
+        vias and no closed ring was never rewritten at all."""
+        result, kept = self._run([
+            {"type": "pcb_board", "pcb_board_id": "b0", "width": 20,
+             "height": 20, "center": {"x": 0, "y": 0}, "thickness": 1.6},
+            routed_via(1.0, 1.0, "a", "n_mst0_0"),
+            routed_via(1.0, 1.0, "b", "n_mst1_0"),
+        ])
+
+        self.assertEqual(result.rings_opened, 0)
+        self.assertEqual(result.vias_deduped, 1)
+        self.assertEqual(len([e for e in kept if e["type"] == "pcb_via"]), 1)
+
+    def test_it_is_idempotent(self):
+        path = write(self.tmp, [
+            routed_via(1.0, 1.0, "a", "n_mst0_0"),
+            routed_via(1.0, 1.0, "b", "n_mst1_0"),
+        ])
+        normalize_circuit_json(path)
+        once = path.read_text(encoding="utf-8")
+
+        again = normalize_circuit_json(path)
+
+        self.assertEqual(again.vias_deduped, 0)
+        self.assertEqual(path.read_text(encoding="utf-8"), once)
+
+    def test_the_first_record_wins_so_the_pass_is_deterministic(self):
+        _, kept = self._run([
+            routed_via(1.0, 1.0, "pcb_via_78", "source_net_1_mst10_0"),
+            routed_via(1.0, 1.0, "pcb_via_80", "source_net_1_mst12_0"),
+        ])
+
+        (survivor,) = [e for e in kept if e["type"] == "pcb_via"]
+        self.assertEqual(survivor["pcb_via_id"], "pcb_via_78")
+
+    def test_nothing_but_vias_is_touched(self):
+        board = {"type": "pcb_board", "pcb_board_id": "b0", "width": 20,
+                 "height": 20, "center": {"x": 0, "y": 0}, "thickness": 1.6}
+        trace = {"type": "pcb_trace", "pcb_trace_id": "n_mst0_0", "route": []}
+        _, kept = self._run([
+            board, trace,
+            routed_via(1.0, 1.0, "a", "n_mst0_0"),
+            routed_via(1.0, 1.0, "b", "n_mst1_0"),
+        ])
+
+        self.assertEqual([e["type"] for e in kept],
+                         ["pcb_board", "pcb_trace", "pcb_via"])
+
+
 if __name__ == "__main__":
     unittest.main()
