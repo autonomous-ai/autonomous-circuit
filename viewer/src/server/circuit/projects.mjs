@@ -258,10 +258,44 @@ export function createProjectsStore({
     return { dir, meta };
   }
 
+  /** The name the board calls itself, from `product.json`. */
+  function boardName(dir) {
+    try {
+      const raw = fs.readFileSync(path.join(dir, "product.json"), "utf8");
+      const name = String(JSON.parse(raw)?.name ?? "").trim();
+      return name || null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Self-heal: while the project still carries the placeholder (or empty)
-   * name, adopt the latest `ai-title` from the session JSONL. Best-effort. */
+   * name, adopt the latest `ai-title` from the session JSONL. Best-effort.
+   *
+   * **And follow the board when the board has moved.** An agent asked to
+   * improve a board renames it — `product.json`, the silkscreen, the header
+   * comment — and nothing carried that back here, so a slot labelled
+   * `weather-badge-17` held a board that called itself `weather-badge-18`, and
+   * `weather-badge-19` held `weather-badge-20`. Three times in two days. The
+   * board is the thing that exists and the thing every artifact is stamped
+   * with — `board-table.py` already reads the sidecar's name, not this one —
+   * so this label follows it rather than the other way round.
+   *
+   * The cost, stated rather than hidden: a project renamed by hand keeps that
+   * name only until the next build renames the board. Making a rename write
+   * `product.json` too is the fix for that, and it is not this change. */
   function healName(dir, meta) {
     const name = String(meta.name || "").trim();
+    const board = boardName(dir);
+    if (board && board !== name) {
+      const followed = { ...meta, name: board, updated_at: nowMs() };
+      try {
+        writeMeta(dir, followed);
+      } catch {
+        // read-only fs etc. — serve the board's name without persisting
+      }
+      return followed;
+    }
     if (name && name !== PLACEHOLDER_PROJECT_NAME) {
       return meta;
     }
