@@ -252,6 +252,62 @@ class IoUBands(unittest.TestCase):
         self.assertTrue(warnings)  # 0.77-ish IoU on correct 0402 parts
         self.assertTrue(all(w["severity"] == "info" for w in warnings))
 
+    # --- footprints checked against the supplier's own library ------------
+    #
+    # U4's flash sat at 0.6347, under the 0.65 warning band, and was reported
+    # as not matching a supplier footprint it matches exactly: 8 oval pads,
+    # 1.2700mm pitch, 0.63 x 2.25mm, rows 7.0602mm apart, 9.3102mm span —
+    # fetched from the supplier 2026-08-20, the same five numbers our own
+    # footprint name carries. The IoU tops out near 0.75 for a correct part,
+    # so the score was the metric, not the land pattern.
+
+    @staticmethod
+    def _part(lcsc: str, cid: str = "source_component_4") -> dict:
+        return {
+            "type": "source_component",
+            "source_component_id": cid,
+            "name": "U4",
+            "supplier_part_numbers": {"jlcpcb": [lcsc]},
+        }
+
+    def _element_for(self, iou: float, cid: str = "source_component_4") -> dict:
+        element = self._element(iou)
+        element["source_component_id"] = cid
+        return element
+
+    def test_a_verified_footprint_is_reported_not_graded(self) -> None:
+        warnings = checks.iou_warnings(
+            [self._part("C97521"), self._element_for(0.6347)], PROFILE
+        )
+        self.assertEqual(warnings[0]["severity"], "info")
+        self.assertIn("compared against the supplier's own land pattern",
+                      warnings[0]["detail"])
+        self.assertIn("7.0602mm", warnings[0]["detail"])
+
+    def test_the_same_score_on_an_unverified_part_still_grades(self) -> None:
+        """The exemption is evidence about one part, not a raised threshold."""
+        warnings = checks.iou_warnings(
+            [self._part("C999999"), self._element_for(0.6347)], PROFILE
+        )
+        self.assertEqual(warnings[0]["severity"], "warning")
+        self.assertNotIn("land pattern", warnings[0]["detail"])
+
+    def test_a_verified_part_below_the_error_band_is_still_only_reported(self) -> None:
+        warnings = checks.iou_warnings(
+            [self._part("C97521"), self._element_for(0.30)], PROFILE
+        )
+        self.assertEqual(warnings[0]["severity"], "info")
+
+    def test_a_part_with_no_lcsc_is_unaffected(self) -> None:
+        warnings = checks.iou_warnings([self._element_for(0.6347)], PROFILE)
+        self.assertEqual(warnings[0]["severity"], "warning")
+
+    def test_the_lcsc_match_is_case_insensitive(self) -> None:
+        warnings = checks.iou_warnings(
+            [self._part("c97521"), self._element_for(0.6347)], PROFILE
+        )
+        self.assertEqual(warnings[0]["severity"], "info")
+
     def test_iou_parsed_from_message_when_field_missing(self) -> None:
         element = {
             "type": "supplier_footprint_mismatch_warning",

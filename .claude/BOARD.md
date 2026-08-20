@@ -104,7 +104,7 @@ risk even though the copper is fine.
 | **D2** | **The diffpair findings that are not about timing**: `diffpair_not_routed` on 5 boards ("no corridor wide enough for the pair exists"), coupling as low as **2% of the run**, and `netclass_pair_reference` — 30% of USB_DP_CONN has no ground under it. These are impedance and return path, and unlike D they are real | 5–6 boards | no |
 | **E** | Crystal net over the 10mm ceiling, 2 vias each — see #12, unchanged | 16 findings, 12 boards | no |
 | **F** | `holes_co_located` (101), `copper_sliver` (46), `hole_to_hole` 0.10mm vs 0.1995mm min (8) | 20 / 16 / 2 boards | no |
-| **G** | U4 flash footprint IoU 0.6347 — **still unresolved**, needs one network fetch for C97521's land pattern; see #11 | 18/18 | no |
+| **G** | U4 flash footprint IoU 0.6347 — **RESOLVED 2026-08-20**: fetched C97521's land pattern and ours is identical to the digit. The metric tops out near 0.75, so the score was the ruler; see #11 | 18/18 | no |
 
 **A and B are the two that decide whether a board is good rather than merely
 working.** A plane-less board passing the gate is the same class of hole this
@@ -780,7 +780,17 @@ this board.
   crystal net at all (285 errors, 4 nets open). Three remaining levers are
   named in the measurement above.
 - **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
-- **#11 · U4 footprint.** Unchanged, still needs the network fetch.
+- **#11 · U4 footprint.** **DONE — the fetch was made and the footprint is
+  right.** C97521's own land pattern, 2026-08-20: 8 oval pads, 1.2700mm pitch,
+  0.63 x 2.25mm each, rows 7.0602mm apart, 9.3102mm outer span. Our footprint's
+  own name carries the same five numbers
+  (`soic8_pillpads_w9.3102mm_pw0.63mm_pl2.25mm`). **Identical, and it still
+  scores 0.6347** — under the 0.65 warning band, while a *correct* 0402 scores
+  0.7249. The IoU tops out near 0.75 for a correct part, so the score was the
+  metric and the pill pads cost it again for not being rectangles. Recorded in
+  `VERIFIED_SUPPLIER_FOOTPRINTS`: still measured, still reported, no longer
+  graded as a defect. **0.6347 meant "different"; it now means nothing at
+  all.**
 - **#9 · read `packages/router/`.** **NOW PRICED.** routerlib refuses every
   poured board outright (`router_bridge.py:180`) — which is every board we
   build — and with the gate opened it connects 29/33 nets on
