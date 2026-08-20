@@ -499,19 +499,189 @@ a real improvement. Fix the converter's pour emission and both close.
 Until then #15 is blocked on the toolchain, and wb-16 is the board that proves
 it rather than the note that says nobody tried.
 
+## Done 2026-08-19 — #22, the pour ships as an outline
+
+`kicad_normalize` now unions the converter's triangle mesh into its boundary
+rings and re-spells each zone as one `filled_polygon` — the shape KiCad's own
+filler writes, because the format has no way to say "hole". Holes are cut in
+with zero-width slits, right to left.
+
+Measured over **all 12 boards in `products/`** — a different fleet from the 19
+app workspaces the rest of this board measures, so none of these numbers
+compare against anything above:
+
+| | |
+|---|---|
+| Zones outlined | **12/12 boards**, every mesh zone on each |
+| B.Cu polygons | e.g. `2325 -> 4`, `2232 -> 1`, `709 -> 1` |
+| Plotted copper area | **identical on B.Cu and F.Cu, every board** — the gerbers are re-plotted and the shoelace area compared |
+| kicad-cli DRC | loads and completes on all 12, before and after |
+| Every DRC rule except `isolated_copper` | **zero delta on every board** |
+
+**The `isolated_copper` numbers cannot be stated as a delta, and this is not a
+hedge.** kicad-cli 10.0.5 caps its DRC report at **199 violations per rule** —
+proven, not assumed: all 12 boards report exactly 199 before, while `clearance`
+on the same reports varies 0–4. So every before-figure is a floor. After
+outlining the count is 0–23 and below the cap, so the *after* side is real and
+the *before* side is only known to be ≥199. The honest measure of fragmentation
+is the gerber region count, which is uncapped and is what the table reports.
+
+### Two bugs, four boards
+
+The first cut of this pass declined 4 of the 12 outright, and it was two
+causes, not four boards:
+
+- **`_fracture` gave up after 32 candidate anchors.** On `i2c-sensor-hub` the
+  outer boundary is a bare four-corner rectangle, so once two holes are merged
+  in, every ring vertex within 14mm of the third hole belongs to one of them
+  and is either already carrying a slit or screened off by one. The anchor
+  that works is the **124th** nearest (59th and 65th on the other two). The cap
+  existed to stop a pathological pour becoming a geometry benchmark — but the
+  sweep rebuilt the ring's edge list *per candidate*, which is what made a
+  bounded sweep look necessary. Hoisted, it is one pass per candidate and can
+  afford the whole ring.
+- **Three collinear points cost `rgb-lamp-controller` its entire pour.** The
+  converter emits a few collapsed triangles per board — 3 of 2325 here. They
+  enclose no copper. They are now dropped, not declined.
+
+### What holds it
+
+`tests/test_pour_outline.py`, 13 tests, including the real `i2c-sensor-hub`
+pour as a fixture. **5 of them fail on the code as it stood** — checked by
+reverting both fixes in place and re-running, because a test that cannot fail
+on the defect is not evidence about it. `packages/circuitpy`: 472 passed.
+`skills/circuitcode`: 133 passed.
+
+### What this does NOT show
+
+**Nothing here touches #15.** `fcu_regions` is `0->0` on all 12 — not one board
+in `products/` pours on top, so this run demonstrates the #18 half only.
+
+## Measured 2026-08-19 — #15 is NOT the mesh, and the mesh theory is refuted
+
+The claim above — *"fix the converter's pour emission and both close"* — is
+**wrong**, and now measured rather than argued. Run wb-16's top-pour board
+(`tp/main.kicad_pcb`, 5800 fills) through the outlining pass and DRC it:
+
+```
+main.kicad_pcb      5800 fills   exit=139
+outlined            5757 -> 15   exit=139     (0.43s to outline)
+```
+
+Same segfault. Delta-debugging the outlined board, one zone at a time:
+
+- **B.Cu's 18 zones alone: exit 0.** **F.Cu's 28 zones alone: exit 139.** The
+  crash lives entirely on the top pour.
+- Shrunk to a **single sufficient zone: #40, F.Cu, net GND, one fill, 288
+  vertices.** That zone alone on an otherwise empty board segfaults kicad-cli.
+- That fill **visits one vertex — `(92.738553, 96.8101)` — four times.**
+  Exactly the trigger the via pass already had written into `_fracture` as the
+  reason it will not anchor twice on one vertex. **The converter writes such a
+  zone by itself**: zone 40 is byte-identical before and after the outlining
+  pass, which never touched it (it was already one polygon).
+- Split that ring into simple loops at its own repeats, area preserved exactly,
+  change nothing else → **exit 0.** The 4-visit vertex is the crash, proven by
+  removal.
+
+**So #15 was never blocked on the triangle mesh.** It is blocked on the
+converter emitting a pour outline that touches itself at a point, and
+kicad-cli dying on it.
+
+### And that is not the whole of it either
+
+Splitting zone 40 and re-running the *full* board still segfaults. Shrinking
+again lands on **three F.Cu GND zones together (#29, #33, #40)**, none of which
+repeats a vertex at all. So there is a second cause that only appears when
+several top-layer zones coexist, and it is not the 4-visit rule.
+
+**The split used in that experiment is also not a usable repair.** Decomposing
+zone 40's ring produced four loops, one of them with **negative area** — a
+hole. Emitted as its own `filled_polygon` that hole becomes solid copper, so
+the arithmetic held while the copper did not. Any real fix has to keep holes as
+holes; that is what `_fracture` exists to do and the repair belongs there.
+
+### Fixed. A self-touching outline is re-spelled as the outlines it is made of
+
+A zone carries **as many `(polygon)` blocks as its shape needs** — the main
+ground pour on every board in `products/` has between 8 and 22 — and their
+union is the zone. So the crashing outline never needed the zone broken up: it
+needed replacing, in place, by the several simple outlines it decomposes into.
+The holes are the part that has to be right: a hole that meets its region at a
+point is **walked out and back from that point** rather than bridged to,
+because a bridge spends the shared vertex twice more and rebuilds the crash.
+
+Measured end to end on wb-16's top-pour board, through `normalize_for_fab`:
+
+```
+kicad-cli DRC   exit 139  ->  exit 0
+F.Cu            3161 regions, area 2935.3198  ->  42 regions, SAME area
+B.Cu            2639 regions, area 3224.2189  ->  18 regions, SAME area
+```
+
+An earlier cut of the split copied a fill into more than one zone and put
+**+98.7mm² of copper on F.Cu**. Nothing in the source said so; the gerber area
+did. It is a test now.
+
+## weather-badge-17, 2026-08-19 — the top pour, measured against its own control
+
+The experiment wb-16 could not finish, run properly this time: the same board
+built twice, differing in one line. Both builds outside
+`~/.autonomous-circuit/projects`, so nothing could edit them mid-flight.
+
+| | bottom only | both layers |
+|---|---|---|
+| **`fab.ready`** | **True** | **False** |
+| `netclass_pair_reference` | 1 | **0** |
+| `ground_pour_one_sided` | 1 | **0** |
+| `clearance` (error) | 0 | **41** |
+| `hole_clearance` (error) | 0 | **5** |
+| `solder_mask_bridge` (error) | 0 | **4** |
+| `zones_intersect` (error) | 0 | **3** |
+| `copper_sliver` | 1 | 8 |
+| `isolated_copper` | 16 | 43 |
+| **every other finding class — 29 of them** | **identical** | **identical** |
+
+**The routing claim holds and the electrical claim holds.** The router takes
+the top pour at the same effort and the same `blockingByAttempt [2]`, and
+`netclass_pair_reference` — the finding that says 30% of USB_DP has no ground
+under it — **clears**.
+
+**The board still does not ship, and now it says so.** 53 error-severity DRC
+instances the pour brings with it, led by 41 clearance violations between the
+F.Cu zone and the tracks it was poured over: 0.0465mm against a 0.15mm floor.
+That is the pour being laid without the clearance the tracks need, and it is a
+real defect in the board, not in the gate.
+
+**That is the whole difference from wb-16.** Same experiment, and last time it
+came back `fab.ready = True` looking cleaner than its control because sixteen
+DRC findings had been eaten by a segfault. This time DRC ran, found 53 reasons,
+and the board refused. A gate that can see is worth more than a gate that
+passes.
+
+**#15's toolchain blocker is closed. #15's engineering question is now open and
+answerable**: the top pour needs clearance to the copper already routed under
+it. That is a pour-generation question — `GndPour`'s clearance against existing
+tracks — not a converter one.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
   reports it. Whether it should *block* is now a one-line decision on the fab
   profile, deliberately left to an EE.
-- **#15 · Pour the top layer too.** **MEASURED on weather-badge-16** — the
-  router takes it at no cost in headroom and `netclass_pair_reference` clears.
-  **Blocked on the toolchain**: kicad-cli segfaults on the doubled triangle
-  mesh (2639 -> 5800 polygons, exit 139, reproducible). Same converter defect
-  as #18.
-- **#22 · Make the converter emit a pour as an outline, not a mesh.** One
-  defect makes 2394 findings of noise (#18) *and* blocks the top pour (#15).
-  Two P0s, one cause.
+- **#15 · Pour the top layer too.** **TOOLCHAIN BLOCKER CLOSED.** It was never
+  the mesh: one F.Cu zone whose *outline* visits a vertex four times, written
+  that way by the converter. `kicad_normalize` separates such a zone into one
+  zone per region and wb-16's top-pour board goes exit 139 -> exit 0 with the
+  plotted copper identical on both layers. Re-run as **weather-badge-17**
+  against its own bottom-only control: `netclass_pair_reference` clears, and
+  the board is `fab.ready = False` on **53 error-severity DRC instances the
+  pour brings** — 41 of them clearance, 0.0465mm against a 0.15mm floor.
+  **Now an engineering question, not a toolchain one**: the pour needs
+  clearance to the tracks already routed under it. See the wb-17 table above.
+- **#22 · Make the converter emit a pour as an outline, not a mesh.** **DONE,
+  both halves.** 12/12 boards in `products/` outline with identical plotted
+  copper and no other rule moving; and the self-touching zone that actually
+  blocked #15 is separated, measured on wb-16 and wb-17.
 - **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
   **blocked**: the cap does not fit inside the block's box and the board has no
   routing margin to absorb it moving out. Needs a decision — grow the box and
@@ -537,12 +707,64 @@ it rather than the note that says nobody tried.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
-- **#13 · `scripts/board-table.py`.** **DONE, in review** — PR
-  [#5](https://github.com/autonomous-ai/autonomous-circuit/pull/5), branch
-  `feat/board-table-instrument`, 3 commits on `upstream/main`.
+- **#13 · `scripts/board-table.py`.** **DONE, MERGED** — PR
+  [#5](https://github.com/autonomous-ai/autonomous-circuit/pull/5) merged
+  2026-08-19; `feat/board-table-instrument` is on `upstream/main`.
+- **#18 / #14 · the pour work.** **DONE, MERGED** — PR
+  [#6](https://github.com/autonomous-ai/autonomous-circuit/pull/6)
+  (`feat/see-the-pour-properly`) merged 2026-08-19, `4839f0c` on
+  `upstream/main`.
+- **#22 and #15's toolchain half · the outlined and untangled pour** are on PR
+  [#7](https://github.com/autonomous-ai/autonomous-circuit/pull/7)
+  (`feat/pour-as-outline`), **open, awaiting review**.
+
+**Remotes, because this cost a moment:** `upstream` is
+`github.com/autonomous-ai/autonomous-circuit` and is where every PR above
+lives. `origin` is a stale GitLab fork (`triluongmh/autonomous-tscircuit`, one
+commit); pushing there sends the work nowhere anyone reads.
 
 ## Lessons paid for
 
+- **A tool's own report has a ceiling, and a ceiling looks like a measurement.**
+  Every board read `isolated_copper = 199` before outlining — twelve boards,
+  polygon counts from 313 to 2325, the same number every time. That is
+  kicad-cli's per-rule report cap, not a count, and `clearance` varying 0–4 on
+  the same reports is what proves it. A before/after delta built on a capped
+  number is not a delta. Find the uncapped measure — here, the gerber region
+  count — before writing anything down.
+- **A repair can invent the finding it is judged by.** The first cut split a
+  self-touching zone into three zones, which still touched at the point they
+  were parted at — and KiCad calls touching zones intersecting, at error
+  severity. Three of wb-17's eight `zones_intersect` were the pass arguing with
+  itself. Always ask what a repair *adds* to the report, not only what it
+  removes.
+- **Measure the pass, not the function.** Two corpus sweeps called
+  `_outline_pours` directly and were written up as "all 12 boards re-measured
+  after every change". The fourth pass was never in that loop and had run on no
+  board but wb-16 and wb-17. Pointing the same sweep at `normalize_for_fab`
+  cost one edit and turned a sentence that was not true into one that is: the
+  pass fires **0 times** on all 12.
+- **A skip with no note is a check that was never asked for.** The first cut
+  examined a zone's outline only when the zone had exactly one `(polygon)` and
+  said nothing about the rest — which is the main pour zone on every board
+  there is, 14 zones across the corpus, and the ones most likely to
+  self-touch. Every give-up in this pass records a reason now.
+- **Two things that both look broken are not therefore the same break.** #18
+  and #15 were filed as one converter defect with two symptoms, and the
+  sentence "fix the pour emission and both close" sat on this board as if it
+  had been measured. It had not. #18 closed and #15 did not move a single exit
+  code. A shared cause is a hypothesis until one fix is shown to close both.
+- **Area arithmetic is not copper.** Splitting a self-touching ring into loops
+  kept the signed-area sum exact and still would have filled a hole with
+  copper, because one loop came out negative and a `filled_polygon` has no
+  winding. An invariant that holds on the numbers can still be false about the
+  board.
+- **A bounded search reports as a clean decline.** `_fracture` stopped after 32
+  candidate anchors and said "this pour is not something I understand", which
+  read as a property of four boards. It was a property of the cap: the anchor
+  that works was the 124th. Whenever code gives up after N tries, N is a claim
+  about the data — measure it or the give-up message is a lie with a reason
+  attached.
 - **Count instances, not rows.** `_collapse_kicad_repeats` folds repeats into
   one row carrying `xN`. `isolated_copper` is 18 rows and 2394 instances; the
   row count says nothing about how much of a board is affected.
