@@ -663,6 +663,58 @@ answerable**: the top pour needs clearance to the copper already routed under
 it. That is a pour-generation question — `GndPour`'s clearance against existing
 tracks — not a converter one.
 
+## Measured 2026-08-20 — #12's only lever is measured, and it is shut
+
+weather-badge-19's crystal net is a real defect, not a measurement artifact:
+
+```
+U3.XIN  @ (-19.60, -5.21)        pad to pad: 7.94mm — well inside the 10mm ceiling
+Y1.pin1 @ (-20.10, -13.13)
+copper the router laid:          26.21mm + 2 vias = 29.41mm   (a 3.3x detour)
+U3.XOUT -> R11.pin1:             17.17mm + 2 vias
+whole crystal net:               62.91mm of copper, 4 vias
+```
+
+The parts are close. The copper is not. That is exactly what the check says,
+and #12's note — *"route hints, still the only untried lever"* — is now tried.
+
+**Our own router cannot take the job, and the reason is one line.**
+`CIRCUIT_ROUTER=portfolio` came back `router_declined`:
+
+> *board carries 17 copper pour(s) generated around the incumbent's traces;
+> re-pouring after our route is not written yet*
+> — `router_bridge.py:180`, gated behind `CIRCUIT_ROUTER_ALLOW_POURS`
+
+**Every board we build is poured**, so routerlib has never routed one in the
+normal path. That is a bigger fact than #12 and it belongs to #9.
+
+Opening the gate and measuring anyway, twice:
+
+| | nets connected | crystal net | verdict |
+|---|---|---|---|
+| tscircuit (incumbent) | **33/33** | 62.91mm, 4 vias | `fab.ready`, 0 errors |
+| ours, `portfolio` | **29/33** | — incumbent kept | `fab.ready`, 0 errors |
+| ours, `portfolio-force` | 29/33 | **0.00mm — not routed at all** | **285 errors**, 4 nets open |
+
+The portfolio gate did its job: ours is worse on completeness and was refused.
+And the answer to "would our router route the crystal shorter" is **no — it
+does not route that net at all**, so finishing routerlib is not a shortcut to
+#12 either.
+
+**What is left for #12**, in the order they cost:
+
+1. A tscircuit-side route constraint or hint for the net, if one exists — the
+   cheapest lever and the only one not yet looked for.
+2. Placement: move Y1 so no detour is available, rather than asking the router
+   not to take one.
+3. Finish routerlib (4 nets, and re-pour after routing) — which #9 wants
+   anyway, and which this measurement now prices.
+
+**Not attempted here, deliberately.** Generalising the corridor reservation
+(`reserve.py`) from a differential pair to a single net is real work with its
+own verification burden, and it would be built on a router that cannot route
+this board.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -702,8 +754,11 @@ tracks — not a converter one.
   lever.
 - **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
 - **#11 · U4 footprint.** Unchanged, still needs the network fetch.
-- **#6 · `V3_3` width.** **#8 · wire `safety_gate()`.** **#9 · read
-  `packages/router/`.** Unchanged.
+- **#9 · read `packages/router/`.** **NOW PRICED.** routerlib refuses every
+  poured board outright (`router_bridge.py:180`) — which is every board we
+  build — and with the gate opened it connects 29/33 nets on
+  weather-badge-19. Two named gaps: re-pour after routing, and 4 nets.
+- **#6 · `V3_3` width.** **#8 · wire `safety_gate()`.** Unchanged.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
