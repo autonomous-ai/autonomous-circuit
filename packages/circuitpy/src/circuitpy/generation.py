@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Sequence
 
+from circuitpy import blocklib
 from circuitpy import checks
 from circuitpy import circuit_normalize
 from circuitpy import diffpair
@@ -942,6 +943,37 @@ def build_board(
             f"board source {script_path} is outside its project root {project_root}"
         ) from exc
 
+    # The library is the source of truth for a board that does not have one
+    # yet. A project with no `blocks/` is seeded from it here, before anything
+    # reads the source — `main.tsx` imports `../blocks/<id>/<id>`, so this is
+    # also the difference between building and not. A project that already has
+    # blocks is left exactly as it is: that copy is the board's history, and a
+    # build is not allowed to rewrite history behind whoever asked for it.
+    #
+    # #29, measured 2026-08-21: eight boards in a row inherited one snapshot
+    # from each other instead of from the library, and the switch fix that
+    # unshorted every button reached none of them.
+    first_build = not (output_p.parent / f"{stem}.board.json").exists()
+    try:
+        seeded = blocklib.seed_blocks(project_root)
+        block_findings = blocklib.drift_warnings(
+            project_root, is_first_build=first_build
+        )
+        if seeded:
+            block_findings.append({
+                "part": "board",
+                "kind": "block_library_seeded",
+                "detail": (
+                    f"this project had no blocks/, so {len(seeded)} golden "
+                    f"block(s) were copied in from the library — the one place "
+                    f"they are allowed to come from. They are frozen with the "
+                    f"board from here on"
+                ),
+                "severity": "info",
+            })
+    except OSError as exc:
+        block_findings = [checks.check_failed(f"block library check: {exc}")]
+
     product = spec_mod.load_product(project_root)
     parts = spec_mod.load_parts(project_root)
     fab_id = (
@@ -1182,7 +1214,7 @@ def build_board(
     circuit_json = _compile_once(first_timeout)
 
     progress.stage("scan")
-    warnings: list[dict] = _scan(circuit_json)
+    warnings: list[dict] = [*block_findings, *_scan(circuit_json)]
 
     # -- Stage 0b: escalate the router once, if routing is what is wrong. ----
     # See the ROUTING_ESCALATION notes at the top of this module. One rung, one

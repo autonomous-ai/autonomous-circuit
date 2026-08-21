@@ -70,10 +70,40 @@ created right now would still miss it**, because nothing new reads the library.
 **Cost so far: exactly one fix.** `git log --since=2026-08-19 --
 packages/golden-blocks/blocks` returns a single commit, `7d349e5`, the switch
 pairing. The wire has been cut since 08-19 and it took until 08-21 to show,
-because that is the first day the library changed. **Fix the copy before
-landing another block fix, or the next one is invisible the same way** — and
-whatever fixes it should assert the hash, since two days of silence is exactly
-what this failure looks like.
+because that is the first day the library changed.
+
+### FIXED — `circuitpy/blocklib.py`, shipped in PR #13
+
+The owner's call, in their words: *"source of truth phải là thư viện, không
+phải cái board trước"*. So the copy no longer belongs to whoever is driving:
+
+- **`seed_blocks`** — a project with no `blocks/` is filled from the library by
+  the build itself, before anything reads the source. The agent no longer runs
+  `cp -R`; `SKILL.md` now says so and says never to copy from another project.
+  A project that already has blocks is **left alone** — that copy is the
+  board's history and a build does not rewrite history behind anyone. Re-sync
+  stays a deliberate, separate act.
+- **`drift_warnings`** — the backstop, and it tells the two cases apart, which
+  is the whole point:
+  - a board that **has built before** and drifted is the freeze working →
+    `block_library_drift`, **info**;
+  - a board on its **first build** that already disagrees cannot have drifted,
+    so its copy came from the wrong place → `block_library_not_seeded`,
+    **warning**. That is exactly wb-18…wb-25's shape.
+- **`library_root`** — found by walking parents and looking, never by counting
+  them. `fab.catalog_root` carries the scar: the counted version was right in
+  the repo and wrong once vendored a level deeper, and every BOM shipped a
+  blank Footprint column in silence. Tested from both layouts, and it refuses
+  to resolve to a board's own `blocks/` — grading a project against itself
+  would report every board in sync forever.
+
+**A test caught a silent pass before it ever ran on a board:** pointed at a
+library path that does not exist, the first version compared against nothing,
+found nothing different, and returned clean. Now that is
+`block_library_unavailable` — *"this is not a clean result, it is no result"*.
+
+13 tests, 543 in circuitpy, 133 in skills. **Still open: re-syncing the eight
+existing boards.** Nothing does that automatically, on purpose.
 
 
 ## Checked 2026-08-21 — are the hardware reviewer's three findings on wb-25?

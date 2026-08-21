@@ -92,13 +92,20 @@ The app creates the workspace; you fill it. From the skill's own templates:
 ```bash
 SKILL=~/.claude/skills/circuitcode
 cp -R "$SKILL/templates/project_skeleton/." /abs/project/
-cp -R "$SKILL/blocks" /abs/project/blocks
 ```
 
-**Copying the blocks in is not optional** — `boards/main.tsx` imports them by
-relative path, and a project that owns its own snapshot keeps building the same
-board after the shared library moves on. Then edit `product.json` (name,
-description, power, envelope) before you write any board source.
+`boards/main.tsx` imports blocks by relative path, and a project that owns its
+own snapshot keeps building the same board after the shared library moves on.
+**You do not copy them yourself — the build seeds `blocks/` from the library on
+a project that has none**, and reports what it wrote. Then edit `product.json`
+(name, description, power, envelope) before you write any board source.
+
+**Never copy `blocks/` from another project.** It is the one way this has gone
+wrong: on 2026-08-21, weather-badge-16 through -25 — eight boards over two and
+a half days — were found holding byte-identical blocks inherited from each
+other rather than from the library, and a fix that unshorted every button on
+every board with one reached none of them. A build now says so, at `warning`,
+whenever a board that has never been built already disagrees with the library.
 
 Rules of the project format:
 
