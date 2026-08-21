@@ -715,6 +715,42 @@ def next_effort(declared: str | None) -> str | None:
     return EFFORT_LADDER[at + 1] if at + 1 < len(EFFORT_LADDER) else None
 
 
+#: Where `tscircuit-cli` keeps its own build cache, relative to the work dir.
+#: Not ours and not documented — found by walking the work dir before and after
+#: a compile (11 directories became 17, and the new one was this).
+CLI_CACHE_DIR = Path(".tscircuit") / "cache"
+
+
+def drop_cli_cache(work: Path) -> bool:
+    """Delete the CLI's cache so the next compile is a compile.
+
+    **Without this the routing escalation never ran.** Measured 2026-08-21 on
+    weather-badge-23, with a probe around each compile:
+
+        compile 1   effort=5x    255s   2085 elements   17 blocking
+        compile 2   effort=10x    19s   2085 elements   17 blocking
+
+    The source rewrite worked — the probe read `10x` back off the mirrored file
+    — and the CLI still handed the first attempt's board straight back, in
+    nineteen seconds. The escalation then compared a board against itself, read
+    17 against 17 as "trying harder did not help", kept the cheaper build, and
+    wrote a note telling the engineer the remaining lever was the placement.
+    The same board built at 10x from cold comes back with **1** blocking
+    finding, and with this line the retry reproduces that: `blocking=[17, 1]`,
+    `fab.ready` true, 539s for two real compiles instead of 297s for one.
+
+    Two numbers that agree are the most convincing thing a broken retry can
+    produce, which is why this survived so long: `[17, 17]` reads exactly like
+    a measurement.
+
+    Returns whether there was a cache to drop, so a caller can say so.
+    """
+    cache = work / CLI_CACHE_DIR
+    existed = cache.is_dir()
+    shutil.rmtree(cache, ignore_errors=True)
+    return existed
+
+
 def _set_autorouter_effort(board_source: Path, effort: str) -> bool:
     """Set ``autorouterEffortLevel`` on the mirrored board source.
 
@@ -1182,6 +1218,10 @@ def build_board(
             kept = built_dir.with_name(built_dir.name + "__attempt1")
             shutil.rmtree(kept, ignore_errors=True)
             shutil.copytree(built_dir, kept)
+            # A retry that reuses the CLI's cache is not a retry at all;
+            # see `drop_cli_cache`. This is the line that makes the rung above
+            # actually get routed.
+            drop_cli_cache(work)
 
             progress.stage("compile")
             budget = max(
