@@ -756,6 +756,67 @@ in a group has to be on the group's net, not just one of them. That changes
 what the pass stamps and has to be re-measured across the fleet, so it is filed
 as #19c rather than rushed — the diagnosis is the deliverable.
 
+## Reviewed 2026-08-21 — a hardware engineer read the board, and found three
+
+First outside review of weather-badge-23, from the PCB image alone, without the
+schematic. All three land, and all three were already in our own data.
+
+### 1. The tactile switch is shorted by construction — every board with a button
+
+> *"Nút nhấn sai footprint, đang bị nối 2 tiếp điểm với nhau nên luôn bị nhấn."*
+> (The button footprint is wrong — the two terminals are tied together, so it
+> reads as permanently pressed.)
+
+Confirmed against `C318884`'s datasheet and our own pad coordinates:
+
+```
+pin1 top-left  ──6.00mm──  pin4 top-right      the real terminal
+   |3.70mm                    |3.70mm
+pin2 bot-left  ──6.00mm──  pin3 bot-right      the other real terminal
+
+blocks/sw-tact declares  [["pin1","pin2"], ["pin3","pin4"]]   left column / right column
+```
+
+The datasheet ties the pads across the **5.90mm** span; the block ties them
+across the **3.70mm** span. Perpendicular. So `pin1`+`pin2` carry the signal
+while belonging to *different* terminals, `pin3`+`pin4` carry ground the same
+way, and the signal is tied to ground through the switch's own body. The button
+can never do anything.
+
+**This is a board-killing defect, not a quality one**, and it is in a golden
+block, so it is on every board that places a button — SW1, SW2 and SW3 on the
+weather-badge line alone.
+
+**And it is the other half of #19b.** Yesterday the schematic was measured
+against this pairing and the *schematic* was called wrong. The pairing was the
+wrong one to measure against. `internallyConnectedPins` was written from
+somebody's reading of the part, never from the datasheet, and every check
+downstream inherited it — including ours.
+
+### 2. The power widening does nothing, and we printed the proof
+
+> *"Dây nguồn 5V và 3.3V có đi dây lớn nhưng đi được 1 khúc thì chuyển lại dây
+> nhỏ thì cũng như không."*
+
+Our own sidecar, weather-badge-23:
+
+```
+V3_3: 156 of 340 segments widened — narrowest point 0.2mm -> 0.2mm
+V5:    21 of 93 segments widened — narrowest point 0.25mm -> 0.25mm
+```
+
+156 segments widened and the narrowest point did not move. Current is set by
+the narrowest point, so the pass costs copper and buys nothing. We measured it
+exactly and never read it as "this does not work" — see #6.
+
+### 3. The routing is too tight for the fab to build
+
+> *"Đi dây vẫn rối bị quá sát với chân linh kiện, JLC sẽ ko làm đc vì dễ chạm."*
+
+We report `clearance` and `copper_sliver` and mostly file them below blocking.
+The reviewer's reading is stronger than ours: not "marginal" but "they will
+refuse it".
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -819,6 +880,18 @@ as #19c rather than rushed — the diagnosis is the deliverable.
   the comparison satisfies an `internallyConnectedPins` group from **any**
   member, so a pin wired elsewhere inside a satisfied group is invisible. See
   the measurement above.
+- **#26 · The tactile switch's internal pairing is wrong.** **BOARD-KILLING,
+  every board with a button.** `blocks/sw-tact` declares
+  `[["pin1","pin2"],["pin3","pin4"]]` — the left and right columns — while
+  `C318884` ties its pads across the long span, top pair and bottom pair. Each
+  declared group therefore holds one pad of *each* terminal, so signal and
+  ground meet inside the switch and the button reads permanently pressed. Fix
+  the block, then re-check every board that places one. **Read the datasheet
+  before writing the pairing** — the current one was somebody's reading of the
+  part and every check downstream trusted it.
+- **#27 · Decide whether tight routing blocks.** A hardware reviewer reads our
+  `clearance` and `copper_sliver` findings as "the fab will refuse this"; we
+  file most of them below blocking. One of those two readings is wrong.
 - **#19c · Make the group check require every member.** The repair for #19b.
   Changes what the pass stamps, so it needs re-measuring across the fleet —
   filed rather than rushed.
@@ -853,7 +926,10 @@ as #19c rather than rushed — the diagnosis is the deliverable.
   `no problem, switches mains` does not). All 25 boards on disk still pass.
   Known hole, pinned by a test rather than left to be rediscovered: a bare cell
   format (`an 18650 charger board`) is in neither pattern table.
-- **#6 · `V3_3` width.** Unchanged.
+- **#6 · `V3_3` width.** **CONFIRMED FROM OUTSIDE.** A hardware reviewer read
+  the same defect off the board image: widened for a stretch, narrow again, so
+  it buys nothing. Our sidecar had the number all along — 156 of 340 segments
+  widened, narrowest point 0.2mm before and after.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
@@ -1638,6 +1714,12 @@ boards) shows no trend; one run proves nothing.
 - **Never report mid-flight state as final.** wb5 "41 errors", wb8 "89 errors",
   wb9 "6 errors" — all three intermediate, all three healed.
 
+- **A declared property is a claim, and a claim needs a source.**
+  `internallyConnectedPins` on the tactile switch was written from somebody's
+  reading of the part, not from its datasheet, and it was wrong by ninety
+  degrees. Every check downstream — including the schematic pass that reported
+  zero — measured against it faithfully and inherited the error. A number
+  nobody sourced is a number nobody checked.
 - **A group that passes on one member cannot see the others.** The schematic
   pass unions internally-connected pins into one node — correct — then
   satisfied that node from whichever member matched first. Four pins wired to
