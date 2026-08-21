@@ -21,11 +21,21 @@ those documents, that is a signal the task is not a board task.
 ## #28 · CI has never been green. Not once. — found 2026-08-21
 
 Checking PR #13's checks turned up something bigger than the PR. **`main` fails
-four of six jobs, and the last 100 runs contain zero successes** — there is no
-commit in this repo's recorded history where CI passed. `viewer` and `skills`
-are green; `pipeline`, `routing contract`, `golden blocks` and `structural
-evals` are red on `main` at `0edb454` and have been every day back through
-2026-08-17. PR #13 fails the same four with the same causes and adds none.
+four of six jobs, and across the repo's entire run history — 320 runs, 150
+failed, 167 cancelled — the CI workflow has passed exactly zero times.** The
+only three `success` rows belong to Dependabot's `Graph Update: pip`, which is
+not CI. `viewer` and `skills` are green; `pipeline`, `routing contract`,
+`golden blocks` and `structural evals` are red on `main` at `0edb454` and have
+been every day back through 2026-08-17. PR #13 fails the same four with the
+same causes and adds none.
+
+**Why nobody noticed, stated exactly, because the first version of this entry
+got it wrong.** CI is `runs-on: ubuntu-22.04` on GitHub's servers for all six
+jobs, with **zero self-hosted runners** — it has never executed on the dev
+MacBook. That Mac has numpy (2.4.6 under `/opt/homebrew/bin/python3.12`, 2.0.2
+under `/usr/bin/python3`) and no pytest in either; the runner has pytest and no
+numpy. **A green local run and a green CI run were never evidence about each
+other, in either direction**, and that is the whole trap.
 
 Two causes, both concrete, neither a mystery:
 
@@ -33,10 +43,12 @@ Two causes, both concrete, neither a mystery:
   there; `reserve.py`, `diffpair.py` and `router/algorithms/metaheuristic.py`
   all import numpy. `pipeline` loses **60 tests** (`ReserveResult(status=
   'refused', reason_code='no_numpy')` — the code degrades correctly, the tests
-  assert the happy path) and `routing contract` cannot even collect. Same
-  breakage locally: a bare venv fails 59, `pip install numpy` takes it to 530
-  passed. **Cheap: one word in the workflow, or the skip discipline the repo
-  already applies to kicad.**
+  assert the happy path) and `routing contract` cannot even collect. **Cheap:
+  one word in the workflow, or the skip discipline the repo already applies to
+  kicad.** (An earlier draft of this entry offered "a bare venv fails 59
+  locally" as corroboration. That venv was a scratch one built during the
+  session with numpy missing — it demonstrates the mechanism and says nothing
+  about this machine, which has numpy. Cut, not softened.)
 - **kicad-cli is never installed either.** `structural evals` tries, and the
   log says `E: Unable to locate package kicad-cli` — the Ubuntu package is
   `kicad`; `kicad-cli` is the binary inside it. `golden blocks` and `pipeline`
