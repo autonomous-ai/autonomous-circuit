@@ -1361,3 +1361,109 @@ class AGateThatCrashedIsNotAGateThatPassed(unittest.TestCase):
 
     def test_a_board_whose_gate_ran_clean_is_still_ready(self) -> None:
         self.assertTrue(fab.fab_ready([], "kicad-cli"))
+
+
+class WarnClearanceWasDeclaredAndNeverRead(unittest.TestCase):
+    """#27, measured on weather-badge-23, 2026-08-21.
+
+    An outside hardware reviewer read this board's shipped packet and said the
+    fab would refuse it for tight routing. The board shipped `fab.ready` and
+    **zero** clearance findings, because the gate runs KiCad at
+    `min_clearance_mm - drc_tolerance_mm` = 0.09mm and everything above that is
+    silence. `warn_clearance_mm = 0.127` sat in the profile and was read by
+    exactly one module in this repo — the router's cost model — and by no
+    check. So the reviewer's sentence had a number behind it and our verdict
+    had no way to say it.
+
+    Re-running DRC on that same unmodified `.kicad_pcb` with only the floor
+    moved to 0.127mm finds **399** gaps, two of them under JLC's own 0.10mm
+    floor. The fixture is that run, trimmed to its clearance violations.
+    """
+
+    MARGIN = FIXTURES / "wb23_drc_margin.json"
+
+    def _kinds(self, warnings: list) -> dict:
+        return {w["kind"]: w for w in warnings}
+
+    def test_the_shipped_board_has_gaps_below_the_fabs_own_floor(self) -> None:
+        found = self._kinds(checks.clearance_margin_warnings(self.MARGIN, PROFILE))
+        under = found["clearance_under_fab_floor"]
+        self.assertEqual(under["severity"], "warning")
+        self.assertIn("0.0908mm", under["detail"])
+        self.assertIn("0.1mm floor", under["detail"])
+
+    def test_the_tight_but_legal_band_is_counted_separately_at_info(self) -> None:
+        found = self._kinds(checks.clearance_margin_warnings(self.MARGIN, PROFILE))
+        tight = found["clearance_no_margin"]
+        self.assertEqual(tight["severity"], "info")
+        self.assertIn("397", tight["detail"])  # 399 total less the 2 under floor
+        self.assertIn("0.127mm", tight["detail"])
+
+    def test_neither_finding_blocks_because_that_call_is_an_ees(self) -> None:
+        """Deliberate. Whether tight routing should stop a board is a decision
+        that went out in the 2026-08-21 review packet; this change makes the
+        question visible, it does not answer it. If an EE says block, the fix
+        is one severity string here — and a number to put behind it."""
+        warnings = checks.clearance_margin_warnings(self.MARGIN, PROFILE)
+        self.assertEqual(len(warnings), 2)
+        self.assertTrue(fab.fab_ready(warnings, "kicad-cli"))
+
+    def test_the_shipping_gate_could_not_have_caught_one_of_them(self) -> None:
+        """Not a near miss to be tightened later — a structural blind spot.
+        Every gap in this fixture clears the gate's 0.09mm floor, so the gate
+        reported nothing and was right to. The narrowest passes by 800nm."""
+        gate_floor = PROFILE.min_clearance_mm - PROFILE.drc_tolerance_mm
+        gaps = [
+            float(re.search(r"actual ([0-9.]+)", v["description"]).group(1))
+            for v in circuitproj.json.loads(self.MARGIN.read_text())["violations"]
+        ]
+        self.assertEqual(len(gaps), 399)
+        self.assertTrue(all(g > gate_floor for g in gaps), min(gaps))
+        self.assertLess(min(gaps), PROFILE.min_clearance_mm)
+
+    def test_a_board_with_room_to_spare_says_nothing_at_all(self) -> None:
+        report = {"violations": [
+            {"type": "clearance", "description": "(clearance 0.127 mm; actual 0.4 mm)"},
+            {"type": "silk_overlap", "description": "not copper"},
+        ]}
+        self.assertEqual(checks.clearance_margin_warnings(report, PROFILE), [])
+
+    def test_it_never_raises_on_junk(self) -> None:
+        for junk in (None, 12, "", "/nope/missing.json", {"violations": None},
+                     {"violations": [None, {"type": "clearance"}, "x"]},
+                     {"violations": [{"type": "clearance", "description": "actual mm"}]}):
+            with self.subTest(junk=junk):
+                out = checks.clearance_margin_warnings(junk, PROFILE)
+                self.assertIsInstance(out, list)
+                self.assertTrue(all(w.get("severity") != "error" for w in out))
+
+
+class TheMarginPassAsksADifferentQuestionOfTheSameBoard(unittest.TestCase):
+    """The override exists so one board can be graded once and measured twice."""
+
+    def test_the_override_moves_the_copper_floor_and_skips_the_tolerance(self) -> None:
+        """The tolerance is 10um of slack for two geometry engines disagreeing.
+        Subtracting it from the margin number would hide the very gaps the
+        margin pass exists to find, so an override is taken as given."""
+        import json as _json
+        rules = _json.loads(fab.kicad_project_json(PROFILE, clearance_mm=0.127))
+        design = rules["board"]["design_settings"]["rules"]
+        self.assertEqual(design["min_clearance"], 0.127)
+        self.assertEqual(rules["net_settings"]["classes"][0]["clearance"], 0.127)
+
+    def test_it_moves_nothing_else_kicad_grades_on(self) -> None:
+        import json as _json
+        plain = _json.loads(fab.kicad_project_json(PROFILE))
+        raised = _json.loads(fab.kicad_project_json(PROFILE, clearance_mm=0.127))
+        moved = {k for k in plain["board"]["design_settings"]["rules"]
+                 if plain["board"]["design_settings"]["rules"][k]
+                 != raised["board"]["design_settings"]["rules"][k]}
+        self.assertEqual(moved, {"min_clearance"})
+
+    def test_without_an_override_it_is_byte_identical_to_before(self) -> None:
+        """Everything downstream — the packet a human opens — must keep seeing
+        the gate's project file, not the margin pass's."""
+        self.assertEqual(
+            fab.kicad_project_json(PROFILE),
+            fab.kicad_project_json(PROFILE, clearance_mm=None),
+        )

@@ -1,0 +1,2000 @@
+{
+ "source": "weather-badge-23, kicad-cli pcb drc at min_clearance 0.127mm, 2026-08-21",
+ "violations": [
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1050 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1069 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1050 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1097 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1205 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1050 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1085 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1097 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1206 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1030 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1164 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1178 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1164 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1164 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1030 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1206 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1159 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1162 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1188 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1187 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1153 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1159 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1182 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1073 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1172 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1185 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1182 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1179 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1160 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1170 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1202 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1167 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1167 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1178 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1184 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1030 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1067 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1111 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1163 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1175 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1166 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1010 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1111 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1068 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1037 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1037 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1188 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1232 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1129 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1108 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1168 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1198 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1213 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1212 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1212 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1212 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1233 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1020 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1232 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1178 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1030 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1165 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1170 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1165 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1257 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1165 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1196 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1152 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1161 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1225 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1154 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1163 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1202 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1183 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1181 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1183 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1032 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1230 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1114 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1012 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1013 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1246 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1013 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1177 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1250 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1250 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1101 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1195 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1008 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1193 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1214 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1080 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1210 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1205 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1013 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1092 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1041 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1216 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1050 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1183 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1179 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1199 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1183 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1001 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1250 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1195 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1256 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1250 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1169 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1158 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1158 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1001 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1000 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1258 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1156 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1156 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1228 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1235 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1235 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1240 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1080 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1147 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1156 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1167 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1102 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1138 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1156 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1056 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1121 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1256 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1093 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1241 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1163 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1197 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1144 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1223 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1144 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1219 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1219 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1184 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1239 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1171 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1057 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1152 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1203 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1168 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1203 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1168 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1153 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1143 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1149 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1182 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1149 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.0965 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1185 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1171 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1153 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1169 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1258 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1258 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1232 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1155 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1258 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1112 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1210 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1117 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1083 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1140 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1083 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1258 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1107 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1184 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1184 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1219 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1232 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1220 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1205 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1222 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1217 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1008 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1009 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1077 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1247 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1106 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1078 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1217 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1025 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1004 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1025 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1083 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1025 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1032 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1100 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1175 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1260 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1194 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1263 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1163 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1240 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1168 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1152 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1228 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1228 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1151 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1192 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1169 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1241 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1178 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1244 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1181 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1121 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.0908 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1150 mm)"
+  },
+  {
+   "type": "clearance",
+   "severity": "error",
+   "description": "Clearance violation (board minimum clearance 0.1270 mm; actual 0.1080 mm)"
+  }
+ ]
+}

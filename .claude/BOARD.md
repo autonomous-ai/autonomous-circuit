@@ -898,9 +898,22 @@ refuse it".
   the block, then re-check every board that places one. **Read the datasheet
   before writing the pairing** — the current one was somebody's reading of the
   part and every check downstream trusted it.
-- **#27 · Decide whether tight routing blocks.** A hardware reviewer reads our
-  `clearance` and `copper_sliver` findings as "the fab will refuse this"; we
-  file most of them below blocking. One of those two readings is wrong.
+- **#27 · Decide whether tight routing blocks.** **HALF DONE — the number now
+  exists; the decision is still the EE's.** A hardware reviewer read our
+  verdict as "the fab will refuse this" and we filed it below blocking. It
+  turns out neither reading was wrong about the board: **the gate never saw
+  the copper at all.** DRC runs at `min_clearance_mm - drc_tolerance_mm` =
+  0.09mm, and on weather-badge-23 it reports **zero** clearance findings.
+  Re-run the same file with the floor moved to `warn_clearance_mm` (0.127mm —
+  declared in the profile since forever, read by the router's cost model and
+  by no check) and the same kicad-cli finds **399**, two of them under JLC's
+  own 0.10mm floor, the narrowest at 0.0908mm — clearing our gate by 800
+  nanometres. Shipped in PR #13: a second 3.6s DRC pass at the margin floor,
+  `clearance_under_fab_floor` (warning) + `clearance_no_margin` (info).
+  **Neither blocks on purpose** — that call went out in the review packet and
+  is still open. When the answer comes back it is one severity string here.
+  Sixth entry in *the machine measures correctly and the reading is wrong*,
+  and the first where the machine was never asked.
 - **#19c · Make the group check require every member.** The repair for #19b.
   Changes what the pass stamps, so it needs re-measuring across the fleet —
   filed rather than rushed.
