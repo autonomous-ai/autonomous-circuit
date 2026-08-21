@@ -17,13 +17,33 @@ the pad-pairing note below).
 | `net.BTN1` (default; `signal` prop overrides) | the switched signal — pull it up |
 | `net.GND` (default; `to` prop overrides) | the other terminal |
 
-Wiring is **diagonal**: `signal` → pin 1, pin 4 → `to`. Pins 1 and 4 are on
-opposite terminals under either side-pairing a 4-pad tact switch can have, so
-the block is correct even if the pairing evidence below is wrong. The internal
-pairing itself is declared on the component (`internallyConnectedPins`), which
-is what makes every schematic export draw a working switch instead of a
-same-net tie looping across the symbol (ledger #29 — the first human EE review
-read that loop as "every key is dead").
+**The pairing is by row, and the footprint numbers by column.** Corrected
+2026-08-21 after an outside hardware review read the fault off a board image —
+*"the two terminals are tied together, so it reads as permanently pressed."*
+Both halves measured:
+
+| | one terminal | the other |
+|---|---|---|
+| the part — LCSC's footprint for C318884, EasyEDA API | `pad1` ── `pad2` (a row, 6.00mm) | `pad3` ── `pad4` |
+| our land pattern `dfn4_p3.6998mm_w7mm_pw0.75mm`, off a built board | `pin1` top-left ── `pin4` top-right | `pin2` ── `pin3` (bottom row) |
+
+The footprint numbers down the left column and up the right, DFN convention, so
+`pin1`/`pin2` are one **column** — one pad from each terminal. Tying them to the
+same net ties signal to ground through the switch body and the button can never
+do anything. Both earlier wirings did exactly that: the four-trace version tied
+`pin1`+`pin2`, and the "diagonal" version tied `pin1`+`pin4`, which are the same
+*row* in this footprint and therefore the same terminal.
+
+Wiring is now both pads of each terminal: `{pin1, pin4}` → `signal`,
+`{pin2, pin3}` → `to`. The internal pairing is declared on the component
+(`internallyConnectedPins`) in the footprint's own numbering, which is what
+makes every schematic export draw a working switch instead of a same-net tie
+looping across the symbol (ledger #29 — the first human EE review read that
+loop as "every key is dead").
+
+**First-article continuity is the check that closes this**, and the only one
+that catches the footprint being renumbered upstream: with the button up,
+`pin1`–`pin4` reads closed and `pin1`–`pin2` reads open.
 
 ## Rail budget
 

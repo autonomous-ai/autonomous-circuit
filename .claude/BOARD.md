@@ -880,8 +880,17 @@ refuse it".
   the comparison satisfies an `internallyConnectedPins` group from **any**
   member, so a pin wired elsewhere inside a satisfied group is invisible. See
   the measurement above.
-- **#26 · The tactile switch's internal pairing is wrong.** **BOARD-KILLING,
-  every board with a button.** `blocks/sw-tact` declares
+- **#26 · The tactile switch's internal pairing is wrong.** **FIXED IN BOTH
+  BLOCKS.** It was in `rp2040-core` too — SW2 and SW3, the BOOTSEL and RESET
+  buttons, which are the two the reviewer was looking at; `sw-tact` only places
+  SW1. Both now pair by row, `{pin1,pin4}` and `{pin2,pin3}`, and wire both
+  pads of each terminal. Rebuilt: `fab.ready` holds, the crystal net drops
+  **29.41mm -> 23.81mm**, and `net_conflict_disagreement` goes **3 -> 1** —
+  two of the three places the drawing appeared to contradict the board were
+  this pairing, which is the other half of #19b. Cost: `hole_to_hole` 0 -> 9
+  and `isolated_copper` 14 -> 16, both at warning. **Every board on disk still
+  carries the old block and needs re-syncing before it means anything.**
+  Original diagnosis: `blocks/sw-tact` declared
   `[["pin1","pin2"],["pin3","pin4"]]` — the left and right columns — while
   `C318884` ties its pads across the long span, top pair and bottom pair. Each
   declared group therefore holds one pad of *each* terminal, so signal and
