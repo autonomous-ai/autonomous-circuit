@@ -18,6 +18,47 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## Checked 2026-08-21 — are the hardware reviewer's three findings on wb-25?
+
+**All three are. One is now measured; two are untouched.** weather-badge-25 is
+the same product as -23 and -24 (75x50mm, 29 parts, identical routing — the
+crystal net comes out at 29.41mm on all three) built a third time, so it is a
+clean re-ask of the review.
+
+| Reviewer's finding | On wb-25 | Why |
+|---|---|---|
+| 1. Button shorted by construction | **Yes — 3 of 3 switches** | fix exists, board predates it |
+| 2. Power widening buys nothing | **Yes — numbers unmoved** | #6, no fix anywhere yet |
+| 3. Routing too tight for the fab | **Yes — and visible for the first time** | #27 ran on this board |
+
+**#26 — measured from the built artifact, not the source.** SW1 `BTN1`+`GND`,
+SW2 `BOOTSEL_SW`+`GND`, SW3 `RUN_SW`+`GND`: **5 shorted terminals across 3
+switches**, every button dead. The cause is timing, not a missed fix — the
+project was created **15:35**, the corrected block landed in the installed
+skill at **16:32**, and `blocks/` is copied in at creation (wb-25's copies
+still carry their 08-19 mtimes). Fifty-seven minutes. A project created now
+gets the right block; **every board on disk still needs the re-sync**, which
+was already a pending task.
+
+**#6 — identical to weather-badge-23, to the segment.** `V3_3: 156 of 340
+widened, narrowest 0.2mm -> 0.2mm (set by pcb_via_50.drill)`; `V5: 21 of 93,
+narrowest 0.25mm -> 0.25mm (set by pcb_smtpad_19)`. The reviewer's sentence and
+our sidecar agree exactly and nothing has changed.
+
+**#27 — wb-25 is the first board that can see it.** `clearance_under_fab_floor:
+2 gaps under 0.1mm, narrowest 0.0908mm` and `clearance_no_margin: 397 gaps,
+median 0.115mm` are in wb-25's sidecar. **wb-23 and wb-24 carry neither line** —
+they were built at 10:58 and 15:44, before the check existed. wb-25 has 87
+warnings against their 85, and the two extra are exactly these. Worth noting:
+the numbers the app produced at 17:18 match, exactly, the hand measurement
+taken at 16:36 off a *different* board file — two independent paths, one
+answer.
+
+Also still present and still parked, unchanged: **#16** (`U2`'s nearest
+decoupling cap to VIN is 9.7mm) and **#12b** (crystal net 29.41mm against a
+10mm ceiling). Both wait on the EE; neither is a regression.
+
+
 ## #28 · CI has never been green. Not once. — found 2026-08-21
 
 Checking PR #13's checks turned up something bigger than the PR. **`main` fails
