@@ -715,6 +715,47 @@ does not route that net at all**, so finishing routerlib is not a shortcut to
 own verification burden, and it would be built on a router that cannot route
 this board.
 
+## Measured 2026-08-21 — #19b answered: our number is the wrong one
+
+Two measurements disagreed on the same file: `normalize_schematic_truth` said
+**0 pins disagree** (188 compared, 84 wrong before, 0 after) and KiCad's
+schematic parity said **3 pads disagree**. Settled by exporting KiCad's own
+netlist from the shipped `.kicad_sch` and reading it against the design.
+
+The shipped schematic, weather-badge-24:
+
+```
+BOOTSEL_SW -> SW2.1                design: SW2.1 AND SW2.2 are BOOTSEL_SW
+GND        -> SW2.2   wrong                SW2.3 AND SW2.4 are GND
+GND        -> SW3.2   wrong
+GND        -> Y1.1    wrong        design: Y1.1 is U3.XIN
+TR_R11_Y1  -> Y1.4    wrong        design: Y1.4 is GND
+SW2.3, SW2.4, SW3.3, SW3.4 — absent from the netlist entirely
+```
+
+**Four pins on the wrong net and four pins missing**, not three — and one of
+them is `Y1.1`, the crystal's XIN, drawn to ground. This is the file a human
+opens out of `kicad-project.zip`.
+
+**Why our pass reports zero.** The design netlist unions
+`internally_connected_source_port_ids` — SW2 `{1,2}` becomes one node, which is
+correct. The comparison then satisfies that node from **any** member: pin 1 is
+on BOOTSEL_SW, so the group matches, and pin 2 sitting on GND never registers.
+Same for Y1 `{4,2}`: pin 2 is on GND, so pin 4 on `TR_R11_Y1` is invisible. A
+group check that passes on one member cannot see the member wired elsewhere —
+precisely the defect shape this module was written for, the 50
+terminal-keyboard keys that read as shorted.
+
+**So neither check is lying, and the useful one is KiCad's.** Ours answers "is
+each electrical node represented somewhere in the drawing", which is a weaker
+question than the one its summary implies. `0 after` is true of the question it
+asks and false of the question it appears to answer.
+
+**Not fixed here.** The repair is in the comparison, not the labels: every pin
+in a group has to be on the group's net, not just one of them. That changes
+what the pass stamps and has to be re-measured across the fleet, so it is filed
+as #19c rather than rushed — the diagnosis is the deliverable.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -771,9 +812,16 @@ this board.
   `normalize_schematic_truth` reports *"0 pins disagree"* after its own pass.
   **Two of our own measurements contradict each other, and that is the next
   thing to look at** — not the naming.
-- **#19b · Reconcile the schematic normaliser with KiCad's parity.** New. One
-  says 0 wrong pins, the other says 3, on the same file. Until that is settled
-  neither number can be quoted.
+- **#19b · Reconcile the schematic normaliser with KiCad's parity.**
+  **ANSWERED — ours is the wrong number.** 4 pins on the wrong net
+  (`SW2.2`, `SW3.2`, `Y1.1`, `Y1.4`) and 4 more missing entirely, one of them
+  the crystal's XIN drawn to ground, while our pass reports `0 after`. Cause:
+  the comparison satisfies an `internallyConnectedPins` group from **any**
+  member, so a pin wired elsewhere inside a satisfied group is invisible. See
+  the measurement above.
+- **#19c · Make the group check require every member.** The repair for #19b.
+  Changes what the pass stamps, so it needs re-measuring across the fleet —
+  filed rather than rushed.
 - **#12 · Route hints for the crystal net.** **LEVER MEASURED, AND SHUT.**
   weather-badge-19 routes a 7.94mm hop as 26.21mm of copper through 2 vias.
   Our own router declines every poured board, and forced it does not route the
@@ -1589,3 +1637,10 @@ boards) shows no trend; one run proves nothing.
   documented and a violating board was passed anyway.
 - **Never report mid-flight state as final.** wb5 "41 errors", wb8 "89 errors",
   wb9 "6 errors" — all three intermediate, all three healed.
+
+- **A group that passes on one member cannot see the others.** The schematic
+  pass unions internally-connected pins into one node — correct — then
+  satisfied that node from whichever member matched first. Four pins wired to
+  the wrong net sat inside satisfied groups and were reported as zero. When a
+  check folds several things into one, ask what it does with the ones it
+  folded.
