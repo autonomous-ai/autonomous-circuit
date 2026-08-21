@@ -18,6 +18,28 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## #26 · VERIFIED on a real build — 5 shorted terminals to 0
+
+The switch fix is not just committed, it is measured. weather-badge-25 was
+copied to a scratch tree, its `blocks/` replaced with the library's, and rebuilt
+end to end (683s, `fab.ready = True`). Switch terminals, read off the built
+`circuit.json` — which pad lands on which net, judged against the real part's
+`pin1+pin4` / `pin2+pin3` internal tie:
+
+```
+                  BEFORE (block from 08-19)          AFTER (library block)
+SW1   A: BTN1 + GND            ✗ shorted     A: BTN1        B: GND     ✓
+SW2   A: BOOTSEL_SW + GND      ✗ shorted     A: BOOTSEL_SW  B: GND     ✓
+      B: BOOTSEL_SW + GND      ✗ shorted
+SW3   A: RUN_SW + GND          ✗ shorted     A: RUN_SW      B: GND     ✓
+      B: RUN_SW + GND          ✗ shorted
+                     5 shorted terminals  ->  0
+```
+
+Every button on the weather-badge line comes back. The original wb-25 was not
+touched — it stays as the comparison sample. **The fix is proven; what is not
+fixed is that no new board can reach it (#29).**
+
 ## #29 · New boards stopped copying the block library on 2026-08-19
 
 Chasing "why is the switch fix not on wb-25" past the obvious answer found the
