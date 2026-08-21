@@ -770,6 +770,39 @@ headroom": **the boards are not routed clean, they are patched clean.**
 Full fleet report, all 26 boards on one ruler:
 <https://claude.ai/code/artifact/5d363804-f5ba-4678-a203-a26fa460c0d6>
 
+## Measured 2026-08-21 — weather-badge-24, the rescue works for the first time
+
+Built through the **app**, not by hand: same source as weather-badge-23 with
+one word changed, `autorouterEffortLevel="5x"` instead of `"10x"`, so the
+escalation would actually fire. Nobody touched the source during the turn.
+
+```
+elapsed             534s (8m54)      two real compiles
+attempts            2
+blockingByAttempt   [17, 1]          the retry routed, and routed well
+effort kept         10x
+fab.ready           TRUE             from a board that scores 17 at 5x
+vias                122, 0 duplicated
+```
+
+| | ready | warning | info |
+|---|---|---|---|
+| weather-badge-23 — declares `10x`, built straight | yes | 23 | 62 |
+| weather-badge-24 — declares `5x`, **escalated** | yes | **23** | **62** |
+
+**Identical.** A board that failed and rescued itself lands exactly where the
+board that never failed lands, which is what the mechanism was built to do and
+what it had never once done.
+
+The misleading note is gone too — a retry that works has nothing to complain
+about.
+
+**And the tell was the clock, in the other direction.** Before the fix this
+board took ~5 minutes and looked entirely normal. That speed *was* the
+symptom: the second compile cost 19 seconds because it never happened. It now
+takes nearly nine minutes, and the extra four minutes are the difference
+between a board that cannot be ordered and one that can.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -873,13 +906,17 @@ Full fleet report, all 26 boards on one ruler:
   Known hole, pinned by a test rather than left to be rediscovered: a bare cell
   format (`an 18650 charger board`) is in neither pattern table.
 - **#6 · `V3_3` width.** Unchanged.
-- **#23 · Escalating to a rung is not the same as building at it.** **NEW,
-  with a deterministic reproducer.** A board declaring 10x routes clean
-  (`blocking=[1]`); a board declaring 5x fails, escalates to 10x, and comes
-  back `blocking=[17,17]` — same board, same rung, opposite outcome. Something
-  from the failed attempt survives into the retry, so the rescue mechanism can
-  leave a board worse than one that never asked for rescue. Six boards declare
-  `5x`. Reproducer runs in 5 minutes and is byte-identical across runs.
+- **#23 · The routing escalation has never routed anything.** **FOUND, FIXED,
+  AND CONFIRMED THROUGH THE APP.** `tscircuit-cli` keeps a cache at
+  `work/.tscircuit/cache`: the first compile writes it and the second reads it
+  straight back — **19 seconds against 255**, the same 2085 elements, the same
+  17 findings. The source rewrite was never the problem; a probe read `10x`
+  back off the mirrored file. So the escalation compared a board against
+  itself, read 17 against 17 as "trying harder did not help", and wrote a note
+  telling the engineer the remaining lever was the placement. `drop_cli_cache()`
+  before the retry closes it — PR
+  [#13](https://github.com/autonomous-ai/autonomous-circuit/pull/13). See the
+  weather-badge-24 measurement below.
 - **#24 · The converter's 5 989 findings.** **NEW.** Four rules —
   `erc_violation`, `silk_overlap`, `lib_footprint_issues` and the two
   `footprint_symbol_*` — fire on **26 of 26 boards** and total 5 989 instances.
@@ -917,6 +954,17 @@ commit); pushing there sends the work nowhere anyone reads.
 
 ## Lessons paid for
 
+- **Unusually fast is a symptom too.** The broken retry ran three times in
+  front of me at 293s, 290s and 297s — for what was supposed to be *two* full
+  builds of a board that takes 275s each. The number was in every run from the
+  start and read as "the build finished quickly", which is not a thing anyone
+  investigates. Five hypotheses died before a twenty-line probe printed how
+  long each compile took. When a stage is suspected, time it before theorising
+  about it.
+- **Two numbers that agree are the most convincing thing a broken check can
+  produce.** `blockingByAttempt = [17, 17]` reads exactly like a measurement:
+  we tried harder, it did not help. It was the same board twice. Agreement
+  between two runs is evidence only once you know the second run happened.
 - **A question filed as a decision may be an experiment nobody ran.** #21 sat
   open for days as "the ladder needs a rung above 10x, or the boards need to
   route clean at a lower one" — a choice for a human. It took fifteen minutes
