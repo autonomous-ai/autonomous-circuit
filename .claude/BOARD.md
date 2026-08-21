@@ -18,6 +18,42 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## #29 · New boards stopped copying the block library on 2026-08-19
+
+Chasing "why is the switch fix not on wb-25" past the obvious answer found the
+real one. Every project owns a frozen snapshot of `blocks/` — **that part is
+deliberate**, and `SKILL.md` says why: *a project that owns its own snapshot
+keeps building the same board after the shared library moves on*. Boards
+created up to 2026-08-19 show it working: each one's `blocks/` is stamped 15-30
+minutes after the project, i.e. freshly copied from the skill at first turn.
+
+**From weather-badge-16 onward it stops.** Hash the `.tsx` of every block in
+each project:
+
+```
+skill library (today)        46c6077be6
+wb-16 18 20 21 22 23 24 25   3d91e85a6a   <- all eight, byte-identical
+```
+
+Eight projects created across two and a half days — 08-19 16:35 through 08-21
+16:00 — carry **the same bytes**, all stamped `08-19 11:15`, which is wb-16's
+creation minute. New boards have been cloning **the previous board's** blocks,
+mtimes and all, not the library's. The intended freeze is per-board; what is
+actually happening is one snapshot inherited eight times.
+
+**This is the real root of #26**, and it retires the explanation filed an hour
+ago. wb-25 did not miss the switch fix by 57 minutes of bad luck — **a project
+created right now would still miss it**, because nothing new reads the library.
+
+**Cost so far: exactly one fix.** `git log --since=2026-08-19 --
+packages/golden-blocks/blocks` returns a single commit, `7d349e5`, the switch
+pairing. The wire has been cut since 08-19 and it took until 08-21 to show,
+because that is the first day the library changed. **Fix the copy before
+landing another block fix, or the next one is invisible the same way** — and
+whatever fixes it should assert the hash, since two days of silence is exactly
+what this failure looks like.
+
+
 ## Checked 2026-08-21 — are the hardware reviewer's three findings on wb-25?
 
 **All three are. One is now measured; two are untouched.** weather-badge-25 is
