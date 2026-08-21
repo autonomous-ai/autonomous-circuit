@@ -789,11 +789,12 @@ Full fleet report, all 26 boards on one ruler:
   both halves.** 12/12 boards in `products/` outline with identical plotted
   copper and no other rule moving; and the self-touching zone that actually
   blocked #15 is separated, measured on wb-16 and wb-17.
-- **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
-  **blocked**: the cap does not fit inside the block's box and the board has no
-  routing margin to absorb it moving out. Needs a decision — grow the box and
-  re-lay the boards, or a smaller package (BOM change, `parts-book`). See the
-  measurement above.
+- **#16 · Move U2's input cap.** **PARKED FOR HARDWARE REVIEW (2026-08-21).**
+  Cause named to the line, fix measured twice, and the choice is a trade
+  between two costs rather than a right answer: grow the block's box and re-lay
+  every board, or take a smaller package and change the BOM. The owner has
+  asked for an EE to look at it before anyone spends either. Do not pick one on
+  our own — measuring it further does not decide it.
 - **#21 · The boards pass with no headroom.** **ANSWERED, AND THE ANSWER IS
   "NOT THE LADDER".** Measured on weather-badge-23 above: 100x costs 35 minutes
   and returns 10x's verdict, 2x matches 10x in a third of the time, and 5x is
@@ -838,7 +839,14 @@ Full fleet report, all 26 boards on one ruler:
   Our own router declines every poured board, and forced it does not route the
   crystal net at all (285 errors, 4 nets open). Three remaining levers are
   named in the measurement above.
-- **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
+- **#12b · Decide the 10mm crystal gate, in writing.** **PARKED FOR HARDWARE
+  REVIEW (2026-08-21).** 94% of boards ship over the ceiling and nothing
+  blocks; the three ways out are "start blocking", "state the real number and
+  why", or "keep ignoring it", and all three need a person who can put their
+  name to it. **Nobody here can supply the number without inventing it**, which
+  is the failure mode this board exists to prevent. The standing risk is not
+  the oscillator — it is that a warning everyone has learned to scroll past
+  trains the same reflex for the next one that matters.
 - **#11 · U4 footprint.** **DONE — the fetch was made and the footprint is
   right.** C97521's own land pattern, 2026-08-20: 8 oval pads, 1.2700mm pitch,
   0.63 x 2.25mm each, rows 7.0602mm apart, 9.3102mm outer span. Our footprint's
