@@ -715,6 +715,94 @@ does not route that net at all**, so finishing routerlib is not a shortcut to
 own verification burden, and it would be built on a router that cannot route
 this board.
 
+## Measured 2026-08-21 — the effort ladder is not a quality dial
+
+#21 has sat here as a decision — *"the ladder needs a rung above 10x, or the
+boards need to route clean at a lower one"*. It was never a decision. It was a
+fifteen-minute experiment nobody had run.
+
+weather-badge-23, one source file, one word changed:
+
+| effort | wall clock | `fab.ready` | errors (rows / instances) | vias | copper mm |
+|---|---|---|---|---|---|
+| **2x** | **1m39** | yes | 0 | 127 | 1327.8 |
+| **5x** | 4m53 | **no** | **17 / 43** | 118 | 1341.2 |
+| **10x** | 4m39 | yes | 0 | 122 | 1443.2 |
+| **100x** | **34m45** | yes | 0 | 133 | 1377.3 |
+
+**1. There is no rung worth adding.** 100x exists, runs, costs **35 minutes**
+and returns the same verdict as 10x — with 8 more warnings and 11 more vias.
+The question "is there a rung between 10x and the hang" is answered: yes, and
+it buys nothing.
+
+**2. More effort is not a better board.** 2x produces a clean, `fab.ready`
+board in **a third of 10x's time**. Effort is not a quality dial; it is a
+different search, and a different search can land worse.
+
+**3. 5x is deterministically broken on this board**, and 5x is
+`ROUTING_ESCALATION_EFFORT` — the rung the pipeline escalates *to*. Not noise:
+run twice, `blocking=[17,17]` both times, **byte-identical copper**
+(`4d041855f7ce`). The findings are real copper defects, not report noise —
+traces in accidental contact, a via 0.063mm from a trace against a 0.1mm floor,
+a via inside U5's pad, 3 crossing tracks. Six boards in the fleet declare `5x`.
+
+### And the thing this experiment was not looking for
+
+```
+declares 10x -> one attempt              -> blocking [1]   clean
+declares 5x  -> fails -> escalates to 10x -> blocking [17]  still broken
+```
+
+**Escalating to 10x is not the same as building at 10x.** Same board, same
+rung, opposite outcome — so something from the failed attempt survives into the
+retry. The mechanism built to rescue a board can leave it worse than a board
+that never asked for rescue. Reproducer: 5 minutes, deterministic, on disk.
+
+### What the fleet says about attempts
+
+Across 26 boards: **every one built in exactly one attempt.** 18 declare `10x`,
+which is the top rung, so the ladder had nowhere to climb and the escalation
+has effectively never run in production. 18 of 26 came out of routing with at
+least one blocking finding and 17 of those still reached `fab.ready` — the
+repair passes cleaned up after the router. That is the real content of "no
+headroom": **the boards are not routed clean, they are patched clean.**
+
+Full fleet report, all 26 boards on one ruler:
+<https://claude.ai/code/artifact/5d363804-f5ba-4678-a203-a26fa460c0d6>
+
+## Measured 2026-08-21 — weather-badge-24, the rescue works for the first time
+
+Built through the **app**, not by hand: same source as weather-badge-23 with
+one word changed, `autorouterEffortLevel="5x"` instead of `"10x"`, so the
+escalation would actually fire. Nobody touched the source during the turn.
+
+```
+elapsed             534s (8m54)      two real compiles
+attempts            2
+blockingByAttempt   [17, 1]          the retry routed, and routed well
+effort kept         10x
+fab.ready           TRUE             from a board that scores 17 at 5x
+vias                122, 0 duplicated
+```
+
+| | ready | warning | info |
+|---|---|---|---|
+| weather-badge-23 — declares `10x`, built straight | yes | 23 | 62 |
+| weather-badge-24 — declares `5x`, **escalated** | yes | **23** | **62** |
+
+**Identical.** A board that failed and rescued itself lands exactly where the
+board that never failed lands, which is what the mechanism was built to do and
+what it had never once done.
+
+The misleading note is gone too — a retry that works has nothing to complain
+about.
+
+**And the tell was the clock, in the other direction.** Before the fix this
+board took ~5 minutes and looked entirely normal. That speed *was* the
+symptom: the second compile cost 19 seconds because it never happened. It now
+takes nearly nine minutes, and the extra four minutes are the difference
+between a board that cannot be ordered and one that can.
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -734,15 +822,20 @@ this board.
   both halves.** 12/12 boards in `products/` outline with identical plotted
   copper and no other rule moving; and the self-touching zone that actually
   blocked #15 is separated, measured on wb-16 and wb-17.
-- **#16 · Move U2's input cap.** Cause named to the line, fix measured twice,
-  **blocked**: the cap does not fit inside the block's box and the board has no
-  routing margin to absorb it moving out. Needs a decision — grow the box and
-  re-lay the boards, or a smaller package (BOM change, `parts-book`). See the
-  measurement above.
-- **#21 · The boards pass with no headroom.** **MEASURED** — 10 of 18 ready
-  boards sit on the last rung having needed the repair pass. Still open as a
-  *decision*: the ladder needs a rung above 10x, or the boards need to route
-  clean at a lower one. Until then #16, #15 and #20 are all gambling.
+- **#16 · Move U2's input cap.** **PARKED FOR HARDWARE REVIEW (2026-08-21).**
+  Cause named to the line, fix measured twice, and the choice is a trade
+  between two costs rather than a right answer: grow the block's box and re-lay
+  every board, or take a smaller package and change the BOM. The owner has
+  asked for an EE to look at it before anyone spends either. Do not pick one on
+  our own — measuring it further does not decide it.
+- **#21 · The boards pass with no headroom.** **ANSWERED, AND THE ANSWER IS
+  "NOT THE LADDER".** Measured on weather-badge-23 above: 100x costs 35 minutes
+  and returns 10x's verdict, 2x matches 10x in a third of the time, and 5x is
+  deterministically broken. Do not add a rung. The premise — that effort buys
+  quality — does not hold. What remains true is the other half: 17 of 18 ready
+  boards were patched clean rather than routed clean, so #16, #15 and #20 are
+  still changes made to boards with no slack. That part needs a different
+  lever, and #23 is the first candidate.
 - **#17 · Derive the USB skew budget from the interface speed.** **DONE.**
   Read off the controller's LCSC number; unknown controllers keep the strict
   High Speed budget. Measured across all 24 boards on disk: 24/24 recognised as
@@ -779,7 +872,14 @@ this board.
   Our own router declines every poured board, and forced it does not route the
   crystal net at all (285 errors, 4 nets open). Three remaining levers are
   named in the measurement above.
-- **#12b · Decide the 10mm crystal gate, in writing.** Unchanged.
+- **#12b · Decide the 10mm crystal gate, in writing.** **PARKED FOR HARDWARE
+  REVIEW (2026-08-21).** 94% of boards ship over the ceiling and nothing
+  blocks; the three ways out are "start blocking", "state the real number and
+  why", or "keep ignoring it", and all three need a person who can put their
+  name to it. **Nobody here can supply the number without inventing it**, which
+  is the failure mode this board exists to prevent. The standing risk is not
+  the oscillator — it is that a warning everyone has learned to scroll past
+  trains the same reflex for the next one that matters.
 - **#11 · U4 footprint.** **DONE — the fetch was made and the footprint is
   right.** C97521's own land pattern, 2026-08-20: 8 oval pads, 1.2700mm pitch,
   0.63 x 2.25mm each, rows 7.0602mm apart, 9.3102mm outer span. Our footprint's
@@ -806,6 +906,33 @@ this board.
   Known hole, pinned by a test rather than left to be rediscovered: a bare cell
   format (`an 18650 charger board`) is in neither pattern table.
 - **#6 · `V3_3` width.** Unchanged.
+- **#23 · The routing escalation has never routed anything.** **FOUND, FIXED,
+  AND CONFIRMED THROUGH THE APP.** `tscircuit-cli` keeps a cache at
+  `work/.tscircuit/cache`: the first compile writes it and the second reads it
+  straight back — **19 seconds against 255**, the same 2085 elements, the same
+  17 findings. The source rewrite was never the problem; a probe read `10x`
+  back off the mirrored file. So the escalation compared a board against
+  itself, read 17 against 17 as "trying harder did not help", and wrote a note
+  telling the engineer the remaining lever was the placement. `drop_cli_cache()`
+  before the retry closes it — PR
+  [#13](https://github.com/autonomous-ai/autonomous-circuit/pull/13). See the
+  weather-badge-24 measurement below.
+- **#24 · The converter's 5 989 findings.** **NEW.** Four rules —
+  `erc_violation`, `silk_overlap`, `lib_footprint_issues` and the two
+  `footprint_symbol_*` — fire on **26 of 26 boards** and total 5 989 instances.
+  Not one of them describes a board; they describe the KiCad files the
+  converter writes and the symbol library it writes them against. It is the
+  largest remaining block of noise and nobody has attacked it. The pour work
+  already proved the shape: one converter defect fixed once moved every board
+  at once.
+- **#25 · The BOM lock cannot see board-level parts.** **NEW**, found by the
+  build agent auditing its own board. `parts-book` derives its record set from
+  `blocks/` only, so parts a glue component introduces at board level are
+  invisible to it; `--add` takes one part per run and does not persist (two
+  runs in sequence both returned 21 records, the second having evicted the
+  first). Three shipped lines carry an LCSC number on the CSV the fab reads but
+  no locked record, no stock or price verification, and no row in the parts
+  panel.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
@@ -827,6 +954,27 @@ commit); pushing there sends the work nowhere anyone reads.
 
 ## Lessons paid for
 
+- **Unusually fast is a symptom too.** The broken retry ran three times in
+  front of me at 293s, 290s and 297s — for what was supposed to be *two* full
+  builds of a board that takes 275s each. The number was in every run from the
+  start and read as "the build finished quickly", which is not a thing anyone
+  investigates. Five hypotheses died before a twenty-line probe printed how
+  long each compile took. When a stage is suspected, time it before theorising
+  about it.
+- **Two numbers that agree are the most convincing thing a broken check can
+  produce.** `blockingByAttempt = [17, 17]` reads exactly like a measurement:
+  we tried harder, it did not help. It was the same board twice. Agreement
+  between two runs is evidence only once you know the second run happened.
+- **A question filed as a decision may be an experiment nobody ran.** #21 sat
+  open for days as "the ladder needs a rung above 10x, or the boards need to
+  route clean at a lower one" — a choice for a human. It took fifteen minutes
+  of routing to find that neither half was true. Before escalating something to
+  a judgement call, check whether it is a measurement instead: a decision costs
+  a person's attention, a measurement costs a build.
+- **A dial with a number on it is not a dial that goes one way.** Effort
+  reads like quality — 2x, 5x, 10x, 100x — and it is not. 2x matched 10x, 100x
+  bought nothing for 35 minutes, and 5x produced copper with shorts in it. A
+  monotone name is not evidence of a monotone effect.
 - **A tool's own report has a ceiling, and a ceiling looks like a measurement.**
   Every board read `isolated_copper = 199` before outlining — twelve boards,
   polygon counts from 313 to 2325, the same number every time. That is
