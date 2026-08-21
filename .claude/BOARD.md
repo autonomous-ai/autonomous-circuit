@@ -18,6 +18,42 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## #28 · CI has never been green. Not once. — found 2026-08-21
+
+Checking PR #13's checks turned up something bigger than the PR. **`main` fails
+four of six jobs, and the last 100 runs contain zero successes** — there is no
+commit in this repo's recorded history where CI passed. `viewer` and `skills`
+are green; `pipeline`, `routing contract`, `golden blocks` and `structural
+evals` are red on `main` at `0edb454` and have been every day back through
+2026-08-17. PR #13 fails the same four with the same causes and adds none.
+
+Two causes, both concrete, neither a mystery:
+
+- **numpy is never installed.** Every job runs `pip install pytest` and stops
+  there; `reserve.py`, `diffpair.py` and `router/algorithms/metaheuristic.py`
+  all import numpy. `pipeline` loses **60 tests** (`ReserveResult(status=
+  'refused', reason_code='no_numpy')` — the code degrades correctly, the tests
+  assert the happy path) and `routing contract` cannot even collect. Same
+  breakage locally: a bare venv fails 59, `pip install numpy` takes it to 530
+  passed. **Cheap: one word in the workflow, or the skip discipline the repo
+  already applies to kicad.**
+- **kicad-cli is never installed either.** `structural evals` tries, and the
+  log says `E: Unable to locate package kicad-cli` — the Ubuntu package is
+  `kicad`; `kicad-cli` is the binary inside it. `golden blocks` and `pipeline`
+  do not try at all. So gerbers fall back to the tscircuit exporter and the
+  gate reports what that exporter actually produces: **missing pad flashes on
+  J1/U4/U5, missing drill hits, 0.050mm silkscreen against a 0.15mm floor.**
+  Those findings are true — the fallback packet is unshippable, which is what
+  `unverified_gerbers` has been saying all along. The question is whether CI
+  should install kicad and grade the real path, or stop grading gerbers when
+  the source is not kicad-cli. **That is a real call, not a config typo.**
+
+**Why this is the same disease.** Every green local run has been read as "the
+change is safe" while the shared gate was red the entire time — the seventh
+entry in *the machine measures correctly and the reading is wrong*, and the
+most expensive, because it is the ruler every other reading was checked against.
+
+
 ## Measured 2026-08-19 — will a fabbed, flashed board actually run?
 
 One command now answers this: `scripts/board-table.py` (`--rules --netconflict
