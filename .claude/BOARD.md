@@ -795,7 +795,17 @@ this board.
   poured board outright (`router_bridge.py:180`) — which is every board we
   build — and with the gate opened it connects 29/33 nets on
   weather-badge-19. Two named gaps: re-pour after routing, and 4 nets.
-- **#6 · `V3_3` width.** **#8 · wire `safety_gate()`.** Unchanged.
+- **#8 · Wire the safety gate to the ask.** **DONE.** `preflight_safety()`
+  scanned the board's source graph and nothing read `product.json`'s
+  description — the natural-language request the whole project was built from.
+  A dangerous intent that compiles to innocent-looking source walked straight
+  through. It is screened first now, with the same patterns, so the envelope
+  cannot say two different things depending on which half caught you. Prose
+  needs a negation rule that source does not (`no mains anywhere` passes,
+  `no problem, switches mains` does not). All 25 boards on disk still pass.
+  Known hole, pinned by a test rather than left to be rediscovered: a bare cell
+  format (`an 18650 charger board`) is in neither pattern table.
+- **#6 · `V3_3` width.** Unchanged.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.

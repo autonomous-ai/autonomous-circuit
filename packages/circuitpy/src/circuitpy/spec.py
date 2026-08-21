@@ -55,11 +55,24 @@ _RAW_RF_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 
 # Raw battery charge/protect ICs — allowed ONLY inside blocks/ (the sealed
 # validated block carries them; hand-rolled charging circuits are refused).
+#: The last three entries came from `circuitlib.safety.CHARGER_PATTERNS`, which
+#: screens prose and had them while this table — written for source, where a
+#: part is named by its part number — did not. Two tables meant to describe one
+#: envelope had drifted apart, and the drift only mattered once this table
+#: started reading descriptions too.
+#:
+#: **A known hole, recorded rather than papered over:** "an 18650 charger
+#: board" is in neither table and passes. Adding a bare cell format would also
+#: refuse "a gauge for an 18650 pack, using the sealed block", which is exactly
+#: what the envelope permits, so it is not added on a guess.
 _RAW_BATTERY_IC_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bTP4056\b", re.I), "raw charger IC TP4056"),
     (re.compile(r"\bTP5100\b", re.I), "raw charger IC TP5100"),
     (re.compile(r"\bBQ2[45]\d{2}\b", re.I), "raw charger IC (BQ24xx/BQ25xx)"),
     (re.compile(r"\bMCP7383\d\b", re.I), "raw charger IC (MCP7383x)"),
+    (re.compile(r"\bDW01\b", re.I), "raw protection IC DW01"),
+    (re.compile(r"\bFS8205\b", re.I), "raw protection FET FS8205"),
+    (re.compile(r"\bli-?(?:po|ion)\s+charg", re.I), "lithium charging"),
 )
 
 # A quoted voltage prop ("48V") or voltage={48} above the DC ceiling.
@@ -185,12 +198,67 @@ def load_parts(project_root: Path) -> dict[str, dict]:
     return parts
 
 
+#: A negator sitting immediately before a match exonerates it. This applies to
+#: the description scan and **not** to the file scan, because the two are
+#: different languages: prose says "USB only, no mains anywhere" all the time
+#: and TSX almost never does.
+#:
+#: Deliberately narrow — adjacency only. The asymmetry decides it: a false
+#: refusal is an annoyance, a false pass is a fire. "no mains" is exonerated
+#: and "switches mains, no problem" is not, even though that leaves "never
+#: touches mains" refused. Allowing intervening words would also exonerate
+#: "no problem, switches mains", which is the sentence this exists to catch.
+_NEGATOR_RE = re.compile(
+    r"\b(?:no|not|never|without|avoid|avoids|excludes?|free\s+of|zero)"
+    r"\b[\s,\-]*$",
+    re.I,
+)
+
+
+def _negated(text: str, start: int) -> bool:
+    return _NEGATOR_RE.search(text[max(0, start - 24):start]) is not None
+
+
+def screen_description(product: ResolvedProduct) -> None:
+    """Screen the **ask**, not only the source it turned into.
+
+    `preflight_safety` scans the board's source graph, and that is the half
+    that was wired in. The other half was not: `product.json`'s description is
+    the natural-language request the whole project was built from, and nothing
+    read it. A dangerous intent that compiles to innocent-looking source walked
+    straight through — "a smart switch for a 230V lamp" is a spec violation
+    before a single line of TSX exists, and it is the sentence a person
+    actually writes.
+
+    Same patterns as the file scan, so the envelope cannot say two different
+    things depending on which half caught you, and a refusal reads the same way
+    either way.
+    """
+    text = (product.description or "").strip()
+    if not text:
+        return
+    for patterns, reason in (
+        (_MAINS_PATTERNS, "no mains, ever (\u226424V DC only)"),
+        (_RAW_RF_PATTERNS,
+         "radio only as certified modules, never bare-die RF"),
+        (_RAW_BATTERY_IC_PATTERNS,
+         "battery power only via the sealed validated charge/protect block"),
+    ):
+        for pattern, label in patterns:
+            for match in pattern.finditer(text):
+                if _negated(text, match.start()):
+                    continue
+                _refuse("product.json", text, match, f"{label} — {reason}")
+
+
 def preflight_safety(
     source_files: Iterable[Path], project_root: Path, product: ResolvedProduct
 ) -> None:
     """Scan the board's source graph; raise SpecValidationError on the first
     envelope violation. ``source_files`` is the fingerprint's file set —
-    entry + local imports + blocks."""
+    entry + local imports + blocks. The product's own description is screened
+    first, because the ask can break the envelope before any source does."""
+    screen_description(product)
     root = project_root.resolve()
     for file_path in source_files:
         path = Path(file_path)

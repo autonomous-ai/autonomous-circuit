@@ -100,8 +100,71 @@ class SafetyEnvelope(unittest.TestCase):
             product = spec.load_product(root)
             spec.preflight_safety([path], root, product)
 
+    def _scan_ask(self, description: str) -> None:
+        """The other half: screen the natural-language request itself."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = circuitproj.product_dict()
+            product["description"] = description
+            (root / "product.json").write_text(json.dumps(product), encoding="utf-8")
+            path = root / "boards" / "main.tsx"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(circuitproj.GOOD_TSX, encoding="utf-8")
+            spec.preflight_safety([path], root, spec.load_product(root))
+
     def test_clean_board_passes(self) -> None:
         self._scan(circuitproj.GOOD_TSX)
+
+    # --- the ask, not only the source it turned into ----------------------
+    #
+    # preflight_safety scanned the board's source graph and nothing read
+    # product.json's description — the natural-language request the whole
+    # project was built from. A dangerous intent that compiles to
+    # innocent-looking source walked straight through.
+
+    def test_an_innocent_ask_passes(self) -> None:
+        self._scan_ask("A USB-C desk weather card with three status LEDs")
+
+    def test_a_mains_ask_is_refused_before_any_source_is_read(self) -> None:
+        with self.assertRaises(SpecValidationError) as ctx:
+            self._scan_ask("A smart switch for a 230V AC lamp")
+        self.assertIn("safety_envelope", str(ctx.exception))
+        self.assertIn("product.json", str(ctx.exception))
+
+    def test_the_source_that_ask_compiles_to_is_beside_the_point(self) -> None:
+        """The whole hole. The TSX here is the known-good board."""
+        with self.assertRaises(SpecValidationError):
+            self._scan_ask("A relay controller wired to line voltage")
+
+    def test_a_negated_mention_is_not_a_violation(self) -> None:
+        """Prose says this constantly and source almost never does."""
+        self._scan_ask("A desk weather card, USB-C powered, no mains anywhere")
+
+    def test_but_a_negator_that_is_not_adjacent_does_not_exonerate(self) -> None:
+        """"no problem, switches mains" is the sentence this exists to catch."""
+        with self.assertRaises(SpecValidationError):
+            self._scan_ask("A relay board, no problem, switches mains")
+
+    def test_a_bare_die_rf_ask_is_refused(self) -> None:
+        with self.assertRaises(SpecValidationError):
+            self._scan_ask("A badge with a bare-die RF section")
+
+    def test_a_lithium_charging_ask_is_refused(self) -> None:
+        """From `circuitlib.safety.CHARGER_PATTERNS`, which screens prose and
+        carried three patterns this table had not."""
+        with self.assertRaises(SpecValidationError):
+            self._scan_ask("A lipo charger for a wearable")
+        with self.assertRaises(SpecValidationError):
+            self._scan_ask("A pack board using DW01 protection")
+
+    def test_a_cell_format_on_its_own_is_a_known_hole(self) -> None:
+        """Pinned as a limit rather than left to be rediscovered. Refusing a
+        bare cell format would also refuse "a gauge for an 18650 pack, using
+        the sealed block", which the envelope permits."""
+        self._scan_ask("An 18650 charger board")
+
+    def test_an_empty_description_screens_nothing_and_raises_nothing(self) -> None:
+        self._scan_ask("")
 
     def test_low_voltages_pass(self) -> None:
         self._scan('const rail = "3.3V"; const usb = "5V"; const dc = "12V";\n')
