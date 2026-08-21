@@ -721,6 +721,10 @@ def next_effort(declared: str | None) -> str | None:
 CLI_CACHE_DIR = Path(".tscircuit") / "cache"
 
 
+class _MarginPassSkipped(Exception):
+    """Internal: the clearance margin pass has nothing to add this build."""
+
+
 def drop_cli_cache(work: Path) -> bool:
     """Delete the CLI's cache so the next compile is a compile.
 
@@ -1630,7 +1634,9 @@ def build_board(
                         drc_json, kind="drc_violation", kicad_pcb=kicad_pcb
                     )
                 )
+                gate_ran = True
             except (RuntimeError, TimeoutError) as exc:
+                gate_ran = False
                 warnings.append(checks.gate_did_not_run("kicad DRC", str(exc)))
             # Second pass, floor raised to the profile's design margin. The
             # gate runs at the fab floor less an engine tolerance, so copper
@@ -1638,7 +1644,12 @@ def build_board(
             # under the floor — is invisible to it. 3.6s measured; the build
             # around it is four minutes. See `clearance_margin_warnings`.
             margin_json = built_dir / "drc-margin.json"
+            # Only when the gate itself ran. A DRC that segfaults (wb-16,
+            # 2026-08-19) would segfault twice, and the second report would
+            # read as a separate fault rather than the same one.
             try:
+                if not gate_ran:
+                    raise _MarginPassSkipped
                 fab_mod.write_kicad_project(
                     kicad_pcb, profile, clearance_mm=profile.warn_clearance_mm
                 )
@@ -1664,21 +1675,30 @@ def build_board(
                 warnings.extend(
                     checks.clearance_margin_warnings(margin_json, profile)
                 )
+            except _MarginPassSkipped:
+                pass  # the gate already said it did not run; once is enough
             except (RuntimeError, TimeoutError, OSError) as exc:
-                # Advisory by construction: the hard gate already ran and its
-                # verdict stands. A margin pass that dies costs visibility,
-                # never a verdict.
+                # Advisory by construction: the hard gate ran and its verdict
+                # stands. A margin pass that dies costs visibility, never a
+                # verdict — so `check_failed`, which does not block.
                 warnings.append(
                     checks.check_failed(f"clearance margin pass did not run: {exc}")
                 )
             finally:
                 # Put the fab's real rules back: everything downstream — the
                 # packet a human opens included — must see the gate's project
-                # file, not the margin pass's.
+                # file, not the margin pass's. Failing to is not something to
+                # swallow: it would leave a human reading a 0.127mm rules file
+                # believing it is the fab's, with nothing saying otherwise.
                 try:
                     fab_mod.write_kicad_project(kicad_pcb, profile)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    warnings.append(checks.check_failed(
+                        f"the margin pass could not restore the fab's own DRC "
+                        f"rules ({exc}); the .kicad_pro beside this board "
+                        f"states {profile.warn_clearance_mm:g}mm clearance, "
+                        f"which is our design margin and not the fab's floor"
+                    ))
             # Shipping gerbers come from the converted board (the verified path).
             gerber_dir = built_dir / "kicad-gerbers"
             try:

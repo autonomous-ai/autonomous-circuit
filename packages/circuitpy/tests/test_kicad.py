@@ -55,6 +55,103 @@ class KicadSecondSubstrate(unittest.TestCase):
         self.assertNotIn("unverified_gerbers", kinds)
         self.assertNotIn("kicad_unavailable", kinds)
 
+    # -- #27: the clearance margin pass -------------------------------------
+    # `clearance_margin_warnings` is unit-tested against a real DRC fixture in
+    # test_checks.py. What those tests cannot reach is the wiring: that a
+    # second kicad-cli run actually happens on a real build, parses, and puts
+    # the fab's own rules back. This class is the only place a real one runs.
+
+    def _warnings(self) -> list:
+        return (self.sidecar.get("validation") or {}).get("warnings") or []
+
+    def test_the_margin_pass_ran_without_dying(self) -> None:
+        """A pass that crashes is advisory-only by design, which is exactly the
+        shape that goes unnoticed. If it fires here, the wiring is broken and
+        every board silently loses the measurement."""
+        excuses = [
+            w["detail"] for w in self._warnings()
+            if w["kind"] == "check_failed" and "margin pass" in w["detail"]
+        ]
+        self.assertEqual(excuses, [])
+
+    def test_a_clean_skeleton_has_room_to_spare_and_the_pass_says_nothing(self) -> None:
+        """The good board is 2 parts on a big envelope. Silence here is the
+        pass working — anything else means it is reading the wrong number."""
+        kinds = {w["kind"] for w in self._warnings()}
+        self.assertNotIn("clearance_under_fab_floor", kinds)
+        self.assertNotIn("clearance_no_margin", kinds)
+
+
+@unittest.skipUnless(KICAD, "kicad-cli not installed")
+class TheMarginPassLeavesTheGatesRulesBehind(unittest.TestCase):
+    """#27. The work directory is deleted when a build finishes — that is the
+    "workspace stays clean of build litter" contract — so the only way to see
+    what the margin pass did to the `.kicad_pro` is to watch it happen.
+
+    Two invariants, both invisible from the artifacts: the margin pass writes
+    its report to its own file (overwriting `drc.json` would hand the gate's
+    parser 399 findings taken at the wrong floor and block every board), and
+    the last thing written to the project file is the fab's own rules, not our
+    0.127mm design margin. A human opening the packet reads that file.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from circuitpy import fab as fab_mod
+
+        cls.drc_calls: list = []
+        cls.pro_writes: list = []
+        real_run, real_write = toolchain.run_kicad, fab_mod.write_kicad_project
+
+        def spy_run(args, **kwargs):
+            if list(args)[:2] == ["pcb", "drc"]:
+                cls.drc_calls.append(list(args))
+            return real_run(args, **kwargs)
+
+        def spy_write(board_path, profile, **kwargs):
+            cls.pro_writes.append(kwargs.get("clearance_mm"))
+            return real_write(board_path, profile, **kwargs)
+
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name) / "proj"
+        circuitproj.write_project(root, tsx=circuitproj.GOOD_TSX)
+        toolchain.run_kicad = spy_run
+        fab_mod.write_kicad_project = spy_write
+        generation.fab_mod.write_kicad_project = spy_write
+        try:
+            generation.build_board(
+                root / "boards" / "main.tsx", root / "boards" / "main.circuit.json"
+            )
+        finally:
+            toolchain.run_kicad = real_run
+            fab_mod.write_kicad_project = real_write
+            generation.fab_mod.write_kicad_project = real_write
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def test_the_board_is_measured_twice_at_two_different_floors(self) -> None:
+        self.assertEqual(len(self.drc_calls), 2, self.drc_calls)
+        self.assertEqual(self.pro_writes[:2], [None, 0.127])
+
+    def test_the_margin_report_never_overwrites_the_gates(self) -> None:
+        outs = [c[c.index("-o") + 1] for c in self.drc_calls]
+        self.assertEqual(len(set(outs)), 2, outs)
+        self.assertTrue(outs[0].endswith("drc.json"), outs)
+        self.assertTrue(outs[1].endswith("drc-margin.json"), outs)
+
+    def test_the_last_word_on_the_project_file_is_the_fabs(self) -> None:
+        """Not "a restore happened" — the *final* write, because anything
+        written after our margin rules is what the packet ends up carrying."""
+        self.assertIsNone(self.pro_writes[-1], self.pro_writes)
+
+    def test_the_margin_pass_carries_the_gates_flags(self) -> None:
+        """--all-track-errors or kicad stops at the first fault per track: on
+        weather-badge-23 that is 300 clearance findings instead of 399."""
+        self.assertIn("--all-track-errors", self.drc_calls[1])
+        self.assertIn("--severity-all", self.drc_calls[1])
+
 
 if __name__ == "__main__":
     unittest.main()

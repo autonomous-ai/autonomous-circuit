@@ -913,7 +913,10 @@ refuse it".
   **Neither blocks on purpose** — that call went out in the review packet and
   is still open. When the answer comes back it is one severity string here.
   Sixth entry in *the machine measures correctly and the reading is wrong*,
-  and the first where the machine was never asked.
+  and the first where the machine was never asked. Checked against the review
+  loop before shipping: phase 1 gates on `severity === "error"` and phase 2 on
+  a closed kind allowlist, so a `warning` here informs and does not recruit
+  review rounds nobody can close by editing TSX.
 - **#19c · Make the group check require every member.** The repair for #19b.
   Changes what the pass stamps, so it needs re-measuring across the fleet —
   filed rather than rushed.
