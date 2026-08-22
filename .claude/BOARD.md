@@ -18,6 +18,207 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## #26 · VERIFIED on a real build — 5 shorted terminals to 0
+
+The switch fix is not just committed, it is measured. weather-badge-25 was
+copied to a scratch tree, its `blocks/` replaced with the library's, and rebuilt
+end to end (683s, `fab.ready = True`). Switch terminals, read off the built
+`circuit.json` — which pad lands on which net, judged against the real part's
+`pin1+pin4` / `pin2+pin3` internal tie:
+
+```
+                  BEFORE (block from 08-19)          AFTER (library block)
+SW1   A: BTN1 + GND            ✗ shorted     A: BTN1        B: GND     ✓
+SW2   A: BOOTSEL_SW + GND      ✗ shorted     A: BOOTSEL_SW  B: GND     ✓
+      B: BOOTSEL_SW + GND      ✗ shorted
+SW3   A: RUN_SW + GND          ✗ shorted     A: RUN_SW      B: GND     ✓
+      B: RUN_SW + GND          ✗ shorted
+                     5 shorted terminals  ->  0
+```
+
+Every button on the weather-badge line comes back. The original wb-25 was not
+touched — it stays as the comparison sample. **The fix is proven; what is not
+fixed is that no new board can reach it (#29).**
+
+## #29 · New boards stopped copying the block library on 2026-08-19
+
+Chasing "why is the switch fix not on wb-25" past the obvious answer found the
+real one. Every project owns a frozen snapshot of `blocks/` — **that part is
+deliberate**, and `SKILL.md` says why: *a project that owns its own snapshot
+keeps building the same board after the shared library moves on*. Boards
+created up to 2026-08-19 show it working: each one's `blocks/` is stamped 15-30
+minutes after the project, i.e. freshly copied from the skill at first turn.
+
+**From weather-badge-16 onward it stops.** Hash the `.tsx` of every block in
+each project:
+
+```
+skill library (today)        46c6077be6
+wb-16 18 20 21 22 23 24 25   3d91e85a6a   <- all eight, byte-identical
+```
+
+Eight projects created across two and a half days — 08-19 16:35 through 08-21
+16:00 — carry **the same bytes**, all stamped `08-19 11:15`, which is wb-16's
+creation minute. New boards have been cloning **the previous board's** blocks,
+mtimes and all, not the library's. The intended freeze is per-board; what is
+actually happening is one snapshot inherited eight times.
+
+**This is the real root of #26**, and it retires the explanation filed an hour
+ago. wb-25 did not miss the switch fix by 57 minutes of bad luck — **a project
+created right now would still miss it**, because nothing new reads the library.
+
+**Cost so far: exactly one fix.** `git log --since=2026-08-19 --
+packages/golden-blocks/blocks` returns a single commit, `7d349e5`, the switch
+pairing. The wire has been cut since 08-19 and it took until 08-21 to show,
+because that is the first day the library changed.
+
+### FIXED — `circuitpy/blocklib.py`, shipped in PR #13
+
+The owner's call, in their words: *"source of truth phải là thư viện, không
+phải cái board trước"*. So the copy no longer belongs to whoever is driving:
+
+- **`seed_blocks`** — a project with no `blocks/` is filled from the library by
+  the build itself, before anything reads the source. The agent no longer runs
+  `cp -R`; `SKILL.md` now says so and says never to copy from another project.
+  A project that already has blocks is **left alone** — that copy is the
+  board's history and a build does not rewrite history behind anyone. Re-sync
+  stays a deliberate, separate act.
+- **`drift_warnings`** — the backstop, and it tells the two cases apart, which
+  is the whole point:
+  - a board that **has built before** and drifted is the freeze working →
+    `block_library_drift`, **info**;
+  - a board on its **first build** that already disagrees cannot have drifted,
+    so its copy came from the wrong place → `block_library_not_seeded`,
+    **warning**. That is exactly wb-18…wb-25's shape.
+- **`library_root`** — found by walking parents and looking, never by counting
+  them. `fab.catalog_root` carries the scar: the counted version was right in
+  the repo and wrong once vendored a level deeper, and every BOM shipped a
+  blank Footprint column in silence. Tested from both layouts, and it refuses
+  to resolve to a board's own `blocks/` — grading a project against itself
+  would report every board in sync forever.
+
+**A test caught a silent pass before it ever ran on a board:** pointed at a
+library path that does not exist, the first version compared against nothing,
+found nothing different, and returned clean. Now that is
+`block_library_unavailable` — *"this is not a clean result, it is no result"*.
+
+**Proved end to end, and the proof found one more bug.** A real project was
+stripped of its `blocks/` entirely and handed to `build_board`: the library
+came in, the board compiled from it, and it shipped `fab.ready = True` with
+kicad-cli gerbers. Its blocks hash `46c6077be6` — the library — while wb-25
+still reads `3d91e85a6a`, untouched.
+
+But the sidecar said **nothing** about where those blocks came from. The
+findings were assembled at the top of the build, and the escalation retry does
+`warnings = retry_warnings` — so the first board needing a second routing
+attempt dropped them and shipped a verdict with no trace. *A finding that
+exists and does not arrive* is this repo's most-repeated failure, and it was
+one line from shipping again. They now fold in after every path that can
+replace the list, and a test on a real build fails if that regresses.
+
+17 tests, 547 in circuitpy, 133 in skills.
+
+### The eight old boards stay exactly as they are
+
+Owner's call, 2026-08-21: *"cũ là để đối chiếu, fix là board mới đi lên hết."*
+weather-badge-16 through -25 keep their 08-19 snapshot, **shorted switch and
+all**. That is not debt — it is the baseline: eight boards differing only in
+how the board was composed, with the library held constant. Rebuilding them
+destroys the one clean experiment in the corpus. `seed_blocks` fills only a
+project with **no** `blocks/`, and their `block_library_drift` info is a label,
+not a defect to close. Recorded in memory so a later session does not
+helpfully "fix" them.
+
+
+## Checked 2026-08-21 — are the hardware reviewer's three findings on wb-25?
+
+**All three are. One is now measured; two are untouched.** weather-badge-25 is
+the same product as -23 and -24 (75x50mm, 29 parts, identical routing — the
+crystal net comes out at 29.41mm on all three) built a third time, so it is a
+clean re-ask of the review.
+
+| Reviewer's finding | On wb-25 | Why |
+|---|---|---|
+| 1. Button shorted by construction | **Yes — 3 of 3 switches** | fix exists, board predates it |
+| 2. Power widening buys nothing | **Yes — numbers unmoved** | #6, no fix anywhere yet |
+| 3. Routing too tight for the fab | **Yes — and visible for the first time** | #27 ran on this board |
+
+**#26 — measured from the built artifact, not the source.** SW1 `BTN1`+`GND`,
+SW2 `BOOTSEL_SW`+`GND`, SW3 `RUN_SW`+`GND`: **5 shorted terminals across 3
+switches**, every button dead. The cause is timing, not a missed fix — the
+project was created **15:35**, the corrected block landed in the installed
+skill at **16:32**, and `blocks/` is copied in at creation (wb-25's copies
+still carry their 08-19 mtimes). Fifty-seven minutes. A project created now
+gets the right block; **every board on disk still needs the re-sync**, which
+was already a pending task.
+
+**#6 — identical to weather-badge-23, to the segment.** `V3_3: 156 of 340
+widened, narrowest 0.2mm -> 0.2mm (set by pcb_via_50.drill)`; `V5: 21 of 93,
+narrowest 0.25mm -> 0.25mm (set by pcb_smtpad_19)`. The reviewer's sentence and
+our sidecar agree exactly and nothing has changed.
+
+**#27 — wb-25 is the first board that can see it.** `clearance_under_fab_floor:
+2 gaps under 0.1mm, narrowest 0.0908mm` and `clearance_no_margin: 397 gaps,
+median 0.115mm` are in wb-25's sidecar. **wb-23 and wb-24 carry neither line** —
+they were built at 10:58 and 15:44, before the check existed. wb-25 has 87
+warnings against their 85, and the two extra are exactly these. Worth noting:
+the numbers the app produced at 17:18 match, exactly, the hand measurement
+taken at 16:36 off a *different* board file — two independent paths, one
+answer.
+
+Also still present and still parked, unchanged: **#16** (`U2`'s nearest
+decoupling cap to VIN is 9.7mm) and **#12b** (crystal net 29.41mm against a
+10mm ceiling). Both wait on the EE; neither is a regression.
+
+
+## #28 · CI has never been green. Not once. — found 2026-08-21
+
+Checking PR #13's checks turned up something bigger than the PR. **`main` fails
+four of six jobs, and across the repo's entire run history — 320 runs, 150
+failed, 167 cancelled — the CI workflow has passed exactly zero times.** The
+only three `success` rows belong to Dependabot's `Graph Update: pip`, which is
+not CI. `viewer` and `skills` are green; `pipeline`, `routing contract`,
+`golden blocks` and `structural evals` are red on `main` at `0edb454` and have
+been every day back through 2026-08-17. PR #13 fails the same four with the
+same causes and adds none.
+
+**Why nobody noticed, stated exactly, because the first version of this entry
+got it wrong.** CI is `runs-on: ubuntu-22.04` on GitHub's servers for all six
+jobs, with **zero self-hosted runners** — it has never executed on the dev
+MacBook. That Mac has numpy (2.4.6 under `/opt/homebrew/bin/python3.12`, 2.0.2
+under `/usr/bin/python3`) and no pytest in either; the runner has pytest and no
+numpy. **A green local run and a green CI run were never evidence about each
+other, in either direction**, and that is the whole trap.
+
+Two causes, both concrete, neither a mystery:
+
+- **numpy is never installed.** Every job runs `pip install pytest` and stops
+  there; `reserve.py`, `diffpair.py` and `router/algorithms/metaheuristic.py`
+  all import numpy. `pipeline` loses **60 tests** (`ReserveResult(status=
+  'refused', reason_code='no_numpy')` — the code degrades correctly, the tests
+  assert the happy path) and `routing contract` cannot even collect. **Cheap:
+  one word in the workflow, or the skip discipline the repo already applies to
+  kicad.** (An earlier draft of this entry offered "a bare venv fails 59
+  locally" as corroboration. That venv was a scratch one built during the
+  session with numpy missing — it demonstrates the mechanism and says nothing
+  about this machine, which has numpy. Cut, not softened.)
+- **kicad-cli is never installed either.** `structural evals` tries, and the
+  log says `E: Unable to locate package kicad-cli` — the Ubuntu package is
+  `kicad`; `kicad-cli` is the binary inside it. `golden blocks` and `pipeline`
+  do not try at all. So gerbers fall back to the tscircuit exporter and the
+  gate reports what that exporter actually produces: **missing pad flashes on
+  J1/U4/U5, missing drill hits, 0.050mm silkscreen against a 0.15mm floor.**
+  Those findings are true — the fallback packet is unshippable, which is what
+  `unverified_gerbers` has been saying all along. The question is whether CI
+  should install kicad and grade the real path, or stop grading gerbers when
+  the source is not kicad-cli. **That is a real call, not a config typo.**
+
+**Why this is the same disease.** Every green local run has been read as "the
+change is safe" while the shared gate was red the entire time — the seventh
+entry in *the machine measures correctly and the reading is wrong*, and the
+most expensive, because it is the ruler every other reading was checked against.
+
+
 ## Measured 2026-08-19 — will a fabbed, flashed board actually run?
 
 One command now answers this: `scripts/board-table.py` (`--rules --netconflict
@@ -715,6 +916,108 @@ does not route that net at all**, so finishing routerlib is not a shortcut to
 own verification burden, and it would be built on a router that cannot route
 this board.
 
+## Measured 2026-08-21 — #19b answered: our number is the wrong one
+
+Two measurements disagreed on the same file: `normalize_schematic_truth` said
+**0 pins disagree** (188 compared, 84 wrong before, 0 after) and KiCad's
+schematic parity said **3 pads disagree**. Settled by exporting KiCad's own
+netlist from the shipped `.kicad_sch` and reading it against the design.
+
+The shipped schematic, weather-badge-24:
+
+```
+BOOTSEL_SW -> SW2.1                design: SW2.1 AND SW2.2 are BOOTSEL_SW
+GND        -> SW2.2   wrong                SW2.3 AND SW2.4 are GND
+GND        -> SW3.2   wrong
+GND        -> Y1.1    wrong        design: Y1.1 is U3.XIN
+TR_R11_Y1  -> Y1.4    wrong        design: Y1.4 is GND
+SW2.3, SW2.4, SW3.3, SW3.4 — absent from the netlist entirely
+```
+
+**Four pins on the wrong net and four pins missing**, not three — and one of
+them is `Y1.1`, the crystal's XIN, drawn to ground. This is the file a human
+opens out of `kicad-project.zip`.
+
+**Why our pass reports zero.** The design netlist unions
+`internally_connected_source_port_ids` — SW2 `{1,2}` becomes one node, which is
+correct. The comparison then satisfies that node from **any** member: pin 1 is
+on BOOTSEL_SW, so the group matches, and pin 2 sitting on GND never registers.
+Same for Y1 `{4,2}`: pin 2 is on GND, so pin 4 on `TR_R11_Y1` is invisible. A
+group check that passes on one member cannot see the member wired elsewhere —
+precisely the defect shape this module was written for, the 50
+terminal-keyboard keys that read as shorted.
+
+**So neither check is lying, and the useful one is KiCad's.** Ours answers "is
+each electrical node represented somewhere in the drawing", which is a weaker
+question than the one its summary implies. `0 after` is true of the question it
+asks and false of the question it appears to answer.
+
+**Not fixed here.** The repair is in the comparison, not the labels: every pin
+in a group has to be on the group's net, not just one of them. That changes
+what the pass stamps and has to be re-measured across the fleet, so it is filed
+as #19c rather than rushed — the diagnosis is the deliverable.
+
+## Reviewed 2026-08-21 — a hardware engineer read the board, and found three
+
+First outside review of weather-badge-23, from the PCB image alone, without the
+schematic. All three land, and all three were already in our own data.
+
+### 1. The tactile switch is shorted by construction — every board with a button
+
+> *"Nút nhấn sai footprint, đang bị nối 2 tiếp điểm với nhau nên luôn bị nhấn."*
+> (The button footprint is wrong — the two terminals are tied together, so it
+> reads as permanently pressed.)
+
+Confirmed against `C318884`'s datasheet and our own pad coordinates:
+
+```
+pin1 top-left  ──6.00mm──  pin4 top-right      the real terminal
+   |3.70mm                    |3.70mm
+pin2 bot-left  ──6.00mm──  pin3 bot-right      the other real terminal
+
+blocks/sw-tact declares  [["pin1","pin2"], ["pin3","pin4"]]   left column / right column
+```
+
+The datasheet ties the pads across the **5.90mm** span; the block ties them
+across the **3.70mm** span. Perpendicular. So `pin1`+`pin2` carry the signal
+while belonging to *different* terminals, `pin3`+`pin4` carry ground the same
+way, and the signal is tied to ground through the switch's own body. The button
+can never do anything.
+
+**This is a board-killing defect, not a quality one**, and it is in a golden
+block, so it is on every board that places a button — SW1, SW2 and SW3 on the
+weather-badge line alone.
+
+**And it is the other half of #19b.** Yesterday the schematic was measured
+against this pairing and the *schematic* was called wrong. The pairing was the
+wrong one to measure against. `internallyConnectedPins` was written from
+somebody's reading of the part, never from the datasheet, and every check
+downstream inherited it — including ours.
+
+### 2. The power widening does nothing, and we printed the proof
+
+> *"Dây nguồn 5V và 3.3V có đi dây lớn nhưng đi được 1 khúc thì chuyển lại dây
+> nhỏ thì cũng như không."*
+
+Our own sidecar, weather-badge-23:
+
+```
+V3_3: 156 of 340 segments widened — narrowest point 0.2mm -> 0.2mm
+V5:    21 of 93 segments widened — narrowest point 0.25mm -> 0.25mm
+```
+
+156 segments widened and the narrowest point did not move. Current is set by
+the narrowest point, so the pass costs copper and buys nothing. We measured it
+exactly and never read it as "this does not work" — see #6.
+
+### 3. The routing is too tight for the fab to build
+
+> *"Đi dây vẫn rối bị quá sát với chân linh kiện, JLC sẽ ko làm đc vì dễ chạm."*
+
+We report `clearance` and `copper_sliver` and mostly file them below blocking.
+The reviewer's reading is stronger than ours: not "marginal" but "they will
+refuse it".
+
 ## Open
 
 - **#14 · Gate on the pour.** **DONE** — `verifylib/pour.py` measures and
@@ -771,9 +1074,53 @@ this board.
   `normalize_schematic_truth` reports *"0 pins disagree"* after its own pass.
   **Two of our own measurements contradict each other, and that is the next
   thing to look at** — not the naming.
-- **#19b · Reconcile the schematic normaliser with KiCad's parity.** New. One
-  says 0 wrong pins, the other says 3, on the same file. Until that is settled
-  neither number can be quoted.
+- **#19b · Reconcile the schematic normaliser with KiCad's parity.**
+  **ANSWERED — ours is the wrong number.** 4 pins on the wrong net
+  (`SW2.2`, `SW3.2`, `Y1.1`, `Y1.4`) and 4 more missing entirely, one of them
+  the crystal's XIN drawn to ground, while our pass reports `0 after`. Cause:
+  the comparison satisfies an `internallyConnectedPins` group from **any**
+  member, so a pin wired elsewhere inside a satisfied group is invisible. See
+  the measurement above.
+- **#26 · The tactile switch's internal pairing is wrong.** **FIXED IN BOTH
+  BLOCKS.** It was in `rp2040-core` too — SW2 and SW3, the BOOTSEL and RESET
+  buttons, which are the two the reviewer was looking at; `sw-tact` only places
+  SW1. Both now pair by row, `{pin1,pin4}` and `{pin2,pin3}`, and wire both
+  pads of each terminal. Rebuilt: `fab.ready` holds, the crystal net drops
+  **29.41mm -> 23.81mm**, and `net_conflict_disagreement` goes **3 -> 1** —
+  two of the three places the drawing appeared to contradict the board were
+  this pairing, which is the other half of #19b. Cost: `hole_to_hole` 0 -> 9
+  and `isolated_copper` 14 -> 16, both at warning. **Every board on disk still
+  carries the old block and needs re-syncing before it means anything.**
+  Original diagnosis: `blocks/sw-tact` declared
+  `[["pin1","pin2"],["pin3","pin4"]]` — the left and right columns — while
+  `C318884` ties its pads across the long span, top pair and bottom pair. Each
+  declared group therefore holds one pad of *each* terminal, so signal and
+  ground meet inside the switch and the button reads permanently pressed. Fix
+  the block, then re-check every board that places one. **Read the datasheet
+  before writing the pairing** — the current one was somebody's reading of the
+  part and every check downstream trusted it.
+- **#27 · Decide whether tight routing blocks.** **HALF DONE — the number now
+  exists; the decision is still the EE's.** A hardware reviewer read our
+  verdict as "the fab will refuse this" and we filed it below blocking. It
+  turns out neither reading was wrong about the board: **the gate never saw
+  the copper at all.** DRC runs at `min_clearance_mm - drc_tolerance_mm` =
+  0.09mm, and on weather-badge-23 it reports **zero** clearance findings.
+  Re-run the same file with the floor moved to `warn_clearance_mm` (0.127mm —
+  declared in the profile since forever, read by the router's cost model and
+  by no check) and the same kicad-cli finds **399**, two of them under JLC's
+  own 0.10mm floor, the narrowest at 0.0908mm — clearing our gate by 800
+  nanometres. Shipped in PR #13: a second 3.6s DRC pass at the margin floor,
+  `clearance_under_fab_floor` (warning) + `clearance_no_margin` (info).
+  **Neither blocks on purpose** — that call went out in the review packet and
+  is still open. When the answer comes back it is one severity string here.
+  Sixth entry in *the machine measures correctly and the reading is wrong*,
+  and the first where the machine was never asked. Checked against the review
+  loop before shipping: phase 1 gates on `severity === "error"` and phase 2 on
+  a closed kind allowlist, so a `warning` here informs and does not recruit
+  review rounds nobody can close by editing TSX.
+- **#19c · Make the group check require every member.** The repair for #19b.
+  Changes what the pass stamps, so it needs re-measuring across the fleet —
+  filed rather than rushed.
 - **#12 · Route hints for the crystal net.** **LEVER MEASURED, AND SHUT.**
   weather-badge-19 routes a 7.94mm hop as 26.21mm of copper through 2 vias.
   Our own router declines every poured board, and forced it does not route the
@@ -805,7 +1152,10 @@ this board.
   `no problem, switches mains` does not). All 25 boards on disk still pass.
   Known hole, pinned by a test rather than left to be rediscovered: a bare cell
   format (`an 18650 charger board`) is in neither pattern table.
-- **#6 · `V3_3` width.** Unchanged.
+- **#6 · `V3_3` width.** **CONFIRMED FROM OUTSIDE.** A hardware reviewer read
+  the same defect off the board image: widened for a stretch, narrow again, so
+  it buys nothing. Our sidecar had the number all along — 156 of 340 segments
+  widened, narrowest point 0.2mm before and after.
 - **#20 · Route the USB pair as a pair.** `diffpair_not_routed` on 5 boards,
   coupling down to 2%, 30% of the run with no reference. Separate from D and
   not dismissed by it.
@@ -1589,3 +1939,16 @@ boards) shows no trend; one run proves nothing.
   documented and a violating board was passed anyway.
 - **Never report mid-flight state as final.** wb5 "41 errors", wb8 "89 errors",
   wb9 "6 errors" — all three intermediate, all three healed.
+
+- **A declared property is a claim, and a claim needs a source.**
+  `internallyConnectedPins` on the tactile switch was written from somebody's
+  reading of the part, not from its datasheet, and it was wrong by ninety
+  degrees. Every check downstream — including the schematic pass that reported
+  zero — measured against it faithfully and inherited the error. A number
+  nobody sourced is a number nobody checked.
+- **A group that passes on one member cannot see the others.** The schematic
+  pass unions internally-connected pins into one node — correct — then
+  satisfied that node from whichever member matched first. Four pins wired to
+  the wrong net sat inside satisfied groups and were reported as zero. When a
+  check folds several things into one, ask what it does with the ones it
+  folded.

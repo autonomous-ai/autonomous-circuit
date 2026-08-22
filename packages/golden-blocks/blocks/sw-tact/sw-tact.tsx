@@ -3,22 +3,36 @@
  * dialect: tscircuit@0.0.2279 (pinned — repo toolchain/package.json)
  *
  * Tactile switch: TS-1187A-B-A-B (LCSC C318884, JLC Basic, $0.018).
- * 4-pad SMD; pads 1+2 are one internal terminal, 3+4 the other (LCSC's own
- * symbol for C318884 draws the internal bars — EasyEDA API, 2026-08-15;
- * first-article continuity remains the final check). The pairing is declared
- * via `internallyConnectedPins`, so every schematic export folds pins 1/2 and
- * 3/4 onto the symbol's two terminals instead of drawing a same-net tie as a
- * wire looping across the switch — which is exactly what the first human EE
- * review read as "every key is shorted" (ledger #29).
  *
- * Wiring: **diagonal** — `signal` net → pin 1, pin 4 → `to` net (default
- * GND). Pins 1 and 4 sit on opposite terminals under either of the two
- * side-pairings a 4-pad tact switch can have ({1,2}/{3,4} or {1,3}/{2,4}),
- * so the block works even if the pairing evidence is wrong; the old
- * both-pads tie would short the switch permanently under the other pairing
- * (the "every board is scrap" bet BLOCK.md used to carry). Active-low with
- * a pull-up on the signal side (MCU internal pull-ups suffice on
- * RP2040/ESP32).
+ * **The pairing is by ROW, and our footprint numbers by COLUMN.** This block
+ * had it ninety degrees out until an outside hardware review read it off the
+ * board image (2026-08-21: "the two terminals are tied together, so it reads
+ * as permanently pressed"). Both halves measured rather than argued:
+ *
+ *   the part, LCSC's own footprint for C318884 (EasyEDA API, 2026-08-21):
+ *     pad1 ── pad2   one row, 6.00mm apart   = one terminal
+ *     pad3 ── pad4   the other row           = the other terminal
+ *     and the datasheet's circuit diagram joins each row with a bar.
+ *
+ *   our land pattern, `dfn4_p3.6998mm_w7mm_pw0.75mm`, measured off a built
+ *   board's own pad coordinates:
+ *     pin1 top-left      pin4 top-right      <- one row
+ *     pin2 bottom-left   pin3 bottom-right   <- the other row
+ *     numbered down the left column and up the right, DFN convention.
+ *
+ * So `pin1`/`pin2` are one *column*: one pad from each terminal. Tying them
+ * to the same net ties signal to ground through the switch body, and the
+ * button can never do anything. The declaration below therefore pairs by row
+ * — `{pin1,pin4}` and `{pin2,pin3}` — which is the same physical pairing the
+ * datasheet draws, expressed in the numbering the footprint actually uses.
+ *
+ * Wiring: both pads of each terminal, `{pin1,pin4}` → `signal` and
+ * `{pin2,pin3}` → `to` (default GND). Active-low with a pull-up on the
+ * signal side (MCU internal pull-ups suffice on RP2040/ESP32).
+ *
+ * **First-article continuity is still the final check**, and it is the only
+ * thing that can catch a footprint whose numbering changes upstream: a meter
+ * across pin1-pin4 should read closed with the button up, pin1-pin2 open.
  *
  * Land pattern: footprinter "dfn4_p3.6998mm_w7mm_pw0.75mm" — 98.81% copper
  * IoU against the EasyEDA pattern (tscircuit-cli import C318884, 2026-08-10).
@@ -44,7 +58,7 @@ export const SwTact = (props: {
       <pushbutton
         name={sw}
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
+        internallyConnectedPins={[["pin1", "pin4"], ["pin2", "pin3"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm"
         pcbX={0}
         pcbY={0}
@@ -52,7 +66,9 @@ export const SwTact = (props: {
         schY={0}
       />
       <trace name={`TR_${sw}_p1`} from={`.${sw} > .pin1`} to={`net.${signal}`} />
-      <trace name={`TR_${sw}_p4`} from={`.${sw} > .pin4`} to={`net.${to}`} />
+      <trace name={`TR_${sw}_p4`} from={`.${sw} > .pin4`} to={`net.${signal}`} />
+      <trace name={`TR_${sw}_p2`} from={`.${sw} > .pin2`} to={`net.${to}`} />
+      <trace name={`TR_${sw}_p3`} from={`.${sw} > .pin3`} to={`net.${to}`} />
     </group>
   )
 }

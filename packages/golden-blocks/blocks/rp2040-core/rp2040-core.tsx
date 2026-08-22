@@ -235,15 +235,30 @@ export const Rp2040Core = (props: {
         supplierPartNumbers={{ jlcpcb: ["C11702"] }} />
       <pushbutton name="SW2"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
+        internallyConnectedPins={[["pin1", "pin4"], ["pin2", "pin3"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={8} pcbY={-15.5} schX={14} schY={-10} />
       {/* Copper stays 4-tie here ON MEASUREMENT (2026-08-15): the diagonal
           rewire (pin 1 in, pin 4 out — see sw-tact) reshuffled this block's
           route and landed a via 0.0787mm from the Y1→XIN crystal trace
           against the 0.09 floor, 5/5 gauntlet runs, identical to the micron;
-          the 4-tie shape routes clean. Same-group ties are safe under the
-          confirmed {1,2}/{3,4} pairing (LCSC symbol for C318884, 2026-08-15;
-          first-article continuity is still the final check).
+          the 4-tie shape routes clean.
+
+          WHICH pads share a tie was wrong until 2026-08-21, and it made both
+          buttons dead. The {1,2}/{3,4} pairing above was read off LCSC's
+          symbol, whose pad numbers are not this footprint's: LCSC numbers by
+          ROW (pad1──pad2 across 6.00mm is one terminal) and
+          `dfn4_p3.6998mm_w7mm_pw0.75mm` numbers by COLUMN, down the left and
+          up the right. Measured off a built board's own pad coordinates,
+          pin1 is top-left and pin2 is bottom-left — one pad of each terminal.
+          Tying them to BOOTSEL_SW tied the signal to ground through the
+          switch body, on every board this block has ever placed. An outside
+          hardware review read it straight off the board image: "the two
+          terminals are tied together, so it reads as permanently pressed."
+
+          The ties now follow the rows the part actually joins — {pin1,pin4}
+          and {pin2,pin3} — which is the same physical pairing, in the
+          numbering the footprint uses. First-article continuity is still the
+          final check: button up, pin1-pin4 closed and pin1-pin2 open.
 
           But the ties are declared through a NAMED NET, never pin-to-pin.
           `internallyConnectedPins` was supposed to fold them into the symbol;
@@ -257,24 +272,24 @@ export const Rp2040Core = (props: {
       <trace name={`TR_R13_ss`} from=".R13 > .pin1" to={`.${u} > .QSPI_SS`} />
       <trace name={`TR_R13_sw`} from=".R13 > .pin2" to="net.BOOTSEL_SW" />
       <trace name={`TR_SW2_p1`} from=".SW2 > .pin1" to="net.BOOTSEL_SW" />
-      <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to="net.BOOTSEL_SW" />
+      <trace name={`TR_SW2_p4`} from=".SW2 > .pin4" to="net.BOOTSEL_SW" />
+      <trace name={`TR_SW2_p2`} from=".SW2 > .pin2" to="net.GND" />
       <trace name={`TR_SW2_p3`} from=".SW2 > .pin3" to="net.GND" />
-      <trace name={`TR_SW2_p4`} from=".SW2 > .pin4" to="net.GND" />
 
       {/* --- RUN: 10k pull-up + reset button ------------------------------ */}
       <resistor name="R12" resistance="10k" footprint="0402" pcbX={-8} pcbY={-6} schX={-10} schY={-8}
         supplierPartNumbers={{ jlcpcb: ["C25744"] }} />
       <pushbutton name="SW3"
         supplierPartNumbers={{ jlcpcb: ["C318884"] }}
-        internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]}
+        internallyConnectedPins={[["pin1", "pin4"], ["pin2", "pin3"]]}
         footprint="dfn4_p3.6998mm_w7mm_pw0.75mm" pcbX={-8} pcbY={-15.5} schX={-14} schY={-10} />
       <trace name={`TR_R12_v`} from=".R12 > .pin1" to="net.V3_3" />
       <trace name={`TR_U_run`} from={`.${u} > .RUN`} to="net.RUN_SW" />
       <trace name={`TR_R12_run`} from=".R12 > .pin2" to="net.RUN_SW" />
       <trace name={`TR_SW3_p1`} from=".SW3 > .pin1" to="net.RUN_SW" />
-      <trace name={`TR_SW3_p2`} from=".SW3 > .pin2" to="net.RUN_SW" />
+      <trace name={`TR_SW3_p4`} from=".SW3 > .pin4" to="net.RUN_SW" />
+      <trace name={`TR_SW3_p2`} from=".SW3 > .pin2" to="net.GND" />
       <trace name={`TR_SW3_p3`} from=".SW3 > .pin3" to="net.GND" />
-      <trace name={`TR_SW3_p4`} from=".SW3 > .pin4" to="net.GND" />
 
       {/* --- Decoupling (design guide: 100nF per supply pin) -------------- */}
       <capacitor name="C4" capacitance="100nF" footprint="0402" pcbX={-6} pcbY={6} schX={-6} schY={12}

@@ -806,7 +806,9 @@ def fab_ready(warnings: list[dict], gerber_source: str) -> bool:
     return not any(w.get("severity") == "error" for w in warnings)
 
 
-def kicad_project_json(profile: FabProfile) -> str:
+def kicad_project_json(
+    profile: FabProfile, *, clearance_mm: float | None = None
+) -> str:
     """A `.kicad_pro` carrying this fab's design rules.
 
     Why this exists (measured 2026-08-10): `circuit-json-to-kicad` emits a
@@ -820,10 +822,21 @@ def kicad_project_json(profile: FabProfile) -> str:
 
     Without it the second-substrate check is noise, and a noisy gate is one
     everybody learns to ignore.
+
+    ``clearance_mm`` overrides the copper-to-copper floor — and only that floor
+    — so the same board can be asked a second, stricter question without
+    changing what the gate grades it against. The tolerance is not subtracted
+    from an override: the point of the margin pass is to see the gaps the
+    tolerance hides, so it asks for the number as given.
     """
     slack = profile.drc_tolerance_mm
+    copper_floor = (
+        round(float(clearance_mm), 4)
+        if clearance_mm is not None
+        else round(profile.min_clearance_mm - slack, 4)
+    )
     rules = {
-        "min_clearance": round(profile.min_clearance_mm - slack, 4),
+        "min_clearance": copper_floor,
         "min_connection": 0.0,
         "min_copper_edge_clearance": round(profile.min_edge_clearance_mm - slack, 4),
         "min_hole_clearance": 0.2,
@@ -838,7 +851,7 @@ def kicad_project_json(profile: FabProfile) -> str:
     }
     netclass = {
         "name": "Default",
-        "clearance": round(profile.min_clearance_mm - slack, 4),
+        "clearance": copper_floor,
         "track_width": profile.warn_trace_mm,
         "via_diameter": 0.6,
         "via_drill": 0.3,
@@ -853,9 +866,17 @@ def kicad_project_json(profile: FabProfile) -> str:
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
-def write_kicad_project(board_path: Path, profile: FabProfile) -> Path:
+def write_kicad_project(
+    board_path: Path, profile: FabProfile, *, clearance_mm: float | None = None
+) -> Path:
     """Write `<board stem>.kicad_pro` beside a `.kicad_pcb`. kicad-cli picks the
-    project up by basename, which is how the rules above reach DRC."""
+    project up by basename, which is how the rules above reach DRC.
+
+    ``clearance_mm`` is passed straight to `kicad_project_json`; the caller is
+    expected to write the real rules back after a margin pass.
+    """
     path = board_path.with_suffix(".kicad_pro")
-    path.write_text(kicad_project_json(profile), encoding="utf-8")
+    path.write_text(
+        kicad_project_json(profile, clearance_mm=clearance_mm), encoding="utf-8"
+    )
     return path
