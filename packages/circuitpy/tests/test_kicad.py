@@ -153,5 +153,66 @@ class TheMarginPassLeavesTheGatesRulesBehind(unittest.TestCase):
         self.assertIn("--severity-all", self.drc_calls[1])
 
 
+@unittest.skipUnless(KICAD, "kicad-cli not installed")
+class TheSeededBoardSaysSoInItsSidecar(unittest.TestCase):
+    """#29, end to end. `blocklib` is unit-tested on its own; what those tests
+    cannot see is whether the finding survives `build_board` and reaches the
+    sidecar the app reads.
+
+    It did not, the first time. The findings were assembled at the top of the
+    build and the escalation retry does `warnings = retry_warnings`, so the
+    first board that needed a second routing attempt dropped them silently and
+    shipped a verdict that said nothing about where its blocks came from. Found
+    on a real build, not in review. They are now folded in after every path
+    that can replace the list.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.tmp.name) / "proj"
+        # write_project does not create blocks/ — that is the case under test.
+        circuitproj.write_project(cls.root, tsx=circuitproj.GOOD_TSX)
+        generation.build_board(
+            cls.root / "boards" / "main.tsx",
+            cls.root / "boards" / "main.circuit.json",
+        )
+        cls.sidecar = json.loads(
+            (cls.root / "boards" / "main.board.json").read_text(encoding="utf-8")
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def _warnings(self) -> list:
+        return (self.sidecar.get("validation") or {}).get("warnings") or []
+
+    def test_the_library_was_copied_in(self) -> None:
+        blocks = self.root / "blocks"
+        self.assertTrue(blocks.is_dir(), "the build did not seed blocks/")
+        self.assertTrue(list(blocks.glob("*/*.tsx")), "seeded an empty blocks/")
+
+    def test_the_sidecar_records_where_the_blocks_came_from(self) -> None:
+        """The whole point. A board must be able to say which library it was
+        built against; eight boards in a row could not, and nobody noticed for
+        two and a half days."""
+        seeded = [w for w in self._warnings() if w["kind"] == "block_library_seeded"]
+        self.assertEqual(len(seeded), 1, [w["kind"] for w in self._warnings()])
+        self.assertEqual(seeded[0]["severity"], "info")
+
+    def test_a_freshly_seeded_board_is_not_also_accused_of_drifting(self) -> None:
+        kinds = {w["kind"] for w in self._warnings()}
+        self.assertNotIn("block_library_not_seeded", kinds)
+        self.assertNotIn("block_library_drift", kinds)
+        self.assertNotIn("block_library_unavailable", kinds)
+
+    def test_none_of_it_blocks_the_board(self) -> None:
+        from circuitpy import fab as fab_mod
+
+        found = [w for w in self._warnings() if w["kind"].startswith("block_library")]
+        self.assertTrue(fab_mod.fab_ready(found, "kicad-cli"))
+
+
 if __name__ == "__main__":
     unittest.main()

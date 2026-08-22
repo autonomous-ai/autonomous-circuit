@@ -1214,7 +1214,7 @@ def build_board(
     circuit_json = _compile_once(first_timeout)
 
     progress.stage("scan")
-    warnings: list[dict] = [*block_findings, *_scan(circuit_json)]
+    warnings: list[dict] = _scan(circuit_json)
 
     # -- Stage 0b: escalate the router once, if routing is what is wrong. ----
     # See the ROUTING_ESCALATION notes at the top of this module. One rung, one
@@ -1782,7 +1782,14 @@ def build_board(
             }
         )
 
-    warnings = checks.dedupe(warnings)
+    # Block-library findings go in *here*, after every path that can replace
+    # the list. Measured the hard way: they were seeded at the top and the
+    # escalation retry does `warnings = retry_warnings`, so the first board
+    # that needed a second routing attempt dropped them and shipped a sidecar
+    # that said nothing — a finding that exists and does not arrive is the
+    # failure this repo keeps re-buying. They are never `error`, so adding
+    # them after the retry logic cannot change what that logic decided.
+    warnings = checks.dedupe([*block_findings, *warnings])
 
     progress.stage("export")
 

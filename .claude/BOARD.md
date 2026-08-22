@@ -102,8 +102,32 @@ library path that does not exist, the first version compared against nothing,
 found nothing different, and returned clean. Now that is
 `block_library_unavailable` — *"this is not a clean result, it is no result"*.
 
-13 tests, 543 in circuitpy, 133 in skills. **Still open: re-syncing the eight
-existing boards.** Nothing does that automatically, on purpose.
+**Proved end to end, and the proof found one more bug.** A real project was
+stripped of its `blocks/` entirely and handed to `build_board`: the library
+came in, the board compiled from it, and it shipped `fab.ready = True` with
+kicad-cli gerbers. Its blocks hash `46c6077be6` — the library — while wb-25
+still reads `3d91e85a6a`, untouched.
+
+But the sidecar said **nothing** about where those blocks came from. The
+findings were assembled at the top of the build, and the escalation retry does
+`warnings = retry_warnings` — so the first board needing a second routing
+attempt dropped them and shipped a verdict with no trace. *A finding that
+exists and does not arrive* is this repo's most-repeated failure, and it was
+one line from shipping again. They now fold in after every path that can
+replace the list, and a test on a real build fails if that regresses.
+
+17 tests, 547 in circuitpy, 133 in skills.
+
+### The eight old boards stay exactly as they are
+
+Owner's call, 2026-08-21: *"cũ là để đối chiếu, fix là board mới đi lên hết."*
+weather-badge-16 through -25 keep their 08-19 snapshot, **shorted switch and
+all**. That is not debt — it is the baseline: eight boards differing only in
+how the board was composed, with the library held constant. Rebuilding them
+destroys the one clean experiment in the corpus. `seed_blocks` fills only a
+project with **no** `blocks/`, and their `block_library_drift` info is a label,
+not a defect to close. Recorded in memory so a later session does not
+helpfully "fix" them.
 
 
 ## Checked 2026-08-21 — are the hardware reviewer's three findings on wb-25?
