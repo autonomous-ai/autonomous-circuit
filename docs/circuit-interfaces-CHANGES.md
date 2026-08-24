@@ -14,6 +14,46 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-24 — parts-book reads the board entry, not only `blocks/`
+- **Change:** §`parts-book` contract. The skill's candidate slots come from a
+  third source: the project's own board entries (`boards/*.tsx`), read with the
+  same scanner as a block. A board pins parts two ways — a literal
+  `supplierPartNumbers` on the element, and the number passed in as a prop with
+  the literal at the call site (`<ComfortLed ledLcsc="C2297" rLcsc="C25091" />`).
+  `scan_board_tsx` reads the second via the **`<x>Lcsc` pins the part named by
+  `<x>`** convention, which is also where the refdes comes from. The record
+  gains an optional **`boards`** member (present only for a part no block owns)
+  and `source` gains **`board-source`**. Two related rules: a manual record
+  (`override`, or `source: manual`) that no block or board pins is now carried
+  forward across runs, and a part id already on disk is kept rather than
+  re-derived from source.
+- **Why:** measured on weather-badge-27, 2026-08-24 (#25 on the task board,
+  found by the build agent auditing its own board). Three parts — **C25091,
+  C25117 and C84256** — shipped on the `bom.csv` the fab reads with no locked
+  record at all: no stock, no price, no verification date, no row in the parts
+  panel. No `supplierPartNumbers` scan could ever have found them, because the
+  literal is not on the element. The lock went **21 records → 24 and every BOM
+  line now has one behind it.** The `--add` half is the same bug from the other
+  side: slots were rebuilt from source every run, so an addition lived exactly
+  until the next invocation evicted it (two runs in sequence both returned 21
+  records, the second having dropped the first's part).
+- **Backward compatible:** yes. The stdout JSON line is unchanged —
+  `{ok, parts: [{id, lcsc, stock_checked, basic}]}`, plus the `notes` array it
+  already had. `boards` is additive and `circuitpy.spec.load_parts` ignores
+  unknown keys (verified against the new file); `part_drift` compares `lcsc`
+  only and never reads `blocks`, so a `blocks: []` record does not trip it.
+  Block-derived records are still dropped when they leave the source —
+  parts.json is a lock, not an attic. **One thing to know:** a board-source
+  record lands `basic: false` like any un-looked-up slot, so it draws an
+  `extended_part` info until `--lookup` runs. That is the existing convention
+  for a new slot, not a claim that the part is Extended.
+- **Mechanism:** `skills/parts-book/scripts/parts/cli.py` (`scan_board_tsx`,
+  `_PROP_LCSC_RE`, `_merge_source`, `collect_candidates(blocks_dir, board_tsx)`,
+  the manual-carry and id-stability passes in `main`), `skills/parts-book/SKILL.md`
+  (the record table and a new section). No `packages/circuitpy` change, so **no
+  skill runtime re-vendor required.**
+- **Tracks affected:** skills / docs.
+
 ## 2026-08-11 — Autorouter effort escalation (stage 0b), a `build` sidecar member, 2700s wall clock
 - **Change:** three coupled edits. (1) §1 gains **stage 0b**: after stages 1, 2
   and 4a run on the first compile, if any blocking warning is routing-class

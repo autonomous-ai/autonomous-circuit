@@ -93,8 +93,12 @@ jobs:
           python-version: "3.12"
       - name: Install pytest
         run: pip install pytest
-      - name: Run skill tests
-        run: python -m pytest skills/circuitcode/tests skills/parts-book/tests -q
+      # `scripts/tests` rides along here because this job needs no toolchain
+      # and no numpy, so it is the one gate that is actually green. The scripts
+      # it covers grade the built corpus (part-terminals), and until now nothing
+      # ran their tests but a human remembering to.
+      - name: Run skill and script tests
+        run: python -m pytest skills/circuitcode/tests skills/parts-book/tests scripts/tests -q
 
   evals:
     name: structural evals

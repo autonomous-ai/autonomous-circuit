@@ -58,6 +58,27 @@ PART_TERMINALS: dict[str, dict] = {
         "terminals": [("pin1", "pin4"), ("pin2", "pin3")],
         "source": "datasheet diagram + land pattern measured off a built board, 2026-08-21",
     },
+    "C20625731": {
+        "desc": "ABM8-272-T3, 4-pad SMD3225 crystal, 2 crystal terminals + case",
+        # Abracon drawing #456603 rev B, issued 2024-09-16, page 4 TOP VIEW:
+        # the crystal element is drawn between pin1 and pin3 — the diagonal —
+        # and pin4 and pin2 are each labelled GND. Land pattern measured off
+        # weather-badge-27's pad coordinates, which numbers the same way:
+        #   pin4 (-20.10, -11.43)   pin3 (-17.90, -11.43)  <- top row
+        #   pin1 (-20.10, -13.13)   pin2 (-17.90, -13.13)  <- bottom row
+        # So pin1/pin3 are the two crystal terminals and each is its own
+        # terminal: nothing ties them, and a board that joins them has shorted
+        # the oscillator across itself.
+        #
+        # The one thing the drawing does NOT do is draw a tie between the two
+        # GND pads. Grouping them is the reading that FLAGS a board putting
+        # different nets on pin2 and pin4, and it changes no verdict in the
+        # corpus as it stands — every board here grounds both. If a board ever
+        # wants them separate, this entry is what it has to argue with.
+        # First-article continuity is still the final word.
+        "terminals": [("pin1",), ("pin3",), ("pin2", "pin4")],
+        "source": "Abracon drawing #456603 rev B (2024-09-16) p.4 TOP VIEW + land pattern measured off weather-badge-27, 2026-08-24",
+    },
 }
 
 
@@ -69,10 +90,20 @@ def _elements(path: str) -> list[dict]:
 
 
 def _nets_by_port(els: list[dict]) -> dict[str, set[str]]:
-    """Every source_port -> the net name(s) reachable from it.
+    """Every source_port -> the net(s) reachable from it, named or not.
 
     Union-find over `source_trace`, so a port reaches a net through any number
     of hops. More than one net on a port means those nets are joined there.
+
+    **Not every net has a name.** A point-to-point trace carries
+    `connected_source_port_ids` and an empty `connected_source_net_ids`, so the
+    group it forms has no `source_net` in it and no name to report — the
+    crystal is wired exactly this way on all 31 boards
+    (`Y1.pin1 -> U3.XIN`, `source_trace_46` on weather-badge-27). Reporting
+    those pads as reaching nothing would read as "unconnected" for a pad that
+    is soldered to a pin, so an unnamed group is labelled by the pads in it
+    instead. Reaching *no* trace at all is still the empty set, and still
+    prints as FLOATING.
     """
     parent: dict[str, str] = {}
 
@@ -103,9 +134,30 @@ def _nets_by_port(els: list[dict]) -> dict[str, set[str]]:
     by_root: dict[str, set[str]] = collections.defaultdict(set)
     for key, name in names.items():
         by_root[find(key)].add(name)
+
+    # Pads with no named net in their group: label the group by what is in it,
+    # so "connected to U3.XIN through an unnamed net" cannot be misread as
+    # "connected to nothing". One pad on its own gets no label and stays
+    # FLOATING — that is the genuinely unconnected case and the only one.
+    comps = {
+        e["source_component_id"]: e.get("name") or e["source_component_id"]
+        for e in els if e.get("type") == "source_component"
+    }
+    ports = [e for e in els if e.get("type") == "source_port"]
+    members: dict[str, list[str]] = collections.defaultdict(list)
+    for e in ports:
+        members[find(e["source_port_id"])].append(
+            f"{comps.get(e.get('source_component_id'), '?')}."
+            f"{e.get('name') or (e.get('port_hints') or ['?'])[0]}"
+        )
+    for root, pads in members.items():
+        if by_root.get(root) or len(pads) < 2:
+            continue
+        by_root[root] = {"unnamed net: " + " + ".join(sorted(pads))}
+
     return {
         e["source_port_id"]: by_root.get(find(e["source_port_id"]), set())
-        for e in els if e.get("type") == "source_port"
+        for e in ports
     }
 
 
