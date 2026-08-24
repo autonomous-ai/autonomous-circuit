@@ -23,7 +23,9 @@ second opinion, but a way to see the gap between what a board believes and what
 it is. On a board with a correct block the two agree.
 
 A part that is not in the table is **reported, never skipped in silence**: a
-check that could not run is not a clean result.
+check that could not run is not a clean result. The same applies one level up:
+the summary names every project that produced no readable board, so a corpus
+total is never quietly short of the corpus.
 """
 from __future__ import annotations
 
@@ -180,6 +182,13 @@ def main() -> int:
         print(f"no built boards under {PROJECTS}", file=sys.stderr)
         return 2
 
+    # A project that never built contributes nothing, and nothing is exactly
+    # what a clean board also contributes. Name them, or the total silently
+    # means "of the boards that happened to exist".
+    built = {os.path.dirname(os.path.dirname(p)) for p in paths}
+    unbuilt = [d.rstrip(os.sep) for d in glob.glob(os.path.join(PROJECTS, "*", ""))
+               if d.rstrip(os.sep) not in built]
+
     total_short = total_ungraded = graded_boards = 0
     for path in paths:
         proj = os.path.dirname(os.path.dirname(path))
@@ -206,8 +215,19 @@ def main() -> int:
             print("\n".join(lines))
 
     basis = "the block's declaration" if args.declared else "the part"
-    print(f"\n{graded_boards} board(s) graded against {basis}: "
-          f"{total_short} shorted terminal(s), {total_ungraded} component(s) ungraded")
+    print(f"\n{graded_boards} board file(s) across {len(built)} project(s), graded "
+          f"against {basis}: {total_short} shorted terminal(s), "
+          f"{total_ungraded} component(s) ungraded")
+    if unbuilt and not args.boards:
+        print(f"{len(unbuilt)} project(s) produced no readable board and are NOT in "
+              f"that total:")
+        for d in sorted(unbuilt):
+            try:
+                with open(os.path.join(d, "product.json")) as fh:
+                    label = json.load(fh).get("name", os.path.basename(d))
+            except (OSError, ValueError):
+                label = f"{os.path.basename(d)} (no readable product.json)"
+            print(f"  {label}")
     return 1 if total_short else 0
 
 
