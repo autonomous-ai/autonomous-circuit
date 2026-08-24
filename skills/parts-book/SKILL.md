@@ -38,6 +38,19 @@ Consequences:
 
 ## Where the parts come from
 
+**A board can pin a part too, and those count.** The blocks are where a
+reusable lock belongs, but a board entry (`boards/<stem>.tsx`) may introduce a
+part of its own — and it does so two ways. One is a block's way, a literal
+`supplierPartNumbers` on the element. The other passes the number in as a prop,
+`supplierPartNumbers={{ jlcpcb: [props.ledLcsc] }}`, with the literal at the
+call site instead: `<ComfortLed led="LED2" ledLcsc="C2297" rLcsc="C25091" />`.
+Both are read. The convention is that **`<x>Lcsc` pins the part named by
+`<x>`**, which is where the refdes comes from; write a call site that way or
+the part is invisible here and ships on `bom.csv` with nothing behind it.
+Such a record carries `boards` and `source: board-source`, and the run says so
+— **it has no stock or price until you `--lookup`.** A part meant to be reused
+belongs in a block.
+
 The **golden blocks are the part lock.** `supplierPartNumbers` in
 `blocks/<id>/<id>.tsx` is ground truth for *which* orderable numbers a
 board can contain; `blocks/<id>/BLOCK.md`'s parts table supplies the
@@ -99,7 +112,8 @@ part family instead of an exact number, or an unknown id to swap.
 | `stock_checked` | ISO date of that check, `null` for a candidate slot |
 | `datasheet_url` | the LCSC catalog page for the number (it carries the datasheet; jlcsearch returns no direct PDF) |
 | `refdes`, `blocks` | which designators and which golden blocks use it |
-| `source` | `block-default` · `jlcsearch` · `jlcsearch-cached` · `manual` |
+| `boards` | which board entries pin it — present only for a part no block owns |
+| `source` | `block-default` · `board-source` · `jlcsearch` · `jlcsearch-cached` · `manual` |
 | `preferred`, `override`, `footprint_risk`, `swapped_from`, `lookup_mismatch` | present only when true/relevant |
 
 ## Workflow
