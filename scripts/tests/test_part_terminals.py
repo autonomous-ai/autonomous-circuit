@@ -206,6 +206,71 @@ def test_the_crystal_terminals_are_graded_one_pad_each():
     assert sum(1 for ln in lines if ln.split()[1] in ("pin1", "pin3")) == 2, lines
 
 
+def _pads(lcsc: str, pads, nets: dict[str, str]) -> str:
+    """One `lcsc` part whose pads carry explicit (name, hints), wired to `nets`.
+
+    `nets` is keyed by pad *name*. Used to prove the table resolves a pad the
+    datasheet calls "pin 4" on a part whose block calls it "VOUT2".
+    """
+    els: list[dict] = [{
+        "type": "source_component", "source_component_id": "c0", "name": "U2",
+        "supplier_part_numbers": {"jlcpcb": [lcsc]},
+        "internally_connected_source_port_ids": [],
+    }]
+    for name, hints in pads:
+        els.append({"type": "source_port", "source_port_id": f"p_{name}",
+                    "name": name, "port_hints": list(hints),
+                    "source_component_id": "c0"})
+    for i, net in enumerate(sorted(set(nets.values()))):
+        els.append({"type": "source_net", "source_net_id": f"n{i}", "name": net})
+    net_id = {e["name"]: e["source_net_id"] for e in els if e.get("type") == "source_net"}
+    for i, (name, net) in enumerate(nets.items()):
+        els.append({"type": "source_trace", "source_trace_id": f"t{i}",
+                    "connected_source_port_ids": [f"p_{name}"],
+                    "connected_source_net_ids": [net_id[net]]})
+    d = tempfile.mkdtemp()
+    path = str(pathlib.Path(d) / "main.circuit.json")
+    pathlib.Path(path).write_text(json.dumps(els))
+    return path
+
+
+#: How weather-badge-27's block names the AMS1117's four lands. The datasheet
+#: names them 1..4; the block does not, which is the whole point.
+AMS1117_PADS = (
+    ("GND", ("GND", "pin1", "1")),
+    ("VOUT1", ("VOUT1", "VOUT", "pin2", "2")),
+    ("VIN", ("VIN", "pin3", "3")),
+    ("VOUT2", ("VOUT2", "TAB", "pin4", "4")),
+)
+
+
+def test_a_table_entry_resolves_by_pin_number_not_by_the_blocks_names():
+    """The entry is written `pin2`/`pin4`; the block calls those `VOUT1`/`VOUT2`.
+
+    Keying on names alone would match nothing and report every terminal as
+    floating — a check that silently grades air. The pad's name is the block's
+    account of the part, and the block is what is under test.
+    """
+    p = _pads("C6186", AMS1117_PADS,
+              {"GND": "GND", "VOUT1": "V3_3", "VIN": "V5", "VOUT2": "V3_3"})
+    lines, shorted, ungraded = pt.check_board(p)
+    assert (shorted, ungraded) == (0, 0), lines
+    assert not any("FLOATING" in ln for ln in lines), lines
+    assert len(lines) == 3, lines          # three terminals across four lands
+
+
+def test_grounding_the_regulator_tab_is_a_short():
+    """The defect the entry exists for: the tab is VOUT, not a heatsink pad.
+
+    Tying it to GND for thermals shorts the 3.3V rail through the regulator.
+    """
+    p = _pads("C6186", AMS1117_PADS,
+              {"GND": "GND", "VOUT1": "V3_3", "VIN": "V5", "VOUT2": "GND"})
+    lines, shorted, _ = pt.check_board(p)
+    assert shorted == 1, lines
+    assert any("V3_3" in ln and "GND" in ln and "SHORTED" in ln for ln in lines), lines
+
+
 if __name__ == "__main__":
     passed = 0
     for name, fn in sorted(globals().items()):

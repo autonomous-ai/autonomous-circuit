@@ -79,6 +79,33 @@ PART_TERMINALS: dict[str, dict] = {
         "terminals": [("pin1",), ("pin3",), ("pin2", "pin4")],
         "source": "Abracon drawing #456603 rev B (2024-09-16) p.4 TOP VIEW + land pattern measured off weather-badge-27, 2026-08-24",
     },
+    "C6186": {
+        "desc": "AMS1117-3.3, SOT-223 LDO, 3 terminals across 4 lands",
+        # Advanced Monolithic Systems' own AMS1117 datasheet, PIN CONNECTIONS:
+        # "TAB IS OUTPUT", and the SOT-223 entry lists "3 PIN FIXED/ADJUSTABLE
+        # VERSION — 1- Ground/Adjust, 2- VOUT, 3- VIN". The package drawing on
+        # the same sheet (AMS DRW# 042292) is headed "3 LEAD SOT-223 PLASTIC
+        # PACKAGE" and the part is described as a three-terminal regulator, so
+        # the four lands carry three electrical nodes and the tab is one of the
+        # three — the only one the sheet names is the output.
+        #
+        # The land pattern says the same thing mechanically. Measured off
+        # weather-badge-27:
+        #   pin1 GND   (12.93,  5.70)  2.50 x 1.10 = 2.75mm^2
+        #   pin2 VOUT  (12.93,  8.00)  2.50 x 1.10 = 2.75mm^2
+        #   pin3 VIN   (12.93, 10.30)  2.50 x 1.10 = 2.75mm^2
+        #   pin4 TAB   ( 6.99,  8.00)  2.34 x 3.60 = 8.42mm^2
+        # The tab sits on pin2's own centreline, opposite the three leads and
+        # three times their area: it is the centre lead carried through the
+        # package, and the centre lead is VOUT.
+        #
+        # **What this catches.** A board that grounds the tab for heatsinking
+        # shorts the 3.3V rail to GND through the regulator. Nothing checked
+        # that before this entry, on a part placed on every board in the corpus.
+        # First-article continuity is still the final word.
+        "terminals": [("pin1",), ("pin2", "pin4"), ("pin3",)],
+        "source": "Advanced Monolithic Systems AMS1117 datasheet, PIN CONNECTIONS + AMS DRW# 042292 + land pattern measured off weather-badge-27, 2026-08-24",
+    },
 }
 
 
@@ -187,11 +214,21 @@ def check_board(path: str, declared: bool = False) -> tuple[list[str], int, int]
                 )
             continue
 
+        # A pad is reachable by its name *and* by every hint it carries, so an
+        # entry below can be written the way the datasheet writes it — by pin
+        # number. It has to be: the pad's `name` is whatever the block called
+        # it (`VOUT2`, `TAB`, `thermalpad`), and the block's account of the
+        # part is the thing under test. Y1 happened to name its pads `pin1..4`
+        # and hid this; U2 names them `GND`/`VOUT1`/`VIN`/`VOUT2` and a table
+        # keyed on names would have silently matched nothing and reported the
+        # terminal as floating. Name wins a collision, then hints in order.
         by_port_name = {}
         for pid, p in ports.items():
             if p.get("source_component_id") != comp.get("source_component_id"):
                 continue
-            by_port_name[p.get("name") or (p.get("port_hints") or [""])[0]] = pid
+            for key in [p.get("name"), *(p.get("port_hints") or [])]:
+                if key and key not in by_port_name:
+                    by_port_name[key] = pid
 
         if declared:
             terminals = [
