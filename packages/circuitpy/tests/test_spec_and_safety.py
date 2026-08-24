@@ -157,11 +157,66 @@ class SafetyEnvelope(unittest.TestCase):
         with self.assertRaises(SpecValidationError):
             self._scan_ask("A pack board using DW01 protection")
 
-    def test_a_cell_format_on_its_own_is_a_known_hole(self) -> None:
-        """Pinned as a limit rather than left to be rediscovered. Refusing a
-        bare cell format would also refuse "a gauge for an 18650 pack, using
-        the sealed block", which the envelope permits."""
-        self._scan_ask("An 18650 charger board")
+    def test_a_cell_format_with_a_charging_role_is_refused(self) -> None:
+        """The hole this used to pin open: a charger named by cell format.
+
+        Neither table carried a bare `18650`, and `li-?(po|ion) charg` does not
+        fire on "18650 charger", so the ask walked straight through.
+        """
+        for ask in (
+            "An 18650 charger board",
+            "18650 charging dock",
+            "a 21700 charge controller",
+            "a charger for two 18650 cells",
+            "LiFePO4 charging circuit",
+            "26650 recharger",
+        ):
+            with self.subTest(ask=ask), self.assertRaises(SpecValidationError):
+                self._scan_ask(ask)
+
+    def test_a_cell_format_on_its_own_still_passes(self) -> None:
+        """Why the rule is a conjunction and not a bare cell format.
+
+        A gauge, a holder and a capacity meter are what the envelope permits;
+        refusing the format alone would refuse all three.
+        """
+        for ask in (
+            "a gauge for an 18650 pack, using the sealed block",
+            "a holder for a rechargeable 18650",
+            "capacity meter for 21700 cells",
+        ):
+            with self.subTest(ask=ask):
+                self._scan_ask(ask)
+
+    def test_watching_a_battery_charge_is_not_charging_it(self) -> None:
+        """The role half is an allowlist so these pass **by construction**.
+
+        Written as a list of monitoring phrases to exclude, every phrasing
+        nobody thought of would be refused — and the phrasings nobody thinks of
+        here are monitors. This is the case the old known-hole note was
+        protecting, and it has to keep working.
+        """
+        for ask in (
+            "reads 18650 charge state",
+            "a battery charging state monitor for a 21700",
+            "state of charge for an 18650",
+            "18650 charge level display",
+            "18650 charge remaining indicator",
+        ):
+            with self.subTest(ask=ask):
+                self._scan_ask(ask)
+
+    def test_a_negated_cell_charger_is_not_a_refusal(self) -> None:
+        """`_negated` looks back from the match, which starts at the format."""
+        self._scan_ask("A battery gauge, no 18650 charger anywhere")
+
+    def test_a_charger_for_a_chemistry_outside_the_envelope_is_not_this_rule(self) -> None:
+        """The rule names lithium cell formats; it does not screen lead-acid.
+
+        Recorded so the next reader does not think this table covers more than
+        it does.
+        """
+        self._scan_ask("a charger for a 12V lead-acid battery")
 
     def test_an_empty_description_screens_nothing_and_raises_nothing(self) -> None:
         self._scan_ask("")

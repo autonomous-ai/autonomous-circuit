@@ -61,6 +61,25 @@ BARE_RF_PATTERNS = (
     r"\bpcb\s+(?:trace\s+)?antenna\b",
 )
 
+#: A lithium cell format named together with a charging role. Kept identical in
+#: meaning to `circuitpy.spec._CELL_CHARGER_RE` — two tables describing one
+#: envelope drifted apart once already, and the drift only surfaced when one of
+#: them started reading descriptions too.
+#:
+#: The role half is an **allowlist**, not a list of monitoring phrases to
+#: exclude: "an 18650 charger board" must be refused while "a gauge for an
+#: 18650 pack" is exactly what the envelope permits, and an exclusion list
+#: would refuse every monitoring phrase nobody thought of. `charge state`,
+#: `state of charge` and `charging status` pass by construction; so does
+#: `rechargeable`, which describes the battery rather than the board's job.
+#: `_hits` lowercases before matching, so these stay lowercase.
+_CELL_FORMAT = r"(?:18650|21700|26650|14500|16340|18350|10440|20700|26800|lifepo4)"
+_CHARGING_ROLE = (
+    r"(?:(?:re)?chargers?\b"
+    r"|(?:re)?charg(?:e|ing)[\s-]+"
+    r"(?:ic|circuit|controller|board|module|dock|cradle|station|bay|pcb|shield))"
+)
+
 #: Charger silicon that may only appear inside a sealed, signed-off block.
 CHARGER_PATTERNS = (
     r"\btp4056\b",
@@ -69,6 +88,8 @@ CHARGER_PATTERNS = (
     r"\bdw01\b",
     r"\bfs8205\b",
     r"\bli-?(?:po|ion)\s+charg",
+    rf"\b(?:{_CELL_FORMAT}\b[^.]{{0,40}}?{_CHARGING_ROLE}"
+    rf"|{_CHARGING_ROLE}[^.]{{0,40}}?\b{_CELL_FORMAT}\b)",
 )
 
 
