@@ -55,6 +55,40 @@ class SafetyEnvelope(unittest.TestCase):
         self.assertEqual(safety.screen_text("TP4056 lipo charger").status,
                          safety.REFUSE)
 
+    def test_a_cell_format_with_a_charging_role_refused(self) -> None:
+        """Same specification as `circuitpy.spec._CELL_CHARGER_RE`.
+
+        Two tables describe one envelope and they drifted apart once already.
+        Neither imports the other — skills are self-contained at runtime — so
+        the case matrix is asserted on both sides instead, and a change to one
+        table alone turns one of the two suites red.
+        """
+        for text in (
+            "An 18650 charger board",
+            "18650 charging dock",
+            "a 21700 charge controller",
+            "a charger for two 18650 cells",
+            "LiFePO4 charging circuit",
+            "26650 recharger",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(safety.screen_text(text).status, safety.REFUSE)
+
+    def test_watching_a_battery_charge_is_not_charging_it(self) -> None:
+        """The role half is an allowlist, so a monitor passes by construction."""
+        for text in (
+            "a gauge for an 18650 pack, using the sealed block",
+            "reads 18650 charge state",
+            "a battery charging state monitor for a 21700",
+            "state of charge for an 18650",
+            "a holder for a rechargeable 18650",
+            "capacity meter for 21700 cells",
+            "a charger for a 12V lead-acid battery",
+            "no 18650 charger anywhere",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(safety.screen_text(text).status, safety.PASS)
+
     def test_certified_module_allowed(self) -> None:
         verdict = safety.safety_gate(
             description="ESP32-S3-WROOM-1 module on USB-C power",

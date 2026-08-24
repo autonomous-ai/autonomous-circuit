@@ -61,10 +61,38 @@ _RAW_RF_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 #: envelope had drifted apart, and the drift only mattered once this table
 #: started reading descriptions too.
 #:
-#: **A known hole, recorded rather than papered over:** "an 18650 charger
-#: board" is in neither table and passes. Adding a bare cell format would also
-#: refuse "a gauge for an 18650 pack, using the sealed block", which is exactly
-#: what the envelope permits, so it is not added on a guess.
+#: **The cell-format hole, closed 2026-08-24.** "An 18650 charger board" was in
+#: neither table and passed. It could not be closed by adding the bare format,
+#: because that also refuses "a gauge for an 18650 pack, using the sealed
+#: block" — a monitor, which the envelope permits. So the rule names a cell
+#: format **and** a charging role, and the role is an *allowlist*:
+#: `charger(s)`, or `charge`/`charging`/`recharging` followed by a word that
+#: makes the board the thing doing the charging (`circuit`, `dock`,
+#: `controller`, …).
+#:
+#: Allowlist and not a list of monitoring phrases to exclude, deliberately.
+#: An exclusion list refuses every phrase nobody thought of, and the phrases
+#: nobody thinks of here are monitors — `charge state`, `state of charge`,
+#: `charge level`, `charging status`. Built this way they pass **by
+#: construction**, and the gate can only refuse wording it names out loud.
+#: `rechargeable` is an adjective on the battery, not a role, and does not
+#: match. Verified against all 31 product descriptions and 32 board sources in
+#: the corpus: nothing that passes today starts failing.
+_CELL_FORMAT = (
+    r"(?:18650|21700|26650|14500|16340|18350|10440|20700|26800|lifepo4)"
+)
+_CHARGING_ROLE = (
+    r"(?:(?:re)?chargers?\b"
+    r"|(?:re)?charg(?:e|ing)[\s-]+"
+    r"(?:ic|circuit|controller|board|module|dock|cradle|station|bay|pcb|shield))"
+)
+#: Either order, within one sentence — `[^.]` stops the pair pairing across a
+#: full stop, so "…an 18650. A charger for the lamp" is two asks, not one.
+_CELL_CHARGER_RE = (
+    rf"\b(?:{_CELL_FORMAT}\b[^.]{{0,40}}?{_CHARGING_ROLE}"
+    rf"|{_CHARGING_ROLE}[^.]{{0,40}}?\b{_CELL_FORMAT}\b)"
+)
+
 _RAW_BATTERY_IC_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bTP4056\b", re.I), "raw charger IC TP4056"),
     (re.compile(r"\bTP5100\b", re.I), "raw charger IC TP5100"),
@@ -73,6 +101,8 @@ _RAW_BATTERY_IC_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bDW01\b", re.I), "raw protection IC DW01"),
     (re.compile(r"\bFS8205\b", re.I), "raw protection FET FS8205"),
     (re.compile(r"\bli-?(?:po|ion)\s+charg", re.I), "lithium charging"),
+    (re.compile(_CELL_CHARGER_RE, re.I),
+     "lithium cell charging (a cell format named with a charging role)"),
 )
 
 # A quoted voltage prop ("48V") or voltage={48} above the DC ceiling.

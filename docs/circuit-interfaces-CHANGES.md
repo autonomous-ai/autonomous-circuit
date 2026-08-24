@@ -14,6 +14,50 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / server / client / skills / docs.
 ```
 
+## 2026-08-24 — the safety envelope refuses a charger named by cell format
+- **Change:** the battery half of the envelope gains one rule, in both tables
+  that describe it: `circuitpy.spec._RAW_BATTERY_IC_PATTERNS` (via
+  `_CELL_CHARGER_RE`) and `circuitlib.safety.CHARGER_PATTERNS`. It refuses a
+  **lithium cell format** (`18650`, `21700`, `26650`, `14500`, `16340`,
+  `18350`, `10440`, `20700`, `26800`, `lifepo4`) named within one sentence of a
+  **charging role** — `charger(s)`, or `charge`/`charging`/`recharging`
+  followed by a word that makes the board the thing doing the charging
+  (`ic`, `circuit`, `controller`, `board`, `module`, `dock`, `cradle`,
+  `station`, `bay`, `pcb`, `shield`). Either order. Refusal reason is unchanged:
+  battery power only via the sealed validated charge/protect block.
+- **Why:** recorded in `spec.py` since #8 as a known hole — **"an 18650 charger
+  board" was in neither table and passed.** It could not be closed by adding
+  the bare cell format, because that also refuses "a gauge for an 18650 pack,
+  using the sealed block", which is exactly what the envelope permits, so it
+  was left open rather than guessed at. The conjunction is what closes it
+  without taking the monitor with it.
+
+  The role half is an **allowlist and not a list of monitoring phrases to
+  exclude**, and that is the whole design. An exclusion list refuses every
+  phrasing nobody thought of, and the phrasings nobody thinks of here are
+  monitors — `charge state`, `state of charge`, `charge level`,
+  `charging status`. Built this way they pass by construction and the gate can
+  only refuse wording it names out loud. `rechargeable` describes the battery,
+  not the board's job, and does not match.
+- **Backward compatible:** yes in practice, and measured rather than asserted.
+  The rule was run over **all 31 `product.json` descriptions and all 32 board
+  sources** in the corpus before it was written in: **zero** of them start
+  failing. Nothing else moves — no new warning kind, no severity change, no
+  artifact change. The one behaviour that does change is the intended one: an
+  ask that names a lithium cell format together with a charging role now
+  refuses at spec time instead of building. Negation still applies, so
+  "no 18650 charger anywhere" passes.
+- **Mechanism:** `packages/circuitpy/src/circuitpy/spec.py` (`_CELL_FORMAT`,
+  `_CHARGING_ROLE`, `_CELL_CHARGER_RE`, one added entry in
+  `_RAW_BATTERY_IC_PATTERNS`), `skills/circuitcode/circuitlib/safety.py` (the
+  same pattern in `CHARGER_PATTERNS`; `_hits` lowercases, so it is written
+  lowercase). Both tables changed together on purpose — they drifted apart once
+  and the drift only surfaced when one of them started reading descriptions.
+  `circuitlib/safety.py` has no vendored copy, so **no skill runtime re-vendor
+  is required**; `packages/circuitpy` changed, so the circuitpy half does
+  re-vendor with the usual build.
+- **Tracks affected:** pipeline / skills / docs.
+
 ## 2026-08-24 — parts-book reads the board entry, not only `blocks/`
 - **Change:** §`parts-book` contract. The skill's candidate slots come from a
   third source: the project's own board entries (`boards/*.tsx`), read with the
