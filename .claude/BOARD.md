@@ -1,8 +1,8 @@
 # BOARD — autonomous-circuit
 
-**Updated 2026-08-19. `upstream/main` is `6040efb` (PRs #1, #2, #3 merged).
-Everything below the SUPERSEDED line is history — keep it, do not trust its
-SHAs.**
+**Updated 2026-08-24. `upstream/main` is `0edb454` (PRs #1-#3, #5-#11 merged;
+#12 and #13 open). Everything below the SUPERSEDED line is history — keep it,
+do not trust its SHAs.**
 
 **Scope: board quality only — will a board that comes back from the fab and
 gets flashed actually work, and is it good rather than merely working.**
@@ -17,6 +17,90 @@ those documents, that is a signal the task is not a board task.
 ---
 
 # CURRENT
+
+## weather-badge-26, 2026-08-24 — the first board in the corpus on library blocks
+
+**5 shorted switch terminals to 0, on a numbered board attributable to a
+commit.** #26 and #29 were already proven, twice, but both proofs lived in a
+scratch tree that matches no commit. wb-26 is the same claim made durable: a
+real project, built on `f49c868` (PR #13), with `CIRCUIT_BLOCK_LIBRARY` pinned
+to `skills/circuitcode/blocks` and written down so a later session does not
+have to guess which of the two libraries on disk it was. 712.5s,
+`fab.ready = True`.
+
+**A clean control, and the control was checked before the build, not after.**
+`main.tsx` and `parts.json` were copied byte-for-byte from wb-25; `blocks/` was
+deliberately left absent so `seed_blocks` had to fill it. Diffing wb-25's
+blocks against the library moves exactly two `.tsx` — `sw-tact` and
+`rp2040-core` — so the switch pairing is the only variable. The prop surface of
+`SwTact` and `Rp2040Core` was compared old-vs-new **first**: identical
+(`name, signal, to, pcbX, pcbY, schX, schY`), so a verbatim `main.tsx` compiles
+against both and a build failure could not be misread as an experiment result.
+
+```
+              wb-25 (blocks inherited)        wb-26 (blocks seeded)
+SW1   A: BTN1 + GND         ✗ shorted        A: BTN1        B: GND     ✓
+      B: (none)
+SW2   A: BOOTSEL_SW + GND   ✗ shorted        A: BOOTSEL_SW  B: GND     ✓
+      B: BOOTSEL_SW + GND   ✗ shorted
+SW3   A: GND + RUN_SW       ✗ shorted        A: RUN_SW      B: GND     ✓
+      B: GND + RUN_SW       ✗ shorted
+                 5 shorted terminals   ->   0
+```
+
+**The sharpest thing this build produced, and it is about reading, not
+copper.** The *same* wb-25 artifact reads **0 shorted terminals against the
+pairing its own block declared, and 5 against the pairing the part actually
+has.** wb-25's block wired only `pin1 -> signal` and `pin4 -> GND` while
+declaring `{pin1,pin2}`/`{pin3,pin4}`; C318884 ties row-wise, so signal met
+ground through the switch body and the bottom row — the real second terminal —
+floated unwired. The board was perfectly self-consistent with a wrong model of
+the part, which is why every check downstream passed it. Eighth entry in *the
+machine measures correctly and the reading is wrong*, and the first where the
+machine was asked the wrong question. The measurement script therefore encodes
+the **part**, never the block's declaration.
+
+**Predicted by the scratch-tree proof, and confirmed here on a real board:**
+
+| | wb-25 | wb-26 |
+|---|---|---|
+| shorted switch terminals | 5 | **0** |
+| crystal net (`pcb_trace_too_long`) | 29.41mm | **23.81mm** |
+| `net_conflict_disagreement` | 3 | **1** — only `Y1` pad 4 left |
+| **cost:** `hole_to_hole` | 0 | **x9** (0.1589mm vs 0.1995mm min) |
+| **cost:** `isolated_copper` | x14 | **x16** |
+
+**Also moved, cause NOT attributed — do not read these as the switch fix's
+doing:**
+
+| | wb-25 | wb-26 |
+|---|---|---|
+| `clearance_under_fab_floor` | 2 gaps under 0.1mm, narrowest 0.0908mm | 0 |
+| `clearance_no_margin` | 397 gaps | 297 |
+| warnings total | 87 (24 warning) | 85 (22 warning) |
+| `circuit_normalized` | 11 duplicate vias merged | none to merge |
+
+The scratch-tree proof predicted nothing about clearance. Same source, same
+`10x` effort, same 2 attempts — but the autorouter is not deterministic across
+runs, so a hundred fewer tight gaps is a routing outcome with no established
+cause. Claiming the switch fix bought them is exactly the error this board
+keeps a ledger for.
+
+Both boards: `fab.ready = True`, 2 attempts, `10x` effort. The two
+`net_conflict_disagreement` that vanished are `SW2` pad 2 and `SW3` pad 2 —
+**the other half of #19b**, exactly as #26 said they would be. The one that
+remains is `Y1` pad 4 (`GND` on the board, `TR_R11_Y1` on the drawing), which
+is #19c's to close.
+
+**The costs are real and are not swept up.** `hole_to_hole` x9 and
+`isolated_copper` 14 -> 16 both arrived with the fix, both at warning. Neither
+blocks; both are now on a board with a commit behind them rather than a scratch
+directory.
+
+**wb-16…wb-25 were not touched.** They keep their 08-19 snapshot and their
+shorted switches — that is the baseline. wb-26 does not replace them, it is the
+first entry on the other side of the line.
+
 
 ## #26 · VERIFIED on a real build — 5 shorted terminals to 0
 
@@ -1118,6 +1202,13 @@ refuse it".
   loop before shipping: phase 1 gates on `severity === "error"` and phase 2 on
   a closed kind allowlist, so a `warning` here informs and does not recruit
   review rounds nobody can close by editing TSX.
+- **#28 · CI has never been green.** **OUT OF SCOPE — owner's call,
+  2026-08-24.** This board's scope is board quality; all four red jobs are
+  infrastructure and none of them changes whether a fabbed, flashed board
+  works. The kicad half looked like it might be board quality and is not:
+  the fallback exporter's findings are true and `unverified_gerbers` already
+  blocks shipping on them, whether or not CI installs kicad. The measurement
+  stays filed above; the task is closed, not deferred.
 - **#19c · Make the group check require every member.** The repair for #19b.
   Changes what the pass stamps, so it needs re-measuring across the fleet —
   filed rather than rushed.
@@ -1166,9 +1257,9 @@ refuse it".
   [#6](https://github.com/autonomous-ai/autonomous-circuit/pull/6)
   (`feat/see-the-pour-properly`) merged 2026-08-19, `4839f0c` on
   `upstream/main`.
-- **#22 and #15's toolchain half · the outlined and untangled pour** are on PR
-  [#7](https://github.com/autonomous-ai/autonomous-circuit/pull/7)
-  (`feat/pour-as-outline`), **open, awaiting review**.
+- **#22 and #15's toolchain half · the outlined and untangled pour** — **DONE,
+  MERGED** — PR [#7](https://github.com/autonomous-ai/autonomous-circuit/pull/7)
+  (`feat/pour-as-outline`) merged 2026-08-20.
 
 **Remotes, because this cost a moment:** `upstream` is
 `github.com/autonomous-ai/autonomous-circuit` and is where every PR above
