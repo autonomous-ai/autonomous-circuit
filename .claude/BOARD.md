@@ -18,6 +18,42 @@ those documents, that is a signal the task is not a board task.
 
 # CURRENT
 
+## Swept the whole corpus for shorted terminals — 2026-08-24
+
+`scripts/part-terminals.py` (PR [#14](https://github.com/autonomous-ai/autonomous-circuit/pull/14))
+turns the wb-26 measurement into one command over every built board, and grades
+by **supplier part number**, never by the block's `internallyConnectedPins` —
+the declaration is the thing under test.
+
+```
+30 board(s) graded against the part: 230 shorted terminal(s), 30 ungraded
+```
+
+**weather-badge-26 is the only clean board of the thirty.** The single-board
+measurement could not show the scale; this does:
+
+| board | shorted terminals |
+|---|---|
+| terminal-keyboard | **100** (50 keys) |
+| macropad-3x3 | 18 |
+| macropad-6 | 12 |
+| night-light | 6 |
+| every weather-badge from -10 on | 5 each |
+| **weather-badge-26** | **0** |
+
+`--declared` re-runs the same artifact against its own block's declaration, so
+the gap #26 is about is one command rather than an argument: wb-25 reads 0 that
+way and 5 against the part.
+
+**One thing it deliberately will not do is pass quietly.** A part with no
+pairing on file reports `NOT GRADED`. `Y1`'s crystal (C20625731) is that case on
+all 30 boards — 4 pads, internally tied, no entry in the table. Filling it in
+needs its datasheet read, not a guess, and until then the corpus number is a
+floor and not a total.
+
+This does not touch the frozen boards; it measures them.
+
+
 ## weather-badge-26, 2026-08-24 — the first board in the corpus on library blocks
 
 **5 shorted switch terminals to 0, on a numbered board attributable to a
