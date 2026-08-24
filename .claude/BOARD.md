@@ -68,6 +68,40 @@ to `skills/circuitcode/blocks` and written down so a later session does not
 have to guess which of the two libraries on disk it was. 712.5s,
 `fab.ready = True`.
 
+**Correction, same day — the board on disk is no longer the board that was
+measured, and the measurement still holds.** Between 10:41 (this build ending)
+and 11:18, another session edited `boards/main.tsx` and rebuilt. The only
+non-comment change is one line:
+
+```
+- <silkscreentext text="WEATHER BADGE 25" pcbX={25.0} pcbY={-22.5} fontSize={1.2} />
++ <silkscreentext text="WEATHER BADGE 26" pcbX={25.0} pcbY={-22.5} fontSize={1.2} />
+```
+
+Same coordinates, same font size, 16 characters either way — and a good catch:
+five boards would have shipped with the wrong name printed on them. Everything
+else in that diff is comment prose (a corrected LED current sum, 122.3 -> 122.8
+mA, and an effort-level comment that contradicted its own prop).
+
+**Every electrical number in the tables below was re-verified against the
+rebuilt artifacts and is identical**: 0 shorted terminals, crystal net 23.81mm,
+`net_conflict_disagreement` 1, `hole_to_hole` x9, `isolated_copper` x16,
+`clearance_no_margin` 297, `clearance_under_fab_floor` 0, `fab.ready` true, 2
+attempts at 10x.
+
+**One number did move, and it is the interesting one: 85 findings -> 84.** The
+missing line is `block_library_seeded`. It fires only when `seed_blocks` fills
+an empty `blocks/`, so a rebuild of an already-seeded project cannot emit it.
+**The sidecar no longer carries any evidence of where this board's blocks came
+from** — that provenance now lives only in this entry and in the commit. Worth
+noting as a real gap: the one artifact a reviewer reads is silent about the one
+fact that makes this board different.
+
+The strict "byte-identical source" claim below was true of the measured build
+and is **not** true of the files now on disk. The control it was protecting —
+same copper, blocks from the library instead of inherited — is unaffected by a
+silkscreen string.
+
 **A clean control, and the control was checked before the build, not after.**
 `main.tsx` and `parts.json` were copied byte-for-byte from wb-25; `blocks/` was
 deliberately left absent so `seed_blocks` had to fill it. Diffing wb-25's
