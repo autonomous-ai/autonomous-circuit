@@ -151,6 +151,48 @@ def scan_block_tsx(path: Path) -> dict[str, dict]:
     return found
 
 
+#: A JSX attribute that pins a part by number: the name ends in `lcsc` and the
+#: whole value is one LCSC number. Deliberately narrow — a bare `C\d+` value
+#: match would read `name="C15"`, a capacitor's *refdes*, as part C15.
+_PROP_LCSC_RE = re.compile(r'(\w*[Ll][Cc][Ss][Cc])\s*=\s*"(C\d+)"')
+
+
+def scan_board_tsx(path: Path) -> dict[str, dict]:
+    """LCSC number -> what a *board* entry says about that part.
+
+    A board pins parts two ways. The first is a block's way — a literal
+    ``supplierPartNumbers`` on the element — and `scan_block_tsx` already reads
+    it. The second is the one #25 is about: the element takes the number as a
+    prop,
+
+        <led supplierPartNumbers={{ jlcpcb: [props.ledLcsc] }} … />
+
+    and the literal lives at the call site instead,
+
+        <ComfortLed led="LED2" r="R25" ledLcsc="C2297" rLcsc="C25091" … />
+
+    No literal is on the element, so a `supplierPartNumbers` scan sees nothing
+    and the part ships on `bom.csv` with no locked record. The convention that
+    makes the call site readable is that ``<x>Lcsc`` pins the part named by
+    attribute ``<x>``, which is also how the refdes is recovered here.
+    """
+    found = scan_block_tsx(path)
+    text = path.read_text(encoding="utf-8")
+    for match in _PROP_LCSC_RE.finditer(text):
+        attr, lcsc = match.group(1), match.group(2)
+        span = _element_span(text, match.start())
+        attrs = dict(_ATTR_RE.findall(span))
+        entry = found.setdefault(lcsc, {
+            "lcsc": lcsc, "tags": [], "mfr": "", "footprint": "",
+            "value": "", "refdes": [],
+        })
+        stem = attr[:-4] if len(attr) > 4 else ""
+        name = attrs.get(stem, "")
+        if name and name.isidentifier() and name not in entry["refdes"]:
+            entry["refdes"].append(name)
+    return found
+
+
 def parse_block_md(path: Path) -> dict[str, dict]:
     """LCSC number -> the row BLOCK.md's parts table documents for it."""
     rows: dict[str, dict] = {}
@@ -216,7 +258,30 @@ def _part_id(entry: dict) -> str:
     return _slug(entry["lcsc"])
 
 
-def collect_candidates(blocks_dir: Path) -> tuple[list[dict], list[str]]:
+def _merge_source(sources: dict[str, dict], lcsc: str, entry: dict) -> dict:
+    """Fold one scanned element into the candidate slot for ``lcsc``.
+
+    First writer wins on the scalars: a block and a board can both pin a part,
+    and the block is where a reusable lock belongs.
+    """
+    merged = sources.setdefault(lcsc, {
+        "lcsc": lcsc, "tags": [], "mfr": "", "footprint": "", "value": "",
+        "refdes": [], "blocks": [], "boards": [], "package": "",
+        "description": "", "basic": False, "basic_documented": False,
+    })
+    for tag in entry["tags"]:
+        if tag not in merged["tags"]:
+            merged["tags"].append(tag)
+    merged["mfr"] = merged["mfr"] or entry["mfr"]
+    merged["footprint"] = merged["footprint"] or entry["footprint"]
+    merged["value"] = merged["value"] or entry["value"]
+    merged["refdes"] = list(dict.fromkeys(merged["refdes"] + entry["refdes"]))
+    return merged
+
+
+def collect_candidates(
+    blocks_dir: Path, board_tsx: Sequence[Path] = (),
+) -> tuple[list[dict], list[str]]:
     """Candidate slots from every block in ``blocks_dir``, plus drift notes.
 
     Two passes, because a block may compose a component another block
@@ -224,6 +289,14 @@ def collect_candidates(blocks_dir: Path) -> tuple[list[dict], list[str]]:
     ``usb-c-power``): pass 1 reads every TSX — the part lock — pass 2 folds
     in each BLOCK.md's parts table and only then calls a documented part
     that no TSX anywhere pins a drift.
+
+    ``board_tsx`` is the third source and the reason for #25: a board composes
+    blocks *and* pins parts of its own, and a part introduced at board level
+    belongs to no block, so a blocks-only scan cannot see it. On
+    weather-badge-27 that was three parts — C25091, C25117 and C84256 — each
+    on the ``bom.csv`` the fab reads with no locked record behind it: no
+    stock, no price, no verification date, no row in the parts panel. They are
+    read with the same scanner as a block; only their provenance differs.
     """
     notes: list[str] = []
     if not blocks_dir.is_dir():
@@ -240,20 +313,21 @@ def collect_candidates(blocks_dir: Path) -> tuple[list[dict], list[str]]:
                 continue
             tsx = found[0]
         for lcsc, entry in scan_block_tsx(tsx).items():
-            merged = sources.setdefault(lcsc, {
-                "lcsc": lcsc, "tags": [], "mfr": "", "footprint": "",
-                "value": "", "refdes": [], "blocks": [], "package": "",
-                "description": "", "basic": False, "basic_documented": False,
-            })
-            for tag in entry["tags"]:
-                if tag not in merged["tags"]:
-                    merged["tags"].append(tag)
-            merged["mfr"] = merged["mfr"] or entry["mfr"]
-            merged["footprint"] = merged["footprint"] or entry["footprint"]
-            merged["value"] = merged["value"] or entry["value"]
-            merged["refdes"] = list(dict.fromkeys(merged["refdes"] + entry["refdes"]))
+            merged = _merge_source(sources, lcsc, entry)
             if bid not in merged["blocks"]:
                 merged["blocks"].append(bid)
+
+    # Board-level parts. Same scanner, so there is one TSX parser in this file
+    # and not two to drift apart. A part the board pins *and* a block pins is
+    # the block's — the block is where the lock belongs — so these only fill in
+    # what the block pass left empty, and the board is recorded either way.
+    for tsx in board_tsx:
+        if not tsx.is_file():
+            continue
+        for lcsc, entry in scan_board_tsx(tsx).items():
+            merged = _merge_source(sources, lcsc, entry)
+            if tsx.stem not in merged["boards"]:
+                merged["boards"].append(tsx.stem)
 
     for block_dir in block_dirs:
         bid = block_dir.name
@@ -293,8 +367,15 @@ def collect_candidates(blocks_dir: Path) -> tuple[list[dict], list[str]]:
             "description": entry["description"],
             "refdes": entry["refdes"],
             "blocks": entry["blocks"],
-            "source": "block-default",
+            "boards": entry["boards"],
+            "source": "block-default" if entry["blocks"] else "board-source",
         }
+        if entry["boards"] and not entry["blocks"]:
+            notes.append(
+                f"{lcsc} is pinned by board {', '.join(entry['boards'])} and by "
+                f"no block — it ships on the BOM, so it is locked here; a part "
+                f"meant to be reused belongs in a block"
+            )
     return [parts[k] for k in sorted(parts)], notes
 
 
@@ -457,6 +538,8 @@ def carry_forward(record: dict, previous: dict) -> None:
     for key in ("override", "footprint_risk", "swapped_from"):
         if key in previous and key not in record:
             record[key] = previous[key]
+    if previous.get("boards") and not record.get("boards"):
+        record["boards"] = previous["boards"]
 
 
 def finalize(record: dict) -> dict:
@@ -475,6 +558,8 @@ def finalize(record: dict) -> dict:
         "blocks": record.get("blocks", []),
         "source": record.get("source", "block-default"),
     }
+    if record.get("boards"):
+        out["boards"] = record["boards"]
     for key in ("description", "preferred", "override", "footprint_risk",
                 "swapped_from", "lookup_mismatch"):
         if record.get(key):
@@ -567,7 +652,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not blocks_dir.is_dir():
         blocks_dir = _repo_blocks_dir()
 
-    records, notes = collect_candidates(blocks_dir)
+    # The board's own TSX is the third place a part can be pinned. Resolved
+    # inside the project — parts-book is self-contained at runtime and does not
+    # climb out to the repo for this.
+    boards_dir = project / "boards"
+    board_tsx = sorted(boards_dir.glob("*.tsx")) if boards_dir.is_dir() else []
+
+    parts_path = project / PARTS_FILE
+    previous = read_existing(parts_path)
+
+    records, notes = collect_candidates(blocks_dir, board_tsx)
+
+    # A part id is the handle the parts panel, --swap and every human use to
+    # name a part, so it must not move when the *scanner* learns something new.
+    # Deriving it from source alone did move it: once the board pass started
+    # seeing C2296, its id went from the `led-yellow-0805` on disk to a bare
+    # `c2296`, because a call site carries no tag or value to build a readable
+    # slug from. The number is the identity; the id follows what it was.
+    taken = {r["id"] for r in records}
+    for record in records:
+        was = (previous.get(record["lcsc"]) or {}).get("id")
+        if was and was != record["id"] and was not in taken:
+            taken.discard(record["id"])
+            taken.add(was)
+            record["id"] = was
+
     by_id = {r["id"]: r for r in records}
 
     if args.add:
@@ -641,8 +750,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         seen_ids[pid] = lcsc
         seen_lcsc[lcsc] = pid
 
-    parts_path = project / PARTS_FILE
-    previous = read_existing(parts_path)
+    # A manual record survives the next run. `collect_candidates` rebuilds the
+    # slot list from source every time, so before this an `--add` lived exactly
+    # until the following invocation evicted it — two runs in sequence both
+    # returned 21 records, the second having dropped the first's addition. Only
+    # records a human put there are carried: a block-derived record that no
+    # longer has a slot is *gone from the source*, and resurrecting it would
+    # make parts.json a file that never forgets a part somebody removed.
+    carried: list[str] = []
+    for lcsc, record in sorted(previous.items()):
+        if not (record.get("override") or record.get("source") == "manual"):
+            continue
+        if any(r["lcsc"] == lcsc for r in records):
+            continue
+        pid = str(record.get("id") or _slug(lcsc))
+        if pid in by_id:
+            notes.append(
+                f"manual record {pid} ({lcsc}) was dropped: that part id is now "
+                f"pinned by source to {by_id[pid]['lcsc']} — re-add it under a "
+                f"distinct id, or --swap the source one"
+            )
+            continue
+        kept = dict(record)
+        kept["id"] = pid
+        kept.setdefault("source", "manual")
+        kept["override"] = True
+        by_id[pid] = kept
+        records = [by_id[k] for k in sorted(by_id)]
+        carried.append(f"{pid} ({lcsc})")
+    if carried:
+        notes.append(
+            "carried forward " + str(len(carried)) + " manual record(s) no "
+            "block or board pins: " + ", ".join(carried) +
+            " — nothing in source places these, so they are held on your say-so"
+        )
 
     lookup_note = None
     failures: list[str] = []

@@ -83,6 +83,36 @@ def _make_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+BOARD_TSX = '''/**
+ * boards/main.tsx — a test fixture for board-level parts.
+ */
+const ComfortLed = (props: { led: string; r: string; ledLcsc: string; rLcsc: string }) => (
+  <group>
+    <led name={props.led} footprint="0805"
+      supplierPartNumbers={{ jlcpcb: [props.ledLcsc] }} />
+    <resistor name={props.r} resistance="220" footprint="0402"
+      supplierPartNumbers={{ jlcpcb: [props.rLcsc] }} />
+  </group>
+)
+
+export default () => (
+  <board width="30mm" height="20mm">
+    <DemoBlock />
+    <ComfortLed led="LED4" r="R27" ledLcsc="C84256" rLcsc="C25091" />
+    <capacitor name="C15" capacitance="15pF" footprint="0402"
+      supplierPartNumbers={{ jlcpcb: ["C1548"] }} />
+  </board>
+)
+'''
+
+
+def _with_board(project: Path) -> Path:
+    boards = project / "boards"
+    boards.mkdir(parents=True, exist_ok=True)
+    (boards / "main.tsx").write_text(BOARD_TSX, encoding="utf-8")
+    return project
+
+
 def _parts(project: Path) -> dict:
     return json.loads((project / "parts.json").read_text(encoding="utf-8"))
 
@@ -271,3 +301,82 @@ def test_real_golden_blocks_lock_cleanly(tmp_path: Path):
     for part in _parts(project)["parts"]:
         assert part["lcsc"].startswith("C") and part["lcsc"][1:].isdigit()
         assert part["package"], f"{part['id']} has no package"
+
+
+# --- #25: parts the board pins, and records a human put there -------------
+
+
+def test_a_board_level_part_is_locked(tmp_path: Path):
+    """The part ships on bom.csv, so it needs a record behind it.
+
+    weather-badge-27 shipped three of these — C25091, C25117 and C84256 — with
+    no stock, no price and no row in the parts panel.
+    """
+    project = _with_board(_make_project(tmp_path))
+    payload, _ = _run(str(project))
+    assert payload["ok"], payload
+    by_lcsc = {p["lcsc"]: p for p in _parts(project)["parts"]}
+    assert "C84256" in by_lcsc, sorted(by_lcsc)
+    assert "C25091" in by_lcsc, sorted(by_lcsc)
+    assert by_lcsc["C84256"]["refdes"] == ["LED4"]
+    assert by_lcsc["C25091"]["refdes"] == ["R27"]
+    assert by_lcsc["C84256"]["boards"] == ["main"]
+    assert by_lcsc["C84256"]["source"] == "board-source"
+    # the block's parts are untouched by the board pass
+    assert by_lcsc["C6186"]["blocks"] == ["demo-block"]
+
+
+def test_a_refdes_that_looks_like_a_part_number_is_not_one(tmp_path: Path):
+    """`name="C15"` is a capacitor's refdes. Reading it as part C15 would pin
+    a part nobody chose, with a real LCSC number behind it."""
+    project = _with_board(_make_project(tmp_path))
+    _run(str(project))
+    numbers = {p["lcsc"] for p in _parts(project)["parts"]}
+    assert "C15" not in numbers, sorted(numbers)
+    assert "C1548" in numbers, sorted(numbers)
+
+
+def test_an_added_part_survives_the_next_run(tmp_path: Path):
+    """#25's other half: --add lived exactly until the next invocation."""
+    project = _make_project(tmp_path)
+    _run(str(project))
+    _run(str(project), "--add", "inrush-fuse", "--lcsc", "C12345", "--refdes", "F1")
+    assert any(p["id"] == "inrush-fuse" for p in _parts(project)["parts"])
+    payload, _ = _run(str(project))          # a plain re-sync
+    ids = [p["id"] for p in _parts(project)["parts"]]
+    assert "inrush-fuse" in ids, ids
+    assert any("inrush-fuse" in n for n in payload.get("notes", [])), payload
+    _run(str(project))                       # and again
+    assert "inrush-fuse" in [p["id"] for p in _parts(project)["parts"]]
+
+
+def test_a_block_part_that_left_the_source_is_not_resurrected(tmp_path: Path):
+    """Only what a human pinned is carried. parts.json is a lock, not an attic."""
+    project = _make_project(tmp_path)
+    _run(str(project))
+    assert any(p["lcsc"] == "C25900" for p in _parts(project)["parts"])
+    block = project / "blocks" / "demo-block"
+    (block / "demo-block.tsx").write_text(
+        BLOCK_TSX.replace(
+            '<resistor name="R90" resistance="4.7k" footprint="0402"\n'
+            '        supplierPartNumbers={{ jlcpcb: ["C25900"] }} />', ""),
+        encoding="utf-8")
+    (block / "BLOCK.md").write_text(
+        "\n".join(l for l in BLOCK_MD.splitlines() if "C25900" not in l),
+        encoding="utf-8")
+    _run(str(project))
+    assert not any(p["lcsc"] == "C25900" for p in _parts(project)["parts"])
+
+
+def test_a_part_id_on_disk_is_not_renamed_by_the_scanner(tmp_path: Path):
+    """The id is the handle --swap and the parts panel use; it must not move."""
+    project = _with_board(_make_project(tmp_path))
+    _run(str(project))
+    blob = _parts(project)
+    for part in blob["parts"]:
+        if part["lcsc"] == "C84256":
+            part["id"] = "led-red-0805"
+    (project / "parts.json").write_text(json.dumps(blob), encoding="utf-8")
+    _run(str(project))
+    by_lcsc = {p["lcsc"]: p for p in _parts(project)["parts"]}
+    assert by_lcsc["C84256"]["id"] == "led-red-0805", by_lcsc["C84256"]
