@@ -34,12 +34,16 @@ measurement could not show the scale; this does:
 
 | board | shorted terminals |
 |---|---|
-| terminal-keyboard | **100** (50 keys) |
+| terminal-keyboard | **100** — 50 keys, *both* terminals each |
 | macropad-3x3 | 18 |
 | macropad-6 | 12 |
 | night-light | 6 |
 | every weather-badge from -10 on | 5 each |
 | **weather-badge-26** | **0** |
+
+terminal-keyboard is a different failure shape from wb-25 and worth not
+blurring: every key shorts `K.. + ROW..` on **both** terminals, where wb-25's
+SW1 shorts one terminal and floats the other.
 
 `--declared` re-runs the same artifact against its own block's declaration, so
 the gap #26 is about is one command rather than an argument: wb-25 reads 0 that
