@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Sequence
 
+from circuitpy import blocklib
 from circuitpy import checks
 from circuitpy import circuit_normalize
 from circuitpy import diffpair
@@ -715,6 +716,46 @@ def next_effort(declared: str | None) -> str | None:
     return EFFORT_LADDER[at + 1] if at + 1 < len(EFFORT_LADDER) else None
 
 
+#: Where `tscircuit-cli` keeps its own build cache, relative to the work dir.
+#: Not ours and not documented — found by walking the work dir before and after
+#: a compile (11 directories became 17, and the new one was this).
+CLI_CACHE_DIR = Path(".tscircuit") / "cache"
+
+
+class _MarginPassSkipped(Exception):
+    """Internal: the clearance margin pass has nothing to add this build."""
+
+
+def drop_cli_cache(work: Path) -> bool:
+    """Delete the CLI's cache so the next compile is a compile.
+
+    **Without this the routing escalation never ran.** Measured 2026-08-21 on
+    weather-badge-23, with a probe around each compile:
+
+        compile 1   effort=5x    255s   2085 elements   17 blocking
+        compile 2   effort=10x    19s   2085 elements   17 blocking
+
+    The source rewrite worked — the probe read `10x` back off the mirrored file
+    — and the CLI still handed the first attempt's board straight back, in
+    nineteen seconds. The escalation then compared a board against itself, read
+    17 against 17 as "trying harder did not help", kept the cheaper build, and
+    wrote a note telling the engineer the remaining lever was the placement.
+    The same board built at 10x from cold comes back with **1** blocking
+    finding, and with this line the retry reproduces that: `blocking=[17, 1]`,
+    `fab.ready` true, 539s for two real compiles instead of 297s for one.
+
+    Two numbers that agree are the most convincing thing a broken retry can
+    produce, which is why this survived so long: `[17, 17]` reads exactly like
+    a measurement.
+
+    Returns whether there was a cache to drop, so a caller can say so.
+    """
+    cache = work / CLI_CACHE_DIR
+    existed = cache.is_dir()
+    shutil.rmtree(cache, ignore_errors=True)
+    return existed
+
+
 def _set_autorouter_effort(board_source: Path, effort: str) -> bool:
     """Set ``autorouterEffortLevel`` on the mirrored board source.
 
@@ -901,6 +942,37 @@ def build_board(
         raise ProjectShapeError(
             f"board source {script_path} is outside its project root {project_root}"
         ) from exc
+
+    # The library is the source of truth for a board that does not have one
+    # yet. A project with no `blocks/` is seeded from it here, before anything
+    # reads the source — `main.tsx` imports `../blocks/<id>/<id>`, so this is
+    # also the difference between building and not. A project that already has
+    # blocks is left exactly as it is: that copy is the board's history, and a
+    # build is not allowed to rewrite history behind whoever asked for it.
+    #
+    # #29, measured 2026-08-21: eight boards in a row inherited one snapshot
+    # from each other instead of from the library, and the switch fix that
+    # unshorted every button reached none of them.
+    first_build = not (output_p.parent / f"{stem}.board.json").exists()
+    try:
+        seeded = blocklib.seed_blocks(project_root)
+        block_findings = blocklib.drift_warnings(
+            project_root, is_first_build=first_build
+        )
+        if seeded:
+            block_findings.append({
+                "part": "board",
+                "kind": "block_library_seeded",
+                "detail": (
+                    f"this project had no blocks/, so {len(seeded)} golden "
+                    f"block(s) were copied in from the library — the one place "
+                    f"they are allowed to come from. They are frozen with the "
+                    f"board from here on"
+                ),
+                "severity": "info",
+            })
+    except OSError as exc:
+        block_findings = [checks.check_failed(f"block library check: {exc}")]
 
     product = spec_mod.load_product(project_root)
     parts = spec_mod.load_parts(project_root)
@@ -1182,6 +1254,10 @@ def build_board(
             kept = built_dir.with_name(built_dir.name + "__attempt1")
             shutil.rmtree(kept, ignore_errors=True)
             shutil.copytree(built_dir, kept)
+            # A retry that reuses the CLI's cache is not a retry at all;
+            # see `drop_cli_cache`. This is the line that makes the rung above
+            # actually get routed.
+            drop_cli_cache(work)
 
             progress.stage("compile")
             budget = max(
@@ -1590,8 +1666,71 @@ def build_board(
                         drc_json, kind="drc_violation", kicad_pcb=kicad_pcb
                     )
                 )
+                gate_ran = True
             except (RuntimeError, TimeoutError) as exc:
+                gate_ran = False
                 warnings.append(checks.gate_did_not_run("kicad DRC", str(exc)))
+            # Second pass, floor raised to the profile's design margin. The
+            # gate runs at the fab floor less an engine tolerance, so copper
+            # that is tight-but-legal — and copper the tolerance admitted from
+            # under the floor — is invisible to it. 3.6s measured; the build
+            # around it is four minutes. See `clearance_margin_warnings`.
+            margin_json = built_dir / "drc-margin.json"
+            # Only when the gate itself ran. A DRC that segfaults (wb-16,
+            # 2026-08-19) would segfault twice, and the second report would
+            # read as a separate fault rather than the same one.
+            try:
+                if not gate_ran:
+                    raise _MarginPassSkipped
+                fab_mod.write_kicad_project(
+                    kicad_pcb, profile, clearance_mm=profile.warn_clearance_mm
+                )
+                toolchain.run_kicad(
+                    [
+                        "pcb",
+                        "drc",
+                        # Same flags as the gate above minus --schematic-parity
+                        # (already graded, and it is the slow half). Without
+                        # --all-track-errors kicad stops at the first fault per
+                        # track: 300 clearance findings become 399 with it.
+                        "--all-track-errors",
+                        "--format",
+                        "json",
+                        "--severity-all",
+                        "-o",
+                        str(margin_json),
+                        str(kicad_pcb),
+                    ],
+                    timeout=KICAD_TIMEOUT_S,
+                    ok_codes=(0, 5),
+                )
+                warnings.extend(
+                    checks.clearance_margin_warnings(margin_json, profile)
+                )
+            except _MarginPassSkipped:
+                pass  # the gate already said it did not run; once is enough
+            except (RuntimeError, TimeoutError, OSError) as exc:
+                # Advisory by construction: the hard gate ran and its verdict
+                # stands. A margin pass that dies costs visibility, never a
+                # verdict — so `check_failed`, which does not block.
+                warnings.append(
+                    checks.check_failed(f"clearance margin pass did not run: {exc}")
+                )
+            finally:
+                # Put the fab's real rules back: everything downstream — the
+                # packet a human opens included — must see the gate's project
+                # file, not the margin pass's. Failing to is not something to
+                # swallow: it would leave a human reading a 0.127mm rules file
+                # believing it is the fab's, with nothing saying otherwise.
+                try:
+                    fab_mod.write_kicad_project(kicad_pcb, profile)
+                except OSError as exc:
+                    warnings.append(checks.check_failed(
+                        f"the margin pass could not restore the fab's own DRC "
+                        f"rules ({exc}); the .kicad_pro beside this board "
+                        f"states {profile.warn_clearance_mm:g}mm clearance, "
+                        f"which is our design margin and not the fab's floor"
+                    ))
             # Shipping gerbers come from the converted board (the verified path).
             gerber_dir = built_dir / "kicad-gerbers"
             try:
@@ -1643,7 +1782,14 @@ def build_board(
             }
         )
 
-    warnings = checks.dedupe(warnings)
+    # Block-library findings go in *here*, after every path that can replace
+    # the list. Measured the hard way: they were seeded at the top and the
+    # escalation retry does `warnings = retry_warnings`, so the first board
+    # that needed a second routing attempt dropped them and shipped a sidecar
+    # that said nothing — a finding that exists and does not arrive is the
+    # failure this repo keeps re-buying. They are never `error`, so adding
+    # them after the retry logic cannot change what that logic decided.
+    warnings = checks.dedupe([*block_findings, *warnings])
 
     progress.stage("export")
 

@@ -323,6 +323,84 @@ def _lcsc_by_component(circuit_json: Sequence[dict]) -> dict[str, str]:
     return out
 
 
+#: KiCad prints the measured gap in every clearance violation it reports.
+_CLEARANCE_ACTUAL_RE = re.compile(r"actual ([0-9.]+)\s*mm")
+
+
+def clearance_margin_warnings(report: object, profile: FabProfile) -> list[Warning]:
+    """What the hard floor cannot see: copper that is legal but has no room.
+
+    The gate runs KiCad against ``min_clearance_mm - drc_tolerance_mm``. The
+    tolerance exists for a real reason — the router targets 0.1mm and KiCad
+    measures the same copper at 0.0958mm, a 4um disagreement between two
+    geometry engines — but it is 10um wide, so everything from 0.090mm up
+    passes silently, including gaps genuinely under the fab's own floor.
+
+    **Measured on weather-badge-23, 2026-08-21** (fixture:
+    `tests/fixtures/wb23_drc_margin.json`). Re-running DRC with the floor
+    raised finds **399 places** under ``warn_clearance_mm`` (0.127mm), a median
+    gap of 0.115mm, and **two below JLC's stated 0.10mm**, the narrowest at
+    0.0908mm. At the gate's own floor the same board, same file, same kicad-cli
+    reports **zero** clearance findings — 0.0908 clears 0.09 by 800 nanometres.
+    An outside hardware review read that board and said the fab would refuse
+    it; this is the number behind that sentence, and no verdict ever carried
+    it, because ``warn_clearance_mm`` was declared in the profile and read by
+    nothing in this package outside the router's cost model.
+
+    Two findings, and neither blocks: **whether tight routing should block is a
+    decision for an EE**, not something to settle by changing a severity here.
+    What this fixes is that nobody could see the question.
+    """
+    try:
+        if isinstance(report, (str, Path)) and Path(str(report)).is_file():
+            report = json.loads(Path(str(report)).read_text(encoding="utf-8"))
+        if not isinstance(report, dict):
+            return []
+        gaps: list[float] = []
+        for violation in report.get("violations") or []:
+            if not isinstance(violation, dict) or violation.get("type") != "clearance":
+                continue
+            match = _CLEARANCE_ACTUAL_RE.search(str(violation.get("description") or ""))
+            if match:
+                gaps.append(float(match.group(1)))
+        if not gaps:
+            return []
+        gaps.sort()
+        floor = profile.min_clearance_mm
+        warn_at = profile.warn_clearance_mm
+        under_floor = [g for g in gaps if g < floor]
+        tight = [g for g in gaps if floor <= g < warn_at]
+        out: list[Warning] = []
+        if under_floor:
+            out.append(_warning(
+                "board",
+                "clearance_under_fab_floor",
+                f"{len(under_floor)} copper gap(s) measure under the fab's own "
+                f"{floor:g}mm floor, narrowest {under_floor[0]:g}mm. The gate "
+                f"runs at {floor - profile.drc_tolerance_mm:g}mm — the floor "
+                f"less a {profile.drc_tolerance_mm:g}mm tolerance meant for a "
+                f"4um disagreement between two geometry engines — so these pass "
+                f"it. They are not engine noise; they are below what the fab "
+                f"says it can hold",
+                "warning",
+            ))
+        if tight:
+            out.append(_warning(
+                "board",
+                "clearance_no_margin",
+                f"{len(tight)} copper gap(s) sit between the {floor:g}mm floor "
+                f"and the {warn_at:g}mm design margin, median "
+                f"{tight[len(tight) // 2]:g}mm. Legal, and with nothing to "
+                f"spare: a fab holding its own tolerance can still land these "
+                f"touching. Reported, not graded — whether tight routing blocks "
+                f"is an EE's call",
+                "info",
+            ))
+        return out
+    except Exception as exc:  # noqa: BLE001
+        return [check_failed(f"clearance margin scan raised {type(exc).__name__}: {exc}")]
+
+
 def iou_warnings(
     circuit_json: Sequence[dict], profile: FabProfile
 ) -> list[Warning]:

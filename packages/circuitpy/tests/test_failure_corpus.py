@@ -727,6 +727,57 @@ class RoutingEscalation(unittest.TestCase):
             ["[clearance]", "[shorting_items]", "[hole_clearance]", "Via"],
         )
 
+    def test_the_retry_drops_the_cli_cache_or_it_is_not_a_retry(self) -> None:
+        # The escalation ran for months and never routed anything. Measured
+        # 2026-08-21 on weather-badge-23 with a probe around each compile:
+        #
+        #     compile 1   effort=5x    255s   2085 elements   17 blocking
+        #     compile 2   effort=10x    19s   2085 elements   17 blocking
+        #
+        # The source rewrite worked — the probe read "10x" back off the
+        # mirrored file — and `tscircuit-cli` handed the first attempt's board
+        # straight back out of `work/.tscircuit/cache`, in nineteen seconds.
+        # The escalation compared a board against itself, read 17 against 17 as
+        # "trying harder did not help", and wrote a note telling the engineer
+        # the remaining lever was the placement. Cold at 10x that board comes
+        # back with 1 blocking finding; with the cache dropped the retry
+        # reproduces it (blocking=[17, 1], fab.ready true, 539s for two real
+        # compiles against 297s for one).
+        import tempfile
+
+        from circuitpy import generation
+
+        work = Path(tempfile.mkdtemp(prefix="cli-cache-"))
+        cache = work / generation.CLI_CACHE_DIR
+        cache.mkdir(parents=True)
+        (cache / "routed.json").write_text("{}", encoding="utf-8")
+
+        self.assertTrue(generation.drop_cli_cache(work))
+        self.assertFalse(cache.exists())
+        # The work dir itself is not collateral — the mirrored source and the
+        # kept attempt live in it.
+        self.assertTrue(work.is_dir())
+
+        # Idempotent, and a missing cache is not an error: the first compile of
+        # a fresh project has not written one yet.
+        self.assertFalse(generation.drop_cli_cache(work))
+        self.assertFalse(generation.drop_cli_cache(work / "nope"))
+
+    def test_the_escalation_clears_the_cache_before_it_recompiles(self) -> None:
+        """Order is the whole fix: dropped *after* attempt 1 is copied aside
+        and *before* the retry compiles. Dropping it earlier would cost the
+        first compile its cache; later would not help at all."""
+        import inspect
+
+        from circuitpy import generation
+
+        body = inspect.getsource(generation.build_board)
+        kept = body.index("__attempt1")
+        dropped = body.index("drop_cli_cache(work)")
+        compiled = body.index("_compile_once(budget)")
+        self.assertLess(kept, dropped, "cache dropped before attempt 1 is safe")
+        self.assertLess(dropped, compiled, "cache dropped before the retry compiles")
+
     def test_a_declared_effort_is_a_floor_the_retry_climbs_from(self) -> None:
         # The escalation used to refuse any board that declared an effort, on
         # the reading that the author's choice wins. Every board in the product
