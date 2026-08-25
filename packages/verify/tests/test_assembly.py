@@ -239,3 +239,75 @@ def test_rotated_square_gap_is_not_its_bounding_box_gap():
     corner = Poly([(1.8, 1.8), (2.4, 1.8), (2.4, 2.4), (1.8, 2.4)])
     assert diamond.bounds.gap_to(corner.bounds) < 0
     assert diamond.gap_to(corner) > 0
+
+
+# --- mounting support -----------------------------------------------------
+
+
+def _mount(x: float, y: float, diameter: float = 2.7) -> dict:
+    return {
+        "type": "pcb_hole",
+        "pcb_hole_id": f"pcb_hole_{x}_{y}",
+        "x": x,
+        "y": y,
+        "hole_diameter": diameter,
+    }
+
+
+def _corners(w: float, h: float) -> list[dict]:
+    dx, dy = w / 2 - 4, h / 2 - 4
+    return [_mount(x, y) for x in (-dx, dx) for y in (-dy, dy)]
+
+
+def test_four_corner_holes_are_what_27_of_32_boards_do():
+    elements = [fixtures.board(75, 50), *_corners(75, 50)]
+    assert not assembly._mounting_support(Board(elements))
+
+
+def test_two_holes_on_a_board_over_50mm_is_reported():
+    """wb-28's shape: 60x45 with a diagonal pair. A warning, never an error —
+    the agent's only moves would be to grow the board or drop parts, and that
+    is a product decision."""
+    elements = [fixtures.board(60, 45), _mount(-26.5, -19), _mount(26.5, 10)]
+    found = assembly._mounting_support(Board(elements))
+    assert {f["kind"] for f in found} == {"dfa_mounting_points"}
+    assert {f["severity"] for f in found} == {"warning"}
+
+
+def test_both_holes_on_one_edge_is_reported_separately():
+    """wb-29, and the only board in the corpus that does it: both at x=+26, so
+    the rest of the board is cantilevered off that line."""
+    elements = [fixtures.board(60, 40), _mount(26, -16), _mount(26, 16)]
+    kinds_found = {f["kind"] for f in assembly._mounting_support(Board(elements))}
+    assert kinds_found == {"dfa_mounting_points", "dfa_mounting_collinear"}
+
+
+def test_a_diagonal_pair_is_not_collinear():
+    """The distinction the second rule exists to draw: four boards before wb-29
+    shipped two holes and every one of them put the pair on a diagonal."""
+    elements = [fixtures.board(60, 45), _mount(-26.5, -19), _mount(26.5, 10)]
+    kinds_found = {f["kind"] for f in assembly._mounting_support(Board(elements))}
+    assert "dfa_mounting_collinear" not in kinds_found
+
+
+def test_a_small_board_is_not_scored():
+    """weather-badge-8 is 50x35 with two holes and is not flagged: below the
+    threshold an enclosure's own clips are a normal answer."""
+    elements = [fixtures.board(50, 35), _mount(-20, -12), _mount(20, 12)]
+    assert not assembly._mounting_support(Board(elements))
+
+
+def test_a_via_sized_hole_is_not_a_mounting_point():
+    """Only holes at or above 1.0mm count; the profile's largest via drill is
+    0.3mm, so a densely-vias board must not read as well mounted."""
+    elements = [fixtures.board(75, 50)] + [
+        _mount(x, y, diameter=0.3) for x in (-30, 30) for y in (-20, 20)
+    ]
+    kinds_found = {f["kind"] for f in assembly._mounting_support(Board(elements))}
+    assert "dfa_mounting_points" in kinds_found
+
+
+def test_mounting_findings_reach_the_check_result():
+    elements = [fixtures.board(60, 40), _mount(26, -16), _mount(26, 16)]
+    result = assembly.check(Board(elements))
+    assert "dfa_mounting_collinear" in kinds(result, "warning")
