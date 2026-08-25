@@ -63,6 +63,12 @@ class Normalization:
     text_thickened: int = 0
     strokes_widened: int = 0
     vias_bridged: int = 0
+    #: The (pad, drill) each bridging via was placed at, largest-first order
+    #: preserved from `_VIA_CANDIDATES`. Recorded because the via is added
+    #: **after** `circuit.json` is written, so every DFM check downstream reads
+    #: a design that does not contain it: a repair could drop a board to the
+    #: fab's absolute floor and nothing would say so. See `via_drill_warnings`.
+    via_geometry: list[tuple[float, float]] = field(default_factory=list)
     #: Pour zones whose triangle mesh was re-expressed as outlines, and the
     #: `filled_polygon` count before and after, so the size of the change is
     #: on the record rather than asserted.
@@ -122,9 +128,13 @@ class Normalization:
                 )
             )
         if self.vias_bridged:
+            sizes = ", ".join(
+                f"{pad:g}/{drill:g}mm" for pad, drill in self.via_geometry
+            )
             parts.append(
                 f"{self.vias_bridged} missing via(s) added under a B.Cu "
                 "dead-end at a top-only pad"
+                + (f" ({sizes} pad/drill)" if sizes else "")
             )
         if self.pours_outlined:
             parts.append(
@@ -675,6 +685,7 @@ def _fix_dead_end_vias(text: str, profile: FabProfile, result: Normalization) ->
                                      zones, zone_clearance):
                         placements.append((cx, cy, size, drill, seg.net))
                         vias.append(_ViaGeom(cx, cy, drill, seg.net))
+                        result.via_geometry.append((size, drill))
                         placed = True
                         break
                 if placed:
