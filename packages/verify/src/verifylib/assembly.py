@@ -267,6 +267,88 @@ def _holes_in_keepouts(board: Board) -> list[Finding]:
     return out
 
 
+#: A hole this wide or wider is a mounting point, not a via or a component
+#: through-hole leg. M2 clears at 2.2mm and the corpus uses M2.5 (2.7mm); the
+#: largest via drill in the fab profile is 0.3mm and a USB-C leg is under 1mm,
+#: so 1.0mm separates them with room to spare.
+MOUNTING_HOLE_MIN_MM = 1.0
+
+#: Below this on both sides, a board is small enough that two screws or an
+#: enclosure's own clips are a normal answer and four holes would be unusual.
+MOUNTING_SCORED_ABOVE_MM = 50.0
+
+#: What a rigid mount takes. **Not invented here** — measured across the whole
+#: corpus 2026-08-25 and then confirmed by the owner, who has built the boards:
+#: 27 of 32 boards carry four or more, at the corners. The five that do not are
+#: harness-puck (3) and weather-badge-5, -8, -12 and -28 (2 each) — and every
+#: one of those four put its pair on a **diagonal**. weather-badge-29 is the
+#: only board in the corpus with both holes on one edge.
+MOUNTING_POINTS_EXPECTED = 4
+
+
+@never_raises
+def _mounting_support(board: Board) -> list[Finding]:
+    """Whether the board can actually be screwed down.
+
+    **Why this exists.** Nothing scored mounting, and that made it a one-way
+    trade: a mounting hole carries a keep-out, a keep-out eats a routing
+    channel, and on weather-badge-28 a third hole failed the build outright
+    (``pcb_trace_error`` on ``pcb_keepout_2``). So dropping a hole cost nothing
+    on the scoreboard while keeping it could cost a build, and the board agent
+    optimised exactly what it could measure — correctly, against a ruler that
+    was missing a dimension. wb-27 has four at the corners, wb-28 two on a
+    diagonal, wb-29 two on the same edge.
+
+    It is a **warning**, deliberately. An error would block wb-28 and wb-29 with
+    no move available to the agent but to grow the board or drop parts, and that
+    is a product decision rather than one a gate should make. `macropad-6` is
+    60x45mm — the same size as wb-28 — with four holes at the corners, so the
+    room is a function of what is on the board, not of its size.
+    """
+    if board.outline is None:
+        return []
+    holes = [
+        h for h in board.holes
+        if h.diameter >= MOUNTING_HOLE_MIN_MM and h.component_id is None
+    ]
+    longest = max(board.outline.width, board.outline.height)
+    if longest <= MOUNTING_SCORED_ABOVE_MM:
+        return []
+
+    out: list[Finding] = []
+    if len(holes) < MOUNTING_POINTS_EXPECTED:
+        out.append(
+            finding(
+                "board",
+                "dfa_mounting_points",
+                f"the board is {board.outline.width:g}x{board.outline.height:g}mm "
+                f"and carries {len(holes)} mounting point(s); a rigid mount "
+                f"takes {MOUNTING_POINTS_EXPECTED} and 27 of the 32 boards "
+                "built so far have four at the corners. Fewer is a real choice "
+                "on a board with no room — make it on purpose, and say so",
+                "warning",
+            )
+        )
+    if len(holes) >= 2:
+        xs = {round(h.x, 3) for h in holes}
+        ys = {round(h.y, 3) for h in holes}
+        if len(xs) == 1 or len(ys) == 1:
+            axis = "x" if len(xs) == 1 else "y"
+            out.append(
+                finding(
+                    "board",
+                    "dfa_mounting_collinear",
+                    f"every mounting point shares one {axis} — they sit on a "
+                    "single edge, so the rest of the board is cantilevered off "
+                    "that line and free to flex and rotate about it. No other "
+                    "board in the corpus does this; the ones with two holes put "
+                    "them on a diagonal",
+                    "warning",
+                )
+            )
+    return out
+
+
 @never_raises
 def _rotation_watchlist(board: Board) -> list[Finding]:
     """JLCPCB's zero-rotation convention differs from EDA output for many
@@ -317,6 +399,7 @@ def check(board: Board, *, assembly: bool = True, tier: str = "economic") -> Che
     findings: list[Finding] = []
     findings += _part_spacing(board, rules)
     findings += _holes_in_keepouts(board)
+    findings += _mounting_support(board)
     if assembly:
         findings += _edge_clearance(board, rules)
         findings += _sides(board, rules)
