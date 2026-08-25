@@ -209,6 +209,34 @@ def test_a_b_cu_dead_end_under_a_top_only_pad_gets_a_via(tmp_path):
     assert "(at 102 103)" in text
 
 
+def test_the_repair_records_the_via_it_inserted(tmp_path):
+    """The via is added **after** `circuit.json` is written, so every DFM check
+    downstream reads a design that does not contain it.
+
+    Measured on the corpus 2026-08-25: every `gerber_drill_extra` finding is one
+    of these vias — 32 of 32 boards, the counts match exactly — and on
+    weather-badge-28 the repair took the smallest candidate, 0.15mm, against
+    114 designed vias all at 0.3mm, with nothing reporting it. Recording the
+    geometry is what lets the caller grade it.
+    """
+    path = _write(tmp_path, DEAD_END_BOARD)
+    result = normalize_for_fab(path, PROFILE)
+    assert result.vias_bridged == 1
+    assert len(result.via_geometry) == 1
+    pad, drill = result.via_geometry[0]
+    assert (pad, drill) in ((0.6, 0.3), (0.4, 0.2), (0.3, 0.15)), result.via_geometry
+    # and the summary says it out loud rather than only counting
+    assert f"{pad:g}/{drill:g}mm" in result.summary(), result.summary()
+
+
+def test_a_board_the_repair_did_not_touch_records_no_geometry(tmp_path):
+    body = DEAD_END_BOARD.replace("(end 102 103)", "(end 104 105)")
+    path = _write(tmp_path, body)
+    result = normalize_for_fab(path, PROFILE)
+    assert result.vias_bridged == 0
+    assert result.via_geometry == []
+
+
 def test_a_bridged_dead_end_is_not_bridged_twice(tmp_path):
     path = _write(tmp_path, DEAD_END_BOARD)
     first = normalize_for_fab(path, PROFILE)

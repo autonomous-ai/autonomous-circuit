@@ -1563,6 +1563,32 @@ def build_board(
                         "severity": "info",
                     }
                 )
+            # The repair's own vias, graded. `dfm_drill_size` reads
+            # `circuit.json`, and this via is added after that file is written,
+            # so a repair could put a board on the fab's absolute floor and no
+            # check downstream would ever see it. Measured on the corpus: every
+            # `gerber_drill_extra` finding is one of these vias, and on
+            # weather-badge-28 the repair took the smallest candidate — 0.15mm,
+            # half the drill of all 114 designed vias — with nothing saying so.
+            for pad, drill in normalization.via_geometry:
+                if drill < profile.warn_via_drill_mm - 1e-9:
+                    warnings.append(
+                        {
+                            "part": "board",
+                            "kind": "dfm_drill_size",
+                            "detail": (
+                                f"a dead-end repair via was placed at "
+                                f"{pad:g}/{drill:g}mm pad/drill — legal, and "
+                                f"below the {profile.warn_via_drill_mm:g}mm "
+                                "drill we prefer on the cheap tier. The repair "
+                                "takes the largest via that clears its "
+                                "neighbours and this one had room for the "
+                                "smallest, so the board may have left the "
+                                "economy process for one hole"
+                            ),
+                            "severity": "warning",
+                        }
+                    )
             for note in normalization.notes:
                 warnings.append(checks.check_failed(note))
             for note in normalization.declined:
