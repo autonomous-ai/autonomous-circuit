@@ -28,6 +28,7 @@ BLOCK_IDS = [
     "usb-c-data",
     "sensor-bme280",
     "ws2812-chain",
+    "servo-header",
 ]
 
 # refdes → exact pinned LCSC number per bench (subset assertion).
@@ -55,6 +56,10 @@ PINNED_BOM: dict[str, dict[str, str]] = {
         "D10": "C2761795", "D11": "C2761795", "D12": "C2761795", "D13": "C2761795",
         "C40": "C1525", "C41": "C1525", "C42": "C1525", "C43": "C1525",
         "R30": "C25104",
+    },
+    "servo-header": {
+        "J10": "C18078126", "J11": "C18078126",
+        "J12": "C18078126", "J13": "C18078126",
     },
 }
 
@@ -145,6 +150,15 @@ CONNECTED: dict[str, list[tuple[str, str]]] = {
         ("U5.GND1", "net.GND"),
         ("C18.pin1", "net.V3_3"),
     ],
+    # The pin order IS the safety property: V+ on the middle pin, pin2.
+    # rchelicopterfun.com/rc-servo-connectors.html (2026-08-26): "the positive
+    # (red wire) is always in the middle of 3 pin/wire servo connectors".
+    "servo-header": [
+        ("J10.VPLUS", "net.V5"),
+        ("J10.GND", "net.GND"),
+        ("J10.SIG", "net.SERVO1"),
+        ("J13.SIG", "net.SERVO4"),
+    ],
     "ws2812-chain": [
         # the damping resistor sits between the driving net and the first pixel
         ("R30.pin1", "net.LED_DATA"),
@@ -183,6 +197,14 @@ ISOLATED: dict[str, list[tuple[str, str]]] = {
         ("net.V5", "net.GND"),
     ],
     "sensor-bme280": [("net.SDA", "net.SCL"), ("net.V3_3", "net.GND")],
+    # V+ must be the MIDDLE pin. A reversed lead then swaps GND and SIGNAL,
+    # which is recoverable; V+ on an outer pin feeds the rail into the servo's
+    # signal input, which is not. This pair is the guard on that.
+    "servo-header": [
+        ("net.V5", "net.GND"),
+        ("net.V5", "net.SERVO1"),
+        ("J10.SIG", "J11.SIG"),
+    ],
     "ws2812-chain": [
         ("net.V3_3", "net.GND"),
         # the GPIO must reach the first pixel only through the resistor
