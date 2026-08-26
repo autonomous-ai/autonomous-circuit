@@ -47,6 +47,40 @@ and kept EasyEDA's on that basis. Three plated holes, 2.54mm pitch, **1.0200mm
 hole on a 1.5748mm pad** — clearance for the 0.64mm square pins a servo shell
 expects.
 
+## Placement — put the supply beside the bank, not across the board
+
+**This block is in `circuitlib.layout.EDGE_BLOCKS`.** Two reasons are the usual
+ones: tscircuit reads a connector's facing from **pin1** (not from
+`pcbRotation`, measured 2026-08-26 — rotating the part moves its pads and
+leaves the reported facing alone), and a servo lead cannot reach a connector in
+the middle of a chassis.
+
+The third reason cost a board. **Whatever feeds `rail` belongs immediately
+beside this bank, at the same edge.**
+
+`rc-car-2`, 2026-08-26, put the servo bank on the west edge and the RP2040 in
+the middle, so `V_SERVO` had to cross the board. Sized correctly for a
+four-servo stall, that trunk is **1.2mm — six times a signal trace** — and it
+does not travel alone: it needs clearance on both sides, and on two layers with
+a ground pour there is nowhere else for the small stuff to go.
+
+Measured against a clean board with the same pin count:
+
+| | area | trace segments >= 0.5mm | result |
+|---|---|---|---|
+| `weather-badge-30` | 2400mm² | 73 | fab.ready |
+| `rc-car-2` | 6084mm² | **241** | 13 blocking, every one in the RP2040's escape |
+
+**2.5x the area and it still jammed**, because the jam was never about area. A
+1.2mm rail crossing the board is a highway through the one junction every net
+has to pass. Keep the supply pads and the servo bank on the same edge and the
+wide run becomes a stub in one corner.
+
+If that is not possible on a given board, the honest options are a 4-layer
+stack (nothing in the pipeline forbids it; nothing has ever tried it) or a
+smaller declared current — and the second is a question for a hardware
+reviewer, not a number to pick here.
+
 ## Rail budget — read this before placing more than one
 
 **This block does not solve power.** `rail` is a wire to pin2; there is no

@@ -366,7 +366,26 @@ def place_row(block_ids: list[str], *, y: float = 0.0,
 #: board edge facing outward, or `pcb_connector_not_in_accessible_orientation`
 #: fires and — more to the point — the finished device has a USB socket in the
 #: middle of a PCB inside a printed box.
-EDGE_BLOCKS = frozenset({"usb-c-power", "usb-c-data"})
+#:
+#: `servo-header` joined on 2026-08-26 for both reasons and a third. The check
+#: fires the same way — tscircuit reads a connector's facing from **pin1**, not
+#: from `pcbRotation`, so a header placed inland warns however it is turned. A
+#: servo lead cannot reach a connector in the middle of a chassis. And the
+#: third reason is the one that cost a board:
+#:
+#: **A servo bank drags a wide rail behind it.** Four hobby servos stalling
+#: together is amps, and amps mean copper: `rc-car-2` (2026-08-26) declared its
+#: `V_SERVO` trunk at **1.2mm**, six times a signal trace. Measured against a
+#: clean board of the same pin count, that board carried **241 trace segments
+#: at or above 0.5mm against weather-badge-30's 73** — on two layers, with a
+#: ground pour, and every routing error clustered in the RP2040's escape.
+#: 78x78mm, 2.5x the area of the board that passed, and it still jammed.
+#:
+#: The rail was sized correctly. The board could not absorb it. So the servo
+#: bank belongs at the edge **beside whatever feeds it**, where the wide run is
+#: a stub in one corner rather than a highway across the QFN — see
+#: `blocks/servo-header/BLOCK.md`.
+EDGE_BLOCKS = frozenset({"usb-c-power", "usb-c-data", "servo-header"})
 
 
 #: A 3.2mm hole (M3 clearance) plus room for the screw head and the fab's

@@ -109,6 +109,7 @@ implies mains, ask the one question.
    | `status-led` | one indicator LED + series resistor |
    | `sw-tact` | one tactile button (instantiate per key) |
    | `ws2812-chain` | addressable RGB pixels on one GPIO, parametric in `count` |
+   | `servo-header` | a 3-pin 2.54mm header per hobby servo, parametric in `count` — a **connector only**: it carries no regulation and no current limit, and its rail must come from a supply sized for the servos, never from `ldo-3v3` |
 
    **Never invent a circuit from a datasheet, and never put a block in a
    brief that isn't in the registry.** This applies to the *options you
