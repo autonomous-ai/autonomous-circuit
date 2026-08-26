@@ -304,3 +304,54 @@ def test_a_missing_packet_is_a_finding_not_an_exception(board_json: Path, tmp_pa
         board_json, tmp_path / "nope.zip", profile=PROFILE, assembly_order=True
     )
     assert any(f["severity"] == "error" for f in findings)
+
+
+def test_coverage_reaches_the_findings_stream():
+    """What a check could NOT see has to arrive where the sidecar can carry it.
+
+    `verifylib` computes this and says why: loads.py — *"a part that is not in
+    the table contributes unknown, not zero"* — and dc.py — *"Silence is never
+    a pass."* This adapter took `.findings` and left `.coverage` on the floor,
+    so the sidecar had no record and an absent check read like a clean one.
+
+    Measured on the RC-car probe 2026-08-25: a board with four servo headers on
+    USB VBUS produced no power finding at all. `netclass` had already named the
+    reason — `coverage.skip("off-board loads through a connector")` — and the
+    message went nowhere.
+    """
+    class _Cov:
+        unit = "components"
+        examined = 3
+        total = 5
+        blind = ["off-board loads through a connector"]
+
+    class _Result:
+        findings: list = []
+        coverage = _Cov()
+
+    from circuitpy.verify_bridge import _coverage_finding
+
+    got = _coverage_finding("netclass", _Result())
+    assert got is not None
+    assert got["kind"] == "verify_coverage"
+    assert got["severity"] == "info"
+    assert "3 of 5 components" in got["detail"]
+    assert "2 not modelled" in got["detail"]
+    assert "off-board loads through a connector" in got["detail"]
+
+
+def test_a_check_that_saw_everything_adds_no_noise():
+    """Coverage is a confession, not a running commentary."""
+    class _Cov:
+        unit = "nets"
+        examined = 4
+        total = 4
+        blind: list = []
+
+    class _Result:
+        findings: list = []
+        coverage = _Cov()
+
+    from circuitpy.verify_bridge import _coverage_finding
+
+    assert _coverage_finding("pour", _Result()) is None
