@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -257,3 +258,107 @@ class PourClearanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _board_with_trace(*, net: str = "k_sig", width: float = 0.2,
+                      seg: tuple = (-14.0, 0.0, 14.0, 0.0)) -> list[dict]:
+    """A pour with a track crossing it, far from any via."""
+    ax, ay, bx, by = seg
+    # A cutout that already exists and is already too tight — the real shape.
+    # weather-badge-17 did not lack a cutout around its tracks; the converter
+    # carved one and it came out at 0.0465mm against a 0.15mm rule. This pass
+    # pushes an existing boundary; it does not invent one.
+    half = width / 2 + 0.05
+    inner = [[
+        {"x": ax - 0.05, "y": ay - half}, {"x": bx + 0.05, "y": by - half},
+        {"x": bx + 0.05, "y": by + half}, {"x": ax - 0.05, "y": ay + half},
+    ]]
+    els = [e for e in _board(inner=inner) if e.get("type") != "pcb_via"]
+    els.append({
+        "type": "pcb_trace", "pcb_trace_id": "t_cross",
+        "subcircuit_connectivity_map_key": net,
+        "route": [
+            {"route_type": "wire", "x": ax, "y": ay, "width": width,
+             "layer": "bottom"},
+            {"route_type": "wire", "x": bx, "y": by, "width": width,
+             "layer": "bottom"},
+        ],
+    })
+    return els
+
+
+class PourVersusTracks(unittest.TestCase):
+    """Tracks were the class this pass could not see.
+
+    weather-badge-17, 2026-08-19: a top pour landed **41 clearance violations
+    at 0.0465mm against the 0.15mm the zone declares**, every one of them the
+    pour against a *track*, and that is what kept the top pour off every board.
+    An outside hardware reviewer on 2026-08-27 put the cost plainly —
+    *"thường phủ đồng phủ luôn 2 mặt"*, both sides is simply what a board looks
+    like — and wb-17 recorded the reward: with the top poured,
+    `netclass_pair_reference` clears, because the USB pair gets a plane.
+    """
+
+    def test_a_track_crossing_the_pour_is_seen_at_all(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), _board_with_trace())
+            result = pour_clearance.repair_pour_clearance(path, PROFILE, required_mm=0.3)
+            self.assertTrue(result.changed, "a track through the pour must move it")
+
+    def test_the_pour_is_pushed_off_the_track_but_not_yet_to_the_margin(self) -> None:
+        """**A partial fix, measured and stated rather than claimed.**
+
+        The cutout starts 0.05mm off the track and comes out at ~0.137mm — a
+        real improvement, and short of the 0.3mm asked for. The reason is
+        geometric and specific: where a ring edge runs **parallel** to the
+        track, every point on it is equidistant, so `_split_edges_near` has no
+        single closest point to insert a vertex at and the corners alone cannot
+        carry the middle of the edge outward.
+
+        Discs never showed this because a via is never parallel to anything.
+        Closing it means splitting a parallel edge at both ends of the overlap
+        instead of at one point — filed, not done here.
+
+        The assertion is deliberately the honest one: it must move, it must
+        move the right way, and it must not silently claim the margin.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), _board_with_trace())
+            before = pour_clearance._Capsule("t", (-14.0, 0.0, 14.0, 0.0), 0.1)
+            pour_clearance.repair_pour_clearance(path, PROFILE, required_mm=0.3)
+            els = json.loads(path.read_text())
+            pour = next(e for e in els if e.get("type") == "pcb_copper_pour")
+            worst = min(pour_clearance._ring_gap(r, before)
+                        for r in pour_clearance._rings(pour))
+            self.assertGreater(worst, 0.05,
+                               "the pour must move off the track at all")
+            self.assertLess(worst, 0.3,
+                            "if this now reaches the margin, the parallel-edge "
+                            "gap is closed and this test should assert it")
+
+    def test_the_pours_own_net_is_left_alone(self) -> None:
+        """Touching the plane is what a ground track is for."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), _board_with_trace(net="k_gnd"))
+            result = pour_clearance.repair_pour_clearance(path, PROFILE, required_mm=0.3)
+            self.assertFalse(result.changed)
+
+    def test_a_track_on_the_other_layer_is_not_an_obstacle(self) -> None:
+        els = _board_with_trace()
+        for e in els:
+            if e.get("type") == "pcb_trace":
+                for pt in e["route"]:
+                    pt["layer"] = "top"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), els)
+            result = pour_clearance.repair_pour_clearance(path, PROFILE, required_mm=0.3)
+            self.assertFalse(result.changed, "a bottom pour ignores top copper")
+
+    def test_a_capsule_is_one_obstacle_not_a_sampled_chain(self) -> None:
+        """Sampling a 28mm track into discs would cost hundreds of obstacles
+        per track and the loop is O(obstacles x vertices) per pass."""
+        els = _board_with_trace()
+        board = pour_clearance.diffpair._Board(els)
+        caps = pour_clearance._trace_obstacles(board, "k_gnd", "bottom")
+        self.assertEqual(len(caps), 1)
+        self.assertAlmostEqual(caps[0].half_width, 0.1)

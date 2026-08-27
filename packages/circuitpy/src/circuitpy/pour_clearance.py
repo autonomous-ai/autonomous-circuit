@@ -167,7 +167,7 @@ def _rings(pour: dict) -> list[list[dict]]:
     return out
 
 
-def _ring_gap(verts: Sequence[dict], obstacle: "_Round") -> float:
+def _ring_gap(verts: Sequence[dict], obstacle: "_Round | _Capsule") -> float:
     """The real gap between a ring's boundary and an obstacle.
 
     Measured against the polygon's **edges**, which is exact for any polygon.
@@ -185,12 +185,38 @@ def _ring_gap(verts: Sequence[dict], obstacle: "_Round") -> float:
             diffpair._f(verts[(i + 1) % n].get("y"))
         if None in (ax, ay, bx, by):
             continue
-        best = min(best, diffpair._seg_point_distance(
-            ax, ay, bx, by, obstacle.cx, obstacle.cy))
-    return best - obstacle.radius
+        if isinstance(obstacle, _Capsule):
+            # Edge to edge, exact — the same primitive the diff-pair pass uses
+            # to hold a pair off its neighbours.
+            best = min(best, diffpair._seg_seg_distance(
+                (ax, ay, bx, by), obstacle.seg))
+        else:
+            best = min(best, diffpair._seg_point_distance(
+                ax, ay, bx, by, obstacle.cx, obstacle.cy))
+    return best - (obstacle.half_width if isinstance(obstacle, _Capsule)
+                   else obstacle.radius)
 
 
-def _split_edges_near(pour: dict, obstacles: Sequence["_Round"],
+def _as_disc(obstacle: "_Round | _Capsule",
+             near_x: float, near_y: float) -> tuple[float, float, float]:
+    """`(cx, cy, radius)` — the obstacle seen from a point beside it.
+
+    A capsule is a segment with a half-width, and the direction a pour vertex
+    has to move is away from the **nearest point on that segment**, not from
+    some centre it does not have. Reducing it to the locally-equivalent disc
+    keeps the splitter and the push loop exactly as they were written for vias.
+    """
+    if not isinstance(obstacle, _Capsule):
+        return obstacle.cx, obstacle.cy, obstacle.radius
+    ax, ay, bx, by = obstacle.seg
+    dx, dy = bx - ax, by - ay
+    span = dx * dx + dy * dy
+    t = 0.0 if span <= 1e-12 else max(
+        0.0, min(1.0, ((near_x - ax) * dx + (near_y - ay) * dy) / span))
+    return ax + dx * t, ay + dy * t, obstacle.half_width
+
+
+def _split_edges_near(pour: dict, obstacles: Sequence["_Round | _Capsule"],
                       required: float) -> int:
     """Give every too-close edge a vertex at its closest point.
 
@@ -229,12 +255,13 @@ def _split_edges_near(pour: dict, obstacles: Sequence["_Round"],
             if length_sq <= 1e-18:
                 continue
             for obstacle in obstacles:
-                t = ((obstacle.cx - ax) * dx + (obstacle.cy - ay) * dy) / length_sq
+                ocx, ocy, oradius = _as_disc(obstacle, ax, ay)
+                t = ((ocx - ax) * dx + (ocy - ay) * dy) / length_sq
                 if not (1e-6 < t < 1 - 1e-6):
                     continue          # the closest point is an existing vertex
                 px, py = ax + t * dx, ay + t * dy
-                if math.hypot(px - obstacle.cx, py - obstacle.cy) \
-                        - obstacle.radius >= required - 1e-9:
+                if math.hypot(px - ocx, py - ocy) \
+                        - oradius >= required - 1e-9:
                     continue
                 out.append({"x": round(px, 6), "y": round(py, 6)})
                 added += 1
@@ -254,6 +281,61 @@ class _Round:
     cx: float
     cy: float
     radius: float
+
+
+@dataclass(frozen=True)
+class _Capsule:
+    """A routed trace segment: a line with a half-width, not a point.
+
+    Sampling one into discs would work with the existing machinery and cost a
+    hundred obstacles per centimetre of copper. `diffpair._seg_seg_distance`
+    already measures edge to edge exactly, so a capsule stays one obstacle.
+    """
+
+    label: str
+    seg: tuple[float, float, float, float]
+    half_width: float
+
+
+def _trace_obstacles(board: diffpair._Board, pour_net: str | None,
+                     layer: str) -> list[_Capsule]:
+    """Other-net routed copper on this layer.
+
+    **Why this exists.** `<copperpour>` takes a `traceMargin` and does not obey
+    it, the same way it does not obey `padMargin` for a via — see the module
+    docstring. Measured on weather-badge-17 (2026-08-19), a top pour landed
+    **41 clearance violations at 0.0465mm against the 0.15mm the zone itself
+    declares**, and every one of them was the pour against a *track*. The pass
+    below already pushed rings off vias and pads; tracks were the class it
+    could not see, and they are what kept the top pour off every board.
+
+    That matters because pouring both layers is not a nicety. An outside
+    hardware reviewer, 2026-08-27: *"thường phủ đồng phủ luôn 2 mặt"* — both
+    sides is simply what a board looks like. And wb-17 recorded the reward:
+    with the top poured, `netclass_pair_reference` clears, because the USB pair
+    finally has a reference plane under it.
+    """
+    out: list[_Capsule] = []
+    for trace in board.by_type.get("pcb_trace", []):
+        route = trace.get("route") or []
+        for i in range(len(route) - 1):
+            a, b = route[i], route[i + 1]
+            if str(a.get("layer") or layer) != layer:
+                continue
+            ax, ay = diffpair._f(a.get("x")), diffpair._f(a.get("y"))
+            bx, by = diffpair._f(b.get("x")), diffpair._f(b.get("y"))
+            if None in (ax, ay, bx, by):
+                continue
+            net = a.get("subcircuit_connectivity_map_key") \
+                or trace.get("subcircuit_connectivity_map_key")
+            if pour_net and net and net == pour_net:
+                continue  # the pour's own net: touching it is the point
+            width = diffpair._f(a.get("width"), 0.2) or 0.2
+            out.append(_Capsule(
+                str(trace.get("pcb_trace_id") or "trace"),
+                (ax, ay, bx, by), width / 2,
+            ))
+    return out
 
 
 def _round_obstacles(board: diffpair._Board, pour_net: str | None,
@@ -362,7 +444,8 @@ def repair_pour_clearance(
     for pour in pours:
         layer = str(pour.get("layer") or "bottom")
         pour_net = net_of.get(str(pour.get("source_net_id") or ""))
-        obstacles = _round_obstacles(board, pour_net, layer)
+        obstacles: list[Any] = list(_round_obstacles(board, pour_net, layer))
+        obstacles += _trace_obstacles(board, pour_net, layer)
         if not obstacles:
             continue
 
@@ -400,13 +483,17 @@ def repair_pour_clearance(
                     # between two pushed vertices sits inside both of them, and
                     # rather than model how far, the loop measures again.
                     shortfall = required - gap
-                    target = obstacle.radius + required + shortfall
                     for vertex in ring:
                         vx = diffpair._f(vertex.get("x"))
                         vy = diffpair._f(vertex.get("y"))
                         if vx is None or vy is None:
                             continue
-                        dx, dy = vx - obstacle.cx, vy - obstacle.cy
+                        # Per vertex, because a capsule's nearest point moves
+                        # along its axis as the ring walks past it. For a disc
+                        # this is the same answer every time.
+                        ocx, ocy, oradius = _as_disc(obstacle, vx, vy)
+                        target = oradius + required + shortfall
+                        dx, dy = vx - ocx, vy - ocy
                         distance = math.hypot(dx, dy)
                         if distance <= 1e-9:
                             # A vertex exactly on the obstacle's centre has no
@@ -416,8 +503,8 @@ def repair_pour_clearance(
                         if distance >= target - MIN_PUSH_MM:
                             continue
                         scale = target / distance
-                        vertex["x"] = round(obstacle.cx + dx * scale, 6)
-                        vertex["y"] = round(obstacle.cy + dy * scale, 6)
+                        vertex["x"] = round(ocx + dx * scale, 6)
+                        vertex["y"] = round(ocy + dy * scale, 6)
                         touched.add(id(vertex))
                         progressed = True
             if not progressed or worst_pass >= required - 1e-9:
