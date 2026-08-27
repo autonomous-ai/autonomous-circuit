@@ -392,9 +392,11 @@ def clearance_margin_warnings(report: object, profile: FabProfile) -> list[Warni
                 f"and the {warn_at:g}mm design margin, median "
                 f"{tight[len(tight) // 2]:g}mm. Legal, and with nothing to "
                 f"spare: a fab holding its own tolerance can still land these "
-                f"touching. Reported, not graded — whether tight routing blocks "
-                f"is an EE's call",
-                "info",
+                f"touching. **An outside hardware reviewer read a board of ours "
+                f"on 2026-08-27 and named this the reason it is fault-prone** — "
+                f"\"chạy thì hên xui\", it may work by luck — so this is a "
+                f"human's call before ordering, not a footnote",
+                "warning",
             ))
         return out
     except Exception as exc:  # noqa: BLE001

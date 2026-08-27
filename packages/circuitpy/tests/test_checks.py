@@ -1392,18 +1392,38 @@ class WarnClearanceWasDeclaredAndNeverRead(unittest.TestCase):
         self.assertIn("0.0908mm", under["detail"])
         self.assertIn("0.1mm floor", under["detail"])
 
-    def test_the_tight_but_legal_band_is_counted_separately_at_info(self) -> None:
+    def test_the_tight_but_legal_band_is_a_warning_now_the_answer_is_in(self) -> None:
+        """It sat at `info` while the question was open. It is not open.
+
+        An outside hardware reviewer read one of our boards on 2026-08-27 and
+        named this the reason it is fault-prone — *"chạy thì hên xui có thể
+        chạy, cái này chủ yếu là nó đi dây tùm lum sát chân linh kiện nên dễ bị
+        lỗi thôi"*. Measured on the board they were looking at: **264 gaps
+        between the 0.1mm fab floor and our 0.127mm margin, median 0.115mm** —
+        15 microns of room.
+        """
         found = self._kinds(checks.clearance_margin_warnings(self.MARGIN, PROFILE))
         tight = found["clearance_no_margin"]
-        self.assertEqual(tight["severity"], "info")
+        self.assertEqual(tight["severity"], "warning")
         self.assertIn("397", tight["detail"])  # 399 total less the 2 under floor
         self.assertIn("0.127mm", tight["detail"])
 
     def test_neither_finding_blocks_because_that_call_is_an_ees(self) -> None:
         """Deliberate. Whether tight routing should stop a board is a decision
-        that went out in the 2026-08-21 review packet; this change makes the
-        question visible, it does not answer it. If an EE says block, the fix
-        is one severity string here — and a number to put behind it."""
+        that went out in the 2026-08-21 review packet.
+
+        **The answer came back on 2026-08-27, and it was "risk", not "stop".**
+        The reviewer called the board fault-prone and likely-to-work-by-luck;
+        nobody said a fab would refuse it. So `clearance_no_margin` rose from
+        `info` to `warning` and neither finding blocks — a board that has always
+        shipped this way does not become unbuildable because someone finally
+        described the risk out loud.
+
+        Blocking would also be unactionable today: the board source records that
+        raising `minTraceToPadEdgeClearance` took one design from 5 blocking
+        findings to 101, and that 0.15mm routing pushed the pour into 339
+        zone-clearance violations at 0.0000mm. Those props gate the checker, not
+        the router. An error here would stop every board with no move available."""
         warnings = checks.clearance_margin_warnings(self.MARGIN, PROFILE)
         self.assertEqual(len(warnings), 2)
         self.assertTrue(fab.fab_ready(warnings, "kicad-cli"))
