@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   APPROVE_PLAN_PREAMBLE,
+  IMPLEMENT_SYSTEM_PROMPT,
   ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
@@ -1219,4 +1220,36 @@ test("workspaceFabReady skips the directories the walker is told to skip", () =>
     JSON.stringify({ fab: { ready: false } }),
   );
   assert.equal(workspaceFabReady(dir), true, "a stale copy must not veto");
+});
+
+// --- what counts as a question worth the user's attention ------------------
+
+test("the build prompt defines a blocking ambiguity instead of leaving it open", () => {
+  // It said "unless a blocking ambiguity remains" and never said what one was.
+  // weather-badge-31, 2026-08-27: the agent finished a board that did not
+  // build, then asked whether to revert to the two-sided pour's predecessor —
+  // a configuration that had built clean two days earlier, reachable by
+  // editing one line. That is not an ambiguity; it is the work.
+  const p = IMPLEMENT_SYSTEM_PROMPT;
+  assert.match(p, /BLOCKING AMBIGUITY IS A DECISION YOU DO NOT HAVE THE STANDING/);
+  assert.match(p, /already on\s*record/i);
+  assert.match(p, /try it and measuring|try it/i);
+});
+
+test("the build prompt names the things only a person can settle", () => {
+  // The owner's rule: what it cannot decide, it asks; what it can, it does.
+  // These three are the "cannot" side and must stay named, because a prompt
+  // that only says "use judgement" gets read as "ask when unsure".
+  const p = IMPLEMENT_SYSTEM_PROMPT;
+  assert.match(p, /hardware\s+engineer signing off/i);
+  assert.match(p, /spending the user's money/i);
+  assert.match(p, /what the product IS/);
+});
+
+test("handing back a broken board is named as a cost, not as caution", () => {
+  assert.match(
+    IMPLEMENT_SYSTEM_PROMPT,
+    /is not caution|their attention/i,
+    "the prompt has to say why over-asking is expensive, or it reads as safe",
+  );
 });
