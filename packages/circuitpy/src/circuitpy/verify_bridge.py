@@ -148,6 +148,50 @@ def available() -> bool:
     return _load() is not None
 
 
+def _coverage_finding(name: str, result: Any) -> dict[str, str] | None:
+    """Turn what a check could NOT see into a finding the sidecar carries.
+
+    `verifylib` computes this already and says why. `loads.py`: *"a part that
+    is not in the table contributes **unknown**, not zero — the caller reports
+    unknown loads as coverage rather than pretending the net was checked"*.
+    `dc.py`: *"Anything not in that list is reported as coverage. **Silence is
+    never a pass.**"*
+
+    It was computed and then dropped **here** — this adapter took `.findings`
+    and left `.coverage` on the floor, so the sidecar carried no record of it
+    and nothing downstream could tell a clean check from an absent one.
+
+    Measured on the RC-car probe, 2026-08-25: a board with four servo headers
+    on USB VBUS produced **no** power finding of any kind. `netclass` had
+    already named the reason in as many words —
+    `coverage.skip("off-board loads through a connector")` — and the message
+    went nowhere. Reading that silence as a pass is exactly the failure the two
+    docstrings above were written against.
+    """
+    coverage = getattr(result, "coverage", None)
+    if coverage is None:
+        return None
+    unit = getattr(coverage, "unit", "items")
+    examined = getattr(coverage, "examined", 0)
+    total = getattr(coverage, "total", 0)
+    blind = list(getattr(coverage, "blind", []) or [])
+    unexamined = max(0, total - examined)
+    if not blind and not unexamined:
+        return None
+    parts = [f"{name} examined {examined} of {total} {unit}"]
+    if unexamined:
+        parts.append(f"{unexamined} not modelled")
+    if blind:
+        parts.append("could not see: " + "; ".join(blind))
+    return {
+        "part": "board",
+        "kind": "verify_coverage",
+        "detail": ". ".join(parts)
+        + " — reported so an unchecked thing is not read as a checked one",
+        "severity": "info",
+    }
+
+
 def check_circuit_json(
     circuit_json_path: Path,
     *,
@@ -180,13 +224,21 @@ def check_circuit_json(
         if name in _OPTIONAL_MODULES and name not in modules:
             continue  # vendored runtime predates this check; the rest still run
         try:
-            findings.extend(runners[name]().findings)
+            result = runners[name]()
+            findings.extend(result.findings)
+            gap = _coverage_finding(name, result)
+            if gap is not None:
+                findings.append(gap)
         except Exception as exc:  # noqa: BLE001
             findings.append(_failed(name, exc))
 
     if _truthy(os.environ.get(CORNERS_ENV)):
         try:
-            findings.extend(modules["corners"].check(board).findings)
+            result = modules["corners"].check(board)
+            findings.extend(result.findings)
+            gap = _coverage_finding("corners", result)
+            if gap is not None:
+                findings.append(gap)
         except Exception as exc:  # noqa: BLE001
             findings.append(_failed("corners", exc))
 
@@ -218,4 +270,8 @@ def check_packet(
         )
     except Exception as exc:  # noqa: BLE001
         return [_failed("gerber_truth", exc)]
-    return apply_verify_policy(result.findings, profile)
+    findings = list(result.findings)
+    gap = _coverage_finding("gerber", result)
+    if gap is not None:
+        findings.append(gap)
+    return apply_verify_policy(findings, profile)

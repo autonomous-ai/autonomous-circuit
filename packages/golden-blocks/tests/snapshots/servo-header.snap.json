@@ -1,0 +1,55 @@
+{
+ "components": {
+  "J10": {
+   "ftype": "simple_connector",
+   "lcsc": "C18078126"
+  },
+  "J11": {
+   "ftype": "simple_connector",
+   "lcsc": "C18078126"
+  },
+  "J12": {
+   "ftype": "simple_connector",
+   "lcsc": "C18078126"
+  },
+  "J13": {
+   "ftype": "simple_connector",
+   "lcsc": "C18078126"
+  }
+ },
+ "elementCounts": {
+  "cad_component": 4,
+  "pcb_board": 1,
+  "pcb_component": 4,
+  "pcb_courtyard_outline": 4,
+  "pcb_group": 5,
+  "pcb_plated_hole": 12,
+  "pcb_port": 12,
+  "pcb_silkscreen_path": 20,
+  "pcb_silkscreen_text": 4,
+  "pcb_solder_paste": 24,
+  "pcb_trace": 6,
+  "schematic_component": 4,
+  "schematic_group": 6,
+  "schematic_net_label": 10,
+  "schematic_port": 12,
+  "schematic_text": 8,
+  "schematic_trace": 8,
+  "source_board": 1,
+  "source_component": 4,
+  "source_group": 6,
+  "source_net": 6,
+  "source_port": 12,
+  "source_project_metadata": 1,
+  "source_trace": 12
+ },
+ "nets": [
+  "GND",
+  "SERVO1",
+  "SERVO2",
+  "SERVO3",
+  "SERVO4",
+  "V5"
+ ],
+ "traceCount": 12
+}
