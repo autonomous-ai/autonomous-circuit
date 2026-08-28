@@ -140,7 +140,17 @@ A board is **ready to make** when all of:
 - **zero `must-fix` notes** open;
 - power integrity and safety score **≥ 8** (these two get a higher bar — the
   failure modes are fire and a dead board, not disappointment);
-- someone can state, in one sentence, how to bring the board up when it arrives.
+- someone can state, in one sentence, how to bring the board up when it arrives;
+- **every block the project carries that the golden library does not** grades
+  `ok` under `python3 ~/.claude/skills/block-source/scripts/grade-block.py
+  blocks/<id>/BLOCK.md`, and the safety lens has read its `certification` row
+  with its own eyes. A sourced block is the one part of the board no committed
+  library ever reviewed: `blocklib.drift_warnings` reports `changed` and
+  `missing` and is silent about `extra`, so nothing upstream of this panel
+  will mention that the block is there at all. An `interconnect` needs the
+  land pattern to be the supplier's; a `certified-module` needs an
+  identifier a lab issued, and "the datasheet says it is certified" is not
+  one.
 
 Miss any of those and the verdict is `iterate`, not `ready`.
 
