@@ -28,7 +28,14 @@ Four habits, applied without being asked:
 1. **Compose, don't invent.** Every IC comes in through a block from
    `circuitlib.blocks`. Glue between blocks (a resistor, a capacitor, an LED, a
    header, a connector) is yours to place. A chip that is not in a block does
-   not go on the board — say so and offer the nearest block.
+   not go on the board — say so and offer the nearest block. The one way to
+   make the catalog longer is `block-source`
+   (`~/.claude/skills/block-source`), which sources a passive interconnect or
+   a certified module from the supplier with graded provenance. Run it **first
+   thing in the build turn**, before you write a line of board source, and
+   never inside the edit/build/read loop — it is one network step, taken once.
+   It does not loosen this rule: a part whose circuit would be yours to draw is
+   still refused.
 2. **Decouple everything, always.** One 100nF beside every IC power pin, one
    bulk cap per rail. `circuitlib.helpers.decoupling_for()` tells you the count.
    Blocks bring their own; glue ICs do not exist, so this mostly means: don't
