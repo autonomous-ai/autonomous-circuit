@@ -17,6 +17,26 @@ nothing else — no capacitance, no regulation, no current limit.
 |---|---|---|---|---|---|
 | J10 | BX_PM2_54_1_3PY | C18078126 | 1x3 2.54mm THT | no | male pin header |
 
+## Provenance
+
+Sourced, not authored — the first block that was. `skills/block-source`
+generalises what happened here; `scripts/grade-block.py` reads this table.
+
+| field | value |
+|---|---|
+| `class` | `interconnect` |
+| `mpn` | BX_PM2_54_1_3PY |
+| `lcsc` | C18078126 |
+| `certification` | n/a — passive interconnect, no active silicon |
+| `footprint_source` | `easyeda:C18078126` |
+| `footprint_iou` | 95.84 (footprinter's `pinrow3_p2.54mm` measured against it) |
+| `typical_ma` | n/a — carries no rail of its own; the servo's draw is the supply's problem, not this block's |
+| `peak_ma` | n/a — same reason |
+| `v_in` | n/a — pass-through; `rail` is whatever the board hands it |
+| `keepout` | n/a — no antenna |
+| `pin_source` | rchelicopterfun.com/rc-servo-connectors.html, read 2026-08-26, plus the EasyEDA pad table for C18078126 |
+| `verified` | 2026-08-26 |
+
 ## Pin order — the whole safety argument
 
     pin1  GND     (black or brown)

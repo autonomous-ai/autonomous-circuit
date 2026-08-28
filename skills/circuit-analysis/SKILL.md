@@ -116,10 +116,28 @@ implies mains, ask the one question.
    offer* as much as to the blocks you choose. Offering "Wi-Fi control"
    or "ambient light sensing" as a preference the user can select is the
    same error as designing it: they pick it, and we cannot deliver.
-   Every option in a question must be buildable from the table above. A need with no block is a `gaps`
-   entry naming the part class and what authoring it would take — that
-   is an honest, actionable brief; a fictional block is a board that
-   cannot be built.
+   Every option in a question must be buildable when you offer it.
+
+   **The table above is what exists today, not what may ever exist.**
+   A capability with no block has one sanctioned route before it becomes
+   a `gaps` entry: `block-source` (`~/.claude/skills/block-source`), which
+   fetches a missing block from the supplier for two classes of part —
+   a passive interconnect, and a *certified module* carrying its own FCC
+   ID or equivalent for the function needed. `servo-header` came in that
+   way. The question it answers is whether the **part** carries the
+   engineering or you would have to: a module carries its radio, bare RF
+   silicon does not. The brief is where the part is **named and budgeted** —
+   its LCSC number, its certification identifier, its typical and peak
+   current with the datasheet page; all of that is reading, which this
+   read-only skill may do. The fetch itself happens later, at the top of the
+   build turn. So a capability is offerable once the brief names the part and
+   states its numbers — never on the strength of intending to look later.
+
+   Where no part clears that bar — a battery (the sealed charge/protect
+   block does not exist), anything mains, anything whose circuit would be
+   yours — the honest answer is a `gaps` entry naming the part class and
+   what authoring it would take. That is an actionable brief; a fictional
+   block is a board that cannot be built.
 
 5. **I/O, controls, and the enclosure interface.** The board is half of
    a product; the other half is a **Vibe 3D-printed body**, so the brief
