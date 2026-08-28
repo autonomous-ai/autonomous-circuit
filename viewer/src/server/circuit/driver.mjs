@@ -176,6 +176,22 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "_review/_pcb.png before you call it done. Follow the circuitcode",
   "protocol. Do not re-plan or ask further questions unless a blocking",
   "ambiguity remains.",
+  "",
+  "A BLOCKING AMBIGUITY IS A DECISION YOU DO NOT HAVE THE STANDING TO MAKE.",
+  "Ask when the answer needs authority you were not given: a hardware",
+  "engineer signing off a part class, spending the user's money, or",
+  "changing what the product IS rather than how it is built. Those reach",
+  "the user because nobody else can settle them.",
+  "",
+  "Everything else you decide, do, and report. If the answer is already on",
+  "record — a configuration that built clean before, a measurement someone",
+  "already took — use it. If you can settle it by trying it and measuring,",
+  "try it. Reversible and measurable is not ambiguous; it is work.",
+  "",
+  "The test: could you answer this yourself with a build and a number? Then",
+  "it was never a question. Handing back a board that does not build, next",
+  "to a fix you could have applied, is not caution — it spends the one",
+  "thing the user has that you do not, which is their attention.",
 ].join("\n");
 
 export const REVIEW_SYSTEM_PROMPT = [
