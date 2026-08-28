@@ -58,6 +58,32 @@ class TheRouteIsReachable(unittest.TestCase):
         for phrase in ("Bare RF silicon", "BARE_RF_PATTERNS", "mains"):
             self.assertIn(phrase, text)
 
+    def test_the_sourcing_step_is_not_placed_in_the_read_only_phase(self):
+        """The gap `rc-car-4` fell into on 2026-08-28.
+
+        The plan turn runs `--permission-mode plan` and may write nothing. Told
+        to "source it before the plan", the agent worked out that it could not,
+        concluded sourcing was impossible, and shipped a board with a pad row
+        where the radio should have been — its own words: *"No read-only
+        sourcing path exists ... That settles the WiFi question."* It settled
+        nothing. The instruction was in the phase that cannot act on it.
+        """
+        driver = (REPO / "viewer/src/server/circuit/driver.mjs").read_text()
+        self.assertNotIn(
+            "Sourcing runs", driver,
+            "the plan prompt tells the read-only phase to perform the fetch",
+        )
+        self.assertIn("YOU PLAN THE SOURCING HERE; THE BUILD TURN PERFORMS IT",
+                      driver)
+        self.assertIn("IF THE APPROVED PLAN NAMES A BLOCK TO SOURCE, "
+                      "SOURCE IT FIRST", driver)
+
+    def test_the_skill_says_which_turn_it_runs_in(self):
+        text = (REPO / "skills/block-source/SKILL.md").read_text()
+        self.assertIn("First thing in the build turn", text)
+        self.assertIn("never in the plan turn", text)
+        self.assertIn("never inside the generation loop", text)
+
     def test_the_skill_does_not_tell_anyone_to_edit_the_safety_tables(self):
         """`circuitpy.spec` and `circuitlib.safety` move together or not at
         all — the drift surfaced once already, and only by luck."""

@@ -67,16 +67,35 @@ the carve-out you want (certified modules) already exists in the envelope.
 
 ## When to run
 
-**Before the plan, never inside the build.** Sourcing touches the network, and
-the generation loop is offline by design (`CIRCUIT_PARTS_ENGINE=off`; a cold
-`jlcsearch` costs 47–90s). The order is:
+**First thing in the build turn, before a line of board source is written —
+never in the plan turn, and never inside the generation loop.**
+
+Both halves of that matter, and the first half was got wrong once already. The
+plan turn runs `--permission-mode plan`: read-only, no file may be written. An
+agent that reads "source it before the plan" there works out that it cannot,
+concludes sourcing is impossible, and hands back a board that refuses the ask —
+which is exactly what `rc-car-4` did on 2026-08-28, in its own words: *"No
+read-only sourcing path exists — only `grade-block.py`, which grades an
+already-written BLOCK.md. That settles the WiFi question."* It settled nothing;
+it was in the wrong phase.
+
+The second half is the offline rule: `CIRCUIT_PARTS_ENGINE=off` suite-wide, and
+a cold `jlcsearch` costs 47–90s. Sourcing is one network step, taken once, at
+the top of the turn — not something the edit/build/read loop reaches for.
 
 ```
-ask needs a capability with no block
-   → block-source (network, minutes, once)   ← you are here
-   → block lands in the project's blocks/
-   → circuit-analysis brief → plan → circuitcode build
+plan turn  (read-only): name the part, its LCSC number, its certification id,
+                        its typical/peak current and page → a SOURCE step,
+                        first in the plan's build order
+   ↓ approved
+build turn: block-source — fetch, write blocks/<id>/, grade ok   ← you are here
+   ↓
+            write boards/main.tsx → circuitcode build loop (offline)
 ```
+
+Everything this skill needs in the plan turn is read-only: a datasheet is a
+page you read, and a part number is a fact you write down. What needs the build
+turn is the *writing* — the footprint fetch and the two files.
 
 A project's `blocks/` is its own frozen copy, and a directory the golden
 library does not have is **not** flagged as drift (`blocklib.drift_warnings`

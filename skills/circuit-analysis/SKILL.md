@@ -126,9 +126,12 @@ implies mains, ask the one question.
    ID or equivalent for the function needed. `servo-header` came in that
    way. The question it answers is whether the **part** carries the
    engineering or you would have to: a module carries its radio, bare RF
-   silicon does not. Sourcing runs before the brief, never inside a build,
-   and a block that has not been sourced and graded yet is not in the
-   catalog no matter how sourceable it looks.
+   silicon does not. The brief is where the part is **named and budgeted** —
+   its LCSC number, its certification identifier, its typical and peak
+   current with the datasheet page; all of that is reading, which this
+   read-only skill may do. The fetch itself happens later, at the top of the
+   build turn. So a capability is offerable once the brief names the part and
+   states its numbers — never on the strength of intending to look later.
 
    Where no part clears that bar — a battery (the sealed charge/protect
    block does not exist), anything mains, anything whose circuit would be
