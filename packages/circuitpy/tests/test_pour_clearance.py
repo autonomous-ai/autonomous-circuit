@@ -287,6 +287,31 @@ def _board_with_trace(*, net: str = "k_sig", width: float = 0.2,
     return els
 
 
+def _board_with_unkeyed_trace(*, net: str = "k_sig", width: float = 0.2,
+                              seg: tuple = (-14.0, 0.0, 14.0, 0.0)
+                              ) -> list[dict]:
+    """The same board, shaped the way a real one is.
+
+    `_board_with_trace` stamps `subcircuit_connectivity_map_key` straight onto
+    the `pcb_trace`. **No board this pipeline builds does that.** Measured on
+    weather-badge-32, 2026-09-03: all 132 traces carry `None` there and the
+    net is reachable only through the ports in `connectsTo`. So the fixture
+    above proved the filter against a shape that does not occur, and the
+    filter never fired on a real board — see
+    `TheTraceFilterOnRealGeometry` below.
+    """
+    els = _board_with_trace(net=net, width=width, seg=seg)
+    trace = next(e for e in els if e.get("type") == "pcb_trace")
+    del trace["subcircuit_connectivity_map_key"]
+    trace["connectsTo"] = ["pcb_port_a", "pcb_port_b"]
+    for suffix in ("a", "b"):
+        els.append({"type": "source_port", "source_port_id": f"sp_{suffix}",
+                    "subcircuit_connectivity_map_key": net})
+        els.append({"type": "pcb_port", "pcb_port_id": f"pcb_port_{suffix}",
+                    "source_port_id": f"sp_{suffix}"})
+    return els
+
+
 class PourVersusTracks(unittest.TestCase):
     """Tracks were the class this pass could not see.
 
@@ -342,6 +367,50 @@ class PourVersusTracks(unittest.TestCase):
             path = _write(Path(tmp), _board_with_trace(net="k_gnd"))
             result = pour_clearance.repair_pour_clearance(path, PROFILE, required_mm=0.3)
             self.assertFalse(result.changed)
+
+    def test_the_pours_own_net_is_left_alone_on_real_geometry(self) -> None:
+        """The bug the fixture above hid for a fortnight.
+
+        A pour pushed off its own ground tracks is not a smaller pour, it is a
+        plane with the plane taken out of it. On weather-badge-32 the pass
+        moved 387 vertices and reported a worst gap of exactly **-0.1000mm** it
+        could never close — that number is a 0.2mm GND track measured from its
+        own centreline, which is what a pour touching its net looks like. Top
+        coverage came out at 42% and the board shipped with
+        `ground_pour_partial`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), _board_with_unkeyed_trace(net="k_gnd"))
+            before = path.read_text()
+            result = pour_clearance.repair_pour_clearance(
+                path, PROFILE, required_mm=0.3)
+            self.assertFalse(
+                result.changed,
+                "the pour was pushed off a track on its own net — the net was "
+                "resolved from a key the trace does not carry",
+            )
+            self.assertEqual(before, path.read_text())
+
+    def test_a_foreign_track_is_still_an_obstacle_without_the_key(self) -> None:
+        """Resolving through ports must not turn the filter off entirely."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), _board_with_unkeyed_trace(net="k_sig"))
+            result = pour_clearance.repair_pour_clearance(
+                path, PROFILE, required_mm=0.3)
+            self.assertTrue(result.changed,
+                            "a track on another net must still be avoided")
+
+    def test_a_trace_with_no_resolvable_net_is_treated_as_foreign(self) -> None:
+        """Unknown is not the same as ours. Copper we cannot identify gets the
+        clearance, because the failure that costs money is a pour welded to a
+        net it does not belong to."""
+        els = _board_with_unkeyed_trace(net="k_gnd")
+        els = [e for e in els if e.get("type") not in ("pcb_port", "source_port")]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write(Path(tmp), els)
+            result = pour_clearance.repair_pour_clearance(
+                path, PROFILE, required_mm=0.3)
+            self.assertTrue(result.changed)
 
     def test_a_track_on_the_other_layer_is_not_an_obstacle(self) -> None:
         els = _board_with_trace()

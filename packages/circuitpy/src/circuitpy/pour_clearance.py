@@ -317,6 +317,19 @@ def _trace_obstacles(board: diffpair._Board, pour_net: str | None,
     """
     out: list[_Capsule] = []
     for trace in board.by_type.get("pcb_trace", []):
+        # Resolve the net the way the rest of the pipeline does, through the
+        # ports the trace touches. Reading `subcircuit_connectivity_map_key`
+        # off the trace or its route points looked equivalent and is not:
+        # measured on weather-badge-32 (2026-09-03), **all 132 traces carry
+        # None there**, so the guard below never once fired and every trace on
+        # the board — including the 47 belonging to GND, the pour's own net —
+        # was pushed away from as if it were foreign copper. That is the
+        # unnamed-net shape again: a point-to-point trace carries no
+        # source_net, and a key-only lookup reads it as netless rather than as
+        # the net it is joined to.
+        net = board.trace_net_key(trace)
+        if pour_net and net and net == pour_net:
+            continue  # the pour's own net: touching it is the point
         route = trace.get("route") or []
         for i in range(len(route) - 1):
             a, b = route[i], route[i + 1]
@@ -326,10 +339,6 @@ def _trace_obstacles(board: diffpair._Board, pour_net: str | None,
             bx, by = diffpair._f(b.get("x")), diffpair._f(b.get("y"))
             if None in (ax, ay, bx, by):
                 continue
-            net = a.get("subcircuit_connectivity_map_key") \
-                or trace.get("subcircuit_connectivity_map_key")
-            if pour_net and net and net == pour_net:
-                continue  # the pour's own net: touching it is the point
             width = diffpair._f(a.get("width"), 0.2) or 0.2
             out.append(_Capsule(
                 str(trace.get("pcb_trace_id") or "trace"),
