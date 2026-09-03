@@ -52,6 +52,40 @@ class TheRouteIsReachable(unittest.TestCase):
         for phrase in ("mains is never offered", "sealed charge/protect block"):
             self.assertIn(phrase, text, f"lost the refusal: {phrase!r}")
 
+    def test_every_surface_carries_all_three_classes(self):
+        """macropad-12-oled, 2026-09-03, refused a display it should have been
+        able to source — correctly, against a rule that named only two
+        classes. A class that reaches one file and not the others is the same
+        failure one layer down: the planner offers what the builder refuses."""
+        missing = []
+        for path in SURFACES:
+            text = path.read_text()
+            if "integrated" not in text.lower():
+                missing.append(str(path.relative_to(REPO)))
+        self.assertEqual(
+            [], missing,
+            f"these never mention the integrated-module class: {missing}",
+        )
+
+    def test_the_radio_door_is_not_widened_by_the_third_class(self):
+        """A transmitter with no certificate is bare silicon wearing a
+        daughterboard, whatever else is soldered beside it."""
+        skill = (REPO / "skills/block-source/SKILL.md").read_text()
+        self.assertIn("class 3 is not a way around class 2", skill.lower())
+        driver = (REPO / "viewer/src/server/circuit/driver.mjs").read_text()
+        self.assertIn("ANYTHING THAT RADIATES MUST", driver)
+
+    def test_the_third_class_states_its_own_hard_test(self):
+        """Without this sentence the class is just 'a part I like the look
+        of', and every bare IC qualifies."""
+        skill = (REPO / "skills/block-source/SKILL.md").read_text()
+        self.assertIn("Nothing active may be added outside the module", skill)
+
+    def test_the_panel_checks_the_integration_claim(self):
+        panel = (REPO / "skills/design-review/SKILL.md").read_text()
+        self.assertIn("integration", panel)
+        self.assertIn("adds any active part", panel)
+
     def test_the_skill_refuses_bare_rf_in_its_own_words(self):
         """A sourcing skill that forgot this would be the invention door."""
         text = (REPO / "skills/block-source/SKILL.md").read_text()
