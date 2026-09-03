@@ -150,7 +150,10 @@ A board is **ready to make** when all of:
   will mention that the block is there at all. An `interconnect` needs the
   land pattern to be the supplier's; a `certified-module` needs an
   identifier a lab issued, and "the datasheet says it is certified" is not
-  one.
+  one; an `integrated-module` needs its `integration` row to actually name
+  the parts it carries, and the safety lens must check the claim against the
+  schematic — **if this board adds any active part to make that module work,
+  the class is wrong and the block should never have graded.**
 
 Miss any of those and the verdict is `iterate`, not `ready`.
 

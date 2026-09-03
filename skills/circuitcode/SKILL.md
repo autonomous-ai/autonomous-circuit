@@ -30,8 +30,9 @@ Four habits, applied without being asked:
    header, a connector) is yours to place. A chip that is not in a block does
    not go on the board — say so and offer the nearest block. The one way to
    make the catalog longer is `block-source`
-   (`~/.claude/skills/block-source`), which sources a passive interconnect or
-   a certified module from the supplier with graded provenance. Run it **first
+   (`~/.claude/skills/block-source`), which sources a passive interconnect, a
+   certified module, or a non-radiating integrated module that carries every
+   active part it needs, from the supplier with graded provenance. Run it **first
    thing in the build turn**, before you write a line of board source, and
    never inside the edit/build/read loop — it is one network step, taken once.
    It does not loosen this rule: a part whose circuit would be yours to draw is

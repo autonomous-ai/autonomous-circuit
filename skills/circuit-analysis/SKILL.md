@@ -121,9 +121,14 @@ implies mains, ask the one question.
    **The table above is what exists today, not what may ever exist.**
    A capability with no block has one sanctioned route before it becomes
    a `gaps` entry: `block-source` (`~/.claude/skills/block-source`), which
-   fetches a missing block from the supplier for two classes of part —
-   a passive interconnect, and a *certified module* carrying its own FCC
-   ID or equivalent for the function needed. `servo-header` came in that
+   fetches a missing block from the supplier for three classes of part —
+   a passive interconnect; a *certified module* carrying its own FCC ID or
+   equivalent, which is the only way anything that radiates may arrive; and
+   an *integrated module*, a finished purchasable assembly that does not
+   radiate and carries every active part it needs (a display module, a
+   sensor breakout, a packaged DC-DC brick). That third class is held by one
+   strict sentence — **nothing active may be added outside the module for it
+   to work**; need a level shifter or a regulator and it is a gap again. `servo-header` came in that
    way. The question it answers is whether the **part** carries the
    engineering or you would have to: a module carries its radio, bare RF
    silicon does not. The brief is where the part is **named and budgeted** —

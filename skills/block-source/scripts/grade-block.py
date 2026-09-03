@@ -45,13 +45,30 @@ REQUIRED = (
     "verified",
 )
 
-CLASSES = ("interconnect", "certified-module")
+CLASSES = ("interconnect", "certified-module", "integrated-module")
 
-#: A passive header has no rail, no antenna and no radio certificate. Nothing
-#: else may answer `n/a` to any of these.
+#: Required for `integrated-module` and meaningless for the others, so it is
+#: checked by class rather than listed in REQUIRED — putting it there would
+#: fail every block sourced before this class existed, which is a migration
+#: dressed up as a rule.
+BY_CLASS_REQUIRED = {"integrated-module": ("integration",)}
+
+#: What each class is allowed to answer `n/a` to, and nothing else.
+#:
+#: A passive header has no rail, no antenna and no certificate. A certified
+#: module answers everything. An **integrated module** may skip the
+#: certificate — a display does not radiate and no lab will ever issue it one —
+#: but it pays for that with `integration`, which is the sentence that replaces
+#: the certificate as evidence: what the module carries, so that nothing active
+#: is left for the board to add. That row is required for exactly this class
+#: and `n/a` for the other two, so a blank cannot drift between them.
 _NA_OK = {
-    "interconnect": {"certification", "typical_ma", "peak_ma", "v_in", "keepout"},
-    "certified-module": set(),
+    "interconnect": {"certification", "integration", "typical_ma", "peak_ma",
+                     "v_in", "keepout"},
+    "certified-module": {"integration"},
+    "integrated-module": {"certification", "keepout"},
+    # NB: `integration` is deliberately absent here — the one row
+    # this class cannot wave away.
 }
 
 _NA_RE = re.compile(r"^n/?a\b", re.I)
@@ -122,13 +139,13 @@ def grade(text: str, block_id: str) -> dict:
     klass = fields.get("class", "").strip().lower()
     if klass not in CLASSES:
         problems.append(
-            f"class is {klass or '(blank)'!r}; a sourced block is "
-            f"{' or '.join(CLASSES)} — anything else is a part whose circuit "
+            f"class is {klass or '(blank)'!r}; a sourced block is one of "
+            f"{', '.join(CLASSES)} — anything else is a part whose circuit "
             f"you would have to invent, and that is a gaps entry, not a block"
         )
     na_ok = _NA_OK.get(klass, set())
 
-    for key in REQUIRED:
+    for key in REQUIRED + BY_CLASS_REQUIRED.get(klass, ()):
         value = fields.get(key, "").strip()
         if not value:
             missing.append(key)
@@ -172,6 +189,20 @@ def grade(text: str, block_id: str) -> dict:
             problems.append(
                 "certification carries no identifier — a module without one is "
                 "bare silicon wearing a daughterboard"
+            )
+
+    if klass == "integrated-module" and "integration" not in missing:
+        # The row that stands in for a certificate. "It is a module" restates
+        # the class; the claim being made is that nothing active is left for
+        # the board to add, and that is a list of parts and a page, or it is
+        # nothing.
+        integration = fields["integration"]
+        if not re.search(r"\d", integration):
+            problems.append(
+                "integration names no part and no page — it is the evidence "
+                "that replaces the certificate for a class that cannot have "
+                "one, so it lists what the module carries or the block does "
+                "not grade"
             )
 
     if "verified" not in missing and not _ISO_RE.search(fields["verified"]):

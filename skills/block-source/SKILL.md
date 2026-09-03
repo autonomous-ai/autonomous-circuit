@@ -30,13 +30,20 @@ made repeatable.
   matching network, the antenna, the crystal, the shield, and an FCC ID saying
   a lab measured it. The module *is* the circuit. Fetching it is composition,
   not invention.
+- A **0.96" SSD1306 OLED module** carries all of it too — the glass, the
+  driver, the charge pump and its capacitors, the bus pull-ups. It has no FCC
+  ID and never will, because it does not radiate. **The certificate was never
+  the point; it was evidence.** For a radio it is the only evidence anyone
+  accepts. For a display, the evidence is that nothing active is left for you
+  to add.
 - A **bare nRF24L01 die** carries none of it. The balun, the matching network
   and the antenna would be **yours**, drawn from a datasheet, unmeasured. That
   is the thing this repo refuses, and sourcing does not change it.
+- A **bare COG display panel and its flex** is the same refusal wearing glass.
+  The charge pump would be yours to design.
 
-So: **sourceable = a passive interconnect, or a part whose own certification
-covers the circuit you would otherwise have to invent.** Everything else is
-still a `gaps` entry.
+So: **sourceable = a part that arrives finished.** Three shapes below.
+Everything else is still a `gaps` entry.
 
 ## Sourceable
 
@@ -45,14 +52,42 @@ still a `gaps` entry.
 2. **A certified module** — a part carrying a regulatory identifier of its own
    (FCC ID, IC, CE-RED notified-body number, SRRC, TELEC) for the function you
    need. The identifier is the evidence that the hard part is already done and
-   measured by someone with a chamber.
+   measured by someone with a chamber. **Anything that radiates must come this
+   way** — a transmitter with no certificate is bare silicon wearing a
+   daughterboard, whatever else is on it.
+3. **An integrated module** — a finished, purchasable **assembly** that does
+   not radiate and carries every active part it needs: a display module, a
+   sensor breakout, a packaged DC-DC brick. Here certification is unavailable
+   and irrelevant, so the evidence is a different sentence, and it is a hard
+   one:
+
+   > **Nothing active may be added outside the module for it to work.**
+
+   Active means a semiconductor doing work — a transistor, an IC, a regulator,
+   a level shifter, a charge pump. Ordinary passives are still yours to place,
+   and existing glue blocks (`i2c-bus`'s pull-up pair, a series resistor, a
+   decoupling cap) are glue, not a violation.
+
+   Apply it honestly and it refuses most things. A 3.3V-only display on a 5V
+   board needs a level shifter → **not sourceable as drawn**; either the rail
+   is 3.3V or the answer is a gap. A sensor breakout that needs an external
+   reference → not sourceable. **If you find yourself designing anything to
+   make the part work, you have left this class.**
+
+   Record what the module carries in the `integration` row, part by part.
+   "It is a module" is not that row; "charge pump + 2x 2.2uF and the 4.7k SDA
+   and SCL pull-ups are on the module, datasheet p.3" is.
 
 ## Not sourceable — no exceptions here
 
 - **Bare RF silicon**, matching networks, chip or PCB-trace antennas. Refused
   by `circuitlib.safety.BARE_RF_PATTERNS` at spec time and refused here. A
-  module without a certification identifier is bare silicon wearing a
-  daughterboard.
+  radio module without a certification identifier is bare silicon wearing a
+  daughterboard, and **class 3 is not a way around class 2**: if the part
+  transmits, it needs the certificate, full stop.
+- **A chip in a package, however complete it looks.** Class 3 is a purchasable
+  *assembly* — a board with parts soldered on it. An IC in a QFN is not one,
+  and calling it integrated does not make it so.
 - **Anything on the mains side.** No sourcing route exists and none will.
 - **Cell charge or protection.** The envelope allows battery only through a
   sealed validated block; that block does not exist yet, and a charger IC is
@@ -178,10 +213,11 @@ Every sourced `BLOCK.md` carries this, verbatim keys, near the top:
 
 | field | value |
 |---|---|
-| `class` | `interconnect` or `certified-module` |
+| `class` | `interconnect`, `certified-module` or `integrated-module` |
 | `mpn` | manufacturer part number |
 | `lcsc` | C-number |
-| `certification` | FCC ID / IC / CE-RED / SRRC / TELEC, or `n/a — passive interconnect` |
+| `certification` | FCC ID / IC / CE-RED / SRRC / TELEC. `n/a` only where the class allows it — a passive interconnect, or a non-radiating integrated module |
+| `integration` | **integrated modules only** — required for that class, omitted by the other two: every active part the module carries, with the datasheet page. It is the one row an integrated module may not answer `n/a` |
 | `footprint_source` | `easyeda:C<number>` (or `footprinter:<name>` when IoU says identical) |
 | `footprint_iou` | the number `tscircuit-cli import --jlcpcb` printed |
 | `typical_ma` | steady current, with datasheet page |

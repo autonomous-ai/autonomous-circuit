@@ -143,6 +143,91 @@ class Grading(unittest.TestCase):
         self.assertEqual(sorted(r["missing"]), sorted(grade_block.REQUIRED))
 
 
+def integrated_md(**overrides: str) -> str:
+    """A display module: finished, purchasable, and it will never radiate."""
+    fields = {
+        "class": "integrated-module",
+        "mpn": "UG-2864HSWEG01",
+        "lcsc": "C90100",
+        "certification": "n/a — non-radiating integrated module",
+        "integration": ("SSD1306 driver, the charge pump and its 2x 2.2uF, and "
+                        "the 4.7k SDA/SCL pull-ups are all on the module — "
+                        "datasheet p.3"),
+        "footprint_source": "`easyeda:C90100`",
+        "footprint_iou": "88.10",
+        "typical_ma": "11 mA at 50% pixels (datasheet p.8)",
+        "peak_ma": "27 mA all pixels on (datasheet p.8)",
+        "v_in": "3.3 V (datasheet p.6)",
+        "keepout": "n/a — no antenna",
+        "pin_source": "datasheet p.4, 4-pin header G/V/C/D",
+        "verified": "2026-09-03",
+    }
+    fields.update(overrides)
+    rows = "\n".join(f"| `{k}` | {v} |" for k, v in fields.items() if v != "")
+    return f"""# oled-ssd1306 — a 0.96in I2C display module
+
+## Provenance
+
+| field | value |
+|---|---|
+{rows}
+"""
+
+
+class IntegratedModules(unittest.TestCase):
+    """The class the OLED exposed: a part that carries the whole circuit and
+    can never hold a certificate, because it does not radiate."""
+
+    def test_a_complete_integrated_module_grades_ok(self):
+        r = grade_block.grade(integrated_md(), "oled-ssd1306")
+        self.assertEqual((r["ok"], r["missing"], r["problems"]), (True, [], []))
+
+    def test_it_may_skip_the_certificate(self):
+        """No lab issues an FCC ID to a display. Demanding one refuses a part
+        that satisfies the rule's own principle."""
+        r = grade_block.grade(integrated_md(), "x")
+        self.assertNotIn("certification", r["missing"])
+        self.assertEqual(r["problems"], [])
+
+    def test_but_not_the_integration_row(self):
+        """That row is what replaces the certificate as evidence."""
+        r = grade_block.grade(integrated_md(integration=""), "x")
+        self.assertEqual(r["missing"], ["integration"])
+
+    def test_integration_may_not_be_waved_away_with_na(self):
+        r = grade_block.grade(integrated_md(integration="n/a"), "x")
+        self.assertFalse(r["ok"])
+        self.assertTrue(any("integration" in p for p in r["problems"]))
+
+    def test_it_is_a_module_is_not_evidence(self):
+        """A restatement of the class is not a list of parts and a page."""
+        r = grade_block.grade(
+            integrated_md(integration="everything is on the module"), "x")
+        self.assertFalse(r["ok"])
+        self.assertTrue(any("names no part and no page" in p
+                            for p in r["problems"]))
+
+    def test_the_other_classes_do_not_owe_an_integration_row(self):
+        """Adding it to REQUIRED would have failed every block already
+        sourced — a migration, not a rule."""
+        for md in (block_md(), block_md(**{
+                "class": "interconnect", "certification": "n/a — passive",
+                "typical_ma": "n/a", "peak_ma": "n/a", "v_in": "n/a",
+                "keepout": "n/a"})):
+            r = grade_block.grade(md, "x")
+            self.assertNotIn("integration", r["missing"])
+            self.assertTrue(r["ok"], r)
+
+    def test_a_radio_may_not_slip_in_through_this_class(self):
+        """Class 3 is not a way around class 2. A transmitter with no
+        certificate is bare silicon wearing a daughterboard, and the grader
+        cannot read intent — but it can insist the class that skips the
+        certificate still names what it carries, and the skill's own words
+        refuse the rest."""
+        r = grade_block.grade(integrated_md(integration="n/a"), "x")
+        self.assertFalse(r["ok"])
+
+
 class TheWorkedExample(unittest.TestCase):
     def test_servo_header_grades_ok(self):
         """The skill tells the reader to copy this block. It has to pass."""
