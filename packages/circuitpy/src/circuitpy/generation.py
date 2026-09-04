@@ -42,6 +42,7 @@ from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
 from circuitpy import kicad_schematic
 from circuitpy import pour_clearance
+from circuitpy import pour_islands
 from circuitpy import trace_clearance
 from circuitpy import powerwidth
 from circuitpy import review as review_mod
@@ -1053,6 +1054,7 @@ def build_board(
     powerwidth_results: list[powerwidth.WidenResult] = []
     pour_results: list[pour_clearance.PourResult] = []
     trace_clearance_results: list[trace_clearance.TraceClearanceResult] = []
+    pour_island_results: list[pour_islands.IslandResult] = []
     #: Stage 0b, one entry per compile attempt. Empty engine="off" rows are
     #: dropped from the sidecar; a stage that did nothing should not be noise.
     router_reports: list[dict] = []
@@ -1197,6 +1199,16 @@ def build_board(
         # clear.
         pour_results.append(
             pour_clearance.repair_pour_clearance(built_circuit_json, profile)
+        )
+        # Stage 0g: drop the pour regions nothing on the board is joined to.
+        # A pour arrives from the compiler already in pieces — desk-cube-55's
+        # circuit.json holds one 2959mm2 plane and fifteen fragments — and
+        # 12-27 of those pieces per board contain no via, pad, hole or track of
+        # their own net. KiCad calls the same regions `isolated_copper`.
+        # Last of all: membership is decided once, on final copper, after every
+        # stage that moves any.
+        pour_island_results.append(
+            pour_islands.drop_dead_pour_islands(built_circuit_json, profile)
         )
         try:
             elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
@@ -1451,6 +1463,14 @@ def build_board(
             ].findings()
         )
 
+    # What copper was dead on arrival, and how much of it there was.
+    if pour_island_results:
+        warnings.extend(
+            pour_island_results[
+                min(kept_attempt, len(pour_island_results) - 1)
+            ].findings()
+        )
+
     # What the pour repair had to move, if anything. Silence means the pour
     # already held, which on a board with vias is worth being told.
     if pour_results:
@@ -1479,6 +1499,10 @@ def build_board(
     if powerwidth_results:
         build_block["powerWidth"] = powerwidth_results[
             min(kept_attempt, len(powerwidth_results) - 1)
+        ].as_dict()
+    if pour_island_results:
+        build_block["pourIslands"] = pour_island_results[
+            min(kept_attempt, len(pour_island_results) - 1)
         ].as_dict()
     if trace_clearance_results:
         build_block["traceClearance"] = trace_clearance_results[
