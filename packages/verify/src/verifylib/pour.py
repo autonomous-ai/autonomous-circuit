@@ -38,9 +38,18 @@ in `fab.VERIFY_ESCALATED_KINDS` where an EE can move the line in one place.
 **What this cannot see.** Whether the pour is *stitched* — a plane with no vias
 tying it to the pours on other layers is continuous copper that still does not
 carry return current where it is needed. That needs the routed via set, and it
-is a separate measurement. It also cannot see fragmentation: in `circuit.json`
-a pour is a brep outline, and the only place a pour is ever cut into pieces is
-the KiCad conversion, which `circuitpy.checks` re-measures at that end.
+is a separate measurement.
+
+**Correction, 2026-09-04.** This docstring used to say fragmentation could not
+be seen here either, because "the only place a pour is ever cut into pieces is
+the KiCad conversion". That is false, and it sent the first attempt at the
+repair to the wrong layer. A pour arrives from the compiler **already in
+pieces**: `desk-cube-55`'s circuit.json carries one 2959mm2 plane and fifteen
+separate `pcb_copper_pour` fragments from 0.01mm2 up, and weather-badge-32
+carries 42 regions, before any converter runs. Coverage below still measures
+the union of them, so the numbers this check reports were never wrong — but the
+sentence about where the pieces come from was, and `circuitpy.pour_islands`
+is where they are now dropped.
 """
 
 from __future__ import annotations
