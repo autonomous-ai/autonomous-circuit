@@ -42,6 +42,7 @@ from circuitpy import fab as fab_mod
 from circuitpy import kicad_normalize
 from circuitpy import kicad_schematic
 from circuitpy import pour_clearance
+from circuitpy import trace_clearance
 from circuitpy import powerwidth
 from circuitpy import review as review_mod
 from circuitpy import router_bridge
@@ -1051,6 +1052,7 @@ def build_board(
     diffpair_results: list[diffpair.DiffPairResult] = []
     powerwidth_results: list[powerwidth.WidenResult] = []
     pour_results: list[pour_clearance.PourResult] = []
+    trace_clearance_results: list[trace_clearance.TraceClearanceResult] = []
     #: Stage 0b, one entry per compile attempt. Empty engine="off" rows are
     #: dropped from the sidecar; a stage that did nothing should not be noise.
     router_reports: list[dict] = []
@@ -1167,7 +1169,24 @@ def build_board(
                     built_circuit_json, profile, grade=_grade_power
                 )
             )
-        # Stage 0e: push the copper pour off anything it is too close to.
+        # Stage 0e: open the gaps the shipped autorouter leaves at its own
+        # obstacle margin. Measured 2026-09-04 across the five boards in the
+        # 2026-09-03 fab packet: 10/264/297/312/327 copper gaps sat between
+        # JLC's 0.1mm floor and our 0.127mm design margin, with 0.1150mm
+        # exactly accounting for 20-43% of each board's — a constant, not
+        # congestion, and not one we can reach (raising the clearance props is
+        # the 7-to-125 measurement recorded above). Same A/B, after this pass:
+        # 3/182/127/182/160, no gap under the floor on any of them, no board's
+        # narrowest gap worse than it started, and every non-clearance
+        # violation count unchanged.
+        #
+        # After the pair and widening passes for the same reason the pour is —
+        # it has to see the copper those two leave — and before the pour,
+        # which has to see the copper *this* one leaves.
+        trace_clearance_results.append(
+            trace_clearance.relieve_trace_clearance(built_circuit_json, profile)
+        )
+        # Stage 0f: push the copper pour off anything it is too close to.
         # A pour is polygons, and a polygon approximating a circle always errs
         # inward — 32 sides measure R * 0.995185 at the chord midpoints. A via
         # obeys none of `<copperpour>`'s margin props, so its cutout comes out
@@ -1422,6 +1441,16 @@ def build_board(
         ]
         warnings.extend(widened.findings())
 
+    # What the trace repair had to move, and what it could not. Both halves
+    # are reported: a pass that closes 200 gaps and says nothing about the 70
+    # it could not reach is how a board ships believing it is clean.
+    if trace_clearance_results:
+        warnings.extend(
+            trace_clearance_results[
+                min(kept_attempt, len(trace_clearance_results) - 1)
+            ].findings()
+        )
+
     # What the pour repair had to move, if anything. Silence means the pour
     # already held, which on a board with vias is worth being told.
     if pour_results:
@@ -1450,6 +1479,10 @@ def build_board(
     if powerwidth_results:
         build_block["powerWidth"] = powerwidth_results[
             min(kept_attempt, len(powerwidth_results) - 1)
+        ].as_dict()
+    if trace_clearance_results:
+        build_block["traceClearance"] = trace_clearance_results[
+            min(kept_attempt, len(trace_clearance_results) - 1)
         ].as_dict()
     if pour_results:
         build_block["pourClearance"] = pour_results[
