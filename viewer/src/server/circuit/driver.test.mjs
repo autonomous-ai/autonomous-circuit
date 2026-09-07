@@ -1305,6 +1305,16 @@ test("buildCodexCommandArgs omits --model when unset so the CLI keeps its own co
   assert.equal(named.at(-1), "-", "--model is spliced in before the stdin marker");
 });
 
+test("buildCodexCommandArgs spends the pinned reasoning effort as a config override", () => {
+  const workspace = tmpdir("circuit-ws-");
+  // Codex has no --effort flag; without this the two providers would run at
+  // different reasoning levels and no comparison between them would mean much.
+  const args = buildCodexCommandArgs({ workspace, effort: "high" });
+  assert.equal(args[args.indexOf("-c") + 1], "model_reasoning_effort=high");
+  assert.equal(args.at(-1), "-");
+  assert.ok(!buildCodexCommandArgs({ workspace, effort: "" }).includes("-c"));
+});
+
 test("buildCodexCommandArgs resumes a known thread and carries images before the stdin marker", () => {
   const workspace = tmpdir("circuit-ws-");
   const args = buildCodexCommandArgs({

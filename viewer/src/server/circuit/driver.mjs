@@ -413,7 +413,17 @@ export function resolveCodex(env = process.env) {
 }
 
 /** Arguments for Codex's non-interactive JSONL runner. The prompt is sent on
- * stdin so large board context never has to be shell-escaped. */
+ * stdin so large board context never has to be shell-escaped.
+ *
+ * KNOWN ASYMMETRY with the Claude path: `codex exec` has no
+ * `--append-system-prompt` equivalent — its only instruction channel is the
+ * prompt itself — so the phase prompt is prepended to the user message instead
+ * of arriving out of band. The sandbox below is what actually enforces the
+ * plan turn's read-only contract; the prose only describes it. Verified
+ * 2026-09-07 in a real project workspace that `--sandbox read-only` reads
+ * inside --cd AND outside it (~/.claude/skills is reachable, so the skill
+ * protocol still loads) while a write is refused with "Operation not
+ * permitted". */
 export function buildCodexCommandArgs({
   workspace,
   phase = PHASE.IMPLEMENT,
@@ -434,6 +444,12 @@ export function buildCodexCommandArgs({
     "-",
   );
   if (model) args.splice(-1, 0, "--model", String(model));
+  // Codex has no --effort flag; the same product decision reaches it as a
+  // config override. All five of our EFFORT_LEVELS are accepted by
+  // codex-cli 0.153.4 (probed 2026-09-07), so no mapping is needed — without
+  // this the codex arm would silently run at whatever ~/.codex/config.toml
+  // says while the Claude arm runs at the pinned level.
+  if (effort) args.splice(-1, 0, "-c", `model_reasoning_effort=${effort}`);
   for (const imagePath of imagePaths) args.splice(-1, 0, "--image", String(imagePath));
   return args;
 }
