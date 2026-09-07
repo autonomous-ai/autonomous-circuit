@@ -447,6 +447,16 @@ export function buildCodexCommandArgs({
   } else {
     args.push("--cd", String(workspace), "--sandbox", sandbox);
   }
+  // Codex's writable sandbox blocks network by default, and the pipeline has
+  // two sanctioned network touches inside a build: stage 0's parts engine and
+  // block-source's supplier import. Verified 2026-09-07 that without this a
+  // real build turn dies at SOURCE with "Unable to connect. Is the computer
+  // able to access the url?", leaving records that can never grade ok. The
+  // plan phase stays read-only and therefore stays offline. This is still
+  // narrower than the Claude arm, which runs bypassPermissions unsandboxed.
+  if (sandbox === "workspace-write") {
+    args.push("-c", "sandbox_workspace_write.network_access=true");
+  }
   if (model) args.push("--model", String(model));
   // Codex has no --effort flag; the same product decision reaches it as a
   // config override. All five of our EFFORT_LEVELS are accepted by
@@ -1113,6 +1123,31 @@ export const MAX_CRAFT_ROUNDS = 2;
 //: is only to guarantee it happens at all.
 export const MAX_PANEL_ROUNDS = 1;
 
+/** Does this workspace contain a board at all? True as soon as one
+ * `*.board.json` sidecar exists (skip-list honored) — the sidecar is what
+ * every review phase reads, so its absence means there is nothing to review. */
+export function workspaceHasBoard(dir) {
+  const skip = skipDirNames();
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      if (entry.isDirectory()) {
+        if (!skip.has(entry.name)) stack.push(path.join(current, entry.name));
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith(".board.json")) return true;
+    }
+  }
+  return false;
+}
+
 /** Read every `*.board.json` sidecar under `dir` (skip-list honored) and
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
 export function collectBoardWarnings(dir) {
@@ -1495,8 +1530,18 @@ export async function spawnTurn({
     onEvent(event);
   }
 
-  // Automatic post-build review, silent, inside this build turn.
-  if (phase === PHASE.IMPLEMENT && !cancelled && sawOutput && artifactsChanged) {
+  // Automatic post-build review, silent, inside this build turn. `artifactsChanged`
+  // alone is too loose a gate: a turn that stops before writing board source
+  // still touches the workspace (a blocked SOURCE step leaves records under
+  // sourcing/), and the review loop then spends rounds reviewing a board that
+  // does not exist. Every phase of it reads `*.board.json`, so require one.
+  if (
+    phase === PHASE.IMPLEMENT &&
+    !cancelled &&
+    sawOutput &&
+    artifactsChanged &&
+    workspaceHasBoard(workspace)
+  ) {
     await runReviewFixLoop({
       provider,
       executable,

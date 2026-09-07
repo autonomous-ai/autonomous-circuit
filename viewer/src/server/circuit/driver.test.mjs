@@ -49,6 +49,7 @@ import {
   summarizeToolResult,
   uuidv5,
   workspaceFabReady,
+  workspaceHasBoard,
 } from "./driver.mjs";
 import { encodeCwd, sessionJsonlPath } from "./projects.mjs";
 
@@ -1309,10 +1310,15 @@ test("buildCodexCommandArgs spends the pinned reasoning effort as a config overr
   const workspace = tmpdir("circuit-ws-");
   // Codex has no --effort flag; without this the two providers would run at
   // different reasoning levels and no comparison between them would mean much.
-  const args = buildCodexCommandArgs({ workspace, effort: "high" });
-  assert.equal(args[args.indexOf("-c") + 1], "model_reasoning_effort=high");
-  assert.equal(args.at(-1), "-");
-  assert.ok(!buildCodexCommandArgs({ workspace, effort: "" }).includes("-c"));
+  const configsOf = (opts) => {
+    const args = buildCodexCommandArgs({ workspace, ...opts });
+    return args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  };
+  assert.ok(configsOf({ effort: "high" }).includes("model_reasoning_effort=high"));
+  assert.equal(buildCodexCommandArgs({ workspace, effort: "high" }).at(-1), "-");
+  // Unset spends nothing — the CLI keeps whatever config.toml says. The other
+  // -c overrides (the sandbox's network) are unaffected.
+  assert.ok(!configsOf({ effort: "" }).some((c) => c.startsWith("model_reasoning_effort")));
 });
 
 test("buildCodexCommandArgs resumes with the resume subcommand's own flag set", () => {
@@ -1452,4 +1458,39 @@ test("parseCodexLine turns a top-level error into a visible error and tolerates 
   assert.deepEqual(parseCodexLine("", "turn-1", state), []);
   assert.deepEqual(parseCodexLine("not json at all", "turn-1", state), []);
   assert.deepEqual(parseCodexLine('{"type":"turn.started"}', "turn-1", state), []);
+});
+
+test("the writable sandbox gets network, and the read-only plan turn does not", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const NET = "sandbox_workspace_write.network_access=true";
+  const configsOf = (opts) => {
+    const args = buildCodexCommandArgs({ workspace, ...opts });
+    return args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  };
+  // Stage 0's parts engine and block-source's supplier import both need it;
+  // without it a build turn dies at SOURCE with a connection error.
+  assert.ok(configsOf({ phase: PHASE.IMPLEMENT }).includes(NET));
+  assert.ok(configsOf({ phase: PHASE.REVIEW }).includes(NET));
+  assert.ok(configsOf({ phase: PHASE.IMPLEMENT, sessionId: "sid" }).includes(NET), "resume too");
+  // A read-only turn cannot write, and does not get to reach the network either.
+  assert.ok(!configsOf({ phase: PHASE.PLAN }).includes(NET));
+  assert.ok(!configsOf({ phase: PHASE.PLAN, sessionId: "sid" }).includes(NET));
+});
+
+test("workspaceHasBoard is false until a sidecar exists, so a stopped build is not 'reviewed'", () => {
+  const workspace = tmpdir("circuit-ws-");
+  assert.equal(workspaceHasBoard(workspace), false, "an empty project has no board");
+
+  // A turn that stops before writing board source still touches the workspace —
+  // a blocked SOURCE step leaves records behind. That is not a board.
+  fs.mkdirSync(path.join(workspace, "sourcing", "sen0097"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "sourcing", "sen0097", "BLOCK.md"), "# pending\n");
+  assert.equal(workspaceHasBoard(workspace), false, "sourcing records are not a board");
+
+  fs.mkdirSync(path.join(workspace, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "boards", "main.tsx"), "export default () => null;\n");
+  assert.equal(workspaceHasBoard(workspace), false, "source without a sidecar is not a built board");
+
+  fs.writeFileSync(path.join(workspace, "boards", "main.board.json"), "{}");
+  assert.equal(workspaceHasBoard(workspace), true);
 });
