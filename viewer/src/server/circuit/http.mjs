@@ -586,6 +586,26 @@ export function createCircuitServices({ env = process.env } = {}) {
     }
   }
 
+  /** Refuse a second turn while one is already running on this project.
+   *
+   * Both CLIs key their conversation by one id per project, and neither
+   * tolerates two writers: `claude --resume` reports "Session ID already in
+   * use", and `codex exec resume` fails the whole turn with "thread <id>
+   * already has an active writer". Observed 2026-09-07 — two plan turns
+   * started back to back and the second died before reaching the model. The
+   * composer disables itself while a turn is live, but that is a client-side
+   * courtesy: a stale SSE state, a double click on the questions card, or a
+   * second tab all reach this handler anyway. */
+  function refuseIfTurnInProgress(projectId) {
+    if (chat.turnInProgress(projectId)) {
+      throw ipcError(
+        "TURN_IN_PROGRESS",
+        "a turn is already running for this project — wait for it to finish or cancel it",
+        409,
+      );
+    }
+  }
+
   // One promise chain per project: a semantic edit is a read-modify-write, and
   // two of them arriving together would otherwise both read the pre-edit file.
   const serializeEdit = createEditQueue();
@@ -976,6 +996,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_start_turn: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       let message = String(req?.userMessage ?? "");
       const images = Array.isArray(req?.images) ? req.images : [];
       let imagePaths = [];
@@ -998,6 +1019,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_approve_plan: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       const turnId = chat.startTurn({
         projectId,
         sessionId: req?.sessionId,
@@ -1009,6 +1031,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_request_plan_changes: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       const turnId = chat.startTurn({
         projectId,
         sessionId: req?.sessionId,

@@ -508,3 +508,36 @@ test("an unknown stage gets the most generous limit, not the tightest", () => {
   assert.ok(quietLimitMs(undefined) >= Math.max(...known));
   assert.ok(quietLimitMs(null) >= Math.max(...known));
 });
+
+test("a second turn on a live project is refused instead of racing the first", async () => {
+  const s = await bootServer({ scenario: { plan: { lines: [], sleepAfterMs: 3000 } } });
+  try {
+    await s.post("app_settings_write", {
+      settings: { hasOnboarded: true, autoBuild: false, provider: "claude" },
+    });
+    const { body: project } = await s.post("project_create", { req: { name: "Race" } });
+    await s.post("project_open", { id: project.id });
+
+    const first = await s.post("chat_start_turn", {
+      req: { projectId: project.id, userMessage: "design a board" },
+    });
+    assert.equal(first.status, 200);
+
+    // Both CLIs key their conversation by one id per project and neither
+    // tolerates two writers; codex fails the whole turn with "thread <id>
+    // already has an active writer".
+    for (const [command, req] of [
+      ["chat_start_turn", { projectId: project.id, userMessage: "again" }],
+      ["chat_approve_plan", { projectId: project.id, planText: "# plan" }],
+      ["chat_request_plan_changes", { projectId: project.id, feedback: "smaller" }],
+    ]) {
+      const second = await s.post(command, { req });
+      assert.equal(second.status, 409, command);
+      assert.equal(second.body.code, "TURN_IN_PROGRESS", command);
+    }
+
+    await s.post("chat_cancel_turn", { turnId: first.body.turnId });
+  } finally {
+    s.close();
+  }
+});

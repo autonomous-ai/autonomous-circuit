@@ -1148,6 +1148,43 @@ export function workspaceHasBoard(dir) {
   return false;
 }
 
+/** The rendered board images a craft round needs to look at: `_schematic.png`
+ * and `_pcb.png` under every `*_review/` directory (skip-list honored).
+ *
+ * Claude reads these off disk with its own Read tool. `codex exec` has no such
+ * tool — its only way to see an image is `--image` at launch — so the codex arm
+ * would otherwise run the craft phase blind, judging a layout it never saw.
+ * Each craft round is its own spawn, so attaching the current renders at the
+ * start of a round gives the same convergence: round 2 sees round 1's output. */
+export function reviewImagePaths(dir) {
+  const skip = skipDirNames();
+  const stack = [dir];
+  const out = [];
+  while (stack.length) {
+    const current = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!skip.has(entry.name)) stack.push(full);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (entry.name === "_schematic.png" || entry.name === "_pcb.png") {
+        if (path.basename(current).endsWith("_review")) out.push(full);
+      }
+    }
+  }
+  // Schematic first, then PCB, and stable across rounds so a diff of the two
+  // rounds' prompts is a diff of the board, not of directory order.
+  return out.sort();
+}
+
 /** Read every `*.board.json` sidecar under `dir` (skip-list honored) and
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
 export function collectBoardWarnings(dir) {
@@ -1575,13 +1612,14 @@ async function runReviewRound({
   model,
   effort = "",
   prompt,
+  imagePaths = [],
   onEvent,
   signal,
   env,
 }) {
   const pre = snapshotWorkspace(workspace);
   const args = provider === "codex"
-    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, sessionId: codexSessionIdFor(workspace, env) })
+    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
     : buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
@@ -1590,7 +1628,20 @@ async function runReviewRound({
     return false; // best-effort: a build that can't be reviewed just ends
   }
   child.stdin.on("error", () => {});
-  child.stdin.end(provider === "codex" ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}\n` : streamJsonInput(prompt));
+  // Attached images arrive with the prompt, not on demand: say so, or the
+  // instruction to "rebuild, then Read both images" reads as unachievable and
+  // the round is spent explaining that instead of looking.
+  const attached = provider === "codex" && imagePaths.length
+    ? "\n\nThe board's current renders are ATTACHED to this message — look at " +
+      "them directly; you have no tool that opens an image from disk. They show " +
+      "the board as it stands right now. Fix what reads wrong in the TSX source " +
+      "and regenerate; the next round attaches the refreshed renders.\n"
+    : "";
+  child.stdin.end(
+    provider === "codex"
+      ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
+      : streamJsonInput(prompt),
+  );
   child.stderr.resume();
 
   const onAbort = () => killChild(child);
@@ -1766,7 +1817,7 @@ export async function runReviewFixLoop({
   // of five — and says so out loud rather than quietly handing back a board
   // that used to be shippable.
   let regressed = false;
-  const round = async (prompt) => {
+  const round = async (prompt, imagePaths = []) => {
     const readyBefore = workspaceFabReady(workspace);
     // Only worth the copy when there is something to lose.
     const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
@@ -1778,6 +1829,7 @@ export async function runReviewFixLoop({
       turnId,
       model,
       prompt,
+      imagePaths,
       onEvent,
       signal,
       env,
@@ -1877,7 +1929,12 @@ export async function runReviewFixLoop({
       rounds: MAX_CRAFT_ROUNDS,
       detail: "reading the schematic and PCB images",
     });
-    const roundChanged = await round(buildCraftPrompt(hints));
+    // Claude reads the renders itself; attaching them would change what the
+    // Claude arm receives, so only the codex arm gets the attachment.
+    const roundChanged = await round(
+      buildCraftPrompt(hints),
+      provider === "codex" ? reviewImagePaths(workspace) : [],
+    );
     changed = roundChanged || changed;
     if (!roundChanged) {
       break;

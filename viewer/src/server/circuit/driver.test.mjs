@@ -44,6 +44,7 @@ import {
   questionsFenceFromAskUserQuestion,
   recoverPlanFromTranscript,
   resolveCodex,
+  reviewImagePaths,
   sessionIdForProject,
   spawnTurn,
   summarizeToolResult,
@@ -1493,4 +1494,24 @@ test("workspaceHasBoard is false until a sidecar exists, so a stopped build is n
 
   fs.writeFileSync(path.join(workspace, "boards", "main.board.json"), "{}");
   assert.equal(workspaceHasBoard(workspace), true);
+});
+
+test("reviewImagePaths finds the renders a craft round has to look at, and nothing else", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const review = path.join(workspace, "boards", "main_review");
+  fs.mkdirSync(review, { recursive: true });
+  assert.deepEqual(reviewImagePaths(workspace), [], "no renders yet");
+
+  fs.writeFileSync(path.join(review, "_pcb.png"), "x");
+  fs.writeFileSync(path.join(review, "_schematic.png"), "x");
+  // The SVGs are the same picture at a size no model needs, and a stray PNG
+  // elsewhere in the project is not a board render.
+  fs.writeFileSync(path.join(review, "_pcb.svg"), "x");
+  fs.mkdirSync(path.join(workspace, "imports"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "imports", "_pcb.png"), "x");
+
+  assert.deepEqual(reviewImagePaths(workspace), [
+    path.join(review, "_pcb.png"),
+    path.join(review, "_schematic.png"),
+  ]);
 });
