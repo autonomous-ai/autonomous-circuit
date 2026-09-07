@@ -432,25 +432,33 @@ export function buildCodexCommandArgs({
   sessionId = "",
   imagePaths = [],
 }) {
+  const sandbox = codexSandboxForPhase(phase);
+  const resuming = Boolean(sessionId);
   const args = ["exec"];
-  if (sessionId) args.push("resume", String(sessionId));
-  args.push(
-    "--json",
-    "--skip-git-repo-check",
-    "--cd",
-    String(workspace),
-    "--sandbox",
-    codexSandboxForPhase(phase),
-    "-",
-  );
-  if (model) args.splice(-1, 0, "--model", String(model));
+  if (resuming) args.push("resume");
+  args.push("--json", "--skip-git-repo-check");
+  if (resuming) {
+    // `codex exec resume` is a different subcommand with a different flag set:
+    // it accepts NEITHER --cd NOR --sandbox (verified against codex-cli
+    // 0.153.4, which exits with "unexpected argument '--cd' found" before the
+    // model is ever reached). The working directory comes from the spawn's own
+    // cwd, and the sandbox goes over as the config key --sandbox is sugar for.
+    args.push("-c", `sandbox_mode=${sandbox}`);
+  } else {
+    args.push("--cd", String(workspace), "--sandbox", sandbox);
+  }
+  if (model) args.push("--model", String(model));
   // Codex has no --effort flag; the same product decision reaches it as a
   // config override. All five of our EFFORT_LEVELS are accepted by
   // codex-cli 0.153.4 (probed 2026-09-07), so no mapping is needed — without
   // this the codex arm would silently run at whatever ~/.codex/config.toml
   // says while the Claude arm runs at the pinned level.
-  if (effort) args.splice(-1, 0, "-c", `model_reasoning_effort=${effort}`);
-  for (const imagePath of imagePaths) args.splice(-1, 0, "--image", String(imagePath));
+  if (effort) args.push("-c", `model_reasoning_effort=${effort}`);
+  for (const imagePath of imagePaths) args.push("--image", String(imagePath));
+  // Options first, then the positional SESSION_ID, then the stdin marker:
+  // `codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]`.
+  if (resuming) args.push(String(sessionId));
+  args.push("-");
   return args;
 }
 

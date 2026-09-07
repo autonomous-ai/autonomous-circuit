@@ -1315,21 +1315,40 @@ test("buildCodexCommandArgs spends the pinned reasoning effort as a config overr
   assert.ok(!buildCodexCommandArgs({ workspace, effort: "" }).includes("-c"));
 });
 
-test("buildCodexCommandArgs resumes a known thread and carries images before the stdin marker", () => {
+test("buildCodexCommandArgs resumes with the resume subcommand's own flag set", () => {
   const workspace = tmpdir("circuit-ws-");
   const args = buildCodexCommandArgs({
     workspace,
+    phase: PHASE.IMPLEMENT,
     sessionId: "01a07a02-afe5-73c1-a112-83815bacbb10",
     imagePaths: ["/tmp/a.png", "/tmp/b.png"],
   });
-  assert.deepEqual(args.slice(0, 3), [
-    "exec",
-    "resume",
-    "01a07a02-afe5-73c1-a112-83815bacbb10",
-  ]);
+
+  assert.deepEqual(args.slice(0, 2), ["exec", "resume"]);
+  // `codex exec resume` rejects both of these outright — it exited with
+  // "unexpected argument '--cd' found" before the model was ever reached.
+  assert.ok(!args.includes("--cd"), "resume takes no --cd; cwd comes from the spawn");
+  assert.ok(!args.includes("--sandbox"), "resume takes no --sandbox");
+  assert.ok(args.includes("--skip-git-repo-check"));
+  // The sandbox still has to be enforced, via the config key --sandbox is
+  // sugar for, or a resumed build turn would run unsandboxed.
+  const configs = args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  assert.ok(configs.includes("sandbox_mode=workspace-write"), configs.join(","));
+
   const images = args.map((a, i) => (a === "--image" ? args[i + 1] : null)).filter(Boolean);
   assert.deepEqual(images, ["/tmp/a.png", "/tmp/b.png"]);
+  // Usage is `resume [OPTIONS] [SESSION_ID] [PROMPT]`: the id is positional and
+  // comes after every flag, immediately before the stdin marker.
+  assert.equal(args.at(-2), "01a07a02-afe5-73c1-a112-83815bacbb10");
   assert.equal(args.at(-1), "-");
+});
+
+test("a resumed plan turn is still read-only, through the config key instead of the flag", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({ workspace, phase: PHASE.PLAN, sessionId: "sid" });
+  const configs = args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  assert.ok(configs.includes("sandbox_mode=read-only"), configs.join(","));
+  assert.ok(!args.includes("--sandbox"));
 });
 
 test("resolveCodex honours the CIRCUIT_CODEX_BIN stub and refuses one that is not there", () => {
