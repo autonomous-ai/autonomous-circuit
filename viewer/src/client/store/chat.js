@@ -11,7 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { __setTransportForTesting, getTransport } from "../lib/transport.ts";
 import {
-  ensureClaudeReady,
+  ensureProviderReady,
   isClaudeMissingError,
   openClaudeSetup,
 } from "./claudeSetup.js";
@@ -1095,7 +1095,7 @@ export async function startTurn(userMessage, { attachments = [], echoAs = "" } =
   // the send behind the setup dialog (which auto-runs the in-app installer) and
   // resumes here on success; a dismissed dialog resolves false and the send is
   // dropped (the composer keeps the text — we return null before consuming).
-  if (!(await ensureClaudeReady(transport))) return null;
+  if (!(await ensureProviderReady(transport))) return null;
   // Read state AFTER the gate: an install wait can span minutes, and the user
   // may have switched projects or queued tokens in the meantime.
   let state = getChatState();
@@ -1175,7 +1175,7 @@ export async function startTurn(userMessage, { attachments = [], echoAs = "" } =
  */
 export async function approvePlan(planText, transport = getTransport()) {
   // The build turn is inference too — same CLI gate as `startTurn`.
-  if (!(await ensureClaudeReady(transport))) return null;
+  if (!(await ensureProviderReady(transport))) return null;
   const state = getChatState();
   if (!state.awaitingApproval || !state.currentProjectId) return null;
   const turnId = state.activePlanTurnId;
@@ -1198,7 +1198,7 @@ export async function approvePlan(planText, transport = getTransport()) {
  */
 export async function requestPlanChanges(feedback, transport = getTransport()) {
   // Revising the plan resumes the Claude session — gate it like any turn.
-  if (!(await ensureClaudeReady(transport))) return null;
+  if (!(await ensureProviderReady(transport))) return null;
   const state = getChatState();
   if (!state.awaitingApproval || !state.currentProjectId) return null;
   const turnId = state.activePlanTurnId;

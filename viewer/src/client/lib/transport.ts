@@ -220,6 +220,7 @@ export interface CreateProjectRequest {
  */
 export interface PrereqCheck {
   claudeCli: { found: boolean; version?: string };
+  codexCli?: { found: boolean; version?: string };
   node?: { found: boolean; version?: string; healthy?: boolean };
   toolchain?: { found: boolean };
   python?: { found: boolean; version?: string; healthy?: boolean };
@@ -246,6 +247,7 @@ export interface AppSettings {
   // its preference questions it builds + reviews unattended. false = manual
   // plan → Approve & build.
   autoBuild?: boolean;
+  provider?: "claude" | "codex";
   // Claude model passed to `claude --model`, set from the composer's model
   // switcher (app_set_model). undefined = the CLI's own default.
   model?: string;
@@ -591,6 +593,8 @@ const transportBase = {
     invoke<void>("app_submit_login_code", { code }),
   app_set_model: (model: string) =>
     invoke<AppSettings>("app_set_model", { model }),
+  app_set_provider: (provider: "claude" | "codex") =>
+    invoke<AppSettings>("app_set_provider", { provider }),
   app_set_effort: (effort: string) =>
     invoke<AppSettings>("app_set_effort", { effort }),
 

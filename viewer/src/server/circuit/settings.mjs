@@ -22,13 +22,25 @@ export function settingsFilePath(env = process.env) {
 // judging what is wrong with them is exactly the kind of task where the
 // stronger model earns its cost — a repair round costs far more than the
 // tokens saved, and a wrong board costs $85 and two weeks.
-export const DEFAULT_MODEL = "claude-opus-5";
+//
+// The default provider is codex while GPT-6 Astra is being measured against
+// that bar. It is a live experiment, not a settled answer: flip this back to
+// "claude" the moment the comparison is done or inconclusive.
+export const DEFAULT_PROVIDER = "codex";
+export const PROVIDERS = Object.freeze(["claude", "codex"]);
+// Empty = pass no --model, so each CLI keeps its own configured default. That
+// is the only choice that is correct on an account whose entitlements we have
+// not probed: verified 2026-09-07 that model ids are gated per account, with
+// `gpt-6-astra` answering on a ChatGPT team login and refused (HTTP 400) on a
+// personal one. The switcher offers the named ids; this is the floor.
+export const DEFAULT_MODEL = "";
 export const DEFAULT_EFFORT = "high";
 export const EFFORT_LEVELS = Object.freeze(["low", "medium", "high", "xhigh", "max"]);
 
 const DEFAULTS = Object.freeze({
   hasOnboarded: false,
   autoBuild: true,
+  provider: DEFAULT_PROVIDER,
   model: DEFAULT_MODEL,
   effort: DEFAULT_EFFORT,
 });
@@ -39,6 +51,7 @@ function normalize(raw) {
     hasOnboarded: typeof obj.hasOnboarded === "boolean" ? obj.hasOnboarded : DEFAULTS.hasOnboarded,
     // Missing → autopilot on (matches the donor's serde default).
     autoBuild: typeof obj.autoBuild === "boolean" ? obj.autoBuild : DEFAULTS.autoBuild,
+    provider: PROVIDERS.includes(obj.provider) ? obj.provider : DEFAULTS.provider,
   };
   const effort = typeof obj.effort === "string" ? obj.effort.trim() : "";
   out.effort = EFFORT_LEVELS.includes(effort) ? effort : DEFAULTS.effort;
@@ -87,6 +100,7 @@ export function createSettingsStore({ filePath = settingsFilePath() } = {}) {
       hasOnboarded: s.hasOnboarded,
       autoUpdate: false,
       autoBuild: s.autoBuild,
+      provider: s.provider,
       ...(s.model ? { model: s.model } : {}),
       ...(s.effort ? { effort: s.effort } : {}),
     };

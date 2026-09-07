@@ -12,15 +12,19 @@ import {
 import { cn } from "@/ui/utils";
 import { transport } from "@/lib/transport.ts";
 import {
+  choiceIdForSettings,
+  CODEX_CHOICES,
   DEFAULT_MODEL,
   labelForModel,
   MODEL_CHOICES,
 } from "./modelChoices.js";
 
-// v1 is Create-only and local-only: the switcher offers only the models the
-// user's own Claude Code runs. Hosted/proxy tiers (and their upgrade CTA)
-// return with the network, post-v1.
-const LOCAL_CHOICES = MODEL_CHOICES.filter((choice) => !choice.requiresPandaSignIn);
+// The switcher stays local-only: Claude Code remains the default, while the
+// Codex CLI is an opt-in provider using the same board workspace.
+const LOCAL_CHOICES = [
+  ...CODEX_CHOICES,
+  ...MODEL_CHOICES.filter((choice) => !choice.requiresPandaSignIn),
+];
 
 /**
  * Compact pill in the chat composer footer showing which Claude model the next
@@ -38,7 +42,7 @@ export default function ModelControl({ className }) {
   const refresh = useCallback(async () => {
     try {
       const settings = await transport.app_settings_read();
-      setModel(settings?.model ?? DEFAULT_MODEL);
+      setModel(choiceIdForSettings(settings));
     } catch {
       // Leave the current display in place; the driver still resolves its own
       // default when unset.
@@ -60,8 +64,13 @@ export default function ModelControl({ className }) {
       if (busy || id === active) return;
       setBusy(true);
       try {
-        const next = await transport.app_set_model(id);
-        setModel(next?.model ?? id);
+        const choice = LOCAL_CHOICES.find((one) => one.id === id);
+        const provider = choice?.provider === "codex" ? "codex" : "claude";
+        // Provider first: a failed second call leaves the pill on the prior
+        // selection, and the next refresh re-reads both fields together.
+        await transport.app_set_provider(provider);
+        const next = await transport.app_set_model(choice?.value ?? id);
+        setModel(choiceIdForSettings({ provider, model: next?.model ?? choice?.value ?? "" }));
       } catch {
         // Leave the prior selection in place on failure.
       } finally {
@@ -100,7 +109,7 @@ export default function ModelControl({ className }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="cad-solid-popover min-w-40">
         <DropdownMenuLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Your Claude Code
+          AI provider
         </DropdownMenuLabel>
         {LOCAL_CHOICES.map((choice) => (
           <DropdownMenuItem

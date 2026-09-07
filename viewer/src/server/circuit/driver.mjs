@@ -10,6 +10,7 @@
 // plan, and runs the silent 3-phase post-build review loop.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import readline from "node:readline";
@@ -300,6 +301,15 @@ export function permissionModeForPhase(phase) {
   return phase === PHASE.PLAN ? "plan" : "bypassPermissions";
 }
 
+/** Codex's equivalent lever. The plan turn is read-only by contract — it
+ * proposes a spec and the build turn is the one allowed to write, which is what
+ * IMPLEMENT_SYSTEM_PROMPT means by "the plan phase was read-only and could not
+ * do this". A single hardcoded workspace-write would let a plan turn edit board
+ * source with nothing snapshotted to undo it. */
+export function codexSandboxForPhase(phase) {
+  return phase === PHASE.PLAN ? "read-only" : "workspace-write";
+}
+
 /** Wire tag carried on turn_start. Review rides under `implement` (it never
  * emits its own turn_start). */
 export function phaseTag(phase) {
@@ -368,6 +378,93 @@ export function resolveClaude(env = process.env) {
     }
   }
   return null;
+}
+
+/** The Codex desktop app ships the CLI inside its bundle and does NOT put it on
+ * PATH — verified 2026-09-07: `codex` resolves nowhere in augmentedPathDirs()
+ * on a machine with Codex.app installed and working. Probed after PATH, the
+ * same posture as http.mjs's KICAD_APP_BUNDLE_BINS. */
+const CODEX_APP_BUNDLE_BINS = [
+  "/Applications/Codex.app/Contents/Resources/codex",
+  path.join(os.homedir(), "Applications/Codex.app/Contents/Resources/codex"),
+];
+
+/** Resolve the local Codex CLI. Tests may point this at a small executable
+ * stub with CIRCUIT_CODEX_BIN, just like the Claude driver. */
+export function resolveCodex(env = process.env) {
+  const override = env.CIRCUIT_CODEX_BIN;
+  if (override) return fs.existsSync(override) ? override : null;
+  for (const dir of augmentedPathDirs(env)) {
+    const candidate = path.join(dir, "codex");
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  for (const candidate of CODEX_APP_BUNDLE_BINS) {
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
+}
+
+/** Arguments for Codex's non-interactive JSONL runner. The prompt is sent on
+ * stdin so large board context never has to be shell-escaped. */
+export function buildCodexCommandArgs({
+  workspace,
+  phase = PHASE.IMPLEMENT,
+  model = "",
+  effort = "high",
+  sessionId = "",
+  imagePaths = [],
+}) {
+  const args = ["exec"];
+  if (sessionId) args.push("resume", String(sessionId));
+  args.push(
+    "--json",
+    "--skip-git-repo-check",
+    "--cd",
+    String(workspace),
+    "--sandbox",
+    codexSandboxForPhase(phase),
+    "-",
+  );
+  if (model) args.splice(-1, 0, "--model", String(model));
+  for (const imagePath of imagePaths) args.splice(-1, 0, "--image", String(imagePath));
+  return args;
+}
+
+const CODEX_SESSION_IDS = new Map();
+
+function codexSessionIdFor(workspace, env = process.env) {
+  if (CODEX_SESSION_IDS.has(workspace)) return CODEX_SESSION_IDS.get(workspace);
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(circuitHome(env), "codex-sessions.json"), "utf8"));
+    const id = typeof saved?.[workspace] === "string" ? saved[workspace] : "";
+    if (id) CODEX_SESSION_IDS.set(workspace, id);
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+function rememberCodexSession(workspace, sessionId, env = process.env) {
+  if (!sessionId) return;
+  CODEX_SESSION_IDS.set(workspace, sessionId);
+  try {
+    const filePath = path.join(circuitHome(env), "codex-sessions.json");
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(filePath, "utf8")); } catch { /* first run */ }
+    saved[workspace] = sessionId;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, `${JSON.stringify(saved, null, 2)}\n`);
+  } catch {
+    // Session continuity is best-effort; a fresh Codex thread still works.
+  }
 }
 
 /**
@@ -597,6 +694,7 @@ export function newStreamState() {
     anyTextEmitted: false, // per-turn
     planProposed: false,
     questionsAsked: false,
+    codexSessionId: "",
   };
 }
 
@@ -831,6 +929,53 @@ export function parseStreamLine(line, turnId, state) {
     default:
       return [];
   }
+}
+
+/** Translate Codex CLI JSONL events into the same small event vocabulary as
+ * Claude Code. Codex deliberately owns tool execution; the app only needs
+ * the visible assistant text, tool activity, plan fence, and turn boundary. */
+export function parseCodexLine(line, turnId, state) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return [];
+  let obj;
+  try {
+    obj = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  if (obj?.type === "thread.started") {
+    state.codexSessionId = String(obj.thread_id || obj.threadId || "");
+    return [];
+  }
+  const item = obj?.item;
+  if (obj?.type === "item.completed" && item?.type === "agent_message") {
+    const text = typeof item.text === "string" ? item.text : "";
+    if (!text) return [];
+    state.anyTextEmitted = true;
+    const out = [{ kind: "text_delta", turnId, text }];
+    const plan = planFromFencedBlock(text);
+    if (plan && !state.planProposed) {
+      state.planProposed = true;
+      out.push({ kind: "plan_proposed", turnId, plan });
+    }
+    return out;
+  }
+  if (obj?.type === "item.started" && item?.type === "command_execution") {
+    const toolUseId = String(item.id || crypto.randomUUID());
+    state.pendingTools.set(toolUseId, "shell");
+    return [{ kind: "tool_use_start", turnId, tool: "shell", toolUseId, input: { command: item.command || "" } }];
+  }
+  if (obj?.type === "item.completed" && item?.type === "command_execution") {
+    const toolUseId = String(item.id || "");
+    if (!state.pendingTools.has(toolUseId)) return [];
+    state.pendingTools.delete(toolUseId);
+    return [{ kind: "tool_use_end", turnId, tool: "shell", toolUseId, ok: item.status !== "failed" }];
+  }
+  if (obj?.type === "error") {
+    state.anyTextEmitted = true;
+    return [{ kind: "error", turnId, message: String(obj.message || "Codex request failed") }];
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -1098,6 +1243,23 @@ function spawnClaude(claudePath, args, { workspace, env }) {
   });
 }
 
+function spawnCodex(codexPath, args, { workspace, env }) {
+  const viaNode = /\.(mjs|cjs|js)$/.test(codexPath);
+  const bin = viaNode ? process.execPath : codexPath;
+  const argv = viaNode ? [codexPath, ...args] : args;
+  return spawn(bin, argv, {
+    cwd: workspace,
+    env: buildChildEnv(env),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+function spawnProvider(provider, executable, args, options) {
+  return provider === "codex"
+    ? spawnCodex(executable, args, options)
+    : spawnClaude(executable, args, options);
+}
+
 function killChild(child) {
   try {
     child.kill("SIGKILL");
@@ -1138,6 +1300,7 @@ export async function spawnTurn({
   imagePaths = [],
   turnId,
   phase,
+  provider = "claude",
   model = "",
   effort = "",
   onEvent,
@@ -1151,9 +1314,13 @@ export async function spawnTurn({
     onEvent({ kind: "turn_end", turnId });
   };
 
-  const claudePath = resolveClaude(env);
-  if (!claudePath) {
-    fail("`claude` CLI not found. Install Claude Code (https://claude.ai/install).");
+  const executable = provider === "codex" ? resolveCodex(env) : resolveClaude(env);
+  if (!executable) {
+    fail(
+      provider === "codex"
+        ? "`codex` CLI not found. Install Codex and sign in."
+        : "`claude` CLI not found. Install Claude Code (https://claude.ai/install).",
+    );
     return { proposedPlan: null, cancelled: false, sawOutput: false };
   }
 
@@ -1165,16 +1332,18 @@ export async function spawnTurn({
   }
 
   const preSnapshot = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase, sessionId, model, effort, env });
+  const args = provider === "codex"
+    ? buildCodexCommandArgs({ workspace, phase, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
+    : buildCommandArgs({ workspace, phase, sessionId, model, effort, env });
   const resume = args.includes("--resume");
   log(
-    `turn ${phase} start session=${shortId(sessionId)} (${resume ? "resume" : "new"})` +
+    `turn ${phase} start provider=${provider} session=${shortId(sessionId)} (${resume ? "resume" : "new"})` +
       `${model ? ` model=${model}` : ""}`,
   );
 
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env });
+    child = spawnProvider(provider, executable, args, { workspace, env });
   } catch (error) {
     fail(`failed to spawn claude: ${error?.message || error}`);
     return { proposedPlan: null, cancelled: false, sawOutput: false };
@@ -1183,7 +1352,7 @@ export async function spawnTurn({
   // Feed the stream-json user message (prompt + image blocks) and close stdin
   // so claude's `-p` reader sees EOF and starts the turn.
   child.stdin.on("error", () => {});
-  child.stdin.end(streamJsonInput(message, imagePaths));
+  child.stdin.end(provider === "codex" ? `${systemPromptForPhase(phase)}\n\n${workspaceDirective(workspace)}\n\n${message}\n` : streamJsonInput(message, imagePaths));
 
   // Drain stderr concurrently: an undrained pipe deadlocks the child, and a
   // fast failure (bad session id, auth, missing node) prints its reason here
@@ -1225,9 +1394,11 @@ export async function spawnTurn({
         break;
       }
       if (debugEnabled()) {
-        process.stderr.write(`[circuit:claude:out] ${line}\n`);
+        process.stderr.write(`[circuit:${provider}:out] ${line}\n`);
       }
-      const events = parseStreamLine(line, turnId, state);
+      const events = provider === "codex"
+        ? parseCodexLine(line, turnId, state)
+        : parseStreamLine(line, turnId, state);
       const stopTurn = state.planProposed || state.questionsAsked;
       let toolJustEnded = false;
       for (let event of events) {
@@ -1276,14 +1447,17 @@ export async function spawnTurn({
   }
 
   await waitForExit(child);
+  if (provider === "codex" && state.codexSessionId) {
+    rememberCodexSession(workspace, state.codexSessionId, env);
+  }
   if (signal) {
     signal.removeEventListener("abort", onAbort);
   }
 
   // Silent failure: claude exited without emitting any stream-json.
   if (!cancelled && !sawOutput) {
-    const detail = stderrBuf.trim() || `claude exited without output (code ${child.exitCode})`;
-    onEvent({ kind: "error", turnId, message: `claude produced no response: ${detail}` });
+    const detail = stderrBuf.trim() || `${provider} exited without output (code ${child.exitCode})`;
+    onEvent({ kind: "error", turnId, message: `${provider} produced no response: ${detail}` });
   }
 
   // Post-turn workspace diff — even when cancelled (the user still wants to
@@ -1300,7 +1474,8 @@ export async function spawnTurn({
   // Automatic post-build review, silent, inside this build turn.
   if (phase === PHASE.IMPLEMENT && !cancelled && sawOutput && artifactsChanged) {
     await runReviewFixLoop({
-      claudePath,
+      provider,
+      executable,
       workspace,
       sessionId,
       turnId,
@@ -1323,7 +1498,8 @@ export async function spawnTurn({
  * EOF WITHOUT parsing (review chatter never reaches the user), then diff the
  * workspace and surface changed artifacts. Returns whether files changed. */
 async function runReviewRound({
-  claudePath,
+  provider = "claude",
+  executable,
   workspace,
   sessionId,
   turnId,
@@ -1335,15 +1511,17 @@ async function runReviewRound({
   env,
 }) {
   const pre = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
+  const args = provider === "codex"
+    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, sessionId: codexSessionIdFor(workspace, env) })
+    : buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env });
+    child = spawnProvider(provider, executable, args, { workspace, env });
   } catch {
     return false; // best-effort: a build that can't be reviewed just ends
   }
   child.stdin.on("error", () => {});
-  child.stdin.end(streamJsonInput(prompt));
+  child.stdin.end(provider === "codex" ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}\n` : streamJsonInput(prompt));
   child.stderr.resume();
 
   const onAbort = () => killChild(child);
@@ -1481,7 +1659,8 @@ export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail })
  * Best-effort throughout — never fails the build turn.
  */
 export async function runReviewFixLoop({
-  claudePath,
+  provider = "claude",
+  executable,
   workspace,
   sessionId,
   turnId,
@@ -1523,7 +1702,8 @@ export async function runReviewFixLoop({
     // Only worth the copy when there is something to lose.
     const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
     const didChange = await runReviewRound({
-      claudePath,
+      provider,
+      executable,
       workspace,
       sessionId,
       turnId,
@@ -1915,7 +2095,7 @@ export function attachmentNote(rels) {
  * Create the chat orchestration service.
  *
  * - `projectDir(projectId)` → absolute workspace dir.
- * - `settings.read()` → `{ autoBuild, model }`.
+ * - `settings.read()` → `{ autoBuild, provider, model }`.
  * - `emit(projectId, event)` → deliver one enveloped ChatEvent.
  *
  * `startTurn` returns the turnId synchronously (the run continues in the
@@ -1931,6 +2111,14 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       return settings.read().model || "";
     } catch {
       return "";
+    }
+  }
+
+  function activeProvider() {
+    try {
+      return settings.read().provider === "codex" ? "codex" : "claude";
+    } catch {
+      return "claude";
     }
   }
 
@@ -1956,6 +2144,7 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       imagePaths,
       turnId,
       phase,
+      provider: activeProvider(),
       model: activeModel(),
       effort: activeEffort(),
       onEvent,

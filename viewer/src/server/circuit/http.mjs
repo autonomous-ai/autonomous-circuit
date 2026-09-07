@@ -32,6 +32,7 @@ import {
   createChatService,
   persistAttachments,
   resolveClaude,
+  resolveCodex,
   sessionIdForProject,
 } from "./driver.mjs";
 
@@ -349,6 +350,7 @@ const KICAD_APP_BUNDLE_BINS = [
 
 async function prereqCheck(env) {
   const claudePath = resolveClaude(env);
+  const codexPath = resolveCodex(env);
 
   // node ≥22.12 — the tscircuit toolchain's floor.
   const nodePath = findOnAugmentedPath("node", env);
@@ -416,6 +418,7 @@ async function prereqCheck(env) {
 
   return {
     claudeCli: { found: Boolean(claudePath) },
+    codexCli: { found: Boolean(codexPath) },
     node: {
       found: Boolean(nodePath),
       ...(nodeVersion ? { version: nodeVersion } : {}),
@@ -916,6 +919,10 @@ export function createCircuitServices({ env = process.env } = {}) {
     },
     app_set_model: async ({ model }) => {
       settings.write({ model: typeof model === "string" ? model : "" });
+      return settings.readWire();
+    },
+    app_set_provider: async ({ provider }) => {
+      settings.write({ provider: typeof provider === "string" ? provider : "claude" });
       return settings.readWire();
     },
 

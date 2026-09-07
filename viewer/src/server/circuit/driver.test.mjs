@@ -18,6 +18,7 @@ import {
   PHASE,
   approvedPlanMessage,
   attachmentNote,
+  buildCodexCommandArgs,
   buildCommandArgs,
   buildCraftPrompt,
   buildPanelPrompt,
@@ -28,18 +29,21 @@ import {
   MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
+  codexSandboxForPhase,
   collectBoardWarnings,
   createChatService,
   diffSnapshots,
   isBlocking,
   isElectrical,
   newStreamState,
+  parseCodexLine,
   parseSessionHistory,
   parseStreamLine,
   persistAttachments,
   planFromFencedBlock,
   questionsFenceFromAskUserQuestion,
   recoverPlanFromTranscript,
+  resolveCodex,
   sessionIdForProject,
   spawnTurn,
   summarizeToolResult,
@@ -1252,4 +1256,171 @@ test("handing back a broken board is named as a cost, not as caution", () => {
     /is not caution|their attention/i,
     "the prompt has to say why over-asking is expensive, or it reads as safe",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Codex provider — argv, binary resolution, and the JSONL event vocabulary.
+//
+// The real `codex` CLI is never spawned here. The flag names and event shapes
+// asserted below were read off a live `codex-cli 0.153.4` run on 2026-09-07
+// (`codex exec --json --skip-git-repo-check --cd ... --sandbox read-only
+// --ephemeral -`), so these tests pin what was actually observed rather than
+// what the docs imply.
+// ---------------------------------------------------------------------------
+
+test("buildCodexCommandArgs emits the exec flag set and reads the prompt from stdin", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({ workspace, phase: PHASE.IMPLEMENT });
+
+  assert.equal(args[0], "exec");
+  assert.ok(args.includes("--json"));
+  // Project workspaces under ~/.autonomous-circuit/projects are not git repos;
+  // without this flag codex exec refuses to start at all.
+  assert.ok(args.includes("--skip-git-repo-check"));
+  assert.equal(args[args.indexOf("--cd") + 1], workspace);
+  assert.equal(args.at(-1), "-", "prompt arrives on stdin, never as an argv");
+  assert.ok(!args.includes("resume"), "a fresh thread does not resume");
+});
+
+test("buildCodexCommandArgs keeps the plan turn read-only and lets build and review write", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const sandboxOf = (phase) => {
+    const args = buildCodexCommandArgs({ workspace, phase });
+    return args[args.indexOf("--sandbox") + 1];
+  };
+  assert.equal(sandboxOf(PHASE.PLAN), "read-only");
+  assert.equal(sandboxOf(PHASE.IMPLEMENT), "workspace-write");
+  assert.equal(sandboxOf(PHASE.REVIEW), "workspace-write");
+  // The helper is the single owner of that decision.
+  assert.equal(codexSandboxForPhase(PHASE.PLAN), "read-only");
+  assert.equal(codexSandboxForPhase(PHASE.IMPLEMENT), "workspace-write");
+});
+
+test("buildCodexCommandArgs omits --model when unset so the CLI keeps its own configured default", () => {
+  const workspace = tmpdir("circuit-ws-");
+  assert.ok(!buildCodexCommandArgs({ workspace }).includes("--model"));
+
+  const named = buildCodexCommandArgs({ workspace, model: "gpt-6-astra" });
+  assert.equal(named[named.indexOf("--model") + 1], "gpt-6-astra");
+  assert.equal(named.at(-1), "-", "--model is spliced in before the stdin marker");
+});
+
+test("buildCodexCommandArgs resumes a known thread and carries images before the stdin marker", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({
+    workspace,
+    sessionId: "01a07a02-afe5-73c1-a112-83815bacbb10",
+    imagePaths: ["/tmp/a.png", "/tmp/b.png"],
+  });
+  assert.deepEqual(args.slice(0, 3), [
+    "exec",
+    "resume",
+    "01a07a02-afe5-73c1-a112-83815bacbb10",
+  ]);
+  const images = args.map((a, i) => (a === "--image" ? args[i + 1] : null)).filter(Boolean);
+  assert.deepEqual(images, ["/tmp/a.png", "/tmp/b.png"]);
+  assert.equal(args.at(-1), "-");
+});
+
+test("resolveCodex honours the CIRCUIT_CODEX_BIN stub and refuses one that is not there", () => {
+  const dir = tmpdir("circuit-codex-");
+  const stub = path.join(dir, "codex");
+  fs.writeFileSync(stub, "#!/bin/sh\nexit 0\n");
+  assert.equal(resolveCodex({ CIRCUIT_CODEX_BIN: stub }), stub);
+  assert.equal(resolveCodex({ CIRCUIT_CODEX_BIN: path.join(dir, "nope") }), null);
+});
+
+test("parseCodexLine records the thread id so the next turn resumes the same conversation", () => {
+  const state = newStreamState();
+  assert.deepEqual(
+    parseCodexLine('{"type":"thread.started","thread_id":"t-1"}', "turn-1", state),
+    [],
+    "a thread banner is bookkeeping, not a user-visible event",
+  );
+  assert.equal(state.codexSessionId, "t-1");
+});
+
+test("parseCodexLine surfaces assistant text and lifts a circuit-plan fence exactly once", () => {
+  const state = newStreamState();
+  const line = JSON.stringify({
+    type: "item.completed",
+    item: { id: "item_0", type: "agent_message", text: "Here it is\n```circuit-plan\nBuck + ESP32\n```" },
+  });
+  const events = parseCodexLine(line, "turn-1", state);
+  assert.deepEqual(events.map((e) => e.kind), ["text_delta", "plan_proposed"]);
+  assert.equal(events[1].plan, "Buck + ESP32");
+  assert.ok(state.anyTextEmitted);
+  assert.ok(state.planProposed);
+
+  // A restated plan on a later message does not re-open the approve button.
+  const again = parseCodexLine(line, "turn-1", state);
+  assert.deepEqual(again.map((e) => e.kind), ["text_delta"]);
+});
+
+test("parseCodexLine pairs a shell command's start and end and ignores an unknown end", () => {
+  const state = newStreamState();
+  const start = parseCodexLine(
+    JSON.stringify({
+      type: "item.started",
+      item: { id: "cmd-1", type: "command_execution", command: "python circuit boards/main.tsx" },
+    }),
+    "turn-1",
+    state,
+  );
+  assert.equal(start.length, 1);
+  assert.equal(start[0].kind, "tool_use_start");
+  assert.equal(start[0].tool, "shell");
+  assert.equal(start[0].input.command, "python circuit boards/main.tsx");
+
+  const end = parseCodexLine(
+    JSON.stringify({
+      type: "item.completed",
+      item: { id: "cmd-1", type: "command_execution", status: "completed" },
+    }),
+    "turn-1",
+    state,
+  );
+  assert.deepEqual(
+    end.map((e) => [e.kind, e.ok]),
+    [["tool_use_end", true]],
+  );
+  assert.equal(state.pendingTools.size, 0);
+
+  // A completion for a command we never saw start emits nothing.
+  assert.deepEqual(
+    parseCodexLine(
+      JSON.stringify({
+        type: "item.completed",
+        item: { id: "cmd-ghost", type: "command_execution", status: "failed" },
+      }),
+      "turn-1",
+      state,
+    ),
+    [],
+  );
+});
+
+test("parseCodexLine reports a failed command as a non-ok tool end", () => {
+  const state = newStreamState();
+  parseCodexLine(
+    JSON.stringify({ type: "item.started", item: { id: "c", type: "command_execution", command: "false" } }),
+    "turn-1",
+    state,
+  );
+  const end = parseCodexLine(
+    JSON.stringify({ type: "item.completed", item: { id: "c", type: "command_execution", status: "failed" } }),
+    "turn-1",
+    state,
+  );
+  assert.equal(end[0].ok, false);
+});
+
+test("parseCodexLine turns a top-level error into a visible error and tolerates junk lines", () => {
+  const state = newStreamState();
+  const events = parseCodexLine('{"type":"error","message":"model not supported"}', "turn-1", state);
+  assert.deepEqual(events, [{ kind: "error", turnId: "turn-1", message: "model not supported" }]);
+
+  assert.deepEqual(parseCodexLine("", "turn-1", state), []);
+  assert.deepEqual(parseCodexLine("not json at all", "turn-1", state), []);
+  assert.deepEqual(parseCodexLine('{"type":"turn.started"}', "turn-1", state), []);
 });
