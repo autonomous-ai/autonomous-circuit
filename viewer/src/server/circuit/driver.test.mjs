@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import {
   APPROVE_PLAN_PREAMBLE,
   IMPLEMENT_SYSTEM_PROMPT,
+  PLAN_SYSTEM_PROMPT,
   ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
@@ -1514,4 +1515,45 @@ test("reviewImagePaths finds the renders a craft round has to look at, and nothi
     path.join(review, "_pcb.png"),
     path.join(review, "_schematic.png"),
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// A part you cannot get is not a reason to hand back nothing.
+//
+// desk-cube-55 hit this and shipped: no golden block for the OLED or the
+// ambient-light sensor, so both went off-board on labelled I2C pad rows, and
+// the board came out 55x55 and fab-ready. A second agent hit the same wall
+// three runs running and stopped every time, having read block-source's "a
+// block that does not grade ok does not go on a board" as an instruction to
+// build nothing. The escape hatch existed only as a precedent — the
+// servo-header block — and was never written down.
+// ---------------------------------------------------------------------------
+
+test("the build prompt says an unsourceable part goes off-board rather than stopping the board", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("does not stop the board"), "the rule is stated, not implied");
+  assert.ok(p.includes("off-board"), "and names where the part goes instead");
+  assert.ok(p.includes("pad row"), "on a labelled pad row");
+  assert.ok(p.includes("servo-header"), "citing the precedent already in the catalog");
+  // The clause it replaced ended "say which field is missing and why it
+  // stopped you", which read as permission for stopping to be the outcome.
+  assert.ok(!p.includes("why it stopped you"));
+});
+
+test("the build prompt overrides an approved plan that told it to stop, and keeps the safety refusal", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // A plan whose conclusion is "stop" gets auto-approved under autopilot, so
+  // the build turn has to be the thing that refuses to honour it.
+  assert.ok(p.includes("that line is wrong"), "an approved plan does not license a stop");
+  assert.ok(p.includes("safety refusal"), "stopping still has exactly one legitimate cause");
+  for (const kept of ["mains", "unsealed battery", "uncertified radio"]) {
+    assert.ok(p.includes(kept), `${kept} is still refused outright`);
+  }
+});
+
+test("the plan prompt never proposes stopping as the outcome", () => {
+  const p = PLAN_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("never write a plan whose conclusion is that the build"));
+  assert.ok(p.includes("the nearest thing we can build is never nothing"));
+  assert.ok(p.includes("off-board"));
 });

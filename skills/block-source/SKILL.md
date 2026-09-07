@@ -204,6 +204,27 @@ It checks that the provenance fields below are present and non-empty — it
 cannot check that they are *true*, which is why every one of them cites a
 source. **A block that does not grade `ok` does not go on a board.**
 
+### …and a block you cannot get is not a reason to stop the board
+
+That rule says what may not go **on** the board. It has never said the board
+does not get built. A capability with no golden block, that sourcing cannot
+close — out of stock, no supplier footprint, no certificate, no orderable
+module at all — comes **off-board on a labelled pad row**, the way a servo
+already arrives through `servo-header`: a 2.54mm strip carrying the rail and
+the bus, off-BOM, the module plugged in by hand. Build everything else, place
+the pads where the part will sit, and say plainly in the board source which
+capability went off-board and why.
+
+Do that instead of stopping, every time. Handing back no board at all, next to
+a board that works with one module on a header, spends the user's attention to
+buy nothing: they still have to make the same call, only now with nothing in
+their hands. A brief in the plan that says "stop if sourcing fails" is not
+authority to stop either — rewrite that line rather than honour it.
+
+**Stopping is for a safety refusal, and for nothing else.** Mains, an
+unsealed battery, an uncertified radio: those are refused at spec time and no
+pad row makes them acceptable. Everything short of that gets a board.
+
 ## The provenance block — required, and checked
 
 Every sourced `BLOCK.md` carries this, verbatim keys, near the top:
