@@ -1155,9 +1155,15 @@ export function workspaceFabReady(dir) {
 export function turnBudgetMs(phase, env = process.env) {
   const override = Number(env.CIRCUIT_TURN_MAX_S);
   if (Number.isFinite(override) && override >= 0) return override * 1000;
-  if (phase === PHASE.PLAN) return 15 * 60 * 1000;
-  if (phase === PHASE.REVIEW) return 30 * 60 * 1000;
-  return 60 * 60 * 1000; // implement: a real board builds well inside an hour
+  // These are a backstop against a runaway, not a schedule. The first numbers
+  // were guessed, and the first plan turn they met was a healthy one — 97
+  // items deep and still working when it was cut at 15 minutes. Measured
+  // since: a plan turn runs 9-17 minutes, and a build turn carries up to eight
+  // generator runs at two to six minutes each before the model even thinks.
+  // Set them where only a genuinely stuck turn can reach them.
+  if (phase === PHASE.PLAN) return 40 * 60 * 1000;
+  if (phase === PHASE.REVIEW) return 60 * 60 * 1000;
+  return 3 * 60 * 60 * 1000; // implement: still 6x under the 20h that prompted this
 }
 
 export const MAX_STRUCTURE_ROUNDS = 2;

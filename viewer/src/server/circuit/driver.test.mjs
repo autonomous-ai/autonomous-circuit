@@ -1564,15 +1564,17 @@ test("every turn carries a wall clock, because a build turn once ran 20 hours", 
   // The review loop always had round caps; the turn running it had none, and
   // on 2026-09-08 a build turn rebuilt an unchanged source for 20 hours while
   // its error count climbed from 33 to 76.
-  assert.equal(turnBudgetMs(PHASE.PLAN, {}), 15 * MIN);
-  assert.equal(turnBudgetMs(PHASE.REVIEW, {}), 30 * MIN);
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 60 * MIN);
+  // Generous on purpose: a healthy plan turn was cut at 15 minutes while still
+  // working, so these sit where only a stuck turn reaches them.
+  assert.equal(turnBudgetMs(PHASE.PLAN, {}), 40 * MIN);
+  assert.equal(turnBudgetMs(PHASE.REVIEW, {}), 60 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 180 * MIN);
   // Overridable, including 0 to switch it off for a deliberately long session.
   assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "120" }), 120 * 1000);
   assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "0" }), 0);
   // Junk falls back to the phase default rather than to no limit at all.
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 60 * MIN);
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 60 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 180 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 180 * MIN);
 });
 
 test("the build prompt tells both providers to wait for the generator, not poll it", () => {
