@@ -184,6 +184,13 @@ export const PLAN_SYSTEM_PROMPT = [
   "above the questions, name the nearest thing we can build, and ask only",
   "about choices that are real.",
   "",
+  "PLAN A SINGLE-SIDED 2-LAYER BOARD unless you have a stated reason not to.",
+  "Our autorouter cannot route a 2-layer board with components on both sides:",
+  "it exhausts its iteration budget and hands back unrouted nets. If the",
+  "parts do not fit on one side, say that in the plan and name the cost (a",
+  "bigger board, or four layers) rather than planning a board the pipeline",
+  "cannot finish.",
+  "",
   "The nearest thing we can build is never nothing. A capability with no",
   "orderable module goes OFF-BOARD on a labelled pad row (as a servo does",
   "through servo-header) and the rest of the board is built around it — so",
@@ -225,12 +232,15 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "protocol. Do not re-plan or ask further questions unless a blocking",
   "ambiguity remains.",
   "",
-  "RUN THE GENERATOR IN THE FOREGROUND AND WAIT FOR IT. It blocks until the",
-  "board is done, prints its verdict, and exits; a full build takes roughly",
-  "two to six minutes. Do NOT send it to the background and poll a log file",
-  "with sleep — measured 2026-09-07, that habit cost one run 109 minutes of",
-  "sleeping and another 13, all spent waiting for something that would have",
-  "told you the moment it finished.",
+  "THE GENERATOR IS SLOW: BUDGET 20-40 MINUTES PER BUILD. Measured",
+  "2026-09-08 on a 55x55 two-layer board: 2133 seconds in compile alone, and",
+  "a rebuild one millimetre larger ran past 2430s. Plan around that. Running",
+  "it in the background and checking back on a log is a reasonable way to",
+  "wait, and so is waiting in the foreground if your tooling allows a command",
+  "that long — what is NOT reasonable is treating a build as quick. Every",
+  "edit-build-read round costs the better part of an hour, so make each round",
+  "count: fix everything you can see before you rebuild, not one thing at a",
+  "time.",
   "",
   "IMPORT THE DOMAIN NUMBERS, NEVER COPY THEM. Trace widths, via geometry,",
   "clearances, rail voltages and the DFM tables live in PYTHON, at",
@@ -242,6 +252,19 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "transcribe them into a file of your own, into the board source as bare",
   "literals, or into a summary — a copy goes stale the day the table moves",
   "and nothing tells you.",
+  "",
+  "WHAT THE AUTOROUTER CAN ACTUALLY ROUTE. On a 2-layer board, keep every",
+  "component on ONE side. Double-sided assembly puts pads on both copper",
+  "layers, leaves the router almost nothing to route through, and it gives up",
+  "with `ran out of iterations` and a fistful of unrouted nets — measured",
+  "2026-09-08: a 2-layer double-sided board came back with 14 missing traces",
+  "and 14 unconnected pads at both 54x54 and 55x55, while a single-sided",
+  "board of comparable size and part count routed clean. That failure names",
+  "no cause and no amount of nudging the layout fixes it, so do not spend",
+  "rounds discovering it. If a board genuinely needs both sides populated,",
+  "say so in plain words and stop for a decision — it is a 4-layer board or a",
+  "bigger one, and that is the user's call to make, not a thing to route",
+  "around.",
   "",
   "YOU MAY SEARCH THE WEB for a part's datasheet, its real dimensions, its",
   "current draw, or whether it is orderable. Prefer the manufacturer's",
@@ -1167,7 +1190,9 @@ export function turnBudgetMs(phase, env = process.env) {
   // Set them where only a genuinely stuck turn can reach them.
   if (phase === PHASE.PLAN) return 40 * 60 * 1000;
   if (phase === PHASE.REVIEW) return 60 * 60 * 1000;
-  return 3 * 60 * 60 * 1000; // implement: still 6x under the 20h that prompted this
+  // A build is 20-40 minutes and the review loop can ask for eight of them,
+  // so three hours only ever bought about five attempts.
+  return 5 * 60 * 60 * 1000; // implement: still 4x under the 20h that prompted this
 }
 
 export const MAX_STRUCTURE_ROUNDS = 2;

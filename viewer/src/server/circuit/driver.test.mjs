@@ -1568,20 +1568,39 @@ test("every turn carries a wall clock, because a build turn once ran 20 hours", 
   // working, so these sit where only a stuck turn reaches them.
   assert.equal(turnBudgetMs(PHASE.PLAN, {}), 40 * MIN);
   assert.equal(turnBudgetMs(PHASE.REVIEW, {}), 60 * MIN);
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 180 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 300 * MIN);
   // Overridable, including 0 to switch it off for a deliberately long session.
   assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "120" }), 120 * 1000);
   assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "0" }), 0);
   // Junk falls back to the phase default rather than to no limit at all.
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 180 * MIN);
-  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 180 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 300 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 300 * MIN);
 });
 
-test("the build prompt tells both providers to wait for the generator, not poll it", () => {
+test("the build prompt tells both providers how long a build actually takes", () => {
   const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
-  assert.ok(p.includes("foreground"), "run it in the foreground");
-  assert.ok(p.includes("do not send it to the background"), "and not in the background");
-  assert.ok(p.includes("poll"), "polling is named as the thing to stop");
+  // The first version of this rule said two to six minutes and forbade
+  // backgrounding. Measured: 2133s in compile alone on a 55x55 two-layer
+  // board. The number was wrong by an order of magnitude, and the advice it
+  // carried told both providers to block for 35 minutes on one command.
+  assert.ok(p.includes("20-40 minutes"), "the measured range, not a guess");
+  assert.ok(!p.includes("two to six minutes"));
+  assert.ok(!p.includes("do not send it to the background"));
+  assert.ok(p.includes("make each round"), "and why it matters: rounds are expensive");
+});
+
+test("the prompts say what the autorouter can actually route", () => {
+  const build = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  const plan = PLAN_SYSTEM_PROMPT.toLowerCase();
+  // A 2-layer board with parts on both sides exhausts the router's iteration
+  // budget: 14 missing traces and 14 unconnected pads at both 54x54 and
+  // 55x55, while a single-sided board of the same size routed clean. The
+  // failure names no cause, so the model cannot deduce it from the verdict.
+  assert.ok(build.includes("ran out of iterations"), "the error it will see");
+  assert.ok(build.includes("one side"));
+  assert.ok(plan.includes("single-sided"), "and the plan turn is where it is decided");
+  // Not a silent constraint: needing both sides is a decision to hand back.
+  assert.ok(build.includes("stop for a decision"));
 });
 
 test("the build prompt carries the rules that used to live only in CLAUDE.md", () => {
