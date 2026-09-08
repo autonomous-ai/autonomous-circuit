@@ -225,6 +225,25 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "protocol. Do not re-plan or ask further questions unless a blocking",
   "ambiguity remains.",
   "",
+  "RUN THE GENERATOR IN THE FOREGROUND AND WAIT FOR IT. It blocks until the",
+  "board is done, prints its verdict, and exits; a full build takes roughly",
+  "two to six minutes. Do NOT send it to the background and poll a log file",
+  "with sleep — measured 2026-09-07, that habit cost one run 109 minutes of",
+  "sleeping and another 13, all spent waiting for something that would have",
+  "told you the moment it finished.",
+  "",
+  "IMPORT THE DOMAIN NUMBERS, NEVER COPY THEM. Trace widths, via geometry,",
+  "clearances, rail voltages and the DFM tables live in circuitlib.tables and",
+  "in the blocks' own BLOCK.md. Read them from there each time. Do not",
+  "transcribe them into a file of your own, into the board source as bare",
+  "literals, or into a summary — a copy goes stale the day the table moves",
+  "and nothing tells you.",
+  "",
+  "YOU MAY SEARCH THE WEB for a part's datasheet, its real dimensions, its",
+  "current draw, or whether it is orderable. Prefer the manufacturer's",
+  "datasheet and the supplier's own listing, say which you used, and",
+  "never state a stock level or a package size you did not actually look up.",
+  "",
   "IF THE APPROVED PLAN NAMES A BLOCK TO SOURCE, SOURCE IT FIRST. Read",
   "~/.claude/skills/block-source and follow it before you write a line of",
   "board source: fetch the supplier's land pattern, write",
@@ -1127,6 +1146,20 @@ export function workspaceFabReady(dir) {
   return ready === seen;
 }
 
+/** Wall clock for one turn, per phase. The review loop has always had round
+ * caps; the turn running it had none, and on 2026-09-08 a build turn ran
+ * **20 hours** — rebuilding an unchanged source over and over, 33 errors
+ * becoming 76, with nothing able to stop it. A turn that has not converged in
+ * this long is not about to. Provider-neutral: both CLIs can loop. Override
+ * with CIRCUIT_TURN_MAX_S (0 disables, for a deliberately long session). */
+export function turnBudgetMs(phase, env = process.env) {
+  const override = Number(env.CIRCUIT_TURN_MAX_S);
+  if (Number.isFinite(override) && override >= 0) return override * 1000;
+  if (phase === PHASE.PLAN) return 15 * 60 * 1000;
+  if (phase === PHASE.REVIEW) return 30 * 60 * 1000;
+  return 60 * 60 * 1000; // implement: a real board builds well inside an hour
+}
+
 export const MAX_STRUCTURE_ROUNDS = 2;
 export const MAX_ELECTRICAL_ROUNDS = 3;
 export const MAX_CRAFT_ROUNDS = 2;
@@ -1171,11 +1204,10 @@ export function workspaceHasBoard(dir) {
 /** The rendered board images a craft round needs to look at: `_schematic.png`
  * and `_pcb.png` under every `*_review/` directory (skip-list honored).
  *
- * Claude reads these off disk with its own Read tool. `codex exec` has no such
- * tool — its only way to see an image is `--image` at launch — so the codex arm
- * would otherwise run the craft phase blind, judging a layout it never saw.
- * Each craft round is its own spawn, so attaching the current renders at the
- * start of a round gives the same convergence: round 2 sees round 1's output. */
+ * Claude reads these off disk with its own Read tool. Codex can open an image
+ * by path too (ImageView), but only if it goes looking; attaching the current
+ * renders pins the round to the board as it stands. Each craft round is its
+ * own spawn, so round 2 sees round 1's output. */
 export function reviewImagePaths(dir) {
   const skip = skipDirNames();
   const stack = [dir];
@@ -1491,6 +1523,7 @@ export async function spawnTurn({
   let artifactsChanged = false;
   let runningSnapshot = preSnapshot;
 
+  let timedOut = false;
   const onAbort = () => {
     cancelled = true;
     killChild(child);
@@ -1502,6 +1535,15 @@ export async function spawnTurn({
       signal.addEventListener("abort", onAbort, { once: true });
     }
   }
+  const budgetMs = turnBudgetMs(phase, env);
+  const budgetTimer = budgetMs
+    ? setTimeout(() => {
+        timedOut = true;
+        log(`turn ${phase} exceeded its ${Math.round(budgetMs / 60000)}min budget — stopping`);
+        onAbort();
+      }, budgetMs)
+    : null;
+  if (budgetTimer?.unref) budgetTimer.unref();
 
   const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
   try {
@@ -1563,6 +1605,16 @@ export async function spawnTurn({
   }
 
   await waitForExit(child);
+  if (budgetTimer) clearTimeout(budgetTimer);
+  if (timedOut) {
+    onEvent({
+      kind: "error",
+      turnId,
+      message:
+        `The ${phase} turn ran past its ${Math.round(budgetMs / 60000)} minute budget and was stopped. ` +
+        "Whatever it had written is still here; send another message to carry on.",
+    });
+  }
   if (provider === "codex" && state.codexSessionId) {
     rememberCodexSession(workspace, state.codexSessionId, env);
   }
@@ -1648,13 +1700,14 @@ async function runReviewRound({
     return false; // best-effort: a build that can't be reviewed just ends
   }
   child.stdin.on("error", () => {});
-  // Attached images arrive with the prompt, not on demand: say so, or the
-  // instruction to "rebuild, then Read both images" reads as unachievable and
-  // the round is spent explaining that instead of looking.
+  // Attaching beats leaving it to chance. Codex can open an image by path (its
+  // ImageView tool), but nothing guarantees it looks at the right renders at
+  // the right moment, and the shared craft prompt says "rebuild, then Read
+  // both images" — a sequence it cannot follow for images made in this turn.
   const attached = provider === "codex" && imagePaths.length
     ? "\n\nThe board's current renders are ATTACHED to this message — look at " +
-      "them directly; you have no tool that opens an image from disk. They show " +
-      "the board as it stands right now. Fix what reads wrong in the TSX source " +
+      "them directly rather than hunting for the files. They show the board as " +
+      "it stands right now. Fix what reads wrong in the TSX source " +
       "and regenerate; the next round attaches the refreshed renders.\n"
     : "";
   child.stdin.end(

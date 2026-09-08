@@ -49,6 +49,7 @@ import {
   sessionIdForProject,
   spawnTurn,
   summarizeToolResult,
+  turnBudgetMs,
   uuidv5,
   workspaceFabReady,
   workspaceHasBoard,
@@ -1556,4 +1557,39 @@ test("the plan prompt never proposes stopping as the outcome", () => {
   assert.ok(p.includes("never write a plan whose conclusion is that the build"));
   assert.ok(p.includes("the nearest thing we can build is never nothing"));
   assert.ok(p.includes("off-board"));
+});
+
+test("every turn carries a wall clock, because a build turn once ran 20 hours", () => {
+  const MIN = 60 * 1000;
+  // The review loop always had round caps; the turn running it had none, and
+  // on 2026-09-08 a build turn rebuilt an unchanged source for 20 hours while
+  // its error count climbed from 33 to 76.
+  assert.equal(turnBudgetMs(PHASE.PLAN, {}), 15 * MIN);
+  assert.equal(turnBudgetMs(PHASE.REVIEW, {}), 30 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 60 * MIN);
+  // Overridable, including 0 to switch it off for a deliberately long session.
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "120" }), 120 * 1000);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "0" }), 0);
+  // Junk falls back to the phase default rather than to no limit at all.
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 60 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 60 * MIN);
+});
+
+test("the build prompt tells both providers to wait for the generator, not poll it", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("foreground"), "run it in the foreground");
+  assert.ok(p.includes("do not send it to the background"), "and not in the background");
+  assert.ok(p.includes("poll"), "polling is named as the thing to stop");
+});
+
+test("the build prompt carries the rules that used to live only in CLAUDE.md", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // Neither provider ever reads the repo's CLAUDE.md: it sits at the repo
+  // root, and a turn's workspace is ~/.autonomous-circuit/projects/<uuid>.
+  assert.ok(p.includes("import the domain numbers"));
+  assert.ok(p.includes("circuitlib.tables"));
+  assert.ok(p.includes("do not"), "transcribing is forbidden, not discouraged");
+  // Web research is open to both arms, with a bar on what may be claimed.
+  assert.ok(p.includes("search the web"));
+  assert.ok(p.includes("never state a stock level"));
 });
