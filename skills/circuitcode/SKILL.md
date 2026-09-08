@@ -60,17 +60,26 @@ Four habits, applied without being asked:
    space, not inside the MCU block: three pads inside `rp2040-core`'s own box
    route the debug pair through the crystal cluster and the router comes back
    with a via shorted into the QFN pad field (measured 2026-08-11).
-6. **Say what routing effort the board needs.** `autorouterEffortLevel="5x"` is
-   the floor on every board. The same rp2040-core board is `fab.ready: false`
-   with five blocking KiCad findings at the default effort and `fab.ready:
-   true` with zero at `"5x"` — same design, only this prop changed.
+6. **Say what routing effort the board needs.** `autorouterEffortLevel="10x"`
+   is the floor on every board. The same rp2040-core board is `fab.ready:
+   false` with five blocking KiCad findings at the default effort and
+   `fab.ready: true` with zero at `"5x"` — same design, only this prop changed.
 
-   **Your number is a floor, not a ceiling.** When the circuit.json scan shows
-   routing-class blockers the pipeline now climbs one rung on its own (5x →
-   10x), keeps the harder result only if it is strictly better, and says in the
-   sidecar what it tried and what it got. So do not hand-rebuild at a higher
-   effort to see: read the finding. If it says the retry ran and did not help,
-   the remaining lever is the placement.
+   **The floor was 5x until 2026-09-08, and 5x is a false economy.** A board
+   that fails at 5x does not simply fail: the pipeline escalates one rung and
+   **builds the whole thing again**, so a board needing 10x pays for two full
+   builds instead of one. Measured that day, same brief, two boards: one asked
+   for 10x up front and finished in a single attempt; the other followed this
+   floor at 5x, failed, escalated, and spent 35 minutes to arrive at the same
+   29 blocking findings twice. Starting at the top rung costs more per attempt
+   and less per board. It also disables the escalation, which is the point —
+   there is nowhere left to climb, so a failure is reported once, immediately,
+   instead of being re-proved at a cost of twenty minutes.
+
+   **Read the verdict, do not hand-rebuild at a higher effort to see.** If the
+   sidecar says routing still failed at 10x, effort is not the lever any more:
+   the placement is, and on a 2-layer board the first thing to check is
+   whether components ended up on both sides.
 
    **The one case it still cannot reach**: findings that only KiCad can see.
    The escalation decides off the circuit.json scan, and `drc_violation` —

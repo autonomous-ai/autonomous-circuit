@@ -121,10 +121,13 @@ field was clean.
 
 So when routing fights you:
 
-1. **Raise the effort before changing the design.**
+1. **Start at the top of the effort dial, do not climb it.**
    `autorouterEffortLevel="5x"` on the board took that same layout from 46
    errors to 18. It costs build time (4:45 → ~17 min) and nothing else.
-   Values: `"1x" | "2x" | "5x" | "10x" | "100x"`.
+   Values: `"1x" | "2x" | "5x" | "10x" | "100x"`; **write `"10x"`**. Below the
+   top rung a routing failure is not one build, it is two — the pipeline
+   escalates and rebuilds from scratch, which on a real board is another
+   twenty minutes to be told the same thing.
 2. **Give the crowded part room.** Spreading the crystal cluster took 18 → 3;
    growing the board 84 → 90mm took 3 → 1. Placement is the lever.
 3. **Do not raise the clearance floor to "be safe".** Going from 0.1 to 0.15mm
