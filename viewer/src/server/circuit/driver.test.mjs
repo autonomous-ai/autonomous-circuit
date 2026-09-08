@@ -1599,8 +1599,21 @@ test("the prompts say what the autorouter can actually route", () => {
   assert.ok(build.includes("ran out of iterations"), "the error it will see");
   assert.ok(build.includes("one side"));
   assert.ok(plan.includes("single-sided"), "and the plan turn is where it is decided");
-  // Not a silent constraint: needing both sides is a decision to hand back.
-  assert.ok(build.includes("stop for a decision"));
+  // Needing both sides is a decision to hand back, and four layers is not the
+  // way around it: one run raised `layers` to 4 on its own, hit the exporter's
+  // inner-copper bugs, and spent the turn patching the toolchain instead.
+  assert.ok(build.includes("say so in plain words and stop"));
+  assert.ok(build.includes("layers` to 4"), "the specific move that was taken");
+  assert.ok(plan.includes("not yours to choose"));
+  // And the toolchain is not the model's to rebuild mid-board.
+  assert.ok(build.includes("not a copy of it"));
+  assert.ok(build.includes("bun"), "the launcher that hung for 35 minutes");
+});
+
+test("a toolchain bug is a report to write, not a patch to apply mid-board", () => {
+  const build = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(build.includes("write down"), "the reproduction is worth having");
+  assert.ok(build.includes("not yours to apply"));
 });
 
 test("the build prompt carries the rules that used to live only in CLAUDE.md", () => {
