@@ -1589,7 +1589,11 @@ test("the build prompt carries the rules that used to live only in CLAUDE.md", (
   // Neither provider ever reads the repo's CLAUDE.md: it sits at the repo
   // root, and a turn's workspace is ~/.autonomous-circuit/projects/<uuid>.
   assert.ok(p.includes("import the domain numbers"));
-  assert.ok(p.includes("circuitlib.tables"));
+  // Named to the file, not to a module path: told only "circuitlib.tables",
+  // one provider went looking for `*tables*.ts` and found nothing, because the
+  // board source is TSX and nothing said the tables are Python.
+  assert.ok(p.includes("circuitlib/tables.py"));
+  assert.ok(p.includes("no typescript copy"));
   assert.ok(p.includes("do not"), "transcribing is forbidden, not discouraged");
   // Web research is open to both arms, with a bar on what may be claimed.
   assert.ok(p.includes("search the web"));
