@@ -10,6 +10,7 @@
 // plan, and runs the silent 3-phase post-build review loop.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import readline from "node:readline";
@@ -182,6 +183,20 @@ export const PLAN_SYSTEM_PROMPT = [
   "now, and offer it on that basis; if nothing covers it, say so in prose",
   "above the questions, name the nearest thing we can build, and ask only",
   "about choices that are real.",
+  "",
+  "PLAN A SINGLE-SIDED 2-LAYER BOARD. Our autorouter cannot route a 2-layer",
+  "board with components on both sides: it exhausts its iteration budget and",
+  "hands back unrouted nets. Four layers is not yours to choose either — it",
+  "costs real money at the fab and the exporter has open bugs on inner",
+  "copper. If the parts do not fit on one side of two layers, say that in the",
+  "plan, name what it would take, and let the user decide. Never write a plan",
+  "that quietly spends more layers than the product was scoped for.",
+  "",
+  "The nearest thing we can build is never nothing. A capability with no",
+  "orderable module goes OFF-BOARD on a labelled pad row (as a servo does",
+  "through servo-header) and the rest of the board is built around it — so",
+  "plan that board, and never write a plan whose conclusion is that the build",
+  "turn should stop. Only the safety envelope refuses outright.",
   "Give EVERY question a first option labelled \"Let Circuit choose\"",
   "(description: \"Recommended — we pick the best for you\"); when the user",
   "picks it, use your best default and proceed without re-asking. Emitting",
@@ -218,6 +233,68 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "protocol. Do not re-plan or ask further questions unless a blocking",
   "ambiguity remains.",
   "",
+  "THE GENERATOR IS SLOW: BUDGET 20-40 MINUTES PER BUILD. Measured",
+  "2026-09-08 on a 55x55 two-layer board: 2133 seconds in compile alone, and",
+  "a rebuild one millimetre larger ran past 2430s. Plan around that. Running",
+  "it in the background and checking back on a log is a reasonable way to",
+  "wait, and so is waiting in the foreground if your tooling allows a command",
+  "that long — what is NOT reasonable is treating a build as quick. Every",
+  "edit-build-read round costs the better part of an hour, so make each round",
+  "count: fix everything you can see before you rebuild, not one thing at a",
+  "time.",
+  "",
+  "THE CRYSTAL CLUSTER IS THE KNOWN HOT SPOT. Across four boards on this",
+  "pipeline the last errors left standing were all around Y1: a via landing",
+  "inside Y1.pin1's pad, a ground trace touching that same pad, drill",
+  "clearances of 0.09mm where the fab needs 0.2. Give the crystal and its two",
+  "load capacitors room BEFORE you route, not after the verdict says so —",
+  "spreading that cluster is measured at 18 errors to 3, and it is placement,",
+  "not routing effort, that fixes it.",
+  "",
+  "IMPORT THE DOMAIN NUMBERS, NEVER COPY THEM. Trace widths, via geometry,",
+  "clearances, rail voltages and the DFM tables live in PYTHON, at",
+  "~/.claude/skills/circuitcode/circuitlib/tables.py, and the per-part numbers",
+  "live in each block's BLOCK.md under ~/.claude/skills/circuitcode/blocks/.",
+  "There is no TypeScript copy of any of it, and the repo checkout those files",
+  "may be symlinked from is not guaranteed to exist — read them through the",
+  "installed skill path. Read them fresh each time. Do not",
+  "transcribe them into a file of your own, into the board source as bare",
+  "literals, or into a summary — a copy goes stale the day the table moves",
+  "and nothing tells you.",
+  "",
+  "WHAT THE AUTOROUTER CAN ACTUALLY ROUTE. Write",
+  "autorouterEffortLevel=\"10x\" on every board — the top rung. Below it, a",
+  "routing failure costs TWO full builds instead of one, because the pipeline",
+  "escalates a rung and rebuilds from scratch to tell you the same thing",
+  "twenty minutes later. And on a 2-layer board, keep every",
+  "component on ONE side. Double-sided assembly puts pads on both copper",
+  "layers, leaves the router almost nothing to route through, and it gives up",
+  "with `ran out of iterations` and a fistful of unrouted nets — measured",
+  "2026-09-08: a 2-layer double-sided board came back with 14 missing traces",
+  "and 14 unconnected pads at both 54x54 and 55x55, while a single-sided",
+  "board of comparable size and part count routed clean. That failure names",
+  "no cause and no amount of nudging the layout fixes it, so do not spend",
+  "rounds discovering it. If a board genuinely needs both sides populated,",
+  "say so in plain words and STOP. Do not raise product.json's `layers` to 4",
+  "and carry on: four layers costs real money at the fab, it is the user's",
+  "call and nobody has made it, and our exporter has open bugs on inner",
+  "copper that you will spend the rest of the turn discovering. Two layers,",
+  "one side, is the shape this pipeline builds.",
+  "",
+  "RUN THE PIPELINE'S OWN TOOLCHAIN, NOT A COPY OF IT. The generator resolves",
+  "an exact-pinned tscircuit-cli; do not build your own bundle, do not write a",
+  "launcher for it, and never invoke it through `bun` — the repo avoids bun on",
+  "purpose. Measured 2026-09-08: a hand-made bun launcher for a self-built",
+  "25MB cli bundle hung for 35 minutes on 0.04 seconds of CPU and took the",
+  "whole turn with it. If you believe the toolchain has a bug, WRITE DOWN the",
+  "reproduction and say so in your answer — that report is worth having and",
+  "the patch is not yours to apply mid-board.",
+  "",
+  "YOU MAY SEARCH THE WEB for a part's datasheet, its real dimensions, its",
+  "current draw, or whether it is orderable. Prefer the manufacturer's",
+  "datasheet and the supplier's own listing, say which you used, and",
+  "never state a stock level or a package size you did not actually look up.",
+  "",
   "IF THE APPROVED PLAN NAMES A BLOCK TO SOURCE, SOURCE IT FIRST. Read",
   "~/.claude/skills/block-source and follow it before you write a line of",
   "board source: fetch the supplier's land pattern, write",
@@ -225,8 +302,22 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "scripts/grade-block.py until it returns ok. This is the one network step",
   "in the turn and it happens once, at the top — never inside the",
   "edit/build/read loop. A block that does not grade ok does not go on the",
-  "board; say which field is missing and why it stopped you. The plan phase",
+  "board. The plan phase",
   "was read-only and could not do this, which is exactly why it is yours.",
+  "",
+  "A PART YOU CANNOT GET DOES NOT STOP THE BOARD. When sourcing cannot close",
+  "a capability — out of stock, no supplier footprint, no certificate, no",
+  "orderable module — put it OFF-BOARD on a labelled 2.54mm pad row carrying",
+  "the rail and the bus, off-BOM, the way a servo arrives through",
+  "servo-header. Then build everything else, place the pads where the part",
+  "will sit, and say in the board source which capability went off-board and",
+  "why. Do that instead of stopping, every time: no board at all, next to a",
+  "board that works with one module on a header, spends the user's attention",
+  "and buys them nothing. If the approved plan says to stop when sourcing",
+  "fails, that line is wrong — build the board and say you overrode it.",
+  "Stopping is for a safety refusal and nothing else: mains, an",
+  "unsealed battery, an uncertified radio. Everything short of that gets a",
+  "board.",
   "",
   "A BLOCKING AMBIGUITY IS A DECISION YOU DO NOT HAVE THE STANDING TO MAKE.",
   "Ask when the answer needs authority you were not given: a hardware",
@@ -300,6 +391,29 @@ export function permissionModeForPhase(phase) {
   return phase === PHASE.PLAN ? "plan" : "bypassPermissions";
 }
 
+/** Codex's equivalent lever. The plan turn is read-only by contract — it
+ * proposes a spec and the build turn is the one allowed to write, which is what
+ * IMPLEMENT_SYSTEM_PROMPT means by "the plan phase was read-only and could not
+ * do this". A single hardcoded writable mode would let a plan turn edit board
+ * source with nothing snapshotted to undo it.
+ *
+ * Build and review run with NO sandbox — the same footing as the Claude arm's
+ * bypassPermissions — and not `workspace-write`, which is what they ran under
+ * until 2026-09-09. Measured that day on desk-cube-ship: under the seatbelt
+ * kicad-cli 10.0.5 aborts at startup (exit -6, `wxGetMousePosition` →
+ * `_RegisterApplication`, no output), so the KiCad DRC gate never ran on a
+ * single Codex build and every sidecar carried `gate_did_not_run`. The agent
+ * rebuilt one board three times to the byte-identical verdict and wrote a
+ * toolchain bug report about it. Reproduced without a model in the loop:
+ * `codex sandbox -c sandbox_mode=workspace-write -- kicad-cli pcb drc ...`
+ * exits 134; `-c sandbox_mode=danger-full-access` exits 0 with 120 findings
+ * in 2.3s, exactly what the unsandboxed Claude arm sees on the same file.
+ * A gate that runs on one arm and silently never on the other is a gap we
+ * built, not a difference between the models. */
+export function codexSandboxForPhase(phase) {
+  return phase === PHASE.PLAN ? "read-only" : "danger-full-access";
+}
+
 /** Wire tag carried on turn_start. Review rides under `implement` (it never
  * emits its own turn_start). */
 export function phaseTag(phase) {
@@ -368,6 +482,124 @@ export function resolveClaude(env = process.env) {
     }
   }
   return null;
+}
+
+/** The Codex desktop app ships the CLI inside its bundle and does NOT put it on
+ * PATH — verified 2026-09-07: `codex` resolves nowhere in augmentedPathDirs()
+ * on a machine with Codex.app installed and working. Probed after PATH, the
+ * same posture as http.mjs's KICAD_APP_BUNDLE_BINS. */
+const CODEX_APP_BUNDLE_BINS = [
+  "/Applications/Codex.app/Contents/Resources/codex",
+  path.join(os.homedir(), "Applications/Codex.app/Contents/Resources/codex"),
+];
+
+/** Resolve the local Codex CLI. Tests may point this at a small executable
+ * stub with CIRCUIT_CODEX_BIN, just like the Claude driver. */
+export function resolveCodex(env = process.env) {
+  const override = env.CIRCUIT_CODEX_BIN;
+  if (override) return fs.existsSync(override) ? override : null;
+  for (const dir of augmentedPathDirs(env)) {
+    const candidate = path.join(dir, "codex");
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  for (const candidate of CODEX_APP_BUNDLE_BINS) {
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
+}
+
+/** Arguments for Codex's non-interactive JSONL runner. The prompt is sent on
+ * stdin so large board context never has to be shell-escaped.
+ *
+ * KNOWN ASYMMETRY with the Claude path: `codex exec` has no
+ * `--append-system-prompt` equivalent — its only instruction channel is the
+ * prompt itself — so the phase prompt is prepended to the user message instead
+ * of arriving out of band. The sandbox below is what actually enforces the
+ * plan turn's read-only contract; the prose only describes it. Verified
+ * 2026-09-07 in a real project workspace that `--sandbox read-only` reads
+ * inside --cd AND outside it (~/.claude/skills is reachable, so the skill
+ * protocol still loads) while a write is refused with "Operation not
+ * permitted". */
+export function buildCodexCommandArgs({
+  workspace,
+  phase = PHASE.IMPLEMENT,
+  model = "",
+  effort = "high",
+  sessionId = "",
+  imagePaths = [],
+}) {
+  const sandbox = codexSandboxForPhase(phase);
+  const resuming = Boolean(sessionId);
+  const args = ["exec"];
+  if (resuming) args.push("resume");
+  args.push("--json", "--skip-git-repo-check");
+  if (resuming) {
+    // `codex exec resume` is a different subcommand with a different flag set:
+    // it accepts NEITHER --cd NOR --sandbox (verified against codex-cli
+    // 0.153.4, which exits with "unexpected argument '--cd' found" before the
+    // model is ever reached). The working directory comes from the spawn's own
+    // cwd, and the sandbox goes over as the config key --sandbox is sugar for.
+    args.push("-c", `sandbox_mode=${sandbox}`);
+  } else {
+    args.push("--cd", String(workspace), "--sandbox", sandbox);
+  }
+  // Build and review run unsandboxed (see codexSandboxForPhase), so the
+  // pipeline's two sanctioned network touches — stage 0's parts engine and
+  // block-source's supplier import — need no separate opt-in any more. Under
+  // the old workspace-write sandbox they did: verified 2026-09-07 that without
+  // `sandbox_workspace_write.network_access=true` a build turn died at SOURCE
+  // with "Unable to connect. Is the computer able to access the url?". The
+  // plan phase stays read-only and therefore stays offline.
+  if (model) args.push("--model", String(model));
+  // Codex has no --effort flag; the same product decision reaches it as a
+  // config override. All five of our EFFORT_LEVELS are accepted by
+  // codex-cli 0.153.4 (probed 2026-09-07), so no mapping is needed — without
+  // this the codex arm would silently run at whatever ~/.codex/config.toml
+  // says while the Claude arm runs at the pinned level.
+  if (effort) args.push("-c", `model_reasoning_effort=${effort}`);
+  for (const imagePath of imagePaths) args.push("--image", String(imagePath));
+  // Options first, then the positional SESSION_ID, then the stdin marker:
+  // `codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]`.
+  if (resuming) args.push(String(sessionId));
+  args.push("-");
+  return args;
+}
+
+const CODEX_SESSION_IDS = new Map();
+
+function codexSessionIdFor(workspace, env = process.env) {
+  if (CODEX_SESSION_IDS.has(workspace)) return CODEX_SESSION_IDS.get(workspace);
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(circuitHome(env), "codex-sessions.json"), "utf8"));
+    const id = typeof saved?.[workspace] === "string" ? saved[workspace] : "";
+    if (id) CODEX_SESSION_IDS.set(workspace, id);
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+function rememberCodexSession(workspace, sessionId, env = process.env) {
+  if (!sessionId) return;
+  CODEX_SESSION_IDS.set(workspace, sessionId);
+  try {
+    const filePath = path.join(circuitHome(env), "codex-sessions.json");
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(filePath, "utf8")); } catch { /* first run */ }
+    saved[workspace] = sessionId;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, `${JSON.stringify(saved, null, 2)}\n`);
+  } catch {
+    // Session continuity is best-effort; a fresh Codex thread still works.
+  }
 }
 
 /**
@@ -597,6 +829,7 @@ export function newStreamState() {
     anyTextEmitted: false, // per-turn
     planProposed: false,
     questionsAsked: false,
+    codexSessionId: "",
   };
 }
 
@@ -833,6 +1066,53 @@ export function parseStreamLine(line, turnId, state) {
   }
 }
 
+/** Translate Codex CLI JSONL events into the same small event vocabulary as
+ * Claude Code. Codex deliberately owns tool execution; the app only needs
+ * the visible assistant text, tool activity, plan fence, and turn boundary. */
+export function parseCodexLine(line, turnId, state) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return [];
+  let obj;
+  try {
+    obj = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  if (obj?.type === "thread.started") {
+    state.codexSessionId = String(obj.thread_id || obj.threadId || "");
+    return [];
+  }
+  const item = obj?.item;
+  if (obj?.type === "item.completed" && item?.type === "agent_message") {
+    const text = typeof item.text === "string" ? item.text : "";
+    if (!text) return [];
+    state.anyTextEmitted = true;
+    const out = [{ kind: "text_delta", turnId, text }];
+    const plan = planFromFencedBlock(text);
+    if (plan && !state.planProposed) {
+      state.planProposed = true;
+      out.push({ kind: "plan_proposed", turnId, plan });
+    }
+    return out;
+  }
+  if (obj?.type === "item.started" && item?.type === "command_execution") {
+    const toolUseId = String(item.id || crypto.randomUUID());
+    state.pendingTools.set(toolUseId, "shell");
+    return [{ kind: "tool_use_start", turnId, tool: "shell", toolUseId, input: { command: item.command || "" } }];
+  }
+  if (obj?.type === "item.completed" && item?.type === "command_execution") {
+    const toolUseId = String(item.id || "");
+    if (!state.pendingTools.has(toolUseId)) return [];
+    state.pendingTools.delete(toolUseId);
+    return [{ kind: "tool_use_end", turnId, tool: "shell", toolUseId, ok: item.status !== "failed" }];
+  }
+  if (obj?.type === "error") {
+    state.anyTextEmitted = true;
+    return [{ kind: "error", turnId, message: String(obj.message || "Codex request failed") }];
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------
 // Plan recovery from the persisted transcript
 // ---------------------------------------------------------------------------
@@ -928,6 +1208,28 @@ export function workspaceFabReady(dir) {
   return ready === seen;
 }
 
+/** Wall clock for one turn, per phase. The review loop has always had round
+ * caps; the turn running it had none, and on 2026-09-08 a build turn ran
+ * **20 hours** — rebuilding an unchanged source over and over, 33 errors
+ * becoming 76, with nothing able to stop it. A turn that has not converged in
+ * this long is not about to. Provider-neutral: both CLIs can loop. Override
+ * with CIRCUIT_TURN_MAX_S (0 disables, for a deliberately long session). */
+export function turnBudgetMs(phase, env = process.env) {
+  const override = Number(env.CIRCUIT_TURN_MAX_S);
+  if (Number.isFinite(override) && override >= 0) return override * 1000;
+  // These are a backstop against a runaway, not a schedule. The first numbers
+  // were guessed, and the first plan turn they met was a healthy one — 97
+  // items deep and still working when it was cut at 15 minutes. Measured
+  // since: a plan turn runs 9-17 minutes, and a build turn carries up to eight
+  // generator runs at two to six minutes each before the model even thinks.
+  // Set them where only a genuinely stuck turn can reach them.
+  if (phase === PHASE.PLAN) return 40 * 60 * 1000;
+  if (phase === PHASE.REVIEW) return 60 * 60 * 1000;
+  // A build is 20-40 minutes and the review loop can ask for eight of them,
+  // so three hours only ever bought about five attempts.
+  return 5 * 60 * 60 * 1000; // implement: still 4x under the 20h that prompted this
+}
+
 export const MAX_STRUCTURE_ROUNDS = 2;
 export const MAX_ELECTRICAL_ROUNDS = 3;
 export const MAX_CRAFT_ROUNDS = 2;
@@ -943,6 +1245,67 @@ export const MAX_CRAFT_ROUNDS = 2;
 //: One round. The panel runs its own bounded loop internally; the driver's job
 //: is only to guarantee it happens at all.
 export const MAX_PANEL_ROUNDS = 1;
+
+/** Does this workspace contain a board at all? True as soon as one
+ * `*.board.json` sidecar exists (skip-list honored) — the sidecar is what
+ * every review phase reads, so its absence means there is nothing to review. */
+export function workspaceHasBoard(dir) {
+  const skip = skipDirNames();
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      if (entry.isDirectory()) {
+        if (!skip.has(entry.name)) stack.push(path.join(current, entry.name));
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith(".board.json")) return true;
+    }
+  }
+  return false;
+}
+
+/** The rendered board images a craft round needs to look at: `_schematic.png`
+ * and `_pcb.png` under every `*_review/` directory (skip-list honored).
+ *
+ * Claude reads these off disk with its own Read tool. Codex can open an image
+ * by path too (ImageView), but only if it goes looking; attaching the current
+ * renders pins the round to the board as it stands. Each craft round is its
+ * own spawn, so round 2 sees round 1's output. */
+export function reviewImagePaths(dir) {
+  const skip = skipDirNames();
+  const stack = [dir];
+  const out = [];
+  while (stack.length) {
+    const current = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!skip.has(entry.name)) stack.push(full);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (entry.name === "_schematic.png" || entry.name === "_pcb.png") {
+        if (path.basename(current).endsWith("_review")) out.push(full);
+      }
+    }
+  }
+  // Schematic first, then PCB, and stable across rounds so a diff of the two
+  // rounds' prompts is a diff of the board, not of directory order.
+  return out.sort();
+}
 
 /** Read every `*.board.json` sidecar under `dir` (skip-list honored) and
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
@@ -1098,6 +1461,23 @@ function spawnClaude(claudePath, args, { workspace, env }) {
   });
 }
 
+function spawnCodex(codexPath, args, { workspace, env }) {
+  const viaNode = /\.(mjs|cjs|js)$/.test(codexPath);
+  const bin = viaNode ? process.execPath : codexPath;
+  const argv = viaNode ? [codexPath, ...args] : args;
+  return spawn(bin, argv, {
+    cwd: workspace,
+    env: buildChildEnv(env),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+function spawnProvider(provider, executable, args, options) {
+  return provider === "codex"
+    ? spawnCodex(executable, args, options)
+    : spawnClaude(executable, args, options);
+}
+
 function killChild(child) {
   try {
     child.kill("SIGKILL");
@@ -1138,6 +1518,7 @@ export async function spawnTurn({
   imagePaths = [],
   turnId,
   phase,
+  provider = "claude",
   model = "",
   effort = "",
   onEvent,
@@ -1151,9 +1532,13 @@ export async function spawnTurn({
     onEvent({ kind: "turn_end", turnId });
   };
 
-  const claudePath = resolveClaude(env);
-  if (!claudePath) {
-    fail("`claude` CLI not found. Install Claude Code (https://claude.ai/install).");
+  const executable = provider === "codex" ? resolveCodex(env) : resolveClaude(env);
+  if (!executable) {
+    fail(
+      provider === "codex"
+        ? "`codex` CLI not found. Install Codex and sign in."
+        : "`claude` CLI not found. Install Claude Code (https://claude.ai/install).",
+    );
     return { proposedPlan: null, cancelled: false, sawOutput: false };
   }
 
@@ -1165,16 +1550,18 @@ export async function spawnTurn({
   }
 
   const preSnapshot = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase, sessionId, model, effort, env });
+  const args = provider === "codex"
+    ? buildCodexCommandArgs({ workspace, phase, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
+    : buildCommandArgs({ workspace, phase, sessionId, model, effort, env });
   const resume = args.includes("--resume");
   log(
-    `turn ${phase} start session=${shortId(sessionId)} (${resume ? "resume" : "new"})` +
+    `turn ${phase} start provider=${provider} session=${shortId(sessionId)} (${resume ? "resume" : "new"})` +
       `${model ? ` model=${model}` : ""}`,
   );
 
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env });
+    child = spawnProvider(provider, executable, args, { workspace, env });
   } catch (error) {
     fail(`failed to spawn claude: ${error?.message || error}`);
     return { proposedPlan: null, cancelled: false, sawOutput: false };
@@ -1183,7 +1570,7 @@ export async function spawnTurn({
   // Feed the stream-json user message (prompt + image blocks) and close stdin
   // so claude's `-p` reader sees EOF and starts the turn.
   child.stdin.on("error", () => {});
-  child.stdin.end(streamJsonInput(message, imagePaths));
+  child.stdin.end(provider === "codex" ? `${systemPromptForPhase(phase)}\n\n${workspaceDirective(workspace)}\n\n${message}\n` : streamJsonInput(message, imagePaths));
 
   // Drain stderr concurrently: an undrained pipe deadlocks the child, and a
   // fast failure (bad session id, auth, missing node) prints its reason here
@@ -1206,6 +1593,7 @@ export async function spawnTurn({
   let artifactsChanged = false;
   let runningSnapshot = preSnapshot;
 
+  let timedOut = false;
   const onAbort = () => {
     cancelled = true;
     killChild(child);
@@ -1217,6 +1605,15 @@ export async function spawnTurn({
       signal.addEventListener("abort", onAbort, { once: true });
     }
   }
+  const budgetMs = turnBudgetMs(phase, env);
+  const budgetTimer = budgetMs
+    ? setTimeout(() => {
+        timedOut = true;
+        log(`turn ${phase} exceeded its ${Math.round(budgetMs / 60000)}min budget — stopping`);
+        onAbort();
+      }, budgetMs)
+    : null;
+  if (budgetTimer?.unref) budgetTimer.unref();
 
   const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
   try {
@@ -1225,9 +1622,11 @@ export async function spawnTurn({
         break;
       }
       if (debugEnabled()) {
-        process.stderr.write(`[circuit:claude:out] ${line}\n`);
+        process.stderr.write(`[circuit:${provider}:out] ${line}\n`);
       }
-      const events = parseStreamLine(line, turnId, state);
+      const events = provider === "codex"
+        ? parseCodexLine(line, turnId, state)
+        : parseStreamLine(line, turnId, state);
       const stopTurn = state.planProposed || state.questionsAsked;
       let toolJustEnded = false;
       for (let event of events) {
@@ -1276,14 +1675,27 @@ export async function spawnTurn({
   }
 
   await waitForExit(child);
+  if (budgetTimer) clearTimeout(budgetTimer);
+  if (timedOut) {
+    onEvent({
+      kind: "error",
+      turnId,
+      message:
+        `The ${phase} turn ran past its ${Math.round(budgetMs / 60000)} minute budget and was stopped. ` +
+        "Whatever it had written is still here; send another message to carry on.",
+    });
+  }
+  if (provider === "codex" && state.codexSessionId) {
+    rememberCodexSession(workspace, state.codexSessionId, env);
+  }
   if (signal) {
     signal.removeEventListener("abort", onAbort);
   }
 
   // Silent failure: claude exited without emitting any stream-json.
   if (!cancelled && !sawOutput) {
-    const detail = stderrBuf.trim() || `claude exited without output (code ${child.exitCode})`;
-    onEvent({ kind: "error", turnId, message: `claude produced no response: ${detail}` });
+    const detail = stderrBuf.trim() || `${provider} exited without output (code ${child.exitCode})`;
+    onEvent({ kind: "error", turnId, message: `${provider} produced no response: ${detail}` });
   }
 
   // Post-turn workspace diff — even when cancelled (the user still wants to
@@ -1297,10 +1709,21 @@ export async function spawnTurn({
     onEvent(event);
   }
 
-  // Automatic post-build review, silent, inside this build turn.
-  if (phase === PHASE.IMPLEMENT && !cancelled && sawOutput && artifactsChanged) {
+  // Automatic post-build review, silent, inside this build turn. `artifactsChanged`
+  // alone is too loose a gate: a turn that stops before writing board source
+  // still touches the workspace (a blocked SOURCE step leaves records under
+  // sourcing/), and the review loop then spends rounds reviewing a board that
+  // does not exist. Every phase of it reads `*.board.json`, so require one.
+  if (
+    phase === PHASE.IMPLEMENT &&
+    !cancelled &&
+    sawOutput &&
+    artifactsChanged &&
+    workspaceHasBoard(workspace)
+  ) {
     await runReviewFixLoop({
-      claudePath,
+      provider,
+      executable,
       workspace,
       sessionId,
       turnId,
@@ -1323,27 +1746,45 @@ export async function spawnTurn({
  * EOF WITHOUT parsing (review chatter never reaches the user), then diff the
  * workspace and surface changed artifacts. Returns whether files changed. */
 async function runReviewRound({
-  claudePath,
+  provider = "claude",
+  executable,
   workspace,
   sessionId,
   turnId,
   model,
   effort = "",
   prompt,
+  imagePaths = [],
   onEvent,
   signal,
   env,
 }) {
   const pre = snapshotWorkspace(workspace);
-  const args = buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
+  const args = provider === "codex"
+    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
+    : buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
-    child = spawnClaude(claudePath, args, { workspace, env });
+    child = spawnProvider(provider, executable, args, { workspace, env });
   } catch {
     return false; // best-effort: a build that can't be reviewed just ends
   }
   child.stdin.on("error", () => {});
-  child.stdin.end(streamJsonInput(prompt));
+  // Attaching beats leaving it to chance. Codex can open an image by path (its
+  // ImageView tool), but nothing guarantees it looks at the right renders at
+  // the right moment, and the shared craft prompt says "rebuild, then Read
+  // both images" — a sequence it cannot follow for images made in this turn.
+  const attached = provider === "codex" && imagePaths.length
+    ? "\n\nThe board's current renders are ATTACHED to this message — look at " +
+      "them directly rather than hunting for the files. They show the board as " +
+      "it stands right now. Fix what reads wrong in the TSX source " +
+      "and regenerate; the next round attaches the refreshed renders.\n"
+    : "";
+  child.stdin.end(
+    provider === "codex"
+      ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
+      : streamJsonInput(prompt),
+  );
   child.stderr.resume();
 
   const onAbort = () => killChild(child);
@@ -1481,7 +1922,8 @@ export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail })
  * Best-effort throughout — never fails the build turn.
  */
 export async function runReviewFixLoop({
-  claudePath,
+  provider = "claude",
+  executable,
   workspace,
   sessionId,
   turnId,
@@ -1518,17 +1960,19 @@ export async function runReviewFixLoop({
   // of five — and says so out loud rather than quietly handing back a board
   // that used to be shippable.
   let regressed = false;
-  const round = async (prompt) => {
+  const round = async (prompt, imagePaths = []) => {
     const readyBefore = workspaceFabReady(workspace);
     // Only worth the copy when there is something to lose.
     const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
     const didChange = await runReviewRound({
-      claudePath,
+      provider,
+      executable,
       workspace,
       sessionId,
       turnId,
       model,
       prompt,
+      imagePaths,
       onEvent,
       signal,
       env,
@@ -1628,7 +2072,12 @@ export async function runReviewFixLoop({
       rounds: MAX_CRAFT_ROUNDS,
       detail: "reading the schematic and PCB images",
     });
-    const roundChanged = await round(buildCraftPrompt(hints));
+    // Claude reads the renders itself; attaching them would change what the
+    // Claude arm receives, so only the codex arm gets the attachment.
+    const roundChanged = await round(
+      buildCraftPrompt(hints),
+      provider === "codex" ? reviewImagePaths(workspace) : [],
+    );
     changed = roundChanged || changed;
     if (!roundChanged) {
       break;
@@ -1915,7 +2364,7 @@ export function attachmentNote(rels) {
  * Create the chat orchestration service.
  *
  * - `projectDir(projectId)` → absolute workspace dir.
- * - `settings.read()` → `{ autoBuild, model }`.
+ * - `settings.read()` → `{ autoBuild, provider, model }`.
  * - `emit(projectId, event)` → deliver one enveloped ChatEvent.
  *
  * `startTurn` returns the turnId synchronously (the run continues in the
@@ -1931,6 +2380,14 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       return settings.read().model || "";
     } catch {
       return "";
+    }
+  }
+
+  function activeProvider() {
+    try {
+      return settings.read().provider === "codex" ? "codex" : "claude";
+    } catch {
+      return "claude";
     }
   }
 
@@ -1956,6 +2413,7 @@ export function createChatService({ projectDir, settings, emit, env = process.en
       imagePaths,
       turnId,
       phase,
+      provider: activeProvider(),
       model: activeModel(),
       effort: activeEffort(),
       onEvent,

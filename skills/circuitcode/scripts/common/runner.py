@@ -95,6 +95,14 @@ def _default_wall_clock_s() -> float:
     and verify everything, that's still better than waiting 2 weeks from
     JLCPCB."* A build that takes twenty minutes and comes back orderable beats
     one that takes four and comes back with eighteen errors.
+
+    **Raised from 2700s to 4200s on 2026-09-08.** 2700 gave `build_board` a
+    2430s ceiling (``wall_clock_s * 0.9``), and a 55x55 two-layer board with
+    2547 elements spent **2133s in compile alone** — inside the ceiling by
+    five minutes, with nothing left for the escalated pass the budget exists to
+    cover. The same board rebuilt one millimetre larger died on the ceiling
+    outright. A budget that only fits the first attempt is the 300s mistake
+    again at a larger scale.
     """
     override = os.environ.get("CIRCUIT_WALL_CLOCK_S", "").strip()
     if override:
@@ -102,7 +110,7 @@ def _default_wall_clock_s() -> float:
             return max(10.0, float(override))
         except ValueError:
             pass
-    return 2700.0
+    return 4200.0
 
 
 WALL_CLOCK_TIMEOUT_S = _default_wall_clock_s()

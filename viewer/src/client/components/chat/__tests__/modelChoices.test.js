@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   availableModelChoices,
+  choiceIdForSettings,
+  CODEX_CHOICES,
   DEFAULT_MODEL,
   labelForModel,
   MODEL_CHOICES,
@@ -52,4 +54,41 @@ test("labelForModel falls back to the default label for unset or unknown ids", (
   assert.equal(labelForModel("gpt-4"), "Fable");
   // The raw model string is no longer a selection id.
   assert.equal(labelForModel("minimax,minimax/minimax-m3"), "Fable");
+});
+
+// ---------------------------------------------------------------------------
+// Codex rows — a second provider in the same switcher
+// ---------------------------------------------------------------------------
+
+test("CODEX_CHOICES leads with the config default and offers the one verified model id", () => {
+  assert.deepEqual(
+    CODEX_CHOICES.map((c) => c.id),
+    ["codex-default", "gpt-6-astra"],
+  );
+  // Empty value = omit --model entirely, so the CLI uses ~/.codex/config.toml.
+  assert.equal(CODEX_CHOICES[0].value, "");
+  assert.equal(CODEX_CHOICES[1].value, "gpt-6-astra");
+  assert.ok(CODEX_CHOICES.every((c) => c.provider === "codex"));
+  assert.ok(CODEX_CHOICES.every((c) => !c.requiresPandaSignIn));
+});
+
+test("labelForModel finds Codex ids too, so the pill never shows a Claude label for a Codex turn", () => {
+  assert.equal(labelForModel("codex-default"), "Codex · Default");
+  assert.equal(labelForModel("gpt-6-astra"), "Codex · GPT-6 Astra");
+});
+
+test("choiceIdForSettings maps a Codex turn by its --model string, not by id", () => {
+  assert.equal(choiceIdForSettings({ provider: "codex", model: "gpt-6-astra" }), "gpt-6-astra");
+  // No stored model = no --model flag = the CLI's own config default.
+  assert.equal(choiceIdForSettings({ provider: "codex" }), "codex-default");
+  assert.equal(choiceIdForSettings({ provider: "codex", model: "" }), "codex-default");
+  // An id we no longer offer (a stale settings.json) falls back, not crashes.
+  assert.equal(choiceIdForSettings({ provider: "codex", model: "gpt-5.3-codex" }), "codex-default");
+});
+
+test("choiceIdForSettings passes a Claude selection straight through", () => {
+  assert.equal(choiceIdForSettings({ provider: "claude", model: "opus" }), "opus");
+  assert.equal(choiceIdForSettings({ provider: "claude" }), DEFAULT_MODEL);
+  assert.equal(choiceIdForSettings({}), DEFAULT_MODEL);
+  assert.equal(choiceIdForSettings(), DEFAULT_MODEL);
 });

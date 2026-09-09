@@ -225,3 +225,16 @@ export async function ensureClaudeReady(transport = getTransport()) {
   dispatch({ type: "open" });
   return gate;
 }
+
+/** Provider-neutral preflight. Codex is installed/authenticated outside this
+ * app, so its missing-binary error is left to the server instead of opening a
+ * Claude installer dialog. */
+export async function ensureProviderReady(transport = getTransport()) {
+  try {
+    const settings = await transport.app_settings_read();
+    if (settings?.provider === "codex") return true;
+  } catch {
+    // Fall back to the established Claude gate when settings are unavailable.
+  }
+  return ensureClaudeReady(transport);
+}

@@ -33,6 +33,12 @@ async function bootServer({ scenario } = {}) {
     CIRCUIT_HOME: home,
     CLAUDE_CONFIG_DIR: cfgDir,
     CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    // Codex is deliberately unresolvable here. An override that does not exist
+    // makes resolveCodex return null without ever consulting PATH or the
+    // Codex.app bundle — otherwise a suite run on a machine with the desktop
+    // app installed would spawn the REAL CLI and reach the network, which this
+    // repo's tests never do.
+    CIRCUIT_CODEX_BIN: path.join(home, "no-codex-here"),
     CIRCUIT_FAKE_SCENARIO: scenarioPath,
   };
   const services = createCircuitServices({ env });
@@ -130,7 +136,7 @@ test("app_info, app_prereq_check shape, settings round-trip and app_set_model", 
     // included, because both are product decisions the app must pin rather
     // than leave to whatever the CLI defaults to.
     const onDisk = JSON.parse(fs.readFileSync(path.join(s.home, "settings.json"), "utf8"));
-    assert.deepEqual(Object.keys(onDisk).sort(), ["autoBuild", "effort", "hasOnboarded", "model"]);
+    assert.deepEqual(Object.keys(onDisk).sort(), ["autoBuild", "effort", "hasOnboarded", "model", "provider"]);
 
     const setModel = await s.post("app_set_model", { model: "sonnet" });
     assert.equal(setModel.body.model, "sonnet");
@@ -220,8 +226,12 @@ test("chat turn end-to-end over SSE: enveloped chat_events in order, plus catalo
     },
   });
   try {
-    // Manual mode so the plan turn doesn't chain a build here.
-    await s.post("app_settings_write", { settings: { hasOnboarded: true, autoBuild: false } });
+    // Manual mode so the plan turn doesn't chain a build here. The provider is
+    // pinned because this test is about Claude's stream-json translation, and
+    // the shipped default is codex.
+    await s.post("app_settings_write", {
+      settings: { hasOnboarded: true, autoBuild: false, provider: "claude" },
+    });
     const { body: project } = await s.post("project_create", { req: { name: "SSE" } });
     await s.post("project_open", { id: project.id });
 
@@ -497,4 +507,37 @@ test("an unknown stage gets the most generous limit, not the tightest", () => {
   assert.ok(quietLimitMs("some-future-stage") >= Math.max(...known));
   assert.ok(quietLimitMs(undefined) >= Math.max(...known));
   assert.ok(quietLimitMs(null) >= Math.max(...known));
+});
+
+test("a second turn on a live project is refused instead of racing the first", async () => {
+  const s = await bootServer({ scenario: { plan: { lines: [], sleepAfterMs: 3000 } } });
+  try {
+    await s.post("app_settings_write", {
+      settings: { hasOnboarded: true, autoBuild: false, provider: "claude" },
+    });
+    const { body: project } = await s.post("project_create", { req: { name: "Race" } });
+    await s.post("project_open", { id: project.id });
+
+    const first = await s.post("chat_start_turn", {
+      req: { projectId: project.id, userMessage: "design a board" },
+    });
+    assert.equal(first.status, 200);
+
+    // Both CLIs key their conversation by one id per project and neither
+    // tolerates two writers; codex fails the whole turn with "thread <id>
+    // already has an active writer".
+    for (const [command, req] of [
+      ["chat_start_turn", { projectId: project.id, userMessage: "again" }],
+      ["chat_approve_plan", { projectId: project.id, planText: "# plan" }],
+      ["chat_request_plan_changes", { projectId: project.id, feedback: "smaller" }],
+    ]) {
+      const second = await s.post(command, { req });
+      assert.equal(second.status, 409, command);
+      assert.equal(second.body.code, "TURN_IN_PROGRESS", command);
+    }
+
+    await s.post("chat_cancel_turn", { turnId: first.body.turnId });
+  } finally {
+    s.close();
+  }
 });

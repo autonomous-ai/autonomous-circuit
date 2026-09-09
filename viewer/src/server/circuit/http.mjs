@@ -32,6 +32,7 @@ import {
   createChatService,
   persistAttachments,
   resolveClaude,
+  resolveCodex,
   sessionIdForProject,
 } from "./driver.mjs";
 
@@ -349,6 +350,7 @@ const KICAD_APP_BUNDLE_BINS = [
 
 async function prereqCheck(env) {
   const claudePath = resolveClaude(env);
+  const codexPath = resolveCodex(env);
 
   // node ≥22.12 — the tscircuit toolchain's floor.
   const nodePath = findOnAugmentedPath("node", env);
@@ -416,6 +418,7 @@ async function prereqCheck(env) {
 
   return {
     claudeCli: { found: Boolean(claudePath) },
+    codexCli: { found: Boolean(codexPath) },
     node: {
       found: Boolean(nodePath),
       ...(nodeVersion ? { version: nodeVersion } : {}),
@@ -578,6 +581,26 @@ export function createCircuitServices({ env = process.env } = {}) {
       throw ipcError(
         "BUILD_RUNNING",
         "the board is building — wait for it to finish before moving parts",
+        409,
+      );
+    }
+  }
+
+  /** Refuse a second turn while one is already running on this project.
+   *
+   * Both CLIs key their conversation by one id per project, and neither
+   * tolerates two writers: `claude --resume` reports "Session ID already in
+   * use", and `codex exec resume` fails the whole turn with "thread <id>
+   * already has an active writer". Observed 2026-09-07 — two plan turns
+   * started back to back and the second died before reaching the model. The
+   * composer disables itself while a turn is live, but that is a client-side
+   * courtesy: a stale SSE state, a double click on the questions card, or a
+   * second tab all reach this handler anyway. */
+  function refuseIfTurnInProgress(projectId) {
+    if (chat.turnInProgress(projectId)) {
+      throw ipcError(
+        "TURN_IN_PROGRESS",
+        "a turn is already running for this project — wait for it to finish or cancel it",
         409,
       );
     }
@@ -918,6 +941,10 @@ export function createCircuitServices({ env = process.env } = {}) {
       settings.write({ model: typeof model === "string" ? model : "" });
       return settings.readWire();
     },
+    app_set_provider: async ({ provider }) => {
+      settings.write({ provider: typeof provider === "string" ? provider : "claude" });
+      return settings.readWire();
+    },
 
     // Reasoning effort, the sibling of app_set_model. The UI grew an effort
     // selector before there was anywhere to put the value, so it was a
@@ -969,6 +996,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_start_turn: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       let message = String(req?.userMessage ?? "");
       const images = Array.isArray(req?.images) ? req.images : [];
       let imagePaths = [];
@@ -991,6 +1019,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_approve_plan: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       const turnId = chat.startTurn({
         projectId,
         sessionId: req?.sessionId,
@@ -1002,6 +1031,7 @@ export function createCircuitServices({ env = process.env } = {}) {
     chat_request_plan_changes: async (body) => {
       const req = envelope(body);
       const projectId = requireProject(req?.projectId);
+      refuseIfTurnInProgress(projectId);
       const turnId = chat.startTurn({
         projectId,
         sessionId: req?.sessionId,

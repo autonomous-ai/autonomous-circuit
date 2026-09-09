@@ -13,11 +13,13 @@ import { fileURLToPath } from "node:url";
 import {
   APPROVE_PLAN_PREAMBLE,
   IMPLEMENT_SYSTEM_PROMPT,
+  PLAN_SYSTEM_PROMPT,
   ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
   approvedPlanMessage,
   attachmentNote,
+  buildCodexCommandArgs,
   buildCommandArgs,
   buildCraftPrompt,
   buildPanelPrompt,
@@ -28,23 +30,29 @@ import {
   MAX_PANEL_ROUNDS,
   buildElectricalPrompt,
   buildStructurePrompt,
+  codexSandboxForPhase,
   collectBoardWarnings,
   createChatService,
   diffSnapshots,
   isBlocking,
   isElectrical,
   newStreamState,
+  parseCodexLine,
   parseSessionHistory,
   parseStreamLine,
   persistAttachments,
   planFromFencedBlock,
   questionsFenceFromAskUserQuestion,
   recoverPlanFromTranscript,
+  resolveCodex,
+  reviewImagePaths,
   sessionIdForProject,
   spawnTurn,
   summarizeToolResult,
+  turnBudgetMs,
   uuidv5,
   workspaceFabReady,
+  workspaceHasBoard,
 } from "./driver.mjs";
 import { encodeCwd, sessionJsonlPath } from "./projects.mjs";
 
@@ -1252,4 +1260,392 @@ test("handing back a broken board is named as a cost, not as caution", () => {
     /is not caution|their attention/i,
     "the prompt has to say why over-asking is expensive, or it reads as safe",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Codex provider — argv, binary resolution, and the JSONL event vocabulary.
+//
+// The real `codex` CLI is never spawned here. The flag names and event shapes
+// asserted below were read off a live `codex-cli 0.153.4` run on 2026-09-07
+// (`codex exec --json --skip-git-repo-check --cd ... --sandbox read-only
+// --ephemeral -`), so these tests pin what was actually observed rather than
+// what the docs imply.
+// ---------------------------------------------------------------------------
+
+test("buildCodexCommandArgs emits the exec flag set and reads the prompt from stdin", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({ workspace, phase: PHASE.IMPLEMENT });
+
+  assert.equal(args[0], "exec");
+  assert.ok(args.includes("--json"));
+  // Project workspaces under ~/.autonomous-circuit/projects are not git repos;
+  // without this flag codex exec refuses to start at all.
+  assert.ok(args.includes("--skip-git-repo-check"));
+  assert.equal(args[args.indexOf("--cd") + 1], workspace);
+  assert.equal(args.at(-1), "-", "prompt arrives on stdin, never as an argv");
+  assert.ok(!args.includes("resume"), "a fresh thread does not resume");
+});
+
+test("buildCodexCommandArgs keeps the plan turn read-only and runs build and review unsandboxed", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const sandboxOf = (phase) => {
+    const args = buildCodexCommandArgs({ workspace, phase });
+    return args[args.indexOf("--sandbox") + 1];
+  };
+  assert.equal(sandboxOf(PHASE.PLAN), "read-only");
+  assert.equal(sandboxOf(PHASE.IMPLEMENT), "danger-full-access");
+  assert.equal(sandboxOf(PHASE.REVIEW), "danger-full-access");
+  // The helper is the single owner of that decision.
+  assert.equal(codexSandboxForPhase(PHASE.PLAN), "read-only");
+  assert.equal(codexSandboxForPhase(PHASE.IMPLEMENT), "danger-full-access");
+});
+
+test("buildCodexCommandArgs omits --model when unset so the CLI keeps its own configured default", () => {
+  const workspace = tmpdir("circuit-ws-");
+  assert.ok(!buildCodexCommandArgs({ workspace }).includes("--model"));
+
+  const named = buildCodexCommandArgs({ workspace, model: "gpt-6-astra" });
+  assert.equal(named[named.indexOf("--model") + 1], "gpt-6-astra");
+  assert.equal(named.at(-1), "-", "--model is spliced in before the stdin marker");
+});
+
+test("buildCodexCommandArgs spends the pinned reasoning effort as a config override", () => {
+  const workspace = tmpdir("circuit-ws-");
+  // Codex has no --effort flag; without this the two providers would run at
+  // different reasoning levels and no comparison between them would mean much.
+  const configsOf = (opts) => {
+    const args = buildCodexCommandArgs({ workspace, ...opts });
+    return args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  };
+  assert.ok(configsOf({ effort: "high" }).includes("model_reasoning_effort=high"));
+  assert.equal(buildCodexCommandArgs({ workspace, effort: "high" }).at(-1), "-");
+  // Unset spends nothing — the CLI keeps whatever config.toml says. The other
+  // -c overrides (the sandbox's network) are unaffected.
+  assert.ok(!configsOf({ effort: "" }).some((c) => c.startsWith("model_reasoning_effort")));
+});
+
+test("buildCodexCommandArgs resumes with the resume subcommand's own flag set", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({
+    workspace,
+    phase: PHASE.IMPLEMENT,
+    sessionId: "01a07a02-afe5-73c1-a112-83815bacbb10",
+    imagePaths: ["/tmp/a.png", "/tmp/b.png"],
+  });
+
+  assert.deepEqual(args.slice(0, 2), ["exec", "resume"]);
+  // `codex exec resume` rejects both of these outright — it exited with
+  // "unexpected argument '--cd' found" before the model was ever reached.
+  assert.ok(!args.includes("--cd"), "resume takes no --cd; cwd comes from the spawn");
+  assert.ok(!args.includes("--sandbox"), "resume takes no --sandbox");
+  assert.ok(args.includes("--skip-git-repo-check"));
+  // The phase's sandbox mode still has to reach codex, via the config key
+  // --sandbox is sugar for: a resumed turn must get the same mode a fresh one
+  // gets, or the two would run on different footing.
+  const configs = args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  assert.ok(configs.includes("sandbox_mode=danger-full-access"), configs.join(","));
+
+  const images = args.map((a, i) => (a === "--image" ? args[i + 1] : null)).filter(Boolean);
+  assert.deepEqual(images, ["/tmp/a.png", "/tmp/b.png"]);
+  // Usage is `resume [OPTIONS] [SESSION_ID] [PROMPT]`: the id is positional and
+  // comes after every flag, immediately before the stdin marker.
+  assert.equal(args.at(-2), "01a07a02-afe5-73c1-a112-83815bacbb10");
+  assert.equal(args.at(-1), "-");
+});
+
+test("a resumed plan turn is still read-only, through the config key instead of the flag", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const args = buildCodexCommandArgs({ workspace, phase: PHASE.PLAN, sessionId: "sid" });
+  const configs = args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  assert.ok(configs.includes("sandbox_mode=read-only"), configs.join(","));
+  assert.ok(!args.includes("--sandbox"));
+});
+
+test("resolveCodex honours the CIRCUIT_CODEX_BIN stub and refuses one that is not there", () => {
+  const dir = tmpdir("circuit-codex-");
+  const stub = path.join(dir, "codex");
+  fs.writeFileSync(stub, "#!/bin/sh\nexit 0\n");
+  assert.equal(resolveCodex({ CIRCUIT_CODEX_BIN: stub }), stub);
+  assert.equal(resolveCodex({ CIRCUIT_CODEX_BIN: path.join(dir, "nope") }), null);
+});
+
+test("parseCodexLine records the thread id so the next turn resumes the same conversation", () => {
+  const state = newStreamState();
+  assert.deepEqual(
+    parseCodexLine('{"type":"thread.started","thread_id":"t-1"}', "turn-1", state),
+    [],
+    "a thread banner is bookkeeping, not a user-visible event",
+  );
+  assert.equal(state.codexSessionId, "t-1");
+});
+
+test("parseCodexLine surfaces assistant text and lifts a circuit-plan fence exactly once", () => {
+  const state = newStreamState();
+  const line = JSON.stringify({
+    type: "item.completed",
+    item: { id: "item_0", type: "agent_message", text: "Here it is\n```circuit-plan\nBuck + ESP32\n```" },
+  });
+  const events = parseCodexLine(line, "turn-1", state);
+  assert.deepEqual(events.map((e) => e.kind), ["text_delta", "plan_proposed"]);
+  assert.equal(events[1].plan, "Buck + ESP32");
+  assert.ok(state.anyTextEmitted);
+  assert.ok(state.planProposed);
+
+  // A restated plan on a later message does not re-open the approve button.
+  const again = parseCodexLine(line, "turn-1", state);
+  assert.deepEqual(again.map((e) => e.kind), ["text_delta"]);
+});
+
+test("parseCodexLine pairs a shell command's start and end and ignores an unknown end", () => {
+  const state = newStreamState();
+  const start = parseCodexLine(
+    JSON.stringify({
+      type: "item.started",
+      item: { id: "cmd-1", type: "command_execution", command: "python circuit boards/main.tsx" },
+    }),
+    "turn-1",
+    state,
+  );
+  assert.equal(start.length, 1);
+  assert.equal(start[0].kind, "tool_use_start");
+  assert.equal(start[0].tool, "shell");
+  assert.equal(start[0].input.command, "python circuit boards/main.tsx");
+
+  const end = parseCodexLine(
+    JSON.stringify({
+      type: "item.completed",
+      item: { id: "cmd-1", type: "command_execution", status: "completed" },
+    }),
+    "turn-1",
+    state,
+  );
+  assert.deepEqual(
+    end.map((e) => [e.kind, e.ok]),
+    [["tool_use_end", true]],
+  );
+  assert.equal(state.pendingTools.size, 0);
+
+  // A completion for a command we never saw start emits nothing.
+  assert.deepEqual(
+    parseCodexLine(
+      JSON.stringify({
+        type: "item.completed",
+        item: { id: "cmd-ghost", type: "command_execution", status: "failed" },
+      }),
+      "turn-1",
+      state,
+    ),
+    [],
+  );
+});
+
+test("parseCodexLine reports a failed command as a non-ok tool end", () => {
+  const state = newStreamState();
+  parseCodexLine(
+    JSON.stringify({ type: "item.started", item: { id: "c", type: "command_execution", command: "false" } }),
+    "turn-1",
+    state,
+  );
+  const end = parseCodexLine(
+    JSON.stringify({ type: "item.completed", item: { id: "c", type: "command_execution", status: "failed" } }),
+    "turn-1",
+    state,
+  );
+  assert.equal(end[0].ok, false);
+});
+
+test("parseCodexLine turns a top-level error into a visible error and tolerates junk lines", () => {
+  const state = newStreamState();
+  const events = parseCodexLine('{"type":"error","message":"model not supported"}', "turn-1", state);
+  assert.deepEqual(events, [{ kind: "error", turnId: "turn-1", message: "model not supported" }]);
+
+  assert.deepEqual(parseCodexLine("", "turn-1", state), []);
+  assert.deepEqual(parseCodexLine("not json at all", "turn-1", state), []);
+  assert.deepEqual(parseCodexLine('{"type":"turn.started"}', "turn-1", state), []);
+});
+
+test("build and review run unsandboxed like the Claude arm; the plan turn stays read-only", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const NET = "sandbox_workspace_write.network_access=true";
+  const argsOf = (opts) => buildCodexCommandArgs({ workspace, ...opts });
+  const configsOf = (opts) => {
+    const args = argsOf(opts);
+    return args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
+  };
+  const sandboxOf = (opts) => {
+    const args = argsOf(opts);
+    const i = args.indexOf("--sandbox");
+    return i >= 0 ? args[i + 1] : "";
+  };
+  // Under workspace-write, kicad-cli aborted at startup on every Codex build
+  // (exit -6, measured 2026-09-09 on desk-cube-ship) and the KiCad DRC gate
+  // never ran, while the same file passed in 2.3s on the unsandboxed Claude
+  // arm. Both arms now run the build on the same footing.
+  assert.equal(sandboxOf({ phase: PHASE.IMPLEMENT }), "danger-full-access");
+  assert.equal(sandboxOf({ phase: PHASE.REVIEW }), "danger-full-access");
+  assert.ok(configsOf({ phase: PHASE.IMPLEMENT, sessionId: "sid" }).includes("sandbox_mode=danger-full-access"), "resume too");
+  assert.ok(configsOf({ phase: PHASE.REVIEW, sessionId: "sid" }).includes("sandbox_mode=danger-full-access"), "resumed review too");
+  // With no sandbox there is nothing to punch a network hole through; the old
+  // workspace-write opt-in must not linger as a stray config key.
+  for (const opts of [{ phase: PHASE.IMPLEMENT }, { phase: PHASE.REVIEW }, { phase: PHASE.IMPLEMENT, sessionId: "sid" }]) {
+    assert.ok(!configsOf(opts).includes(NET), JSON.stringify(opts));
+  }
+  // A plan turn proposes a spec and may not write board source; it stays
+  // read-only, fresh or resumed, and does not get to reach the network either.
+  assert.equal(sandboxOf({ phase: PHASE.PLAN }), "read-only");
+  assert.ok(configsOf({ phase: PHASE.PLAN, sessionId: "sid" }).includes("sandbox_mode=read-only"));
+  assert.ok(!configsOf({ phase: PHASE.PLAN }).includes(NET));
+  assert.ok(!configsOf({ phase: PHASE.PLAN, sessionId: "sid" }).includes(NET));
+});
+
+test("workspaceHasBoard is false until a sidecar exists, so a stopped build is not 'reviewed'", () => {
+  const workspace = tmpdir("circuit-ws-");
+  assert.equal(workspaceHasBoard(workspace), false, "an empty project has no board");
+
+  // A turn that stops before writing board source still touches the workspace —
+  // a blocked SOURCE step leaves records behind. That is not a board.
+  fs.mkdirSync(path.join(workspace, "sourcing", "sen0097"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "sourcing", "sen0097", "BLOCK.md"), "# pending\n");
+  assert.equal(workspaceHasBoard(workspace), false, "sourcing records are not a board");
+
+  fs.mkdirSync(path.join(workspace, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "boards", "main.tsx"), "export default () => null;\n");
+  assert.equal(workspaceHasBoard(workspace), false, "source without a sidecar is not a built board");
+
+  fs.writeFileSync(path.join(workspace, "boards", "main.board.json"), "{}");
+  assert.equal(workspaceHasBoard(workspace), true);
+});
+
+test("reviewImagePaths finds the renders a craft round has to look at, and nothing else", () => {
+  const workspace = tmpdir("circuit-ws-");
+  const review = path.join(workspace, "boards", "main_review");
+  fs.mkdirSync(review, { recursive: true });
+  assert.deepEqual(reviewImagePaths(workspace), [], "no renders yet");
+
+  fs.writeFileSync(path.join(review, "_pcb.png"), "x");
+  fs.writeFileSync(path.join(review, "_schematic.png"), "x");
+  // The SVGs are the same picture at a size no model needs, and a stray PNG
+  // elsewhere in the project is not a board render.
+  fs.writeFileSync(path.join(review, "_pcb.svg"), "x");
+  fs.mkdirSync(path.join(workspace, "imports"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "imports", "_pcb.png"), "x");
+
+  assert.deepEqual(reviewImagePaths(workspace), [
+    path.join(review, "_pcb.png"),
+    path.join(review, "_schematic.png"),
+  ]);
+});
+
+// ---------------------------------------------------------------------------
+// A part you cannot get is not a reason to hand back nothing.
+//
+// desk-cube-55 hit this and shipped: no golden block for the OLED or the
+// ambient-light sensor, so both went off-board on labelled I2C pad rows, and
+// the board came out 55x55 and fab-ready. A second agent hit the same wall
+// three runs running and stopped every time, having read block-source's "a
+// block that does not grade ok does not go on a board" as an instruction to
+// build nothing. The escape hatch existed only as a precedent — the
+// servo-header block — and was never written down.
+// ---------------------------------------------------------------------------
+
+test("the build prompt says an unsourceable part goes off-board rather than stopping the board", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("does not stop the board"), "the rule is stated, not implied");
+  assert.ok(p.includes("off-board"), "and names where the part goes instead");
+  assert.ok(p.includes("pad row"), "on a labelled pad row");
+  assert.ok(p.includes("servo-header"), "citing the precedent already in the catalog");
+  // The clause it replaced ended "say which field is missing and why it
+  // stopped you", which read as permission for stopping to be the outcome.
+  assert.ok(!p.includes("why it stopped you"));
+});
+
+test("the build prompt overrides an approved plan that told it to stop, and keeps the safety refusal", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // A plan whose conclusion is "stop" gets auto-approved under autopilot, so
+  // the build turn has to be the thing that refuses to honour it.
+  assert.ok(p.includes("that line is wrong"), "an approved plan does not license a stop");
+  assert.ok(p.includes("safety refusal"), "stopping still has exactly one legitimate cause");
+  for (const kept of ["mains", "unsealed battery", "uncertified radio"]) {
+    assert.ok(p.includes(kept), `${kept} is still refused outright`);
+  }
+});
+
+test("the plan prompt never proposes stopping as the outcome", () => {
+  const p = PLAN_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("never write a plan whose conclusion is that the build"));
+  assert.ok(p.includes("the nearest thing we can build is never nothing"));
+  assert.ok(p.includes("off-board"));
+});
+
+test("every turn carries a wall clock, because a build turn once ran 20 hours", () => {
+  const MIN = 60 * 1000;
+  // The review loop always had round caps; the turn running it had none, and
+  // on 2026-09-08 a build turn rebuilt an unchanged source for 20 hours while
+  // its error count climbed from 33 to 76.
+  // Generous on purpose: a healthy plan turn was cut at 15 minutes while still
+  // working, so these sit where only a stuck turn reaches them.
+  assert.equal(turnBudgetMs(PHASE.PLAN, {}), 40 * MIN);
+  assert.equal(turnBudgetMs(PHASE.REVIEW, {}), 60 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, {}), 300 * MIN);
+  // Overridable, including 0 to switch it off for a deliberately long session.
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "120" }), 120 * 1000);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "0" }), 0);
+  // Junk falls back to the phase default rather than to no limit at all.
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "soon" }), 300 * MIN);
+  assert.equal(turnBudgetMs(PHASE.IMPLEMENT, { CIRCUIT_TURN_MAX_S: "-5" }), 300 * MIN);
+});
+
+test("the build prompt tells both providers how long a build actually takes", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // The first version of this rule said two to six minutes and forbade
+  // backgrounding. Measured: 2133s in compile alone on a 55x55 two-layer
+  // board. The number was wrong by an order of magnitude, and the advice it
+  // carried told both providers to block for 35 minutes on one command.
+  assert.ok(p.includes("20-40 minutes"), "the measured range, not a guess");
+  assert.ok(!p.includes("two to six minutes"));
+  assert.ok(!p.includes("do not send it to the background"));
+  assert.ok(p.includes("make each round"), "and why it matters: rounds are expensive");
+});
+
+test("the prompts say what the autorouter can actually route", () => {
+  const build = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  const plan = PLAN_SYSTEM_PROMPT.toLowerCase();
+  // A 2-layer board with parts on both sides exhausts the router's iteration
+  // budget: 14 missing traces and 14 unconnected pads at both 54x54 and
+  // 55x55, while a single-sided board of the same size routed clean. The
+  // failure names no cause, so the model cannot deduce it from the verdict.
+  assert.ok(build.includes("ran out of iterations"), "the error it will see");
+  assert.ok(build.includes("one side"));
+  assert.ok(plan.includes("single-sided"), "and the plan turn is where it is decided");
+  // Needing both sides is a decision to hand back, and four layers is not the
+  // way around it: one run raised `layers` to 4 on its own, hit the exporter's
+  // inner-copper bugs, and spent the turn patching the toolchain instead.
+  assert.ok(build.includes("say so in plain words and stop"));
+  assert.ok(build.includes("layers` to 4"), "the specific move that was taken");
+  assert.ok(plan.includes("not yours to choose"));
+  // And the toolchain is not the model's to rebuild mid-board.
+  assert.ok(build.includes("not a copy of it"));
+  assert.ok(build.includes("bun"), "the launcher that hung for 35 minutes");
+});
+
+test("a toolchain bug is a report to write, not a patch to apply mid-board", () => {
+  const build = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(build.includes("write down"), "the reproduction is worth having");
+  assert.ok(build.includes("not yours to apply"));
+});
+
+test("the build prompt carries the rules that used to live only in CLAUDE.md", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // Neither provider ever reads the repo's CLAUDE.md: it sits at the repo
+  // root, and a turn's workspace is ~/.autonomous-circuit/projects/<uuid>.
+  assert.ok(p.includes("import the domain numbers"));
+  // Named to the file, not to a module path: told only "circuitlib.tables",
+  // one provider went looking for `*tables*.ts` and found nothing, because the
+  // board source is TSX and nothing said the tables are Python.
+  assert.ok(p.includes("circuitlib/tables.py"));
+  assert.ok(p.includes("no typescript copy"));
+  assert.ok(p.includes("do not"), "transcribing is forbidden, not discouraged");
+  // Web research is open to both arms, with a bar on what may be claimed.
+  assert.ok(p.includes("search the web"));
+  assert.ok(p.includes("never state a stock level"));
 });
