@@ -165,6 +165,23 @@ def load_product(project_root: Path) -> ResolvedProduct:
         raise ProjectShapeError(
             f"product.json 'layers' must be a positive integer (got {layers_raw!r})"
         )
+    # Four layers is not a thing to reach for quietly. It costs real money at
+    # the fab, and our KiCad export does not survive it: measured 2026-09-09,
+    # a 4-layer board put 3283 elements on In1.Cu/In2.Cu and segfaulted
+    # kicad-cli (exit 139) every time, so the DRC gate never ran and the board
+    # read clean where nothing had checked it. The same board with its zones
+    # stripped passed, and every 2-layer board tried passes. Until the inner
+    # copper export is fixed, a board above two layers cannot be verified, and
+    # a board that cannot be verified must not be built. Raising this is the
+    # user's decision, not a step in a build.
+    if layers_raw > 2:
+        raise SpecValidationError(
+            f"product.json asks for {layers_raw} layers. This pipeline verifies "
+            "2-layer boards only: the KiCad DRC gate segfaults on inner copper, "
+            "so a 4-layer board would come back unchecked where it reads clean. "
+            "Fit the design on 2 layers with components on one side, or stop and "
+            "ask — more layers costs more at the fab and is the user's call."
+        )
     return ResolvedProduct(
         name=name.strip(),
         description=str(raw.get("description") or ""),
