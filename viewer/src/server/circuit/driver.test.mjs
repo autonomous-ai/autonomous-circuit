@@ -1286,18 +1286,18 @@ test("buildCodexCommandArgs emits the exec flag set and reads the prompt from st
   assert.ok(!args.includes("resume"), "a fresh thread does not resume");
 });
 
-test("buildCodexCommandArgs keeps the plan turn read-only and lets build and review write", () => {
+test("buildCodexCommandArgs keeps the plan turn read-only and runs build and review unsandboxed", () => {
   const workspace = tmpdir("circuit-ws-");
   const sandboxOf = (phase) => {
     const args = buildCodexCommandArgs({ workspace, phase });
     return args[args.indexOf("--sandbox") + 1];
   };
   assert.equal(sandboxOf(PHASE.PLAN), "read-only");
-  assert.equal(sandboxOf(PHASE.IMPLEMENT), "workspace-write");
-  assert.equal(sandboxOf(PHASE.REVIEW), "workspace-write");
+  assert.equal(sandboxOf(PHASE.IMPLEMENT), "danger-full-access");
+  assert.equal(sandboxOf(PHASE.REVIEW), "danger-full-access");
   // The helper is the single owner of that decision.
   assert.equal(codexSandboxForPhase(PHASE.PLAN), "read-only");
-  assert.equal(codexSandboxForPhase(PHASE.IMPLEMENT), "workspace-write");
+  assert.equal(codexSandboxForPhase(PHASE.IMPLEMENT), "danger-full-access");
 });
 
 test("buildCodexCommandArgs omits --model when unset so the CLI keeps its own configured default", () => {
@@ -1339,10 +1339,11 @@ test("buildCodexCommandArgs resumes with the resume subcommand's own flag set", 
   assert.ok(!args.includes("--cd"), "resume takes no --cd; cwd comes from the spawn");
   assert.ok(!args.includes("--sandbox"), "resume takes no --sandbox");
   assert.ok(args.includes("--skip-git-repo-check"));
-  // The sandbox still has to be enforced, via the config key --sandbox is
-  // sugar for, or a resumed build turn would run unsandboxed.
+  // The phase's sandbox mode still has to reach codex, via the config key
+  // --sandbox is sugar for: a resumed turn must get the same mode a fresh one
+  // gets, or the two would run on different footing.
   const configs = args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
-  assert.ok(configs.includes("sandbox_mode=workspace-write"), configs.join(","));
+  assert.ok(configs.includes("sandbox_mode=danger-full-access"), configs.join(","));
 
   const images = args.map((a, i) => (a === "--image" ? args[i + 1] : null)).filter(Boolean);
   assert.deepEqual(images, ["/tmp/a.png", "/tmp/b.png"]);
@@ -1463,19 +1464,36 @@ test("parseCodexLine turns a top-level error into a visible error and tolerates 
   assert.deepEqual(parseCodexLine('{"type":"turn.started"}', "turn-1", state), []);
 });
 
-test("the writable sandbox gets network, and the read-only plan turn does not", () => {
+test("build and review run unsandboxed like the Claude arm; the plan turn stays read-only", () => {
   const workspace = tmpdir("circuit-ws-");
   const NET = "sandbox_workspace_write.network_access=true";
+  const argsOf = (opts) => buildCodexCommandArgs({ workspace, ...opts });
   const configsOf = (opts) => {
-    const args = buildCodexCommandArgs({ workspace, ...opts });
+    const args = argsOf(opts);
     return args.map((a, i) => (a === "-c" ? args[i + 1] : null)).filter(Boolean);
   };
-  // Stage 0's parts engine and block-source's supplier import both need it;
-  // without it a build turn dies at SOURCE with a connection error.
-  assert.ok(configsOf({ phase: PHASE.IMPLEMENT }).includes(NET));
-  assert.ok(configsOf({ phase: PHASE.REVIEW }).includes(NET));
-  assert.ok(configsOf({ phase: PHASE.IMPLEMENT, sessionId: "sid" }).includes(NET), "resume too");
-  // A read-only turn cannot write, and does not get to reach the network either.
+  const sandboxOf = (opts) => {
+    const args = argsOf(opts);
+    const i = args.indexOf("--sandbox");
+    return i >= 0 ? args[i + 1] : "";
+  };
+  // Under workspace-write, kicad-cli aborted at startup on every Codex build
+  // (exit -6, measured 2026-09-09 on desk-cube-ship) and the KiCad DRC gate
+  // never ran, while the same file passed in 2.3s on the unsandboxed Claude
+  // arm. Both arms now run the build on the same footing.
+  assert.equal(sandboxOf({ phase: PHASE.IMPLEMENT }), "danger-full-access");
+  assert.equal(sandboxOf({ phase: PHASE.REVIEW }), "danger-full-access");
+  assert.ok(configsOf({ phase: PHASE.IMPLEMENT, sessionId: "sid" }).includes("sandbox_mode=danger-full-access"), "resume too");
+  assert.ok(configsOf({ phase: PHASE.REVIEW, sessionId: "sid" }).includes("sandbox_mode=danger-full-access"), "resumed review too");
+  // With no sandbox there is nothing to punch a network hole through; the old
+  // workspace-write opt-in must not linger as a stray config key.
+  for (const opts of [{ phase: PHASE.IMPLEMENT }, { phase: PHASE.REVIEW }, { phase: PHASE.IMPLEMENT, sessionId: "sid" }]) {
+    assert.ok(!configsOf(opts).includes(NET), JSON.stringify(opts));
+  }
+  // A plan turn proposes a spec and may not write board source; it stays
+  // read-only, fresh or resumed, and does not get to reach the network either.
+  assert.equal(sandboxOf({ phase: PHASE.PLAN }), "read-only");
+  assert.ok(configsOf({ phase: PHASE.PLAN, sessionId: "sid" }).includes("sandbox_mode=read-only"));
   assert.ok(!configsOf({ phase: PHASE.PLAN }).includes(NET));
   assert.ok(!configsOf({ phase: PHASE.PLAN, sessionId: "sid" }).includes(NET));
 });

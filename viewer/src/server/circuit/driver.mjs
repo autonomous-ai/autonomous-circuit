@@ -394,10 +394,24 @@ export function permissionModeForPhase(phase) {
 /** Codex's equivalent lever. The plan turn is read-only by contract — it
  * proposes a spec and the build turn is the one allowed to write, which is what
  * IMPLEMENT_SYSTEM_PROMPT means by "the plan phase was read-only and could not
- * do this". A single hardcoded workspace-write would let a plan turn edit board
- * source with nothing snapshotted to undo it. */
+ * do this". A single hardcoded writable mode would let a plan turn edit board
+ * source with nothing snapshotted to undo it.
+ *
+ * Build and review run with NO sandbox — the same footing as the Claude arm's
+ * bypassPermissions — and not `workspace-write`, which is what they ran under
+ * until 2026-09-09. Measured that day on desk-cube-ship: under the seatbelt
+ * kicad-cli 10.0.5 aborts at startup (exit -6, `wxGetMousePosition` →
+ * `_RegisterApplication`, no output), so the KiCad DRC gate never ran on a
+ * single Codex build and every sidecar carried `gate_did_not_run`. The agent
+ * rebuilt one board three times to the byte-identical verdict and wrote a
+ * toolchain bug report about it. Reproduced without a model in the loop:
+ * `codex sandbox -c sandbox_mode=workspace-write -- kicad-cli pcb drc ...`
+ * exits 134; `-c sandbox_mode=danger-full-access` exits 0 with 120 findings
+ * in 2.3s, exactly what the unsandboxed Claude arm sees on the same file.
+ * A gate that runs on one arm and silently never on the other is a gap we
+ * built, not a difference between the models. */
 export function codexSandboxForPhase(phase) {
-  return phase === PHASE.PLAN ? "read-only" : "workspace-write";
+  return phase === PHASE.PLAN ? "read-only" : "danger-full-access";
 }
 
 /** Wire tag carried on turn_start. Review rides under `implement` (it never
@@ -537,16 +551,13 @@ export function buildCodexCommandArgs({
   } else {
     args.push("--cd", String(workspace), "--sandbox", sandbox);
   }
-  // Codex's writable sandbox blocks network by default, and the pipeline has
-  // two sanctioned network touches inside a build: stage 0's parts engine and
-  // block-source's supplier import. Verified 2026-09-07 that without this a
-  // real build turn dies at SOURCE with "Unable to connect. Is the computer
-  // able to access the url?", leaving records that can never grade ok. The
-  // plan phase stays read-only and therefore stays offline. This is still
-  // narrower than the Claude arm, which runs bypassPermissions unsandboxed.
-  if (sandbox === "workspace-write") {
-    args.push("-c", "sandbox_workspace_write.network_access=true");
-  }
+  // Build and review run unsandboxed (see codexSandboxForPhase), so the
+  // pipeline's two sanctioned network touches — stage 0's parts engine and
+  // block-source's supplier import — need no separate opt-in any more. Under
+  // the old workspace-write sandbox they did: verified 2026-09-07 that without
+  // `sandbox_workspace_write.network_access=true` a build turn died at SOURCE
+  // with "Unable to connect. Is the computer able to access the url?". The
+  // plan phase stays read-only and therefore stays offline.
   if (model) args.push("--model", String(model));
   // Codex has no --effort flag; the same product decision reaches it as a
   // config override. All five of our EFFORT_LEVELS are accepted by
