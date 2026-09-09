@@ -478,3 +478,22 @@ test("every finding kind the fleet emits has words behind it", () => {
     "these finding kinds render as raw identifiers in the app; give them a title and a meaning in ISSUES",
   );
 });
+
+test("the dictionary cannot promote a non-error finding to 'stops the order'", () => {
+  // 2026-09-09: a fab-ready board read "1 stop the order" for an info-level
+  // dfa_off_board (a USB-C keep-out 0.48mm past the edge it hangs over), next
+  // to a green "Ready to order". The sidecar's severity is the authority.
+  const [info] = groupFindings([
+    row({ kind: "dfa_off_board", severity: "info", part: "J1", detail: "J1's keep-out extends 0.481mm past the board outline" }),
+  ]);
+  assert.equal(info.blocking, false);
+  assert.notEqual(info.impact, IMPACT.BLOCKS);
+  assert.equal(impactCounts([info]).blocks, 0);
+
+  const [error] = groupFindings([
+    row({ kind: "dfa_off_board", severity: "error", part: "U2", detail: "U2 is outside the board outline" }),
+  ]);
+  assert.equal(error.blocking, true);
+  assert.equal(error.impact, IMPACT.BLOCKS);
+  assert.equal(impactCounts([error]).blocks, 1);
+});

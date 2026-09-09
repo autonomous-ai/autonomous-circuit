@@ -14,6 +14,11 @@ import {
   APPROVE_PLAN_PREAMBLE,
   IMPLEMENT_SYSTEM_PROMPT,
   PLAN_SYSTEM_PROMPT,
+  REVIEW_SYSTEM_PROMPT,
+  REVIEW_SIDECAR_POLL_MS,
+  roundMadeItWorse,
+  parseCodexRolloutHistory,
+  findCodexRolloutPath,
   ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
@@ -1598,13 +1603,32 @@ test("every turn carries a wall clock, because a build turn once ran 20 hours", 
 test("the build prompt tells both providers how long a build actually takes", () => {
   const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
   // The first version of this rule said two to six minutes and forbade
-  // backgrounding. Measured: 2133s in compile alone on a 55x55 two-layer
-  // board. The number was wrong by an order of magnitude, and the advice it
-  // carried told both providers to block for 35 minutes on one command.
-  assert.ok(p.includes("20-40 minutes"), "the measured range, not a guess");
+  // backgrounding. Then one 55x55 build spent 2133s in compile and the rule
+  // said "20-40 minutes" — and a Claude arm reading that sat in `sleep 590`
+  // loops while 25 builds measured on 2026-09-09 took 6 to 9 minutes each.
+  // Both numbers were real once; the rule now carries the typical AND the
+  // outlier and says to wait for the process, not for a number.
+  assert.ok(p.includes("6-10 minutes"), "the measured typical range");
+  assert.ok(p.includes("2133 seconds"), "and the measured outlier, not forgotten");
+  assert.ok(p.includes("wait"), "wait for the process");
   assert.ok(!p.includes("two to six minutes"));
   assert.ok(!p.includes("do not send it to the background"));
   assert.ok(p.includes("make each round"), "and why it matters: rounds are expensive");
+});
+
+test("the build prompt forbids hand copper and router reordering, and keeps asked-for parts on the board", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // Desk Cube USB Controller, 2026-09-09: `pcbPath` copper took the board from
+  // 9 to 73 findings because the router's obstacle set has no traces in it;
+  // `routingPhaseIndex` aborted the router. Both were the model's own idea.
+  assert.ok(p.includes("never hand-draw copper"));
+  assert.ok(p.includes("pcbpath"));
+  assert.ok(p.includes("routingphaseindex"));
+  assert.ok(p.includes("not from"), "the mechanism is stated, so the ban reads as a fact");
+  // Same board: an 8-pixel ring the user asked for became a header labelled
+  // LED8. The other arm soldered the ring. Neither prompt had said which.
+  assert.ok(p.includes("stays on the board"));
+  assert.ok(p.includes("only when sourcing has failed"));
 });
 
 test("the prompts say what the autorouter can actually route", () => {
@@ -1648,4 +1672,108 @@ test("the build prompt carries the rules that used to live only in CLAUDE.md", (
   // Web research is open to both arms, with a bar on what may be claimed.
   assert.ok(p.includes("search the web"));
   assert.ok(p.includes("never state a stock level"));
+});
+
+// ---------------------------------------------------------------------------
+// 2026-09-09, pomodoro-puck: a review structure round ran 2h06 with no clock,
+// went 2→14→3→2→78→6→2→32→3→2 blocking findings fixing one thing per build,
+// and nothing put the board back when a build came out worse. Three rules.
+// ---------------------------------------------------------------------------
+
+test("the review prompt tells the model to batch its fixes and that a worse round is undone", () => {
+  const p = REVIEW_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("fix everything"), "batching was only in the build prompt before");
+  assert.ok(p.includes("rebuild once"), "and says what batching means");
+  assert.ok(p.includes("worse than it found it"), "the ratchet is stated to the model, not only enforced");
+  // The two detours that cost 40 minutes on the Desk Cube build.
+  assert.ok(p.includes("pcbpath"));
+  assert.ok(p.includes("routingphaseindex"));
+});
+
+test("the plan prompt makes a size change a question, never a plan detail", () => {
+  const p = PLAN_SYSTEM_PROMPT.toLowerCase();
+  // Autopilot approves a plan without anyone reading it, so a size written
+  // into the plan is a size nobody agreed to: 45mm asked, 75mm built.
+  assert.ok(p.includes("the board size is the user's decision"));
+  assert.ok(p.includes("do not propose a plan at a bigger"));
+  assert.ok(p.includes("circuit-questions block instead"));
+});
+
+test("roundMadeItWorse is strictly more blocking findings, and never fires on an unreadable board", () => {
+  assert.equal(roundMadeItWorse(2, 78), true);
+  assert.equal(roundMadeItWorse(2, 2), false, "equal is kept — it may be a trade on the way somewhere");
+  assert.equal(roundMadeItWorse(14, 3), false);
+  assert.equal(roundMadeItWorse(0, 1), true, "a clean board made unclean is worse");
+  assert.equal(roundMadeItWorse(null, 5), false, "no sidecar before: nothing to compare against");
+  assert.equal(roundMadeItWorse(5, undefined), false);
+  assert.equal(roundMadeItWorse(NaN, 1), false);
+});
+
+test("a review round watches the sidecar often enough to show a rebuild, not so often it is noise", () => {
+  // A build is 6–9 minutes; the sidecar changes once per build.
+  assert.ok(REVIEW_SIDECAR_POLL_MS >= 5_000 && REVIEW_SIDECAR_POLL_MS <= 60_000, String(REVIEW_SIDECAR_POLL_MS));
+});
+
+test("parseCodexRolloutHistory returns the user's own words and the assistant's, and nothing of the harness", () => {
+  const workspace = "/Users/x/.autonomous-circuit/projects/abc";
+  const line = (ts, role, text) =>
+    JSON.stringify({ timestamp: ts, type: "response_item", payload: { type: "message", role, content: [{ type: "input_text", text }] } });
+  const rollout = [
+    JSON.stringify({ timestamp: "2026-09-09T04:39:49.000Z", type: "session_meta", payload: { id: "sid" } }),
+    line("2026-09-09T04:39:50.000Z", "user", "<environment_context>\n  <cwd>/x</cwd>\n</environment_context>"),
+    line("2026-09-09T04:39:51.000Z", "user", "<recommended_plugins>\n- Airtable\n</recommended_plugins>"),
+    line(
+      "2026-09-09T04:39:52.000Z",
+      "user",
+      "You are running inside Autonomous Circuit, the AI PCB studio. Every user\nmessage is a request to design or refine a printed circuit board. You are\nin PLANNING mode...\n\n" +
+        "PROJECT WORKSPACE. This project lives in the single absolute directory below. Every file...\n" +
+        `${workspace}\n\n` +
+        "Tao muốn một cái \"desk cube\" điều khiển bằng USB-C.\n\n- RP2040\n- BME280\n\n" +
+        "[Effort: high — think hard before writing the board. Check every block's pin assignment.]",
+    ),
+    JSON.stringify({ timestamp: "2026-09-09T04:40:00.000Z", type: "response_item", payload: { type: "reasoning", summary: [] } }),
+    line("2026-09-09T04:41:00.000Z", "assistant", "Đây là kế hoạch.\n\n```circuit-plan\n# Plan\n```"),
+    line(
+      "2026-09-09T07:25:56.000Z",
+      "user",
+      "You are running inside Autonomous Circuit, the AI PCB studio. An automatic\npost-build review of the board you just built is running. Work SILENTLY...\n\n" +
+        `PROJECT WORKSPACE...\n${workspace}\n\nStructure and electrical function are clean. Do ONE craft verification pass now.`,
+    ),
+    line("2026-09-09T07:44:49.000Z", "assistant", "NO_CHANGES"),
+    "not json at all",
+  ].join("\n");
+
+  const history = parseCodexRolloutHistory(rollout, { workspace });
+  assert.deepEqual(
+    history.map((h) => [h.role, h.content.split("\n")[0]]),
+    [
+      ["user", 'Tao muốn một cái "desk cube" điều khiển bằng USB-C.'],
+      ["assistant", "Đây là kế hoạch."],
+      ["assistant", "NO_CHANGES"],
+    ],
+  );
+  const [first] = history;
+  assert.ok(!first.content.includes("You are running inside"), "the phase preamble is not the user's message");
+  assert.ok(!first.content.includes("[Effort:"), "the effort suffix is a setting, not something typed");
+  assert.ok(first.content.endsWith("- BME280"), first.content);
+  assert.equal(first.at, Date.parse("2026-09-09T04:39:52.000Z"));
+  assert.deepEqual(history[1].blocks, [{ kind: "text", text: history[1].content }]);
+  // The review-round prompt is the silent loop talking to itself, not chat.
+  assert.ok(history.every((h) => !h.content.includes("craft verification")));
+});
+
+test("findCodexRolloutPath walks CODEX_HOME/sessions newest day first, by session id suffix", () => {
+  const home = tmpdir("circuit-codex-home-");
+  const env = { CODEX_HOME: home };
+  assert.equal(findCodexRolloutPath("01a0-sid", env), "", "nothing there yet");
+  assert.equal(findCodexRolloutPath("", env), "", "no id, no lookup");
+  const old = path.join(home, "sessions", "2026", "09", "08");
+  const today = path.join(home, "sessions", "2026", "09", "09");
+  fs.mkdirSync(old, { recursive: true });
+  fs.mkdirSync(today, { recursive: true });
+  fs.writeFileSync(path.join(old, "rollout-2026-09-08T10-00-00-other-sid.jsonl"), "");
+  fs.writeFileSync(path.join(today, "rollout-2026-09-09T11-39-49-01a0-sid.jsonl"), "");
+  assert.equal(findCodexRolloutPath("01a0-sid", env), path.join(today, "rollout-2026-09-09T11-39-49-01a0-sid.jsonl"));
+  assert.equal(findCodexRolloutPath("other-sid", env), path.join(old, "rollout-2026-09-08T10-00-00-other-sid.jsonl"));
+  assert.equal(findCodexRolloutPath("nobody", env), "");
 });

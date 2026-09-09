@@ -754,6 +754,18 @@ export function groupFindings(rows) {
     }
   }
 
+  // The dictionary says what a code MEANS for the board; the sidecar says
+  // whether it BLOCKS. When they disagree the sidecar wins: `dfa_off_board`
+  // is a blocker when a part sits outside the outline, and an info note when
+  // a USB-C keep-out hangs 0.48mm past an edge it is meant to hang past. On
+  // 2026-09-09 a fab-ready board read "1 stop the order" for exactly that
+  // note, next to a green "Ready to order" — two answers on one screen.
+  for (const group of groups.values()) {
+    if (!group.blocking && group.impact === IMPACT.BLOCKS) {
+      group.impact = IMPACT.QUALITY;
+    }
+  }
+
   return [...groups.values()].sort(
     (a, b) =>
       Number(b.blocking) - Number(a.blocking) ||
