@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 import re
 import sys
+import json
 import unittest
 from pathlib import Path
 
@@ -321,8 +322,39 @@ class RunTscircuitChecks(EnvGuard, unittest.TestCase):
     def test_findings_on_bad_overlap(self) -> None:
         warnings = checks.run_tscircuit_checks(FIXTURES / "bad-overlap.circuit.json")
         self.assertTrue(warnings)
-        self.assertTrue(all(w["severity"] == "error" for w in warnings))
+        for w in warnings:
+            expected = "warning" if w["kind"].endswith("_warning") else "error"
+            self.assertEqual(w["severity"], expected, w)
         self.assertNotIn("check_failed", {w["kind"] for w in warnings})
+
+    def test_the_node_leg_grades_by_suffix_like_the_scan(self) -> None:
+        """A ``*_warning`` from @tscircuit/checks is a warning, whoever reports it.
+
+        2026-09-10, Claude desk-cube: the scan measured the crystal trace at
+        12.64mm and graded `pcb_trace_too_long_warning` a warning; this leg
+        measured 12.65mm, stamped it `error`, `dedupe` saw two different
+        details, and the error copy blocked a board the fab policy calls
+        orderable. Grading at the source removes the dependence on dedupe.
+        """
+        findings = [
+            {"type": "pcb_trace_too_long_warning",
+             "message": "PCB trace is 12.65mm long, exceeding the 10mm maximum"},
+            {"type": "pcb_trace_error",
+             "message": "PCB trace overlaps with pcb_via (accidental contact)"},
+            {"error_type": "pcb_placement_error", "message": "overlap"},
+        ]
+        original = checks.toolchain.run_node
+        checks.toolchain.run_node = lambda *_a, **_k: "noise\n" + json.dumps(findings)
+        try:
+            warnings = checks.run_tscircuit_checks(FIXTURES / "good.circuit.json")
+        finally:
+            checks.toolchain.run_node = original
+        self.assertEqual(
+            [(w["kind"], w["severity"]) for w in warnings],
+            [("pcb_trace_too_long_warning", "warning"),
+             ("pcb_trace_error", "error"),
+             ("pcb_placement_error", "error")],
+        )
 
     def test_clean_on_good(self) -> None:
         warnings = checks.run_tscircuit_checks(FIXTURES / "good.circuit.json")

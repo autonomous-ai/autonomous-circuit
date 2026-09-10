@@ -523,8 +523,20 @@ def run_tscircuit_checks(
     max_outline_points: int = 0,
 ) -> list[Warning]:
     """``runAllChecks`` via the packaged node helper. Findings become
-    warnings with kind = the finding's type (severity error — the library
-    only reports genuine DRC failures). Never raises.
+    warnings with kind = the finding's type. Never raises.
+
+    Severity follows the kind's own suffix, exactly as :func:`harvest_circuit_json`
+    grades the compiler's elements: ``*_warning`` is a warning, everything
+    else the library reports is an error. Until 2026-09-10 every finding here
+    was stamped ``error``, on the reading that the library "only reports
+    genuine DRC failures" — and it does report ``pcb_trace_too_long_warning``,
+    which the fab policy deliberately keeps advisory (``fab.py``,
+    "oscillator that is marginal, not broken"). The stamp only ever stayed
+    hidden because ``dedupe`` dropped this leg's copy behind the scan's when
+    the two details matched byte for byte. Measured on the Claude desk-cube
+    board that day: the scan said 12.64mm, this leg said 12.65mm, nothing
+    merged, and the error copy blocked a board the policy calls orderable.
+    A rounding difference is not a severity policy.
 
     ``skip`` drops named routing checks; only the IDE's sub-second edit gate
     passes it, and only for ``checkTracesAreContiguous`` (1,491ms of 2,319ms
@@ -551,7 +563,8 @@ def run_tscircuit_checks(
             detail = finding.get("message")
             if not isinstance(detail, str) or not detail.strip():
                 detail = json.dumps(finding, sort_keys=True)[:300]
-            warnings.append(_warning(_localize(finding, {}), kind, detail, "error"))
+            severity = "warning" if kind.endswith("_warning") else "error"
+            warnings.append(_warning(_localize(finding, {}), kind, detail, severity))
         return warnings
     except Exception as exc:
         return [check_failed(f"@tscircuit/checks run failed: {exc}")]
