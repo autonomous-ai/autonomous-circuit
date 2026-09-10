@@ -171,6 +171,13 @@ Four things that are not optional:
 
 ## The loop
 
+**Two loops, in this order.** First the *placement* loop — edit TSX, run
+`scripts/circuit`, read the verdict — until the parts sit where they should and
+the board routes. Then the *repair* loop — read a copper finding, write
+`edits.json`, run `scripts/circuit … --edits`, read the verdict in thirty seconds
+— until the copper is clean. Do not go back to the placement loop for a copper
+finding: a rebuild re-routes every net and the finding moves somewhere else.
+
 ```
 understand ask → inspect project → block plan → edit main.tsx
       ↑                                              ↓
@@ -339,7 +346,35 @@ python -m circuitpy.fastcheck /abs/project --board boards/main.circuit.json
 # Review pass — re-surface warnings and regenerate the review images
 # without rebuilding. Returns the PNG paths.
 python ~/.claude/skills/circuitcode/scripts/review /abs/project
+
+# REPAIR MODE (2026-09-10) — the board is already routed; keep that routing.
+# `--recheck` re-runs the WHOLE gauntlet (checks, KiCad ERC/DRC, DFM, packet,
+# renders, sidecar) on boards/<stem>.circuit.json as it stands: ~30s, no
+# compile, no router. `--edits` applies surgical copper edits to it first.
+python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx --recheck
+python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx --edits /abs/project/edits.json
 ```
+
+`edits.json` is a list; every edit names one trace or one via by the ids in
+`circuit.json` (`pcb_trace_id`, `pcb_via_id`) and board millimetres:
+
+```json
+[
+  {"op": "move_point",    "trace": "source_net_7_mst3_0", "index": 39, "x": 2.29, "y": 6.70},
+  {"op": "move_via",      "via": "pcb_via_22", "x": 1.80, "y": 7.45},
+  {"op": "insert_point",  "trace": "source_net_7_mst3_0", "after": 40, "x": 2.45, "y": 6.80},
+  {"op": "delete_points", "trace": "source_net_7_mst3_0", "indices": [41, 42]}
+]
+```
+
+`move_via` carries every route point sitting on the via, so the join the
+contiguity check measures stays a join. Refused, with the board untouched: a
+pad-anchored point, a via through `move_point`, an unknown id, more than 200
+edits (that is a re-route, not a repair). The sidecar records
+`build.repairMode.repairs`; a later build from TSX re-routes everything and
+reports `repairs_discarded`. Why this exists: the same one-via defect cost
+twelve rebuilds by placement (the router re-routes every net, the defect
+moves) and thirty seconds by repair — see `docs/reports/v2-kicad-native-plan.md`.
 
 Flags: `--stem NAME` (which board, when a project has several), `--out-dir DIR`,
 `--fab jlcpcb`, `--wall-clock-s S`. Each command prints **exactly one JSON line**.

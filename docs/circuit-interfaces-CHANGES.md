@@ -311,4 +311,31 @@ first, in this template, before the doc itself is edited:
   reporting the board unresolved after two five-second "rounds".
 - **Tracks affected:** server (driver readers). No client, skill or pipeline change.
 
+## 2026-09-10 — Repair mode: the routed board is an input, not only an output
+- **Change:** `build_board(reuse_circuit_json=…, repairs=…)` and the skill CLI's
+  `--recheck` / `--edits <edits.json>`. Repair mode skips stage 0 (compile +
+  router) and the four post-route copper passes, takes `boards/<stem>.circuit.json`
+  as the routed IR, optionally applies `circuitpy.repair` edits (move a route
+  point, move a via with the wires on it, insert/delete points — never a net,
+  pad, part or layer), and runs every later stage unchanged: scan, checks,
+  KiCad ERC/DRC, DFM, verify, packet, gerber-truth, renders, sidecar. The
+  sidecar gains `build.repairMode {reusedCircuitJson, postRoutePasses, repairs}`
+  and the result line `build.repair_mode`. A build from TSX after a repair round
+  reports `repairs_discarded` (info). §1's "stdout JSON line, sidecar
+  camelCase, artifact order" are unchanged; §1's "the IR of record is produced
+  by compile" now has a second producer, the repair round.
+- **Why:** measured 2026-09-10. Astra run #4 spent twelve rebuilds and two
+  hours on one via; Claude's desk cube went 3 → 1 → 7 moving a crystal to fix a
+  12 mm trace, because every fix was "edit TSX, re-route everything" and the
+  defect moved each time. The harness-free Astra board converged in a 1-minute
+  fix–check cycle by repairing copper in place. Replaying the gauntlet on a
+  repaired IR takes 30 s against 5–12 min; the errors do not migrate.
+- **Backward compatible:** yes — nothing changes for a build that does not pass
+  the flag. The unchanged-source short-circuit still returns a repaired
+  sidecar as long as the TSX is unchanged, which is the persistence a repair
+  gets in v1.5; persistence across a re-route is v2.
+- **Tracks affected:** pipeline (`generation.py`, new `repair.py`), skill
+  runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts
+  (build + review). Client unchanged.
+
 (No further entries yet.)

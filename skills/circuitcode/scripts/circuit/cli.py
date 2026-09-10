@@ -10,6 +10,9 @@ contract §1 artifact set next to the output path:
 
 Prints a single JSON line on stdout matching contract §3
 ``CircuitcodeResult``. Every path in it is workspace-relative.
+
+``--recheck`` / ``--edits`` are repair mode (2026-09-10): the routed board is
+the input, not the TSX — no compile, no router, ~30 s.
 """
 
 from __future__ import annotations
@@ -63,6 +66,27 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Fab profile id. Default: env CIRCUIT_FAB, else 'jlcpcb' (v1's "
             "only real profile)."
+        ),
+    )
+    p.add_argument(
+        "--recheck",
+        action="store_true",
+        help=(
+            "REPAIR MODE: skip the compile and the router, take the existing "
+            "<stem>.circuit.json as the routed board, and re-run every later "
+            "stage on it (checks, KiCad, DFM, packet, renders, sidecar) in "
+            "about thirty seconds."
+        ),
+    )
+    p.add_argument(
+        "--edits",
+        type=Path,
+        default=None,
+        help=(
+            "REPAIR MODE with edits: apply this JSON list of copper edits "
+            "(move_point / move_via / insert_point / delete_points, see "
+            "circuitpy.repair) to <stem>.circuit.json, then --recheck. A refused "
+            "edit leaves the board untouched."
         ),
     )
     p.add_argument(
@@ -127,6 +151,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         stem=stem,
         fab=args.fab,
         wall_clock_s=args.wall_clock_s,
+        recheck=args.recheck,
+        edits=(args.edits.resolve() if args.edits else None),
     )
 
     print(json.dumps(payload))
