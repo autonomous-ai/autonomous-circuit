@@ -23,10 +23,14 @@ export function settingsFilePath(env = process.env) {
 // stronger model earns its cost — a repair round costs far more than the
 // tokens saved, and a wrong board costs $85 and two weeks.
 //
-// The default provider is codex while GPT-6 Astra is being measured against
-// that bar. It is a live experiment, not a settled answer: flip this back to
-// "claude" the moment the comparison is done or inconclusive.
-export const DEFAULT_PROVIDER = "codex";
+// The default provider is claude. It was codex from 2026-09-07 to 2026-09-09
+// while GPT-6 Astra was being measured, and that default only ever worked on
+// this one machine: `gpt-6-astra` answers on a ChatGPT team login and is
+// refused (HTTP 400) on a personal one, and a clone without Codex.app resolves
+// no executable at all. Every teammate has `claude`; a fresh clone must build
+// a board on the arm everyone has. The switcher still offers codex for the
+// comparison, per machine, on purpose.
+export const DEFAULT_PROVIDER = "claude";
 export const PROVIDERS = Object.freeze(["claude", "codex"]);
 // Empty = pass no --model, so each CLI keeps its own configured default. That
 // is the only choice that is correct on an account whose entitlements we have

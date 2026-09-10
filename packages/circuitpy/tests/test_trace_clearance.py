@@ -389,3 +389,72 @@ class TraceClearanceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ViaAnchorTest(unittest.TestCase):
+    """The via and the wire endpoints that meet it are one anchor.
+
+    Measured 2026-09-10 (pomodoro-puck run #4, twelve builds): every blocker
+    from build 4 on was `pcb_trace_error` "via misaligned" by 0.01–0.04mm, and
+    every affected trace was in this pass's own report. The pass never moved a
+    via — it moved the wire vertex sitting on the via, and the contiguity
+    check (0.01mm) then read the join as broken.
+    """
+
+    def _elements(self):
+        # Pad spans y in [-0.5, 0.5]. A track at y = 0.715 leaves 0.115mm, so
+        # the pass wants to push it. The layer change sits right over the pad:
+        # wire(top) -> via -> wire(bottom), all three at (0, 0.715).
+        return _board() + [
+            _net("net_a", "KEY_A"),
+            {"type": "source_port", "source_port_id": "sp_a",
+             "subcircuit_connectivity_map_key": "KEY_A"},
+            _port("pp_a", "sp_a"),
+            _pad("pad_a", 0.0, 0.0, port="pp_a"),
+            _pad("pad_b", 0.0, 0.0, port=None, layer="bottom"),
+            _trace("t_b", [
+                _wire(-4.0, 0.715),
+                _wire(0.0, 0.715),
+                {"route_type": "via", "x": 0.0, "y": 0.715,
+                 "from_layer": "top", "to_layer": "bottom",
+                 "via_diameter": 0.6, "via_hole_diameter": 0.3},
+                _wire(0.0, 0.715, layer="bottom"),
+                _wire(4.0, 0.715, layer="bottom"),
+            ]),
+        ]
+
+    def test_wire_endpoints_on_a_via_stay_on_it(self):
+        _, after, _ = _run(self._elements())
+        route = _route_of(after, "t_b")
+        via = route[2]
+        self.assertEqual((via["x"], via["y"]), (0.0, 0.715))
+        for k in (1, 3):
+            self.assertEqual(
+                (route[k]["x"], route[k]["y"]), (via["x"], via["y"]),
+                f"route[{k}] is the via's anchor and must sit on it",
+            )
+
+    def test_the_far_ends_may_still_move(self):
+        """Pinning the join does not pin the whole trace."""
+        result, after, _ = _run(self._elements())
+        route = _route_of(after, "t_b")
+        # The tight top segment is (route[0], route[1]); route[1] is pinned,
+        # route[0] is free and the segment still needs relief on that side.
+        self.assertTrue(result.ran)
+        self.assertGreaterEqual(route[0]["y"], 0.715)
+
+    def test_a_wire_merely_near_a_via_is_not_anchored(self):
+        """0.01mm is the checker's tolerance; beyond it the join is already
+        broken and not this pass's to protect."""
+        route = [
+            _wire(-4.0, 0.715),
+            _wire(0.05, 0.715),
+            {"route_type": "via", "x": 0.0, "y": 0.715,
+             "from_layer": "top", "to_layer": "bottom",
+             "via_diameter": 0.6, "via_hole_diameter": 0.3},
+            _wire(0.0, 0.715, layer="bottom"),
+        ]
+        anchored = trace_clearance._via_anchored([{"route": route}])
+        self.assertNotIn(id(route[1]), anchored)
+        self.assertIn(id(route[3]), anchored)
+        self.assertNotIn(id(route[2]), anchored, "the via itself is pinned by _movable, not here")

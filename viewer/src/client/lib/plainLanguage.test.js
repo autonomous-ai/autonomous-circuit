@@ -156,7 +156,20 @@ test("groupFixRequest carries the plain words AND the exact code", () => {
   assert.match(text, /hole_clearance/);
   assert.match(text, /on main/);
   assert.match(text, /Track \[GND\]/);
-  assert.match(text, /rebuild/i);
+  // copper: the request asks for repair mode, not a rebuild (2026-09-10 —
+  // "Then rebuild" sent the plan turn hunting pcbPath in @tscircuit/core)
+  assert.match(text, /repair it in place/);
+  assert.match(text, /--edits/);
+  assert.match(text, /Do not rebuild from the TSX/);
+});
+
+test("groupFixRequest still asks for a rebuild when a part has to move", () => {
+  const [group] = groupFindings([
+    row({ severity: "error", part: "J1", kind: "dfa_off_board", detail: "USB-C keep-out 0.48mm past the edge" }),
+  ]);
+  const text = groupFixRequest(group, { board: "main" });
+  assert.match(text, /rebuild and re-run/);
+  assert.doesNotMatch(text, /--edits/);
 });
 
 test("plural and joinWords keep the copy readable", () => {
@@ -477,4 +490,23 @@ test("every finding kind the fleet emits has words behind it", () => {
     [],
     "these finding kinds render as raw identifiers in the app; give them a title and a meaning in ISSUES",
   );
+});
+
+test("the dictionary cannot promote a non-error finding to 'stops the order'", () => {
+  // 2026-09-09: a fab-ready board read "1 stop the order" for an info-level
+  // dfa_off_board (a USB-C keep-out 0.48mm past the edge it hangs over), next
+  // to a green "Ready to order". The sidecar's severity is the authority.
+  const [info] = groupFindings([
+    row({ kind: "dfa_off_board", severity: "info", part: "J1", detail: "J1's keep-out extends 0.481mm past the board outline" }),
+  ]);
+  assert.equal(info.blocking, false);
+  assert.notEqual(info.impact, IMPACT.BLOCKS);
+  assert.equal(impactCounts([info]).blocks, 0);
+
+  const [error] = groupFindings([
+    row({ kind: "dfa_off_board", severity: "error", part: "U2", detail: "U2 is outside the board outline" }),
+  ]);
+  assert.equal(error.blocking, true);
+  assert.equal(error.impact, IMPACT.BLOCKS);
+  assert.equal(impactCounts([error]).blocks, 1);
 });

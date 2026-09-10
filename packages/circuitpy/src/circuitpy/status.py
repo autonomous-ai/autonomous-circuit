@@ -46,6 +46,13 @@ def status_path(project_root: Path) -> Path:
     return Path(project_root) / ".circuit" / STATUS_FILENAME
 
 
+def _pgid() -> int | None:
+    try:
+        return os.getpgid(0)
+    except (AttributeError, OSError):  # Windows has no process groups
+        return None
+
+
 class BuildStatus:
     """Records which stage a build is on. Never raises."""
 
@@ -56,6 +63,14 @@ class BuildStatus:
         self._started = time.time()
 
     def _write(self, payload: dict) -> None:
+        # Who is writing. A status file says `running` for as long as its
+        # writer lives — and for ever after, if the writer was killed
+        # mid-build. The pid lets a reader tell those apart, and the pgid lets
+        # the app's driver reach a build the agent backgrounded, which is not
+        # a child of the provider it kills (2026-09-10, pomodoro-puck run #4:
+        # a build survived the stop and overwrote the board four minutes after
+        # the verdict was read).
+        payload = {**payload, "pid": os.getpid(), "pgid": _pgid()}
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._path.with_suffix(".tmp")

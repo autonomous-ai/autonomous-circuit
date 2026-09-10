@@ -106,6 +106,23 @@ export const PLAN_SYSTEM_PROMPT = [
   "circuit generator or produce/update board artifacts yet — the build",
   "happens only after the plan is approved.",
   "",
+  "IF THE PROJECT ALREADY HAS A ROUTED BOARD (boards/<stem>.circuit.json and",
+  "its .board.json exist) AND THE ASK NAMES COPPER — a trace too long or too",
+  "close, a via on a track, a short, a clearance, a pair not coupled — PLAN A",
+  "REPAIR, NOT A REBUILD. The build step has a repair mode:",
+  "`python ~/.claude/skills/circuitcode/scripts/circuit <board.tsx> --recheck`",
+  "re-runs the whole gauntlet on the routed copper in ~30s, and",
+  "`… --edits <edits.json>` first applies surgical edits (move_point,",
+  "move_via with the wires on it, insert_point, delete_points) to the",
+  "circuit.json. Your plan then says: which trace ids and route points move,",
+  "to where, and why the copper around them (pads and vias within 0.5mm on",
+  "both layers — read them from the circuit.json now, that is read-only)",
+  "leaves room. Do NOT plan `pcbPath`, `pcbStraightLine`, route hints or a",
+  "router change: the router does not avoid copper placed before it, and a",
+  "rebuild from TSX re-routes every net and moves the defect (measured",
+  "2026-09-10: twelve rebuilds on one via, thirty seconds by repair). Plan a",
+  "TSX change only when a PART has to move or change.",
+  "",
   "READ THE CATALOG BEFORE YOU WRITE A WORD. For a NEW board, invoke the",
   "circuit-analysis skill (~/.claude/skills/circuit-analysis) first — it",
   "carries the list of golden blocks that actually exist. Nothing may be",
@@ -192,6 +209,17 @@ export const PLAN_SYSTEM_PROMPT = [
   "plan, name what it would take, and let the user decide. Never write a plan",
   "that quietly spends more layers than the product was scoped for.",
   "",
+  "THE BOARD SIZE IS THE USER'S DECISION, NOT A PLAN DETAIL. If the size the",
+  "user asked for cannot hold the parts, do NOT propose a plan at a bigger",
+  "size: an approved plan is built without anyone reading it again, so a",
+  "size change inside a plan is a size change nobody agreed to (2026-09-09: a",
+  "45mm ask became a 75mm board that way). Put the size in a",
+  "```circuit-questions block instead — one question, options like \"keep",
+  "45×45 and move X off-board\" / \"go to 60×60\" — and end the turn. Say in",
+  "prose what does not fit and why. Only after the user picks may the plan",
+  "carry the new size. A user who asked \"tell me how much and why\" asked",
+  "for that question, not for a plan that answers it for them.",
+  "",
   "The nearest thing we can build is never nothing. A capability with no",
   "orderable module goes OFF-BOARD on a labelled pad row (as a servo does",
   "through servo-header) and the rest of the board is built around it — so",
@@ -233,15 +261,56 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "protocol. Do not re-plan or ask further questions unless a blocking",
   "ambiguity remains.",
   "",
-  "THE GENERATOR IS SLOW: BUDGET 20-40 MINUTES PER BUILD. Measured",
-  "2026-09-08 on a 55x55 two-layer board: 2133 seconds in compile alone, and",
-  "a rebuild one millimetre larger ran past 2430s. Plan around that. Running",
-  "it in the background and checking back on a log is a reasonable way to",
-  "wait, and so is waiting in the foreground if your tooling allows a command",
-  "that long — what is NOT reasonable is treating a build as quick. Every",
-  "edit-build-read round costs the better part of an hour, so make each round",
-  "count: fix everything you can see before you rebuild, not one thing at a",
-  "time.",
+  "THE GENERATOR IS SLOW: BUDGET 6-10 MINUTES PER BUILD, SOMETIMES 40.",
+  "Measured 2026-09-09 across 25 builds of two 55-75mm two-layer boards at",
+  "10x: 6 to 9 minutes each, routing dominating. The outlier is real too —",
+  "2026-09-08, one 55x55 board spent 2133 seconds in compile alone — so wait",
+  "for the process rather than for a number. Waiting in the foreground is",
+  "right if your tooling allows a command that long; running it in the",
+  "background and checking back is right otherwise. What is NOT reasonable is",
+  "treating a build as quick, or sleeping on a timer and polling a log. Every",
+  "edit-build-read round costs minutes of routing, so make each round count:",
+  "fix everything you can see before you rebuild, not one thing at a time —",
+  "a review round on 2026-09-09 spent two hours and eleven builds going",
+  "2→14→3→2→78→6→2→32→3→2 blocking findings by fixing one thing per build.",
+  "",
+  "DO NOT LEAVE A WRECK STANDING WHILE YOU THINK. A copy of your best",
+  "rebuild so far is kept as you go: if this turn is stopped by the clock or",
+  "the user while the board has more blocking findings than that copy, the",
+  "copy is what is handed back and your later edits are gone. When a rebuild",
+  "comes back worse (2026-09-10: 2 → 8 in one edit), revert that change in",
+  "your next edit rather than stacking another change on top of it.",
+  "",
+  "ONCE THE BOARD IS ROUTED, REPAIR COPPER IN PLACE. DO NOT RE-ROUTE THE",
+  "WHOLE BOARD TO FIX ONE TRACE. A finding that names copper — a via too",
+  "close to a track, a trace shorting a pad, a crystal or USB trace routed",
+  "the long way round — is fixed with",
+  "`python ~/.claude/skills/circuitcode/scripts/circuit <board.tsx> --edits <edits.json>`:",
+  "move a route point, move a via together with the wires that meet it,",
+  "insert or delete points on one trace; the full gauntlet then re-runs on",
+  "the same copper in about thirty seconds — no compile, no router.",
+  "`--recheck` alone re-runs the gauntlet on the board as it stands. A TSX",
+  "edit re-routes every net and throws every repair away, so make placement",
+  "and part changes FIRST, get a routed board, then repair. Measured",
+  "2026-09-10: one via on a DVDD track cost twelve rebuilds by placement",
+  "(the defect moved each time) and thirty seconds by repair. Read the",
+  "finding's coordinates, look at the copper around them in the",
+  "circuit.json (pads and vias within 0.5mm, both layers), and move only",
+  "what the finding names.",
+  "",
+  "NEVER HAND-DRAW COPPER BEFORE THE ROUTER, AND NEVER REORDER IT. `pcbPath`,",
+  "`pcbStraightLine` and `routingPhaseIndex` are not levers. The autorouter",
+  "builds its obstacle set from pads, holes, vias and cutouts — NOT from",
+  "traces — so copper you lay before it runs is copper it routes straight",
+  "through: measured 2026-09-09, 9 blocking findings became 73. Phased routing",
+  "aborted the router outright on the same board (`Static reachability",
+  "precheck failed`). Placement is the lever; the router is the router.",
+  "",
+  "WHAT THE USER PUT ON THE BOARD STAYS ON THE BOARD. A pad row is for a",
+  "capability the catalog cannot source, not for a part you would rather not",
+  "route. An 8-pixel ring the user asked for is eight WS2812s on copper, not",
+  "a header labelled LED8; a screen with a golden block is on the board. Move",
+  "something off-board only when sourcing has failed for it, and say so.",
   "",
   "THE CRYSTAL CLUSTER IS THE KNOWN HOT SPOT. Across four boards on this",
   "pipeline the last errors left standing were all around Y1: a via landing",
@@ -349,9 +418,30 @@ export const REVIEW_SYSTEM_PROMPT = [
   "or drifted parts, netlist mismatches) mean the board builds but would",
   "not work or could not be ordered — fix them next. CRAFT is a final",
   "visual pass: rebuild, `Read` <stem>_review/_schematic.png and",
-  "<stem>_review/_pcb.png, and fix what reads wrong. Edit the TSX source",
-  "(never the generated artifacts), regenerate, and stop as soon as the",
-  "board is clean.",
+  "<stem>_review/_pcb.png, and fix what reads wrong. For placement and",
+  "parts, edit the TSX source and regenerate. For a finding that names",
+  "copper (clearance, a via on a track, a short, a trace routed the long",
+  "way), REPAIR IN PLACE instead:",
+  "`python ~/.claude/skills/circuitcode/scripts/circuit <board.tsx> --edits <edits.json>`",
+  "(move_point / move_via / insert_point / delete_points on the routed",
+  "circuit.json, then the whole gauntlet re-runs in ~30s with no re-route).",
+  "A rebuild from TSX re-routes every net and discards prior repairs. Stop",
+  "as soon as the board is clean.",
+  "",
+  "MAKE EACH REBUILD COUNT. A build is minutes of routing, so fix everything",
+  "you can see before you rebuild, not one finding at a time — a round on",
+  "2026-09-09 spent two hours and eleven builds going 2→14→3→2→78→6→2→32→3→2",
+  "blocking findings by fixing one thing per build. Read the whole finding",
+  "list, group the fixes by cause, apply them all, then rebuild once.",
+  "",
+  "A ROUND MAY NOT LEAVE THE BOARD WORSE THAN IT FOUND IT. The loop compares",
+  "blocking findings before and after your round: if there are more after,",
+  "the board source is put back the way it was and your changes are gone.",
+  "When a rebuild comes back worse, revert that change yourself in the next",
+  "edit rather than stacking another change on top of it. Never hand-draw",
+  "copper (`pcbPath`, `pcbStraightLine`) or set `routingPhaseIndex`: the",
+  "autorouter cannot see copper laid before it runs and routes through it,",
+  "measured 2026-09-09 as 9→73 findings.",
 ].join("\n");
 
 /** Appended to every phase prompt so the model knows the one absolute
@@ -1106,11 +1196,33 @@ export function parseCodexLine(line, turnId, state) {
     state.pendingTools.delete(toolUseId);
     return [{ kind: "tool_use_end", turnId, tool: "shell", toolUseId, ok: item.status !== "failed" }];
   }
-  if (obj?.type === "error") {
+  const failure = codexFailureMessage(obj);
+  if (failure) {
     state.anyTextEmitted = true;
-    return [{ kind: "error", turnId, message: String(obj.message || "Codex request failed") }];
+    return [{ kind: "error", turnId, message: failure }];
   }
   return [];
+}
+
+/** The message of a Codex stream line that says the turn failed, else null.
+ *
+ * Two shapes: a bare `{"type":"error","message"}` and a `turn.failed` carrying
+ * `error.message`. Astra run #5 (2026-09-10 14:18): the account hit its usage
+ * limit mid-run. The build turn ended on it; the two review rounds then each
+ * ran for five seconds and ended on the same message — which nothing read,
+ * because a review round drains its stdout unparsed. The loop reported
+ * `structure-unresolved` as if the agent had tried twice. A failed provider
+ * is not a round.
+ */
+export function codexFailureMessage(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.type === "error") return String(obj.message || "Codex request failed");
+  if (obj.type === "turn.failed") {
+    const err = obj.error;
+    const msg = typeof err === "string" ? err : err?.message;
+    return String(msg || "Codex turn failed");
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1173,35 +1285,45 @@ export function recoverPlanFromSession(workspace, sessionId, env = process.env) 
  * third answer and must not collapse into false, or the very first round would
  * look like a regression.
  */
+/** The board sidecars of a workspace: `boards/<stem>.board.json`, nothing else.
+ *
+ * Until 2026-09-10 every reader below walked the whole tree for
+ * `*.board.json`. Astra run #5 (pomodoro-puck-run5) kept its own checkpoints
+ * at `work/best-build-1/boards/main.board.json` — a copy of build 1, one
+ * blocking finding, `fab.ready: false` — and the loop counted it as a board:
+ * "1 blocking" on a workspace whose real board was fab-ready with none, two
+ * review rounds spent on a backup, `structure-unresolved` in the chat. Run #4
+ * only escaped because Astra had named its copies `.board.json.txt`. The
+ * contract's tree (§ "Project layout") puts sidecars beside the source under
+ * `boards/`; the generator writes them nowhere else. Anything deeper is a
+ * copy someone keeps, and a copy is not a board.
+ */
+export function boardSidecarPaths(dir) {
+  const boards = path.join(dir, "boards");
+  let names;
+  try {
+    names = fs.readdirSync(boards, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return names
+    .filter((e) => e.isFile() && e.name.endsWith(".board.json"))
+    .map((e) => path.join(boards, e.name))
+    .sort();
+}
+
 export function workspaceFabReady(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
   let seen = 0;
   let ready = 0;
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
+  for (const full of boardSidecarPaths(dir)) {
     try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
+      const json = JSON.parse(fs.readFileSync(full, "utf8"));
+      if (json?.fab && typeof json.fab.ready === "boolean") {
+        seen += 1;
+        if (json.fab.ready) ready += 1;
+      }
     } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(full);
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".board.json")) continue;
-      try {
-        const json = JSON.parse(fs.readFileSync(full, "utf8"));
-        if (json?.fab && typeof json.fab.ready === "boolean") {
-          seen += 1;
-          if (json.fab.ready) ready += 1;
-        }
-      } catch {
-        // malformed sidecar — tells us nothing either way
-      }
+      // malformed sidecar — tells us nothing either way
     }
   }
   if (seen === 0) return null;
@@ -1250,25 +1372,7 @@ export const MAX_PANEL_ROUNDS = 1;
  * `*.board.json` sidecar exists (skip-list honored) — the sidecar is what
  * every review phase reads, so its absence means there is nothing to review. */
 export function workspaceHasBoard(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
-    try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(path.join(current, entry.name));
-        continue;
-      }
-      if (entry.isFile() && entry.name.endsWith(".board.json")) return true;
-    }
-  }
-  return false;
+  return boardSidecarPaths(dir).length > 0;
 }
 
 /** The rendered board images a craft round needs to look at: `_schematic.png`
@@ -1279,27 +1383,21 @@ export function workspaceHasBoard(dir) {
  * renders pins the round to the board as it stands. Each craft round is its
  * own spawn, so round 2 sees round 1's output. */
 export function reviewImagePaths(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
+  // `boards/<stem>_review/` only — where the generator writes renders — and
+  // not a checkpoint's copy of them (see `boardSidecarPaths`).
+  const boards = path.join(dir, "boards");
+  let entries;
+  try {
+    entries = fs.readdirSync(boards, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const out = [];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
-    try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(full);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      if (entry.name === "_schematic.png" || entry.name === "_pcb.png") {
-        if (path.basename(current).endsWith("_review")) out.push(full);
-      }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.endsWith("_review")) continue;
+    for (const name of ["_schematic.png", "_pcb.png"]) {
+      const full = path.join(boards, entry.name, name);
+      if (fs.existsSync(full)) out.push(full);
     }
   }
   // Schematic first, then PCB, and stable across rounds so a diff of the two
@@ -1311,45 +1409,24 @@ export function reviewImagePaths(dir) {
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
 export function collectBoardWarnings(dir) {
   const out = [];
-  const skip = skipDirNames();
-  const stack = [dir];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
+  for (const full of boardSidecarPaths(dir)) {
+    let json;
     try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
+      json = JSON.parse(fs.readFileSync(full, "utf8"));
     } catch {
       continue;
     }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) {
-          stack.push(full);
-        }
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".board.json")) {
-        continue;
-      }
-      let json;
-      try {
-        json = JSON.parse(fs.readFileSync(full, "utf8"));
-      } catch {
-        continue;
-      }
-      const warnings = json?.validation?.warnings;
-      if (!Array.isArray(warnings)) {
-        continue;
-      }
-      for (const w of warnings) {
-        out.push({
-          part: String(w?.part ?? ""),
-          kind: String(w?.kind ?? ""),
-          detail: String(w?.detail ?? ""),
-          severity: String(w?.severity ?? "warning"),
-        });
-      }
+    const warnings = json?.validation?.warnings;
+    if (!Array.isArray(warnings)) {
+      continue;
+    }
+    for (const w of warnings) {
+      out.push({
+        part: String(w?.part ?? ""),
+        kind: String(w?.kind ?? ""),
+        detail: String(w?.detail ?? ""),
+        severity: String(w?.severity ?? "warning"),
+      });
     }
   }
   return out;
@@ -1458,6 +1535,8 @@ function spawnClaude(claudePath, args, { workspace, env }) {
     cwd: workspace,
     env: buildChildEnv(env),
     stdio: ["pipe", "pipe", "pipe"],
+    // Own process group, so `killChild` can reach what the provider spawned.
+    detached: OWN_PROCESS_GROUP,
   });
 }
 
@@ -1469,7 +1548,96 @@ function spawnCodex(codexPath, args, { workspace, env }) {
     cwd: workspace,
     env: buildChildEnv(env),
     stdio: ["pipe", "pipe", "pipe"],
+    detached: OWN_PROCESS_GROUP,
   });
+}
+
+/** Providers get their own process group everywhere that has them. */
+const OWN_PROCESS_GROUP = process.platform !== "win32";
+
+/** The build `.circuit/build-status.json` says is running, if the process
+ * writing it is still alive — else null.
+ *
+ * A status file says `running` for as long as its writer lives, and for ever
+ * after if the writer was killed mid-build, so the file alone cannot say
+ * whether a build is in flight. The pipeline writes its pid and pgid
+ * (`status.py`); a signal-0 probe of the pid settles it.
+ */
+export function liveBuild(workspace) {
+  try {
+    const status = JSON.parse(
+      fs.readFileSync(path.join(workspace, ".circuit", "build-status.json"), "utf8"),
+    );
+    if (status?.state !== "running") return null;
+    const pid = Number(status.pid);
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return null; // the writer is gone: a stale file, not a build
+    }
+    const pgid = Number(status.pgid);
+    return {
+      pid,
+      pgid: Number.isInteger(pgid) && pgid > 0 ? pgid : null,
+      runId: String(status.runId || ""),
+      stage: String(status.stage || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Kill a generator the stopped provider left running. Returns whether one was.
+ *
+ * The build prompt tells the agent it may run the generator in the background
+ * and check back, and Codex does; that build is not a child the provider's
+ * death takes with it. Measured 2026-09-10 (pomodoro-puck run #4): a build
+ * launched 13:01:58 survived the 13:05:38 chop and landed at 13:09:26 with 4
+ * blocking findings — after the driver had recorded 1 and deleted both undo
+ * copies. The board on disk and the verdict in the chat disagreed, and
+ * nothing could put either right.
+ */
+export function killStrayBuild(workspace) {
+  const live = liveBuild(workspace);
+  if (!live) return false;
+  const targets = [];
+  if (live.pgid && OWN_PROCESS_GROUP) targets.push(-live.pgid);
+  targets.push(live.pid);
+  for (const target of targets) {
+    try {
+      process.kill(target, "SIGKILL");
+    } catch {
+      // already gone, or not a group leader — the direct pid follows
+    }
+  }
+  log(`killed a build the stopped turn left running (pid ${live.pid}, stage ${live.stage || "?"})`);
+  return true;
+}
+
+const BUILD_SETTLE_POLL_MS = 2_000;
+const BUILD_SETTLE_MAX_MS = 20 * 60 * 1000;
+
+/** Wait for a build still in flight to finish before the workspace is read.
+ *
+ * The verdict is the sidecar on disk; a build that is still writing it makes
+ * every number read from it stale within minutes. Bounded: a build has its
+ * own stage limits, and a reader that waits for ever is a hung turn.
+ */
+export async function awaitBuildSettled(workspace, {
+  maxMs = BUILD_SETTLE_MAX_MS,
+  pollMs = BUILD_SETTLE_POLL_MS,
+} = {}) {
+  let live = liveBuild(workspace);
+  if (!live) return true;
+  log(`a build is still running (pid ${live.pid}, stage ${live.stage || "?"}) — waiting for it before reading the board`);
+  const started = Date.now();
+  while (live && Date.now() - started < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+    live = liveBuild(workspace);
+  }
+  if (live) log(`a build is still running after ${Math.round(maxMs / 60000)}min — reading the board anyway`);
+  return !live;
 }
 
 function spawnProvider(provider, executable, args, options) {
@@ -1478,7 +1646,23 @@ function spawnProvider(provider, executable, args, options) {
     : spawnClaude(executable, args, options);
 }
 
+/** Kill the provider and everything it spawned.
+ *
+ * The provider is its own process-group leader (`detached` above), so the
+ * negative pid reaches the generator chain it launched in the foreground —
+ * python → tscircuit-cli → bun — which `child.kill` alone never did: it
+ * signalled the provider and left the chain to finish and overwrite the board
+ * after the turn had ended. A build the agent put in its own group is
+ * `killStrayBuild`'s job.
+ */
 function killChild(child) {
+  if (OWN_PROCESS_GROUP && child.pid) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      // group already gone
+    }
+  }
   try {
     child.kill("SIGKILL");
   } catch {
@@ -1615,6 +1799,39 @@ export async function spawnTurn({
     : null;
   if (budgetTimer?.unref) budgetTimer.unref();
 
+  // The implement turn's own ratchet. Inside this one child the agent
+  // rebuilds as often as it likes for up to five hours, and the review
+  // ratchet sees none of it — it guards rounds the DRIVER runs, which start
+  // only after this child exits. Measured 2026-09-10 (pomodoro-puck, Astra
+  // run #3): one implement turn walked its own rebuilds 3 → 4 → 2 → 8 with no
+  // round boundary for anything to act on. Keep a copy of the best settled
+  // build as it goes; if the clock or the user stops the turn while the board
+  // is worse than that copy, hand the copy back (`shouldRestoreBestBuild`
+  // says why a turn that ends on its own keeps what it ended on).
+  let best = null; // { count, dir }
+  let lastSettledRunId = null;
+  const bestWatcher = phase === PHASE.IMPLEMENT
+    ? setInterval(() => {
+        const runId = settledBuildRunId(workspace);
+        if (!runId || runId === lastSettledRunId) return;
+        if (buildIsStale(workspace)) return; // source already moved on; wait for the next build
+        lastSettledRunId = runId;
+        let count;
+        try {
+          count = collectBoardWarnings(workspace).filter(isBlocking).length;
+        } catch {
+          return;
+        }
+        if (best && !(count < best.count)) return;
+        const dir = snapshotForUndo(workspace, BEST_BUILD_DIR);
+        if (dir) {
+          best = { count, dir };
+          log(`turn implement: best rebuild so far has ${count} blocking finding(s) — kept a copy`);
+        }
+      }, REVIEW_SIDECAR_POLL_MS)
+    : null;
+  if (bestWatcher?.unref) bestWatcher.unref();
+
   const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
   try {
     for await (const line of rl) {
@@ -1676,6 +1893,14 @@ export async function spawnTurn({
 
   await waitForExit(child);
   if (budgetTimer) clearTimeout(budgetTimer);
+  if (bestWatcher) clearInterval(bestWatcher);
+  // The board is read below; make sure nothing is still writing it. A
+  // stopped turn's stray build is killed, a finished turn's is waited for.
+  if (cancelled) {
+    killStrayBuild(workspace);
+  } else {
+    await awaitBuildSettled(workspace);
+  }
   if (timedOut) {
     onEvent({
       kind: "error",
@@ -1707,6 +1932,40 @@ export async function spawnTurn({
   }
   for (const event of diffEvents) {
     onEvent(event);
+  }
+
+  // Hand a stopped implement turn its best rebuild back (watcher above).
+  if (best) {
+    let finalBlocking = null;
+    try {
+      finalBlocking = collectBoardWarnings(workspace).filter(isBlocking).length;
+    } catch { /* unreadable → never called worse */ }
+    if (shouldRestoreBestBuild({ stoppedEarly: cancelled, bestBlocking: best.count, finalBlocking })) {
+      const restored = restoreFromUndo(workspace, best.dir);
+      log(
+        `turn implement stopped at ${finalBlocking} blocking finding(s); its best rebuild had ` +
+          `${best.count} — ${restored ? "restored" : "COULD NOT RESTORE"}`,
+      );
+      onEvent({
+        kind: "text_delta",
+        turnId,
+        text: restored
+          ? `\n\n_The turn was stopped while the board had ${finalBlocking} findings that stop it being made; ` +
+            `its best rebuild had ${best.count}, so I put that one back._`
+          : `\n\n_The turn was stopped while the board had ${finalBlocking} findings that stop it being made; ` +
+            `its best rebuild had ${best.count}, and I could not put that one back._`,
+      });
+      if (restored) {
+        artifactsChanged = true;
+        for (const event of diffSnapshots(postSnapshot, snapshotWorkspace(workspace), turnId)) onEvent(event);
+      }
+    } else if (finalBlocking !== null && finalBlocking > best.count) {
+      log(
+        `turn implement ended on its own at ${finalBlocking} blocking finding(s); its best rebuild had ` +
+          `${best.count} — kept as the agent left it`,
+      );
+    }
+    fs.rmSync(best.dir, { recursive: true, force: true });
   }
 
   // Automatic post-build review, silent, inside this build turn. `artifactsChanged`
@@ -1795,15 +2054,85 @@ async function runReviewRound({
       signal.addEventListener("abort", onAbort, { once: true });
     }
   }
-  if (debugEnabled()) {
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => process.stderr.write(`[circuit:claude:review] ${chunk}`));
-  } else {
-    child.stdout.resume(); // drain so a full pipe can't deadlock the child
-  }
+  // The round's own wall clock. The build child arms `turnBudgetMs` and
+  // clears it when it exits; the review loop runs AFTER that, so until
+  // 2026-09-09 a review round had no clock at all — only the round caps
+  // bounded it, and one round is one resumed session free to rebuild as often
+  // as it likes. Measured that day: structure round 1 ran 2h06 on a single
+  // board before the turn was stopped by hand.
+  const budgetMs = turnBudgetMs(PHASE.REVIEW, env);
+  let timedOut = false;
+  const budgetTimer = budgetMs
+    ? setTimeout(() => {
+        timedOut = true;
+        log(`review round exceeded its ${Math.round(budgetMs / 60000)}min budget — stopping it`);
+        onAbort();
+      }, budgetMs)
+    : null;
+  if (budgetTimer?.unref) budgetTimer.unref();
+  // The round is silent by contract, but the sidecar is not: every rebuild
+  // inside the round rewrites it. Watching it is the only way the person
+  // waiting sees 14 → 3 → 78 rather than one status line for two hours.
+  let lastBlocking = null;
+  try {
+    lastBlocking = collectBoardWarnings(workspace).filter(isBlocking).length;
+  } catch { /* no sidecar yet */ }
+  const watcher = setInterval(() => {
+    let now;
+    try {
+      now = collectBoardWarnings(workspace).filter(isBlocking).length;
+    } catch {
+      return;
+    }
+    if (now === lastBlocking) return;
+    const was = lastBlocking;
+    lastBlocking = now;
+    onEvent?.({
+      kind: "text_delta",
+      turnId,
+      text: `\n\n_Rebuilt: ${now} finding(s) that stop the board being made` +
+        (was === null ? "" : ` (was ${was})`) + "._",
+    });
+  }, REVIEW_SIDECAR_POLL_MS);
+  if (watcher?.unref) watcher.unref();
+  // Drain stdout so a full pipe cannot deadlock the child. Review chatter
+  // never reaches the user, but a line that says the provider FAILED does:
+  // run #5 burned both structure rounds in five seconds each on "You've hit
+  // your usage limit" and reported the board unresolved as if it had tried.
+  let failure = null;
+  const reviewLines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
+  reviewLines.on("line", (line) => {
+    if (debugEnabled()) process.stderr.write(`[circuit:${provider}:review] ${line}\n`);
+    if (failure) return;
+    let obj;
+    try {
+      obj = JSON.parse(String(line || "").trim());
+    } catch {
+      return;
+    }
+    failure = codexFailureMessage(obj);
+  });
   await waitForExit(child);
+  reviewLines.close();
+  clearInterval(watcher);
+  if (budgetTimer) clearTimeout(budgetTimer);
   if (signal) {
     signal.removeEventListener("abort", onAbort);
+  }
+  // The loop reads the sidecar the moment this returns. A chopped round's
+  // build must not land after that read (run #4: it did, 1 became 4 on disk
+  // with both undo copies already gone); a finished round's must be complete.
+  if (timedOut || signal?.aborted) {
+    killStrayBuild(workspace);
+  } else {
+    await awaitBuildSettled(workspace);
+  }
+  if (timedOut) {
+    onEvent?.({
+      kind: "text_delta",
+      turnId,
+      text: `\n\n_The review round ran past its ${Math.round(budgetMs / 60000)} minute budget and was stopped; the board stands as its last rebuild left it._`,
+    });
   }
 
   const post = snapshotWorkspace(workspace);
@@ -1811,7 +2140,8 @@ async function runReviewRound({
   for (const event of diff) {
     onEvent(event); // only artifact diffs surface from a review round
   }
-  return diff.length > 0;
+  if (failure) log(`review round failed before it could work: ${failure}`);
+  return { changed: diff.length > 0, failure };
 }
 
 function emitUnresolvedNote(turnId, label, remaining, onEvent) {
@@ -1832,13 +2162,18 @@ const REVIEW_SNAPSHOT_SKIP = new Set([".circuit", "node_modules", ".git", "__pyc
 
 const REVIEW_SNAPSHOT_DIR = ".circuit/review-undo";
 
+/** Where an implement turn keeps its best settled rebuild (see the watcher in
+ * `spawnTurn`). A sibling of the review undo copy, never the same directory:
+ * the review loop runs after the implement child and must not clobber it. */
+export const BEST_BUILD_DIR = ".circuit/best-build";
+
 /** Copy the workspace aside so a round that breaks the board can be undone.
  *
  * Lives under `.circuit/`, which the artifact snapshotter already ignores, so
  * taking a backup never looks like the board changed.
  */
-export function snapshotForUndo(workspace) {
-  const dest = path.join(workspace, REVIEW_SNAPSHOT_DIR);
+export function snapshotForUndo(workspace, relDir = REVIEW_SNAPSHOT_DIR) {
+  const dest = path.join(workspace, relDir);
   try {
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
@@ -1885,6 +2220,83 @@ export function restoreFromUndo(workspace, snapshotPath) {
   }
 }
 
+/** The run id of the build that last SETTLED in this workspace, or null.
+ *
+ * The pipeline writes `.circuit/build-status.json` on every stage change and
+ * marks it `done` only after the sidecar AND the circuit.json have landed
+ * (`progress.finish` is the last thing `build_board` does). A `running` file
+ * means the artifacts on disk are mid-flight and must not be copied; a fresh
+ * run id means a build the caller has not looked at yet.
+ */
+export function settledBuildRunId(workspace) {
+  try {
+    const status = JSON.parse(
+      fs.readFileSync(path.join(workspace, ".circuit", "build-status.json"), "utf8"),
+    );
+    if (status?.state !== "done") return null;
+    return typeof status.runId === "string" && status.runId ? status.runId : null;
+  } catch {
+    return null;
+  }
+}
+
+const SOURCE_ROOTS = ["boards", "blocks", "product.json", "parts.json"];
+
+/** True when any board source is newer than the newest sidecar.
+ *
+ * The best-build watcher copies a workspace up to a poll interval after a
+ * build settles, and by then the agent may already be editing the TSX for
+ * its next attempt. Copying that would pair a sidecar with source it did not
+ * come from — "one gate, two surfaces, opposite answers". Skip the copy; the
+ * next settled build is a candidate again.
+ */
+export function buildIsStale(workspace) {
+  let newestSidecar = -Infinity;
+  let boards;
+  try {
+    boards = fs.readdirSync(path.join(workspace, "boards"));
+  } catch {
+    return true;
+  }
+  for (const name of boards) {
+    if (!name.endsWith(".board.json")) continue;
+    try {
+      newestSidecar = Math.max(newestSidecar, fs.statSync(path.join(workspace, "boards", name)).mtimeMs);
+    } catch { /* unreadable → not a sidecar we can trust */ }
+  }
+  if (!Number.isFinite(newestSidecar)) return true;
+  // Source is the TSX/TS under boards/ and blocks/ plus the two root JSON
+  // files. `boards/` also holds `<stem>_fab/` and `<stem>_review/`, written
+  // AFTER the sidecar by design — those are outputs, never a reason to call
+  // the build stale.
+  const isSource = (full) =>
+    /\.tsx?$/.test(full) ||
+    full === path.join(workspace, "product.json") ||
+    full === path.join(workspace, "parts.json");
+  const stack = SOURCE_ROOTS.map((rel) => path.join(workspace, rel));
+  while (stack.length) {
+    const full = stack.pop();
+    let stat;
+    try {
+      stat = fs.statSync(full);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      let names;
+      try {
+        names = fs.readdirSync(full);
+      } catch {
+        continue;
+      }
+      for (const name of names) stack.push(path.join(full, name));
+      continue;
+    }
+    if (isSource(full) && stat.mtimeMs > newestSidecar) return true;
+  }
+  return false;
+}
+
 /** Say which review phase is running, and how far through it is.
  *
  * The loop used to be silent to the user by design — it only wrote to the
@@ -1897,6 +2309,52 @@ export function restoreFromUndo(workspace, snapshotPath) {
  * kind: the ChatEvent union is name-coupled to the client (contract §3), and a
  * status line is not worth an edit on both sides of it.
  */
+/** How often a review round re-reads the sidecar to report a rebuild. */
+export const REVIEW_SIDECAR_POLL_MS = 15_000;
+
+/** The per-round ratchet, as one pure rule so the test can pin it.
+ *
+ * "Worse" is strictly more blocking findings than the round started with. A
+ * round that ends equal is kept: it may have traded one finding for another
+ * on the way somewhere, and the next round sees the same board either way.
+ * A round that ends with fewer is progress. `null` on either side means the
+ * count could not be read (no sidecar), and an unreadable board is never
+ * called worse — that would undo a round for a reason nobody can see.
+ */
+export function roundMadeItWorse(blockingBefore, blockingAfter) {
+  if (!Number.isFinite(blockingBefore) || !Number.isFinite(blockingAfter)) return false;
+  return blockingAfter > blockingBefore;
+}
+
+/** How many rounds a phase may run once `undone` of them were put back.
+ *
+ * An undone round leaves the board exactly where it started, so the slot it
+ * used bought nothing — and under the round clock that slot can be a full
+ * hour of work thrown away. Measured 2026-09-09 (pomodoro-puck, Astra run
+ * #3): structure round 1 was chopped at 60 min and undone (5→8), round 2 then
+ * took 8 minutes to go 5→3, and the 2-round cap ended the run there with the
+ * board still not buildable. One spare slot per phase, not one per undo: a
+ * phase that keeps making things worse must still end.
+ */
+export function roundCapAfterUndo(cap, undone) {
+  const n = Number.isFinite(undone) && undone > 0 ? Math.floor(undone) : 0;
+  return cap + Math.min(n, 1);
+}
+
+/** Whether an implement turn that was STOPPED should hand back its best
+ * settled rebuild instead of whatever it was in the middle of.
+ *
+ * Only a stopped turn — the clock or the user. A turn that ends on its own
+ * keeps what it chose to end on: it may have just implemented "make the board
+ * smaller", which reads as a regression to a blocking-count poll and is not
+ * one. `null` on either side means a count could not be read, and a board
+ * nobody can read is never called worse.
+ */
+export function shouldRestoreBestBuild({ stoppedEarly, bestBlocking, finalBlocking }) {
+  if (!stoppedEarly) return false;
+  return roundMadeItWorse(bestBlocking, finalBlocking);
+}
+
 export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail }) {
   const of = rounds > 1 ? ` ${round}/${rounds}` : "";
   onEvent?.({
@@ -1960,11 +2418,22 @@ export async function runReviewFixLoop({
   // of five — and says so out loud rather than quietly handing back a board
   // that used to be shippable.
   let regressed = false;
+  // Set by `round()` when the provider itself failed (usage limit, auth, a
+  // dead binary). Every phase loop stops on it.
+  let providerFailed = null;
+  // Set by `round()` when the blocking ratchet put the board back. The phase
+  // loops read it to give the phase one spare round (`roundCapAfterUndo`).
+  let lastRoundUndone = false;
   const round = async (prompt, imagePaths = []) => {
+    lastRoundUndone = false;
     const readyBefore = workspaceFabReady(workspace);
-    // Only worth the copy when there is something to lose.
-    const undo = readyBefore === true ? snapshotForUndo(workspace) : null;
-    const didChange = await runReviewRound({
+    // Always worth the copy now. The first ratchet only guarded a board that
+    // was already orderable; a board that was NOT orderable could be walked
+    // from 2 blocking findings to 78 and left there (2026-09-09, pomodoro-puck,
+    // structure round 1). Count the blockers going in as well.
+    const blockingBefore = collectBoardWarnings(workspace).filter(isBlocking).length;
+    const undo = snapshotForUndo(workspace);
+    const outcome = await runReviewRound({
       provider,
       executable,
       workspace,
@@ -1977,6 +2446,48 @@ export async function runReviewFixLoop({
       signal,
       env,
     });
+    let didChange = outcome.changed;
+    if (outcome.failure) {
+      // The provider, not the board. Say so once and stop the loop: a round
+      // that could not run is not a round, and the caps are for rounds.
+      providerFailed = outcome.failure;
+      onEvent?.({
+        kind: "assistant_message",
+        turnId,
+        text:
+          "_I stopped the automatic review: the model could not run it " +
+          `(${outcome.failure}). The board stands as the build left it; ` +
+          "send another message once that is resolved to carry on._",
+      });
+    }
+    const blockingAfter = collectBoardWarnings(workspace).filter(isBlocking).length;
+    if (readyBefore !== true && didChange && roundMadeItWorse(blockingBefore, blockingAfter)) {
+      // Not the orderable→un-orderable case below (that one stops the loop);
+      // this board was not orderable to begin with. Put the round back and let
+      // the next round try again from the better board, not from the wreck.
+      const postRound = snapshotWorkspace(workspace);
+      const undone = restoreFromUndo(workspace, undo);
+      log(
+        `review: a round went from ${blockingBefore} to ${blockingAfter} blocking finding(s) — ${
+          undone ? "undone" : "COULD NOT UNDO"
+        }`,
+      );
+      onEvent?.({
+        kind: "text_delta",
+        turnId,
+        text: undone
+          ? `\n\n_That round made things worse (${blockingBefore} → ${blockingAfter} findings that stop the board), so I put the board back to ${blockingBefore}._`
+          : `\n\n_That round made things worse (${blockingBefore} → ${blockingAfter} findings that stop the board) and I could not put it back._`,
+      });
+      if (undone) {
+        // The workspace is back where the round started; the artifact events
+        // the round emitted described files that no longer exist, so tell the
+        // viewer about the ones that just changed back.
+        for (const event of diffSnapshots(postRound, snapshotWorkspace(workspace), turnId)) onEvent(event);
+        didChange = false;
+        lastRoundUndone = true;
+      }
+    }
     if (readyBefore === true && workspaceFabReady(workspace) === false) {
       regressed = true;
       // Stopping was never enough. Twice this loop broke an orderable board
@@ -2005,9 +2516,11 @@ export async function runReviewFixLoop({
     return didChange;
   };
 
-  // Phase 1 — structure (blocking = severity "error").
-  for (let i = 0; i < MAX_STRUCTURE_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+  // Phase 1 — structure (blocking = severity "error"). An undone round does
+  // not use up a slot (once per phase — see `roundCapAfterUndo`).
+  let structureUndone = 0;
+  for (let i = 0; i < roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, structureUndone); i += 1) {
+    if (aborted() || regressed || providerFailed) return changed;
     const all = collectBoardWarnings(workspace);
     const blocking = all.filter(isBlocking);
     const prompt = buildStructurePrompt(blocking);
@@ -2017,12 +2530,13 @@ export async function runReviewFixLoop({
     emitPhaseNote(turnId, onEvent, {
       phase: "structure",
       round: i + 1,
-      rounds: MAX_STRUCTURE_ROUNDS,
+      rounds: roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, structureUndone),
       detail: `${blocking.length} finding(s) that stop the board being made`,
     });
     changed = (await round(prompt)) || changed;
+    if (lastRoundUndone) structureUndone += 1;
   }
-  if (aborted() || regressed) return changed;
+  if (aborted() || regressed || providerFailed) return changed;
   const afterStructure = collectBoardWarnings(workspace);
   const structureRemaining = afterStructure.filter(isBlocking);
   if (structureRemaining.length) {
@@ -2031,9 +2545,10 @@ export async function runReviewFixLoop({
     return changed;
   }
 
-  // Phase 2 — electrical function (contract kind set).
-  for (let i = 0; i < MAX_ELECTRICAL_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+  // Phase 2 — electrical function (contract kind set). Same spare slot rule.
+  let electricalUndone = 0;
+  for (let i = 0; i < roundCapAfterUndo(MAX_ELECTRICAL_ROUNDS, electricalUndone); i += 1) {
+    if (aborted() || regressed || providerFailed) return changed;
     const all = collectBoardWarnings(workspace);
     const electrical = all.filter(isElectrical);
     const prompt = buildElectricalPrompt(electrical);
@@ -2043,12 +2558,13 @@ export async function runReviewFixLoop({
     emitPhaseNote(turnId, onEvent, {
       phase: "electrical function",
       round: i + 1,
-      rounds: MAX_ELECTRICAL_ROUNDS,
+      rounds: roundCapAfterUndo(MAX_ELECTRICAL_ROUNDS, electricalUndone),
       detail: `${electrical.length} thing(s) that would stop it working`,
     });
     changed = (await round(prompt)) || changed;
+    if (lastRoundUndone) electricalUndone += 1;
   }
-  if (aborted() || regressed) return changed;
+  if (aborted() || regressed || providerFailed) return changed;
   const afterElectrical = collectBoardWarnings(workspace);
   const electricalRemaining = afterElectrical.filter(isElectrical);
   if (electricalRemaining.length) {
@@ -2063,7 +2579,7 @@ export async function runReviewFixLoop({
     (w) => !isBlocking(w) && !isElectrical(w),
   );
   for (let i = 0; i < MAX_CRAFT_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
     emitPhaseNote(turnId, onEvent, {
@@ -2092,7 +2608,7 @@ export async function runReviewFixLoop({
   // rule is "the moment fab.ready is true", and a board still failing has
   // nothing for seven lenses to score.
   for (let i = 0; i < MAX_PANEL_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     if (workspaceFabReady(workspace) !== true) break;
     snapshot("panel", i + 1, collectBoardWarnings(workspace));
     log(`review panel round ${i + 1}`);
@@ -2155,6 +2671,98 @@ function extractVisibleText(content) {
  * approve-plan prompt, attachment notes, and intercepted
  * ExitPlanMode/AskUserQuestion tool calls are dropped.
  */
+/** The Codex arm's transcript, in the shape the chat panel already renders.
+ *
+ * Codex keeps its own rollout under `~/.codex/sessions/<y>/<m>/<d>/`; nothing
+ * of it reaches the Claude transcript `sessionState` reads, so a Codex
+ * project's chat came back empty on every reload — the opening prompt gone
+ * (2026-09-09, the owner had to recover it from this file by hand). The
+ * rollout is JSONL of `{timestamp, payload:{type, role, content}}`; the
+ * user rows carry the app's phase preamble inline (Codex has no
+ * --append-system-prompt), so the user's own words are what follows the
+ * PROJECT WORKSPACE directive. Review-round rows are the silent loop's
+ * prompts, not conversation, and are dropped the way the review child's
+ * stdout is.
+ */
+export function parseCodexRolloutHistory(contents, { workspace = "" } = {}) {
+  const history = [];
+  for (const rawLine of String(contents || "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const payload = obj?.payload;
+    if (!payload || payload.type !== "message") continue;
+    const role = payload.role === "user" ? "user" : payload.role === "assistant" ? "assistant" : "";
+    if (!role) continue;
+    const content = payload.content;
+    let text = Array.isArray(content)
+      ? content.map((part) => (typeof part?.text === "string" ? part.text : "")).filter(Boolean).join("\n")
+      : typeof content === "string" ? content : "";
+    if (!text.trim()) continue;
+    const at = Date.parse(obj.timestamp || "") || 0;
+    if (role === "user") {
+      // Codex's own environment rows, not the conversation.
+      if (text.startsWith("<environment_context>") || text.includes("<recommended_plugins>")) continue;
+      // The silent review loop's prompts — the Claude arm never shows these
+      // either, because its review child's transcript is never parsed as chat.
+      if (/An automatic\s+post-build review of the board you just built is running/.test(text)) continue;
+      // Strip the phase preamble: the user's words follow the workspace line.
+      const marker = workspace ? `${workspace}\n` : "";
+      const idx = marker ? text.lastIndexOf(marker) : -1;
+      if (idx >= 0) {
+        text = text.slice(idx + marker.length);
+      } else if (text.startsWith("You are running inside Autonomous Circuit")) {
+        const i = text.indexOf("\n\n", text.indexOf("PROJECT WORKSPACE"));
+        const j = i >= 0 ? text.indexOf("\n\n", i + 2) : -1;
+        text = j >= 0 ? text.slice(j + 2) : text;
+      }
+      // The app's effort suffix is a setting, not something the user typed.
+      text = text.replace(/\n*\[Effort: [^\]]*\]\s*$/s, "").trim();
+      if (!text) continue;
+      history.push({ role, content: text, at, blocks: [] });
+    } else {
+      history.push({ role, content: text.trim(), at, blocks: [{ kind: "text", text: text.trim() }] });
+    }
+  }
+  return history;
+}
+
+/** Where Codex wrote the rollout for a session id, or "" when it has none.
+ *
+ * `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<stamp>-<session id>.jsonl`;
+ * the date is the day the session started, which the app does not record, so
+ * walk the tree from the newest day down. `CODEX_HOME` moves the root the
+ * same way it does for the CLI.
+ */
+export function findCodexRolloutPath(sessionId, env = process.env) {
+  if (!sessionId) return "";
+  const root = path.join(env.CODEX_HOME || path.join(os.homedir(), ".codex"), "sessions");
+  const suffix = `-${sessionId}.jsonl`;
+  const list = (dir) => {
+    try {
+      return fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+  };
+  const dirsDesc = (dir) => list(dir).filter((e) => e.isDirectory()).map((e) => e.name).sort().reverse();
+  for (const y of dirsDesc(root)) {
+    for (const m of dirsDesc(path.join(root, y))) {
+      for (const d of dirsDesc(path.join(root, y, m))) {
+        const day = path.join(root, y, m, d);
+        const hit = list(day).find((e) => e.isFile() && e.name.endsWith(suffix));
+        if (hit) return path.join(day, hit.name);
+      }
+    }
+  }
+  return "";
+}
+
 export function parseSessionHistory(contents) {
   const history = [];
   let blocks = [];
@@ -2495,17 +3103,38 @@ export function createChatService({ projectDir, settings, emit, env = process.en
 
   function sessionState(projectId, requestedSessionId = "") {
     const sessionId = resolvedSessionId(projectId, requestedSessionId);
+    const workspace = projectDir(projectId);
     let history = [];
     try {
-      const contents = fs.readFileSync(
-        sessionJsonlPath(projectDir(projectId), sessionId, env),
-        "utf8",
-      );
+      const contents = fs.readFileSync(sessionJsonlPath(workspace, sessionId, env), "utf8");
       history = parseSessionHistory(contents);
     } catch {
       history = [];
     }
-    return { sessionId, turnInProgress: turnInProgress(projectId, sessionId), history };
+    if (!history.length) {
+      // No Claude transcript: a project driven by the Codex arm keeps its
+      // conversation in Codex's own rollout instead.
+      const rollout = findCodexRolloutPath(codexSessionIdFor(workspace, env), env);
+      if (rollout) {
+        try {
+          history = parseCodexRolloutHistory(fs.readFileSync(rollout, "utf8"), { workspace });
+        } catch {
+          history = [];
+        }
+      }
+    }
+    let activeTurnId = "";
+    for (const [id, entry] of turns) {
+      if (entry.projectId === projectId && (!sessionId || entry.sessionId === sessionId)) {
+        activeTurnId = id;
+        break;
+      }
+    }
+    // `activeTurnId` is what `chat_cancel_turn` needs; until now a turn the
+    // server chained itself (autopilot) had an id nobody outside the SSE
+    // stream could learn, so a silent review round could not be stopped
+    // from anywhere but the browser tab that happened to be open.
+    return { sessionId, turnInProgress: Boolean(activeTurnId), activeTurnId, history };
   }
 
   function sessionList(projectId) {

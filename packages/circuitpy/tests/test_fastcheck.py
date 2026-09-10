@@ -100,11 +100,12 @@ class SeverityAgreementTests(unittest.TestCase):
 
     Two legs report the same finding: `harvest_circuit_json` grades a
     `pcb_trace_too_long_warning` element from its own suffix, and
-    `run_tscircuit_checks` grades everything `@tscircuit/checks` returns as
-    `error`. The build collects both and ends with `checks.dedupe`, so the
-    harvested `warning` copy is the one that reaches the sidecar. Counting both
-    copies here is what made all three shipped fab-ready boards read `blocked`
-    in the IDE.
+    `run_tscircuit_checks` used to grade everything `@tscircuit/checks`
+    returned as `error` (since 2026-09-10 it grades by suffix too — the
+    12.64/12.65mm rounding case in test_checks). The build collects both and
+    ends with `checks.dedupe`, so the harvested `warning` copy is the one that
+    reaches the sidecar. Counting both copies here is what made all three
+    shipped fab-ready boards read `blocked` in the IDE.
     """
 
     def _elements(self) -> list[dict]:

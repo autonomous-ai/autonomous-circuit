@@ -29,7 +29,12 @@ weeks later when the boards arrive and don't work.
 
 ## Quickstart
 
-Requires Python 3.10+, Node 20+, and a `claude` CLI on your PATH.
+Requires Python 3.10+ (3.12 recommended; the system `python3` on a Mac is 3.9 and will not
+do — `brew install python@3.12`, or point `CIRCUIT_PYTHON` at one), Node 22.12+ (Vite 7's
+floor; `scripts/dev.sh` falls back to Homebrew `node@22` if it is installed), a `claude` CLI
+on your PATH, and KiCad for the DRC gate (`brew install --cask kicad`; without it every board
+carries a blocking `unverified_gerbers` warning). The app defaults to the Claude arm; the
+Codex arm needs Codex.app and a ChatGPT team login.
 
 ```bash
 git clone https://github.com/autonomous-ai/autonomous-circuit

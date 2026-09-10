@@ -924,9 +924,32 @@ def build_board(
     *,
     fab: str | None = None,
     max_build_s: float | None = None,
+    reuse_circuit_json: Path | str | None = None,
+    repairs: list[dict] | None = None,
 ) -> dict[str, object]:
     """Build one board per contract §1 and return the snake_case dict
-    mirroring the CircuitcodeResult success fields (§3)."""
+    mirroring the CircuitcodeResult success fields (§3).
+
+    ``reuse_circuit_json`` is **repair mode** (2026-09-10): skip the compile and
+    the router, take that file as the routed IR, and run every later stage on
+    it — the checks, KiCad, DFM, the packet, the renders, the sidecar. Of the four
+    post-route copper passes only the pour pass re-runs (repaired copper may
+    now sit inside a pour's clearance, and that pass is safe to repeat); the
+    pair, width and trace-clearance passes ran when the board was routed, and
+    `trace_clearance` is not idempotent (its own docstring), so re-running it
+    on each repair would walk copper a little further every round. ``repairs`` is the list of edits `circuitpy.repair` applied before
+    the call, recorded in the sidecar. The unchanged-source short-circuit does
+    not apply: the IR no longer follows from the TSX alone.
+
+    Why: the same one-via defect cost twelve rebuilds by placement on Astra
+    run #4 and Claude's desk cube (each rebuild re-routes every net and the
+    defect moves), and thirty seconds by repairing the copper in place. The
+    board keeps its routing; the agent fixes what the finding names.
+    """
+    reuse_p = (
+        Path(reuse_circuit_json).expanduser().resolve()
+        if reuse_circuit_json is not None else None
+    )
     source_p = Path(source_path).expanduser().resolve()
     output_p = Path(output_path).expanduser().resolve()
     if not output_p.name.endswith(OUTPUT_SUFFIX):
@@ -998,7 +1021,27 @@ def build_board(
     fab_dir = boards_dir / f"{stem}_fab"
     sidecar_path = boards_dir / f"{stem}.board.json"
 
-    if not _truthy(os.environ.get(FORCE_ENV)):
+    if reuse_p is not None and not reuse_p.is_file():
+        raise ProjectShapeError(
+            f"repair mode needs a routed board to repair: {reuse_p} is not a "
+            f"file — build the board first, then --recheck or --edits"
+        )
+    if reuse_p is None:
+        on_record = _repairs_on_record(sidecar_path)
+        if on_record:
+            block_findings.append({
+                "part": "board",
+                "kind": "repairs_discarded",
+                "detail": (
+                    f"this build re-routes from source and drops the "
+                    f"{on_record} copper repair(s) the last repair round applied "
+                    f"— every net is routed again, so re-check the findings "
+                    f"those repairs closed"
+                ),
+                "severity": "info",
+            })
+
+    if reuse_p is None and not _truthy(os.environ.get(FORCE_ENV)):
         prior = _unchanged_prior_result(
             sidecar_path=sidecar_path,
             identity=identity,
@@ -1057,7 +1100,58 @@ def build_board(
     #: dropped from the sidecar; a stage that did nothing should not be noise.
     router_reports: list[dict] = []
 
+    def _read_built() -> list:
+        try:
+            elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CompileError(f"built circuit.json unreadable: {exc}") from exc
+        if not isinstance(elements, list):
+            raise CompileError(
+                f"built circuit.json is not an element array "
+                f"(got {type(elements).__name__})"
+            )
+        return elements
+
     def _compile_once(timeout_s: float) -> list:
+        if reuse_p is not None:
+            # Repair mode: the routed IR is the input. Canonicalise and
+            # normalise exactly as a fresh compile is (the checks, the KiCad
+            # conversion and the export cache key all read this file), then
+            # hand it straight to the stages. No router, no post-route passes.
+            built_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(reuse_p, built_circuit_json)
+            determinism_block["seeded"] = False
+            determinism_block["reusedCircuitJson"] = str(reuse_p)
+            moved = _canonicalise_file(built_circuit_json)
+            for kind, count in moved.items():
+                existing = determinism_block["canonicalised"]
+                assert isinstance(existing, dict)
+                existing[kind] = count
+            circuit_normalizations.append(
+                circuit_normalize.normalize_circuit_json(built_circuit_json)
+            )
+            # The compiler's own geometry findings (`pcb_trace_too_long_warning`,
+            # `pcb_trace_error`, …) are elements IN the IR, written when the
+            # board was routed. Reused as they are, the scan reports them
+            # again whatever the repair did: measured 2026-09-10 on the
+            # Claude desk cube, a hop repaired from 10.49mm to 7.95mm still
+            # read "10.49mm" in the sidecar. Stage 2's @tscircuit/checks
+            # recomputes every geometry finding from the copper, so the
+            # stale copies go and the fresh ones stand. Supplier-footprint
+            # notes are not geometry and stay.
+            stripped = _strip_compiler_findings(built_circuit_json)
+            determinism_block["strippedCompilerFindings"] = stripped
+            # "Đổ đồng lại": the one post-route pass that must see the final
+            # copper. Repaired copper can now sit inside a pour's clearance;
+            # the pour pass only ever pushes pour vertices away from foreign
+            # copper, leaves a pour that already holds byte-identical, and
+            # runs to convergence — safe on every round, unlike
+            # `trace_clearance`. The pair and width passes stay off: they are
+            # the router-era passes the repair is replacing.
+            pour_results.append(
+                pour_clearance.repair_pour_clearance(built_circuit_json, profile)
+            )
+            return _read_built()
         with _deterministic_env(identity.source_fingerprint) as requested:
             try:
                 build_result = toolchain.run_cli(
@@ -1198,16 +1292,7 @@ def build_board(
         pour_results.append(
             pour_clearance.repair_pour_clearance(built_circuit_json, profile)
         )
-        try:
-            elements = json.loads(built_circuit_json.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise CompileError(f"built circuit.json unreadable: {exc}") from exc
-        if not isinstance(elements, list):
-            raise CompileError(
-                f"built circuit.json is not an element array "
-                f"(got {type(elements).__name__})"
-            )
-        return elements
+        return _read_built()
 
     def _scan(elements: list) -> list[dict]:
         """Stages 1, 2 and 4a — everything judgeable straight off the geometry,
@@ -1249,7 +1334,7 @@ def build_board(
     ]
     escalation_note: dict | None = None
     kept_attempt = 0
-    if _routing_blockers(warnings) and not _routing_escalation_off():
+    if reuse_p is None and _routing_blockers(warnings) and not _routing_escalation_off():
         entry_copy = work / rel_entry
         # The rung above what the board asks for. A board already at the top of
         # the ladder gets no retry — and says so, because "we tried harder and
@@ -1468,6 +1553,14 @@ def build_board(
         # equal to another build of the same source.
         "determinism": dict(determinism_block),
     }
+    if reuse_p is not None:
+        # The board this sidecar describes was not routed by this call.
+        build_block["repairMode"] = {
+            "reusedCircuitJson": reuse_p.name,
+            "postRoutePasses": "pour only",
+            "repairs": list(repairs or []),
+            "strippedCompilerFindings": determinism_block.pop("strippedCompilerFindings", {}),
+        }
     if kept_router.get("engine") != "off":
         build_block["router"] = kept_router
     if build_block_help is not None:
@@ -2089,6 +2182,7 @@ def build_board(
             "autorouter_effort": build_block["autorouterEffort"],
             "attempts": build_block["attempts"],
             "blocking_by_attempt": build_block["blockingByAttempt"],
+            "repair_mode": reuse_p is not None,
         },
         "warnings": warnings,
     }
@@ -2107,6 +2201,56 @@ def _bom_result_block(bom_block: dict[str, object]) -> dict[str, object]:
     if "estimatedCostUsd" in bom_block:
         out["estimated_cost_usd"] = bom_block["estimatedCostUsd"]
     return out
+
+
+#: Compile-time finding elements the repair round drops from a reused IR.
+#: Every one of these is geometry the stage-2 re-check derives again from the
+#: copper; keeping the compile-time copy would report the board as it was
+#: before the repair.
+_COMPILER_GEOMETRY_FINDINGS: frozenset[str] = frozenset({
+    "pcb_trace_too_long_warning",
+    "pcb_trace_error",
+    "pcb_via_trace_clearance_error",
+    "pcb_placement_error",
+    "pcb_port_not_connected_error",
+    "pcb_trace_overlap_warning",
+    "pcb_autorouting_error",
+})
+
+
+def _strip_compiler_findings(circuit_json_path: Path) -> dict[str, int]:
+    """Drop `_COMPILER_GEOMETRY_FINDINGS` elements from the file in place.
+    Returns kind → count dropped (empty when nothing was)."""
+    try:
+        elements = json.loads(circuit_json_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(elements, list):
+        return {}
+    dropped: dict[str, int] = {}
+    kept: list = []
+    for e in elements:
+        kind = e.get("type") if isinstance(e, dict) else None
+        if kind in _COMPILER_GEOMETRY_FINDINGS:
+            dropped[kind] = dropped.get(kind, 0) + 1
+            continue
+        kept.append(e)
+    if dropped:
+        circuit_json_path.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+    return dropped
+
+
+def _repairs_on_record(sidecar_path: Path) -> int:
+    """How many copper repairs the sidecar on disk says the board carries.
+
+    A rebuild from source re-routes every net and drops them; the build says
+    so (`repairs_discarded`, info) instead of letting the count vanish."""
+    try:
+        prior = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        mode = (prior.get("build") or {}).get("repairMode") or {}
+        return len(mode.get("repairs") or [])
+    except (OSError, ValueError, AttributeError):
+        return 0
 
 
 def _unchanged_prior_result(

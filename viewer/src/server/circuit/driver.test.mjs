@@ -14,6 +14,21 @@ import {
   APPROVE_PLAN_PREAMBLE,
   IMPLEMENT_SYSTEM_PROMPT,
   PLAN_SYSTEM_PROMPT,
+  REVIEW_SYSTEM_PROMPT,
+  REVIEW_SIDECAR_POLL_MS,
+  roundMadeItWorse,
+  roundCapAfterUndo,
+  shouldRestoreBestBuild,
+  settledBuildRunId,
+  buildIsStale,
+  BEST_BUILD_DIR,
+  liveBuild,
+  boardSidecarPaths,
+  codexFailureMessage,
+  killStrayBuild,
+  awaitBuildSettled,
+  parseCodexRolloutHistory,
+  findCodexRolloutPath,
   ELECTRICAL_KINDS,
   MAX_STRUCTURE_ROUNDS,
   PHASE,
@@ -1189,10 +1204,13 @@ test("buildCommandArgs omits both flags when unset rather than sending empties",
 // ---------------------------------------------------------------------------
 
 function sidecarDir(boards) {
+  // Sidecars live in `boards/` — the only place the generator writes them
+  // (contract § "Project layout"); a sidecar anywhere else is a copy.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "circuit-fabready-"));
+  fs.mkdirSync(path.join(dir, "boards"));
   boards.forEach((fab, i) => {
     const body = fab === undefined ? {} : { fab: { ready: fab } };
-    fs.writeFileSync(path.join(dir, `b${i}.board.json`), JSON.stringify(body));
+    fs.writeFileSync(path.join(dir, "boards", `b${i}.board.json`), JSON.stringify(body));
   });
   return dir;
 }
@@ -1215,18 +1233,17 @@ test("workspaceFabReady ignores a sidecar it cannot parse", () => {
   // A half-written file during a build must not read as "not ready" and trip
   // the ratchet on a healthy board.
   const dir = sidecarDir([true]);
-  fs.writeFileSync(path.join(dir, "broken.board.json"), '{"fab": {"rea');
+  fs.writeFileSync(path.join(dir, "boards", "broken.board.json"), '{"fab": {"rea');
   assert.equal(workspaceFabReady(dir), true);
 });
 
-test("workspaceFabReady skips the directories the walker is told to skip", () => {
+test("workspaceFabReady reads boards/ and nothing else — a stale copy must not veto", () => {
   const dir = sidecarDir([true]);
-  const inputs = path.join(dir, "inputs");
-  fs.mkdirSync(inputs);
-  fs.writeFileSync(
-    path.join(inputs, "old.board.json"),
-    JSON.stringify({ fab: { ready: false } }),
-  );
+  for (const rel of ["inputs/old.board.json", "work/best-build-1/boards/b0.board.json", "old.board.json"]) {
+    const full = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, JSON.stringify({ fab: { ready: false } }));
+  }
   assert.equal(workspaceFabReady(dir), true, "a stale copy must not veto");
 });
 
@@ -1598,13 +1615,32 @@ test("every turn carries a wall clock, because a build turn once ran 20 hours", 
 test("the build prompt tells both providers how long a build actually takes", () => {
   const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
   // The first version of this rule said two to six minutes and forbade
-  // backgrounding. Measured: 2133s in compile alone on a 55x55 two-layer
-  // board. The number was wrong by an order of magnitude, and the advice it
-  // carried told both providers to block for 35 minutes on one command.
-  assert.ok(p.includes("20-40 minutes"), "the measured range, not a guess");
+  // backgrounding. Then one 55x55 build spent 2133s in compile and the rule
+  // said "20-40 minutes" — and a Claude arm reading that sat in `sleep 590`
+  // loops while 25 builds measured on 2026-09-09 took 6 to 9 minutes each.
+  // Both numbers were real once; the rule now carries the typical AND the
+  // outlier and says to wait for the process, not for a number.
+  assert.ok(p.includes("6-10 minutes"), "the measured typical range");
+  assert.ok(p.includes("2133 seconds"), "and the measured outlier, not forgotten");
+  assert.ok(p.includes("wait"), "wait for the process");
   assert.ok(!p.includes("two to six minutes"));
   assert.ok(!p.includes("do not send it to the background"));
   assert.ok(p.includes("make each round"), "and why it matters: rounds are expensive");
+});
+
+test("the build prompt forbids hand copper and router reordering, and keeps asked-for parts on the board", () => {
+  const p = IMPLEMENT_SYSTEM_PROMPT.toLowerCase();
+  // Desk Cube USB Controller, 2026-09-09: `pcbPath` copper took the board from
+  // 9 to 73 findings because the router's obstacle set has no traces in it;
+  // `routingPhaseIndex` aborted the router. Both were the model's own idea.
+  assert.ok(p.includes("never hand-draw copper"));
+  assert.ok(p.includes("pcbpath"));
+  assert.ok(p.includes("routingphaseindex"));
+  assert.ok(p.includes("not from"), "the mechanism is stated, so the ban reads as a fact");
+  // Same board: an 8-pixel ring the user asked for became a header labelled
+  // LED8. The other arm soldered the ring. Neither prompt had said which.
+  assert.ok(p.includes("stays on the board"));
+  assert.ok(p.includes("only when sourcing has failed"));
 });
 
 test("the prompts say what the autorouter can actually route", () => {
@@ -1648,4 +1684,348 @@ test("the build prompt carries the rules that used to live only in CLAUDE.md", (
   // Web research is open to both arms, with a bar on what may be claimed.
   assert.ok(p.includes("search the web"));
   assert.ok(p.includes("never state a stock level"));
+});
+
+// ---------------------------------------------------------------------------
+// 2026-09-09, pomodoro-puck: a review structure round ran 2h06 with no clock,
+// went 2→14→3→2→78→6→2→32→3→2 blocking findings fixing one thing per build,
+// and nothing put the board back when a build came out worse. Three rules.
+// ---------------------------------------------------------------------------
+
+test("the review prompt tells the model to batch its fixes and that a worse round is undone", () => {
+  const p = REVIEW_SYSTEM_PROMPT.toLowerCase();
+  assert.ok(p.includes("fix everything"), "batching was only in the build prompt before");
+  assert.ok(p.includes("rebuild once"), "and says what batching means");
+  assert.ok(p.includes("worse than it found it"), "the ratchet is stated to the model, not only enforced");
+  // The two detours that cost 40 minutes on the Desk Cube build.
+  assert.ok(p.includes("pcbpath"));
+  assert.ok(p.includes("routingphaseindex"));
+});
+
+test("the plan prompt makes a size change a question, never a plan detail", () => {
+  const p = PLAN_SYSTEM_PROMPT.toLowerCase();
+  // Autopilot approves a plan without anyone reading it, so a size written
+  // into the plan is a size nobody agreed to: 45mm asked, 75mm built.
+  assert.ok(p.includes("the board size is the user's decision"));
+  assert.ok(p.includes("do not propose a plan at a bigger"));
+  assert.ok(p.includes("circuit-questions block instead"));
+});
+
+test("roundMadeItWorse is strictly more blocking findings, and never fires on an unreadable board", () => {
+  assert.equal(roundMadeItWorse(2, 78), true);
+  assert.equal(roundMadeItWorse(2, 2), false, "equal is kept — it may be a trade on the way somewhere");
+  assert.equal(roundMadeItWorse(14, 3), false);
+  assert.equal(roundMadeItWorse(0, 1), true, "a clean board made unclean is worse");
+  assert.equal(roundMadeItWorse(null, 5), false, "no sidecar before: nothing to compare against");
+  assert.equal(roundMadeItWorse(5, undefined), false);
+  assert.equal(roundMadeItWorse(NaN, 1), false);
+});
+
+test("a review round watches the sidecar often enough to show a rebuild, not so often it is noise", () => {
+  // A build is 6–9 minutes; the sidecar changes once per build.
+  assert.ok(REVIEW_SIDECAR_POLL_MS >= 5_000 && REVIEW_SIDECAR_POLL_MS <= 60_000, String(REVIEW_SIDECAR_POLL_MS));
+});
+
+test("parseCodexRolloutHistory returns the user's own words and the assistant's, and nothing of the harness", () => {
+  const workspace = "/Users/x/.autonomous-circuit/projects/abc";
+  const line = (ts, role, text) =>
+    JSON.stringify({ timestamp: ts, type: "response_item", payload: { type: "message", role, content: [{ type: "input_text", text }] } });
+  const rollout = [
+    JSON.stringify({ timestamp: "2026-09-09T04:39:49.000Z", type: "session_meta", payload: { id: "sid" } }),
+    line("2026-09-09T04:39:50.000Z", "user", "<environment_context>\n  <cwd>/x</cwd>\n</environment_context>"),
+    line("2026-09-09T04:39:51.000Z", "user", "<recommended_plugins>\n- Airtable\n</recommended_plugins>"),
+    line(
+      "2026-09-09T04:39:52.000Z",
+      "user",
+      "You are running inside Autonomous Circuit, the AI PCB studio. Every user\nmessage is a request to design or refine a printed circuit board. You are\nin PLANNING mode...\n\n" +
+        "PROJECT WORKSPACE. This project lives in the single absolute directory below. Every file...\n" +
+        `${workspace}\n\n` +
+        "Tao muốn một cái \"desk cube\" điều khiển bằng USB-C.\n\n- RP2040\n- BME280\n\n" +
+        "[Effort: high — think hard before writing the board. Check every block's pin assignment.]",
+    ),
+    JSON.stringify({ timestamp: "2026-09-09T04:40:00.000Z", type: "response_item", payload: { type: "reasoning", summary: [] } }),
+    line("2026-09-09T04:41:00.000Z", "assistant", "Đây là kế hoạch.\n\n```circuit-plan\n# Plan\n```"),
+    line(
+      "2026-09-09T07:25:56.000Z",
+      "user",
+      "You are running inside Autonomous Circuit, the AI PCB studio. An automatic\npost-build review of the board you just built is running. Work SILENTLY...\n\n" +
+        `PROJECT WORKSPACE...\n${workspace}\n\nStructure and electrical function are clean. Do ONE craft verification pass now.`,
+    ),
+    line("2026-09-09T07:44:49.000Z", "assistant", "NO_CHANGES"),
+    "not json at all",
+  ].join("\n");
+
+  const history = parseCodexRolloutHistory(rollout, { workspace });
+  assert.deepEqual(
+    history.map((h) => [h.role, h.content.split("\n")[0]]),
+    [
+      ["user", 'Tao muốn một cái "desk cube" điều khiển bằng USB-C.'],
+      ["assistant", "Đây là kế hoạch."],
+      ["assistant", "NO_CHANGES"],
+    ],
+  );
+  const [first] = history;
+  assert.ok(!first.content.includes("You are running inside"), "the phase preamble is not the user's message");
+  assert.ok(!first.content.includes("[Effort:"), "the effort suffix is a setting, not something typed");
+  assert.ok(first.content.endsWith("- BME280"), first.content);
+  assert.equal(first.at, Date.parse("2026-09-09T04:39:52.000Z"));
+  assert.deepEqual(history[1].blocks, [{ kind: "text", text: history[1].content }]);
+  // The review-round prompt is the silent loop talking to itself, not chat.
+  assert.ok(history.every((h) => !h.content.includes("craft verification")));
+});
+
+test("findCodexRolloutPath walks CODEX_HOME/sessions newest day first, by session id suffix", () => {
+  const home = tmpdir("circuit-codex-home-");
+  const env = { CODEX_HOME: home };
+  assert.equal(findCodexRolloutPath("01a0-sid", env), "", "nothing there yet");
+  assert.equal(findCodexRolloutPath("", env), "", "no id, no lookup");
+  const old = path.join(home, "sessions", "2026", "09", "08");
+  const today = path.join(home, "sessions", "2026", "09", "09");
+  fs.mkdirSync(old, { recursive: true });
+  fs.mkdirSync(today, { recursive: true });
+  fs.writeFileSync(path.join(old, "rollout-2026-09-08T10-00-00-other-sid.jsonl"), "");
+  fs.writeFileSync(path.join(today, "rollout-2026-09-09T11-39-49-01a0-sid.jsonl"), "");
+  assert.equal(findCodexRolloutPath("01a0-sid", env), path.join(today, "rollout-2026-09-09T11-39-49-01a0-sid.jsonl"));
+  assert.equal(findCodexRolloutPath("other-sid", env), path.join(old, "rollout-2026-09-08T10-00-00-other-sid.jsonl"));
+  assert.equal(findCodexRolloutPath("nobody", env), "");
+});
+
+// ---------------------------------------------------------------------------
+// An undone round gives its phase one spare slot; a stopped implement turn
+// hands back its best rebuild (2026-09-10, pomodoro-puck, Astra run #3)
+// ---------------------------------------------------------------------------
+
+test("an undone round does not use up a slot — once per phase", () => {
+  // Run #3: round 1 chopped at 60 min and undone (5→8), round 2 went 5→3 in
+  // 8 minutes, and the 2-round cap ended the run there. The undone round's
+  // slot bought nothing.
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 0), MAX_STRUCTURE_ROUNDS);
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 1), MAX_STRUCTURE_ROUNDS + 1);
+  // but a phase that keeps making things worse must still end
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 5), MAX_STRUCTURE_ROUNDS + 1);
+  assert.equal(roundCapAfterUndo(3, -1), 3);
+  assert.equal(roundCapAfterUndo(3, undefined), 3);
+});
+
+test("only a STOPPED implement turn hands back its best rebuild", () => {
+  // stopped by the clock or the user while worse than the best copy → restore
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: 8 }), true);
+  // stopped, but no worse → keep what is there
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: 2 }), false);
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 8, finalBlocking: 2 }), false);
+  // ended on its own: may have just implemented "make the board smaller",
+  // which reads as a regression to a count and is not one
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: false, bestBlocking: 2, finalBlocking: 8 }), false);
+  // an unreadable board is never called worse
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: null }), false);
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: null, finalBlocking: 8 }), false);
+});
+
+test("a build is settled only when build-status.json says done", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "settled-"));
+  const statusPath = path.join(ws, ".circuit", "build-status.json");
+  fs.mkdirSync(path.dirname(statusPath), { recursive: true });
+
+  assert.equal(settledBuildRunId(ws), null, "no status file → nothing settled");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "running", runId: "r1", stage: "compile" }));
+  assert.equal(settledBuildRunId(ws), null, "mid-flight artifacts must not be copied");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "done", runId: "r1" }));
+  assert.equal(settledBuildRunId(ws), "r1");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "failed", runId: "r2" }));
+  assert.equal(settledBuildRunId(ws), null);
+  fs.writeFileSync(statusPath, "{not json");
+  assert.equal(settledBuildRunId(ws), null);
+});
+
+test("a build is stale once the source moves past the sidecar — outputs never make it stale", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "stale-"));
+  fs.mkdirSync(path.join(ws, "boards", "main_fab"), { recursive: true });
+  fs.mkdirSync(path.join(ws, "blocks", "rp2040-core"), { recursive: true });
+  const t0 = new Date(Date.now() - 60_000);
+  const t1 = new Date(Date.now() - 30_000);
+  const t2 = new Date();
+  const put = (rel, when) => {
+    const full = path.join(ws, rel);
+    fs.writeFileSync(full, "x");
+    fs.utimesSync(full, when, when);
+  };
+
+  assert.equal(buildIsStale(ws), true, "no sidecar → nothing to trust");
+
+  put("boards/main.tsx", t0);
+  put("blocks/rp2040-core/b.tsx", t0);
+  put("product.json", t0);
+  put("parts.json", t0);
+  put("boards/main.board.json", t1);
+  // outputs land AFTER the sidecar by design and are not source
+  put("boards/main.circuit.json", t2);
+  put("boards/main_fab/bom.csv", t2);
+  put("boards/main_fab/enclosure.json", t2);
+  assert.equal(buildIsStale(ws), false);
+
+  // the agent starts its next edit: the sidecar no longer describes the source
+  put("blocks/rp2040-core/b.tsx", t2);
+  assert.equal(buildIsStale(ws), true);
+  put("blocks/rp2040-core/b.tsx", t0);
+  put("parts.json", t2);
+  assert.equal(buildIsStale(ws), true);
+});
+
+test("the best-build copy lives beside the review undo copy, and restores like it", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "best-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "BEST");
+  fs.writeFileSync(path.join(ws, "boards", "main.board.json"), '{"validation":{"warnings":[]}}');
+
+  const best = snapshotForUndo(ws, BEST_BUILD_DIR);
+  assert.ok(best.endsWith(path.join(".circuit", "best-build")));
+  assert.notEqual(best, snapshotForUndo(ws), "never the review undo directory — the loop after would clobber it");
+  assert.ok(!snapshotWorkspace(ws).has(path.join(".circuit", "best-build", "boards", "main.tsx")),
+    "taking the copy must not look like the board changed");
+
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "WRECK");
+  assert.equal(restoreFromUndo(ws, best), true);
+  assert.equal(fs.readFileSync(path.join(ws, "boards", "main.tsx"), "utf8"), "BEST");
+});
+
+test("the build prompt tells the model its best rebuild is what a stopped turn hands back", () => {
+  assert.ok(IMPLEMENT_SYSTEM_PROMPT.includes("best\nrebuild so far is kept"));
+  assert.ok(IMPLEMENT_SYSTEM_PROMPT.includes("stopped by the clock or\nthe user"));
+  // the review prompt has its own ratchet (undo per round); this one is the build turn's
+  assert.ok(!REVIEW_SYSTEM_PROMPT.includes("rebuild so far is kept"));
+});
+
+// ---------------------------------------------------------------------------
+// A stopped turn's build must not outlive the turn (2026-09-10, run #4: a
+// build launched 13:01:58 survived the 13:05:38 chop and landed at 13:09:26,
+// after the verdict was read and both undo copies deleted)
+// ---------------------------------------------------------------------------
+
+function writeBuildStatus(ws, status) {
+  const p = path.join(ws, ".circuit", "build-status.json");
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(status));
+}
+
+test("a build is live only while its writer is — a stale `running` file is not a build", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "live-"));
+  assert.equal(liveBuild(ws), null, "no status file");
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: process.pid, pgid: 0, stage: "compile" });
+  const live = liveBuild(ws);
+  assert.ok(live, "this process is alive, so the build it claims to be is live");
+  assert.equal(live.pid, process.pid);
+  assert.equal(live.pgid, null, "pgid 0 is not a group");
+  assert.equal(live.stage, "compile");
+  writeBuildStatus(ws, { state: "done", runId: "r1", pid: process.pid });
+  assert.equal(liveBuild(ws), null, "done is not running");
+  // A pid nobody has: the writer was killed mid-build and the file stayed
+  // `running` for ever. That is a stale file, not a build to wait for.
+  writeBuildStatus(ws, { state: "running", runId: "r2", pid: 2 ** 22 - 1 });
+  assert.equal(liveBuild(ws), null);
+  writeBuildStatus(ws, { state: "running", runId: "r3" });
+  assert.equal(liveBuild(ws), null, "no pid → cannot be told apart from stale → not waited on");
+});
+
+test("killStrayBuild reaches a build that is not the provider's child", { skip: process.platform === "win32" }, async () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "stray-"));
+  // Its own process group, exactly like a generator the agent backgrounded.
+  const { spawn } = await import("node:child_process");
+  const child = spawn("sleep", ["60"], { detached: true, stdio: "ignore" });
+  await new Promise((r) => setTimeout(r, 100));
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: child.pid, pgid: child.pid, stage: "compile" });
+  assert.ok(liveBuild(ws), "the sleeper is alive");
+  assert.equal(killStrayBuild(ws), true);
+  const exited = await new Promise((resolve) => {
+    const t = setTimeout(() => resolve(false), 3000);
+    child.once("exit", () => { clearTimeout(t); resolve(true); });
+  });
+  assert.equal(exited, true, "the stray build is dead");
+  assert.equal(killStrayBuild(ws), false, "nothing left to kill");
+});
+
+test("awaitBuildSettled returns at once when nothing is running and waits while something is", async () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "settle-"));
+  assert.equal(await awaitBuildSettled(ws), true);
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: process.pid });
+  const t0 = Date.now();
+  // this process never "finishes", so the bound is what returns
+  assert.equal(await awaitBuildSettled(ws, { maxMs: 300, pollMs: 50 }), false);
+  assert.ok(Date.now() - t0 >= 250, "it actually waited for the bound");
+  writeBuildStatus(ws, { state: "done", runId: "r1", pid: process.pid });
+  assert.equal(await awaitBuildSettled(ws, { maxMs: 300, pollMs: 50 }), true);
+});
+
+// ---------------------------------------------------------------------------
+// A copy is not a board, and a failed provider is not a round (2026-09-10,
+// Astra run #5: the loop counted `work/best-build-1/boards/main.board.json`
+// as a board and burned two rounds on "You've hit your usage limit")
+// ---------------------------------------------------------------------------
+
+test("only boards/<stem>.board.json is a board — the agent's checkpoints are not", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "sidecars-"));
+  const sidecar = (rel, ready, errors) => {
+    const p = path.join(ws, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({
+      fab: { ready },
+      validation: { warnings: errors.map((kind) => ({ kind, severity: "error", part: "x", detail: "" })) },
+    }));
+  };
+  assert.equal(workspaceHasBoard(ws), false);
+  assert.equal(workspaceFabReady(ws), null);
+  // exactly run #5's layout
+  sidecar("boards/main.board.json", true, []);
+  sidecar("work/best-build-1/boards/main.board.json", false, ["netclass_trace_width"]);
+  sidecar("work/best-build-2/boards/main.board.json", true, []);
+  sidecar("verification/build-3-source/main.board.json", false, ["pcb_trace_error", "drc_violation"]);
+  assert.deepEqual(boardSidecarPaths(ws), [path.join(ws, "boards", "main.board.json")]);
+  assert.equal(workspaceHasBoard(ws), true);
+  assert.equal(workspaceFabReady(ws), true, "the real board is fab-ready; the copies do not vote");
+  assert.equal(collectBoardWarnings(ws).filter(isBlocking).length, 0, "the copy's blocker is not the board's");
+  // a second real board still counts
+  sidecar("boards/panel.board.json", false, ["drc_violation"]);
+  assert.equal(workspaceFabReady(ws), false);
+  assert.equal(collectBoardWarnings(ws).filter(isBlocking).length, 1);
+});
+
+test("review images come from boards/<stem>_review only", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "imgs-"));
+  const touch = (rel) => { const p = path.join(ws, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, ""); };
+  touch("boards/main.board.json");
+  touch("boards/main_review/_schematic.png");
+  touch("boards/main_review/_pcb.png");
+  touch("work/best-build-1/boards/main_review/_pcb.png");
+  touch("work/best-build-1/boards/main_review/_schematic.png");
+  assert.deepEqual(reviewImagePaths(ws), [
+    path.join(ws, "boards", "main_review", "_pcb.png"),
+    path.join(ws, "boards", "main_review", "_schematic.png"),
+  ]);
+});
+
+test("a Codex turn.failed line is an error the user sees, in both stream shapes", () => {
+  const state = newStreamState();
+  const usage = "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more";
+  assert.deepEqual(
+    parseCodexLine(JSON.stringify({ type: "turn.failed", error: { message: usage } }), "t1", state),
+    [{ kind: "error", turnId: "t1", message: usage }],
+  );
+  assert.deepEqual(
+    parseCodexLine(JSON.stringify({ type: "error", message: "boom" }), "t1", state),
+    [{ kind: "error", turnId: "t1", message: "boom" }],
+  );
+  assert.equal(codexFailureMessage({ type: "turn.failed", error: "plain string" }), "plain string");
+  assert.equal(codexFailureMessage({ type: "turn.failed" }), "Codex turn failed");
+  assert.equal(codexFailureMessage({ type: "item.completed", item: { type: "agent_message", text: "hi" } }), null);
+  assert.equal(codexFailureMessage(null), null);
+});
+
+test("the plan prompt plans a repair, not a rebuild, for a copper finding on a routed board", () => {
+  // 2026-09-10 17:0x: the Fix button sent "…Then rebuild and re-run the
+  // checks" for three crystal-length findings; the plan turn spent ten
+  // minutes reading @tscircuit/core for pcbPath and route hints, because
+  // nothing in this prompt knew the generator had a repair mode.
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("PLAN A\nREPAIR, NOT A REBUILD"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("--recheck"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("--edits <edits.json>"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("Do NOT plan `pcbPath`"));
 });

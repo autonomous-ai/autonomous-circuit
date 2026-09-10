@@ -286,4 +286,74 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / skills (re-vendor) / docs (§1 stage table
   when the freeze lifts).
 
+## 2026-09-10 — A board sidecar is `boards/<stem>.board.json`; a copy is not a board
+- **Change:** the server driver's readers of the sidecar (`collectBoardWarnings`,
+  `workspaceFabReady`, `workspaceHasBoard`, `reviewImagePaths`) look only at
+  `<workspace>/boards/<stem>.board.json` and `<workspace>/boards/<stem>_review/`.
+  The frozen text says the review loop "walks `*.board.json`"; the walk is now
+  that one directory, which is the only place the generator ever writes a
+  sidecar (§ "Project layout").
+- **Why:** Astra run #5 (pomodoro-puck-run5, 2026-09-10 14:18) kept its own
+  build checkpoints at `work/best-build-1/boards/main.board.json` — a copy of
+  build 1 with one blocking finding and `fab.ready: false`. The whole-tree walk
+  counted it: "1 blocking" and `fabReady = false` on a workspace whose real
+  board was fab-ready with none, two review rounds spent prompting the model
+  to fix a backup, `structure-unresolved` in the chat. Run #4 escaped only
+  because the agent had named its copies `.board.json.txt`. The generator and
+  the catalog already treat `boards/` as the board directory; the driver was
+  the one reader that did not.
+- **Backward compatible:** yes for every board this pipeline has produced —
+  `build_board()` writes sidecars under `boards/` only. A workspace that kept
+  sidecars elsewhere by hand was never a supported layout.
+- **Also in this change (not contract):** a review round now reads its own
+  stdout for a provider failure (`{"type":"error"}` / `turn.failed`, e.g. the
+  usage limit) and stops the loop with a message, instead of draining it and
+  reporting the board unresolved after two five-second "rounds".
+- **Tracks affected:** server (driver readers). No client, skill or pipeline change.
+
+## 2026-09-10 — Repair mode: the routed board is an input, not only an output
+- **Change:** `build_board(reuse_circuit_json=…, repairs=…)` and the skill CLI's
+  `--recheck` / `--edits <edits.json>`. Repair mode skips stage 0 (compile +
+  router) and three of the four post-route copper passes (the pour pass
+  re-runs: repaired copper may now sit inside a pour's clearance, and that
+  pass is safe to repeat), takes `boards/<stem>.circuit.json`
+  as the routed IR, re-runs only the pour pass, optionally applies `circuitpy.repair` edits (move a route
+  point, move a via with the wires on it, insert/delete points — never a net,
+  pad, part or layer), and runs every later stage unchanged: scan, checks,
+  KiCad ERC/DRC, DFM, verify, packet, gerber-truth, renders, sidecar. The
+  sidecar gains `build.repairMode {reusedCircuitJson, postRoutePasses, repairs}`
+  and the result line `build.repair_mode`. A build from TSX after a repair round
+  reports `repairs_discarded` (info). §1's "stdout JSON line, sidecar
+  camelCase, artifact order" are unchanged; §1's "the IR of record is produced
+  by compile" now has a second producer, the repair round.
+- **Why:** measured 2026-09-10. Astra run #4 spent twelve rebuilds and two
+  hours on one via; Claude's desk cube went 3 → 1 → 7 moving a crystal to fix a
+  12 mm trace, because every fix was "edit TSX, re-route everything" and the
+  defect moved each time. The harness-free Astra board converged in a 1-minute
+  fix–check cycle by repairing copper in place. Replaying the gauntlet on a
+  repaired IR takes 30 s against 5–12 min; the errors do not migrate.
+- **Backward compatible:** yes — nothing changes for a build that does not pass
+  the flag. The unchanged-source short-circuit still returns a repaired
+  sidecar as long as the TSX is unchanged, which is the persistence a repair
+  gets in v1.5; persistence across a re-route is v2.
+- **Tracks affected:** pipeline (`generation.py`, new `repair.py`), skill
+  runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts
+  (build + review). Client unchanged.
+
+## 2026-09-10 — Repair mode, second cut: stale compiler findings go; two layer ops
+- **Change:** a repair round strips the compiler's geometry finding elements
+  (`pcb_trace_too_long_warning`, `pcb_trace_error`, `pcb_via_trace_clearance_error`,
+  `pcb_placement_error`, `pcb_port_not_connected_error`, `pcb_trace_overlap_warning`,
+  `pcb_autorouting_error`) from the reused `circuit.json` before the scan and
+  records the counts in `build.repairMode.strippedCompilerFindings`; stage 2
+  recomputes every one of them from the copper. `circuitpy.repair` gains
+  `set_layer` and `remove_via`.
+- **Why:** first agent-driven repair round (Claude desk cube, 17:12–17:18): the
+  hop it repaired from 10.49 mm to 7.95 mm still read "10.49mm" because the
+  compile-time element was copied through; and the second segment cannot get
+  under 10 mm without dropping its two vias (7.94 mm straight + 3.2 mm of barrel),
+  which no planar edit can do. Both diagnosed by the agent in its report.
+- **Backward compatible:** yes — repair-mode only.
+- **Tracks affected:** pipeline, skill runtime (re-vendor), SKILL.md.
+
 (No further entries yet.)
