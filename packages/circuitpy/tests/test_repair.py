@@ -129,3 +129,48 @@ class RepairTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LayerAndViaTest(unittest.TestCase):
+    """A two-via hop back to one layer: the crystal net's only way under 10 mm."""
+
+    def _run(self, edits, ir=None):
+        return RepairTest._run(self, edits, ir)
+
+    def _route(self, after, tid):
+        return RepairTest._route(self, after, tid)
+
+    def test_remove_via_refuses_while_the_sides_differ(self):
+        with self.assertRaisesRegex(repair.RepairError, "set_layer one side first"):
+            self._run([{"op": "remove_via", "via": "via_1"}])
+
+    def test_set_layer_then_remove_via_gives_a_one_layer_trace(self):
+        ir = _ir()
+        ir[2]["route"][5].pop("end_pcb_port_id")  # the far end is a free vertex in this fixture
+        applied, after = self._run([
+            {"op": "set_layer", "trace": "t_a", "indices": [4, 5], "layer": "top"},
+            {"op": "remove_via", "via": "via_1"},
+        ], ir)
+        r = self._route(after, "t_a")
+        self.assertEqual([p.get("route_type") for p in r], ["wire"] * 4, "via point gone, coincident end merged")
+        self.assertEqual({p["layer"] for p in r}, {"top"})
+        self.assertEqual([(p["x"], p["y"]) for p in r], [(0.0, 7.0), (1.0, 7.0), (2.0, 7.0), (2.0, 9.0)])
+        self.assertFalse(any(e.get("type") == "pcb_via" for e in after), "the pcb_via element is gone")
+        self.assertEqual(applied[1]["op"], "remove_via")
+
+    def test_set_layer_refuses_a_pad_anchor_and_a_via(self):
+        with self.assertRaisesRegex(repair.RepairError, "anchored to a pad"):
+            self._run([{"op": "set_layer", "trace": "t_a", "indices": [5], "layer": "top"}])
+        with self.assertRaisesRegex(repair.RepairError, "is a via"):
+            self._run([{"op": "set_layer", "trace": "t_a", "indices": [3], "layer": "top"}])
+        with self.assertRaisesRegex(repair.RepairError, "layer must be one of"):
+            self._run([{"op": "set_layer", "trace": "t_a", "indices": [1], "layer": "mid"}])
+
+    def test_remove_via_refuses_a_layer_change_left_without_a_via(self):
+        # re-layer only the near side: the far end (bottom, anchored) would
+        # then follow a top wire with no via between
+        with self.assertRaisesRegex(repair.RepairError, "with no via"):
+            self._run([
+                {"op": "set_layer", "trace": "t_a", "indices": [4], "layer": "top"},
+                {"op": "remove_via", "via": "via_1"},
+            ])

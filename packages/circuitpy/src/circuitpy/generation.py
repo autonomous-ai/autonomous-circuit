@@ -1130,6 +1130,17 @@ def build_board(
             circuit_normalizations.append(
                 circuit_normalize.normalize_circuit_json(built_circuit_json)
             )
+            # The compiler's own geometry findings (`pcb_trace_too_long_warning`,
+            # `pcb_trace_error`, …) are elements IN the IR, written when the
+            # board was routed. Reused as they are, the scan reports them
+            # again whatever the repair did: measured 2026-09-10 on the
+            # Claude desk cube, a hop repaired from 10.49mm to 7.95mm still
+            # read "10.49mm" in the sidecar. Stage 2's @tscircuit/checks
+            # recomputes every geometry finding from the copper, so the
+            # stale copies go and the fresh ones stand. Supplier-footprint
+            # notes are not geometry and stay.
+            stripped = _strip_compiler_findings(built_circuit_json)
+            determinism_block["strippedCompilerFindings"] = stripped
             # "Đổ đồng lại": the one post-route pass that must see the final
             # copper. Repaired copper can now sit inside a pour's clearance;
             # the pour pass only ever pushes pour vertices away from foreign
@@ -1548,6 +1559,7 @@ def build_board(
             "reusedCircuitJson": reuse_p.name,
             "postRoutePasses": "pour only",
             "repairs": list(repairs or []),
+            "strippedCompilerFindings": determinism_block.pop("strippedCompilerFindings", {}),
         }
     if kept_router.get("engine") != "off":
         build_block["router"] = kept_router
@@ -2189,6 +2201,43 @@ def _bom_result_block(bom_block: dict[str, object]) -> dict[str, object]:
     if "estimatedCostUsd" in bom_block:
         out["estimated_cost_usd"] = bom_block["estimatedCostUsd"]
     return out
+
+
+#: Compile-time finding elements the repair round drops from a reused IR.
+#: Every one of these is geometry the stage-2 re-check derives again from the
+#: copper; keeping the compile-time copy would report the board as it was
+#: before the repair.
+_COMPILER_GEOMETRY_FINDINGS: frozenset[str] = frozenset({
+    "pcb_trace_too_long_warning",
+    "pcb_trace_error",
+    "pcb_via_trace_clearance_error",
+    "pcb_placement_error",
+    "pcb_port_not_connected_error",
+    "pcb_trace_overlap_warning",
+    "pcb_autorouting_error",
+})
+
+
+def _strip_compiler_findings(circuit_json_path: Path) -> dict[str, int]:
+    """Drop `_COMPILER_GEOMETRY_FINDINGS` elements from the file in place.
+    Returns kind → count dropped (empty when nothing was)."""
+    try:
+        elements = json.loads(circuit_json_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(elements, list):
+        return {}
+    dropped: dict[str, int] = {}
+    kept: list = []
+    for e in elements:
+        kind = e.get("type") if isinstance(e, dict) else None
+        if kind in _COMPILER_GEOMETRY_FINDINGS:
+            dropped[kind] = dropped.get(kind, 0) + 1
+            continue
+        kept.append(e)
+    if dropped:
+        circuit_json_path.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+    return dropped
 
 
 def _repairs_on_record(sidecar_path: Path) -> int:

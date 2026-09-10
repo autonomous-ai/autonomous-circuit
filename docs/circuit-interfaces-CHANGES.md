@@ -340,4 +340,20 @@ first, in this template, before the doc itself is edited:
   runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts
   (build + review). Client unchanged.
 
+## 2026-09-10 — Repair mode, second cut: stale compiler findings go; two layer ops
+- **Change:** a repair round strips the compiler's geometry finding elements
+  (`pcb_trace_too_long_warning`, `pcb_trace_error`, `pcb_via_trace_clearance_error`,
+  `pcb_placement_error`, `pcb_port_not_connected_error`, `pcb_trace_overlap_warning`,
+  `pcb_autorouting_error`) from the reused `circuit.json` before the scan and
+  records the counts in `build.repairMode.strippedCompilerFindings`; stage 2
+  recomputes every one of them from the copper. `circuitpy.repair` gains
+  `set_layer` and `remove_via`.
+- **Why:** first agent-driven repair round (Claude desk cube, 17:12–17:18): the
+  hop it repaired from 10.49 mm to 7.95 mm still read "10.49mm" because the
+  compile-time element was copied through; and the second segment cannot get
+  under 10 mm without dropping its two vias (7.94 mm straight + 3.2 mm of barrel),
+  which no planar edit can do. Both diagnosed by the agent in its report.
+- **Backward compatible:** yes — repair-mode only.
+- **Tracks affected:** pipeline, skill runtime (re-vendor), SKILL.md.
+
 (No further entries yet.)

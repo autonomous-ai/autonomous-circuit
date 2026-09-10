@@ -367,8 +367,27 @@ python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
 ]
 ```
 
+Two more, for taking a hop back to one layer — the only way a crystal net with
+two vias (2 × 1.6 mm of barrel counted in its length) gets under its ceiling:
+
+```json
+[
+  {"op": "set_layer",  "trace": "source_trace_54__source_trace_59_mst1_0", "indices": [5, 6, 7], "layer": "top"},
+  {"op": "remove_via", "via": "pcb_via_115"}
+]
+```
+
+`set_layer` re-layers wire vertices (never a pad-anchored one — its layer is the
+pad's); `remove_via` deletes the via and its route point once the wires on both
+sides are on one layer, and refuses while the trace would still change layer
+anywhere without a via. Re-layered copper is new copper on that layer: check the
+pads and vias it now crosses (0.5 mm, that layer) before you run it.
+
 `move_via` carries every route point sitting on the via, so the join the
-contiguity check measures stays a join. Refused, with the board untouched: a
+contiguity check measures stays a join. A repair round drops the compiler's
+own geometry findings from the reused IR (`pcb_trace_too_long_warning`,
+`pcb_trace_error`, …) and takes the re-check's fresh ones — the sidecar's
+`build.repairMode.strippedCompilerFindings` says how many. Refused, with the board untouched: a
 pad-anchored point, a via through `move_point`, an unknown id, more than 200
 edits (that is a re-route, not a repair). The sidecar records
 `build.repairMode.repairs`; a later build from TSX re-routes everything and
