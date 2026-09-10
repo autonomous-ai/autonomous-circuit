@@ -17,6 +17,11 @@ import {
   REVIEW_SYSTEM_PROMPT,
   REVIEW_SIDECAR_POLL_MS,
   roundMadeItWorse,
+  roundCapAfterUndo,
+  shouldRestoreBestBuild,
+  settledBuildRunId,
+  buildIsStale,
+  BEST_BUILD_DIR,
   parseCodexRolloutHistory,
   findCodexRolloutPath,
   ELECTRICAL_KINDS,
@@ -1776,4 +1781,109 @@ test("findCodexRolloutPath walks CODEX_HOME/sessions newest day first, by sessio
   assert.equal(findCodexRolloutPath("01a0-sid", env), path.join(today, "rollout-2026-09-09T11-39-49-01a0-sid.jsonl"));
   assert.equal(findCodexRolloutPath("other-sid", env), path.join(old, "rollout-2026-09-08T10-00-00-other-sid.jsonl"));
   assert.equal(findCodexRolloutPath("nobody", env), "");
+});
+
+// ---------------------------------------------------------------------------
+// An undone round gives its phase one spare slot; a stopped implement turn
+// hands back its best rebuild (2026-09-10, pomodoro-puck, Astra run #3)
+// ---------------------------------------------------------------------------
+
+test("an undone round does not use up a slot — once per phase", () => {
+  // Run #3: round 1 chopped at 60 min and undone (5→8), round 2 went 5→3 in
+  // 8 minutes, and the 2-round cap ended the run there. The undone round's
+  // slot bought nothing.
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 0), MAX_STRUCTURE_ROUNDS);
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 1), MAX_STRUCTURE_ROUNDS + 1);
+  // but a phase that keeps making things worse must still end
+  assert.equal(roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, 5), MAX_STRUCTURE_ROUNDS + 1);
+  assert.equal(roundCapAfterUndo(3, -1), 3);
+  assert.equal(roundCapAfterUndo(3, undefined), 3);
+});
+
+test("only a STOPPED implement turn hands back its best rebuild", () => {
+  // stopped by the clock or the user while worse than the best copy → restore
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: 8 }), true);
+  // stopped, but no worse → keep what is there
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: 2 }), false);
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 8, finalBlocking: 2 }), false);
+  // ended on its own: may have just implemented "make the board smaller",
+  // which reads as a regression to a count and is not one
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: false, bestBlocking: 2, finalBlocking: 8 }), false);
+  // an unreadable board is never called worse
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: 2, finalBlocking: null }), false);
+  assert.equal(shouldRestoreBestBuild({ stoppedEarly: true, bestBlocking: null, finalBlocking: 8 }), false);
+});
+
+test("a build is settled only when build-status.json says done", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "settled-"));
+  const statusPath = path.join(ws, ".circuit", "build-status.json");
+  fs.mkdirSync(path.dirname(statusPath), { recursive: true });
+
+  assert.equal(settledBuildRunId(ws), null, "no status file → nothing settled");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "running", runId: "r1", stage: "compile" }));
+  assert.equal(settledBuildRunId(ws), null, "mid-flight artifacts must not be copied");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "done", runId: "r1" }));
+  assert.equal(settledBuildRunId(ws), "r1");
+  fs.writeFileSync(statusPath, JSON.stringify({ state: "failed", runId: "r2" }));
+  assert.equal(settledBuildRunId(ws), null);
+  fs.writeFileSync(statusPath, "{not json");
+  assert.equal(settledBuildRunId(ws), null);
+});
+
+test("a build is stale once the source moves past the sidecar — outputs never make it stale", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "stale-"));
+  fs.mkdirSync(path.join(ws, "boards", "main_fab"), { recursive: true });
+  fs.mkdirSync(path.join(ws, "blocks", "rp2040-core"), { recursive: true });
+  const t0 = new Date(Date.now() - 60_000);
+  const t1 = new Date(Date.now() - 30_000);
+  const t2 = new Date();
+  const put = (rel, when) => {
+    const full = path.join(ws, rel);
+    fs.writeFileSync(full, "x");
+    fs.utimesSync(full, when, when);
+  };
+
+  assert.equal(buildIsStale(ws), true, "no sidecar → nothing to trust");
+
+  put("boards/main.tsx", t0);
+  put("blocks/rp2040-core/b.tsx", t0);
+  put("product.json", t0);
+  put("parts.json", t0);
+  put("boards/main.board.json", t1);
+  // outputs land AFTER the sidecar by design and are not source
+  put("boards/main.circuit.json", t2);
+  put("boards/main_fab/bom.csv", t2);
+  put("boards/main_fab/enclosure.json", t2);
+  assert.equal(buildIsStale(ws), false);
+
+  // the agent starts its next edit: the sidecar no longer describes the source
+  put("blocks/rp2040-core/b.tsx", t2);
+  assert.equal(buildIsStale(ws), true);
+  put("blocks/rp2040-core/b.tsx", t0);
+  put("parts.json", t2);
+  assert.equal(buildIsStale(ws), true);
+});
+
+test("the best-build copy lives beside the review undo copy, and restores like it", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "best-"));
+  fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "BEST");
+  fs.writeFileSync(path.join(ws, "boards", "main.board.json"), '{"validation":{"warnings":[]}}');
+
+  const best = snapshotForUndo(ws, BEST_BUILD_DIR);
+  assert.ok(best.endsWith(path.join(".circuit", "best-build")));
+  assert.notEqual(best, snapshotForUndo(ws), "never the review undo directory — the loop after would clobber it");
+  assert.ok(!snapshotWorkspace(ws).has(path.join(".circuit", "best-build", "boards", "main.tsx")),
+    "taking the copy must not look like the board changed");
+
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "WRECK");
+  assert.equal(restoreFromUndo(ws, best), true);
+  assert.equal(fs.readFileSync(path.join(ws, "boards", "main.tsx"), "utf8"), "BEST");
+});
+
+test("the build prompt tells the model its best rebuild is what a stopped turn hands back", () => {
+  assert.ok(IMPLEMENT_SYSTEM_PROMPT.includes("best\nrebuild so far is kept"));
+  assert.ok(IMPLEMENT_SYSTEM_PROMPT.includes("stopped by the clock or\nthe user"));
+  // the review prompt has its own ratchet (undo per round); this one is the build turn's
+  assert.ok(!REVIEW_SYSTEM_PROMPT.includes("rebuild so far is kept"));
 });

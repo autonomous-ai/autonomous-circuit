@@ -257,6 +257,13 @@ export const IMPLEMENT_SYSTEM_PROMPT = [
   "a review round on 2026-09-09 spent two hours and eleven builds going",
   "2→14→3→2→78→6→2→32→3→2 blocking findings by fixing one thing per build.",
   "",
+  "DO NOT LEAVE A WRECK STANDING WHILE YOU THINK. A copy of your best",
+  "rebuild so far is kept as you go: if this turn is stopped by the clock or",
+  "the user while the board has more blocking findings than that copy, the",
+  "copy is what is handed back and your later edits are gone. When a rebuild",
+  "comes back worse (2026-09-10: 2 → 8 in one edit), revert that change in",
+  "your next edit rather than stacking another change on top of it.",
+  "",
   "NEVER HAND-DRAW COPPER, AND NEVER REORDER THE ROUTER. `pcbPath`,",
   "`pcbStraightLine` and `routingPhaseIndex` are not levers. The autorouter",
   "builds its obstacle set from pads, holes, vias and cutouts — NOT from",
@@ -1658,6 +1665,39 @@ export async function spawnTurn({
     : null;
   if (budgetTimer?.unref) budgetTimer.unref();
 
+  // The implement turn's own ratchet. Inside this one child the agent
+  // rebuilds as often as it likes for up to five hours, and the review
+  // ratchet sees none of it — it guards rounds the DRIVER runs, which start
+  // only after this child exits. Measured 2026-09-10 (pomodoro-puck, Astra
+  // run #3): one implement turn walked its own rebuilds 3 → 4 → 2 → 8 with no
+  // round boundary for anything to act on. Keep a copy of the best settled
+  // build as it goes; if the clock or the user stops the turn while the board
+  // is worse than that copy, hand the copy back (`shouldRestoreBestBuild`
+  // says why a turn that ends on its own keeps what it ended on).
+  let best = null; // { count, dir }
+  let lastSettledRunId = null;
+  const bestWatcher = phase === PHASE.IMPLEMENT
+    ? setInterval(() => {
+        const runId = settledBuildRunId(workspace);
+        if (!runId || runId === lastSettledRunId) return;
+        if (buildIsStale(workspace)) return; // source already moved on; wait for the next build
+        lastSettledRunId = runId;
+        let count;
+        try {
+          count = collectBoardWarnings(workspace).filter(isBlocking).length;
+        } catch {
+          return;
+        }
+        if (best && !(count < best.count)) return;
+        const dir = snapshotForUndo(workspace, BEST_BUILD_DIR);
+        if (dir) {
+          best = { count, dir };
+          log(`turn implement: best rebuild so far has ${count} blocking finding(s) — kept a copy`);
+        }
+      }, REVIEW_SIDECAR_POLL_MS)
+    : null;
+  if (bestWatcher?.unref) bestWatcher.unref();
+
   const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
   try {
     for await (const line of rl) {
@@ -1719,6 +1759,7 @@ export async function spawnTurn({
 
   await waitForExit(child);
   if (budgetTimer) clearTimeout(budgetTimer);
+  if (bestWatcher) clearInterval(bestWatcher);
   if (timedOut) {
     onEvent({
       kind: "error",
@@ -1750,6 +1791,40 @@ export async function spawnTurn({
   }
   for (const event of diffEvents) {
     onEvent(event);
+  }
+
+  // Hand a stopped implement turn its best rebuild back (watcher above).
+  if (best) {
+    let finalBlocking = null;
+    try {
+      finalBlocking = collectBoardWarnings(workspace).filter(isBlocking).length;
+    } catch { /* unreadable → never called worse */ }
+    if (shouldRestoreBestBuild({ stoppedEarly: cancelled, bestBlocking: best.count, finalBlocking })) {
+      const restored = restoreFromUndo(workspace, best.dir);
+      log(
+        `turn implement stopped at ${finalBlocking} blocking finding(s); its best rebuild had ` +
+          `${best.count} — ${restored ? "restored" : "COULD NOT RESTORE"}`,
+      );
+      onEvent({
+        kind: "text_delta",
+        turnId,
+        text: restored
+          ? `\n\n_The turn was stopped while the board had ${finalBlocking} findings that stop it being made; ` +
+            `its best rebuild had ${best.count}, so I put that one back._`
+          : `\n\n_The turn was stopped while the board had ${finalBlocking} findings that stop it being made; ` +
+            `its best rebuild had ${best.count}, and I could not put that one back._`,
+      });
+      if (restored) {
+        artifactsChanged = true;
+        for (const event of diffSnapshots(postSnapshot, snapshotWorkspace(workspace), turnId)) onEvent(event);
+      }
+    } else if (finalBlocking !== null && finalBlocking > best.count) {
+      log(
+        `turn implement ended on its own at ${finalBlocking} blocking finding(s); its best rebuild had ` +
+          `${best.count} — kept as the agent left it`,
+      );
+    }
+    fs.rmSync(best.dir, { recursive: true, force: true });
   }
 
   // Automatic post-build review, silent, inside this build turn. `artifactsChanged`
@@ -1925,13 +2000,18 @@ const REVIEW_SNAPSHOT_SKIP = new Set([".circuit", "node_modules", ".git", "__pyc
 
 const REVIEW_SNAPSHOT_DIR = ".circuit/review-undo";
 
+/** Where an implement turn keeps its best settled rebuild (see the watcher in
+ * `spawnTurn`). A sibling of the review undo copy, never the same directory:
+ * the review loop runs after the implement child and must not clobber it. */
+export const BEST_BUILD_DIR = ".circuit/best-build";
+
 /** Copy the workspace aside so a round that breaks the board can be undone.
  *
  * Lives under `.circuit/`, which the artifact snapshotter already ignores, so
  * taking a backup never looks like the board changed.
  */
-export function snapshotForUndo(workspace) {
-  const dest = path.join(workspace, REVIEW_SNAPSHOT_DIR);
+export function snapshotForUndo(workspace, relDir = REVIEW_SNAPSHOT_DIR) {
+  const dest = path.join(workspace, relDir);
   try {
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
@@ -1978,6 +2058,83 @@ export function restoreFromUndo(workspace, snapshotPath) {
   }
 }
 
+/** The run id of the build that last SETTLED in this workspace, or null.
+ *
+ * The pipeline writes `.circuit/build-status.json` on every stage change and
+ * marks it `done` only after the sidecar AND the circuit.json have landed
+ * (`progress.finish` is the last thing `build_board` does). A `running` file
+ * means the artifacts on disk are mid-flight and must not be copied; a fresh
+ * run id means a build the caller has not looked at yet.
+ */
+export function settledBuildRunId(workspace) {
+  try {
+    const status = JSON.parse(
+      fs.readFileSync(path.join(workspace, ".circuit", "build-status.json"), "utf8"),
+    );
+    if (status?.state !== "done") return null;
+    return typeof status.runId === "string" && status.runId ? status.runId : null;
+  } catch {
+    return null;
+  }
+}
+
+const SOURCE_ROOTS = ["boards", "blocks", "product.json", "parts.json"];
+
+/** True when any board source is newer than the newest sidecar.
+ *
+ * The best-build watcher copies a workspace up to a poll interval after a
+ * build settles, and by then the agent may already be editing the TSX for
+ * its next attempt. Copying that would pair a sidecar with source it did not
+ * come from — "one gate, two surfaces, opposite answers". Skip the copy; the
+ * next settled build is a candidate again.
+ */
+export function buildIsStale(workspace) {
+  let newestSidecar = -Infinity;
+  let boards;
+  try {
+    boards = fs.readdirSync(path.join(workspace, "boards"));
+  } catch {
+    return true;
+  }
+  for (const name of boards) {
+    if (!name.endsWith(".board.json")) continue;
+    try {
+      newestSidecar = Math.max(newestSidecar, fs.statSync(path.join(workspace, "boards", name)).mtimeMs);
+    } catch { /* unreadable → not a sidecar we can trust */ }
+  }
+  if (!Number.isFinite(newestSidecar)) return true;
+  // Source is the TSX/TS under boards/ and blocks/ plus the two root JSON
+  // files. `boards/` also holds `<stem>_fab/` and `<stem>_review/`, written
+  // AFTER the sidecar by design — those are outputs, never a reason to call
+  // the build stale.
+  const isSource = (full) =>
+    /\.tsx?$/.test(full) ||
+    full === path.join(workspace, "product.json") ||
+    full === path.join(workspace, "parts.json");
+  const stack = SOURCE_ROOTS.map((rel) => path.join(workspace, rel));
+  while (stack.length) {
+    const full = stack.pop();
+    let stat;
+    try {
+      stat = fs.statSync(full);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      let names;
+      try {
+        names = fs.readdirSync(full);
+      } catch {
+        continue;
+      }
+      for (const name of names) stack.push(path.join(full, name));
+      continue;
+    }
+    if (isSource(full) && stat.mtimeMs > newestSidecar) return true;
+  }
+  return false;
+}
+
 /** Say which review phase is running, and how far through it is.
  *
  * The loop used to be silent to the user by design — it only wrote to the
@@ -2005,6 +2162,35 @@ export const REVIEW_SIDECAR_POLL_MS = 15_000;
 export function roundMadeItWorse(blockingBefore, blockingAfter) {
   if (!Number.isFinite(blockingBefore) || !Number.isFinite(blockingAfter)) return false;
   return blockingAfter > blockingBefore;
+}
+
+/** How many rounds a phase may run once `undone` of them were put back.
+ *
+ * An undone round leaves the board exactly where it started, so the slot it
+ * used bought nothing — and under the round clock that slot can be a full
+ * hour of work thrown away. Measured 2026-09-09 (pomodoro-puck, Astra run
+ * #3): structure round 1 was chopped at 60 min and undone (5→8), round 2 then
+ * took 8 minutes to go 5→3, and the 2-round cap ended the run there with the
+ * board still not buildable. One spare slot per phase, not one per undo: a
+ * phase that keeps making things worse must still end.
+ */
+export function roundCapAfterUndo(cap, undone) {
+  const n = Number.isFinite(undone) && undone > 0 ? Math.floor(undone) : 0;
+  return cap + Math.min(n, 1);
+}
+
+/** Whether an implement turn that was STOPPED should hand back its best
+ * settled rebuild instead of whatever it was in the middle of.
+ *
+ * Only a stopped turn — the clock or the user. A turn that ends on its own
+ * keeps what it chose to end on: it may have just implemented "make the board
+ * smaller", which reads as a regression to a blocking-count poll and is not
+ * one. `null` on either side means a count could not be read, and a board
+ * nobody can read is never called worse.
+ */
+export function shouldRestoreBestBuild({ stoppedEarly, bestBlocking, finalBlocking }) {
+  if (!stoppedEarly) return false;
+  return roundMadeItWorse(bestBlocking, finalBlocking);
 }
 
 export function emitPhaseNote(turnId, onEvent, { phase, round, rounds, detail }) {
@@ -2070,7 +2256,11 @@ export async function runReviewFixLoop({
   // of five — and says so out loud rather than quietly handing back a board
   // that used to be shippable.
   let regressed = false;
+  // Set by `round()` when the blocking ratchet put the board back. The phase
+  // loops read it to give the phase one spare round (`roundCapAfterUndo`).
+  let lastRoundUndone = false;
   const round = async (prompt, imagePaths = []) => {
+    lastRoundUndone = false;
     const readyBefore = workspaceFabReady(workspace);
     // Always worth the copy now. The first ratchet only guarded a board that
     // was already orderable; a board that was NOT orderable could be walked
@@ -2116,6 +2306,7 @@ export async function runReviewFixLoop({
         // viewer about the ones that just changed back.
         for (const event of diffSnapshots(postRound, snapshotWorkspace(workspace), turnId)) onEvent(event);
         didChange = false;
+        lastRoundUndone = true;
       }
     }
     if (readyBefore === true && workspaceFabReady(workspace) === false) {
@@ -2146,8 +2337,10 @@ export async function runReviewFixLoop({
     return didChange;
   };
 
-  // Phase 1 — structure (blocking = severity "error").
-  for (let i = 0; i < MAX_STRUCTURE_ROUNDS; i += 1) {
+  // Phase 1 — structure (blocking = severity "error"). An undone round does
+  // not use up a slot (once per phase — see `roundCapAfterUndo`).
+  let structureUndone = 0;
+  for (let i = 0; i < roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, structureUndone); i += 1) {
     if (aborted() || regressed) return changed;
     const all = collectBoardWarnings(workspace);
     const blocking = all.filter(isBlocking);
@@ -2158,10 +2351,11 @@ export async function runReviewFixLoop({
     emitPhaseNote(turnId, onEvent, {
       phase: "structure",
       round: i + 1,
-      rounds: MAX_STRUCTURE_ROUNDS,
+      rounds: roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, structureUndone),
       detail: `${blocking.length} finding(s) that stop the board being made`,
     });
     changed = (await round(prompt)) || changed;
+    if (lastRoundUndone) structureUndone += 1;
   }
   if (aborted() || regressed) return changed;
   const afterStructure = collectBoardWarnings(workspace);
@@ -2172,8 +2366,9 @@ export async function runReviewFixLoop({
     return changed;
   }
 
-  // Phase 2 — electrical function (contract kind set).
-  for (let i = 0; i < MAX_ELECTRICAL_ROUNDS; i += 1) {
+  // Phase 2 — electrical function (contract kind set). Same spare slot rule.
+  let electricalUndone = 0;
+  for (let i = 0; i < roundCapAfterUndo(MAX_ELECTRICAL_ROUNDS, electricalUndone); i += 1) {
     if (aborted() || regressed) return changed;
     const all = collectBoardWarnings(workspace);
     const electrical = all.filter(isElectrical);
@@ -2184,10 +2379,11 @@ export async function runReviewFixLoop({
     emitPhaseNote(turnId, onEvent, {
       phase: "electrical function",
       round: i + 1,
-      rounds: MAX_ELECTRICAL_ROUNDS,
+      rounds: roundCapAfterUndo(MAX_ELECTRICAL_ROUNDS, electricalUndone),
       detail: `${electrical.length} thing(s) that would stop it working`,
     });
     changed = (await round(prompt)) || changed;
+    if (lastRoundUndone) electricalUndone += 1;
   }
   if (aborted() || regressed) return changed;
   const afterElectrical = collectBoardWarnings(workspace);
