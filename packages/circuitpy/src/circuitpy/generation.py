@@ -932,11 +932,12 @@ def build_board(
 
     ``reuse_circuit_json`` is **repair mode** (2026-09-10): skip the compile and
     the router, take that file as the routed IR, and run every later stage on
-    it — the checks, KiCad, DFM, the packet, the renders, the sidecar. The four
-    post-route copper passes are skipped too: they ran when the board was
-    routed, and `trace_clearance` is not idempotent (its own docstring), so
-    re-running them on each repair would walk copper a little further every
-    round. ``repairs`` is the list of edits `circuitpy.repair` applied before
+    it — the checks, KiCad, DFM, the packet, the renders, the sidecar. Of the four
+    post-route copper passes only the pour pass re-runs (repaired copper may
+    now sit inside a pour's clearance, and that pass is safe to repeat); the
+    pair, width and trace-clearance passes ran when the board was routed, and
+    `trace_clearance` is not idempotent (its own docstring), so re-running it
+    on each repair would walk copper a little further every round. ``repairs`` is the list of edits `circuitpy.repair` applied before
     the call, recorded in the sidecar. The unchanged-source short-circuit does
     not apply: the IR no longer follows from the TSX alone.
 
@@ -1128,6 +1129,16 @@ def build_board(
                 existing[kind] = count
             circuit_normalizations.append(
                 circuit_normalize.normalize_circuit_json(built_circuit_json)
+            )
+            # "Đổ đồng lại": the one post-route pass that must see the final
+            # copper. Repaired copper can now sit inside a pour's clearance;
+            # the pour pass only ever pushes pour vertices away from foreign
+            # copper, leaves a pour that already holds byte-identical, and
+            # runs to convergence — safe on every round, unlike
+            # `trace_clearance`. The pair and width passes stay off: they are
+            # the router-era passes the repair is replacing.
+            pour_results.append(
+                pour_clearance.repair_pour_clearance(built_circuit_json, profile)
             )
             return _read_built()
         with _deterministic_env(identity.source_fingerprint) as requested:
@@ -1535,7 +1546,7 @@ def build_board(
         # The board this sidecar describes was not routed by this call.
         build_block["repairMode"] = {
             "reusedCircuitJson": reuse_p.name,
-            "postRoutePasses": "skipped",
+            "postRoutePasses": "pour only",
             "repairs": list(repairs or []),
         }
     if kept_router.get("engine") != "off":

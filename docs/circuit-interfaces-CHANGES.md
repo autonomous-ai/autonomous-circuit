@@ -314,8 +314,10 @@ first, in this template, before the doc itself is edited:
 ## 2026-09-10 — Repair mode: the routed board is an input, not only an output
 - **Change:** `build_board(reuse_circuit_json=…, repairs=…)` and the skill CLI's
   `--recheck` / `--edits <edits.json>`. Repair mode skips stage 0 (compile +
-  router) and the four post-route copper passes, takes `boards/<stem>.circuit.json`
-  as the routed IR, optionally applies `circuitpy.repair` edits (move a route
+  router) and three of the four post-route copper passes (the pour pass
+  re-runs: repaired copper may now sit inside a pour's clearance, and that
+  pass is safe to repeat), takes `boards/<stem>.circuit.json`
+  as the routed IR, re-runs only the pour pass, optionally applies `circuitpy.repair` edits (move a route
   point, move a via with the wires on it, insert/delete points — never a net,
   pad, part or layer), and runs every later stage unchanged: scan, checks,
   KiCad ERC/DRC, DFM, verify, packet, gerber-truth, renders, sidecar. The
