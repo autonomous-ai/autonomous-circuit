@@ -22,6 +22,9 @@ import {
   settledBuildRunId,
   buildIsStale,
   BEST_BUILD_DIR,
+  liveBuild,
+  killStrayBuild,
+  awaitBuildSettled,
   parseCodexRolloutHistory,
   findCodexRolloutPath,
   ELECTRICAL_KINDS,
@@ -1886,4 +1889,64 @@ test("the build prompt tells the model its best rebuild is what a stopped turn h
   assert.ok(IMPLEMENT_SYSTEM_PROMPT.includes("stopped by the clock or\nthe user"));
   // the review prompt has its own ratchet (undo per round); this one is the build turn's
   assert.ok(!REVIEW_SYSTEM_PROMPT.includes("rebuild so far is kept"));
+});
+
+// ---------------------------------------------------------------------------
+// A stopped turn's build must not outlive the turn (2026-09-10, run #4: a
+// build launched 13:01:58 survived the 13:05:38 chop and landed at 13:09:26,
+// after the verdict was read and both undo copies deleted)
+// ---------------------------------------------------------------------------
+
+function writeBuildStatus(ws, status) {
+  const p = path.join(ws, ".circuit", "build-status.json");
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(status));
+}
+
+test("a build is live only while its writer is — a stale `running` file is not a build", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "live-"));
+  assert.equal(liveBuild(ws), null, "no status file");
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: process.pid, pgid: 0, stage: "compile" });
+  const live = liveBuild(ws);
+  assert.ok(live, "this process is alive, so the build it claims to be is live");
+  assert.equal(live.pid, process.pid);
+  assert.equal(live.pgid, null, "pgid 0 is not a group");
+  assert.equal(live.stage, "compile");
+  writeBuildStatus(ws, { state: "done", runId: "r1", pid: process.pid });
+  assert.equal(liveBuild(ws), null, "done is not running");
+  // A pid nobody has: the writer was killed mid-build and the file stayed
+  // `running` for ever. That is a stale file, not a build to wait for.
+  writeBuildStatus(ws, { state: "running", runId: "r2", pid: 2 ** 22 - 1 });
+  assert.equal(liveBuild(ws), null);
+  writeBuildStatus(ws, { state: "running", runId: "r3" });
+  assert.equal(liveBuild(ws), null, "no pid → cannot be told apart from stale → not waited on");
+});
+
+test("killStrayBuild reaches a build that is not the provider's child", { skip: process.platform === "win32" }, async () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "stray-"));
+  // Its own process group, exactly like a generator the agent backgrounded.
+  const { spawn } = await import("node:child_process");
+  const child = spawn("sleep", ["60"], { detached: true, stdio: "ignore" });
+  await new Promise((r) => setTimeout(r, 100));
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: child.pid, pgid: child.pid, stage: "compile" });
+  assert.ok(liveBuild(ws), "the sleeper is alive");
+  assert.equal(killStrayBuild(ws), true);
+  const exited = await new Promise((resolve) => {
+    const t = setTimeout(() => resolve(false), 3000);
+    child.once("exit", () => { clearTimeout(t); resolve(true); });
+  });
+  assert.equal(exited, true, "the stray build is dead");
+  assert.equal(killStrayBuild(ws), false, "nothing left to kill");
+});
+
+test("awaitBuildSettled returns at once when nothing is running and waits while something is", async () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "settle-"));
+  assert.equal(await awaitBuildSettled(ws), true);
+  writeBuildStatus(ws, { state: "running", runId: "r1", pid: process.pid });
+  const t0 = Date.now();
+  // this process never "finishes", so the bound is what returns
+  assert.equal(await awaitBuildSettled(ws, { maxMs: 300, pollMs: 50 }), false);
+  assert.ok(Date.now() - t0 >= 250, "it actually waited for the bound");
+  writeBuildStatus(ws, { state: "done", runId: "r1", pid: process.pid });
+  assert.equal(await awaitBuildSettled(ws, { maxMs: 300, pollMs: 50 }), true);
 });

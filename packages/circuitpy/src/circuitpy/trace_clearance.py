@@ -62,6 +62,16 @@ board and sweeping 24 directions for clear space, **75-82% have at least
 * It never moves a pad, a via or a plated hole — including a `route_type:
   "via"` point, which *is* the via. Those are placement, and placement belongs
   to the board's author.
+* It never moves the wire vertex that *lands on* a via either. The via and the
+  two wire endpoints that meet it are one anchor: `@tscircuit/checks`
+  (`checkTracesAreContiguous`, stage 2 of the gauntlet) requires a wire to sit
+  within 0.01mm of the via it joins, and this pass used to nudge that vertex
+  0.01–0.04mm for clearance and hand the board a `pcb_trace_error` it did not
+  have before. Measured 2026-09-10, pomodoro-puck run #4: twelve builds, every
+  blocker from build 4 on was this class, and every affected trace was in this
+  pass's own report. Placement cannot fix it — each move re-routes and the pass
+  displaces a different via — so the vertex stays and the gap is reported as
+  `trace_clearance_unrelieved` like any other pinned segment.
 * It never widens, never changes a layer, and never adds or removes a route
   point. **It therefore cannot fix a segment whose every endpoint is pinned**:
   a pad-to-pad hop with no interior vertex has nothing to push. Those are
@@ -128,7 +138,7 @@ import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Container, Iterable, Sequence
 
 from . import diffpair
 
@@ -161,6 +171,13 @@ _MAX_PUSH_MM = 0.25
 #: 2.8x the time for a result that moves in both directions is not a trade
 #: worth making inside a chat turn. What is left is reported, not hidden.
 _MAX_ROUNDS = 3
+
+#: How close a wire endpoint must sit to the via it joins for the contiguity
+#: check to call them joined. `checkTracesAreContiguous` compares each
+#: coordinate against 0.01mm; a vertex nudged past that is a `pcb_trace_error`.
+#: A wire endpoint already this close to an adjacent via is part of the via's
+#: anchor and is never moved.
+_VIA_ANCHOR_MM = 0.01
 
 #: Rounds of the undo loop, which converges for a different reason than the
 #: sweep does — putting copper back only ever widens its neighbours' gaps, so
@@ -571,18 +588,53 @@ def _seg_layer_half(a: dict, b: dict) -> tuple[str, float]:
     return (str(layer) if layer else ""), width / 2
 
 
-def _movable(point: dict) -> bool:
+def _movable(point: dict, anchored: Container[int] = frozenset()) -> bool:
     """A route point this pass is allowed to move.
 
     Not a port anchor — that point is where copper meets a pad, and moving it
     is how a repair pass silently disconnects a net. Not a via either: a via
-    route point *is* the via, and moving it is placement.
+    route point *is* the via, and moving it is placement. And not a wire
+    vertex sitting on a via (``anchored``, from :func:`_via_anchored`): that
+    join is what the contiguity check measures.
     """
+    if id(point) in anchored:
+        return False
     return not (
         point.get("start_pcb_port_id")
         or point.get("end_pcb_port_id")
         or str(point.get("route_type") or "") == "via"
     )
+
+
+def _via_anchored(traces: Iterable[dict]) -> set[int]:
+    """``id()`` of every wire vertex that lands on an adjacent via point.
+
+    A route reads `wire, via, wire` at a layer change, the two wires at the
+    via's coordinate on their own layers. Both are the via's anchor. A wire
+    that is *near* a via but not on it (further than `_VIA_ANCHOR_MM`) is a
+    routing error this pass did not make and does not own; it stays movable.
+    """
+    anchored: set[int] = set()
+    for trace in traces:
+        route = trace.get("route") or []
+        for i, point in enumerate(route):
+            if str(point.get("route_type") or "") != "via":
+                continue
+            vx, vy = diffpair._f(point.get("x")), diffpair._f(point.get("y"))
+            if vx is None or vy is None:
+                continue
+            for j in (i - 1, i + 1):
+                if not 0 <= j < len(route):
+                    continue
+                nb = route[j]
+                if str(nb.get("route_type") or "") == "via":
+                    continue
+                nx, ny = diffpair._f(nb.get("x")), diffpair._f(nb.get("y"))
+                if nx is None or ny is None:
+                    continue
+                if abs(nx - vx) <= _VIA_ANCHOR_MM and abs(ny - vy) <= _VIA_ANCHOR_MM:
+                    anchored.add(id(nb))
+    return anchored
 
 
 def _foreign(ob: _Obstacle, net: str | None, trace_id: str) -> bool:
@@ -677,6 +729,10 @@ def relieve_trace_clearance(
         offender_by_trace: dict[str, str] = {}
         layer_by_trace: dict[str, str] = {}
 
+        # The wire vertices that sit on a via. Resolved once: nothing this
+        # pass does moves a via, so the set cannot change under it.
+        anchored = _via_anchored(traces)
+
         for layer in layers:
             for _round in range(_MAX_ROUNDS):
                 index = _Index(
@@ -715,7 +771,7 @@ def relieve_trace_clearance(
                         if nx == 0.0 and ny == 0.0:
                             continue
                         for point, px, py in ((a, ax, ay), (b, bx, by)):
-                            if not _movable(point):
+                            if not _movable(point, anchored):
                                 continue
                             keep = (point.get("x"), point.get("y"))
                             origin.setdefault(id(point), (point, px, py))

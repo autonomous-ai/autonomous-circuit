@@ -1508,6 +1508,8 @@ function spawnClaude(claudePath, args, { workspace, env }) {
     cwd: workspace,
     env: buildChildEnv(env),
     stdio: ["pipe", "pipe", "pipe"],
+    // Own process group, so `killChild` can reach what the provider spawned.
+    detached: OWN_PROCESS_GROUP,
   });
 }
 
@@ -1519,7 +1521,96 @@ function spawnCodex(codexPath, args, { workspace, env }) {
     cwd: workspace,
     env: buildChildEnv(env),
     stdio: ["pipe", "pipe", "pipe"],
+    detached: OWN_PROCESS_GROUP,
   });
+}
+
+/** Providers get their own process group everywhere that has them. */
+const OWN_PROCESS_GROUP = process.platform !== "win32";
+
+/** The build `.circuit/build-status.json` says is running, if the process
+ * writing it is still alive — else null.
+ *
+ * A status file says `running` for as long as its writer lives, and for ever
+ * after if the writer was killed mid-build, so the file alone cannot say
+ * whether a build is in flight. The pipeline writes its pid and pgid
+ * (`status.py`); a signal-0 probe of the pid settles it.
+ */
+export function liveBuild(workspace) {
+  try {
+    const status = JSON.parse(
+      fs.readFileSync(path.join(workspace, ".circuit", "build-status.json"), "utf8"),
+    );
+    if (status?.state !== "running") return null;
+    const pid = Number(status.pid);
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return null; // the writer is gone: a stale file, not a build
+    }
+    const pgid = Number(status.pgid);
+    return {
+      pid,
+      pgid: Number.isInteger(pgid) && pgid > 0 ? pgid : null,
+      runId: String(status.runId || ""),
+      stage: String(status.stage || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Kill a generator the stopped provider left running. Returns whether one was.
+ *
+ * The build prompt tells the agent it may run the generator in the background
+ * and check back, and Codex does; that build is not a child the provider's
+ * death takes with it. Measured 2026-09-10 (pomodoro-puck run #4): a build
+ * launched 13:01:58 survived the 13:05:38 chop and landed at 13:09:26 with 4
+ * blocking findings — after the driver had recorded 1 and deleted both undo
+ * copies. The board on disk and the verdict in the chat disagreed, and
+ * nothing could put either right.
+ */
+export function killStrayBuild(workspace) {
+  const live = liveBuild(workspace);
+  if (!live) return false;
+  const targets = [];
+  if (live.pgid && OWN_PROCESS_GROUP) targets.push(-live.pgid);
+  targets.push(live.pid);
+  for (const target of targets) {
+    try {
+      process.kill(target, "SIGKILL");
+    } catch {
+      // already gone, or not a group leader — the direct pid follows
+    }
+  }
+  log(`killed a build the stopped turn left running (pid ${live.pid}, stage ${live.stage || "?"})`);
+  return true;
+}
+
+const BUILD_SETTLE_POLL_MS = 2_000;
+const BUILD_SETTLE_MAX_MS = 20 * 60 * 1000;
+
+/** Wait for a build still in flight to finish before the workspace is read.
+ *
+ * The verdict is the sidecar on disk; a build that is still writing it makes
+ * every number read from it stale within minutes. Bounded: a build has its
+ * own stage limits, and a reader that waits for ever is a hung turn.
+ */
+export async function awaitBuildSettled(workspace, {
+  maxMs = BUILD_SETTLE_MAX_MS,
+  pollMs = BUILD_SETTLE_POLL_MS,
+} = {}) {
+  let live = liveBuild(workspace);
+  if (!live) return true;
+  log(`a build is still running (pid ${live.pid}, stage ${live.stage || "?"}) — waiting for it before reading the board`);
+  const started = Date.now();
+  while (live && Date.now() - started < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+    live = liveBuild(workspace);
+  }
+  if (live) log(`a build is still running after ${Math.round(maxMs / 60000)}min — reading the board anyway`);
+  return !live;
 }
 
 function spawnProvider(provider, executable, args, options) {
@@ -1528,7 +1619,23 @@ function spawnProvider(provider, executable, args, options) {
     : spawnClaude(executable, args, options);
 }
 
+/** Kill the provider and everything it spawned.
+ *
+ * The provider is its own process-group leader (`detached` above), so the
+ * negative pid reaches the generator chain it launched in the foreground —
+ * python → tscircuit-cli → bun — which `child.kill` alone never did: it
+ * signalled the provider and left the chain to finish and overwrite the board
+ * after the turn had ended. A build the agent put in its own group is
+ * `killStrayBuild`'s job.
+ */
 function killChild(child) {
+  if (OWN_PROCESS_GROUP && child.pid) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      // group already gone
+    }
+  }
   try {
     child.kill("SIGKILL");
   } catch {
@@ -1760,6 +1867,13 @@ export async function spawnTurn({
   await waitForExit(child);
   if (budgetTimer) clearTimeout(budgetTimer);
   if (bestWatcher) clearInterval(bestWatcher);
+  // The board is read below; make sure nothing is still writing it. A
+  // stopped turn's stray build is killed, a finished turn's is waited for.
+  if (cancelled) {
+    killStrayBuild(workspace);
+  } else {
+    await awaitBuildSettled(workspace);
+  }
   if (timedOut) {
     onEvent({
       kind: "error",
@@ -1965,6 +2079,14 @@ async function runReviewRound({
   if (budgetTimer) clearTimeout(budgetTimer);
   if (signal) {
     signal.removeEventListener("abort", onAbort);
+  }
+  // The loop reads the sidecar the moment this returns. A chopped round's
+  // build must not land after that read (run #4: it did, 1 became 4 on disk
+  // with both undo copies already gone); a finished round's must be complete.
+  if (timedOut || signal?.aborted) {
+    killStrayBuild(workspace);
+  } else {
+    await awaitBuildSettled(workspace);
   }
   if (timedOut) {
     onEvent?.({
