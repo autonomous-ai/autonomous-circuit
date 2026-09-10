@@ -2018,3 +2018,14 @@ test("a Codex turn.failed line is an error the user sees, in both stream shapes"
   assert.equal(codexFailureMessage({ type: "item.completed", item: { type: "agent_message", text: "hi" } }), null);
   assert.equal(codexFailureMessage(null), null);
 });
+
+test("the plan prompt plans a repair, not a rebuild, for a copper finding on a routed board", () => {
+  // 2026-09-10 17:0x: the Fix button sent "…Then rebuild and re-run the
+  // checks" for three crystal-length findings; the plan turn spent ten
+  // minutes reading @tscircuit/core for pcbPath and route hints, because
+  // nothing in this prompt knew the generator had a repair mode.
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("PLAN A\nREPAIR, NOT A REBUILD"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("--recheck"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("--edits <edits.json>"));
+  assert.ok(PLAN_SYSTEM_PROMPT.includes("Do NOT plan `pcbPath`"));
+});

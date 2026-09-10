@@ -156,7 +156,20 @@ test("groupFixRequest carries the plain words AND the exact code", () => {
   assert.match(text, /hole_clearance/);
   assert.match(text, /on main/);
   assert.match(text, /Track \[GND\]/);
-  assert.match(text, /rebuild/i);
+  // copper: the request asks for repair mode, not a rebuild (2026-09-10 —
+  // "Then rebuild" sent the plan turn hunting pcbPath in @tscircuit/core)
+  assert.match(text, /repair it in place/);
+  assert.match(text, /--edits/);
+  assert.match(text, /Do not rebuild from the TSX/);
+});
+
+test("groupFixRequest still asks for a rebuild when a part has to move", () => {
+  const [group] = groupFindings([
+    row({ severity: "error", part: "J1", kind: "dfa_off_board", detail: "USB-C keep-out 0.48mm past the edge" }),
+  ]);
+  const text = groupFixRequest(group, { board: "main" });
+  assert.match(text, /rebuild and re-run/);
+  assert.doesNotMatch(text, /--edits/);
 });
 
 test("plural and joinWords keep the copy readable", () => {

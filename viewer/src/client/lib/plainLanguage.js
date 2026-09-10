@@ -1002,19 +1002,57 @@ export function buildRequest(boardName = "") {
  * words, then hands over the exact code, count and parts so the model repairs
  * the real thing rather than the paraphrase.
  */
+/**
+ * Findings about copper — fixed on the routed board with the generator's
+ * repair mode (`--edits`), not by rebuilding from the TSX. A rebuild re-routes
+ * every net and moves the defect (2026-09-10: twelve rebuilds on one via,
+ * thirty seconds by repair). Width and placement findings stay rebuilds: an
+ * edit cannot widen a track or move a part.
+ */
+export const COPPER_REPAIR_CODES = new Set([
+  "pcb_trace_error",
+  "pcb_via_trace_clearance_error",
+  "pcb_trace_too_long_warning",
+  "crystal_net_routed_long",
+  "crystal_net_routed_tight",
+  "dfm_hole_clearance",
+  "drc_violation",
+  "clearance_no_margin",
+  "clearance_under_fab_floor",
+  "trace_clearance_unrelieved",
+  "netclass_pair_coupling",
+  "netclass_pair_reference",
+  // KiCad DRC rules the grouping surfaces as the code (a `drc_violation`
+  // row's `[rule]`): the copper ones.
+  "clearance",
+  "hole_clearance",
+  "shorting_items",
+  "copper_edge_clearance",
+  "track_dangling",
+  "via_dangling",
+  "hole_to_hole",
+  "copper_sliver",
+]);
+
 export function groupFixRequest(group, { board = "" } = {}) {
   if (!group) return "";
   const where = group.parts.length
     ? ` Affected: ${group.parts.slice(0, 12).join(", ")}${group.parts.length > 12 ? ", …" : ""}.`
     : "";
   const boardName = String(board || "").trim();
+  const how = COPPER_REPAIR_CODES.has(String(group.code || ""))
+    ? " This is copper: repair it in place on the routed board with the generator's" +
+      " repair mode (`scripts/circuit <board.tsx> --edits <edits.json>`, then the checks" +
+      " re-run in ~30s). Do not rebuild from the TSX for this — that re-routes every" +
+      " net and moves the defect. Rebuild only if a part must move."
+    : " Then rebuild and re-run the checks.";
   return [
     `Fix ${group.count === 1 ? "this" : `all ${group.count}`} "${group.title.toLowerCase()}"`,
     boardName ? ` on ${boardName}` : "",
     ` (${group.code}).`,
     group.sample ? ` Example: ${group.sample}` : "",
     where,
-    " Then rebuild and re-run the checks.",
+    how,
   ].join("");
 }
 
