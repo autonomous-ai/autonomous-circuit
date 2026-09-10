@@ -23,6 +23,8 @@ import {
   buildIsStale,
   BEST_BUILD_DIR,
   liveBuild,
+  boardSidecarPaths,
+  codexFailureMessage,
   killStrayBuild,
   awaitBuildSettled,
   parseCodexRolloutHistory,
@@ -1202,10 +1204,13 @@ test("buildCommandArgs omits both flags when unset rather than sending empties",
 // ---------------------------------------------------------------------------
 
 function sidecarDir(boards) {
+  // Sidecars live in `boards/` — the only place the generator writes them
+  // (contract § "Project layout"); a sidecar anywhere else is a copy.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "circuit-fabready-"));
+  fs.mkdirSync(path.join(dir, "boards"));
   boards.forEach((fab, i) => {
     const body = fab === undefined ? {} : { fab: { ready: fab } };
-    fs.writeFileSync(path.join(dir, `b${i}.board.json`), JSON.stringify(body));
+    fs.writeFileSync(path.join(dir, "boards", `b${i}.board.json`), JSON.stringify(body));
   });
   return dir;
 }
@@ -1228,18 +1233,17 @@ test("workspaceFabReady ignores a sidecar it cannot parse", () => {
   // A half-written file during a build must not read as "not ready" and trip
   // the ratchet on a healthy board.
   const dir = sidecarDir([true]);
-  fs.writeFileSync(path.join(dir, "broken.board.json"), '{"fab": {"rea');
+  fs.writeFileSync(path.join(dir, "boards", "broken.board.json"), '{"fab": {"rea');
   assert.equal(workspaceFabReady(dir), true);
 });
 
-test("workspaceFabReady skips the directories the walker is told to skip", () => {
+test("workspaceFabReady reads boards/ and nothing else — a stale copy must not veto", () => {
   const dir = sidecarDir([true]);
-  const inputs = path.join(dir, "inputs");
-  fs.mkdirSync(inputs);
-  fs.writeFileSync(
-    path.join(inputs, "old.board.json"),
-    JSON.stringify({ fab: { ready: false } }),
-  );
+  for (const rel of ["inputs/old.board.json", "work/best-build-1/boards/b0.board.json", "old.board.json"]) {
+    const full = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, JSON.stringify({ fab: { ready: false } }));
+  }
   assert.equal(workspaceFabReady(dir), true, "a stale copy must not veto");
 });
 
@@ -1949,4 +1953,68 @@ test("awaitBuildSettled returns at once when nothing is running and waits while 
   assert.ok(Date.now() - t0 >= 250, "it actually waited for the bound");
   writeBuildStatus(ws, { state: "done", runId: "r1", pid: process.pid });
   assert.equal(await awaitBuildSettled(ws, { maxMs: 300, pollMs: 50 }), true);
+});
+
+// ---------------------------------------------------------------------------
+// A copy is not a board, and a failed provider is not a round (2026-09-10,
+// Astra run #5: the loop counted `work/best-build-1/boards/main.board.json`
+// as a board and burned two rounds on "You've hit your usage limit")
+// ---------------------------------------------------------------------------
+
+test("only boards/<stem>.board.json is a board — the agent's checkpoints are not", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "sidecars-"));
+  const sidecar = (rel, ready, errors) => {
+    const p = path.join(ws, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({
+      fab: { ready },
+      validation: { warnings: errors.map((kind) => ({ kind, severity: "error", part: "x", detail: "" })) },
+    }));
+  };
+  assert.equal(workspaceHasBoard(ws), false);
+  assert.equal(workspaceFabReady(ws), null);
+  // exactly run #5's layout
+  sidecar("boards/main.board.json", true, []);
+  sidecar("work/best-build-1/boards/main.board.json", false, ["netclass_trace_width"]);
+  sidecar("work/best-build-2/boards/main.board.json", true, []);
+  sidecar("verification/build-3-source/main.board.json", false, ["pcb_trace_error", "drc_violation"]);
+  assert.deepEqual(boardSidecarPaths(ws), [path.join(ws, "boards", "main.board.json")]);
+  assert.equal(workspaceHasBoard(ws), true);
+  assert.equal(workspaceFabReady(ws), true, "the real board is fab-ready; the copies do not vote");
+  assert.equal(collectBoardWarnings(ws).filter(isBlocking).length, 0, "the copy's blocker is not the board's");
+  // a second real board still counts
+  sidecar("boards/panel.board.json", false, ["drc_violation"]);
+  assert.equal(workspaceFabReady(ws), false);
+  assert.equal(collectBoardWarnings(ws).filter(isBlocking).length, 1);
+});
+
+test("review images come from boards/<stem>_review only", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "imgs-"));
+  const touch = (rel) => { const p = path.join(ws, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, ""); };
+  touch("boards/main.board.json");
+  touch("boards/main_review/_schematic.png");
+  touch("boards/main_review/_pcb.png");
+  touch("work/best-build-1/boards/main_review/_pcb.png");
+  touch("work/best-build-1/boards/main_review/_schematic.png");
+  assert.deepEqual(reviewImagePaths(ws), [
+    path.join(ws, "boards", "main_review", "_pcb.png"),
+    path.join(ws, "boards", "main_review", "_schematic.png"),
+  ]);
+});
+
+test("a Codex turn.failed line is an error the user sees, in both stream shapes", () => {
+  const state = newStreamState();
+  const usage = "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more";
+  assert.deepEqual(
+    parseCodexLine(JSON.stringify({ type: "turn.failed", error: { message: usage } }), "t1", state),
+    [{ kind: "error", turnId: "t1", message: usage }],
+  );
+  assert.deepEqual(
+    parseCodexLine(JSON.stringify({ type: "error", message: "boom" }), "t1", state),
+    [{ kind: "error", turnId: "t1", message: "boom" }],
+  );
+  assert.equal(codexFailureMessage({ type: "turn.failed", error: "plain string" }), "plain string");
+  assert.equal(codexFailureMessage({ type: "turn.failed" }), "Codex turn failed");
+  assert.equal(codexFailureMessage({ type: "item.completed", item: { type: "agent_message", text: "hi" } }), null);
+  assert.equal(codexFailureMessage(null), null);
 });

@@ -286,4 +286,29 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline / skills (re-vendor) / docs (§1 stage table
   when the freeze lifts).
 
+## 2026-09-10 — A board sidecar is `boards/<stem>.board.json`; a copy is not a board
+- **Change:** the server driver's readers of the sidecar (`collectBoardWarnings`,
+  `workspaceFabReady`, `workspaceHasBoard`, `reviewImagePaths`) look only at
+  `<workspace>/boards/<stem>.board.json` and `<workspace>/boards/<stem>_review/`.
+  The frozen text says the review loop "walks `*.board.json`"; the walk is now
+  that one directory, which is the only place the generator ever writes a
+  sidecar (§ "Project layout").
+- **Why:** Astra run #5 (pomodoro-puck-run5, 2026-09-10 14:18) kept its own
+  build checkpoints at `work/best-build-1/boards/main.board.json` — a copy of
+  build 1 with one blocking finding and `fab.ready: false`. The whole-tree walk
+  counted it: "1 blocking" and `fabReady = false` on a workspace whose real
+  board was fab-ready with none, two review rounds spent prompting the model
+  to fix a backup, `structure-unresolved` in the chat. Run #4 escaped only
+  because the agent had named its copies `.board.json.txt`. The generator and
+  the catalog already treat `boards/` as the board directory; the driver was
+  the one reader that did not.
+- **Backward compatible:** yes for every board this pipeline has produced —
+  `build_board()` writes sidecars under `boards/` only. A workspace that kept
+  sidecars elsewhere by hand was never a supported layout.
+- **Also in this change (not contract):** a review round now reads its own
+  stdout for a provider failure (`{"type":"error"}` / `turn.failed`, e.g. the
+  usage limit) and stops the loop with a message, instead of draining it and
+  reporting the board unresolved after two five-second "rounds".
+- **Tracks affected:** server (driver readers). No client, skill or pipeline change.
+
 (No further entries yet.)

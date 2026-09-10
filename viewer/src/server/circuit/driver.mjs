@@ -1156,11 +1156,33 @@ export function parseCodexLine(line, turnId, state) {
     state.pendingTools.delete(toolUseId);
     return [{ kind: "tool_use_end", turnId, tool: "shell", toolUseId, ok: item.status !== "failed" }];
   }
-  if (obj?.type === "error") {
+  const failure = codexFailureMessage(obj);
+  if (failure) {
     state.anyTextEmitted = true;
-    return [{ kind: "error", turnId, message: String(obj.message || "Codex request failed") }];
+    return [{ kind: "error", turnId, message: failure }];
   }
   return [];
+}
+
+/** The message of a Codex stream line that says the turn failed, else null.
+ *
+ * Two shapes: a bare `{"type":"error","message"}` and a `turn.failed` carrying
+ * `error.message`. Astra run #5 (2026-09-10 14:18): the account hit its usage
+ * limit mid-run. The build turn ended on it; the two review rounds then each
+ * ran for five seconds and ended on the same message — which nothing read,
+ * because a review round drains its stdout unparsed. The loop reported
+ * `structure-unresolved` as if the agent had tried twice. A failed provider
+ * is not a round.
+ */
+export function codexFailureMessage(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.type === "error") return String(obj.message || "Codex request failed");
+  if (obj.type === "turn.failed") {
+    const err = obj.error;
+    const msg = typeof err === "string" ? err : err?.message;
+    return String(msg || "Codex turn failed");
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1223,35 +1245,45 @@ export function recoverPlanFromSession(workspace, sessionId, env = process.env) 
  * third answer and must not collapse into false, or the very first round would
  * look like a regression.
  */
+/** The board sidecars of a workspace: `boards/<stem>.board.json`, nothing else.
+ *
+ * Until 2026-09-10 every reader below walked the whole tree for
+ * `*.board.json`. Astra run #5 (pomodoro-puck-run5) kept its own checkpoints
+ * at `work/best-build-1/boards/main.board.json` — a copy of build 1, one
+ * blocking finding, `fab.ready: false` — and the loop counted it as a board:
+ * "1 blocking" on a workspace whose real board was fab-ready with none, two
+ * review rounds spent on a backup, `structure-unresolved` in the chat. Run #4
+ * only escaped because Astra had named its copies `.board.json.txt`. The
+ * contract's tree (§ "Project layout") puts sidecars beside the source under
+ * `boards/`; the generator writes them nowhere else. Anything deeper is a
+ * copy someone keeps, and a copy is not a board.
+ */
+export function boardSidecarPaths(dir) {
+  const boards = path.join(dir, "boards");
+  let names;
+  try {
+    names = fs.readdirSync(boards, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return names
+    .filter((e) => e.isFile() && e.name.endsWith(".board.json"))
+    .map((e) => path.join(boards, e.name))
+    .sort();
+}
+
 export function workspaceFabReady(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
   let seen = 0;
   let ready = 0;
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
+  for (const full of boardSidecarPaths(dir)) {
     try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
+      const json = JSON.parse(fs.readFileSync(full, "utf8"));
+      if (json?.fab && typeof json.fab.ready === "boolean") {
+        seen += 1;
+        if (json.fab.ready) ready += 1;
+      }
     } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(full);
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".board.json")) continue;
-      try {
-        const json = JSON.parse(fs.readFileSync(full, "utf8"));
-        if (json?.fab && typeof json.fab.ready === "boolean") {
-          seen += 1;
-          if (json.fab.ready) ready += 1;
-        }
-      } catch {
-        // malformed sidecar — tells us nothing either way
-      }
+      // malformed sidecar — tells us nothing either way
     }
   }
   if (seen === 0) return null;
@@ -1300,25 +1332,7 @@ export const MAX_PANEL_ROUNDS = 1;
  * `*.board.json` sidecar exists (skip-list honored) — the sidecar is what
  * every review phase reads, so its absence means there is nothing to review. */
 export function workspaceHasBoard(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
-    try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(path.join(current, entry.name));
-        continue;
-      }
-      if (entry.isFile() && entry.name.endsWith(".board.json")) return true;
-    }
-  }
-  return false;
+  return boardSidecarPaths(dir).length > 0;
 }
 
 /** The rendered board images a craft round needs to look at: `_schematic.png`
@@ -1329,27 +1343,21 @@ export function workspaceHasBoard(dir) {
  * renders pins the round to the board as it stands. Each craft round is its
  * own spawn, so round 2 sees round 1's output. */
 export function reviewImagePaths(dir) {
-  const skip = skipDirNames();
-  const stack = [dir];
+  // `boards/<stem>_review/` only — where the generator writes renders — and
+  // not a checkpoint's copy of them (see `boardSidecarPaths`).
+  const boards = path.join(dir, "boards");
+  let entries;
+  try {
+    entries = fs.readdirSync(boards, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const out = [];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
-    try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) stack.push(full);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      if (entry.name === "_schematic.png" || entry.name === "_pcb.png") {
-        if (path.basename(current).endsWith("_review")) out.push(full);
-      }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.endsWith("_review")) continue;
+    for (const name of ["_schematic.png", "_pcb.png"]) {
+      const full = path.join(boards, entry.name, name);
+      if (fs.existsSync(full)) out.push(full);
     }
   }
   // Schematic first, then PCB, and stable across rounds so a diff of the two
@@ -1361,45 +1369,24 @@ export function reviewImagePaths(dir) {
  * collect `validation.warnings`. Best-effort; malformed sidecars skipped. */
 export function collectBoardWarnings(dir) {
   const out = [];
-  const skip = skipDirNames();
-  const stack = [dir];
-  while (stack.length) {
-    const current = stack.pop();
-    let dirents;
+  for (const full of boardSidecarPaths(dir)) {
+    let json;
     try {
-      dirents = fs.readdirSync(current, { withFileTypes: true });
+      json = JSON.parse(fs.readFileSync(full, "utf8"));
     } catch {
       continue;
     }
-    for (const entry of dirents) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!skip.has(entry.name)) {
-          stack.push(full);
-        }
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".board.json")) {
-        continue;
-      }
-      let json;
-      try {
-        json = JSON.parse(fs.readFileSync(full, "utf8"));
-      } catch {
-        continue;
-      }
-      const warnings = json?.validation?.warnings;
-      if (!Array.isArray(warnings)) {
-        continue;
-      }
-      for (const w of warnings) {
-        out.push({
-          part: String(w?.part ?? ""),
-          kind: String(w?.kind ?? ""),
-          detail: String(w?.detail ?? ""),
-          severity: String(w?.severity ?? "warning"),
-        });
-      }
+    const warnings = json?.validation?.warnings;
+    if (!Array.isArray(warnings)) {
+      continue;
+    }
+    for (const w of warnings) {
+      out.push({
+        part: String(w?.part ?? ""),
+        kind: String(w?.kind ?? ""),
+        detail: String(w?.detail ?? ""),
+        severity: String(w?.severity ?? "warning"),
+      });
     }
   }
   return out;
@@ -2068,13 +2055,25 @@ async function runReviewRound({
     });
   }, REVIEW_SIDECAR_POLL_MS);
   if (watcher?.unref) watcher.unref();
-  if (debugEnabled()) {
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => process.stderr.write(`[circuit:claude:review] ${chunk}`));
-  } else {
-    child.stdout.resume(); // drain so a full pipe can't deadlock the child
-  }
+  // Drain stdout so a full pipe cannot deadlock the child. Review chatter
+  // never reaches the user, but a line that says the provider FAILED does:
+  // run #5 burned both structure rounds in five seconds each on "You've hit
+  // your usage limit" and reported the board unresolved as if it had tried.
+  let failure = null;
+  const reviewLines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
+  reviewLines.on("line", (line) => {
+    if (debugEnabled()) process.stderr.write(`[circuit:${provider}:review] ${line}\n`);
+    if (failure) return;
+    let obj;
+    try {
+      obj = JSON.parse(String(line || "").trim());
+    } catch {
+      return;
+    }
+    failure = codexFailureMessage(obj);
+  });
   await waitForExit(child);
+  reviewLines.close();
   clearInterval(watcher);
   if (budgetTimer) clearTimeout(budgetTimer);
   if (signal) {
@@ -2101,7 +2100,8 @@ async function runReviewRound({
   for (const event of diff) {
     onEvent(event); // only artifact diffs surface from a review round
   }
-  return diff.length > 0;
+  if (failure) log(`review round failed before it could work: ${failure}`);
+  return { changed: diff.length > 0, failure };
 }
 
 function emitUnresolvedNote(turnId, label, remaining, onEvent) {
@@ -2378,6 +2378,9 @@ export async function runReviewFixLoop({
   // of five — and says so out loud rather than quietly handing back a board
   // that used to be shippable.
   let regressed = false;
+  // Set by `round()` when the provider itself failed (usage limit, auth, a
+  // dead binary). Every phase loop stops on it.
+  let providerFailed = null;
   // Set by `round()` when the blocking ratchet put the board back. The phase
   // loops read it to give the phase one spare round (`roundCapAfterUndo`).
   let lastRoundUndone = false;
@@ -2390,7 +2393,7 @@ export async function runReviewFixLoop({
     // structure round 1). Count the blockers going in as well.
     const blockingBefore = collectBoardWarnings(workspace).filter(isBlocking).length;
     const undo = snapshotForUndo(workspace);
-    let didChange = await runReviewRound({
+    const outcome = await runReviewRound({
       provider,
       executable,
       workspace,
@@ -2403,6 +2406,20 @@ export async function runReviewFixLoop({
       signal,
       env,
     });
+    let didChange = outcome.changed;
+    if (outcome.failure) {
+      // The provider, not the board. Say so once and stop the loop: a round
+      // that could not run is not a round, and the caps are for rounds.
+      providerFailed = outcome.failure;
+      onEvent?.({
+        kind: "assistant_message",
+        turnId,
+        text:
+          "_I stopped the automatic review: the model could not run it " +
+          `(${outcome.failure}). The board stands as the build left it; ` +
+          "send another message once that is resolved to carry on._",
+      });
+    }
     const blockingAfter = collectBoardWarnings(workspace).filter(isBlocking).length;
     if (readyBefore !== true && didChange && roundMadeItWorse(blockingBefore, blockingAfter)) {
       // Not the orderable→un-orderable case below (that one stops the loop);
@@ -2463,7 +2480,7 @@ export async function runReviewFixLoop({
   // not use up a slot (once per phase — see `roundCapAfterUndo`).
   let structureUndone = 0;
   for (let i = 0; i < roundCapAfterUndo(MAX_STRUCTURE_ROUNDS, structureUndone); i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     const all = collectBoardWarnings(workspace);
     const blocking = all.filter(isBlocking);
     const prompt = buildStructurePrompt(blocking);
@@ -2479,7 +2496,7 @@ export async function runReviewFixLoop({
     changed = (await round(prompt)) || changed;
     if (lastRoundUndone) structureUndone += 1;
   }
-  if (aborted() || regressed) return changed;
+  if (aborted() || regressed || providerFailed) return changed;
   const afterStructure = collectBoardWarnings(workspace);
   const structureRemaining = afterStructure.filter(isBlocking);
   if (structureRemaining.length) {
@@ -2491,7 +2508,7 @@ export async function runReviewFixLoop({
   // Phase 2 — electrical function (contract kind set). Same spare slot rule.
   let electricalUndone = 0;
   for (let i = 0; i < roundCapAfterUndo(MAX_ELECTRICAL_ROUNDS, electricalUndone); i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     const all = collectBoardWarnings(workspace);
     const electrical = all.filter(isElectrical);
     const prompt = buildElectricalPrompt(electrical);
@@ -2507,7 +2524,7 @@ export async function runReviewFixLoop({
     changed = (await round(prompt)) || changed;
     if (lastRoundUndone) electricalUndone += 1;
   }
-  if (aborted() || regressed) return changed;
+  if (aborted() || regressed || providerFailed) return changed;
   const afterElectrical = collectBoardWarnings(workspace);
   const electricalRemaining = afterElectrical.filter(isElectrical);
   if (electricalRemaining.length) {
@@ -2522,7 +2539,7 @@ export async function runReviewFixLoop({
     (w) => !isBlocking(w) && !isElectrical(w),
   );
   for (let i = 0; i < MAX_CRAFT_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     snapshot("craft", i + 1, collectBoardWarnings(workspace));
     log(`review craft round ${i + 1}`);
     emitPhaseNote(turnId, onEvent, {
@@ -2551,7 +2568,7 @@ export async function runReviewFixLoop({
   // rule is "the moment fab.ready is true", and a board still failing has
   // nothing for seven lenses to score.
   for (let i = 0; i < MAX_PANEL_ROUNDS; i += 1) {
-    if (aborted() || regressed) return changed;
+    if (aborted() || regressed || providerFailed) return changed;
     if (workspaceFabReady(workspace) !== true) break;
     snapshot("panel", i + 1, collectBoardWarnings(workspace));
     log(`review panel round ${i + 1}`);
