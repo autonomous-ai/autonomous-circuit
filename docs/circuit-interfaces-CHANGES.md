@@ -356,4 +356,114 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes — repair-mode only.
 - **Tracks affected:** pipeline, skill runtime (re-vendor), SKILL.md.
 
+## 2026-09-11 — v1.6: the repair loop Astra described, measured
+- **Change:** (1) repair mode runs `kicad-cli pcb drc --refill-zones --save-board`
+  so the DRC gate, the margin DRC and the gerber plot see zones KiCad cut
+  around the repaired copper (`build.repairMode.zonesRefilled`; also on any
+  build under `CIRCUIT_KICAD_REFILL=1`). (2) `build.repairMode.history` carries
+  every repair since the last route; `repairs` stays the current round. (3)
+  every `--edits` checkpoints `boards/<stem>.circuit.json` (+ sidecar) under
+  `.circuit/repair-undo/` (last 10); `--undo-repair` restores the newest and
+  re-runs the gauntlet. (4) `circuitpy.repair` gains `reroute`: A* on a 0.1 mm
+  grid for one wire-to-wire segment of one trace, obstacle model shared with
+  `trace_clearance` (pads, holes, vias, other traces on that layer), 45° moves,
+  no corner cutting; refuses across vias/layers or when no path exists. (5)
+  `circuitpy.craft` writes `build.craft` (vias, copper, segments, jogs,
+  off-grid segments, mean and worst detours) and one `craft_summary` info
+  finding on every build. Nothing new blocks.
+- **Why:** run 6 (Astra, 2026-09-11): two repair rounds died on a via moved
+  under a pour with no new cutout, so the agent kept a board whose crystal net
+  the router had stretched to 19.63 mm. Replaying its exact reverted edits with
+  the refill: 0 errors, fab-ready, 24 → 21 warnings, the net under 10 mm.
+  Astra's own answer to "keep tscircuit, route like you did" named exactly
+  these pieces: local reroute that sees all copper, checkpoint/rollback, one
+  patched revision for verify and gerbers, and a craft score after the floor.
+- **Backward compatible:** yes — repair-mode paths and an info finding.
+- **Tracks affected:** pipeline (`generation.py`, `repair.py`, new `craft.py`),
+  skill runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts.
+
+## 2026-09-11 — v1.6b: the re-pour is every build, and the islands fold
+- **Change:** (1) `kicad_normalize` pass 5, `_merge_islands`: same-net zones on
+  one layer fold into the one with the largest outline polygon — its outline
+  gains theirs (a zone's polygons are a union), their fills go
+  (`islands_merged`, `island_polygons_kept` in the `kicad_normalized` note).
+  Zones without `(layer …)`/net name and `(layers …)` zones are left alone.
+  (2) The DRC gate runs `--refill-zones --save-board` on **every** build, not
+  only repair rounds; `build.zonesRefilled` (bool) on every build,
+  `build.repairMode.zonesRefilled` kept. `CIRCUIT_KICAD_REFILL=0|off|false|no`
+  keeps the converter's fills (for measuring); the segfault fallback stands.
+- **Why:** desk-cube-astra-run7 (fresh route, 59 zones): the converter's fill
+  of the top GND plane covered 3109 mm² of a 2851 mm² board — 723 of the 770
+  DRC errors were that one zone's fill (479 clearance, 134 mask bridge, 110
+  hole clearance); the 57 islands contributed 11. Dropping small islands
+  changed nothing (773 → 773). `--refill-zones` exit -11 with the islands
+  present, exit 0 with only the planes: the same file refilled reads **41**
+  errors, all real (the QSPI cluster). Measured on six more cached boards
+  (run 6, dc-6, Claude desk cube, three pomodoros): errors never up
+  (6 → 0 on run 6, equal elsewhere), warnings down 10–45 on every one, no
+  segfault. The pour of record is now what KiCad cuts around the final
+  copper — the v2 posture, one layer early.
+- **Backward compatible:** yes for readers (one added bool). Gerbers of a
+  rebuilt board change: the pour is KiCad's, not the converter's. Frozen
+  boards are not rebuilt.
+- **Tracks affected:** pipeline (`kicad_normalize.py`, `generation.py`), skill
+  runtime (re-vendor; SKILL.md).
+
+## 2026-09-11 — v1.7a: the placement ruler
+- **Change:** (1) `circuitpy.placement.score(elements)` — from the IR, routed
+  or not: `pins`, `nets`, `ratsnestMm` (MST per net), `crossings` (ratsnest
+  edges of different nets that intersect), `congestion` (pins per 5 mm cell,
+  worst/mean), `decoupling` (each ground/power cap to the nearest chip pin on
+  its power net; `overLimit` at 3 mm), `crystals` (to the nearest chip pin),
+  `connectorsToEdgeMm`, `longestNets`. Lands as `build.placement` in the
+  sidecar with one `placement_summary` info finding, as `placement` in
+  `preflight` and `fastcheck` output (fastcheck: on the geometry as moved).
+  (2) `<stem>_review/_placement.png` — the board without its copper, one
+  hairline per ratsnest edge (`render_placement.cjs`); written by every
+  build (`artifacts.placementPng`) and by `preflight` into the project's own
+  review dir (`placement_png`). (3) Repair mode skips `pour_clearance` when
+  the KiCad refill is on (`repairMode.postRoutePasses` says which).
+- **Why:** run 7 (Astra, desk cube, 2026-09-11) called `preflight` 62× and
+  `fastcheck` 11× — the agent iterated placement against a ruler that grades
+  overlaps and price tier, not routability — and routed to 190 vias / 789
+  jogs. On that board the ruler reads 240 crossings, 10 decoupling caps over
+  3 mm (C14 9.9 mm from U4), worst cell 15 pins; the picture shows U4 across
+  the board from U3. Nothing new blocks; the loop that pushes these down is
+  v1.7b (driver placement phase, block `layout` overrides).
+- **Backward compatible:** yes — added blocks, an info finding, one image.
+- **Tracks affected:** pipeline (`placement.py`, `placement_image.py`,
+  `_js/render_placement.cjs`, `generation.py`, `fastcheck.py`,
+  `preflight.py`), skill runtime (re-vendor; SKILL.md).
+
+## 2026-09-11 — v1.7.1: the back side, on purpose
+- **Change:** (1) `product.json` gains `assemblyTier`: `economic` (default;
+  one side) or `standard` (both sides, finer pitch, rails + fiducials);
+  `ResolvedProduct.assembly_tier`; anything else is a `SpecValidationError`.
+  `verify_bridge.check_circuit_json(assembly_tier=…)` hands it to
+  verifylib's `assembly.check(tier=…)`, which already knew both tiers —
+  `dfa_bottom_side` stays an error on economic and is silent on standard.
+  (2) Golden block `rp2040-core` takes `layer="bottom"` and `pcbRotation`
+  at block level (every inner part follows) besides the `layout` overrides.
+  (3) The placement ruler scores per side: `pinsBySide`,
+  `congestion.bySide`, `congestion.worstSide`. (4) `build.craft` gains
+  `viasByNet` (top 5) and `pairVias` (every DP/DM pair's via count; the
+  number to push to is 0). (5) Prompts: PLAN allows two sides when the
+  face is spoken for, as a block, with the cost named, and asks for four
+  corner mounting holes by default; IMPLEMENT orders place → preflight →
+  picture → route, and treats an assembly finding as a 0.4 mm move + a
+  preflight, not a rebuild.
+- **Why:** the harness-free Astra desk cube (2026-09-11) put the MCU core
+  on the back and kept the face for the LED ring, buttons, sensors and an
+  OLED on standoffs — twice the area on the same 54 mm. On run 7's board,
+  flipping Astra's own RP2040 block to the back with the new prop: worst
+  cell 15 → 11 on the front, crossings 240 → 220, before any router runs.
+  Our single-side rule was a cost rule (economic PCBA) enforced as if it
+  were physics; it is now the plan's decision with the price named.
+- **Backward compatible:** yes — the field defaults to economic; added
+  score keys. The shipped router's two-sided limit (2026-09-08) stands and
+  is measured, not assumed — see the BOARD entry.
+- **Tracks affected:** pipeline (`spec.py`, `verify_bridge.py`,
+  `generation.py`, `fastcheck.py`, `placement.py`, `craft.py`), golden
+  blocks, server prompts, SKILL.md.
+
 (No further entries yet.)

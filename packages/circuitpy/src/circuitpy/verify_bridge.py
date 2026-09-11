@@ -197,6 +197,7 @@ def check_circuit_json(
     *,
     profile: FabProfile,
     assembly_order: bool,
+    assembly_tier: str = "economic",
 ) -> list[dict]:
     """Stage 4c: everything judgeable from the compiled board."""
     if _truthy(os.environ.get(DISABLE_ENV)):
@@ -212,7 +213,9 @@ def check_circuit_json(
         return [_failed("model.load", exc)]
 
     runners = {
-        "assembly": lambda: modules["assembly"].check(board, assembly=assembly_order),
+        "assembly": lambda: modules["assembly"].check(
+            board, assembly=assembly_order, tier=assembly_tier
+        ),
         "netclass": lambda: modules["netclass"].check(board),
         "dc": lambda: modules["dc"].check(board),
         "review": lambda: modules["review"].check(board),

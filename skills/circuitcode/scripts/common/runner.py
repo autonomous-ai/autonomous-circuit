@@ -236,6 +236,7 @@ def in_subprocess_main(
     wall_clock_s: float = WALL_CLOCK_TIMEOUT_S,
     recheck: str = "",
     edits: str = "",
+    undo: str = "",
 ) -> int:
     """Entry point invoked inside the subprocess.
 
@@ -259,7 +260,7 @@ def in_subprocess_main(
 
     _enforce_rlimits(wall_clock_s)
 
-    repair_mode = recheck == "1" or bool(edits)
+    repair_mode = recheck == "1" or bool(edits) or undo == "1"
     applied: list[dict] = []
     if repair_mode:
         if not output_path.is_file():
@@ -268,9 +269,20 @@ def in_subprocess_main(
                 "message": f"nothing to repair: {output_path} does not exist — build the board first",
             }})
             return 2
+        import circuitpy.repair as _repair
+        if undo == "1":
+            # Put the routed IR back to the checkpoint taken before the last
+            # `--edits`, then re-run the gauntlet on it. Each round on a copy,
+            # hỏng thì rollback — the agent's checkpoints, done by the tool.
+            restored = _repair.undo_last_checkpoint(output_path)
+            if restored is None:
+                _emit({"ok": False, "error": {"code": "VALIDATION_FAILED",
+                                              "message": "nothing to undo: no repair checkpoint under .circuit/repair-undo"}})
+                return 2
+            applied = [{"op": "undo", "restored": restored}]
         if edits:
-            import circuitpy.repair as _repair
             try:
+                _repair.checkpoint(output_path)
                 applied = _repair.apply_edits_file(output_path, Path(edits))
             except _repair.RepairError as e:
                 _emit({"ok": False, "error": {"code": "VALIDATION_FAILED", "message": f"repair refused: {e}"}})
@@ -540,6 +552,7 @@ def run_sandboxed_sync(
     wall_clock_s: float = WALL_CLOCK_TIMEOUT_S,
     recheck: bool = False,
     edits: Path | None = None,
+    undo: bool = False,
 ) -> dict[str, Any]:
     """Spawn the worker subprocess and return the parsed JSON result.
 
@@ -559,7 +572,7 @@ def run_sandboxed_sync(
             "_p and sys.path.insert(0, _p); "
             "from common.runner import in_subprocess_main; "
             "sys.exit(in_subprocess_main(sys.argv[1], sys.argv[2], sys.argv[3], "
-            "sys.argv[4], float(sys.argv[5]), sys.argv[6], sys.argv[7]))"
+            "sys.argv[4], float(sys.argv[5]), sys.argv[6], sys.argv[7], sys.argv[8]))"
         ),
         str(source_path),
         str(out_dir),
@@ -568,6 +581,7 @@ def run_sandboxed_sync(
         str(wall_clock_s),
         "1" if recheck else "",
         str(edits) if edits else "",
+        "1" if undo else "",
     ]
 
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)

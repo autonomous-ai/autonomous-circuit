@@ -68,6 +68,24 @@ Three extended lines (U3, Y1, and — via `usb-c-data` — the connector class)
 carry the ~$3-per-line JLC loading fee; the flash, every passive, and both
 buttons are Basic.
 
+## Layout overrides (v1.7, 2026-09-11)
+
+The block's inner placement is a **suggestion that routes**, not a fixture.
+`layout={{ U4: { pcbX: 9, pcbY: -2 }, Y1: { pcbY: -9 } }}` moves one part at a
+time, relative to the block origin; anything unnamed keeps the default. Keys
+are the parts' default names (`U3`, `U4`, `Y1`, `C15`, `C16`, `R11`, `C14`,
+`R13`, `R12`, `U5`, …). What binds them:
+
+- **Y1 + C15 + C16 + R11 within 10 mm of U3.XIN**, or tscircuit skips routing
+  for the whole board (see the comment in the source). The placement ruler
+  reports `crystals[].mm`.
+- **Every decoupling cap within 3 mm of the pin it serves** — the ruler's
+  `decoupling.overLimit` counts the ones that are not.
+- **U4 (flash) close to U3's QSPI edge** (pins 51–56, right side): run 7
+  routed six QSPI nets across the board and never cleared them.
+
+Move a part, run `preflight`, read `placement` and `_placement.png`, repeat.
+
 ## Design-rule notes
 
 - **The flash is not optional.** The RP2040 has no internal program store; U4

@@ -79,6 +79,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from circuitpy import checks, fab as fab_mod, spec as spec_mod, verify_bridge
+from circuitpy import placement
 
 #: The check dropped from the node leg, and the reason it is affordable to drop.
 #: Kept as a constant because two places have to agree about it: the node
@@ -647,7 +648,8 @@ def fast_check(
             warnings.extend(checks.floating_net_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
-                    node_input, profile=profile, assembly_order=True
+                    node_input, profile=profile, assembly_order=True,
+                    assembly_tier=getattr(product, "assembly_tier", "economic"),
                 )
             )
             warnings.extend(pending.result())
@@ -700,11 +702,22 @@ def fast_check(
             if node else "@tscircuit/checks: not run",
         ],
         "not_checked": [dict(entry) for entry in NOT_CHECKED],
+        # The placement ruler — ratsnest, crossings, congestion, decoupling
+        # distance — on the geometry as moved. Ten milliseconds, and the one
+        # number set that says whether a move made the board easier to route.
+        "placement": _placement_or_note(elements),
         # The other ruler's answer, if this board has ever been built. Costs a
         # file open, and without it `counts.error` reads as the whole truth.
         "last_build": last_build_verdict(root, path),
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
     }
+
+
+def _placement_or_note(elements: Sequence[dict]) -> dict:
+    try:
+        return placement.score(elements)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"placement score did not run: {type(exc).__name__}: {exc}"}
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -90,6 +90,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--undo-repair",
+        action="store_true",
+        help=(
+            "REPAIR MODE: put <stem>.circuit.json back to the checkpoint taken "
+            "before the last --edits, then --recheck. Every --edits takes one "
+            "(the last 10 are kept under .circuit/repair-undo/)."
+        ),
+    )
+    p.add_argument(
         "--wall-clock-s",
         type=float,
         default=WALL_CLOCK_TIMEOUT_S,
@@ -153,6 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         wall_clock_s=args.wall_clock_s,
         recheck=args.recheck,
         edits=(args.edits.resolve() if args.edits else None),
+        undo=args.undo_repair,
     )
 
     print(json.dumps(payload))

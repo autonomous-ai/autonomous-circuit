@@ -174,3 +174,101 @@ class LayerAndViaTest(unittest.TestCase):
                 {"op": "set_layer", "trace": "t_a", "indices": [4], "layer": "top"},
                 {"op": "remove_via", "via": "via_1"},
             ])
+
+
+def _routed_board():
+    """A 20x20 board: net A's trace runs straight through a foreign pad of net B."""
+    wire = lambda x, y, layer="top", **k: {"route_type": "wire", "x": x, "y": y, "layer": layer, "width": 0.2, **k}
+    return [
+        {"type": "pcb_board", "width": 20, "height": 20, "center": {"x": 0, "y": 0}, "num_layers": 2, "thickness": 1.6},
+        {"type": "source_net", "source_net_id": "net_a", "subcircuit_connectivity_map_key": "KEY_A"},
+        {"type": "source_net", "source_net_id": "net_b", "subcircuit_connectivity_map_key": "KEY_B"},
+        {"type": "source_port", "source_port_id": "sp_a1", "subcircuit_connectivity_map_key": "KEY_A"},
+        {"type": "source_port", "source_port_id": "sp_a2", "subcircuit_connectivity_map_key": "KEY_A"},
+        {"type": "source_port", "source_port_id": "sp_b", "subcircuit_connectivity_map_key": "KEY_B"},
+        {"type": "pcb_port", "pcb_port_id": "pp_a1", "source_port_id": "sp_a1"},
+        {"type": "pcb_port", "pcb_port_id": "pp_a2", "source_port_id": "sp_a2"},
+        {"type": "pcb_port", "pcb_port_id": "pp_b", "source_port_id": "sp_b"},
+        {"type": "pcb_smtpad", "pcb_smtpad_id": "pad_a1", "layer": "top", "shape": "rect", "x": -6, "y": 0, "width": 1, "height": 1, "pcb_port_id": "pp_a1"},
+        {"type": "pcb_smtpad", "pcb_smtpad_id": "pad_a2", "layer": "top", "shape": "rect", "x": 6, "y": 0, "width": 1, "height": 1, "pcb_port_id": "pp_a2"},
+        # the foreign pad squarely on the straight line
+        {"type": "pcb_smtpad", "pcb_smtpad_id": "pad_b", "layer": "top", "shape": "rect", "x": 0, "y": 0, "width": 2, "height": 2, "pcb_port_id": "pp_b"},
+        {"type": "pcb_trace", "pcb_trace_id": "t_a", "connectsTo": ["pp_a1", "pp_a2"], "route": [
+            wire(-6, 0, start_pcb_port_id="pp_a1"), wire(-4, 0), wire(4, 0), wire(6, 0, end_pcb_port_id="pp_a2"),
+        ]},
+    ]
+
+
+class RerouteTest(unittest.TestCase):
+    """A* for one segment of one net, seeing every piece of foreign copper."""
+
+    def _run(self, edits, ir):
+        return RepairTest._run(self, edits, ir)
+
+    def test_reroutes_around_a_foreign_pad(self):
+        import math
+        applied, after = self._run([{"op": "reroute", "trace": "t_a", "from_index": 1, "to_index": 2, "clearance": 0.15}], _routed_board())
+        r = RepairTest._route(self, after, "t_a")
+        # ends kept, interior replaced, every new vertex on the same layer
+        self.assertEqual((r[0]["x"], r[0]["y"]), (-6, 0))
+        self.assertEqual((r[-1]["x"], r[-1]["y"]), (6, 0))
+        self.assertTrue(all(p["layer"] == "top" for p in r))
+        # the new path clears pad_b (half-width 1.0 + clearance 0.15 + trace half 0.1)
+        for p in r[1:-1]:
+            self.assertTrue(abs(p["x"]) > 1.25 or abs(p["y"]) > 1.25, p)
+        # …and every new segment stays clear of the pad's corner too
+        def seg_clear(p, q):
+            steps = 50
+            for k in range(steps + 1):
+                x = p["x"] + (q["x"] - p["x"]) * k / steps; y = p["y"] + (q["y"] - p["y"]) * k / steps
+                dx = max(abs(x) - 1.0, 0); dy = max(abs(y) - 1.0, 0)
+                if math.hypot(dx, dy) < 0.15 + 0.1 - 1e-6:
+                    return False
+            return True
+        for p, q in zip(r, r[1:]):
+            self.assertTrue(seg_clear(p, q), (p, q))
+        self.assertEqual(applied[0]["op"], "reroute")
+        self.assertGreater(applied[0]["lengthAfterMm"], applied[0]["lengthBeforeMm"], "going around costs length")
+
+    def test_refuses_across_a_via_or_a_layer_change(self):
+        ir = _routed_board()
+        ir[-1]["route"][2] = {"route_type": "via", "x": 4, "y": 0, "from_layer": "top", "to_layer": "bottom"}
+        ir[-1]["route"].insert(3, {"route_type": "wire", "x": 4, "y": 0, "layer": "bottom", "width": 0.2})
+        ir[-1]["route"][-1]["layer"] = "bottom"
+        with self.assertRaisesRegex(repair.RepairError, "via sits between|one layer per reroute|must be wire"):
+            self._run([{"op": "reroute", "trace": "t_a", "from_index": 1, "to_index": 4}], ir)
+
+    def test_refuses_when_the_corridor_is_closed(self):
+        ir = _routed_board()
+        # wall the whole window with a foreign pad taller than the search box
+        ir.append({"type": "pcb_smtpad", "pcb_smtpad_id": "wall", "layer": "top", "shape": "rect", "x": 0, "y": 0, "width": 0.5, "height": 40, "pcb_port_id": "pp_b"})
+        with self.assertRaisesRegex(repair.RepairError, "no path"):
+            self._run([{"op": "reroute", "trace": "t_a", "from_index": 1, "to_index": 2}], ir)
+
+
+class CheckpointTest(unittest.TestCase):
+
+    def test_checkpoint_then_undo_restores_the_ir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            boards = Path(tmp) / "boards"; boards.mkdir()
+            p = boards / "main.circuit.json"; p.write_text(json.dumps(_ir()))
+            (boards / "main.board.json").write_text('{"fab":{"ready":true}}')
+            self.assertIsNone(repair.undo_last_checkpoint(p), "nothing to undo yet")
+            cp = repair.checkpoint(p)
+            self.assertTrue(cp and (cp / "main.circuit.json").is_file() and (cp / "main.board.json").is_file())
+            self.assertIn(".circuit", str(cp), "checkpoints live where the artifact watcher cannot see them")
+            repair.apply_edits(p, [{"op": "move_point", "trace": "t_b", "index": 1, "x": 9, "y": 9}])
+            self.assertEqual(RepairTest._route(self, json.loads(p.read_text()), "t_b")[1]["x"], 9)
+            name = repair.undo_last_checkpoint(p)
+            self.assertTrue(name)
+            self.assertEqual(RepairTest._route(self, json.loads(p.read_text()), "t_b")[1]["x"], 2.3, "back to the checkpoint")
+            self.assertIsNone(repair.undo_last_checkpoint(p), "a checkpoint is consumed once")
+
+    def test_only_the_newest_ten_survive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            boards = Path(tmp) / "boards"; boards.mkdir()
+            p = boards / "main.circuit.json"; p.write_text(json.dumps(_ir()))
+            for _ in range(12):
+                repair.checkpoint(p)
+            root = Path(tmp) / ".circuit" / "repair-undo"
+            self.assertEqual(len([d for d in root.iterdir() if d.is_dir()]), repair.KEEP_CHECKPOINTS)

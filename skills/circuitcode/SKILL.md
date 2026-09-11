@@ -44,10 +44,24 @@ Four habits, applied without being asked:
 3. **Label every net.** `net.V3_3`, `net.I2C_SDA` — never an anonymous trace.
    An unnamed net is a warning from the pipeline and an unreadable schematic
    for the human who has to debug the board.
-4. **Leave the enclosure something to hold.** At least two mounting holes on a
-   pitch you state, connectors on one edge, and a board outline inside the
-   declared envelope. This board is going inside a 3D-printed body.
-5. **Land the debug interface.** An MCU block brings SWCLK/SWD out as nets and
+4. **Leave the enclosure something to hold.** Four mounting holes at the
+   corners on a pitch you state (27 of 32 boards built have them; two on one
+   edge cantilevers the rest — `dfa_mounting_collinear`), connectors on one
+   edge, and a board outline inside the declared envelope. Fewer holes is a
+   choice you make on purpose and say so. This board is going inside a
+   3D-printed body.
+5. **One side by default; the back when the face is spoken for.** If the
+   user-facing parts (screen, LED ring, buttons, sensors) fill the front at
+   the user's size, put the MCU core on the back as one block —
+   `<Rp2040Core layer="bottom" pcbRotation={180} …/>` with
+   `doubleSidedAssembly={true}` on the board and `"assemblyTier": "standard"`
+   in `product.json` (economic PCBA places one side only and skips the rest
+   silently — `dfa_bottom_side`; standard places both at a higher price
+   band) — and say so in the plan with the cost. The placement ruler
+   scores each side (`congestion.bySide`, `pinsBySide`). The shipped router
+   has failed a dense two-sided 54 mm board before (2026-09-08); if it hands
+   back unrouted nets, that is its limit — report it, do not spend rounds.
+6. **Land the debug interface.** An MCU block brings SWCLK/SWD out as nets and
    terminates neither. If nothing does, the assembled board cannot be halted,
    single-stepped or recovered from a bad image — every part on it correct and
    the product useless. `board_plan().must_expose` names the nets; `DebugPort`
@@ -60,7 +74,7 @@ Four habits, applied without being asked:
    space, not inside the MCU block: three pads inside `rp2040-core`'s own box
    route the debug pair through the crystal cluster and the router comes back
    with a via shorted into the QFN pad field (measured 2026-08-11).
-6. **Say what routing effort the board needs.** `autorouterEffortLevel="10x"`
+7. **Say what routing effort the board needs.** `autorouterEffortLevel="10x"`
    is the floor on every board. The same rp2040-core board is `fab.ready:
    false` with five blocking KiCad findings at the default effort and
    `fab.ready: true` with zero at `"5x"` — same design, only this prop changed.
@@ -172,11 +186,27 @@ Four things that are not optional:
 ## The loop
 
 **Two loops, in this order.** First the *placement* loop — edit TSX, run
-`scripts/circuit`, read the verdict — until the parts sit where they should and
-the board routes. Then the *repair* loop — read a copper finding, write
-`edits.json`, run `scripts/circuit … --edits`, read the verdict in thirty seconds
-— until the copper is clean. Do not go back to the placement loop for a copper
-finding: a rebuild re-routes every net and the finding moves somewhere else.
+`preflight` (seconds, no router), `Read` `_placement.png`, read the
+`placement` score — until the parts sit where the copper can reach them; only
+then `scripts/circuit` to route. Then the *repair* loop — read a copper
+finding, write `edits.json`, run `scripts/circuit … --edits`, read the verdict
+in thirty seconds — until the copper is clean. Do not go back to the placement
+loop for a copper finding: a rebuild re-routes every net and the finding moves
+somewhere else.
+
+**The placement ruler** (`placement` in `preflight` and `fastcheck`,
+`build.placement` in the sidecar, `placement_summary` finding): `ratsnestMm`
+(the shortest copper that could ever connect every net), `crossings` (net
+lines that cross — each is a via pair or a detour you are asking the router
+to pay for), `congestion.worst` (pins in the fullest 5 mm cell), `decoupling`
+(each cap to the chip pin it serves; over 3 mm is a finding an engineer raises
+on sight), `crystals`, `connectorsToEdgeMm`, `longestNets`. Push these down
+before routing: move the part that owns the worst number, re-run preflight,
+look at the picture. Measured 2026-09-11: a board that iterated placement 62
+times against overlaps and price tier alone routed to 190 vias and 789 jogs;
+its ruler read 240 crossings and 10 decoupling caps over 3 mm. A placement
+that scores well routes with fewer vias — that is the whole point of the
+order above.
 
 ```
 understand ask → inspect project → block plan → edit main.tsx
@@ -327,20 +357,24 @@ python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
 # minutes). Use it when you want a verdict without a packet, not to save time.
 python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
 
-# PRE-FLIGHT — the placement verdict, without paying for routing. ~17s on a
+# PRE-FLIGHT — the placement verdict, without paying for routing. ~7-17s on a
 # dense board against 20-40 minutes for a build, because it compiles with
 # `routingDisabled` and grades what is left: overlapping parts, a footprint
 # that is not the part, a component off the board, a hole in a pad, pad-to-pad
-# clearance, assembly risks, board size and price tier, decoupling distance.
-# It sees NOTHING about copper and says so. Use it every time you move a part;
-# use `circuit` when you want a board.
+# clearance, assembly risks, board size and price tier — and the placement
+# ruler (`placement`: ratsnest, crossings, congestion, decoupling, crystal,
+# connectors to edge) plus `boards/<stem>_review/_placement.png`, the board
+# with its ratsnest and no copper (`placement_png`). It sees NOTHING about
+# routed copper and says so. Use it every time you move a part; `Read` the
+# picture; use `circuit` when you want a board.
 python -m circuitpy.preflight /abs/project --board boards/main.tsx
 
 # ~1s verdict on a board that has ALREADY been built, with optional
 # placement moves applied in memory. This is the fast gate: ~0.5-0.9s on the
-# boards we ship, no compile at all. It cannot see anything a rebuild would
-# change — the copper pour, what the router will do next, the fab packet — and
-# it says so in `not_checked`.
+# boards we ship, no compile at all; `placement` is scored on the geometry as
+# moved, so "would moving C14 next to U4 help" is a one-second question. It
+# cannot see anything a rebuild would change — the copper pour, what the
+# router will do next, the fab packet — and it says so in `not_checked`.
 python -m circuitpy.fastcheck /abs/project --board boards/main.circuit.json
 
 # Review pass — re-surface warnings and regenerate the review images
@@ -382,6 +416,41 @@ pad's); `remove_via` deletes the via and its route point once the wires on both
 sides are on one layer, and refuses while the trace would still change layer
 anywhere without a via. Re-layered copper is new copper on that layer: check the
 pads and vias it now crosses (0.5 mm, that layer) before you run it.
+
+And the local router (v1.6, 2026-09-11) — one net segment, re-found by A* on a
+0.1 mm grid around every piece of foreign copper on that layer, 45° moves, no
+corner cutting:
+
+```json
+[{"op": "reroute", "trace": "source_net_1_mst4_0", "from_index": 3, "to_index": 9, "clearance": 0.15}]
+```
+
+The wire points strictly between the two ends are replaced; both ends must be
+wire vertices on one layer with no via between (use `set_layer` / `remove_via`
+first). It refuses when no path exists inside the window (endpoints' box grown by
+`margin`, default 6 mm) — then the corridor is closed and a via or a part has
+to move. Prefer it over hand-placed `insert_point` runs: it sees all the copper.
+
+**Every `--edits` takes a checkpoint first** (`.circuit/repair-undo/`, last 10
+kept). A round that made things worse is undone with
+`scripts/circuit <board.tsx> --undo-repair` — back to the checkpoint, gauntlet
+re-run — instead of hand-inverting the edits.
+
+**The pour is re-cut on every build** (`build.zonesRefilled`): the converter's
+islands are folded into one zone per net per layer and KiCad refills the zones
+before DRC and the export, so the copper you move — or route — gets the pour
+cut around it. The pass that only pushed existing rings could not do that and
+blocked two of Astra's rounds on 2026-09-11; the converter's own fill of a top
+plane put 723 DRC errors on run 7 that the refill reads as none. If
+`zonesRefilled` is false a `check_failed` says why and the DRC ran on the pours
+as converted — treat pour-vs-track `clearance`, `hole_clearance` and
+`solder_mask_bridge` counts on such a build as suspect, not as your work.
+
+**The craft score** — `build.craft` in the sidecar and one `craft_summary` info
+finding: vias, routed copper, jogs under 0.25 mm, off-45° segments, the worst
+detours by net. Advisory; it is what the craft round should push down once the
+floor is met. `build.repairMode.history` carries every repair since the last
+route.
 
 `move_via` carries every route point sitting on the via, so the join the
 contiguity check measures stays a join. A repair round drops the compiler's

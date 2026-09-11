@@ -1652,7 +1652,14 @@ test("the prompts say what the autorouter can actually route", () => {
   // failure names no cause, so the model cannot deduce it from the verdict.
   assert.ok(build.includes("ran out of iterations"), "the error it will see");
   assert.ok(build.includes("one side"));
-  assert.ok(plan.includes("single-sided"), "and the plan turn is where it is decided");
+  assert.ok(plan.includes("one side by default"), "and the plan turn is where it is decided");
+  // v1.7.1: the back is allowed when the face is spoken for — as a block, in
+  // the plan, with the cost named — and the plan asks for four corner holes.
+  assert.ok(plan.includes("two when the brief needs it"));
+  assert.ok(plan.includes('layer=\"bottom\"'));
+  assert.ok(plan.includes("four mounting holes at the corners"));
+  assert.ok(build.includes("place before you route"), "the placement loop comes first");
+  assert.ok(build.includes("_placement.png"));
   // Needing both sides is a decision to hand back, and four layers is not the
   // way around it: one run raised `layers` to 4 on its own, hit the exporter's
   // inner-copper bugs, and spent the turn patching the toolchain instead.

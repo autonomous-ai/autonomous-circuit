@@ -120,6 +120,11 @@ class ResolvedProduct:
     fab: str
     assembly: bool
     path: Path
+    #: JLCPCB PCBA tier: ``economic`` (one side, the default) or ``standard``
+    #: (both sides, finer pitch, rails + fiducials, a higher price band). The
+    #: plan chooses it when the face is spoken for; verifylib grades against
+    #: it (`dfa_bottom_side` is an error on economic and silent on standard).
+    assembly_tier: str = "economic"
 
 
 def load_product(project_root: Path) -> ResolvedProduct:
@@ -191,7 +196,23 @@ def load_product(project_root: Path) -> ResolvedProduct:
         fab=str(raw.get("fab") or "jlcpcb"),
         assembly=bool(raw.get("assembly", False)),
         path=path,
+        assembly_tier=_assembly_tier(raw.get("assemblyTier")),
     )
+
+
+ASSEMBLY_TIERS = ("economic", "standard")
+
+
+def _assembly_tier(raw: object) -> str:
+    if raw is None or raw == "":
+        return "economic"
+    tier = str(raw).strip().lower()
+    if tier not in ASSEMBLY_TIERS:
+        raise SpecValidationError(
+            f"product.json assemblyTier {raw!r} is not one of {list(ASSEMBLY_TIERS)} — "
+            "economic places one side; standard places both, at a higher price band"
+        )
+    return tier
 
 
 def load_parts(project_root: Path) -> dict[str, dict]:

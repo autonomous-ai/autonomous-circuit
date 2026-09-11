@@ -268,3 +268,31 @@ class SafetyEnvelope(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AssemblyTierTest(unittest.TestCase):
+    """`assemblyTier` in product.json: economic by default, standard on request, nothing else."""
+
+    def _load(self, extra):
+        import json as _json
+        import tempfile
+        from pathlib import Path as _P
+        from circuitpy import spec as spec_mod
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _P(tmp)
+            (root / "product.json").write_text(_json.dumps({
+                "name": "tier-probe", "power": "usb-c-5v", "layers": 2, **extra,
+            }))
+            return spec_mod.load_product(root)
+
+    def test_default_is_economic(self):
+        self.assertEqual(self._load({}).assembly_tier, "economic")
+
+    def test_standard_is_accepted_case_insensitively(self):
+        self.assertEqual(self._load({"assemblyTier": " Standard "}).assembly_tier, "standard")
+
+    def test_anything_else_is_refused_at_spec_time(self):
+        from circuitpy.errors import SpecValidationError
+        with self.assertRaises(SpecValidationError):
+            self._load({"assemblyTier": "premium"})
+

@@ -29,6 +29,17 @@ Edits are a JSON list. Each edit is one of::
     {"op": "delete_points", "trace": "<pcb_trace_id>", "indices": [8, 9]}
     {"op": "set_layer",     "trace": "<pcb_trace_id>", "indices": [5, 6], "layer": "top"}
     {"op": "remove_via",    "via": "<pcb_via_id>"}
+    {"op": "reroute",       "trace": "<pcb_trace_id>", "from_index": 3, "to_index": 9, "clearance": 0.15}
+
+``reroute`` is the local router Astra asked for on 2026-09-11 ("xóa/đổi đường
+của một net hoặc một vùng nhỏ; giữ phần còn lại; nhìn thấy toàn bộ copper"):
+it replaces the wire points strictly between two vertices of one trace with a
+new planar path found by A* on a 0.1 mm grid, avoiding every piece of
+foreign copper on that layer (pads, plated holes, vias, other traces — the same
+obstacle model `trace_clearance` measures with) by ``clearance`` plus half the
+trace width, 45° moves allowed, corner cutting refused. Same layer at both
+ends and no via between them; refused when no path exists inside the search
+window (endpoints' bounding box grown by ``margin``, default 6 mm).
 
 ``set_layer`` re-layers wire vertices (not pad-anchored ones — a pad's layer is
 the pad's). ``remove_via`` deletes a via and its route point once the copper
@@ -56,7 +67,7 @@ COINCIDENT_MM = 0.005
 #: A repair round that needs more edits than this is a re-route, not a repair.
 MAX_EDITS = 200
 
-OPS = ("move_point", "move_via", "insert_point", "delete_points", "set_layer", "remove_via")
+OPS = ("move_point", "move_via", "insert_point", "delete_points", "set_layer", "remove_via", "reroute")
 
 
 class RepairError(ValueError):
@@ -324,6 +335,161 @@ def _remove_via(elements: list, edit: dict) -> dict:
     return {"op": "remove_via", "via": via_id, "trace": trace["pcb_trace_id"], "at": [ox, oy]}
 
 
+# --- reroute: local A* for one net segment ---------------------------------
+
+GRID_MM = 0.1
+DEFAULT_CLEARANCE_MM = 0.15
+DEFAULT_MARGIN_MM = 6.0
+MAX_CELLS = 250_000
+
+
+def _astar_path(start, goal, blocked, cols, rows):
+    """8-connected A* on a cell grid; `blocked(c, r)` is the obstacle test.
+    Diagonal moves are refused when either orthogonal neighbour is blocked
+    (no corner cutting through a pad's corner). Returns cell list or None."""
+    import heapq
+    (sc, sr), (gc, gr) = start, goal
+    if blocked(sc, sr) or blocked(gc, gr):
+        return None
+    def h(c, r):
+        dx, dy = abs(c - gc), abs(r - gr)
+        return (dx + dy) + (math.sqrt(2) - 2) * min(dx, dy)
+    open_heap = [(h(sc, sr), 0.0, (sc, sr))]
+    g = {(sc, sr): 0.0}
+    came: dict = {}
+    closed = set()
+    steps = ((1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0),
+             (1, 1, math.sqrt(2)), (1, -1, math.sqrt(2)), (-1, 1, math.sqrt(2)), (-1, -1, math.sqrt(2)))
+    while open_heap:
+        _, gcur, cur = heapq.heappop(open_heap)
+        if cur in closed:
+            continue
+        if cur == (gc, gr):
+            path = [cur]
+            while cur in came:
+                cur = came[cur]
+                path.append(cur)
+            return path[::-1]
+        closed.add(cur)
+        c, r = cur
+        for dc, dr, w in steps:
+            nc, nr = c + dc, r + dr
+            if not (0 <= nc < cols and 0 <= nr < rows) or (nc, nr) in closed or blocked(nc, nr):
+                continue
+            if dc and dr and (blocked(c + dc, r) or blocked(c, r + dr)):
+                continue
+            ng = gcur + w
+            if ng < g.get((nc, nr), math.inf):
+                g[(nc, nr)] = ng
+                came[(nc, nr)] = cur
+                heapq.heappush(open_heap, (ng + h(nc, nr), ng, (nc, nr)))
+    return None
+
+
+def _simplify(cells: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Drop interior cells that lie on a straight run (same step vector)."""
+    if len(cells) <= 2:
+        return cells
+    out = [cells[0]]
+    for prev, cur, nxt in zip(cells, cells[1:], cells[2:]):
+        if (cur[0] - prev[0], cur[1] - prev[1]) != (nxt[0] - cur[0], nxt[1] - cur[1]):
+            out.append(cur)
+    out.append(cells[-1])
+    return out
+
+
+def _reroute(elements: list, edit: dict) -> dict:
+    from . import diffpair, trace_clearance as tc
+    trace = _trace(elements, str(edit.get("trace")), edit)
+    route = trace["route"]
+    i = _index(route, "from_index", edit)
+    j = _index(route, "to_index", edit)
+    if j <= i + 0:
+        raise RepairError("reroute: to_index must be greater than from_index")
+    a, b = route[i], route[j]
+    if _is_via(a) or _is_via(b):
+        raise RepairError("reroute: both ends must be wire vertices (a via is placement)")
+    if a.get("layer") != b.get("layer"):
+        raise RepairError(f"reroute: the ends are on {a.get('layer')} and {b.get('layer')} — one layer per reroute")
+    if any(_is_via(p) for p in route[i + 1:j]):
+        raise RepairError("reroute: a via sits between the ends — remove_via or pick ends on one layer")
+    layer = str(a.get("layer") or "")
+    width = float(a.get("width") or b.get("width") or 0.127)
+    half = width / 2
+    clearance = float(edit.get("clearance") or DEFAULT_CLEARANCE_MM)
+    margin = float(edit.get("margin") or DEFAULT_MARGIN_MM)
+    tid = trace["pcb_trace_id"]
+
+    board = diffpair._Board(elements)
+    net = board.trace_net_key(trace)
+    net_of_trace = {
+        str(t.get("pcb_trace_id") or ""): board.trace_net_key(t)
+        for t in elements if isinstance(t, dict) and t.get("type") == "pcb_trace"
+    }
+    obstacles = [
+        ob for ob in tc._pad_obstacles(board, layer, net_of_trace) + tc._trace_capsules(board, layer)
+        if tc._foreign(ob, net, tid)
+    ]
+    # the segment being replaced is not an obstacle to itself
+    index = tc._Index(obstacles)
+
+    ax, ay, bx, by = float(a["x"]), float(a["y"]), float(b["x"]), float(b["y"])
+    x0, y0 = min(ax, bx) - margin, min(ay, by) - margin
+    x1, y1 = max(ax, bx) + margin, max(ay, by) + margin
+    pb = board.board or {}
+    if isinstance(pb.get("width"), (int, float)) and isinstance(pb.get("height"), (int, float)):
+        cx = float((pb.get("center") or {}).get("x", 0.0)); cy = float((pb.get("center") or {}).get("y", 0.0))
+        hw, hh = float(pb["width"]) / 2 - half - clearance, float(pb["height"]) / 2 - half - clearance
+        x0, x1 = max(x0, cx - hw), min(x1, cx + hw)
+        y0, y1 = max(y0, cy - hh), min(y1, cy + hh)
+    cols = int((x1 - x0) / GRID_MM) + 1
+    rows = int((y1 - y0) / GRID_MM) + 1
+    if cols * rows > MAX_CELLS:
+        raise RepairError(f"reroute: search window {cols}×{rows} cells is too large — lower margin")
+    keep = clearance + half
+    cache: dict[tuple[int, int], bool] = {}
+
+    def blocked(c: int, r: int) -> bool:
+        k = (c, r)
+        if k in cache:
+            return cache[k]
+        x, y = x0 + c * GRID_MM, y0 + r * GRID_MM
+        seg = (x, y, x, y)
+        hit = any(ob.distance(seg) < keep for ob in index.near(seg, keep))
+        cache[k] = hit
+        return hit
+
+    def cell(x: float, y: float) -> tuple[int, int]:
+        return (int(round((x - x0) / GRID_MM)), int(round((y - y0) / GRID_MM)))
+
+    # the endpoints sit on same-net copper (or the old path) and must not
+    # count as blocked by the obstacle test's rounding
+    sc, gc = cell(ax, ay), cell(bx, by)
+    cache[sc] = False
+    cache[gc] = False
+    cells = _astar_path(sc, gc, blocked, cols, rows)
+    if cells is None:
+        raise RepairError(
+            f"reroute: no path on {layer} from route[{i}] to route[{j}] with {clearance}mm clearance "
+            f"inside a {2 * margin:.0f}mm window — the corridor is closed; move a via or a part"
+        )
+    pts = _simplify(cells)
+    new_points = [
+        {"route_type": "wire", "x": round(x0 + c * GRID_MM, 4), "y": round(y0 + r * GRID_MM, 4),
+         "layer": layer, "width": width}
+        for c, r in pts[1:-1]
+    ]
+    before = route[i + 1:j]
+    def _len(seq):
+        return sum(math.hypot(q["x"] - p["x"], q["y"] - p["y"]) for p, q in zip(seq, seq[1:]))
+    old_len = _len([a, *before, b])
+    new_len = _len([a, *new_points, b])
+    trace["route"] = route[:i + 1] + new_points + route[j:]
+    return {"op": "reroute", "trace": tid, "from_index": i, "to_index": j, "layer": layer,
+            "pointsBefore": len(before), "pointsAfter": len(new_points),
+            "lengthBeforeMm": round(old_len, 3), "lengthAfterMm": round(new_len, 3)}
+
+
 _APPLY = {
     "move_point": _move_point,
     "move_via": _move_via,
@@ -331,7 +497,62 @@ _APPLY = {
     "delete_points": _delete_points,
     "set_layer": _set_layer,
     "remove_via": _remove_via,
+    "reroute": _reroute,
 }
+
+
+#: Where `--edits` parks the IR it is about to change. Under `.circuit/`, which
+#: the artifact watcher ignores, so taking a checkpoint never looks like the
+#: board changed. The newest `KEEP_CHECKPOINTS` survive.
+CHECKPOINT_DIR = (".circuit", "repair-undo")
+KEEP_CHECKPOINTS = 10
+
+
+def _checkpoint_root(circuit_json_path: Path) -> Path:
+    # boards/<stem>.circuit.json → <project>/.circuit/repair-undo
+    return circuit_json_path.resolve().parent.parent.joinpath(*CHECKPOINT_DIR)
+
+
+def checkpoint(circuit_json_path: Path | str) -> Path | None:
+    """Copy the routed IR (and its sidecar, if any) aside before an edit round."""
+    path = Path(circuit_json_path)
+    if not path.is_file():
+        return None
+    import shutil
+    import time
+    root = _checkpoint_root(path)
+    root.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}"
+    dest = root / stamp
+    n = 0
+    while dest.exists():  # two rounds inside one millisecond still get two checkpoints
+        n += 1
+        dest = root / f"{stamp}-{n}"
+    dest.mkdir()
+    shutil.copy2(path, dest / path.name)
+    sidecar = path.with_name(path.name.replace(".circuit.json", ".board.json"))
+    if sidecar.is_file():
+        shutil.copy2(sidecar, dest / sidecar.name)
+    for old in sorted(p for p in root.iterdir() if p.is_dir())[:-KEEP_CHECKPOINTS]:
+        shutil.rmtree(old, ignore_errors=True)
+    return dest
+
+
+def undo_last_checkpoint(circuit_json_path: Path | str) -> str | None:
+    """Restore the newest checkpoint's IR over the current one and consume it.
+    Returns the checkpoint name, or None when there is none."""
+    path = Path(circuit_json_path)
+    root = _checkpoint_root(path)
+    if not root.is_dir():
+        return None
+    dirs = sorted(p for p in root.iterdir() if p.is_dir() and (p / path.name).is_file())
+    if not dirs:
+        return None
+    import shutil
+    latest = dirs[-1]
+    shutil.copy2(latest / path.name, path)
+    shutil.rmtree(latest, ignore_errors=True)
+    return latest.name
 
 
 def apply_edits(circuit_json_path: Path | str, edits: list[dict]) -> list[dict]:

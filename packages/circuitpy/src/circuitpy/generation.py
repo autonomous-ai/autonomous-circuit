@@ -35,6 +35,9 @@ from typing import Callable, Sequence
 from circuitpy import blocklib
 from circuitpy import checks
 from circuitpy import circuit_normalize
+from circuitpy import craft as craft_mod
+from circuitpy import placement as placement_mod
+from circuitpy import placement_image
 from circuitpy import diffpair
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
@@ -178,6 +181,14 @@ _MIRROR_SUFFIXES = {".tsx", ".ts", ".jsx", ".js", ".json"}
 
 def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _refill_wanted(value: str | None) -> bool:
+    """`CIRCUIT_KICAD_REFILL`: on unless it says off. The refill is the
+    re-pour — KiCad cuts every zone around the copper as it stands — and it
+    is the default from v1.6 on; `0`/`off`/`false`/`no` keeps the converter's
+    fills, for measuring one against the other."""
+    return (value or "").strip().lower() not in {"0", "off", "false", "no"}
 
 
 def _parts_engine_off() -> bool:
@@ -1141,16 +1152,19 @@ def build_board(
             # notes are not geometry and stay.
             stripped = _strip_compiler_findings(built_circuit_json)
             determinism_block["strippedCompilerFindings"] = stripped
-            # "Đổ đồng lại": the one post-route pass that must see the final
-            # copper. Repaired copper can now sit inside a pour's clearance;
-            # the pour pass only ever pushes pour vertices away from foreign
-            # copper, leaves a pour that already holds byte-identical, and
-            # runs to convergence — safe on every round, unlike
-            # `trace_clearance`. The pair and width passes stay off: they are
-            # the router-era passes the repair is replacing.
-            pour_results.append(
-                pour_clearance.repair_pour_clearance(built_circuit_json, profile)
-            )
+            # "Đổ đồng lại" is KiCad's refill now (the DRC gate, every build
+            # since v1.6b): the converter's pour is replaced wholesale, so
+            # pushing its rings back first is work the packet never sees —
+            # 90 s of run 7's 108 s recheck. Only when the refill is switched
+            # off does the pour pass still earn its keep: it pushes pour
+            # vertices away from foreign copper, leaves a pour that already
+            # holds byte-identical, and runs to convergence. The pair and
+            # width passes stay off: they are the router-era passes the
+            # repair is replacing.
+            if not _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL")):
+                pour_results.append(
+                    pour_clearance.repair_pour_clearance(built_circuit_json, profile)
+                )
             return _read_built()
         with _deterministic_env(identity.source_fingerprint) as requested:
             try:
@@ -1543,6 +1557,15 @@ def build_board(
             pour_results[min(kept_attempt, len(pour_results) - 1)].findings()
         )
 
+    # The craft score: advisory numbers for the copper as it stands, so the
+    # craft round and the panel optimise something measured (`craft.py`).
+    try:
+        craft_block = craft_mod.score(circuit_json)
+        warnings.append(craft_mod.summary_finding(craft_block))
+    except Exception as exc:  # noqa: BLE001 — a ruler that breaks costs a number, never a verdict
+        craft_block = {}
+        warnings.append(checks.check_failed(f"craft score: {exc}"))
+
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
@@ -1553,13 +1576,33 @@ def build_board(
         # equal to another build of the same source.
         "determinism": dict(determinism_block),
     }
+    if craft_block:
+        build_block["craft"] = craft_block
+    # The placement ruler, on the routed board too: the same numbers the
+    # agent pushed down before routing, so a placement round and the panel
+    # can see whether the copper was asked to do something hard.
+    try:
+        placement_block = placement_mod.score(circuit_json)
+        warnings.append(placement_mod.summary_finding(placement_block))
+        build_block["placement"] = placement_block
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(checks.check_failed(f"placement score did not run: {exc}"))
     if reuse_p is not None:
         # The board this sidecar describes was not routed by this call.
         build_block["repairMode"] = {
             "reusedCircuitJson": reuse_p.name,
-            "postRoutePasses": "pour only",
+            "postRoutePasses": (
+                "pour only" if not _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL"))
+                else "none (KiCad refills the zones)"
+            ),
             "repairs": list(repairs or []),
             "strippedCompilerFindings": determinism_block.pop("strippedCompilerFindings", {}),
+            # Every repair this board carries since its last route: the rounds
+            # before this one (from the sidecar on disk) and this one. A
+            # `--recheck` with no edits used to reset the list to [] and the
+            # history was gone (run 6, 2026-09-11).
+            "history": _repair_history_on_record(sidecar_path),
+            "zonesRefilled": False,  # set by the KiCad gate below
         }
     if kept_router.get("engine") != "off":
         build_block["router"] = kept_router
@@ -1645,9 +1688,11 @@ def build_board(
             built_circuit_json,
             profile=profile,
             assembly_order=product.assembly,
+            assembly_tier=product.assembly_tier,
         )
     )
 
+    zones_refilled = False
     progress.stage("substrate")
 
     # -- Stage 3 + 5: second substrate + shipping gerbers. -------------------
@@ -1795,24 +1840,58 @@ def build_board(
                     checks.check_failed(f"kicad project file not written: {exc}")
                 )
             drc_json = built_dir / "drc.json"
+            # "Đổ đồng lại", the real one. The pour polygon in circuit.json
+            # was cut around the copper as it stood when the board was
+            # routed; a repair round moves vias and traces, and `pour_clearance`
+            # can push an existing ring back but cannot punch a new one.
+            # Measured 2026-09-11 (Astra run 6, 13-edit round): a via moved
+            # under the bottom pour read `clearance 0.0000` and blocked the
+            # board. KiCad refills every zone from its own rules and saves
+            # the board, so the second DRC, the gerber plot and the packet all
+            # see copper the fab would. Every build since v1.6, not only
+            # repair rounds: on desk-cube-astra-run7 (fresh route, no repair)
+            # the converter's fill of the top plane covered 3109 mm² of a
+            # 2851 mm² board — 723 of the 770 DRC errors were that one fill,
+            # and the refill of the same file reads 41. `CIRCUIT_KICAD_REFILL=0`
+            # keeps the converter's fills, for measuring.
+            refill = _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL"))
+            drc_args = [
+                "pcb",
+                "drc",
+                "--schematic-parity",
+                "--all-track-errors",
+                "--format",
+                "json",
+                "--severity-all",
+                "--exit-code-violations",
+                "-o",
+                str(drc_json),
+                str(kicad_pcb),
+            ]
             try:
-                toolchain.run_kicad(
-                    [
-                        "pcb",
-                        "drc",
-                        "--schematic-parity",
-                        "--all-track-errors",
-                        "--format",
-                        "json",
-                        "--severity-all",
-                        "--exit-code-violations",
-                        "-o",
-                        str(drc_json),
-                        str(kicad_pcb),
-                    ],
-                    timeout=KICAD_TIMEOUT_S,
-                    ok_codes=(0, 5),
-                )
+                if refill:
+                    # A refill can take KiCad down where the plain DRC runs
+                    # (desk-cube-astra-run7, 2026-09-11: 59 zones, exit -11 with
+                    # `--refill-zones`, exit 0 without). The gate must run; a
+                    # refill that cannot is reported and dropped, not fatal.
+                    try:
+                        toolchain.run_kicad(
+                            drc_args[:-3] + ["--refill-zones", "--save-board"] + drc_args[-3:],
+                            timeout=KICAD_TIMEOUT_S,
+                            ok_codes=(0, 5),
+                        )
+                        zones_refilled = True
+                    except (RuntimeError, TimeoutError) as exc:
+                        warnings.append(checks.check_failed(
+                            f"kicad zone refill did not run ({str(exc)[:120]}); the DRC gate "
+                            f"ran on the pours as converted instead"
+                        ))
+                        toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
+                else:
+                    toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
+                build_block["zonesRefilled"] = zones_refilled
+                if reuse_p is not None:
+                    build_block["repairMode"]["zonesRefilled"] = zones_refilled
                 warnings.extend(
                     checks.parse_kicad_report(
                         drc_json, kind="drc_violation", kicad_pcb=kicad_pcb
@@ -2092,12 +2171,23 @@ def build_board(
         )
     except (RuntimeError, TimeoutError) as exc:
         raise ExportError(f"failed to write review images: {exc}") from exc
+    # The ratsnest picture: the board without its copper, one hairline per
+    # net edge. Best-effort — a build never fails for want of it.
+    placement_png = placement_image.write_placement_png(
+        circuit_json, review_dir / "_placement.png"
+    )
+    if not placement_png.get("ok"):
+        warnings.append(checks.check_failed(
+            f"placement image did not render: {placement_png.get('error')}"
+        ))
 
     # -- Sidecar (camelCase canonical JSON), then the IR lands LAST. ---------
     artifacts: dict[str, str] = {
         "schematicPng": f"{stem}_review/_schematic.png",
         "pcbPng": f"{stem}_review/_pcb.png",
     }
+    if placement_png.get("ok"):
+        artifacts["placementPng"] = f"{stem}_review/_placement.png"
     if gerbers_path is not None:
         artifacts["gerbers"] = f"{stem}_fab/{profile.zip_name}"
     if bom_path is not None:
@@ -2240,17 +2330,24 @@ def _strip_compiler_findings(circuit_json_path: Path) -> dict[str, int]:
     return dropped
 
 
+def _repair_history_on_record(sidecar_path: Path) -> list[dict]:
+    """Every repair the sidecar on disk says the board carries, oldest first:
+    its recorded history plus the round it recorded as current."""
+    try:
+        prior = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        mode = (prior.get("build") or {}).get("repairMode") or {}
+        history = list(mode.get("history") or []) + list(mode.get("repairs") or [])
+        return [h for h in history if isinstance(h, dict)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
 def _repairs_on_record(sidecar_path: Path) -> int:
     """How many copper repairs the sidecar on disk says the board carries.
 
     A rebuild from source re-routes every net and drops them; the build says
     so (`repairs_discarded`, info) instead of letting the count vanish."""
-    try:
-        prior = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        mode = (prior.get("build") or {}).get("repairMode") or {}
-        return len(mode.get("repairs") or [])
-    except (OSError, ValueError, AttributeError):
-        return 0
+    return len(_repair_history_on_record(sidecar_path))
 
 
 def _unchanged_prior_result(
