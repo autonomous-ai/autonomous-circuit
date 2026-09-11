@@ -102,6 +102,19 @@ Four habits, applied without being asked:
    retry. That is the case where declaring `"10x"` yourself is still the move,
    and it is why the fleet's RP2040 boards were rebuilt by hand.
 
+   **Since v1.8 (2026-09-11) the copper of record is Freerouting's, not the
+   compiler's**, whenever the toolchain has it (`build.router.engine ==
+   "freerouting"`). The compiler still routes first (that is the incumbent);
+   then the board goes to Freerouting at the rules' target and, if nets stay
+   open, once more at the fab floor plus a hair; routerlib patches what is
+   still open with Freerouting's copper as obstacles; and any net nobody
+   closed keeps the compiler's own copper (`build.router.filledFromIncumbent`
+   — expect the DRC gate to have an opinion about that copper, and repair it
+   in place). Measured on run 8: 153 vias → 120. The stage keeps the incumbent
+   outright when it would connect fewer nets, so `build.router.applied ==
+   false` with a `reason` is the compiler's copper, unchanged.
+   `CIRCUIT_ROUTER=off` pins the compiler's router for an A/B.
+
 ## Treat the device as a project
 
 ```

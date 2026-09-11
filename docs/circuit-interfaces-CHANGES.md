@@ -466,4 +466,37 @@ first, in this template, before the doc itself is edited:
   `generation.py`, `fastcheck.py`, `placement.py`, `craft.py`), golden
   blocks, server prompts, SKILL.md.
 
+## 2026-09-11 — v1.8: Freerouting is the router, routerlib patches, the compiler's copper is the last resort
+- **Change:** (1) `toolchain/freerouting/` holds the pinned Freerouting jar
+  (2.4.1) and the JRE it needs (Temurin 25, class-file 69);
+  `toolchain.freerouting_jar()` / `java_exe()` / `run_freerouting()`;
+  `toolchain.versions()["freerouting"]` (export-cache keys change once).
+  Installed by `scripts/toolchain/install-freerouting.sh`, never committed.
+  (2) `routerlib.specctra`: `write_dsn(problem)` — every pad its own one-pin
+  image at the origin, net ids as net names, rails in a `power` class at
+  the power width, keep-outs and non-pad drills as obstacles with their hole
+  clearance — and `read_ses(text, problem)` back to a `RoutingSolution`.
+  (3) `router_bridge.engine()` unset now means **freerouting when the
+  toolchain has it**, off otherwise; `CIRCUIT_ROUTER=off|shipped` keeps the
+  compiler's router. The engine runs Freerouting at the rules' target
+  (0.147 mm clearance, 0.2 mm signal) and, if nets stay open, once more at
+  the floor plus a hair (0.11 / 0.15), keeps the more complete, hands the
+  open nets to routerlib's relay with Freerouting's copper as obstacles, and
+  fills whatever is still open from the compiler's own copper — so the board
+  leaves the stage connected and the DRC gate says whether that last copper
+  can stay. Pours no longer block the stage: their stale holes are dropped
+  (`poursReset`) and KiCad's refill re-cuts them. `build.router` carries
+  `freerouting.runs[]`, `patch`, `filledFromIncumbent`, before/after.
+  (4) `build-skill-runtimes.sh` vendors `routerlib` beside `circuitpy`.
+- **Why:** run 8 (fab-ready, 153 vias) re-routed through the bridge: 
+  Freerouting 38/40 nets at 87 vias in 87 s (35/40 at the target rules), the
+  last two nets (V3_3, one pixel hop) from the compiler's copper → 40/40 at
+  **120 vias**. Codex's harness-free board did exactly this — Freerouting,
+  then its own A* for what was left — and reached 83.
+- **Backward compatible:** builds on a machine without the jar are
+  unchanged; with it, the copper of record changes (fewer vias, Freerouting's
+  geometry) and every gate still grades it.
+- **Tracks affected:** toolchain, routerlib, pipeline (`router_bridge.py`,
+  `toolchain.py`), build script, SKILL.md.
+
 (No further entries yet.)
