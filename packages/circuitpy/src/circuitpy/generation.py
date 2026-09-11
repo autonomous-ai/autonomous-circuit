@@ -35,6 +35,7 @@ from typing import Callable, Sequence
 from circuitpy import blocklib
 from circuitpy import checks
 from circuitpy import circuit_normalize
+from circuitpy import craft as craft_mod
 from circuitpy import diffpair
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
@@ -1543,6 +1544,15 @@ def build_board(
             pour_results[min(kept_attempt, len(pour_results) - 1)].findings()
         )
 
+    # The craft score: advisory numbers for the copper as it stands, so the
+    # craft round and the panel optimise something measured (`craft.py`).
+    try:
+        craft_block = craft_mod.score(circuit_json)
+        warnings.append(craft_mod.summary_finding(craft_block))
+    except Exception as exc:  # noqa: BLE001 — a ruler that breaks costs a number, never a verdict
+        craft_block = {}
+        warnings.append(checks.check_failed(f"craft score: {exc}"))
+
     build_block: dict[str, object] = {
         "autorouterEffort": routing_effort,
         "attempts": len(blocking_by_attempt),
@@ -1553,6 +1563,8 @@ def build_board(
         # equal to another build of the same source.
         "determinism": dict(determinism_block),
     }
+    if craft_block:
+        build_block["craft"] = craft_block
     if reuse_p is not None:
         # The board this sidecar describes was not routed by this call.
         build_block["repairMode"] = {
@@ -1560,6 +1572,12 @@ def build_board(
             "postRoutePasses": "pour only",
             "repairs": list(repairs or []),
             "strippedCompilerFindings": determinism_block.pop("strippedCompilerFindings", {}),
+            # Every repair this board carries since its last route: the rounds
+            # before this one (from the sidecar on disk) and this one. A
+            # `--recheck` with no edits used to reset the list to [] and the
+            # history was gone (run 6, 2026-09-11).
+            "history": _repair_history_on_record(sidecar_path),
+            "zonesRefilled": False,  # set by the KiCad gate below
         }
     if kept_router.get("engine") != "off":
         build_block["router"] = kept_router
@@ -1648,6 +1666,7 @@ def build_board(
         )
     )
 
+    zones_refilled = False
     progress.stage("substrate")
 
     # -- Stage 3 + 5: second substrate + shipping gerbers. -------------------
@@ -1795,6 +1814,18 @@ def build_board(
                     checks.check_failed(f"kicad project file not written: {exc}")
                 )
             drc_json = built_dir / "drc.json"
+            # "Đổ đồng lại", the real one. The pour polygon in circuit.json
+            # was cut around the copper as it stood when the board was
+            # routed; a repair round moves vias and traces, and `pour_clearance`
+            # can push an existing ring back but cannot punch a new one.
+            # Measured 2026-09-11 (Astra run 6, 13-edit round): a via moved
+            # under the bottom pour read `clearance 0.0000` and blocked the
+            # board. KiCad refills every zone from its own rules and saves
+            # the board, so the second DRC, the gerber plot and the packet all
+            # see copper the fab would. Repair rounds only — and any build
+            # under CIRCUIT_KICAD_REFILL=1, so it can be measured on a normal
+            # board before it becomes the default.
+            refill = reuse_p is not None or _truthy(os.environ.get("CIRCUIT_KICAD_REFILL"))
             try:
                 toolchain.run_kicad(
                     [
@@ -1806,6 +1837,7 @@ def build_board(
                         "json",
                         "--severity-all",
                         "--exit-code-violations",
+                        *(["--refill-zones", "--save-board"] if refill else []),
                         "-o",
                         str(drc_json),
                         str(kicad_pcb),
@@ -1813,6 +1845,9 @@ def build_board(
                     timeout=KICAD_TIMEOUT_S,
                     ok_codes=(0, 5),
                 )
+                zones_refilled = refill
+                if reuse_p is not None:
+                    build_block["repairMode"]["zonesRefilled"] = zones_refilled
                 warnings.extend(
                     checks.parse_kicad_report(
                         drc_json, kind="drc_violation", kicad_pcb=kicad_pcb
@@ -2240,17 +2275,24 @@ def _strip_compiler_findings(circuit_json_path: Path) -> dict[str, int]:
     return dropped
 
 
+def _repair_history_on_record(sidecar_path: Path) -> list[dict]:
+    """Every repair the sidecar on disk says the board carries, oldest first:
+    its recorded history plus the round it recorded as current."""
+    try:
+        prior = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        mode = (prior.get("build") or {}).get("repairMode") or {}
+        history = list(mode.get("history") or []) + list(mode.get("repairs") or [])
+        return [h for h in history if isinstance(h, dict)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
 def _repairs_on_record(sidecar_path: Path) -> int:
     """How many copper repairs the sidecar on disk says the board carries.
 
     A rebuild from source re-routes every net and drops them; the build says
     so (`repairs_discarded`, info) instead of letting the count vanish."""
-    try:
-        prior = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        mode = (prior.get("build") or {}).get("repairMode") or {}
-        return len(mode.get("repairs") or [])
-    except (OSError, ValueError, AttributeError):
-        return 0
+    return len(_repair_history_on_record(sidecar_path))
 
 
 def _unchanged_prior_result(

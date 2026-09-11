@@ -383,6 +383,34 @@ sides are on one layer, and refuses while the trace would still change layer
 anywhere without a via. Re-layered copper is new copper on that layer: check the
 pads and vias it now crosses (0.5 mm, that layer) before you run it.
 
+And the local router (v1.6, 2026-09-11) — one net segment, re-found by A* on a
+0.1 mm grid around every piece of foreign copper on that layer, 45° moves, no
+corner cutting:
+
+```json
+[{"op": "reroute", "trace": "source_net_1_mst4_0", "from_index": 3, "to_index": 9, "clearance": 0.15}]
+```
+
+The wire points strictly between the two ends are replaced; both ends must be
+wire vertices on one layer with no via between (use `set_layer` / `remove_via`
+first). It refuses when no path exists inside the window (endpoints' box grown by
+`margin`, default 6 mm) — then the corridor is closed and a via or a part has
+to move. Prefer it over hand-placed `insert_point` runs: it sees all the copper.
+
+**Every `--edits` takes a checkpoint first** (`.circuit/repair-undo/`, last 10
+kept). A round that made things worse is undone with
+`scripts/circuit <board.tsx> --undo-repair` — back to the checkpoint, gauntlet
+re-run — instead of hand-inverting the edits. In repair mode KiCad **refills
+the zones** before DRC and the export, so copper you move gets the pour cut
+around it (the pass that only pushed existing rings could not do that, and
+blocked two of Astra's rounds on 2026-09-11).
+
+**The craft score** — `build.craft` in the sidecar and one `craft_summary` info
+finding: vias, routed copper, jogs under 0.25 mm, off-45° segments, the worst
+detours by net. Advisory; it is what the craft round should push down once the
+floor is met. `build.repairMode.history` carries every repair since the last
+route.
+
 `move_via` carries every route point sitting on the via, so the join the
 contiguity check measures stays a join. A repair round drops the compiler's
 own geometry findings from the reused IR (`pcb_trace_too_long_warning`,

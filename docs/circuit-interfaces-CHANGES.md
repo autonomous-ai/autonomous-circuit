@@ -356,4 +356,30 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes — repair-mode only.
 - **Tracks affected:** pipeline, skill runtime (re-vendor), SKILL.md.
 
+## 2026-09-11 — v1.6: the repair loop Astra described, measured
+- **Change:** (1) repair mode runs `kicad-cli pcb drc --refill-zones --save-board`
+  so the DRC gate, the margin DRC and the gerber plot see zones KiCad cut
+  around the repaired copper (`build.repairMode.zonesRefilled`; also on any
+  build under `CIRCUIT_KICAD_REFILL=1`). (2) `build.repairMode.history` carries
+  every repair since the last route; `repairs` stays the current round. (3)
+  every `--edits` checkpoints `boards/<stem>.circuit.json` (+ sidecar) under
+  `.circuit/repair-undo/` (last 10); `--undo-repair` restores the newest and
+  re-runs the gauntlet. (4) `circuitpy.repair` gains `reroute`: A* on a 0.1 mm
+  grid for one wire-to-wire segment of one trace, obstacle model shared with
+  `trace_clearance` (pads, holes, vias, other traces on that layer), 45° moves,
+  no corner cutting; refuses across vias/layers or when no path exists. (5)
+  `circuitpy.craft` writes `build.craft` (vias, copper, segments, jogs,
+  off-grid segments, mean and worst detours) and one `craft_summary` info
+  finding on every build. Nothing new blocks.
+- **Why:** run 6 (Astra, 2026-09-11): two repair rounds died on a via moved
+  under a pour with no new cutout, so the agent kept a board whose crystal net
+  the router had stretched to 19.63 mm. Replaying its exact reverted edits with
+  the refill: 0 errors, fab-ready, 24 → 21 warnings, the net under 10 mm.
+  Astra's own answer to "keep tscircuit, route like you did" named exactly
+  these pieces: local reroute that sees all copper, checkpoint/rollback, one
+  patched revision for verify and gerbers, and a craft score after the floor.
+- **Backward compatible:** yes — repair-mode paths and an info finding.
+- **Tracks affected:** pipeline (`generation.py`, `repair.py`, new `craft.py`),
+  skill runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts.
+
 (No further entries yet.)

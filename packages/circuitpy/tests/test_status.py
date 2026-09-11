@@ -37,3 +37,22 @@ class BuildStatusTest(unittest.TestCase):
             done = json.loads(status.status_path(root).read_text())
             self.assertEqual(done["state"], "done")
             self.assertEqual(done["pid"], os.getpid())
+
+
+class RepairHistoryTest(unittest.TestCase):
+    """A `--recheck` used to reset `repairMode.repairs` to []; history accumulates now."""
+
+    def test_history_is_prior_history_plus_prior_round(self):
+        from circuitpy import generation
+        with tempfile.TemporaryDirectory() as tmp:
+            sc = Path(tmp) / "main.board.json"
+            self.assertEqual(generation._repair_history_on_record(sc), [])
+            sc.write_text(json.dumps({"build": {"repairMode": {
+                "history": [{"op": "move_via", "via": "v1"}],
+                "repairs": [{"op": "move_point", "trace": "t", "index": 3}],
+            }}}))
+            hist = generation._repair_history_on_record(sc)
+            self.assertEqual([h["op"] for h in hist], ["move_via", "move_point"])
+            self.assertEqual(generation._repairs_on_record(sc), 2)
+            sc.write_text("{not json")
+            self.assertEqual(generation._repair_history_on_record(sc), [])
