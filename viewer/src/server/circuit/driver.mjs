@@ -581,6 +581,10 @@ export function resolveClaude(env = process.env) {
 const CODEX_APP_BUNDLE_BINS = [
   "/Applications/Codex.app/Contents/Resources/codex",
   path.join(os.homedir(), "Applications/Codex.app/Contents/Resources/codex"),
+  // The desktop app ships under this name too (observed 2026-09-11 after a
+  // reinstall: Codex.app gone, the same bundle at ChatGPT.app, same CLI).
+  "/Applications/ChatGPT.app/Contents/Resources/codex",
+  path.join(os.homedir(), "Applications/ChatGPT.app/Contents/Resources/codex"),
 ];
 
 /** Resolve the local Codex CLI. Tests may point this at a small executable
