@@ -88,6 +88,17 @@ class Normalization:
     #: distinct priority per zone the same file runs. The gate that "did not
     #: run" was reporting this.
     zones_prioritised: int = 0
+    #: Same-net zones on one layer folded into the largest of them: their
+    #: outline polygons join the keeper's outline (a zone's polygons are a
+    #: union, so no copper is asked for that was not asked for before) and
+    #: their fills go. Measured 2026-09-11 on desk-cube-astra-run7: the
+    #: converter wrote the top pour as 1 plane + 38 islands and the bottom as
+    #: 1 + 19, and `kicad-cli pcb drc --refill-zones` exits -11 with the
+    #: islands present, exit 0 with only the two planes. The islands are what
+    #: KiCad's own filler re-derives from the plane anyway (and removes when
+    #: unconnected, `island_removal_mode 0`), so nothing is lost by folding.
+    islands_merged: int = 0
+    island_polygons_kept: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
     #: A step of this pass could not run: a file that would not read, a parse
@@ -109,11 +120,17 @@ class Normalization:
             self.text_resized or self.text_thickened or self.strokes_widened
             or self.vias_bridged or self.pours_outlined
             or self.outlines_untangled or self.fills_untangled
-            or self.zones_prioritised
+            or self.zones_prioritised or self.islands_merged
         )
 
     def summary(self) -> str:
         parts = []
+        if self.islands_merged:
+            parts.append(
+                f"{self.islands_merged} pour island(s) folded into the plane "
+                f"of their net on that layer ({self.island_polygons_kept} "
+                f"outline polygon(s) kept, their fills left to KiCad's refill)"
+            )
         if self.zones_prioritised:
             parts.append(
                 f"{self.zones_prioritised} zone(s) given a distinct priority "
@@ -322,11 +339,20 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
         # on weather-badge-16's top pour segfaults kicad-cli on its own.
         text = _untangle_zones(text, result)
 
-        # Fifth pass: a distinct priority per zone. Same-net zones that nest
+        # Fifth pass: one zone per net per layer. The converter writes every
+        # island of a pour as its own zone — 59 on desk-cube-astra-run7 — and
+        # `--refill-zones` segfaults on that file while it runs on the same
+        # board with only the two planes. Fold the islands' outlines into the
+        # plane and drop their fills; the refill re-derives the islands from
+        # the copper as it stands, which is the whole point of refilling.
+        text = _merge_islands(text, result)
+
+        # Sixth pass: a distinct priority per zone. Same-net zones that nest
         # on one layer with equal priority take `kicad-cli pcb drc` down with
         # exit -11 (desk-cube-astra-run7, 2026-09-11: the board pour plus two
         # islands inside it). Ranked by area so the largest fills first and
-        # the ranking is the same on every run.
+        # the ranking is the same on every run. After the fold this is nets
+        # nesting inside other nets (a 3V3 pocket in the GND plane).
         text = _prioritise_zones(text, result)
 
         if text != original:
@@ -1438,6 +1464,95 @@ def _zone_outline_area(block: str) -> float:
         pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
         for i in range(len(pts))
     )) / 2
+
+
+_NET_NAME_RE = re.compile(r'\(net_name\s+"?([^")\s]*)"?\s*\)')
+
+
+def _zone_outline_polygons(block: str) -> list[str]:
+    """The ``(polygon ...)`` blocks of a zone's outline, fills excluded."""
+    head = block.split("(filled_polygon")[0]
+    return [head[a:b] for a, b in _balanced_spans(head, "(polygon")]
+
+
+def _polygon_area(block: str) -> float:
+    pts = [(float(x), float(y)) for x, y in re.findall(r"\(xy ([-\d.]+) ([-\d.]+)\)", block)]
+    if len(pts) < 3:
+        return 0.0
+    return abs(sum(
+        pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+        for i in range(len(pts))
+    )) / 2
+
+
+def _merge_islands(text: str, result: Normalization) -> str:
+    """Fold every same-net zone on a layer into the one with the largest
+    outline polygon.
+
+    The keeper gains the others' outline polygons (a zone's polygons are a
+    union, so the copper asked for is exactly what was asked for before) and
+    the others go, fills included. Zones with no ``(layer …)`` or no net name,
+    and multi-layer ``(layers …)`` zones, are left alone. Idempotent: a
+    second run finds one zone per net per layer and changes nothing.
+    """
+    spans = _balanced_spans(text, "(zone")
+    if len(spans) < 2:
+        return text
+    groups: dict[tuple[str, str], list[int]] = {}
+    for k, (a, b) in enumerate(spans):
+        block = text[a:b]
+        layer = _LAYER_RE.search(block)
+        net = _NET_NAME_RE.search(block)
+        if layer is None or net is None or not net.group(1):
+            continue
+        groups.setdefault((layer.group(1), net.group(1)), []).append(k)
+
+    extra: dict[int, list[str]] = {}
+    drop: set[int] = set()
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        keeper = max(
+            members,
+            key=lambda k: (
+                max((_polygon_area(p) for p in _zone_outline_polygons(text[spans[k][0]:spans[k][1]])), default=0.0),
+                -k,
+            ),
+        )
+        polys: list[str] = []
+        for k in members:
+            if k == keeper:
+                continue
+            polys.extend(_zone_outline_polygons(text[spans[k][0]:spans[k][1]]))
+            drop.add(k)
+        extra[keeper] = polys
+    if not drop:
+        return text
+
+    out = text
+    for k, (a, b) in reversed(list(enumerate(spans))):
+        if k in drop:
+            # Take the zone and the newline that led into it.
+            cut = a
+            while cut > 0 and out[cut - 1] in " \t":
+                cut -= 1
+            if cut > 0 and out[cut - 1] == "\n":
+                cut -= 1
+            out = out[:cut] + out[b:]
+            result.islands_merged += 1
+            continue
+        polys = extra.get(k) or []
+        if not polys:
+            continue
+        block = out[a:b]
+        head_end = block.find("(filled_polygon")
+        head = block if head_end < 0 else block[:head_end]
+        outline = _balanced_spans(head, "(polygon")
+        at = outline[-1][1] if outline else len(head.rstrip().rstrip(")"))
+        block = block[:at] + "".join("\n    " + p for p in polys) + block[at:]
+        result.island_polygons_kept += len(polys)
+        out = out[:a] + block + out[b:]
+    return out
 
 
 def _prioritise_zones(text: str, result: Normalization) -> str:

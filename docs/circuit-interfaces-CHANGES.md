@@ -382,4 +382,31 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline (`generation.py`, `repair.py`, new `craft.py`),
   skill runtime (re-vendor; `runner.py`, `cli.py`, SKILL.md), server prompts.
 
+## 2026-09-11 — v1.6b: the re-pour is every build, and the islands fold
+- **Change:** (1) `kicad_normalize` pass 5, `_merge_islands`: same-net zones on
+  one layer fold into the one with the largest outline polygon — its outline
+  gains theirs (a zone's polygons are a union), their fills go
+  (`islands_merged`, `island_polygons_kept` in the `kicad_normalized` note).
+  Zones without `(layer …)`/net name and `(layers …)` zones are left alone.
+  (2) The DRC gate runs `--refill-zones --save-board` on **every** build, not
+  only repair rounds; `build.zonesRefilled` (bool) on every build,
+  `build.repairMode.zonesRefilled` kept. `CIRCUIT_KICAD_REFILL=0|off|false|no`
+  keeps the converter's fills (for measuring); the segfault fallback stands.
+- **Why:** desk-cube-astra-run7 (fresh route, 59 zones): the converter's fill
+  of the top GND plane covered 3109 mm² of a 2851 mm² board — 723 of the 770
+  DRC errors were that one zone's fill (479 clearance, 134 mask bridge, 110
+  hole clearance); the 57 islands contributed 11. Dropping small islands
+  changed nothing (773 → 773). `--refill-zones` exit -11 with the islands
+  present, exit 0 with only the planes: the same file refilled reads **41**
+  errors, all real (the QSPI cluster). Measured on six more cached boards
+  (run 6, dc-6, Claude desk cube, three pomodoros): errors never up
+  (6 → 0 on run 6, equal elsewhere), warnings down 10–45 on every one, no
+  segfault. The pour of record is now what KiCad cuts around the final
+  copper — the v2 posture, one layer early.
+- **Backward compatible:** yes for readers (one added bool). Gerbers of a
+  rebuilt board change: the pour is KiCad's, not the converter's. Frozen
+  boards are not rebuilt.
+- **Tracks affected:** pipeline (`kicad_normalize.py`, `generation.py`), skill
+  runtime (re-vendor; SKILL.md).
+
 (No further entries yet.)

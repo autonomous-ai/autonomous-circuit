@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from circuitpy.fab import get_profile
-from circuitpy.kicad_normalize import normalize_for_fab
+from circuitpy.kicad_normalize import _balanced_spans, normalize_for_fab
 
 PROFILE = get_profile("jlcpcb")
 
@@ -306,30 +306,89 @@ def test_the_reason_names_the_net_and_says_who_judges_it(tmp_path):
 
 _ZONE = """  (zone
     (net 2)
-    (net_name GND)
-    (layer F.Cu)
+    (net_name {net})
+    (layer {layer})
     (uuid {uuid})
     (hatch edge 0.5)
     (connect_pads yes (clearance 0.15))
     (min_thickness 0.25)
     (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))
     (polygon (pts {pts}))
-  )
+{fill}  )
 """
 
 
-def _zone(uuid, pts):
-    return _ZONE.format(uuid=uuid, pts=" ".join(f"(xy {x} {y})" for x, y in pts))
+def _zone(uuid, pts, *, net="GND", layer="F.Cu", fill=None):
+    xy = lambda ring: " ".join(f"(xy {x} {y})" for x, y in ring)  # noqa: E731
+    filled = f"    (filled_polygon (layer {layer}) (pts {xy(fill)}))\n" if fill else ""
+    return _ZONE.format(uuid=uuid, net=net, layer=layer, pts=xy(pts), fill=filled)
 
 
-def test_nested_same_net_zones_get_distinct_priorities(tmp_path):
-    # desk-cube-astra-run7, 2026-09-11: a board pour and two islands inside
-    # it, all GND on F.Cu, no priority — kicad-cli drc exit -11 together.
+def test_same_net_islands_fold_into_their_plane(tmp_path):
+    # desk-cube-astra-run7, 2026-09-11: the converter wrote the top pour as
+    # one plane and 38 islands, each its own zone with its own fill, and
+    # `--refill-zones` exits -11 on that file while the same board with only
+    # the planes refills. The islands' outlines join the plane; their fills go.
+    sq = lambda x, y, s: [(x, y), (x + s, y), (x + s, y + s), (x, y + s)]  # noqa: E731
+    body = (
+        "(kicad_pcb (version 20240108) (generator test)\n"
+        + _zone("island1", sq(10, 10, 4), fill=sq(10.2, 10.2, 3.6))
+        + _zone("plane", sq(0, 0, 50), fill=sq(0.2, 0.2, 49.6))
+        + _zone("island2", sq(20, 20, 6), fill=sq(20.2, 20.2, 5.6))
+        + _zone("bottom", sq(0, 0, 50), layer="B.Cu", fill=sq(0.2, 0.2, 49.6))
+        + _zone("pocket", sq(30, 30, 5), net="V3_3", fill=sq(30.2, 30.2, 4.6))
+        + ")\n"
+    )
+    pcb = _write(tmp_path, body)
+    result = normalize_for_fab(pcb, PROFILE)
+    assert result.islands_merged == 2
+    assert result.island_polygons_kept == 2
+    assert "2 pour island(s) folded" in result.summary()
+    text = pcb.read_text()
+    zones = [text[a:b] for a, b in _balanced_spans(text, "(zone")]
+    assert len(zones) == 3
+    plane = next(z for z in zones if "(uuid plane)" in z)
+    assert "(uuid island1)" not in text and "(uuid island2)" not in text
+    # the plane keeps its own outline and gains both islands' outlines …
+    assert plane.count("(polygon") == 3
+    assert "(xy 10 10)" in plane and "(xy 20 20)" in plane
+    # … but no island fill: KiCad's refill decides where copper goes
+    assert plane.count("(filled_polygon") == 1
+    assert "(xy 10.2 10.2)" not in plane
+    # other layers and other nets are their own zones, untouched
+    assert any("(uuid bottom)" in z for z in zones)
+    assert any("(uuid pocket)" in z for z in zones)
+    # the three that remain nest (V3_3 inside GND on F.Cu): still prioritised
+    assert result.zones_prioritised == 3
+    # idempotent
+    again = normalize_for_fab(pcb, PROFILE)
+    assert again.islands_merged == 0 and again.zones_prioritised == 0
+    assert pcb.read_text() == text
+
+
+def test_a_zone_with_no_layer_or_net_name_is_never_folded(tmp_path):
     body = (
         "(kicad_pcb (version 20240108) (generator test)\n"
         + _zone("a", [(0, 0), (50, 0), (50, 50), (0, 50)])
-        + _zone("b", [(10, 10), (14, 10), (14, 14), (10, 14)])
-        + _zone("c", [(20, 20), (26, 20), (26, 26), (20, 26)])
+        + _zone("b", [(10, 10), (14, 10), (14, 14), (10, 14)]).replace("(layer F.Cu)", "(layers F.Cu B.Cu)")
+        + _zone("c", [(20, 20), (26, 20), (26, 26), (20, 26)]).replace("(net_name GND)", '(net_name "")')
+        + ")\n"
+    )
+    pcb = _write(tmp_path, body)
+    result = normalize_for_fab(pcb, PROFILE)
+    assert result.islands_merged == 0
+    assert len(_balanced_spans(pcb.read_text(), "(zone")) == 3
+
+
+def test_nested_zones_of_different_nets_get_distinct_priorities(tmp_path):
+    # desk-cube-astra-run7, 2026-09-11: zones nested on one layer with no
+    # priority — kicad-cli drc exit -11 together. Same-net islands now fold
+    # (above); what still nests is one net's pocket inside another's plane.
+    body = (
+        "(kicad_pcb (version 20240108) (generator test)\n"
+        + _zone("a", [(0, 0), (50, 0), (50, 50), (0, 50)])
+        + _zone("b", [(10, 10), (14, 10), (14, 14), (10, 14)], net="V3_3")
+        + _zone("c", [(20, 20), (26, 20), (26, 26), (20, 26)], net="V5")
         + ")\n"
     )
     pcb = _write(tmp_path, body)

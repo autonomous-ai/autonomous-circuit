@@ -56,3 +56,19 @@ class RepairHistoryTest(unittest.TestCase):
             self.assertEqual(generation._repairs_on_record(sc), 2)
             sc.write_text("{not json")
             self.assertEqual(generation._repair_history_on_record(sc), [])
+
+class RefillDefaultTest(unittest.TestCase):
+    """`CIRCUIT_KICAD_REFILL`: the re-pour is on unless told off."""
+
+    def setUp(self):
+        from circuitpy import generation
+        self.generation = generation
+
+    def test_unset_and_anything_else_means_refill(self):
+        for v in (None, "", "1", "yes", "please"):
+            self.assertTrue(self.generation._refill_wanted(v), v)
+
+    def test_only_an_explicit_off_keeps_the_converters_fills(self):
+        for v in ("0", "off", "false", "no", " OFF "):
+            self.assertFalse(self.generation._refill_wanted(v), v)
+

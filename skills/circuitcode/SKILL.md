@@ -400,10 +400,17 @@ to move. Prefer it over hand-placed `insert_point` runs: it sees all the copper.
 **Every `--edits` takes a checkpoint first** (`.circuit/repair-undo/`, last 10
 kept). A round that made things worse is undone with
 `scripts/circuit <board.tsx> --undo-repair` — back to the checkpoint, gauntlet
-re-run — instead of hand-inverting the edits. In repair mode KiCad **refills
-the zones** before DRC and the export, so copper you move gets the pour cut
-around it (the pass that only pushed existing rings could not do that, and
-blocked two of Astra's rounds on 2026-09-11).
+re-run — instead of hand-inverting the edits.
+
+**The pour is re-cut on every build** (`build.zonesRefilled`): the converter's
+islands are folded into one zone per net per layer and KiCad refills the zones
+before DRC and the export, so the copper you move — or route — gets the pour
+cut around it. The pass that only pushed existing rings could not do that and
+blocked two of Astra's rounds on 2026-09-11; the converter's own fill of a top
+plane put 723 DRC errors on run 7 that the refill reads as none. If
+`zonesRefilled` is false a `check_failed` says why and the DRC ran on the pours
+as converted — treat pour-vs-track `clearance`, `hole_clearance` and
+`solder_mask_bridge` counts on such a build as suspect, not as your work.
 
 **The craft score** — `build.craft` in the sidecar and one `craft_summary` info
 finding: vias, routed copper, jogs under 0.25 mm, off-45° segments, the worst

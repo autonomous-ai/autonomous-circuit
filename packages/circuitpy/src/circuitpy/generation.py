@@ -181,6 +181,14 @@ def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes"}
 
 
+def _refill_wanted(value: str | None) -> bool:
+    """`CIRCUIT_KICAD_REFILL`: on unless it says off. The refill is the
+    re-pour — KiCad cuts every zone around the copper as it stands — and it
+    is the default from v1.6 on; `0`/`off`/`false`/`no` keeps the converter's
+    fills, for measuring one against the other."""
+    return (value or "").strip().lower() not in {"0", "off", "false", "no"}
+
+
 def _parts_engine_off() -> bool:
     return (os.environ.get(PARTS_ENGINE_ENV) or "").strip().lower() in {
         "off",
@@ -1822,10 +1830,13 @@ def build_board(
             # under the bottom pour read `clearance 0.0000` and blocked the
             # board. KiCad refills every zone from its own rules and saves
             # the board, so the second DRC, the gerber plot and the packet all
-            # see copper the fab would. Repair rounds only — and any build
-            # under CIRCUIT_KICAD_REFILL=1, so it can be measured on a normal
-            # board before it becomes the default.
-            refill = reuse_p is not None or _truthy(os.environ.get("CIRCUIT_KICAD_REFILL"))
+            # see copper the fab would. Every build since v1.6, not only
+            # repair rounds: on desk-cube-astra-run7 (fresh route, no repair)
+            # the converter's fill of the top plane covered 3109 mm² of a
+            # 2851 mm² board — 723 of the 770 DRC errors were that one fill,
+            # and the refill of the same file reads 41. `CIRCUIT_KICAD_REFILL=0`
+            # keeps the converter's fills, for measuring.
+            refill = _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL"))
             drc_args = [
                 "pcb",
                 "drc",
@@ -1860,6 +1871,7 @@ def build_board(
                         toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
                 else:
                     toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
+                build_block["zonesRefilled"] = zones_refilled
                 if reuse_p is not None:
                     build_block["repairMode"]["zonesRefilled"] = zones_refilled
                 warnings.extend(
