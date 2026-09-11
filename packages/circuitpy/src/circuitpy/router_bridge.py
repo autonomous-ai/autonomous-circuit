@@ -70,15 +70,146 @@ def _truthy(value: str | None) -> bool:
 
 
 def engine() -> str:
-    """``off`` | ``portfolio`` | ``portfolio-force``."""
+    """``off`` | ``freerouting`` | ``portfolio`` | ``portfolio-force``.
+
+    Unset means **freerouting when the toolchain has it** (v1.8, 2026-09-11)
+    and off otherwise; ``CIRCUIT_ROUTER=off`` (or ``shipped``) keeps the
+    compiler's own router, for measuring one against the other.
+    """
     value = (os.environ.get(ROUTER_ENV) or "").strip().lower()
-    if value in ("", "off", "0", "false", "no", "tscircuit", "shipped"):
+    if value == "":
+        from . import toolchain
+        return "freerouting" if toolchain.freerouting_jar() and toolchain.java_exe() else "off"
+    if value in ("off", "0", "false", "no", "tscircuit", "shipped"):
         return "off"
+    if value in ("freerouting", "fr"):
+        return "freerouting"
     if value in ("portfolio", "routerlib", "on", "1", "true"):
         return "portfolio"
     if value in ("portfolio-force", "force"):
         return "portfolio-force"
     return "off"
+
+
+PASSES_ENV = "CIRCUIT_FREEROUTING_PASSES"
+FREEROUTING_TIMEOUT_S = 1200.0
+FREEROUTING_PASSES = 30
+
+
+def _freerouting_solution(problem, workdir: Path, report: dict, incumbent=None):
+    """Freerouting's copper for ``problem`` — at the rules' target first and,
+    if nets stay open, once more at the fab floor plus a hair — then
+    routerlib's relay for whatever is still open (the follower sees
+    Freerouting's copper as obstacles), and last the incumbent's own copper
+    for any net nobody could close, so the board leaves here connected and
+    the DRC gate, not this stage, says whether that copper can stay.
+    Returns a RoutingSolution."""
+    import dataclasses
+    from routerlib import portfolio, specctra
+    from routerlib.connectivity import analyse
+    from routerlib.model import Budget
+    from . import toolchain
+
+    rules = problem.rules
+    passes = int(os.environ.get(PASSES_ENV) or FREEROUTING_PASSES)
+    variants = [
+        ("target", None, None),
+        ("tight", round(float(rules.min_clearance_mm) + 0.01, 3), float(rules.warn_trace_mm)),
+    ]
+    best = None
+    best_linked = None
+    runs: list[dict] = []
+    for tag, clearance, width in variants:
+        dsn = workdir / f"{problem.id}-{tag}.dsn"
+        ses = workdir / f"{problem.id}-{tag}.ses"
+        dsn.write_text(
+            specctra.write_dsn(problem, clearance_mm=clearance, signal_width_mm=width),
+            encoding="utf-8",
+        )
+        t0 = time.perf_counter()
+        result = toolchain.run_freerouting(
+            dsn, ses, passes=passes, threads=4, timeout=FREEROUTING_TIMEOUT_S,
+        )
+        seconds = round(time.perf_counter() - t0, 1)
+        tail = [l for l in result.output.splitlines() if "stage completed" in l]
+        solution = specctra.read_ses(ses.read_text(encoding="utf-8"), problem)
+        linked = analyse(problem, solution)
+        runs.append({
+            "variant": tag,
+            "clearanceMm": clearance if clearance is not None else rules.target_clearance_mm,
+            "signalWidthMm": width if width is not None else rules.signal_trace_mm,
+            "seconds": seconds,
+            "connectedNets": len(linked.connected_nets),
+            "routableNets": linked.routable_nets,
+            "vias": len(solution.vias),
+            "log": [l[-140:] for l in tail[-1:]],
+        })
+        if best is None or len(linked.connected_nets) > len(best_linked.connected_nets):
+            best, best_linked = solution, linked
+        if linked.complete:
+            break
+    report["freerouting"] = {"passes": passes, "runs": runs, "kept": runs[
+        max(range(len(runs)), key=lambda i: runs[i]["connectedNets"])
+    ]["variant"]}
+    solution, linked = best, best_linked
+    open_nets = set(linked.unconnected_nets)
+    if not open_nets:
+        return dataclasses.replace(solution, complete=True)
+    # Patch: only the open nets, with Freerouting's copper as obstacles.
+    patch_problem = dataclasses.replace(
+        problem,
+        nets=tuple(n for n in problem.nets if n.id in open_nets),
+        existing_traces=tuple(solution.traces),
+        existing_vias=tuple(solution.vias),
+    )
+    budget = Budget(max_iterations=MAX_ITERATIONS, max_nodes=MAX_NODES,
+                    seed=int(os.environ.get(SEED_ENV) or 0))
+    patched = portfolio.route(
+        patch_problem, budget, _registry(),
+        budget_class=(os.environ.get(BUDGET_CLASS_ENV) or "thorough").strip(),
+        mode="relay",
+    )
+    after = analyse(problem, patched.solution)
+    report["patch"] = {
+        "openNets": sorted(problem.nets_by_id[n].name for n in open_nets),
+        "stages": [s.as_dict() for s in patched.stages],
+        "connectedNets": len(after.connected_nets),
+        "stillOpen": sorted(problem.nets_by_id[n].name for n in after.unconnected_nets),
+    }
+    merged = patched.solution
+    still_open = set(after.unconnected_nets)
+    if still_open and incumbent is not None:
+        # Last resort: the compiler's own copper for the nets nobody closed.
+        # It was routed against different neighbours, so it may cross ours;
+        # the DRC gate grades that and the repair loop can move it.
+        extra_t = tuple(t for t in incumbent.traces if t.net in still_open)
+        extra_v = tuple(v for v in incumbent.vias if v.net in still_open)
+        merged = dataclasses.replace(
+            merged, traces=tuple(merged.traces) + extra_t, vias=tuple(merged.vias) + extra_v,
+        )
+        after = analyse(problem, merged)
+        report["filledFromIncumbent"] = {
+            "nets": sorted(problem.nets_by_id[n].name for n in still_open),
+            "traces": len(extra_t), "vias": len(extra_v),
+            "connectedNets": len(after.connected_nets),
+        }
+    return dataclasses.replace(
+        merged, router="freerouting+routerlib", complete=after.complete,
+    )
+
+
+def _reset_pours(elements: list) -> int:
+    """Drop every pour's inner rings. They were cut around the compiler's
+    copper, which is gone; KiCad's refill (every build since v1.6b) re-cuts
+    the plane around the new copper from the outline alone."""
+    n = 0
+    for e in elements:
+        if isinstance(e, dict) and e.get("type") == "pcb_copper_pour":
+            brep = e.get("brep_shape")
+            if isinstance(brep, dict) and brep.get("inner_rings"):
+                brep["inner_rings"] = []
+                n += 1
+    return n
 
 
 def _ensure_path() -> bool:
@@ -177,11 +308,14 @@ def route_board(circuit_json_path: Path, profile: Any) -> dict:
             if isinstance(e, dict) and e.get("type") == "pcb_copper_pour"
         )
         report["pours"] = pours
-        if pours and not _truthy(os.environ.get(ALLOW_POURS_ENV)):
+        # The pours were cut around the incumbent's copper. Since v1.6b the
+        # KiCad refill re-cuts every zone from its outline, so a pour is no
+        # longer a reason to keep the incumbent; its stale holes are dropped
+        # below when our copper goes in (`poursReset`).
+        if pours and mode != "freerouting" and not _truthy(os.environ.get(ALLOW_POURS_ENV)):
             report["reason"] = (
                 f"board carries {pours} copper pour(s) generated around the "
-                f"incumbent's traces; re-pouring after our route is not "
-                f"written yet (set {ALLOW_POURS_ENV}=1 to route anyway)"
+                f"incumbent's traces; set {ALLOW_POURS_ENV}=1 to route anyway"
             )
             return report
 
@@ -201,20 +335,30 @@ def route_board(circuit_json_path: Path, profile: Any) -> dict:
         )
         before = analyse(problem, incumbent)
 
-        budget = Budget(
-            max_iterations=MAX_ITERATIONS,
-            max_nodes=MAX_NODES,
-            seed=int(os.environ.get(SEED_ENV) or 0),
-        )
-        result = portfolio.route(
-            problem, budget, _registry(),
-            budget_class=(os.environ.get(BUDGET_CLASS_ENV) or "thorough").strip(),
-            mode=(os.environ.get(MODE_ENV) or "relay").strip(),
-        )
-        after = analyse(problem, result.solution)
+        if mode == "freerouting":
+            import tempfile
+            with tempfile.TemporaryDirectory(prefix="circuit-freerouting-") as tmp:
+                solution = _freerouting_solution(problem, Path(tmp), report, incumbent=incumbent)
+            after = analyse(problem, solution)
 
-        report["selection"] = result.selection.as_dict()
-        report["stages"] = [s.as_dict() for s in result.stages]
+            class _R:  # the shape the reporting below reads
+                pass
+            result = _R()
+            result.solution = solution
+        else:
+            budget = Budget(
+                max_iterations=MAX_ITERATIONS,
+                max_nodes=MAX_NODES,
+                seed=int(os.environ.get(SEED_ENV) or 0),
+            )
+            result = portfolio.route(
+                problem, budget, _registry(),
+                budget_class=(os.environ.get(BUDGET_CLASS_ENV) or "thorough").strip(),
+                mode=(os.environ.get(MODE_ENV) or "relay").strip(),
+            )
+            after = analyse(problem, result.solution)
+            report["selection"] = result.selection.as_dict()
+            report["stages"] = [s.as_dict() for s in result.stages]
         report["fingerprint"] = result.solution.fingerprint()
         report["before"] = {
             "connectedNets": len(before.connected_nets),
@@ -232,7 +376,7 @@ def route_board(circuit_json_path: Path, profile: Any) -> dict:
             "vias": len(result.solution.vias),
             "copperMm": round(result.solution.copper_length_mm, 1),
         }
-        if mode == "portfolio" and after.completeness < before.completeness - 1e-9:
+        if mode in ("portfolio", "freerouting") and after.completeness < before.completeness - 1e-9:
             report["reason"] = (
                 f"kept the incumbent: ours connects "
                 f"{len(after.connected_nets)}/{after.routable_nets} nets against "
@@ -242,10 +386,10 @@ def route_board(circuit_json_path: Path, profile: Any) -> dict:
             )
             return report
 
-        circuit_json_path.write_text(
-            json.dumps(apply_solution(elements, problem, result.solution)),
-            encoding="utf-8",
-        )
+        applied = apply_solution(elements, problem, result.solution)
+        if mode == "freerouting":
+            report["poursReset"] = _reset_pours(applied)
+        circuit_json_path.write_text(json.dumps(applied), encoding="utf-8")
         report["applied"] = True
     except BaseException as exc:  # noqa: BLE001 — never fail a build over this
         report["reason"] = f"{type(exc).__name__}: {exc}"

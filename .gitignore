@@ -34,3 +34,6 @@ tmp/
 
 # Local task board — kept on the machine, never pushed (owner's call 2026-08-24)
 .claude/BOARD.md
+
+# Freerouting jar + JRE: installed by scripts/toolchain/install-freerouting.sh, never committed
+toolchain/freerouting/
