@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from circuitpy import checks, fastcheck, toolchain
+from circuitpy import placement_image
 
 #: Findings that exist *because* nothing was routed. Dropping them is not
 #: leniency — with `routingDisabled` every one of them is guaranteed, so
@@ -214,12 +215,26 @@ def preflight(
                 f"machine — the box is loaded, not your board. The findings "
                 f"below are still exact"
             ))
+        # The ratsnest picture lands in the real project's review dir, next to
+        # the build's own images, so the agent `Read`s it the way it reads
+        # `_pcb.png`. The mirror is thrown away; the picture is the point.
+        placement_png: dict = {"ok": False, "error": "not attempted"}
+        try:
+            elements = json.loads(built.read_text(encoding="utf-8"))
+            placement_png = placement_image.write_placement_png(
+                elements, root / entry_rel.parent / f"{stem}_review" / "_placement.png"
+            )
+        except Exception as exc:  # noqa: BLE001
+            placement_png = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         return {
             "ok": True,
             "verdict": "clean" if counts["error"] == 0 else "blocked",
             "geometry": "placement_only",
             "warnings": warnings,
             "counts": counts,
+            "placement": graded.get("placement"),
+            "placement_png": placement_png.get("path") if placement_png.get("ok") else None,
+            "placement_png_error": None if placement_png.get("ok") else placement_png.get("error"),
             "dropped_routing_findings": dropped,
             "checked": [
                 line for line in graded.get("checked", [])

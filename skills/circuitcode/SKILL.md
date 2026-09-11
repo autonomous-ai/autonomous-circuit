@@ -172,11 +172,27 @@ Four things that are not optional:
 ## The loop
 
 **Two loops, in this order.** First the *placement* loop — edit TSX, run
-`scripts/circuit`, read the verdict — until the parts sit where they should and
-the board routes. Then the *repair* loop — read a copper finding, write
-`edits.json`, run `scripts/circuit … --edits`, read the verdict in thirty seconds
-— until the copper is clean. Do not go back to the placement loop for a copper
-finding: a rebuild re-routes every net and the finding moves somewhere else.
+`preflight` (seconds, no router), `Read` `_placement.png`, read the
+`placement` score — until the parts sit where the copper can reach them; only
+then `scripts/circuit` to route. Then the *repair* loop — read a copper
+finding, write `edits.json`, run `scripts/circuit … --edits`, read the verdict
+in thirty seconds — until the copper is clean. Do not go back to the placement
+loop for a copper finding: a rebuild re-routes every net and the finding moves
+somewhere else.
+
+**The placement ruler** (`placement` in `preflight` and `fastcheck`,
+`build.placement` in the sidecar, `placement_summary` finding): `ratsnestMm`
+(the shortest copper that could ever connect every net), `crossings` (net
+lines that cross — each is a via pair or a detour you are asking the router
+to pay for), `congestion.worst` (pins in the fullest 5 mm cell), `decoupling`
+(each cap to the chip pin it serves; over 3 mm is a finding an engineer raises
+on sight), `crystals`, `connectorsToEdgeMm`, `longestNets`. Push these down
+before routing: move the part that owns the worst number, re-run preflight,
+look at the picture. Measured 2026-09-11: a board that iterated placement 62
+times against overlaps and price tier alone routed to 190 vias and 789 jogs;
+its ruler read 240 crossings and 10 decoupling caps over 3 mm. A placement
+that scores well routes with fewer vias — that is the whole point of the
+order above.
 
 ```
 understand ask → inspect project → block plan → edit main.tsx
@@ -327,20 +343,24 @@ python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
 # minutes). Use it when you want a verdict without a packet, not to save time.
 python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
 
-# PRE-FLIGHT — the placement verdict, without paying for routing. ~17s on a
+# PRE-FLIGHT — the placement verdict, without paying for routing. ~7-17s on a
 # dense board against 20-40 minutes for a build, because it compiles with
 # `routingDisabled` and grades what is left: overlapping parts, a footprint
 # that is not the part, a component off the board, a hole in a pad, pad-to-pad
-# clearance, assembly risks, board size and price tier, decoupling distance.
-# It sees NOTHING about copper and says so. Use it every time you move a part;
-# use `circuit` when you want a board.
+# clearance, assembly risks, board size and price tier — and the placement
+# ruler (`placement`: ratsnest, crossings, congestion, decoupling, crystal,
+# connectors to edge) plus `boards/<stem>_review/_placement.png`, the board
+# with its ratsnest and no copper (`placement_png`). It sees NOTHING about
+# routed copper and says so. Use it every time you move a part; `Read` the
+# picture; use `circuit` when you want a board.
 python -m circuitpy.preflight /abs/project --board boards/main.tsx
 
 # ~1s verdict on a board that has ALREADY been built, with optional
 # placement moves applied in memory. This is the fast gate: ~0.5-0.9s on the
-# boards we ship, no compile at all. It cannot see anything a rebuild would
-# change — the copper pour, what the router will do next, the fab packet — and
-# it says so in `not_checked`.
+# boards we ship, no compile at all; `placement` is scored on the geometry as
+# moved, so "would moving C14 next to U4 help" is a one-second question. It
+# cannot see anything a rebuild would change — the copper pour, what the
+# router will do next, the fab packet — and it says so in `not_checked`.
 python -m circuitpy.fastcheck /abs/project --board boards/main.circuit.json
 
 # Review pass — re-surface warnings and regenerate the review images

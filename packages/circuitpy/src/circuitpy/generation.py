@@ -36,6 +36,8 @@ from circuitpy import blocklib
 from circuitpy import checks
 from circuitpy import circuit_normalize
 from circuitpy import craft as craft_mod
+from circuitpy import placement as placement_mod
+from circuitpy import placement_image
 from circuitpy import diffpair
 from circuitpy import enclosure as enclosure_mod
 from circuitpy import export_cache
@@ -1150,16 +1152,19 @@ def build_board(
             # notes are not geometry and stay.
             stripped = _strip_compiler_findings(built_circuit_json)
             determinism_block["strippedCompilerFindings"] = stripped
-            # "Đổ đồng lại": the one post-route pass that must see the final
-            # copper. Repaired copper can now sit inside a pour's clearance;
-            # the pour pass only ever pushes pour vertices away from foreign
-            # copper, leaves a pour that already holds byte-identical, and
-            # runs to convergence — safe on every round, unlike
-            # `trace_clearance`. The pair and width passes stay off: they are
-            # the router-era passes the repair is replacing.
-            pour_results.append(
-                pour_clearance.repair_pour_clearance(built_circuit_json, profile)
-            )
+            # "Đổ đồng lại" is KiCad's refill now (the DRC gate, every build
+            # since v1.6b): the converter's pour is replaced wholesale, so
+            # pushing its rings back first is work the packet never sees —
+            # 90 s of run 7's 108 s recheck. Only when the refill is switched
+            # off does the pour pass still earn its keep: it pushes pour
+            # vertices away from foreign copper, leaves a pour that already
+            # holds byte-identical, and runs to convergence. The pair and
+            # width passes stay off: they are the router-era passes the
+            # repair is replacing.
+            if not _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL")):
+                pour_results.append(
+                    pour_clearance.repair_pour_clearance(built_circuit_json, profile)
+                )
             return _read_built()
         with _deterministic_env(identity.source_fingerprint) as requested:
             try:
@@ -1573,11 +1578,23 @@ def build_board(
     }
     if craft_block:
         build_block["craft"] = craft_block
+    # The placement ruler, on the routed board too: the same numbers the
+    # agent pushed down before routing, so a placement round and the panel
+    # can see whether the copper was asked to do something hard.
+    try:
+        placement_block = placement_mod.score(circuit_json)
+        warnings.append(placement_mod.summary_finding(placement_block))
+        build_block["placement"] = placement_block
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(checks.check_failed(f"placement score did not run: {exc}"))
     if reuse_p is not None:
         # The board this sidecar describes was not routed by this call.
         build_block["repairMode"] = {
             "reusedCircuitJson": reuse_p.name,
-            "postRoutePasses": "pour only",
+            "postRoutePasses": (
+                "pour only" if not _refill_wanted(os.environ.get("CIRCUIT_KICAD_REFILL"))
+                else "none (KiCad refills the zones)"
+            ),
             "repairs": list(repairs or []),
             "strippedCompilerFindings": determinism_block.pop("strippedCompilerFindings", {}),
             # Every repair this board carries since its last route: the rounds
@@ -2153,12 +2170,23 @@ def build_board(
         )
     except (RuntimeError, TimeoutError) as exc:
         raise ExportError(f"failed to write review images: {exc}") from exc
+    # The ratsnest picture: the board without its copper, one hairline per
+    # net edge. Best-effort — a build never fails for want of it.
+    placement_png = placement_image.write_placement_png(
+        circuit_json, review_dir / "_placement.png"
+    )
+    if not placement_png.get("ok"):
+        warnings.append(checks.check_failed(
+            f"placement image did not render: {placement_png.get('error')}"
+        ))
 
     # -- Sidecar (camelCase canonical JSON), then the IR lands LAST. ---------
     artifacts: dict[str, str] = {
         "schematicPng": f"{stem}_review/_schematic.png",
         "pcbPng": f"{stem}_review/_pcb.png",
     }
+    if placement_png.get("ok"):
+        artifacts["placementPng"] = f"{stem}_review/_placement.png"
     if gerbers_path is not None:
         artifacts["gerbers"] = f"{stem}_fab/{profile.zip_name}"
     if bom_path is not None:

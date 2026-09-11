@@ -409,4 +409,30 @@ first, in this template, before the doc itself is edited:
 - **Tracks affected:** pipeline (`kicad_normalize.py`, `generation.py`), skill
   runtime (re-vendor; SKILL.md).
 
+## 2026-09-11 — v1.7a: the placement ruler
+- **Change:** (1) `circuitpy.placement.score(elements)` — from the IR, routed
+  or not: `pins`, `nets`, `ratsnestMm` (MST per net), `crossings` (ratsnest
+  edges of different nets that intersect), `congestion` (pins per 5 mm cell,
+  worst/mean), `decoupling` (each ground/power cap to the nearest chip pin on
+  its power net; `overLimit` at 3 mm), `crystals` (to the nearest chip pin),
+  `connectorsToEdgeMm`, `longestNets`. Lands as `build.placement` in the
+  sidecar with one `placement_summary` info finding, as `placement` in
+  `preflight` and `fastcheck` output (fastcheck: on the geometry as moved).
+  (2) `<stem>_review/_placement.png` — the board without its copper, one
+  hairline per ratsnest edge (`render_placement.cjs`); written by every
+  build (`artifacts.placementPng`) and by `preflight` into the project's own
+  review dir (`placement_png`). (3) Repair mode skips `pour_clearance` when
+  the KiCad refill is on (`repairMode.postRoutePasses` says which).
+- **Why:** run 7 (Astra, desk cube, 2026-09-11) called `preflight` 62× and
+  `fastcheck` 11× — the agent iterated placement against a ruler that grades
+  overlaps and price tier, not routability — and routed to 190 vias / 789
+  jogs. On that board the ruler reads 240 crossings, 10 decoupling caps over
+  3 mm (C14 9.9 mm from U4), worst cell 15 pins; the picture shows U4 across
+  the board from U3. Nothing new blocks; the loop that pushes these down is
+  v1.7b (driver placement phase, block `layout` overrides).
+- **Backward compatible:** yes — added blocks, an info finding, one image.
+- **Tracks affected:** pipeline (`placement.py`, `placement_image.py`,
+  `_js/render_placement.cjs`, `generation.py`, `fastcheck.py`,
+  `preflight.py`), skill runtime (re-vendor; SKILL.md).
+
 (No further entries yet.)
