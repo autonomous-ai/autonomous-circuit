@@ -1688,6 +1688,7 @@ def build_board(
             built_circuit_json,
             profile=profile,
             assembly_order=product.assembly,
+            assembly_tier=product.assembly_tier,
         )
     )
 

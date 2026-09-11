@@ -44,10 +44,24 @@ Four habits, applied without being asked:
 3. **Label every net.** `net.V3_3`, `net.I2C_SDA` — never an anonymous trace.
    An unnamed net is a warning from the pipeline and an unreadable schematic
    for the human who has to debug the board.
-4. **Leave the enclosure something to hold.** At least two mounting holes on a
-   pitch you state, connectors on one edge, and a board outline inside the
-   declared envelope. This board is going inside a 3D-printed body.
-5. **Land the debug interface.** An MCU block brings SWCLK/SWD out as nets and
+4. **Leave the enclosure something to hold.** Four mounting holes at the
+   corners on a pitch you state (27 of 32 boards built have them; two on one
+   edge cantilevers the rest — `dfa_mounting_collinear`), connectors on one
+   edge, and a board outline inside the declared envelope. Fewer holes is a
+   choice you make on purpose and say so. This board is going inside a
+   3D-printed body.
+5. **One side by default; the back when the face is spoken for.** If the
+   user-facing parts (screen, LED ring, buttons, sensors) fill the front at
+   the user's size, put the MCU core on the back as one block —
+   `<Rp2040Core layer="bottom" pcbRotation={180} …/>` with
+   `doubleSidedAssembly={true}` on the board and `"assemblyTier": "standard"`
+   in `product.json` (economic PCBA places one side only and skips the rest
+   silently — `dfa_bottom_side`; standard places both at a higher price
+   band) — and say so in the plan with the cost. The placement ruler
+   scores each side (`congestion.bySide`, `pinsBySide`). The shipped router
+   has failed a dense two-sided 54 mm board before (2026-09-08); if it hands
+   back unrouted nets, that is its limit — report it, do not spend rounds.
+6. **Land the debug interface.** An MCU block brings SWCLK/SWD out as nets and
    terminates neither. If nothing does, the assembled board cannot be halted,
    single-stepped or recovered from a bad image — every part on it correct and
    the product useless. `board_plan().must_expose` names the nets; `DebugPort`
@@ -60,7 +74,7 @@ Four habits, applied without being asked:
    space, not inside the MCU block: three pads inside `rp2040-core`'s own box
    route the debug pair through the crystal cluster and the router comes back
    with a via shorted into the QFN pad field (measured 2026-08-11).
-6. **Say what routing effort the board needs.** `autorouterEffortLevel="10x"`
+7. **Say what routing effort the board needs.** `autorouterEffortLevel="10x"`
    is the floor on every board. The same rp2040-core board is `fab.ready:
    false` with five blocking KiCad findings at the default effort and
    `fab.ready: true` with zero at `"5x"` — same design, only this prop changed.

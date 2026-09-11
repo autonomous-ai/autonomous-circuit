@@ -133,6 +133,7 @@ class _Board:
                 "component": str(port.get("pcb_component_id") or ""),
                 "refdes": str((sc or {}).get("name") or ""),
                 "ftype": str((sc or {}).get("ftype") or ""),
+                "side": str((comp or {}).get("layer") or "top"),
             })
         self.by_net: dict[str, list[dict]] = defaultdict(list)
         for p in self.pins:
@@ -193,18 +194,28 @@ def crossings(edges: list[dict]) -> int:
 
 
 def congestion(board: _Board, cell_mm: float = CELL_MM) -> dict[str, Any]:
-    cells: dict[tuple[int, int], int] = defaultdict(int)
+    """Pins per cell, per side. A part on the back shares no cell with the
+    front — the harness-free desk cube's whole trick was that its MCU core
+    on the back left the front's cells to the LEDs and buttons."""
+    cells: dict[tuple[str, int, int], int] = defaultdict(int)
     for p in board.pins:
-        cells[(math.floor(p["x"] / cell_mm), math.floor(p["y"] / cell_mm))] += 1
+        cells[(p["side"], math.floor(p["x"] / cell_mm), math.floor(p["y"] / cell_mm))] += 1
     if not cells:
-        return {"cellMm": cell_mm, "worst": 0, "worstCell": None, "mean": 0.0, "cells": 0}
-    worst_cell, worst = max(cells.items(), key=lambda kv: (kv[1], kv[0]))
+        return {"cellMm": cell_mm, "worst": 0, "worstCell": None, "worstSide": None, "mean": 0.0, "cells": 0, "bySide": {}}
+    (worst_side, cx, cy), worst = max(cells.items(), key=lambda kv: (kv[1], kv[0]))
+    by_side: dict[str, dict] = {}
+    for side in sorted({k[0] for k in cells}):
+        vals = [v for k, v in cells.items() if k[0] == side]
+        by_side[side] = {"worst": max(vals), "mean": round(sum(vals) / len(vals), 2), "cells": len(vals),
+                         "pins": sum(vals)}
     return {
         "cellMm": cell_mm,
         "worst": worst,
-        "worstCell": [round((worst_cell[0] + 0.5) * cell_mm, 2), round((worst_cell[1] + 0.5) * cell_mm, 2)],
+        "worstCell": [round((cx + 0.5) * cell_mm, 2), round((cy + 0.5) * cell_mm, 2)],
+        "worstSide": worst_side,
         "mean": round(sum(cells.values()) / len(cells), 2),
         "cells": len(cells),
+        "bySide": by_side,
     }
 
 
@@ -297,6 +308,8 @@ def score(elements: Iterable[Any]) -> dict[str, Any]:
     dec = decoupling(board)
     return {
         "pins": len(board.pins),
+        "pinsBySide": {side: sum(1 for p in board.pins if p["side"] == side)
+                       for side in sorted({p["side"] for p in board.pins})},
         "nets": len(per_net),
         "ratsnestMm": round(sum(per_net.values()), 1),
         "crossings": crossings(edges),
@@ -330,8 +343,15 @@ def summary_finding(placement: dict[str, Any]) -> dict[str, Any]:
     lead = (
         f"ratsnest {placement['ratsnestMm']}mm over {placement['nets']} nets, "
         f"{placement['crossings']} crossings, worst cell {cong.get('worst')} pins per "
-        f"{cong.get('cellMm')}mm at {cong.get('worstCell')}"
+        f"{cong.get('cellMm')}mm at {cong.get('worstCell')} ({cong.get('worstSide')})"
     )
+    sides = placement.get("pinsBySide") or {}
+    if len(sides) > 1:
+        parts_sides = ", ".join(f"{n} {s}" for s, n in sides.items())
+        lead += f"; pins {parts_sides}"
+    else:
+        lead += "; one side populated"
+
     parts = [lead]
     if dec.get("worst"):
         w = dec["worst"][0]

@@ -135,6 +135,24 @@ class PlacementScoreTest(unittest.TestCase):
         self.assertEqual(c["chip"], "U1")
         self.assertAlmostEqual(c["mm"], 6.0, places=2)
 
+    def test_a_part_on_the_back_does_not_crowd_the_front(self):
+        # the same four pins in one 5 mm cell: on one side that cell holds 4,
+        # split across sides the worst cell holds 2 and the sides are named
+        f = _Fixture()
+        a = f.net("A")
+        f.part("U1", "simple_chip", 1, 1, [(0, 0, a), (0.5, 0, a)])
+        f.part("U2", "simple_chip", 1, 2, [(0, 0, a), (0.5, 0, a)])
+        one = placement.score(f.els)
+        self.assertEqual(one["congestion"]["worst"], 4)
+        self.assertEqual(one["pinsBySide"], {"top": 4})
+        back = next(e for e in f.els if e.get("pcb_component_id") == "pc_U2")
+        back["layer"] = "bottom"
+        two = placement.score(f.els)
+        self.assertEqual(two["congestion"]["worst"], 2)
+        self.assertEqual(two["pinsBySide"], {"bottom": 2, "top": 2})
+        self.assertEqual(set(two["congestion"]["bySide"]), {"top", "bottom"})
+        self.assertIn("2 bottom", placement.summary_finding(two)["detail"])
+
     def test_a_board_with_no_pins_scores_zero_and_does_not_raise(self):
         s = placement.score([_board()])
         self.assertEqual((s["pins"], s["nets"], s["ratsnestMm"], s["crossings"]), (0, 0, 0.0, 0))

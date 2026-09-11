@@ -160,6 +160,13 @@ export const Rp2040Core = (props: {
    *  it. The crystal cluster (Y1, C15, C16, R11) must stay within 10 mm of
    *  U3.XIN or tscircuit skips routing for the whole board — see below. */
   layout?: Partial<Record<string, { pcbX?: number; pcbY?: number; pcbRotation?: number }>>
+  /** Put the whole block on the other side of the board (every inner part
+   *  gets `layer`), and/or turn it as one piece. The harness-free desk cube
+   *  of 2026-09-11 put the MCU core on the back and kept the front for what
+   *  the user touches; this is that move. Two-sided assembly is the plan's
+   *  decision (cost band), not the block's. */
+  layer?: "top" | "bottom"
+  pcbRotation?: number
 }) => {
   const u = props.u ?? "U3"
   const f = props.flash ?? "U4"
@@ -170,10 +177,11 @@ export const Rp2040Core = (props: {
       pcbX: o.pcbX ?? pcbX,
       pcbY: o.pcbY ?? pcbY,
       ...(o.pcbRotation !== undefined ? { pcbRotation: o.pcbRotation } : {}),
+      ...(props.layer ? { layer: props.layer } : {}),
     }
   }
   return (
-    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
+    <group pcbX={props.pcbX ?? 0} pcbY={props.pcbY ?? 0} pcbRotation={props.pcbRotation ?? 0} schX={props.schX ?? 0} schY={props.schY ?? 0}>
       <Rp2040Chip name={u} {...at(u, 0, 0)} schX={0} schY={0} />
       <W25q128 name={f} {...at(f, 13, 0)} schX={14} schY={-6} />
       {/* PLACEMENT IS LOAD-BEARING HERE (fixed 2026-08-10). v1 placed Y1 at

@@ -42,6 +42,22 @@ class CraftScoreTest(unittest.TestCase):
         straight = next(w for w in c["worstDetours"] if w["trace"] == "straight")
         self.assertEqual(straight["ratio"], 1.0)
 
+    def test_vias_are_charged_to_their_net_and_pairs_are_named(self):
+        elements = [
+            {"type": "source_net", "source_net_id": "n1", "name": "USB_DP"},
+            {"type": "source_net", "source_net_id": "n2", "name": "USB_DM"},
+            {"type": "source_net", "source_net_id": "n3", "name": "GND"},
+            {"type": "pcb_via", "pcb_via_id": "v1", "x": 0, "y": 0, "source_net_id": "n1"},
+            {"type": "pcb_via", "pcb_via_id": "v2", "x": 1, "y": 0, "source_net_id": "n2"},
+            {"type": "pcb_via", "pcb_via_id": "v3", "x": 2, "y": 0, "source_net_id": "n3"},
+            {"type": "pcb_via", "pcb_via_id": "v4", "x": 3, "y": 0, "source_net_id": "n3"},
+        ]
+        c = craft.score(elements)
+        self.assertEqual(c["vias"], 4)
+        self.assertEqual(c["viasByNet"][0], {"net": "GND", "vias": 2})
+        self.assertEqual(c["pairVias"], {"USB_DP/USB_DM": 2})
+        self.assertIn("USB_DP/USB_DM 2", craft.summary_finding(c)["detail"])
+
     def test_short_hops_do_not_count_as_detours(self):
         # a 0.6mm pad-to-cap hop routed at 1.4mm is a 2.3x ratio and means nothing
         elements = [{"type": "pcb_trace", "pcb_trace_id": "hop", "route": [_wire(0, 0), _wire(0, 0.7), _wire(0.6, 0.7), _wire(0.6, 0)]}]

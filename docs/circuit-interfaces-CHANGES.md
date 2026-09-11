@@ -435,4 +435,35 @@ first, in this template, before the doc itself is edited:
   `_js/render_placement.cjs`, `generation.py`, `fastcheck.py`,
   `preflight.py`), skill runtime (re-vendor; SKILL.md).
 
+## 2026-09-11 — v1.7.1: the back side, on purpose
+- **Change:** (1) `product.json` gains `assemblyTier`: `economic` (default;
+  one side) or `standard` (both sides, finer pitch, rails + fiducials);
+  `ResolvedProduct.assembly_tier`; anything else is a `SpecValidationError`.
+  `verify_bridge.check_circuit_json(assembly_tier=…)` hands it to
+  verifylib's `assembly.check(tier=…)`, which already knew both tiers —
+  `dfa_bottom_side` stays an error on economic and is silent on standard.
+  (2) Golden block `rp2040-core` takes `layer="bottom"` and `pcbRotation`
+  at block level (every inner part follows) besides the `layout` overrides.
+  (3) The placement ruler scores per side: `pinsBySide`,
+  `congestion.bySide`, `congestion.worstSide`. (4) `build.craft` gains
+  `viasByNet` (top 5) and `pairVias` (every DP/DM pair's via count; the
+  number to push to is 0). (5) Prompts: PLAN allows two sides when the
+  face is spoken for, as a block, with the cost named, and asks for four
+  corner mounting holes by default; IMPLEMENT orders place → preflight →
+  picture → route, and treats an assembly finding as a 0.4 mm move + a
+  preflight, not a rebuild.
+- **Why:** the harness-free Astra desk cube (2026-09-11) put the MCU core
+  on the back and kept the face for the LED ring, buttons, sensors and an
+  OLED on standoffs — twice the area on the same 54 mm. On run 7's board,
+  flipping Astra's own RP2040 block to the back with the new prop: worst
+  cell 15 → 11 on the front, crossings 240 → 220, before any router runs.
+  Our single-side rule was a cost rule (economic PCBA) enforced as if it
+  were physics; it is now the plan's decision with the price named.
+- **Backward compatible:** yes — the field defaults to economic; added
+  score keys. The shipped router's two-sided limit (2026-09-08) stands and
+  is measured, not assumed — see the BOARD entry.
+- **Tracks affected:** pipeline (`spec.py`, `verify_bridge.py`,
+  `generation.py`, `fastcheck.py`, `placement.py`, `craft.py`), golden
+  blocks, server prompts, SKILL.md.
+
 (No further entries yet.)

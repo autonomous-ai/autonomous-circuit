@@ -79,6 +79,7 @@ def score(elements: Iterable[Any]) -> dict[str, Any]:
             if straight >= MIN_DETOUR_BASE_MM and length > 0:
                 detours.append((length / straight, str(t.get("pcb_trace_id") or ""), length, straight))
     vias = sum(1 for e in elements if isinstance(e, dict) and e.get("type") == "pcb_via")
+    vias_by_net, pair_vias = _vias_by_net(elements)
     detours.sort(reverse=True)
     worst = [
         {"trace": tid, "ratio": round(r, 2), "routedMm": round(l, 2), "straightMm": round(s, 2)}
@@ -93,7 +94,36 @@ def score(elements: Iterable[Any]) -> dict[str, Any]:
         "offGridSegments": total_off,
         "meanDetour": round(mean_detour, 2),
         "worstDetours": worst,
+        "viasByNet": vias_by_net,
+        "pairVias": pair_vias,
     }
+
+
+def _vias_by_net(elements: Iterable[Any]) -> tuple[list[dict], dict[str, int]]:
+    """The nets that spend the most vias, and every differential pair's via
+    count. The harness-free desk cube (2026-09-11) shaped USB D+/D- on one
+    layer by hand and dropped two signal vias; a pair that changes layer is
+    a pair whose reference plane changes under it, so the number to push to
+    is zero."""
+    from . import diffpair
+
+    els = [e for e in elements if isinstance(e, dict)]
+    names: dict[str, str] = {}
+    for n in els:
+        if n.get("type") == "source_net":
+            names[str(n.get("source_net_id") or "")] = str(n.get("name") or n.get("source_net_id") or "")
+    counts: dict[str, int] = {}
+    for v in els:
+        if v.get("type") != "pcb_via":
+            continue
+        net = names.get(str(v.get("source_net_id") or ""), str(v.get("source_net_id") or ""))
+        if net:
+            counts[net] = counts.get(net, 0) + 1
+    by_net = [{"net": k, "vias": n} for k, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_N]]
+    pairs: dict[str, int] = {}
+    for p, n in diffpair.find_pairs(names.values()):
+        pairs[f"{p}/{n}"] = counts.get(p, 0) + counts.get(n, 0)
+    return by_net, pairs
 
 
 def summary_finding(craft: dict[str, Any]) -> dict[str, Any]:
@@ -104,6 +134,9 @@ def summary_finding(craft: dict[str, Any]) -> dict[str, Any]:
         f"{craft['segments']} segments ({craft['jogs']} jogs under {JOG_MM}mm, "
         f"{craft['offGridSegments']} off the 45° grid), mean detour {craft['meanDetour']}×"
     )
+    pairs = craft.get("pairVias") or {}
+    if pairs:
+        lead += "; pair vias " + ", ".join(f"{k} {v}" for k, v in pairs.items())
     tail = (
         "; worst: " + ", ".join(
             f"{w['trace']} {w['ratio']}× ({w['routedMm']}mm for {w['straightMm']}mm)"

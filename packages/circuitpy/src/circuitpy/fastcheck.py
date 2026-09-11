@@ -648,7 +648,8 @@ def fast_check(
             warnings.extend(checks.floating_net_warnings(elements))
             warnings.extend(
                 verify_bridge.check_circuit_json(
-                    node_input, profile=profile, assembly_order=True
+                    node_input, profile=profile, assembly_order=True,
+                    assembly_tier=getattr(product, "assembly_tier", "economic"),
                 )
             )
             warnings.extend(pending.result())
