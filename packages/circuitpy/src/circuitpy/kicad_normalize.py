@@ -81,6 +81,13 @@ class Normalization:
     outlines_untangled: int = 0
     outline_polygons_after: int = 0
     fills_untangled: int = 0
+    #: Zones given a distinct `(priority N)`. Measured 2026-09-11 on
+    #: desk-cube-astra-run7: three GND zones on F.Cu with no priority — the
+    #: board pour (a 2905-vertex outline) and two islands inside its box —
+    #: segfault `kicad-cli pcb drc` (exit -11) together, never alone; with a
+    #: distinct priority per zone the same file runs. The gate that "did not
+    #: run" was reporting this.
+    zones_prioritised: int = 0
     smallest_text_mm: float | None = None
     smallest_stroke_mm: float | None = None
     #: A step of this pass could not run: a file that would not read, a parse
@@ -102,10 +109,17 @@ class Normalization:
             self.text_resized or self.text_thickened or self.strokes_widened
             or self.vias_bridged or self.pours_outlined
             or self.outlines_untangled or self.fills_untangled
+            or self.zones_prioritised
         )
 
     def summary(self) -> str:
         parts = []
+        if self.zones_prioritised:
+            parts.append(
+                f"{self.zones_prioritised} zone(s) given a distinct priority "
+                f"(same-net zones nested on one layer with equal priority "
+                f"segfault kicad-cli drc)"
+            )
         if self.text_resized:
             parts.append(
                 f"{self.text_resized} silkscreen text(s) raised to the "
@@ -307,6 +321,13 @@ def normalize_for_fab(pcb_path: Path, profile: FabProfile) -> Normalization:
         # converter wrote directly, and it is the whole of #15 — one such zone
         # on weather-badge-16's top pour segfaults kicad-cli on its own.
         text = _untangle_zones(text, result)
+
+        # Fifth pass: a distinct priority per zone. Same-net zones that nest
+        # on one layer with equal priority take `kicad-cli pcb drc` down with
+        # exit -11 (desk-cube-astra-run7, 2026-09-11: the board pour plus two
+        # islands inside it). Ranked by area so the largest fills first and
+        # the ranking is the same on every run.
+        text = _prioritise_zones(text, result)
 
         if text != original:
             pcb_path.write_text(text, encoding="utf-8")
@@ -1406,6 +1427,49 @@ def _render_polygon(ring: list[tuple[int, int]]) -> str:
         f"        (xy {_mm(x)} {_mm(y)})" for x, y in ring
     )
     return "(polygon\n      (pts\n" + points + "\n      )\n    )"
+
+
+def _zone_outline_area(block: str) -> float:
+    outline = block.split("(filled_polygon")[0]
+    pts = [(float(x), float(y)) for x, y in re.findall(r"\(xy ([-\d.]+) ([-\d.]+)\)", outline)]
+    if len(pts) < 3:
+        return 0.0
+    return abs(sum(
+        pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+        for i in range(len(pts))
+    )) / 2
+
+
+def _prioritise_zones(text: str, result: Normalization) -> str:
+    """Give every zone a distinct `(priority N)`, largest outline first.
+
+    Idempotent: a zone already carrying the priority its rank assigns is left
+    byte-identical, so a second run over the output changes nothing.
+    """
+    spans = _balanced_spans(text, "(zone")
+    if len(spans) < 2:
+        return text
+    areas = [(_zone_outline_area(text[a:b]), k) for k, (a, b) in enumerate(spans)]
+    rank = {k: r for r, (_, k) in enumerate(sorted(areas, key=lambda t: (-t[0], t[1])))}
+    out = text
+    changed = 0
+    for k, (a, b) in reversed(list(enumerate(spans))):
+        block = out[a:b]
+        want = f"(priority {rank[k]})"
+        have = re.search(r"\(priority (\d+)\)", block)
+        if have and have.group(0) == want:
+            continue
+        if have:
+            block2 = block[:have.start()] + want + block[have.end():]
+        else:
+            m = re.search(r"\(hatch\b", block)
+            if not m:
+                continue
+            block2 = block[:m.start()] + want + "\n    " + block[m.start():]
+        out = out[:a] + block2 + out[b:]
+        changed += 1
+    result.zones_prioritised += changed
+    return out
 
 
 def _untangle_zones(text: str, result: Normalization) -> str:

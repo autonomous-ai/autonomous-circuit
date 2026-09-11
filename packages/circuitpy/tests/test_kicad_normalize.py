@@ -9,6 +9,7 @@ produced a file kicad-cli refused to load at all. That case is pinned below.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from circuitpy.fab import get_profile
@@ -301,3 +302,54 @@ def test_the_reason_names_the_net_and_says_who_judges_it(tmp_path):
     assert "net" in detail
     assert "clears every pad" in detail
     assert "DRC" in detail
+
+
+_ZONE = """  (zone
+    (net 2)
+    (net_name GND)
+    (layer F.Cu)
+    (uuid {uuid})
+    (hatch edge 0.5)
+    (connect_pads yes (clearance 0.15))
+    (min_thickness 0.25)
+    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))
+    (polygon (pts {pts}))
+  )
+"""
+
+
+def _zone(uuid, pts):
+    return _ZONE.format(uuid=uuid, pts=" ".join(f"(xy {x} {y})" for x, y in pts))
+
+
+def test_nested_same_net_zones_get_distinct_priorities(tmp_path):
+    # desk-cube-astra-run7, 2026-09-11: a board pour and two islands inside
+    # it, all GND on F.Cu, no priority — kicad-cli drc exit -11 together.
+    body = (
+        "(kicad_pcb (version 20240108) (generator test)\n"
+        + _zone("a", [(0, 0), (50, 0), (50, 50), (0, 50)])
+        + _zone("b", [(10, 10), (14, 10), (14, 14), (10, 14)])
+        + _zone("c", [(20, 20), (26, 20), (26, 26), (20, 26)])
+        + ")\n"
+    )
+    pcb = _write(tmp_path, body)
+    result = normalize_for_fab(pcb, PROFILE)
+    assert result.zones_prioritised == 3
+    assert "distinct priority" in result.summary()
+    text = pcb.read_text()
+    prios = re.findall(r"\(priority (\d+)\)", text)
+    assert sorted(prios) == ["0", "1", "2"], prios
+    # largest outline ranks first, then by area
+    assert text.index("(priority 0)") < text.index("(priority 2)")
+    # idempotent
+    again = normalize_for_fab(pcb, PROFILE)
+    assert again.zones_prioritised == 0
+    assert pcb.read_text() == text
+
+
+def test_a_lone_zone_is_not_given_a_priority(tmp_path):
+    body = "(kicad_pcb (version 20240108) (generator test)\n" + _zone("a", [(0, 0), (5, 0), (5, 5), (0, 5)]) + ")\n"
+    pcb = _write(tmp_path, body)
+    result = normalize_for_fab(pcb, PROFILE)
+    assert result.zones_prioritised == 0
+    assert "(priority" not in pcb.read_text()
