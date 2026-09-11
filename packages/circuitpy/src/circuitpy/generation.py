@@ -1826,26 +1826,40 @@ def build_board(
             # under CIRCUIT_KICAD_REFILL=1, so it can be measured on a normal
             # board before it becomes the default.
             refill = reuse_p is not None or _truthy(os.environ.get("CIRCUIT_KICAD_REFILL"))
+            drc_args = [
+                "pcb",
+                "drc",
+                "--schematic-parity",
+                "--all-track-errors",
+                "--format",
+                "json",
+                "--severity-all",
+                "--exit-code-violations",
+                "-o",
+                str(drc_json),
+                str(kicad_pcb),
+            ]
             try:
-                toolchain.run_kicad(
-                    [
-                        "pcb",
-                        "drc",
-                        "--schematic-parity",
-                        "--all-track-errors",
-                        "--format",
-                        "json",
-                        "--severity-all",
-                        "--exit-code-violations",
-                        *(["--refill-zones", "--save-board"] if refill else []),
-                        "-o",
-                        str(drc_json),
-                        str(kicad_pcb),
-                    ],
-                    timeout=KICAD_TIMEOUT_S,
-                    ok_codes=(0, 5),
-                )
-                zones_refilled = refill
+                if refill:
+                    # A refill can take KiCad down where the plain DRC runs
+                    # (desk-cube-astra-run7, 2026-09-11: 59 zones, exit -11 with
+                    # `--refill-zones`, exit 0 without). The gate must run; a
+                    # refill that cannot is reported and dropped, not fatal.
+                    try:
+                        toolchain.run_kicad(
+                            drc_args[:-3] + ["--refill-zones", "--save-board"] + drc_args[-3:],
+                            timeout=KICAD_TIMEOUT_S,
+                            ok_codes=(0, 5),
+                        )
+                        zones_refilled = True
+                    except (RuntimeError, TimeoutError) as exc:
+                        warnings.append(checks.check_failed(
+                            f"kicad zone refill did not run ({str(exc)[:120]}); the DRC gate "
+                            f"ran on the pours as converted instead"
+                        ))
+                        toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
+                else:
+                    toolchain.run_kicad(drc_args, timeout=KICAD_TIMEOUT_S, ok_codes=(0, 5))
                 if reuse_p is not None:
                     build_block["repairMode"]["zonesRefilled"] = zones_refilled
                 warnings.extend(
