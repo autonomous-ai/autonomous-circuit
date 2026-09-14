@@ -30,6 +30,10 @@ const SKIP_DIR_NAMES = new Set([
   "inputs",
   ".circuit",
   ".claude",
+  // Harness's own folder inside a workspace: `.harness/verdict.json` (written by the generator,
+  // read by the Harness daemon into the pane header) is progress the way `.circuit/` is, never an
+  // artifact — and the skills Harness links under `.claude/` are already skipped above.
+  ".harness",
   "node_modules",
   "blocks",
   "__pycache__",
@@ -221,6 +225,17 @@ function toSummary(projectDir, meta) {
   };
 }
 
+/** The name the board calls itself, from `product.json`. */
+function boardName(dir) {
+  try {
+    const raw = fs.readFileSync(path.join(dir, "product.json"), "utf8");
+    const name = String(JSON.parse(raw)?.name ?? "").trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 export class ProjectNotFoundError extends Error {
   constructor(id) {
     super(`project not found: ${id}`);
@@ -256,17 +271,6 @@ export function createProjectsStore({
       throw new ProjectNotFoundError(id);
     }
     return { dir, meta };
-  }
-
-  /** The name the board calls itself, from `product.json`. */
-  function boardName(dir) {
-    try {
-      const raw = fs.readFileSync(path.join(dir, "product.json"), "utf8");
-      const name = String(JSON.parse(raw)?.name ?? "").trim();
-      return name || null;
-    } catch {
-      return null;
-    }
   }
 
   /** Self-heal: while the project still carries the placeholder (or empty)
@@ -416,5 +420,80 @@ export function createProjectsStore({
     touch,
     exists,
     get,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Viewer-only mode: ONE workspace, served as the single project "workspace".
+// ---------------------------------------------------------------------------
+
+/** The fixed project id in viewer-only mode. Stable on purpose: it is the id in every
+ * `/projects/<id>/…` asset URL a host embeds. */
+export const WORKSPACE_PROJECT_ID = "workspace";
+
+/**
+ * A projects store over exactly one directory the caller owns — a Harness workspace, not a
+ * `~/.autonomous-circuit/projects/<uuid>` slot.
+ *
+ * Same interface as `createProjectsStore` so `http.mjs` and the catalog service do not know
+ * which one they hold; the differences are the whole point of the mode: the id is fixed, the
+ * directory is wherever the agent works (no `project.json` is written into it — the folder is
+ * the user's), the name follows `product.json` and falls back to the folder, and every
+ * mutation is refused with `VIEWER_ONLY` rather than performed. The containment rule the
+ * uuid store enforces (`projectDir` refuses a path outside the root) becomes "the id must be
+ * the one id", which is stricter, not looser.
+ */
+export function createWorkspaceProjectStore({ workspaceDir, id = WORKSPACE_PROJECT_ID } = {}) {
+  if (!workspaceDir) {
+    throw new Error("createWorkspaceProjectStore needs a workspaceDir");
+  }
+  const dir = path.resolve(String(workspaceDir));
+  fs.mkdirSync(dir, { recursive: true });
+
+  function projectDir(requested) {
+    if (String(requested || "") !== id) {
+      throw new ProjectNotFoundError(requested);
+    }
+    return dir;
+  }
+
+  function meta() {
+    let stat = null;
+    try {
+      stat = fs.statSync(dir);
+    } catch {
+      // the folder went away under us — a zeroed summary still names it
+    }
+    return {
+      id,
+      name: boardName(dir) || path.basename(dir),
+      created_at: stat ? Math.floor(stat.birthtimeMs || stat.ctimeMs) : 0,
+      updated_at: stat ? Math.floor(stat.mtimeMs) : 0,
+    };
+  }
+
+  function refuse(command) {
+    const err = new Error(
+      `${command} is not available in viewer-only mode — the workspace is fixed by the host`,
+    );
+    err.code = "VIEWER_ONLY";
+    err.statusCode = 409;
+    throw err;
+  }
+
+  return {
+    rootDir: dir,
+    projectDir,
+    list: () => [toSummary(dir, meta())],
+    create: () => refuse("project_create"),
+    open: (requested) => ({ workspaceRoot: projectDir(requested) }),
+    rename: () => refuse("project_rename"),
+    remove: () => refuse("project_delete"),
+    touch: () => {},
+    exists: (requested) => String(requested || "") === id,
+    get: (requested) => {
+      projectDir(requested);
+      return toSummary(dir, meta());
+    },
   };
 }
