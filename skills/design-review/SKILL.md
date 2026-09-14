@@ -79,7 +79,7 @@ the disagreement to the user with options.
 Before scoring, gather what the panel judges:
 
 ```bash
-python ~/.claude/skills/circuitcode/scripts/review /abs/project
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/review" /abs/project
 ```
 
 Then `Read` **both** `_review/_schematic.png` and `_review/_pcb.png`, and read
@@ -142,7 +142,7 @@ A board is **ready to make** when all of:
   failure modes are fire and a dead board, not disappointment);
 - someone can state, in one sentence, how to bring the board up when it arrives;
 - **every block the project carries that the golden library does not** grades
-  `ok` under `python3 ~/.claude/skills/block-source/scripts/grade-block.py
+  `ok` under `python3 "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/block-source/scripts/grade-block.py"
   blocks/<id>/BLOCK.md`, and the safety lens has read its `certification` row
   with its own eyes. A sourced block is the one part of the board no committed
   library ever reviewed: `blocklib.drift_warnings` reports `changed` and

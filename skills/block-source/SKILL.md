@@ -196,7 +196,7 @@ outside itself.
 ### 5. Grade it before you use it
 
 ```bash
-python3 ~/.claude/skills/block-source/scripts/grade-block.py <path-to-BLOCK.md>
+python3 "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/block-source/scripts/grade-block.py" <path-to-BLOCK.md>
 ```
 
 One JSON line: `{"ok": true|false, "id": ..., "missing": [...], "class": ...}`.

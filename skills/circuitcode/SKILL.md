@@ -30,7 +30,7 @@ Four habits, applied without being asked:
    header, a connector) is yours to place. A chip that is not in a block does
    not go on the board — say so and offer the nearest block. The one way to
    make the catalog longer is `block-source`
-   (`~/.claude/skills/block-source`), which sources a passive interconnect, a
+   (`$CIRCUIT_SKILLS_DIR/block-source`, which is `~/.claude/skills/block-source` unless the host sets it), which sources a passive interconnect, a
    certified module, or a non-radiating integrated module that carries every
    active part it needs, from the supplier with graded provenance. Run it **first
    thing in the build turn**, before you write a line of board source, and
@@ -133,7 +133,7 @@ Four habits, applied without being asked:
 The app creates the workspace; you fill it. From the skill's own templates:
 
 ```bash
-SKILL=~/.claude/skills/circuitcode
+SKILL="${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode"
 cp -R "$SKILL/templates/project_skeleton/." /abs/project/
 ```
 
@@ -359,15 +359,19 @@ knowing the user?** If yes, pick it and move on.
 
 ## Available tools
 
+The skills live at `${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}`: the app installs them
+globally, and a host such as Harness links them into the workspace and sets
+`CIRCUIT_SKILLS_DIR`. Every command below resolves through that one variable.
+
 ```bash
 # Full build — the normal case. Pass the board file, absolute path.
-python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/circuit" /abs/project/boards/main.tsx
 
 # Structural check — compile + circuit-json scan + checks library. The fab
 # packet is built and discarded, so this costs about what a full build costs
 # and is NOT a cheap pre-flight (measured 2026-08-17: same findings, same
 # minutes). Use it when you want a verdict without a packet, not to save time.
-python ~/.claude/skills/circuitcode/scripts/check /abs/project/boards/main.tsx
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/check" /abs/project/boards/main.tsx
 
 # PRE-FLIGHT — the placement verdict, without paying for routing. ~7-17s on a
 # dense board against 20-40 minutes for a build, because it compiles with
@@ -391,14 +395,14 @@ python -m circuitpy.fastcheck /abs/project --board boards/main.circuit.json
 
 # Review pass — re-surface warnings and regenerate the review images
 # without rebuilding. Returns the PNG paths.
-python ~/.claude/skills/circuitcode/scripts/review /abs/project
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/review" /abs/project
 
 # REPAIR MODE (2026-09-10) — the board is already routed; keep that routing.
 # `--recheck` re-runs the WHOLE gauntlet (checks, KiCad ERC/DRC, DFM, packet,
 # renders, sidecar) on boards/<stem>.circuit.json as it stands: ~30s, no
 # compile, no router. `--edits` applies surgical copper edits to it first.
-python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx --recheck
-python ~/.claude/skills/circuitcode/scripts/circuit /abs/project/boards/main.tsx --edits /abs/project/edits.json
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/circuit" /abs/project/boards/main.tsx --recheck
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/circuit" /abs/project/boards/main.tsx --edits /abs/project/edits.json
 ```
 
 `edits.json` is a list; every edit names one trace or one via by the ids in

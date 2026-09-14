@@ -120,7 +120,7 @@ implies mains, ask the one question.
 
    **The table above is what exists today, not what may ever exist.**
    A capability with no block has one sanctioned route before it becomes
-   a `gaps` entry: `block-source` (`~/.claude/skills/block-source`), which
+   a `gaps` entry: `block-source` (`$CIRCUIT_SKILLS_DIR/block-source`, which is `~/.claude/skills/block-source` unless the host sets it), which
    fetches a missing block from the supplier for three classes of part —
    a passive interconnect; a *certified module* carrying its own FCC ID or
    equivalent, which is the only way anything that radiates may arrive; and

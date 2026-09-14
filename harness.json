@@ -1,0 +1,30 @@
+{
+  "spec": 1,
+  "id": "autonomous/circuit",
+  "name": "Circuit",
+  "description": "Chat with AI → a board you can order. Golden blocks, two independent DRC substrates, a JLCPCB-ready packet.",
+  "engine": "claude",
+  "workspace": {
+    "template": "harness/template",
+    "marker": "product.json",
+    "init": "harness/toolchain/init-workspace.sh"
+  },
+  "agent": {
+    "instructions": "harness/AGENTS.md",
+    "skills": ["skills"],
+    "env": {
+      "CIRCUIT_TOOLCHAIN": "${dsh}/toolchain",
+      "CIRCUIT_SKILLS_DIR": "${workspace}/.claude/skills",
+      "DISABLE_AUTOUPDATER": "1"
+    }
+  },
+  "toolchain": {
+    "setup": "harness/toolchain/setup.sh",
+    "doctor": "harness/toolchain/doctor.sh"
+  },
+  "viewer": {
+    "command": "harness/toolchain/viewer.sh",
+    "url": "http://127.0.0.1:${port}/"
+  },
+  "verdict": ".harness/verdict.json"
+}
