@@ -508,7 +508,11 @@ first, in this template, before the doc itself is edited:
   `circuitpy.generation.harness_verdict` (`ready` is `fab.ready`, nothing
   weaker; `findings` are `validation.warnings` with `part→ref`, `detail→message`).
   Atomic, best-effort, never fails a build; a failure is one stderr line so the
-  stdout JSON line stays clean. (2) `.harness` joins the catalog/snapshotter
+  stdout JSON line stays clean. A build that dies before the sidecar (compile
+  error, timeout, missing pipeline) gets the same file from the skill CLI
+  instead — `scripts/circuit/cli.py` `write_failure_verdict`, `ready: false`,
+  `summary: "Build failed: <CODE>"`, one error finding — so a host never keeps
+  showing the previous build. (2) `.harness` joins the catalog/snapshotter
   skip-list next to `.circuit` (`viewer/src/server/circuit/projects.mjs`). (3)
   `createCircuitServices({ workspaceDir })` / env `CIRCUIT_WORKSPACE`: the
   server serves that one folder as the single project `workspace`
