@@ -541,3 +541,129 @@ test("a second turn on a live project is refused instead of racing the first", a
     s.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Viewer-only mode (CIRCUIT_WORKSPACE): the server a host embeds beside its own terminal.
+// ---------------------------------------------------------------------------
+
+async function bootWorkspaceServer() {
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-") }));
+  return s;
+}
+
+/** `bootServer` with the env edited before the services are built. */
+async function bootServerWith(editEnv) {
+  const home = tmpdir("circuit-home-");
+  const cfgDir = tmpdir("circuit-cfg-");
+  const scenarioPath = path.join(home, "scenario.json");
+  fs.writeFileSync(scenarioPath, "{}");
+  const env = editEnv({
+    ...process.env,
+    CIRCUIT_HOME: home,
+    CLAUDE_CONFIG_DIR: cfgDir,
+    CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    CIRCUIT_CODEX_BIN: path.join(home, "no-codex-here"),
+    CIRCUIT_FAKE_SCENARIO: scenarioPath,
+  });
+  const services = createCircuitServices({ env });
+  const server = http.createServer((req, res) => {
+    services.apiMiddleware(req, res, () => {
+      services.assetMiddleware(req, res, () => {
+        res.statusCode = 404;
+        res.end("fallthrough");
+      });
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  async function post(cmd, body = {}) {
+    const response = await fetch(`${base}/api/${cmd}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  }
+  return { services, server, base, post, close() { services.close(); server.close(); }, env };
+}
+
+test("viewer-only: one workspace project, open from the first request, chat refused, assets served from the folder", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    assert.equal(s.services.viewerOnly, true);
+    assert.equal(s.services.projectsRoot, path.resolve(ws));
+
+    // The settings reply is where the client learns the mode; the normal server never sends it.
+    const settings = await s.post("app_settings_read");
+    assert.equal(settings.body.viewerOnly, true);
+    assert.equal((await s.post("app_info")).body.rootPath, path.resolve(ws));
+
+    // Exactly one project, and it is already the active one: no project_open needed before
+    // the catalog answers, which is the state the host's page boots into.
+    const listed = await s.post("project_list");
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.body.map((p) => p.id), ["workspace"]);
+    fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "<board />");
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.equal(catalog.status, 200);
+    assert.deepEqual(catalog.body.entries.map((e) => e.file), ["boards/main.tsx"]);
+    assert.equal(catalog.body.rootPath, fs.realpathSync(ws));
+
+    // The folder is the user's: nothing here creates, renames or deletes a project in it.
+    for (const [cmd, body] of [
+      ["project_create", { name: "x" }],
+      ["project_rename", { id: "workspace", name: "x" }],
+      ["project_delete", { id: "workspace" }],
+    ]) {
+      const refused = await s.post(cmd, body);
+      assert.equal(refused.status, 409, cmd);
+      assert.equal(refused.body.code, "VIEWER_ONLY", cmd);
+    }
+    assert.equal(fs.existsSync(path.join(ws, "project.json")), false);
+
+    // The conversation lives in the host's terminal; a turn started here would put a second
+    // `claude` on the same workspace.
+    for (const [cmd, body] of [
+      ["chat_start_turn", { projectId: "workspace", userMessage: "hi" }],
+      ["chat_approve_plan", { projectId: "workspace", planText: "p" }],
+      ["chat_session_create", { projectId: "workspace" }],
+    ]) {
+      const refused = await s.post(cmd, body);
+      assert.equal(refused.status, 409, cmd);
+      assert.equal(refused.body.code, "VIEWER_ONLY", cmd);
+    }
+
+    // Assets resolve inside the workspace, and the traversal guard still holds.
+    fs.mkdirSync(path.join(ws, "boards", "main_review"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "boards", "main_review", "_pcb.png"), "png-bytes");
+    const png = await fetch(`${s.base}/projects/workspace/boards/main_review/_pcb.png?v=1-1`);
+    assert.equal(png.status, 200);
+    assert.equal(png.headers.get("content-type"), "image/png");
+    assert.equal(await png.text(), "png-bytes");
+    const outside = await fetch(`${s.base}/projects/workspace/..%2F..%2Fetc%2Fpasswd`);
+    assert.notEqual(outside.status, 200);
+    const other = await fetch(`${s.base}/projects/other/boards/main.tsx`);
+    assert.equal(other.status, 404);
+  } finally {
+    s.close();
+  }
+});
+
+test("viewer-only: `.harness/` is invisible to the catalog, and a write there still bumps nothing an artifact would", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    fs.mkdirSync(path.join(ws, ".harness"), { recursive: true });
+    fs.writeFileSync(path.join(ws, ".harness", "verdict.json"), JSON.stringify({ spec: 1, ready: false }));
+    fs.writeFileSync(path.join(ws, "NOTES.md"), "# notes");
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.deepEqual(catalog.body.entries.map((e) => e.file), ["NOTES.md"]);
+  } finally {
+    s.close();
+  }
+});

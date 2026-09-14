@@ -17,6 +17,10 @@ test("shouldOnboard gates only on hasOnboarded", () => {
     shouldOnboard({ hasOnboarded: true, claudeOauthToken: "oauth-x" }),
     false,
   );
+  // A viewer-only server (a host such as Harness owns setup and the conversation) never shows
+  // the wizard, whatever hasOnboarded says — there is nothing on this page it could set up.
+  assert.equal(shouldOnboard({ hasOnboarded: false, viewerOnly: true }), false);
+  assert.equal(shouldOnboard({ viewerOnly: true }), false);
 });
 
 test("welcome Continue gate mirrors evaluatePrereqCheck.canContinue", () => {
