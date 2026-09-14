@@ -27,8 +27,10 @@ import json
 import os
 import re
 import shutil
+import sys
 import zipfile
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -2244,6 +2246,9 @@ def build_board(
         sidecar_path.write_text(_canonical_json(sidecar_payload), encoding="utf-8")
     except OSError as exc:
         raise ExportError(f"failed to write metadata sidecar: {exc}") from exc
+    # The host's copy of the verdict, beside the sidecar and derived from it — see
+    # `harness_verdict`. Best-effort: a build must never fail on it.
+    write_harness_verdict(project_root, sidecar_path, sidecar_payload)
 
     # Ordering rule: the sidecar is on disk; the circuit.json artifact of
     # record appears (and gets its mtime) last, so artifact_changed fires
@@ -2281,6 +2286,90 @@ def build_board(
         detail=f"{sum(1 for w in warnings if w.get('severity') == 'error')} blocking",
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# The Harness verdict — `.harness/verdict.json` (Harness DSH contract, spec 1)
+# ---------------------------------------------------------------------------
+
+#: Where a host such as Harness reads the one-line verdict of the last build. Relative to the
+#: project root; the directory is in the catalog and snapshotter skip-lists (viewer/projects.mjs).
+HARNESS_VERDICT_PATH = Path(".harness") / "verdict.json"
+
+
+def harness_verdict(sidecar: dict, *, artifact: str) -> dict[str, object]:
+    """The spec-1 verdict a host reads, derived from the `.board.json` sidecar.
+
+    The sidecar stays the machine contract for the app's review loop; this is the same fact
+    in the shape every domain harness shares (`ready`, one summary line, findings with a
+    closed `severity` set and an open `kind`), so a pane header can show "fab-ready" or
+    "3 errors, 2 warnings" without knowing what a gerber is. `ready` is `fab.ready` and
+    nothing weaker — the definition of done does not change because the reader did.
+    """
+    validation = sidecar.get("validation") or {}
+    warnings = validation.get("warnings") if isinstance(validation, dict) else None
+    findings: list[dict[str, str]] = []
+    for w in warnings or []:
+        if not isinstance(w, dict):
+            continue
+        severity = str(w.get("severity") or "info")
+        if severity not in ("error", "warning", "info"):
+            severity = "info"
+        findings.append({
+            "severity": severity,
+            "kind": str(w.get("kind") or ""),
+            "message": str(w.get("detail") or ""),
+            "ref": str(w.get("part") or ""),
+        })
+    fab = sidecar.get("fab") if isinstance(sidecar.get("fab"), dict) else {}
+    ready = bool(fab.get("ready"))
+    errors = sum(1 for f in findings if f["severity"] == "error")
+    warns = sum(1 for f in findings if f["severity"] == "warning")
+    kinds = {f["kind"] for f in findings}
+    if ready:
+        summary = "Fab-ready"
+    else:
+        parts = []
+        if errors:
+            parts.append(f"{errors} error{'' if errors == 1 else 's'}")
+        if warns:
+            parts.append(f"{warns} warning{'' if warns == 1 else 's'}")
+        if not errors and ("unverified_gerbers" in kinds or "kicad_unavailable" in kinds):
+            parts.append("gerbers unverified — kicad-cli missing")
+        summary = ", ".join(parts) if parts else "Not fab-ready"
+    return {
+        "spec": 1,
+        "ready": ready,
+        "summary": summary,
+        "findings": findings,
+        "artifact": artifact,
+        "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+    }
+
+
+def write_harness_verdict(project_root: Path, sidecar_path: Path, sidecar: dict) -> Path | None:
+    """Write `<project>/.harness/verdict.json` from the sidecar just written.
+
+    Atomic (temp file + rename) because the host tails the path and must never read half a
+    file. Never raises: the sidecar is the artifact of record and is already on disk; a host
+    that cannot be told is a host that reads the sidecar itself. A failure goes to stderr —
+    stdout is the skill's one-JSON-line channel and must stay clean.
+    """
+    try:
+        target = project_root / HARNESS_VERDICT_PATH
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            artifact = os.path.relpath(sidecar_path, project_root)
+        except ValueError:  # different drive (Windows)
+            artifact = str(sidecar_path)
+        payload = harness_verdict(sidecar, artifact=artifact.replace(os.sep, "/"))
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, target)
+        return target
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"[circuitpy] harness verdict not written: {exc}", file=sys.stderr)
+        return None
 
 
 def _bom_result_block(bom_block: dict[str, object]) -> dict[str, object]:
