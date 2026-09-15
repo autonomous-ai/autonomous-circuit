@@ -89,12 +89,14 @@ def publish(path, manufacturing=False):
                     base['native']['manufacturing'] = packet
                     base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
                     base['fab']['ready'] = packet['prototypeReady']
+                for warning in base['validation']['warnings']:
+                    warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)
                 return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
                         'manufacturingFindings': len(packet['findings']) if packet else None, 'fabricationReady': base['fab']['ready']}
         except Exception as exc:
             base['native']['publication'] = 'failed'
-            base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc)}]
+            base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc), 'detail': str(exc)}]
             write_json(metadata, base)
             raise
 

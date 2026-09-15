@@ -51,7 +51,7 @@ def fabrication_floor(root, stem, output, state):
 
 
 def issue(kind, message, part='board'):
-    return {'kind': kind, 'severity': 'error', 'message': message, 'part': part}
+    return {'kind': kind, 'severity': 'error', 'message': message, 'detail': message, 'part': part}
 
 
 def csv_file(path, columns, rows):
