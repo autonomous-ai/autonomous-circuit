@@ -517,3 +517,14 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** sidecar shape stays compatible; default routing
   geometry and fallback behavior change. No v2 engine or cutover is included.
 - **Tracks affected:** routerlib, circuitpy router bridge, circuitcode guidance.
+
+## 2026-09-15 — opt-in native KiCad repair tools (v2 spike)
+- **Change:** new packages/kicadpy exposes inspect/view/snapshot/apply/route/diff/
+  check/commit/undo JSON tools for existing native KiCad projects. Native source
+  revisions, candidate checks, UUID/region scope and byte-exact PCB undo have a
+  separate contract in docs/architecture/kicad-native-spike.md.
+- **Why:** prove persistent local repair on KiCad before generating new boards
+  or changing the app's source and viewer adapters.
+- **Backward compatible:** yes; v1 runner, sidecars and app dispatch are unchanged.
+  The new tool does not publish fabrication-ready sidecars or export fabrication.
+- **Tracks affected:** new native Python package, tests/fixtures and spike docs.
