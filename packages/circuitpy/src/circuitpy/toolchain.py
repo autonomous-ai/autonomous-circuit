@@ -110,6 +110,70 @@ def kicad_cli_exe() -> str | None:
     return None
 
 
+FREEROUTING_ENV = "CIRCUIT_FREEROUTING_JAR"
+JAVA_ENV = "CIRCUIT_JAVA"
+#: The pinned Freerouting release and the JRE it needs, both under
+#: ``toolchain/freerouting/`` (the ffmpeg posture: exact files, no PATH
+#: lottery). Freerouting 2.4.1 is compiled for class-file 69 = Java 25.
+FREEROUTING_JAR = "freerouting-2.4.1.jar"
+
+
+def freerouting_dir() -> Path:
+    return toolchain_dir() / "freerouting"
+
+
+def freerouting_jar() -> str | None:
+    """The pinned Freerouting jar, or ``None`` when not installed."""
+    override = os.environ.get(FREEROUTING_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser()
+        return str(path) if path.is_file() else None
+    path = freerouting_dir() / FREEROUTING_JAR
+    return str(path) if path.is_file() else None
+
+
+def java_exe() -> str | None:
+    """A Java able to run the pinned jar: the JRE unpacked beside it first,
+    then ``CIRCUIT_JAVA``, then PATH. ``None`` when there is none."""
+    override = os.environ.get(JAVA_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser()
+        return str(path) if path.is_file() else None
+    for candidate in sorted(freerouting_dir().glob("jdk-*/Contents/Home/bin/java"), reverse=True):
+        if candidate.is_file():
+            return str(candidate)
+    for candidate in sorted(freerouting_dir().glob("jdk-*/bin/java"), reverse=True):
+        if candidate.is_file():
+            return str(candidate)
+    exe = shutil.which("java")
+    return exe or None
+
+
+def run_freerouting(
+    dsn: Path, ses: Path, *, passes: int = 20, threads: int = 4, timeout: float | None = None,
+) -> RunResult:
+    """Route ``dsn`` into ``ses`` headless. Raises ``RuntimeError`` when the
+    toolchain lacks the jar or a Java, or when Freerouting exits non-zero."""
+    jar, java = freerouting_jar(), java_exe()
+    if jar is None or java is None:
+        raise RuntimeError(
+            "freerouting is not installed: expected "
+            f"{freerouting_dir() / FREEROUTING_JAR} and a JRE beside it "
+            "(scripts/toolchain/install-freerouting.sh)"
+        )
+    return _run(
+        [
+            java, "-Djava.awt.headless=true", "-jar", jar,
+            "-de", str(dsn), "-do", str(ses),
+            "-mp", str(int(passes)), "-mt", str(int(threads)),
+        ],
+        cwd=None,
+        timeout=timeout,
+        check=True,
+        what="freerouting",
+    )
+
+
 def subprocess_env() -> dict[str, str]:
     """os.environ + the toolchain's .bin on PATH + NODE_PATH (see module doc)."""
     modules = node_modules_dir()
@@ -254,9 +318,11 @@ def versions(*, refresh: bool = False) -> dict[str, str | None]:
             kicad_version = result.output.strip().splitlines()[0].strip() or "unknown"
         except (RuntimeError, TimeoutError, IndexError):
             kicad_version = "unknown"
+    jar = freerouting_jar()
     _versions_cache = {
         "tscircuit": _pkg_version("tscircuit"),
         "checks": _pkg_version("@tscircuit/checks"),
         "kicadCli": kicad_version,
+        "freerouting": Path(jar).stem.replace("freerouting-", "") if jar else None,
     }
     return dict(_versions_cache)

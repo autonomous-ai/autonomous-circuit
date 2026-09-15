@@ -79,6 +79,18 @@ else
   echo "note: no verifylib at ${VERIFY_SRC}; skipping"
 fi
 
+# routerlib: the routing contract, the Specctra bridge to Freerouting and the
+# patch router the bridge runs after it (v1.8). circuitpy.router_bridge looks
+# for it beside circuitpy first, the repo second.
+ROUTER_SRC="${REPO_ROOT}/packages/router/src/routerlib"
+ROUTER_VENDOR="${REPO_ROOT}/skills/circuitcode/scripts/packages/routerlib"
+if [ -d "${ROUTER_SRC}" ]; then
+  vendor_package "${ROUTER_SRC}" "${ROUTER_VENDOR}"
+  echo "vendored routerlib → skills/circuitcode/scripts/packages/routerlib"
+else
+  echo "note: no routerlib at ${ROUTER_SRC}; skipping"
+fi
+
 BLOCKS_SRC="${REPO_ROOT}/packages/golden-blocks/blocks"
 BLOCKS_VENDOR="${REPO_ROOT}/skills/circuitcode/blocks"
 
