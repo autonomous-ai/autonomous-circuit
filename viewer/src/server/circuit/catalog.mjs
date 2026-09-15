@@ -121,9 +121,9 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       const sourceRoot = path.resolve(rootDir, data.native?.inputRoot || "design");
       if (sourceRoot !== rootDir && sourceRoot !== path.join(rootDir, "design")) throw new Error("invalid native source root");
       const suffixes = new Set([".kicad_pro", ".kicad_pcb", ".kicad_sch", ".kicad_dru", ".kicad_sym", ".kicad_mod", ".step", ".stp", ".wrl"]);
-      const names = new Set(["fp-lib-table", "sym-lib-table", "product.json", "parts.json"]);
-      const actual = walkFiles(sourceRoot).filter(f => suffixes.has(path.extname(f)) || names.has(path.basename(f))).map(f => relPath(rootDir, f)).sort();
-      const addedParentSpec = sourceRoot !== rootDir && ["product.json", "parts.json"].some(n => fs.existsSync(path.join(rootDir, n)));
+      const names = new Set(["fp-lib-table", "sym-lib-table", "product.json", "parts.json", "manufacturing.json"]);
+      const actual = walkFiles(sourceRoot).filter(f => suffixes.has(path.extname(f)) || names.has(path.basename(f)) || path.relative(sourceRoot,f).split(path.sep)[0] === 'engineering').map(f => relPath(rootDir, f)).sort();
+      const addedParentSpec = sourceRoot !== rootDir && ["product.json", "parts.json", "manufacturing.json"].some(n => fs.existsSync(path.join(rootDir, n)));
       const valid = !addedParentSpec && inputs.length > 0 && JSON.stringify(actual) === JSON.stringify(inputs.map(([name]) => name).sort()) && inputs.every(([name, sha]) => {
         const input = path.resolve(rootDir, name);
         return input.startsWith(rootDir + path.sep) && crypto.createHash("sha256").update(fs.readFileSync(input)).digest("hex") === sha;
@@ -135,6 +135,27 @@ export function scanProjectCatalog({ projectDir, projectId }) {
         for (const [key, file] of [["pcbUrl", "_pcb.svg"], ["pcbBottomUrl", "_pcb_bottom.svg"], ["schematicUrl", "_schematic.svg"], ["glbUrl", "board.glb"]]) {
           const asset = path.join(bundle, file);
           if (fs.existsSync(asset)) entry.artifact[key] = url(asset);
+        }
+        const packet = data.native?.manufacturing;
+        const packetDir = path.join(bundle,'manufacturing');
+        const members = Object.entries(packet?.files || {});
+        const intact = members.length > 0 && members.every(([name,sha]) => {
+          const file = path.resolve(packetDir,name);
+          return file.startsWith(packetDir + path.sep) && fs.existsSync(file) && crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') === sha;
+        });
+        let reviewed = false;
+        let reportsPassed = false;
+        try {
+          const report=JSON.parse(fs.readFileSync(path.join(packetDir,'manufacturing-report.json'),'utf8'));
+          const nativeCheck=JSON.parse(fs.readFileSync(path.join(packetDir,'native-check.json'),'utf8'));
+          reportsPassed=Object.hasOwn(packet?.files || {},'manufacturing-report.json') && Object.hasOwn(packet?.files || {},'native-check.json') && report.prototypeReady===true && report.checkedRevision===data.native.checkedRevision && Array.isArray(report.findings) && !report.findings.some(f=>f.severity==='error') && nativeCheck.passed===true && nativeCheck.revision===data.native.checkedRevision && nativeCheck.findings?.length===0;
+          const journal=JSON.parse(fs.readFileSync(path.join(rootDir,'.circuit/native-review.json'),'utf8'));
+          reviewed=journal.state==='verified' && journal.rounds?.some(r=>r.state==='ready-for-prototype') && journal.publications?.some(p=>p.source===data.source?.fingerprint && p.checked===data.native.checkedRevision && JSON.stringify(p.files)===JSON.stringify(packet?.files));
+        } catch { /* no completed independent review */ }
+        entry.nativeManufacturingVerified = reviewed && reportsPassed && intact && packet.prototypeReady === true && packet.checkedRevision === data.native.checkedRevision && data.native.checksPassed === true;
+        if (intact) for (const [key,name] of [['gerbersUrl','gerbers.zip'],['bomUrl','bom.csv'],['cplUrl','cpl.csv'],['orderUrl','ORDER.md'],['kicadProjectUrl','kicad-project.zip'],['manufacturingReportUrl','manufacturing-report.json']]) {
+          const file = path.join(packetDir,name);
+          if (Object.hasOwn(packet.files,name) && fs.existsSync(file)) entry.artifact[key] = url(file);
         }
       }
     } catch { entry.nativeStale = true; }

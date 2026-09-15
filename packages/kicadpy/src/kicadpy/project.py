@@ -10,7 +10,7 @@ import re
 import tempfile
 
 SUFFIXES = {'.kicad_pro', '.kicad_pcb', '.kicad_sch', '.kicad_dru', '.kicad_sym', '.kicad_mod', '.step', '.stp', '.wrl'}
-NAMES = {'fp-lib-table', 'sym-lib-table', 'product.json', 'parts.json'}
+NAMES = {'fp-lib-table', 'sym-lib-table', 'product.json', 'parts.json', 'manufacturing.json'}
 
 
 def digest(data):
@@ -24,7 +24,7 @@ def manifest(root):
             continue
         if path.is_symlink():
             raise ValueError(f'symlink dependency unsupported: {path}')
-        if path.is_file() and (path.suffix in SUFFIXES or path.name in NAMES):
+        if path.is_file() and (path.suffix in SUFFIXES or path.name in NAMES or path.relative_to(root).parts[0] == 'engineering'):
             result[path.relative_to(root).as_posix()] = digest(path.read_bytes())
     return result
 
@@ -57,7 +57,7 @@ class Project:
         if self.file.suffix != '.kicad_pro' or not self.file.is_file():
             raise ValueError('expected an existing .kicad_pro')
         self.root = self.file.parent
-        if self.root.name == 'design' and any((self.root.parent / n).exists() for n in ('product.json', 'parts.json')):
+        if self.root.name == 'design' and any((self.root.parent / n).exists() for n in ('product.json', 'parts.json', 'manufacturing.json')):
             self.root = self.root.parent
         self.pcb = self.file.with_suffix('.kicad_pcb')
         self.sch = self.file.with_suffix('.kicad_sch')

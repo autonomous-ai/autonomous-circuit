@@ -9,7 +9,7 @@
 // emit artifact_changed, chains the autopilot build turn after a proposed
 // plan, and runs the silent 3-phase post-build review loop.
 
-import { nativeProject, nativePrompt, publishNativeWorkspace } from "./nativeEngine.mjs";
+import { nativeProject, nativePrompt, publishNativeWorkspace, runNativeReviewLoop } from "./nativeEngine.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1959,7 +1959,13 @@ export async function spawnTurn({
 
   if (nativeProject(workspace) && phase === PHASE.IMPLEMENT && !cancelled && sawOutput) {
     try {
-      await publishNativeWorkspace(workspace, env);
+      await publishNativeWorkspace(workspace, env, signal);
+      await runNativeReviewLoop({ workspace, signal,
+        publish: () => publishNativeWorkspace(workspace, env, signal),
+        onProgress: text => onEvent({kind: 'text_delta', turnId, text: `\n\n_${text}_`}),
+        review: round => runReviewRound({provider, executable, workspace, sessionId, turnId, model, effort,
+          prompt: `Complete native engineering/manufacturing review round ${round}. Read the latest manufacturing report and resolve its blockers.`, onEvent, signal, env}),
+      });
     } catch (error) {
       onEvent({ kind: "error", turnId, message: `KiCad v2 preview/check failed: ${error.message}` });
     }
@@ -2061,15 +2067,17 @@ async function runReviewRound({
   signal,
   env,
 }) {
+  const nativeAttestationPath = path.join(workspace,'.circuit/native-review-attestation.json');
+  if (nativeProject(workspace)) fs.rmSync(nativeAttestationPath,{force:true});
   const pre = snapshotWorkspace(workspace);
   const args = provider === "codex"
-    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
+    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: nativeProject(workspace) ? '' : codexSessionIdFor(workspace, env) })
     : buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
     child = spawnProvider(provider, executable, args, { workspace, env });
   } catch {
-    return false; // best-effort: a build that can't be reviewed just ends
+    return nativeProject(workspace) ? {failure:'Could not start native reviewer'} : false;
   }
   child.stdin.on("error", () => {});
   // Attaching beats leaving it to chance. Codex can open an image by path (its
@@ -2084,7 +2092,7 @@ async function runReviewRound({
     : "";
   child.stdin.end(
     provider === "codex"
-      ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
+      ? `${systemPromptForPhase(PHASE.REVIEW, workspace, env)}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
       : streamJsonInput(prompt),
   );
   child.stderr.resume();
@@ -2183,8 +2191,13 @@ async function runReviewRound({
   for (const event of diff) {
     onEvent(event); // only artifact diffs surface from a review round
   }
+  if (nativeProject(workspace) && !failure && (timedOut || child.exitCode !== 0)) failure = timedOut ? 'native review timed out' : `native review exited with code ${child.exitCode}`;
   if (failure) log(`review round failed before it could work: ${failure}`);
-  return { changed: diff.length > 0, failure };
+  let attestation = null;
+  if (nativeProject(workspace) && !failure) {
+    try { attestation=JSON.parse(fs.readFileSync(nativeAttestationPath,'utf8')); } catch { /* no independent attestation */ }
+  }
+  return { changed: diff.length > 0, failure, ...(nativeProject(workspace) ? {attestation} : {}) };
 }
 
 function emitUnresolvedNote(turnId, label, remaining, onEvent) {

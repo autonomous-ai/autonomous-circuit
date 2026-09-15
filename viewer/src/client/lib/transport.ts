@@ -65,6 +65,7 @@ export interface CatalogArtifact {
   orderUrl?: string;
   /** `<stem>_fab/board.glb` best-effort 3D body (viewer tab is post-v1). */
   glbUrl?: string;
+  manufacturingReportUrl?: string;
 }
 
 export interface CatalogEntry {
@@ -74,6 +75,7 @@ export interface CatalogEntry {
   url: string;
   artifact?: CatalogArtifact;
   nativeStale?: boolean;
+  nativeManufacturingVerified?: boolean;
   relations?: Record<string, string>;
 }
 

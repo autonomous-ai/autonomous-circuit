@@ -433,7 +433,7 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                 continue
             mask_role = f"mask_{side}"
             mask = indexes.get(mask_role)
-            if (mask is not None or filled.get(mask_role)) and not _covers(
+            if pad.mask_required and (mask is not None or filled.get(mask_role)) and not _covers(
                 filled.get(mask_role, []), mask, gx, gy, POSITION_TOLERANCE_MM
             ):
                 out.append(
@@ -446,7 +446,7 @@ def _pads_match(board: Board, packet: gbr.Packet, transform: Transform | None,
                         "error",
                     )
                 )
-            if assembly and not pad.plated_hole:
+            if assembly and not pad.plated_hole and pad.paste_required:
                 paste_role = f"paste_{side}"
                 paste = indexes.get(paste_role)
                 if (paste is not None or filled.get(paste_role)) and not _covers(
@@ -723,6 +723,13 @@ def check(
             coverage=coverage,
         )
 
+    return check_parsed(board, packet, assembly=assembly, rules=rules)
+
+
+def check_parsed(board: Board, packet: gbr.Packet, *, assembly: bool = True,
+                 rules: FabRules = JLCPCB_2LAYER) -> CheckResult:
+    """Reconcile an independently parsed packet, including native adapters."""
+    coverage = Coverage(unit="gerber layers")
     coverage.total = len(packet.layers) + len(packet.drills) + len(packet.ignored)
     coverage.examined = len(packet.layers) + len(packet.drills)
     for message in packet.ignored:

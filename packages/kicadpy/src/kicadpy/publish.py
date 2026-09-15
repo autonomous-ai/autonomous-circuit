@@ -5,11 +5,11 @@ from pathlib import Path
 import shutil
 import struct
 import tempfile
-from . import checks, toolchain
-from .project import Project, manifest, revision, write_json
+from . import checks, toolchain, manufacture
+from .project import Project, manifest, revision, write_json, digest
 
 
-def publish(path):
+def publish(path, manufacturing=False):
     project = Project(path)
     workspace = project.file.parent.parent if project.file.parent.name == 'design' else project.root
     boards = workspace / 'boards'
@@ -63,10 +63,15 @@ def publish(path):
                 except Exception as exc:
                     model.unlink(missing_ok=True)
                     model_warning = str(exc)
+                packet = None
+                if manufacturing:
+                    packet = manufacture.export(root, project.stem, render / 'manufacturing', report,
+                                                manufacture.design_inputs(snapshot))
                 if revision(root) != report['revision'] or revision(project.root) != source_revision:
                     raise ValueError('source changed during publication')
                 # Revision-named bundles avoid partial replacement of visible artifacts.
-                bundle = boards / (stem + '_review') / (report['revision'] + '-3d-v1' + ('-no-model' if model_warning else ''))
+                render_hash = digest(json.dumps({f.relative_to(render).as_posix(): digest(f.read_bytes()) for f in render.rglob('*') if f.is_file()}, sort_keys=True).encode())
+                bundle = boards / (stem + '_review') / (report['revision'] + '-' + render_hash[:16])
                 bundle.parent.mkdir(exist_ok=True)
                 if not bundle.exists():
                     shutil.copytree(render, bundle)
@@ -80,8 +85,13 @@ def publish(path):
                     'message': 'Experimental v2: native CAD checks only; engineering checks, PCBA data and hardware validation are incomplete.'})
                 if model_warning:
                     base['validation']['warnings'].append({'kind': 'native_3d_failed', 'severity': 'warning', 'message': model_warning})
+                if packet is not None:
+                    base['native']['manufacturing'] = packet
+                    base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
+                    base['fab']['ready'] = packet['prototypeReady']
                 write_json(metadata, base)
-                return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']), 'fabricationReady': False}
+                return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
+                        'manufacturingFindings': len(packet['findings']) if packet else None, 'fabricationReady': base['fab']['ready']}
         except Exception as exc:
             base['native']['publication'] = 'failed'
             base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc)}]
@@ -92,9 +102,10 @@ def publish(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('project')
+    parser.add_argument('--manufacturing', action='store_true')
     args = parser.parse_args()
     try:
-        print(json.dumps({'ok': True, 'result': publish(args.project)}))
+        print(json.dumps({'ok': True, 'result': publish(args.project, manufacturing=args.manufacturing)}))
     except Exception as exc:
         print(json.dumps({'ok': False, 'error': str(exc)}))
         raise SystemExit(1)

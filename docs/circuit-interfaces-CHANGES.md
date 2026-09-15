@@ -558,3 +558,26 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** existing v1 artifacts are unchanged. Native fab.ready
   stays false; native verdicts cannot claim orderability.
 - **Tracks affected:** native publisher, catalog, verdict copy and regression tests.
+
+## 2026-09-15 — native prototype manufacturing and review
+- **Change:** native implementation now runs an independent manufacturing
+  publication plus up to two separate native engineering review/repair rounds.
+  Cancellation/provider failure never records a completed review. An unchanged
+  source/finding count stops the loop; each successful round republishes.
+- **Change:** optional `--manufacturing` exports Gerber/drill, BOM/CPL, manual
+  assembly data, native positions, source archive, ORDER.md and parsed reports.
+  The checked copy is reconciled with an independent Gerber/Excellon parser;
+  a separate DRC applies the factory copper floor after project exceptions.
+- **Change:** `manufacturing.json` and hashed `engineering/` evidence are source
+  inputs. Seven engineering areas and explicit population/orientation choices
+  are required. Prototype readiness does not claim tested hardware.
+- **Change:** catalog artifacts include manufacturingReportUrl and use the
+  existing packet URLs. nativeManufacturingVerified requires current inputs,
+  intact packet hashes, parsed passing reports and the completed review journal
+  for that publication. Missing/stale/corrupt data keeps ordering disabled.
+- **Why:** allow native projects to progress toward a reviewable prototype order
+  without promoting CAD cleanliness or an agent statement to manufacturing pass.
+- **Backward compatible:** v1 remains unchanged. The shared verifier exposes
+  check_parsed and optional pad mask/paste requirements for the native adapter.
+- **Tracks affected:** kicadpy manufacturing/evidence/packet logic, verifylib
+  adapter, native driver/review journal, catalog, board actions and verdict UI.

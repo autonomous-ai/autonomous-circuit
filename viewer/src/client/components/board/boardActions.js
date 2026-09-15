@@ -90,6 +90,13 @@ export function packetDownloads(stem, artifact, { fabReady = false } = {}) {
       hint: "the whole design, to open in KiCad and edit by hand",
     },
     {
+      id: "manufacturing-report",
+      label: "Manufacturing review report",
+      url: String(artifact?.manufacturingReportUrl || ""),
+      filename: `${name}-manufacturing-report.json`,
+      hint: "checks and unresolved findings for this exact design revision",
+    },
+    {
       id: "glb",
       label: "3D model",
       url: String(artifact?.glbUrl || ""),

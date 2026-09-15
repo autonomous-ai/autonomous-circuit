@@ -22,7 +22,7 @@ def vector(xy):
 
 def copper(item):
     result = {'uuid': uid(item), 'net': item.GetNetname(), 'layer': item.GetLayerName(),
-              'widthMm': p.ToMM(item.GetWidth()), 'locked': item.IsLocked()}
+              'widthMm': p.ToMM(item.GetWidth(item.TopLayer()) if isinstance(item, p.PCB_VIA) else item.GetWidth()), 'locked': item.IsLocked()}
     if isinstance(item, p.PCB_VIA):
         result.update(kind='via', at=point(item.GetPosition()), drillMm=p.ToMM(item.GetDrillValue()),
                       layers=[p.BOARD.GetStandardLayerName(item.TopLayer()), p.BOARD.GetStandardLayerName(item.BottomLayer())])
@@ -39,13 +39,20 @@ def inspect(board):
     for f in board.GetFootprints():
         pads = [{'uuid': uid(pad), 'number': pad.GetNumber(), 'net': pad.GetNetname(),
                  'at': point(pad.GetPosition()), 'sizeMm': point(pad.GetSize()),
+                 'drillMm': point(pad.GetDrillSize()), 'attribute': int(pad.GetAttribute()),
+                 'plated': pad.GetAttribute() != p.PAD_ATTRIB_NPTH,
                  'rotationDeg': pad.GetOrientationDegrees(),
                  'layers': [board.GetLayerName(l) for l in pad.GetLayerSet().Seq()]} for pad in f.Pads()]
         footprints.append({'uuid': uid(f), 'reference': f.GetReference(), 'value': f.GetValue(),
+                           'footprint': str(f.GetFPID().GetLibItemName()), 'attributes': int(f.GetAttributes()),
+                           'dnp': f.IsDNP(), 'excludedFromBOM': f.IsExcludedFromBOM(),
+                           'excludedFromPosition': f.IsExcludedFromPosFiles(),
                            'at': point(f.GetPosition()), 'rotationDeg': f.GetOrientationDegrees(),
                            'layer': f.GetLayerName(), 'pads': pads})
     bbox = board.GetBoardEdgesBoundingBox()
     return {'kicad': p.GetBuildVersion(), 'coordinateSystem': 'KiCad absolute mm, y down; layers unmirrored',
+            'thicknessMm': p.ToMM(board.GetDesignSettings().GetBoardThickness()),
+            'copperLayers': [board.GetLayerName(l) for l in board.GetEnabledLayers().CuStack()],
             'boardBoundsMm': [p.ToMM(bbox.GetX()), p.ToMM(bbox.GetY()), p.ToMM(bbox.GetRight()), p.ToMM(bbox.GetBottom())],
             'nets': sorted(n.GetNetname() for n in board.GetNetInfo().NetsByName().values()),
             'footprints': footprints, 'copper': [copper(t) for t in board.GetTracks()],

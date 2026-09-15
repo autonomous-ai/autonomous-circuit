@@ -35,7 +35,7 @@ complete automatic circuit synthesizer or a qualified fabrication pipeline.
    For incremental repairs prefer the kicadpy route transaction, which preserves
    unaffected native objects, or apply for replace_track/set_width operations.
 7. Publish after every complete revision with host Python:
-   `python3.12 -m kicadpy.publish design/main.kicad_pro` (use the PYTHONPATH
+   `python3.12 -m kicadpy.publish --manufacturing design/main.kicad_pro` (use the PYTHONPATH
    supplied in the app system prompt). Read the returned native findings under
    boards/main_review/<revision>/reports/, fix their causes and repeat.
    The server also independently publishes at the end of the implementation turn.
@@ -48,16 +48,16 @@ work on a separate copy and preserve the original snapshot. Do not rebuild the
 whole board to fix a local routing defect. Re-run native checks after every
 source change. Close any other writer to the same project during commit/undo.
 
-## Deliverable and app limits
+## Deliverables and review
 
-The current app displays native PCB top/bottom and the root schematic as SVG
-previews. All hierarchical SVG sheets and native check reports remain in the
-preview bundle. Canvas placement editing and engineering check adapters are not
-connected for v2. The source files remain editable in KiCad or through the agent.
+The app displays native PCB/schematic SVG and KiCad GLB. All sheets, native
+reports, the prototype packet and engineering findings remain in the versioned
+bundle. Canvas placement editing is disabled; edit in KiCad or through the agent.
 
-A preview can be published with findings so the user can see the work and ask
-for repairs. Sidecar fab.ready is always false. A zero native finding count means
-only the enabled KiCad checks passed on the checked snapshot. Report engineering
-coverage, assembly data gaps and hardware status separately. Never generate an
-ORDER.md, gerber packet or declare the design ready to manufacture in this
-experimental app flow. Never hand-edit derived sidecars to change a verdict.
+Read MANUFACTURING.md for engineering evidence, assembly decisions and packet
+verification. The server runs up to two independent native review/repair rounds
+after implementation, with independent publication after each round. A preview
+may have findings; prototype ordering only unlocks after all blocking checks
+pass for the current source and intact packet. Never hand-edit derived sidecars
+or report files. Hardware testing is separate and must not be claimed without
+actual measurements. Exporting a packet never authorizes upload or payment.

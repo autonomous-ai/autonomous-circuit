@@ -73,7 +73,7 @@ export default function StartHere({
         <p className="text-xs text-amber-400">KiCad v2 · Experimental</p>
         <h1 className="text-2xl font-semibold text-white">{running ? "Working on your KiCad design" : "Describe a device. Start a KiCad design."}</h1>
         <p className="text-sm leading-6 text-white/60">Paste your prompt in the chat. Circuit plans the design, then creates native KiCad schematic and board files for review.</p>
-        <p className="text-xs leading-5 text-white/40">{running ? "Follow progress in the chat. " : ""}Previews include native checks. Engineering verification is incomplete; this mode does not produce factory-ready files.</p>
+        <p className="text-xs leading-5 text-white/40">{running ? "Follow progress in the chat. " : ""}Prototype ordering requires engineering review and a verified manufacturing packet. Physical hardware testing is a separate step.</p>
       </div>
     </div>
   );

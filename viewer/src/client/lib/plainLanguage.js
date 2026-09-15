@@ -915,10 +915,16 @@ export function boardVerdict({
   }
 
   if (sidecar?.source?.engine === "kicad-native") {
+    const packet = sidecar.native?.manufacturing;
+    if (sidecar.fab?.ready === true && packet?.prototypeReady === true) return {
+      tone: "ready", headline: "Ready for prototype order",
+      line: "Native CAD, engineering review and the manufacturing packet passed their checks. Physical hardware has not been tested.",
+      blockingGroups, blockingCount, action: null,
+    };
     return {
       tone: "blocked",
-      headline: "Engineering review required",
-      line: "KiCad v2 does not yet produce a verified Gerber, BOM and placement packet. Passing native CAD checks does not enable ordering.",
+      headline: "Prototype order blocked",
+      line: packet?.prototypeReady ? "The packet checks passed, but a completed independent review and intact current artifacts are still required." : packet ? `${(packet.findings || []).filter(f => f.severity === 'error').length} blocking manufacturing findings remain. Read the manufacturing report for the required changes.` : "The native manufacturing review has not run. Passing native CAD checks alone does not enable ordering.",
       blockingGroups,
       blockingCount,
       action: null,

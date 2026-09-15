@@ -265,7 +265,7 @@ export default function BoardWorkspace({
         return response.json();
       })
       .then((data) => {
-        if (!cancelled) setSidecar(selectedEntry?.sourceKind === "kicad-native" ? { ...data, fab: { ...data.fab, ready: false } } : data);
+        if (!cancelled) setSidecar(selectedEntry?.sourceKind === "kicad-native" ? { ...data, fab: { ...data.fab, ready: data.fab?.ready === true && selectedEntry.nativeManufacturingVerified === true } } : data);
       })
       .catch(() => {
         if (!cancelled) setSidecar(null);
@@ -1207,7 +1207,7 @@ export default function BoardWorkspace({
 
       {selectedEntry?.sourceKind === "kicad-native" ? (
         <p className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
-          KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : "Native CAD preview; engineering and fabrication verification are incomplete."}
+          KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : selectedEntry.nativeManufacturingVerified ? "Prototype packet verified; physical hardware is untested." : "Prototype manufacturing review is incomplete; see the reported findings."}
         </p>
       ) : null}
       {catalogError ? (
