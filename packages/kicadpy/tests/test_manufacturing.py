@@ -39,6 +39,9 @@ def test_assembly_requires_explicit_identity_population_and_rotation():
     assert findings == [] and not manual
     assert cpl[0]['Mid Y']=='-23.000000' and cpl[0]['Layer']=='Bottom' and cpl[0]['Rotation']=='0.000000'
     assert {r['Designator'] for r in bom} == {r['Designator'] for r in cpl}
+    parts['parts'][0]['manufacturer']='see MPN datasheet'
+    assert any(f['kind']=='bom_identity' for f in assembly_rows(state,parts,review)[0])
+    parts['parts'][0]['manufacturer']='maker'
     parts['parts'].append(parts['parts'][0])
     assert any(f['kind']=='bom_duplicate' for f in assembly_rows(state,parts,review)[0])
 

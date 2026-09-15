@@ -110,7 +110,8 @@ def assembly_rows(state, parts, review):
         if f['dnp'] or f['excludedFromBOM']:
             continue
         part = by_ref.get(ref, {})
-        if not part.get('mpn') or not part.get('manufacturer'):
+        identities=[str(part.get(k) or '').strip() for k in ('mpn','manufacturer')]
+        if any(not v or v.lower() in ('unknown','tbd','n/a','generic','-','?') or v.lower().startswith(('see ','refer to ')) for v in identities):
             findings.append(issue('bom_identity', 'Exact manufacturer and MPN are required.', ref))
         expected = str(part.get('project_footprint') or part.get('native_footprint') or '').split(':')[-1]
         if expected != f['footprint']:
