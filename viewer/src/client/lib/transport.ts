@@ -23,11 +23,13 @@
 export interface AppInfo {
   rootPath: string;
   appVersion: string;
+  defaultEngine?: "v1" | "kicad-native";
   pid: number;
 }
 
 // Circuit's catalog kinds (contract §2): `tsx | json | svg | png | zip | csv | md`.
 export type CatalogKind =
+  | "kicad_pcb"
   | "tsx"
   | "json"
   | "svg"
@@ -35,7 +37,7 @@ export type CatalogKind =
   | "zip"
   | "csv"
   | "md";
-export type SourceKindValue = "python" | "static";
+export type SourceKindValue = "python" | "static" | "tsx" | "kicad-native";
 
 /**
  * The board entry's grouped artifact (contract §2). Every URL carries
@@ -71,6 +73,7 @@ export interface CatalogEntry {
   sourceKind: SourceKindValue | null;
   url: string;
   artifact?: CatalogArtifact;
+  nativeStale?: boolean;
   relations?: Record<string, string>;
 }
 
@@ -201,6 +204,7 @@ export interface ProjectSummary {
   createdAt: number;
   updatedAt: number;
   hasModel: boolean;
+  engine?: "v1" | "kicad-native";
   /** True only while the workspace contains metadata/inputs but no design. */
   isNew?: boolean;
 }

@@ -528,3 +528,20 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; v1 runner, sidecars and app dispatch are unchanged.
   The new tool does not publish fabrication-ready sidecars or export fabrication.
 - **Tracks affected:** new native Python package, tests/fixtures and spike docs.
+
+## 2026-09-15 — experimental prompt-to-KiCad app mode
+- **Change:** `CIRCUIT_DEFAULT_ENGINE=kicad-native` marks newly created projects
+  with `project.json.engine`. The marker survives rename/touch/reopen; existing
+  unmarked projects retain v1. Native projects use native planning/implementation
+  prompts and an independent post-turn check/preview publisher, without v1's
+  best-build or repair-review loops.
+- **Change:** native `design/<stem>.kicad_pcb` catalog entries expose SVG previews
+  and a derived `boards/<stem>.board.json`. Native source changes invalidate
+  previews. Native sidecars keep `fab.ready=false`; only CAD-check results are
+  reported. Native canvas placement edits remain disabled.
+- **Why:** allow the user to paste a brief and exercise native authoring through
+  the app, while retaining revision-bound checks and honest readiness states.
+- **Backward compatible:** v1 dispatch and existing project metadata defaults
+  remain unchanged. `app_info.defaultEngine` reports the default for new projects.
+- **Tracks affected:** projects, driver, catalog, viewer board detection/banner,
+  new kicadpy preview publisher and workflow guidance.

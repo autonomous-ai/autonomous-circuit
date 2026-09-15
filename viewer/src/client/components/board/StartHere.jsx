@@ -46,6 +46,7 @@ export default function StartHere({
   // produce a board; a plan turn may end in questions, a refusal, or an
   // answer. See the planning branch below.
   phase = "",
+  native = false,
   className,
 }) {
   const quiet = buildLine?.tone === "quiet";
@@ -65,6 +66,17 @@ export default function StartHere({
   // Above the early return: this component swaps between the pitch and the
   // checklist, and a hook that only runs on one branch is a hook order change.
   const ticking = useElapsedS(clockFrom, running);
+
+  if (native) return (
+    <div data-slot="board-empty-state" className={cn("grid min-h-0 flex-1 place-items-center", className)} style={{ backgroundColor: "var(--ui-viewer-bg)" }}>
+      <div className="flex w-full max-w-lg flex-col gap-4 px-8">
+        <p className="text-xs text-amber-400">KiCad v2 · Experimental</p>
+        <h1 className="text-2xl font-semibold text-white">{running ? "Working on your KiCad design" : "Describe a device. Start a KiCad design."}</h1>
+        <p className="text-sm leading-6 text-white/60">Paste your prompt in the chat. Circuit plans the design, then creates native KiCad schematic and board files for review.</p>
+        <p className="text-xs leading-5 text-white/40">{running ? "Follow progress in the chat. " : ""}Previews include native checks. Engineering verification is incomplete; this mode does not produce factory-ready files.</p>
+      </div>
+    </div>
+  );
 
   if (!running && !failed && !stale) return <Pitch className={className} />;
 

@@ -54,3 +54,13 @@ without starting Freerouting or accessing the network. They do run local KiCad.
 KiCad-dependent skips do not count as acceptance.
 
 See `docs/architecture/kicad-native-spike.md` for evidence, limits and next slices.
+
+## Experimental app mode
+
+Start the viewer with `CIRCUIT_DEFAULT_ENGINE=kicad-native` to use native
+planning/authoring for **new projects**. Engine selection is persisted in
+project.json; old projects keep v1. Native implementation turns independently
+run `python3.12 -m kicadpy.publish design/<stem>.kicad_pro` after the agent exits.
+The publisher renders top/bottom PCB and schematic SVG from the checked copy,
+keeps CAD findings visible, and never marks fabrication ready. Native board
+canvas editing is disabled; request edits through chat. See PROMPT-WORKFLOW.md.
