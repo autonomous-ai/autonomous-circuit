@@ -545,3 +545,16 @@ first, in this template, before the doc itself is edited:
   remain unchanged. `app_info.defaultEngine` reports the default for new projects.
 - **Tracks affected:** projects, driver, catalog, viewer board detection/banner,
   new kicadpy preview publisher and workflow guidance.
+
+## 2026-09-15 — native 3D previews
+- **Change:** native preview bundles optionally contain `board.glb`, exported by
+  KiCad from the checked copy and exposed through the existing `artifact.glbUrl`.
+  GLB headers, length and mesh content are validated; export failure adds a warning
+  without discarding checked SVG previews. Source changes invalidate 3D as well.
+- **Change:** PCB SVGs exclude the drawing sheet. Native verdict text explains
+  the missing verified fabrication packet instead of suggesting another rebuild.
+- **Why:** make native designs reviewable in the existing 3D tab without implying
+  manufacturing readiness from a preview or clean ERC/DRC.
+- **Backward compatible:** existing v1 artifacts are unchanged. Native fab.ready
+  stays false; native verdicts cannot claim orderability.
+- **Tracks affected:** native publisher, catalog, verdict copy and regression tests.

@@ -132,7 +132,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       if (valid && data.native?.publication === "complete") {
         const bundle = path.resolve(rootDir, data.native.previewDir);
         if (!bundle.startsWith(path.join(rootDir, "boards", `${stem}_review`) + path.sep)) throw new Error("invalid preview bundle");
-        for (const [key, file] of [["pcbUrl", "_pcb.svg"], ["pcbBottomUrl", "_pcb_bottom.svg"], ["schematicUrl", "_schematic.svg"]]) {
+        for (const [key, file] of [["pcbUrl", "_pcb.svg"], ["pcbBottomUrl", "_pcb_bottom.svg"], ["schematicUrl", "_schematic.svg"], ["glbUrl", "board.glb"]]) {
           const asset = path.join(bundle, file);
           if (fs.existsSync(asset)) entry.artifact[key] = url(asset);
         }

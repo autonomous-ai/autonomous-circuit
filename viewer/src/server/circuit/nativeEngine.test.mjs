@@ -65,10 +65,12 @@ test('implementation turn publishes native previews and never invokes the v1 rev
   const entries = Array.isArray(catalog) ? catalog : catalog.entries;
   const board = entries.find(e => e.file === 'design/tiny.kicad_pcb');
   assert.match(board.artifact.pcbUrl, /_pcb.svg/);
+  assert.match(board.artifact.glbUrl, /board.glb/);
   assert.ok(!entries.some(e => e.file.includes('_review/')));
   fs.appendFileSync(path.join(workspace, 'design/tiny.kicad_pcb'), '\n');
   const next = scanProjectCatalog({ projectDir: workspace, projectId: 'test' });
   const stale = (Array.isArray(next) ? next : next.entries).find(e => e.file === board.file);
   assert.equal(stale.nativeStale, true);
   assert.equal(stale.artifact.pcbUrl, undefined);
+  assert.equal(stale.artifact.glbUrl, undefined);
 });

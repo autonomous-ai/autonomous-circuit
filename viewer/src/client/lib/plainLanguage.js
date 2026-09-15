@@ -914,6 +914,17 @@ export function boardVerdict({
     };
   }
 
+  if (sidecar?.source?.engine === "kicad-native") {
+    return {
+      tone: "blocked",
+      headline: "Engineering review required",
+      line: "KiCad v2 does not yet produce a verified Gerber, BOM and placement packet. Passing native CAD checks does not enable ordering.",
+      blockingGroups,
+      blockingCount,
+      action: null,
+    };
+  }
+
   if (sidecar?.fab?.ready === true) {
     // A ready board can still carry cosmetic and checker-setup notes. Saying
     // "every check passed" when 60 findings are on screen would read as a lie
