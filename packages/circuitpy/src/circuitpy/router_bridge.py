@@ -92,6 +92,7 @@ def engine() -> str:
 
 
 PASSES_ENV = "CIRCUIT_FREEROUTING_PASSES"
+FILL_ENV = "CIRCUIT_ROUTER_FILL_FROM_INCUMBENT"
 FREEROUTING_TIMEOUT_S = 1200.0
 FREEROUTING_PASSES = 30
 
@@ -100,9 +101,9 @@ def _freerouting_solution(problem, workdir: Path, report: dict, incumbent=None):
     """Freerouting's copper for ``problem`` — at the rules' target first and,
     if nets stay open, once more at the fab floor plus a hair — then
     routerlib's relay for whatever is still open (the follower sees
-    Freerouting's copper as obstacles), and last the incumbent's own copper
-    for any net nobody could close, so the board leaves here connected and
-    the DRC gate, not this stage, says whether that copper can stay.
+    Freerouting's copper as obstacles). Mixing in the incumbent's copper
+    requires CIRCUIT_ROUTER_FILL_FROM_INCUMBENT=1; by default the caller
+    retains the whole incumbent if connectivity would regress.
     Returns a RoutingSolution."""
     import dataclasses
     from routerlib import portfolio, specctra
@@ -178,7 +179,12 @@ def _freerouting_solution(problem, workdir: Path, report: dict, incumbent=None):
     }
     merged = patched.solution
     still_open = set(after.unconnected_nets)
-    if still_open and incumbent is not None:
+    # Measured 2026-09-11 on run 8: the compiler's V3_3 copper laid over
+    # Freerouting's gave 75 trace/via overlaps and 118 blocking findings —
+    # a wreck, not a board. So the fill is opt-in; by default an incomplete
+    # route keeps the incumbent whole (the rule below), and the report says
+    # which nets stayed open so the cause can be found.
+    if still_open and incumbent is not None and _truthy(os.environ.get(FILL_ENV)):
         # Last resort: the compiler's own copper for the nets nobody closed.
         # It was routed against different neighbours, so it may cross ours;
         # the DRC gate grades that and the repair loop can move it.

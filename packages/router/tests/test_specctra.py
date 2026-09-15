@@ -49,10 +49,10 @@ def _problem() -> RoutingProblem:
 def test_the_design_names_layers_outline_pads_nets_and_classes():
     dsn = specctra.write_dsn(_problem())
     assert "(layer F.Cu (type signal)" in dsn and "(layer B.Cu (type signal)" in dsn
-    assert "(boundary (path pcb 0 -10000 -10000 10000 -10000 10000 10000 -10000 10000 -10000 -10000))" in dsn
+    assert "(boundary (path pcb 0 -100000 -100000 100000 -100000 100000 100000 -100000 100000 -100000 -100000))" in dsn
     # every pad is its own one-pin component at the origin, pin at the pad
     assert "(component IMG_p1 (place p1 0 0 front 0))" in dsn
-    assert "(image IMG_p1 (pin PS0 1 -5000 0))" in dsn
+    assert "(image IMG_p1 (pin PS0 1 -50000 0))" in dsn
     # a bottom-only pad has a B.Cu shape and no F.Cu one
     ps_bottom = re.search(r"\(image IMG_p5 \(pin (PS\d+)", dsn).group(1)
     stack = re.search(rf"\(padstack {ps_bottom} (.*?)\(attach off\)\)", dsn).group(1)
@@ -60,14 +60,14 @@ def test_the_design_names_layers_outline_pads_nets_and_classes():
     # a through-hole pad is on both
     ps_th = re.search(r"\(image IMG_p3 \(pin (PS\d+)", dsn).group(1)
     stack = re.search(rf"\(padstack {ps_th} (.*?)\(attach off\)\)", dsn).group(1)
-    assert "(circle F.Cu 1200)" in stack and "(circle B.Cu 1200)" in stack
+    assert "(circle F.Cu 12000)" in stack and "(circle B.Cu 12000)" in stack
     # pins are bare identifiers (Freerouting reads a quoted one up to the quote)
     assert "(net n_sig (pins p1-1 p2-1))" in dsn
     assert "(net n_gnd (pins p3-1 p4-1))" in dsn
     assert "n_lone" not in dsn.split("(network")[1].split("(class")[0]
     # rails get the power width, signals the signal width, both the clearance
-    assert re.search(r"\(class power n_gnd .*\(rule \(width 500\) \(clearance 150\)\)", dsn)
-    assert re.search(r"\(class default n_sig .*\(rule \(width 200\) \(clearance 150\)\)", dsn)
+    assert re.search(r"\(class power n_gnd .*\(rule \(width 5000\) \(clearance 1500\)\)", dsn)
+    assert re.search(r"\(class default n_sig .*\(rule \(width 2000\) \(clearance 1500\)\)", dsn)
     # obstacles: the keep-out rectangle and the mounting hole with its clearance
     assert "(keepout k1 (polygon signal 0" in dsn
     assert "(keepout mount (circle signal" in dsn
@@ -89,15 +89,15 @@ _SES = """(session tiny
     )
     (network_out
       (net n_sig
-        (wire (path F.Cu 2000 -50000 0 -20000 0 -20000 10000) (type route))
-        (via "Via[0-1]_600:300_um" -20000 10000)
-        (wire (path B.Cu 2000 -20000 10000 50000 0) (type route))
+        (wire (path F.Cu 20000 -500000 0 -200000 0 -200000 100000) (type route))
+        (via "Via[0-1]_600:300_um" -200000 100000)
+        (wire (path B.Cu 20000 -200000 100000 500000 0) (type route))
       )
       (net n_gnd
-        (wire (path F.Cu 5000 -50000 50000 50000 50000) (type route))
+        (wire (path F.Cu 50000 -500000 500000 500000 500000) (type route))
       )
       (net n_unknown
-        (wire (path F.Cu 2000 0 0 1000 1000) (type route))
+        (wire (path F.Cu 20000 0 0 10000 10000) (type route))
       )
     )
   )
@@ -112,7 +112,7 @@ def test_the_session_comes_back_as_traces_and_vias_in_millimetres():
     by_net = {}
     for t in sol.traces:
         by_net.setdefault(t.net, []).append(t)
-    # resolution um 10: 50000 units = 5000 um = 5 mm
+    # the session comes back at ten times the design resolution: 500000 = 5 mm
     sig_top = next(t for t in by_net["n_sig"] if t.layer == TOP)
     assert sig_top.points[0] == Point(-5, 0) and sig_top.points[-1] == Point(-2, 1)
     assert abs(sig_top.width_mm - 0.2) < 1e-9
@@ -130,3 +130,36 @@ def test_the_session_comes_back_as_traces_and_vias_in_millimetres():
 def test_the_session_reader_survives_an_empty_network():
     sol = specctra.read_ses("(session x (routes (resolution um 10) (network_out)))", _problem())
     assert sol.traces == () and sol.vias == ()
+
+
+def test_captured_freerouting_session_preserves_physical_scale():
+    from pathlib import Path
+    from routerlib.connectivity import analyse
+    fixture = Path(__file__).parent / 'fixtures' / 'freerouting-2.4.1'
+    assert specctra.write_dsn(_problem()) == (fixture / 'tiny.dsn').read_text()
+    sol = specctra.read_ses((fixture / 'tiny.ses').read_text(), _problem())
+    assert analyse(_problem(), sol).complete
+    by_net = {t.net: t for t in sol.traces}
+    for net, y, width in [('n_sig', 0, .2), ('n_gnd', 5, .5)]:
+        t = by_net[net]
+        assert set(t.points) == {Point(-5, y), Point(5, y)}
+        assert abs(t.width_mm - width) < 1e-9
+
+
+def test_unsupported_session_resolution_is_refused():
+    import pytest
+    for declaration in ['', '(resolution mm 10)', '(resolution um 1)']:
+        with pytest.raises(ValueError, match='expected resolution'):
+            specctra.read_ses(f'(session x (routes {declaration} (network_out)))', _problem())
+
+
+def test_existing_copper_and_power_width_are_explicit():
+    from routerlib.model import RoutingSolution, Trace, Via
+    wiring = RoutingSolution(router='fixture', traces=(
+        Trace(id='t', net='n_sig', layer=TOP, points=(Point(-5, 0), Point(0, 0)), width_mm=.2),
+    ), vias=(Via(id='v', net='n_sig', center=Point(0, 0), pad_mm=.6, drill_mm=.3),))
+    for protect, kind in [(False, 'route'), (True, 'protect')]:
+        dsn = specctra.write_dsn(_problem(), wiring=wiring, protect=protect, power_width_mm=.25)
+        assert f'(wire (path F.Cu 2000 -50000 0 0 0) (net n_sig) (type {kind}))' in dsn
+        assert f'(via Via[0-1]_600:300_um 0 0 (net n_sig) (type {kind}))' in dsn
+        assert '(rule (width 2500) (clearance 1500))' in dsn

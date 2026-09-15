@@ -1,0 +1,59 @@
+(session tiny
+  (base_design tiny)
+  (placement
+    (resolution um 10)
+    (component "IMG_p1"
+      (place p1 0 0 front 0)
+    )
+    (component "IMG_p2"
+      (place p2 0 0 front 0)
+    )
+    (component "IMG_p3"
+      (place p3 0 0 front 0)
+    )
+    (component "IMG_p4"
+      (place p4 0 0 front 0)
+    )
+    (component "IMG_p5"
+      (place p5 0 0 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes
+    (resolution um 10)
+    (parser
+      (host_cad "autonomous-circuit")
+      (host_version "1.8")
+    )
+    (library_out
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle F.Cu 60000 0 0)
+        )
+        (shape
+          (circle B.Cu 60000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out
+      (net "n_gnd"
+        (wire
+          (path F.Cu 50000
+            500000 500000
+            -500000 500000
+          )
+        )
+      )
+      (net "n_sig"
+        (wire
+          (path F.Cu 20000
+            500000 0
+            -500000 0
+          )
+        )
+      )
+    )
+  )
+)

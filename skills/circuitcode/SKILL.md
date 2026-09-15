@@ -108,11 +108,10 @@ Four habits, applied without being asked:
    then the board goes to Freerouting at the rules' target and, if nets stay
    open, once more at the fab floor plus a hair; routerlib patches what is
    still open with Freerouting's copper as obstacles; and any net nobody
-   closed keeps the compiler's own copper (`build.router.filledFromIncumbent`
-   — expect the DRC gate to have an opinion about that copper, and repair it
-   in place). Measured on run 8: 153 vias → 120. The stage keeps the incumbent
-   outright when it would connect fewer nets, so `build.router.applied ==
-   false` with a `reason` is the compiler's copper, unchanged.
+   closed stays open by default. Mixing compiler copper into the result is
+   opt-in (`CIRCUIT_ROUTER_FILL_FROM_INCUMBENT=1`) because it was routed against
+   different neighbours and can create shorts. The stage keeps the whole
+   incumbent if connectivity would regress. `build.router.applied == false` with a `reason` is the compiler's copper, unchanged.
    `CIRCUIT_ROUTER=off` pins the compiler's router for an A/B.
 
 ## Treat the device as a project

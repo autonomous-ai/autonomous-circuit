@@ -500,3 +500,20 @@ first, in this template, before the doc itself is edited:
   `toolchain.py`), build script, SKILL.md.
 
 (No further entries yet.)
+
+## 2026-09-15 — v1.8: correct routing scale and make incumbent mixing opt-in
+- **Change:** DSN coordinates and dimensions use 10,000 units/mm; via names
+  continue to use whole micrometres. The SES reader supports the pinned
+  Freerouting 2.4.1 output convention (100,000 units/mm with `resolution um 10`)
+  and refuses missing or unsupported resolution declarations. A captured
+  real-router DSN/SES pair protects physical dimensions in offline tests.
+  `write_dsn` also accepts existing wiring, protection and a power-width override.
+- **Change:** filling open nets with compiler copper now requires
+  `CIRCUIT_ROUTER_FILL_FROM_INCUMBENT=1`. By default the existing connectivity
+  gate retains the whole incumbent if the proposed route connects fewer nets.
+  `filledFromIncumbent` is only emitted when mixing is explicitly enabled.
+- **Why:** mixing copper routed against different neighbours can introduce
+  shorts. Coordinate scale errors invalidate routing geometry and rule sizes.
+- **Backward compatible:** sidecar shape stays compatible; default routing
+  geometry and fallback behavior change. No v2 engine or cutover is included.
+- **Tracks affected:** routerlib, circuitpy router bridge, circuitcode guidance.

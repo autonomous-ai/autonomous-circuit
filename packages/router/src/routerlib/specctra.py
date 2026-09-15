@@ -18,9 +18,10 @@ Two decisions keep it small and exact:
   ids are unique by construction and come back verbatim in the session, so
   the reader never has to guess which net a wire belongs to.
 
-Coordinates go out in micrometres as integers (`(resolution um 10)` gives
-Freerouting a tenth of a micrometre to work in) and come back through the
-session's own `resolution` line, so a board round-trips to the nanometre.
+Coordinates go out in tenths of a micrometre. The reader supports sessions
+from the pinned Freerouting 2.4.1 with this writer: its coordinates come back
+at ten times the design resolution despite the unchanged declaration.
+A captured DSN/SES fixture checks this convention offline.
 """
 
 from __future__ import annotations
@@ -44,11 +45,24 @@ from .model import (
 LAYER_NAMES = {TOP: "F.Cu", BOTTOM: "B.Cu"}
 LAYER_BACK = {v: k for k, v in LAYER_NAMES.items()}
 
-#: Micrometres per millimetre; every coordinate in the DSN is an integer of these.
+#: DSN units per millimetre. `(resolution um 10)` — KiCad's own export
+#: convention, which Freerouting's reader assumes — means ten units per
+#: micrometre: a coordinate of 123456 is 12.3456 mm. Measured 2026-09-11:
+#: written in plain micrometres the board came out ten times too small,
+#: Freerouting routed it at 0.011 mm clearance and 0.06 mm vias, and the DRC
+#: gate read 0.03–0.04 mm gaps all over the copper it returned.
+_UNITS_PER_MM = 10_000
+#: Micrometres per millimetre, for the names that carry sizes (`…_600:300_um`).
 _UM = 1000
 
 
 def _um(mm: float) -> int:
+    """A coordinate or size in DSN units (tenths of a micrometre)."""
+    return int(round(mm * _UNITS_PER_MM))
+
+
+def _um_name(mm: float) -> int:
+    """A size in whole micrometres, for a padstack name."""
     return int(round(mm * _UM))
 
 
@@ -73,7 +87,7 @@ def _rotate(x: float, y: float, deg: float) -> tuple[float, float]:
 
 
 def _via_padstack(rules) -> str:
-    return f"Via[0-1]_{_um(rules.via_pad_mm)}:{_um(rules.via_drill_mm)}_um"
+    return f"Via[0-1]_{_um_name(rules.via_pad_mm)}:{_um_name(rules.via_drill_mm)}_um"
 
 
 def _pad_layers(pad) -> list[str]:
@@ -120,17 +134,28 @@ def write_dsn(
     name: str | None = None,
     clearance_mm: float | None = None,
     signal_width_mm: float | None = None,
+    power_width_mm: float | None = None,
+    wiring: RoutingSolution | None = None,
+    protect: bool = False,
 ) -> str:
     """The Specctra design for ``problem``. Deterministic: same problem, same text.
 
     ``clearance_mm`` / ``signal_width_mm`` override the rules' targets — the
     tight retry uses the fab floor plus a hair where the target left a
     connector's pins walled in.
+
+    ``wiring`` pre-loads copper (a previous session, typically) so a run
+    continues from it instead of from nothing; ``protect`` fixes that copper
+    so the router routes around it rather than ripping it up.
     """
     rules = problem.rules
     via_ps = _via_padstack(rules)
     signal_w = _um(signal_width_mm if signal_width_mm is not None else rules.signal_trace_mm)
-    power_w = _um(rules.power_trace_mm)
+    # A rail at its full width cannot enter a 0.4 mm-pitch QFN pin (0.2 mm
+    # pads, 0.2 mm gaps): V3_3 on run 8 stayed open at 0.5 mm however many
+    # passes. Route rails at the width the caller gives — the pipeline's
+    # own widening pass takes them up where the copper has room after.
+    power_w = _um(power_width_mm if power_width_mm is not None else rules.power_trace_mm)
     clearance = _um(clearance_mm if clearance_mm is not None else rules.target_clearance_mm)
     out: list[str] = []
     out.append(f"(pcb {_q(name or problem.id)}")
@@ -212,7 +237,20 @@ def write_dsn(
         out.append(f"    (class {cls} {names} (circuit (use_via {_q(via_ps)})) "
                    f"(rule (width {width}) (clearance {clearance})))")
     out.append("  )")
-    out.append("  (wiring)")
+    if wiring is None or (not wiring.traces and not wiring.vias):
+        out.append("  (wiring)")
+    else:
+        kind = "protect" if protect else "route"
+        out.append("  (wiring")
+        for t in wiring.traces:
+            layer = LAYER_NAMES.get(t.layer)
+            if layer is None or len(t.points) < 2:
+                continue
+            pts = " ".join(f"{_um(p.x)} {_um(p.y)}" for p in t.points)
+            out.append(f"    (wire (path {layer} {_um(t.width_mm)} {pts}) (net {_q(t.net)}) (type {kind}))")
+        for v in wiring.vias:
+            out.append(f"    (via {_q(via_ps)} {_um(v.center.x)} {_um(v.center.y)} (net {_q(v.net)}) (type {kind}))")
+        out.append("  )")
     out.append(")")
     return "\n".join(out) + "\n"
 
@@ -270,13 +308,20 @@ def _first(tree, head: str):
 
 
 def _resolution(tree) -> float:
-    """Millimetres per session coordinate unit."""
+    """Millimetres per session coordinate unit.
+
+    Measured 2026-09-11, twice: Freerouting writes the session in **ten
+    times** the design's resolution whatever the session's own
+    `(resolution um 10)` line says — a 0.5 mm width written as 5000 in a
+    tenth-of-a-micrometre design comes back as 50000, a via at -10.98 mm as
+    -1098322. So the scale is derived from what we wrote, not from what the
+    session declares; the declaration is read only to refuse a file in a
+    unit we did not write.
+    """
     res = _first(tree, "resolution")
-    unit, per = ("um", 1.0)
-    if res and len(res) >= 3:
-        unit, per = str(res[1]), float(res[2])
-    scale = {"um": 1e-3, "mm": 1.0, "mil": 0.0254, "inch": 25.4}.get(unit, 1e-3)
-    return scale / per
+    if not res or len(res) != 3 or res[1:] != ["um", "10"]:
+        raise ValueError("expected resolution um 10 from pinned Freerouting 2.4.1")
+    return 1.0 / (_UNITS_PER_MM * 10)
 
 
 def read_ses(text: str, problem: RoutingProblem, *, router: str = "freerouting") -> RoutingSolution:
