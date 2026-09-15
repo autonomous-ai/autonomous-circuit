@@ -2337,12 +2337,21 @@ def harness_verdict(sidecar: dict, *, artifact: str) -> dict[str, object]:
         if not errors and ("unverified_gerbers" in kinds or "kicad_unavailable" in kinds):
             parts.append("gerbers unverified — kicad-cli missing")
         summary = ", ".join(parts) if parts else "Not fab-ready"
+    # Where the board is, for the host's phase strip: the build that wrote this sidecar is
+    # done; the checks are done when nothing blocks; fab is done when `fab.ready`. A plan
+    # phase precedes all three but leaves no sidecar, so the strip starts at Build.
+    phases = [
+        {"id": "build", "name": "Build", "state": "done"},
+        {"id": "checks", "name": "Checks", "state": "done" if errors == 0 else "failed"},
+        {"id": "fab", "name": "Fab", "state": "done" if ready else "active" if errors == 0 else "pending"},
+    ]
     return {
         "spec": 1,
         "ready": ready,
         "summary": summary,
         "findings": findings,
         "artifact": artifact,
+        "phases": phases,
         "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }
 

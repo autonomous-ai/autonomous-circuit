@@ -94,3 +94,17 @@ class HarnessVerdictTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_phases_follow_the_gates():
+    from circuitpy.generation import harness_verdict
+
+    ready = harness_verdict({"fab": {"ready": True}, "validation": {"warnings": []}}, artifact="b.board.json")
+    assert [(p["name"], p["state"]) for p in ready["phases"]] == [("Build", "done"), ("Checks", "done"), ("Fab", "done")]
+    blocked = harness_verdict(
+        {"fab": {"ready": False}, "validation": {"warnings": [{"severity": "error", "kind": "k", "detail": "d"}]}},
+        artifact="b.board.json",
+    )
+    assert [(p["name"], p["state"]) for p in blocked["phases"]] == [("Build", "done"), ("Checks", "failed"), ("Fab", "pending")]
+    unverified = harness_verdict({"fab": {"ready": False}, "validation": {"warnings": []}}, artifact="b.board.json")
+    assert [p["state"] for p in unverified["phases"]] == ["done", "done", "active"]
