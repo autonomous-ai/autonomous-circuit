@@ -3,6 +3,9 @@
   "id": "autonomous/copper",
   "name": "Copper",
   "category": "PCB",
+  "formerly": [
+    "autonomous/circuit"
+  ],
   "description": "Describe a board; get a fab-ready PCB with a live board view, ordered from JLCPCB in a click.",
   "engine": "claude",
   "workspace": {
