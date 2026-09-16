@@ -2,7 +2,8 @@
 
 Python 3.10+ host, matching KiCad 10 CLI/pcbnew. The macOS bundle is discovered
 automatically. Set `KICADPY_CLI` / `KICADPY_PYTHON` for another installation.
-This is an opt-in tool for an existing project, alongside v1; it does not export fab.
+This is an opt-in tool for an existing project, alongside v1. `kicadpy.publish
+--manufacturing` exports a prototype packet but never sets the order gate itself.
 
 From the repo root:
 

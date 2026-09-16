@@ -101,10 +101,16 @@ export async function runNativeReviewLoop({ workspace, review, publish, onProgre
   const state = nativeManufacturingState(workspace);
   const verified = state.ready && history.some(r=>r.state==='ready-for-prototype') && !signal?.aborted && !history.some(r => r.state === 'interrupted');
   fs.writeFileSync(journal, JSON.stringify({state:verified?'verified':'blocked',rounds:history,publications:state.publications},null,2));
-  // Wake the catalog after the journal is committed, so the final order gate
-  // is visible without a manual reload even when no source changed.
+  // The publisher writes `fab.ready` false; the contract's order gate is set
+  // here and nowhere else, once the journal says verified. Any later publish
+  // resets it, so a board is never ready for a source nobody attested to.
+  // Rewriting the sidecar also wakes the catalog without a manual reload.
   for (const name of fs.readdirSync(path.join(workspace,'boards')).filter(n=>n.endsWith('.board.json'))) {
-    const file=path.join(workspace,'boards',name); const now=new Date(); fs.utimesSync(file,now,now);
+    const file=path.join(workspace,'boards',name);
+    let data; try { data=JSON.parse(fs.readFileSync(file,'utf8')); } catch { continue; }
+    if (data?.source?.engine !== NATIVE_ENGINE) continue;
+    data.fab = { ...(data.fab || {}), ready: verified && data.native?.manufacturing?.prototypeReady === true };
+    fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
   }
   onProgress(verified ? 'Native prototype packet verified. Physical hardware remains untested.' : `Native manufacturing review stopped with ${state.blockers} blocking findings; see the manufacturing report.`);
   return history;

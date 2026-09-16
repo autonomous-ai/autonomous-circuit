@@ -78,9 +78,12 @@ The captured native SES is replayed offline in tests; no routing network calls.
   Ignored categories are exposed. Product engineering checks are not ported.
 - Schematic writing, footprint moves, detailed zone/schematic rendering, app
   catalog/watcher/edit dispatch and full verifylib adapters are subsequent work.
-- No fabrication export tool is exposed. fabricationReady, assemblyReady and
-  hardwareTested remain false. File verification, PCBA data completeness and
-  hardware validation must be independent statuses in later app integration.
+- `kicadpy.publish --manufacturing` exports the revision-bound prototype packet
+  (MANUFACTURING.md). The publisher writes `fab.ready` false; the app's native
+  review loop sets it true only after a verified independent attestation for
+  that exact source, and any republish resets it. `assemblyReady` and
+  `hardwareTested` remain false: PCBA data completeness and hardware validation
+  are independent statuses.
 - Next: robust project dependency/tool provenance and concurrency, viewer adapter
   integration, engineering check coverage, then prompt-to-board and repeated v1/v2
   comparisons. The earlier proposals are historical inputs, not current contracts.

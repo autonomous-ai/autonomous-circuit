@@ -1,4 +1,10 @@
-"""Publish checked native previews for the experimental app; never fab output."""
+"""Publish checked native previews and the revision-bound prototype packet.
+
+This tool reports; it never promotes. `fab.ready` is written false here and
+only the app's native review loop (nativeEngine.mjs) sets it true, after an
+independent attestation for this exact source. `native.manufacturing.prototypeReady`
+carries the packet verdict on its own.
+"""
 import argparse
 import json
 from pathlib import Path
@@ -88,12 +94,13 @@ def publish(path, manufacturing=False):
                 if packet is not None:
                     base['native']['manufacturing'] = packet
                     base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
-                    base['fab']['ready'] = packet['prototypeReady']
+                    # Not `fab.ready`: the contract's order gate is the review loop's to set.
                 for warning in base['validation']['warnings']:
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)
                 return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
-                        'manufacturingFindings': len(packet['findings']) if packet else None, 'fabricationReady': base['fab']['ready']}
+                        'manufacturingFindings': len(packet['findings']) if packet else None,
+                        'prototypeReady': packet['prototypeReady'] if packet else None, 'fabricationReady': base['fab']['ready']}
         except Exception as exc:
             base['native']['publication'] = 'failed'
             base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc), 'detail': str(exc)}]

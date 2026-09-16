@@ -581,3 +581,27 @@ first, in this template, before the doc itself is edited:
   check_parsed and optional pad mask/paste requirements for the native adapter.
 - **Tracks affected:** kicadpy manufacturing/evidence/packet logic, verifylib
   adapter, native driver/review journal, catalog, board actions and verdict UI.
+
+## 2026-09-16 — the native publisher reports; only the review loop sets `fab.ready`
+- **Change:** `kicadpy.publish --manufacturing` no longer copies
+  `native.manufacturing.prototypeReady` into `fab.ready`; the sidecar leaves the
+  app's publisher with `fab.ready=false` every time. `runNativeReviewLoop`
+  (nativeEngine.mjs) rewrites each native `boards/*.board.json` at the end of the
+  loop with `fab.ready = verified && prototypeReady`, where `verified` requires a
+  completed round, a fresh attestation naming this exact `source.fingerprint`,
+  no interruption and no cancellation. Any later publish resets the gate.
+- **Why:** contract §"fab-ready" says a board is complete only when `fab.ready`
+  is true, and every reader outside the viewer (ledger, zips, the design-review
+  skill, a human opening the file) trusts that flag alone. PR #34 commit b5144a8
+  had the publisher set it from the packet checks, so a native board with a
+  passing packet and *no* independent review read as orderable on disk while the
+  app said otherwise (the 2026-09-15 CHANGES entry above even states native
+  sidecars keep `fab.ready=false`). Found in review 2026-09-16.
+- **Backward compatible:** yes for v1 (untouched). For native boards the flag
+  can only become true through the loop; nothing else changes shape.
+  `publish` adds `prototypeReady` to its stdout result so callers still see the
+  packet verdict.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/publish.py`,
+  `viewer/src/server/circuit/nativeEngine.mjs` (+ test), spike doc and README
+  wording. No skill runtime re-vendor (kicadpy is not vendored).
+- **Tracks affected:** pipeline (kicadpy) / server / docs.

@@ -37,3 +37,4 @@ Run only the checks relevant to the change.
 - routerlib: `cd packages/router && python3.12 -m pytest -q` (routing contract, benchmark, scorer)
 - viewer (client + server): `npm --prefix viewer test && npm --prefix viewer run build`
 - skills: `cd skills/circuitcode && python3.12 -m pytest tests/ -q`
+- kicadpy (native KiCad v2): `PYTHONPATH=packages/kicadpy/src:packages/circuitpy/src CIRCUIT_PARTS_ENGINE=off python3.12 -m pytest -q packages/kicadpy` (needs KiCad 10 on this machine; skips are not a pass)

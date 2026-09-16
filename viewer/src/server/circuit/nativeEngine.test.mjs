@@ -93,13 +93,21 @@ test('a native packet needs an independent attestation for the exact source befo
   const args={workspace,publish:async()=>{},onProgress:()=>{}};
   await runNativeReviewLoop({...args,review:async()=>({})});
   const journal=()=>JSON.parse(fs.readFileSync(path.join(workspace,'.circuit/native-review.json')));
+  const sidecar=()=>JSON.parse(fs.readFileSync(path.join(workspace,'boards/main.board.json')));
   assert.equal(journal().state,'blocked');
+  assert.equal(sidecar().fab.ready,false);
   const attestation={status:'pass',reviewer:'test',summary:'Reviewed fixture',sourceFingerprints:['stale']};
   await runNativeReviewLoop({...args,review:async()=>({attestation})});
   assert.equal(journal().state,'blocked');
   attestation.sourceFingerprints=['revision'];
   await runNativeReviewLoop({...args,review:async()=>({attestation})});
   assert.equal(journal().state,'verified');
+  assert.equal(sidecar().fab.ready,true);
+  // A republish of the same packet resets the gate: only a fresh verified loop sets it.
+  fs.writeFileSync(path.join(workspace,'boards/main.board.json'),JSON.stringify({...sidecar(),fab:{ready:false}}));
+  await runNativeReviewLoop({...args,review:async()=>({})});
+  assert.equal(journal().state,'blocked');
+  assert.equal(sidecar().fab.ready,false);
 });
 
 test('native review stops when unchanged and reports provider failure without claiming pass', async () => {
@@ -110,6 +118,7 @@ test('native review stops when unchanged and reports provider failure without cl
   const args={workspace,review:async()=>{reviews++;return {};},publish:async()=>{publications++;},onProgress:m=>messages.push(m)};
   const unchanged=await runNativeReviewLoop(args);
   assert.equal(reviews,1);assert.equal(publications,1);assert.equal(unchanged[0].state,'blocked');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(workspace,'boards/main.board.json'))).fab.ready,false);
   const failed=await runNativeReviewLoop({...args,review:async()=>({failure:'usage limit'})});
   assert.equal(failed[0].state,'interrupted');
   assert.ok(messages.some(m=>m.includes('usage limit')));
