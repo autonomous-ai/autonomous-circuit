@@ -30,9 +30,10 @@ export function nativePrompt(phase, workspace, env = process.env) {
     'Retain engineering knowledge from existing block documentation and parts tools, but verify pin maps and native footprints. Do not copy an unrelated reference board as the requested design.',
     'Safety requirements still apply: no mains, low-voltage DC <=24 V, batteries only via a sealed validated charge/protect module, radio only certified modules. Refuse requests outside this envelope.',
     'State uncertainties honestly. Native CAD checks do not establish engineering correctness, PCBA completeness or tested hardware. Prototype readiness requires the independently verified manufacturing packet and evidence-backed engineering review.',
+    'The user does not read circuits. Engineering decisions are yours: part choices, values, copper, thermal, protection, process and order settings. Never ask the user a technical question — decide, write the reason and the evidence under engineering/, and say what only a bench test or the fab can settle. The user answers only what they can experience: which device it connects to, how big, which battery, what it must do.',
   ];
   if (phase === 'plan') return [...common,
-    'This phase is read-only. Resolve the brief, outline/size, power budget, components and net/pin allocation, placement, stackup and verification approach. Ask only unresolved material preferences.',
+    'This phase is read-only and capped at 40 minutes: no web research here, it belongs to the build turn. Resolve the brief, outline/size, power budget, components and net/pin allocation, placement, stackup and verification approach. Ask only about things the user can experience (device, size, battery, what it does), never about parts, voltages, rules or processes.',
     'For questions use a circuit-questions fenced JSON block with {"questions":[{"question":"...","header":"...","multiSelect":false,"options":[{"label":"Let Circuit choose","description":"Recommended default"},{"label":"...","description":"..."}]}]}. End the turn after questions.',
     'When ready, emit the COMPLETE plan in one circuit-plan fenced Markdown block. The app uses this fence as its approve button. Do not write files in this phase.',
   ].join('\n');
@@ -43,7 +44,7 @@ export function nativePrompt(phase, workspace, env = process.env) {
     'Write manufacturing.json and engineering/ evidence using the exact contract. Pass an area only with sufficient design evidence; distinguish bench tests that require physical prototypes from design prerequisites. Never invent measurements, availability, reviewed rotations, approval or report signatures.',
     `After revisions, update the exact designInputs and evidence digests, then run ${command}. Read the resulting findings.`,
     'At the end write .circuit/native-review-attestation.json with {status:"pass"|"blocked", reviewer:"your identity/model", summary:"your independent review conclusion and remaining limits", sourceFingerprints:[the exact source.fingerprint values from the final native board sidecars]}. A pass attests to your own review of these exact sources, not to earlier agent claims. Do not write pass if engineering or manufacturing blockers remain.',
-    'Do not edit derived reports/sidecars. Do not order, upload, pay, or claim production hardware validation. Return remaining blockers with concrete reasons.',
+    'Do not edit derived reports/sidecars. Do not order, upload, pay, or claim production hardware validation. Fix every blocker a board, parts or evidence edit can fix; for each one that remains, say who closes it — you in a later revision, the fab at quote time, or a bench test — never the user.',
   ].join('\n');
   return [...common,
     'The user approved implementation. Build the requested design now. Start with product.json, then native schematic with local symbols, PCB/footprints/netlist parity, placement and native routing.',
@@ -51,7 +52,7 @@ export function nativePrompt(phase, workspace, env = process.env) {
     'Keep existing correct copper. Use kicadpy snapshot/apply/route/check/commit/undo for supported changes; for other design changes first snapshot and work in a candidate copy. Keep the resulting source under design/main.*.',
     `After each complete design revision run: ${command}`,
     'The publisher writes native check reports and SVG previews under boards/main_review and a derived boards/main.board.json for the app. Read its findings, repair and republish. Do not author or modify generated sidecars to claim a pass.',
-    `Read ${path.join(repo, 'packages/kicadpy/MANUFACTURING.md')} for engineering evidence and assembly requirements. Finish with the native project path, remaining findings and limitations. The app runs a separate native review/repair loop and independent packet checks after your turn.`,
+    `Read ${path.join(repo, 'packages/kicadpy/MANUFACTURING.md')} for engineering evidence and assembly requirements. Work through every finding you can close yourself before the turn ends. Finish with the native project path, what changed, what remains and who closes it — never a question to the user. The app runs a separate native review/repair loop and independent packet checks after your turn.`,
   ].join('\n');
 }
 

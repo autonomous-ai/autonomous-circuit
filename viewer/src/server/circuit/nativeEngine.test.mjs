@@ -25,6 +25,10 @@ test('native default is persisted for new projects and never switches old projec
   assert.match(prompt, /circuit-plan/);
   assert.doesNotMatch(prompt, /<Rp2040Core/);
   assert.match(nativePrompt('implement', '/tmp/project'), /kicadpy.publish/);
+  // The owner does not read circuits: no phase may end on a technical question.
+  for (const phase of ['plan', 'implement', 'review']) assert.match(nativePrompt(phase, '/tmp/project'), /Never ask the user a technical question/);
+  assert.match(nativePrompt('plan', '/tmp/project'), /capped at 40 minutes/);
+  assert.match(nativePrompt('review', '/tmp/project'), /never the user/);
 });
 
 test('native sources are board entries, snapshots are not', () => {
