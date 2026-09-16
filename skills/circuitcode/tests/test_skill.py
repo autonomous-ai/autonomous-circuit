@@ -163,6 +163,26 @@ def test_error_code_surfaces(tmp_path: Path, directive: str, code: str):
     assert payload["error"]["traceback"]
 
 
+def test_a_failed_build_still_writes_the_harness_verdict(tmp_path: Path):
+    """A build that dies before the sidecar leaves no artifact for a host to
+    read, so the CLI writes `.harness/verdict.json` itself — otherwise a pane
+    header keeps showing the previous build (Harness DSH contract, spec 1)."""
+    root = write_project(tmp_path / "failverdict", tsx="// STUB_COMPILE_ERROR\n" + GOOD_TSX)
+    proc = _run("circuit", "boards/main.tsx", cwd=root)
+    payload = _payload(proc)
+    assert payload["ok"] is False
+    verdict = json.loads((root / ".harness" / "verdict.json").read_text(encoding="utf-8"))
+    assert verdict["spec"] == 1
+    assert verdict["ready"] is False
+    assert verdict["summary"] == "Build failed: COMPILE_ERROR"
+    assert verdict["findings"][0]["severity"] == "error"
+    assert verdict["findings"][0]["kind"] == "COMPILE_ERROR"
+    assert verdict["findings"][0]["message"] == payload["error"]["message"]
+    assert not (root / ".harness" / "verdict.json.tmp").exists()
+    # The stdout contract is untouched: the last line is still the one JSON line.
+    assert proc.stdout.strip().splitlines()[-1].startswith("{")
+
+
 def test_missing_product_json_is_validation_failed(tmp_path: Path):
     root = write_project(tmp_path / "noproduct")
     (root / "product.json").unlink()

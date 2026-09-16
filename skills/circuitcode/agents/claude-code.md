@@ -17,9 +17,9 @@ Close it yourself with the tools you already have:
 | **inspect** | `Glob` / `Bash ls`; `Read` product.json, parts.json, boards/main.tsx, and each `BLOCK.md` you plan to use |
 | **plan** | reasoning + `circuitlib.helpers.board_plan()` — block table, power budget, pin allocation |
 | **write** | `Write` / `Edit` on `boards/main.tsx` — always an absolute path |
-| **build** | `Bash` → `python ~/.claude/skills/circuitcode/scripts/circuit <abs boards/main.tsx>` |
+| **build** | `Bash` → `python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/circuit" <abs boards/main.tsx>` |
 | **read verdict** | parse the single JSON line — `ok`, `error.code`, `warnings[].severity`, `fab.ready` |
-| **LOOK** | `Bash` → `python ~/.claude/skills/circuitcode/scripts/review <abs project>`; then `Read` **both** PNGs |
+| **LOOK** | `Bash` → `python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/circuitcode/scripts/review" <abs project>`; then `Read` **both** PNGs |
 | **fix** | `Edit` — same file, smallest change |
 | **repeat** | back to *build* |
 

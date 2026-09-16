@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -116,6 +118,49 @@ def _fail(message: str, code: str = "VALIDATION_FAILED") -> int:
     return 2
 
 
+def project_root_for(source: Path) -> Path:
+    """The nearest ancestor of the board source holding `product.json`, else the
+    conventional `<project>/boards/<stem>.tsx` parent-of-parent."""
+    for ancestor in source.resolve().parents:
+        if (ancestor / "product.json").is_file():
+            return ancestor
+    return source.resolve().parent.parent
+
+
+def write_failure_verdict(source: Path, payload: dict) -> Path | None:
+    """`.harness/verdict.json` for a build that never reached the sidecar.
+
+    The pipeline writes the verdict beside the sidecar on success
+    (`circuitpy.generation.write_harness_verdict`); a build that dies in compile,
+    times out, or cannot even import the pipeline writes no sidecar — and a host
+    that only reads the verdict file would keep showing the previous build's
+    state. So the CLI writes the failure itself, from the same error the stdout
+    line carries. Self-contained on purpose (no circuitpy import: the failure may
+    be that circuitpy is missing). Best-effort, atomic, never raises; a miss goes
+    to stderr because stdout is the one-JSON-line channel.
+    """
+    try:
+        error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+        code = str(error.get("code") or "RUNTIME_ERROR")
+        message = str(error.get("message") or "the build failed before it produced a board")
+        verdict = {
+            "spec": 1,
+            "ready": False,
+            "summary": f"Build failed: {code}",
+            "findings": [{"severity": "error", "kind": code, "message": message, "ref": "build"}],
+            "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        }
+        target = project_root_for(source) / ".harness" / "verdict.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, target)
+        return target
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"[circuitcode] harness failure verdict not written: {exc}", file=sys.stderr)
+        return None
+
+
 def resolve_input(input_path: Path) -> tuple[Path, str, Path] | str:
     """Resolve the CLI input to ``(source, stem, out_dir)``.
 
@@ -165,6 +210,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         undo=args.undo_repair,
     )
 
+    if not payload.get("ok"):
+        write_failure_verdict(source, payload)
     print(json.dumps(payload))
     return 0 if payload.get("ok") else 1
 

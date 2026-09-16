@@ -67,17 +67,17 @@ real pinned numbers and no stock claim (`stock_checked: null`).
 
 ```bash
 # Sync: candidate slots from the blocks, previous lookups carried forward.
-python ~/.claude/skills/parts-book/scripts/parts <project_dir>
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/parts-book/scripts/parts" <project_dir>
 
 # Sync AND refresh stock / price / Basic from jlcsearch (slow — see Rules).
-python ~/.claude/skills/parts-book/scripts/parts <project_dir> --lookup
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/parts-book/scripts/parts" <project_dir> --lookup
 
 # Add a glue part no block owns (a header, a JST inlet).
-python ~/.claude/skills/parts-book/scripts/parts <project_dir> \
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/parts-book/scripts/parts" <project_dir> \
        --add jst-ph-2 --lcsc C158012 --mfr S2B-PH-K-S --package JST-PH --refdes J9
 
 # Point an existing part at a different orderable number.
-python ~/.claude/skills/parts-book/scripts/parts <project_dir> \
+python "${CIRCUIT_SKILLS_DIR:-$HOME/.claude/skills}/parts-book/scripts/parts" <project_dir> \
        --swap c-10uf-0805 --lcsc C15525 --package 0603
 ```
 
