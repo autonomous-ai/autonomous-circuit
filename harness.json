@@ -1,8 +1,9 @@
 {
   "spec": 1,
-  "id": "autonomous/circuit",
-  "name": "Circuit",
-  "description": "Chat with AI → a board you can order. Golden blocks, two independent DRC substrates, a JLCPCB-ready packet.",
+  "id": "autonomous/copper",
+  "name": "Copper",
+  "category": "PCB",
+  "description": "Describe a board; get a fab-ready PCB with a live board view, ordered from JLCPCB in a click.",
   "engine": "claude",
   "workspace": {
     "template": "harness/template",
@@ -11,7 +12,9 @@
   },
   "agent": {
     "instructions": "harness/AGENTS.md",
-    "skills": ["skills"],
+    "skills": [
+      "skills"
+    ],
     "env": {
       "CIRCUIT_TOOLCHAIN": "${dsh}/toolchain",
       "CIRCUIT_SKILLS_DIR": "${workspace}/.claude/skills",
