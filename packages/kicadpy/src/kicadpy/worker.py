@@ -1,6 +1,7 @@
 """KiCad Python 3.9 compatible subprocess. No imports from host packages."""
 import json
 import math
+import os
 from pathlib import Path
 import sys
 import pcbnew as p
@@ -195,3 +196,9 @@ def main(req):
 
 if __name__ == '__main__':
     print('KICADPY: ' + json.dumps(main(json.load(sys.stdin))))
+    # pcbnew's SWIG objects segfault in Py_FinalizeEx (GC visit_decref) once the
+    # work is done: 17 "Python quit unexpectedly" reports in eight minutes on
+    # 2026-09-16, every one after the response line was already printed, and
+    # every one read by toolchain.worker as a failed call. Skip finalization.
+    sys.stdout.flush()
+    os._exit(0)

@@ -171,3 +171,21 @@ def test_zone_fill_changes_require_explicit_scope():
     with pytest.raises(ValueError, match='zone fill'):
         Engine._guard(delta, {'allowed': [], 'scope': {}})
     Engine._guard(delta, {'allowed': [], 'scope': {'refillZones': ['zone-1']}})
+
+
+def test_worker_response_survives_a_teardown_crash(monkeypatch):
+    # pcbnew's SWIG objects segfault in Py_FinalizeEx after the work is done
+    # (KiCad 10.0.5, 2026-09-16: 17 crash reports in eight minutes, every one
+    # after the response line). The line is the result; a crash without it is
+    # still the error, with stderr as the reason.
+    from types import SimpleNamespace
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=-11, stdout='wx noise\nKICADPY: {"ok": 1}\n', stderr='assert "traits" failed')
+    monkeypatch.setattr(toolchain.subprocess, 'run', run)
+    monkeypatch.setattr(toolchain, 'executable', lambda kind: '/usr/bin/true')
+    assert toolchain.worker('inspect', 'x.kicad_pcb') == {'ok': 1}
+    monkeypatch.setattr(toolchain.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=-11, stdout='', stderr='assert "traits" failed'))
+    with pytest.raises(RuntimeError, match='traits'):
+        toolchain.worker('inspect', 'x.kicad_pcb')

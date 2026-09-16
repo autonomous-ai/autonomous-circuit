@@ -32,12 +32,12 @@ def worker(operation, pcb, **kwargs):
     request = json.dumps(dict(operation=operation, pcb=str(pcb), **kwargs))
     result = subprocess.run([executable('python'), str(Path(__file__).with_name('worker.py'))],
                             input=request, text=True, capture_output=True, timeout=120)
-    if result.returncode:
-        raise RuntimeError(result.stderr[-1500:])
     # pcbnew/wx can print diagnostics; the protocol is a prefixed JSON line.
     lines = [line[9:] for line in result.stdout.splitlines() if line.startswith('KICADPY: ')]
+    # A response line is the result even when the interpreter dies on the way
+    # out (pcbnew SWIG teardown segfaults); no line and a bad exit is the error.
     if len(lines) != 1:
-        raise RuntimeError('missing worker response')
+        raise RuntimeError(result.stderr[-1500:] if result.returncode else 'missing worker response')
     return json.loads(lines[0])
 
 
