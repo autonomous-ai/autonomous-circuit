@@ -605,3 +605,26 @@ first, in this template, before the doc itself is edited:
   `viewer/src/server/circuit/nativeEngine.mjs` (+ test), spike doc and README
   wording. No skill runtime re-vendor (kicadpy is not vendored).
 - **Tracks affected:** pipeline (kicadpy) / server / docs.
+
+## 2026-09-17 — zero error findings is the native order gate; the attestation is shown, not required
+- **Change:** reverses the gate half of the 2026-09-16 entry. `kicadpy.publish
+  --manufacturing` sets `fab.ready = prototypeReady` (zero error-severity
+  findings across native ERC/DRC/parity, the factory-floor DRC, the independent
+  gerber read, part identities, assembly decisions and the seven hashed
+  engineering areas). `catalog.nativeManufacturingVerified` = intact packet +
+  parsed passing reports for the current source; the review journal becomes
+  `entry.nativeReviewState` (`verified` / `ready-unattested` / `blocked`) and
+  no longer gates. `runNativeReviewLoop` republishes once after an interrupted
+  round so a finished turn never leaves a stale or `running` sidecar.
+- **Why:** owner's rule 2026-09-17 ("không có error thì cho nó xanh luôn").
+  On the Claude Pet board the packet was clean at 14:17 but the app kept saying
+  a completed independent review was required: the journal gate depended on
+  in-process server state that a partial hot reload had left stale. The
+  reviewer round is still valuable (it measured and widened four 3V3 necks)
+  and still runs; it just cannot be the only thing standing between a clean
+  packet and the order button.
+- **Backward compatible:** v1 untouched. Native boards published before this
+  entry become ready on their next publish if their packet is clean.
+- **Mechanism:** publish.py, nativeEngine.mjs (+ tests), catalog.mjs,
+  plainLanguage.js wording. No skill re-vendor.
+- **Tracks affected:** pipeline (kicadpy) / server / client / docs.

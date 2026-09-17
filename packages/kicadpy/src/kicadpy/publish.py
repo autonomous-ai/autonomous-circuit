@@ -1,9 +1,11 @@
 """Publish checked native previews and the revision-bound prototype packet.
 
-This tool reports; it never promotes. `fab.ready` is written false here and
-only the app's native review loop (nativeEngine.mjs) sets it true, after an
-independent attestation for this exact source. `native.manufacturing.prototypeReady`
-carries the packet verdict on its own.
+The order gate is the packet: `fab.ready` is `prototypeReady`, i.e. zero
+error-severity findings across native ERC/DRC/parity, the factory floor DRC,
+the independent gerber read, part identities, assembly decisions and the seven
+hashed engineering areas. The app's review round can add findings by editing
+the sources and republishing; its attestation is recorded in the journal and
+shown, it is not a second gate (owner's rule, 2026-09-17).
 """
 import argparse
 import json
@@ -94,7 +96,7 @@ def publish(path, manufacturing=False):
                 if packet is not None:
                     base['native']['manufacturing'] = packet
                     base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
-                    # Not `fab.ready`: the contract's order gate is the review loop's to set.
+                    base['fab']['ready'] = bool(packet['prototypeReady'])
                 for warning in base['validation']['warnings']:
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)

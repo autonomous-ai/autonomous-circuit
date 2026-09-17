@@ -143,16 +143,19 @@ export function scanProjectCatalog({ projectDir, projectId }) {
           const file = path.resolve(packetDir,name);
           return file.startsWith(packetDir + path.sep) && fs.existsSync(file) && crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') === sha;
         });
-        let reviewed = false;
         let reportsPassed = false;
         try {
           const report=JSON.parse(fs.readFileSync(path.join(packetDir,'manufacturing-report.json'),'utf8'));
           const nativeCheck=JSON.parse(fs.readFileSync(path.join(packetDir,'native-check.json'),'utf8'));
           reportsPassed=Object.hasOwn(packet?.files || {},'manufacturing-report.json') && Object.hasOwn(packet?.files || {},'native-check.json') && report.prototypeReady===true && report.checkedRevision===data.native.checkedRevision && Array.isArray(report.findings) && !report.findings.some(f=>f.severity==='error') && nativeCheck.passed===true && nativeCheck.revision===data.native.checkedRevision && nativeCheck.findings?.length===0;
+        } catch { /* unreadable reports: not verified */ }
+        // The reviewer's journal is shown, not required (owner's rule 2026-09-17):
+        // an intact packet with zero error findings for the current source is ready.
+        try {
           const journal=JSON.parse(fs.readFileSync(path.join(rootDir,'.circuit/native-review.json'),'utf8'));
-          reviewed=journal.state==='verified' && journal.rounds?.some(r=>r.state==='ready-for-prototype') && journal.publications?.some(p=>p.source===data.source?.fingerprint && p.checked===data.native.checkedRevision && JSON.stringify(p.files)===JSON.stringify(packet?.files));
-        } catch { /* no completed independent review */ }
-        entry.nativeManufacturingVerified = reviewed && reportsPassed && intact && packet.prototypeReady === true && packet.checkedRevision === data.native.checkedRevision && data.native.checksPassed === true;
+          entry.nativeReviewState = String(journal.state || '');
+        } catch { entry.nativeReviewState = ''; }
+        entry.nativeManufacturingVerified = reportsPassed && intact && packet.prototypeReady === true && packet.checkedRevision === data.native.checkedRevision && data.native.checksPassed === true;
         if (intact) for (const [key,name] of [['gerbersUrl','gerbers.zip'],['bomUrl','bom.csv'],['cplUrl','cpl.csv'],['orderUrl','ORDER.md'],['kicadProjectUrl','kicad-project.zip'],['manufacturingReportUrl','manufacturing-report.json']]) {
           const file = path.join(packetDir,name);
           if (Object.hasOwn(packet.files,name) && fs.existsSync(file)) entry.artifact[key] = url(file);

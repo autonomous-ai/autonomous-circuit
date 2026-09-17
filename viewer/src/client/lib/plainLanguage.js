@@ -924,7 +924,7 @@ export function boardVerdict({
     return {
       tone: "blocked",
       headline: "Prototype order blocked",
-      line: packet?.prototypeReady ? "The packet checks passed, but a completed independent review and intact current artifacts are still required." : packet ? `${(packet.findings || []).filter(f => f.severity === 'error').length} blocking manufacturing findings remain. Read the manufacturing report for the required changes.` : "The native manufacturing review has not run. Passing native CAD checks alone does not enable ordering.",
+      line: packet?.prototypeReady ? "The packet checks passed for an earlier revision; the board or its packet changed since. Rebuild to check the current files." : packet ? `${(packet.findings || []).filter(f => f.severity === 'error').length} blocking manufacturing findings remain. Read the manufacturing report for the required changes.` : "The native manufacturing review has not run. Passing native CAD checks alone does not enable ordering.",
       blockingGroups,
       blockingCount,
       action: null,
