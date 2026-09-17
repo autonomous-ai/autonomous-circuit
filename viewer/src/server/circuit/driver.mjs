@@ -1812,6 +1812,7 @@ export async function spawnTurn({
   let runningSnapshot = preSnapshot;
 
   let timedOut = false;
+  let planProse = ""; // every text delta of a plan turn, for the fence-less fallback below
   const onAbort = () => {
     cancelled = true;
     killChild(child);
@@ -1885,6 +1886,9 @@ export async function spawnTurn({
         if (event.kind === "tool_use_end") {
           toolJustEnded = true;
         }
+        if (event.kind === "text_delta" && phase === PHASE.PLAN) {
+          planProse += event.text;
+        }
         if (event.kind === "plan_proposed") {
           // Empty plan (model exited plan mode without restating it, typical
           // on resume, no planFilePath either): recover from the transcript.
@@ -1934,6 +1938,19 @@ export async function spawnTurn({
     killStrayBuild(workspace);
   } else {
     await awaitBuildSettled(workspace);
+  }
+  // A plan turn that ended in prose — no ```circuit-plan fence, no
+  // ExitPlanMode, no questions — still proposed a plan: the model wrote it and
+  // stopped. Three times on 2026-09-17 the native planner believed
+  // ExitPlanMode was missing, put the plan in a file and ended the turn with no
+  // approve button and no build. The final text is the plan; autopilot chains.
+  // A turn the clock cut, a cancel, or a text that carries a questions fence
+  // is not a plan.
+  if (phase === PHASE.PLAN && proposedPlan === null && !state.questionsAsked && !cancelled && !timedOut
+      && planProse.trim() && !planProse.includes("```circuit-questions")) {
+    proposedPlan = planProse.trim();
+    log("plan turn ended without a fence — taking its final text as the plan");
+    onEvent({ kind: "plan_proposed", turnId, plan: proposedPlan });
   }
   if (timedOut) {
     onEvent({

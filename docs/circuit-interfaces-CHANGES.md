@@ -643,3 +643,17 @@ first, in this template, before the doc itself is edited:
   its next publish.
 - **Mechanism:** project.py, catalog.mjs, one kicadpy test.
 - **Tracks affected:** pipeline (kicadpy) / server / docs.
+
+## 2026-09-17 — a plan turn that ends in prose still proposes its plan
+- **Change:** when a PLAN turn ends with no ```circuit-plan fence, no
+  ExitPlanMode and no questions (and was neither cancelled nor cut by the
+  clock), the driver takes the turn's final text as the plan: it emits
+  `plan_proposed` with that text and autopilot chains the build as usual. A
+  text carrying a ```circuit-questions fence is still a question, not a plan.
+- **Why:** three native plan turns on 2026-09-17 ended with a complete plan in
+  prose (the model believed ExitPlanMode was missing and wrote the plan to a
+  file); each needed a manual `chat_approve_plan`. The 2026-08-10 fence was
+  meant to remove exactly this dead end; this closes the remaining hole.
+- **Backward compatible:** yes; fenced plans and questions behave as before.
+- **Mechanism:** driver.mjs `spawnTurn` (+ two driver tests).
+- **Tracks affected:** server / docs.
