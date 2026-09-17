@@ -640,6 +640,7 @@ export function createCircuitServices({
     app_info: async () => ({
       rootPath: projectsRoot,
       appVersion: readViewerVersion(),
+      defaultEngine: env.CIRCUIT_DEFAULT_ENGINE === "kicad-native" ? "kicad-native" : "v1",
       pid: process.pid,
     }),
     app_prereq_check: async () => prereqCheck(env),

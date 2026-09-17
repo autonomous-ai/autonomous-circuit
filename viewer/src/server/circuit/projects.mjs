@@ -29,6 +29,7 @@ const PROJECT_META_FILE = "project.json";
 const SKIP_DIR_NAMES = new Set([
   "inputs",
   ".circuit",
+  ".kicadpy",
   ".claude",
   // Harness's own folder inside a workspace: `.harness/verdict.json` (written by the generator,
   // read by the Harness daemon into the pane header) is progress the way `.circuit/` is, never an
@@ -131,6 +132,7 @@ function writeMeta(projectDir, meta) {
     name: meta.name,
     created_at: meta.created_at,
     updated_at: meta.updated_at,
+    ...(meta.engine === "kicad-native" ? { engine: meta.engine } : {}),
   };
   fs.mkdirSync(projectDir, { recursive: true });
   fs.writeFileSync(metaPath(projectDir), `${JSON.stringify(payload, null, 2)}\n`);
@@ -148,6 +150,7 @@ function readMeta(projectDir) {
       name: String(obj.name ?? ""),
       created_at: Number(obj.created_at) || 0,
       updated_at: Number(obj.updated_at) || 0,
+      ...(obj.engine === "kicad-native" ? { engine: obj.engine } : {}),
     };
   } catch {
     return null;
@@ -174,7 +177,7 @@ function hasBoard(projectDir) {
         stack.push(path.join(dir, entry.name));
         continue;
       }
-      if (entry.isFile() && entry.name.toLowerCase().endsWith(".circuit.json")) {
+      if (entry.isFile() && (entry.name.toLowerCase().endsWith(".circuit.json") || entry.name.toLowerCase().endsWith(".kicad_pcb"))) {
         return true;
       }
     }
@@ -221,6 +224,7 @@ function toSummary(projectDir, meta) {
     createdAt: meta.created_at,
     updatedAt: meta.updated_at,
     hasModel: hasBoard(projectDir),
+    ...(meta.engine ? { engine: meta.engine } : {}),
     isNew: !hasProjectContent(projectDir),
   };
 }
@@ -358,6 +362,7 @@ export function createProjectsStore({
       created_at: at,
       updated_at: at,
     };
+    if (env.CIRCUIT_DEFAULT_ENGINE === "kicad-native") meta.engine = "kicad-native";
     writeMeta(dir, meta);
     return toSummary(dir, meta);
   }

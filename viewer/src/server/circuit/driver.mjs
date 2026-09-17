@@ -9,6 +9,7 @@
 // emit artifact_changed, chains the autopilot build turn after a proposed
 // plan, and runs the silent 3-phase post-build review loop.
 
+import { nativeProject, nativePrompt, publishNativeWorkspace, runNativeReviewLoop } from "./nativeEngine.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -475,6 +476,7 @@ export const REVIEW_SYSTEM_PROMPT = [
  * directory this project lives in (donor: artifacts written elsewhere are
  * invisible to the app's snapshotter and catalog). */
 export function workspaceDirective(workspace) {
+  if (nativeProject(workspace)) return `PROJECT WORKSPACE: ${workspace}. Native source goes under design/, derived app previews under boards/.`;
   return (
     "PROJECT WORKSPACE. This project lives in the single absolute directory " +
     "below. Every file you create — product.json, parts.json, the board " +
@@ -494,7 +496,8 @@ export const PHASE = Object.freeze({
   REVIEW: "review",
 });
 
-function systemPromptForPhase(phase) {
+function systemPromptForPhase(phase, workspace, env = process.env) {
+  if (workspace && nativeProject(workspace)) return nativePrompt(phase, workspace, env);
   if (phase === PHASE.PLAN) return PLAN_SYSTEM_PROMPT;
   if (phase === PHASE.REVIEW) return REVIEW_SYSTEM_PROMPT;
   return IMPLEMENT_SYSTEM_PROMPT;
@@ -754,7 +757,7 @@ export function buildCommandArgs({
     "--add-dir",
     path.join(claudeConfigDir(env), "skills"),
     "--append-system-prompt",
-    `${systemPromptForPhase(phase)}\n\n${workspaceDirective(workspace)}`,
+    `${systemPromptForPhase(phase, workspace, env)}\n\n${workspaceDirective(workspace)}`,
     "--strict-mcp-config",
     "--settings",
     DISABLE_HOOKS_SETTINGS,
@@ -1785,7 +1788,7 @@ export async function spawnTurn({
   // Feed the stream-json user message (prompt + image blocks) and close stdin
   // so claude's `-p` reader sees EOF and starts the turn.
   child.stdin.on("error", () => {});
-  child.stdin.end(provider === "codex" ? `${systemPromptForPhase(phase)}\n\n${workspaceDirective(workspace)}\n\n${message}\n` : streamJsonInput(message, imagePaths));
+  child.stdin.end(provider === "codex" ? `${systemPromptForPhase(phase, workspace, env)}\n\n${workspaceDirective(workspace)}\n\n${message}\n` : streamJsonInput(message, imagePaths));
 
   // Drain stderr concurrently: an undrained pipe deadlocks the child, and a
   // fast failure (bad session id, auth, missing node) prints its reason here
@@ -1809,6 +1812,7 @@ export async function spawnTurn({
   let runningSnapshot = preSnapshot;
 
   let timedOut = false;
+  let planProse = ""; // every text delta of a plan turn, for the fence-less fallback below
   const onAbort = () => {
     cancelled = true;
     killChild(child);
@@ -1841,7 +1845,7 @@ export async function spawnTurn({
   // says why a turn that ends on its own keeps what it ended on).
   let best = null; // { count, dir }
   let lastSettledRunId = null;
-  const bestWatcher = phase === PHASE.IMPLEMENT
+  const bestWatcher = phase === PHASE.IMPLEMENT && !nativeProject(workspace)
     ? setInterval(() => {
         const runId = settledBuildRunId(workspace);
         if (!runId || runId === lastSettledRunId) return;
@@ -1881,6 +1885,9 @@ export async function spawnTurn({
         sawOutput = true;
         if (event.kind === "tool_use_end") {
           toolJustEnded = true;
+        }
+        if (event.kind === "text_delta" && phase === PHASE.PLAN) {
+          planProse += event.text;
         }
         if (event.kind === "plan_proposed") {
           // Empty plan (model exited plan mode without restating it, typical
@@ -1932,6 +1939,19 @@ export async function spawnTurn({
   } else {
     await awaitBuildSettled(workspace);
   }
+  // A plan turn that ended in prose — no ```circuit-plan fence, no
+  // ExitPlanMode, no questions — still proposed a plan: the model wrote it and
+  // stopped. Three times on 2026-09-17 the native planner believed
+  // ExitPlanMode was missing, put the plan in a file and ended the turn with no
+  // approve button and no build. The final text is the plan; autopilot chains.
+  // A turn the clock cut, a cancel, or a text that carries a questions fence
+  // is not a plan.
+  if (phase === PHASE.PLAN && proposedPlan === null && !state.questionsAsked && !cancelled && !timedOut
+      && planProse.trim() && !planProse.includes("```circuit-questions")) {
+    proposedPlan = planProse.trim();
+    log("plan turn ended without a fence — taking its final text as the plan");
+    onEvent({ kind: "plan_proposed", turnId, plan: proposedPlan });
+  }
   if (timedOut) {
     onEvent({
       kind: "error",
@@ -1952,6 +1972,20 @@ export async function spawnTurn({
   if (!cancelled && !sawOutput) {
     const detail = stderrBuf.trim() || `${provider} exited without output (code ${child.exitCode})`;
     onEvent({ kind: "error", turnId, message: `${provider} produced no response: ${detail}` });
+  }
+
+  if (nativeProject(workspace) && phase === PHASE.IMPLEMENT && !cancelled && sawOutput) {
+    try {
+      await publishNativeWorkspace(workspace, env, signal);
+      await runNativeReviewLoop({ workspace, signal,
+        publish: () => publishNativeWorkspace(workspace, env, signal),
+        onProgress: text => onEvent({kind: 'text_delta', turnId, text: `\n\n_${text}_`}),
+        review: round => runReviewRound({provider, executable, workspace, sessionId, turnId, model, effort,
+          prompt: `Complete native engineering/manufacturing review round ${round}. Read the latest manufacturing report and resolve its blockers.`, onEvent, signal, env}),
+      });
+    } catch (error) {
+      onEvent({ kind: "error", turnId, message: `KiCad v2 preview/check failed: ${error.message}` });
+    }
   }
 
   // Post-turn workspace diff — even when cancelled (the user still wants to
@@ -2009,7 +2043,8 @@ export async function spawnTurn({
     !cancelled &&
     sawOutput &&
     artifactsChanged &&
-    workspaceHasBoard(workspace)
+    workspaceHasBoard(workspace) &&
+    !nativeProject(workspace)
   ) {
     await runReviewFixLoop({
       provider,
@@ -2049,15 +2084,17 @@ async function runReviewRound({
   signal,
   env,
 }) {
+  const nativeAttestationPath = path.join(workspace,'.circuit/native-review-attestation.json');
+  if (nativeProject(workspace)) fs.rmSync(nativeAttestationPath,{force:true});
   const pre = snapshotWorkspace(workspace);
   const args = provider === "codex"
-    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: codexSessionIdFor(workspace, env) })
+    ? buildCodexCommandArgs({ workspace, phase: PHASE.REVIEW, model, effort, imagePaths, sessionId: nativeProject(workspace) ? '' : codexSessionIdFor(workspace, env) })
     : buildCommandArgs({ workspace, phase: PHASE.REVIEW, sessionId, model, effort, env });
   let child;
   try {
     child = spawnProvider(provider, executable, args, { workspace, env });
   } catch {
-    return false; // best-effort: a build that can't be reviewed just ends
+    return nativeProject(workspace) ? {failure:'Could not start native reviewer'} : false;
   }
   child.stdin.on("error", () => {});
   // Attaching beats leaving it to chance. Codex can open an image by path (its
@@ -2072,7 +2109,7 @@ async function runReviewRound({
     : "";
   child.stdin.end(
     provider === "codex"
-      ? `${REVIEW_SYSTEM_PROMPT}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
+      ? `${systemPromptForPhase(PHASE.REVIEW, workspace, env)}\n\n${workspaceDirective(workspace)}\n\n${prompt}${attached}\n`
       : streamJsonInput(prompt),
   );
   child.stderr.resume();
@@ -2171,8 +2208,13 @@ async function runReviewRound({
   for (const event of diff) {
     onEvent(event); // only artifact diffs surface from a review round
   }
+  if (nativeProject(workspace) && !failure && (timedOut || child.exitCode !== 0)) failure = timedOut ? 'native review timed out' : `native review exited with code ${child.exitCode}`;
   if (failure) log(`review round failed before it could work: ${failure}`);
-  return { changed: diff.length > 0, failure };
+  let attestation = null;
+  if (nativeProject(workspace) && !failure) {
+    try { attestation=JSON.parse(fs.readFileSync(nativeAttestationPath,'utf8')); } catch { /* no independent attestation */ }
+  }
+  return { changed: diff.length > 0, failure, ...(nativeProject(workspace) ? {attestation} : {}) };
 }
 
 function emitUnresolvedNote(turnId, label, remaining, onEvent) {

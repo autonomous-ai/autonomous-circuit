@@ -559,3 +559,143 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** sidecar shape stays compatible; default routing
   geometry and fallback behavior change. No v2 engine or cutover is included.
 - **Tracks affected:** routerlib, circuitpy router bridge, circuitcode guidance.
+
+## 2026-09-15 — opt-in native KiCad repair tools (v2 spike)
+- **Change:** new packages/kicadpy exposes inspect/view/snapshot/apply/route/diff/
+  check/commit/undo JSON tools for existing native KiCad projects. Native source
+  revisions, candidate checks, UUID/region scope and byte-exact PCB undo have a
+  separate contract in docs/architecture/kicad-native-spike.md.
+- **Why:** prove persistent local repair on KiCad before generating new boards
+  or changing the app's source and viewer adapters.
+- **Backward compatible:** yes; v1 runner, sidecars and app dispatch are unchanged.
+  The new tool does not publish fabrication-ready sidecars or export fabrication.
+- **Tracks affected:** new native Python package, tests/fixtures and spike docs.
+
+## 2026-09-15 — experimental prompt-to-KiCad app mode
+- **Change:** `CIRCUIT_DEFAULT_ENGINE=kicad-native` marks newly created projects
+  with `project.json.engine`. The marker survives rename/touch/reopen; existing
+  unmarked projects retain v1. Native projects use native planning/implementation
+  prompts and an independent post-turn check/preview publisher, without v1's
+  best-build or repair-review loops.
+- **Change:** native `design/<stem>.kicad_pcb` catalog entries expose SVG previews
+  and a derived `boards/<stem>.board.json`. Native source changes invalidate
+  previews. Native sidecars keep `fab.ready=false`; only CAD-check results are
+  reported. Native canvas placement edits remain disabled.
+- **Why:** allow the user to paste a brief and exercise native authoring through
+  the app, while retaining revision-bound checks and honest readiness states.
+- **Backward compatible:** v1 dispatch and existing project metadata defaults
+  remain unchanged. `app_info.defaultEngine` reports the default for new projects.
+- **Tracks affected:** projects, driver, catalog, viewer board detection/banner,
+  new kicadpy preview publisher and workflow guidance.
+
+## 2026-09-15 — native 3D previews
+- **Change:** native preview bundles optionally contain `board.glb`, exported by
+  KiCad from the checked copy and exposed through the existing `artifact.glbUrl`.
+  GLB headers, length and mesh content are validated; export failure adds a warning
+  without discarding checked SVG previews. Source changes invalidate 3D as well.
+- **Change:** PCB SVGs exclude the drawing sheet. Native verdict text explains
+  the missing verified fabrication packet instead of suggesting another rebuild.
+- **Why:** make native designs reviewable in the existing 3D tab without implying
+  manufacturing readiness from a preview or clean ERC/DRC.
+- **Backward compatible:** existing v1 artifacts are unchanged. Native fab.ready
+  stays false; native verdicts cannot claim orderability.
+- **Tracks affected:** native publisher, catalog, verdict copy and regression tests.
+
+## 2026-09-15 — native prototype manufacturing and review
+- **Change:** native implementation now runs an independent manufacturing
+  publication plus up to two separate native engineering review/repair rounds.
+  Cancellation/provider failure never records a completed review. An unchanged
+  source/finding count stops the loop; each successful round republishes.
+- **Change:** optional `--manufacturing` exports Gerber/drill, BOM/CPL, manual
+  assembly data, native positions, source archive, ORDER.md and parsed reports.
+  The checked copy is reconciled with an independent Gerber/Excellon parser;
+  a separate DRC applies the factory copper floor after project exceptions.
+- **Change:** `manufacturing.json` and hashed `engineering/` evidence are source
+  inputs. Seven engineering areas and explicit population/orientation choices
+  are required. Prototype readiness does not claim tested hardware.
+- **Change:** catalog artifacts include manufacturingReportUrl and use the
+  existing packet URLs. nativeManufacturingVerified requires current inputs,
+  intact packet hashes, parsed passing reports and the completed review journal
+  for that publication. Missing/stale/corrupt data keeps ordering disabled.
+- **Why:** allow native projects to progress toward a reviewable prototype order
+  without promoting CAD cleanliness or an agent statement to manufacturing pass.
+- **Backward compatible:** v1 remains unchanged. The shared verifier exposes
+  check_parsed and optional pad mask/paste requirements for the native adapter.
+- **Tracks affected:** kicadpy manufacturing/evidence/packet logic, verifylib
+  adapter, native driver/review journal, catalog, board actions and verdict UI.
+
+## 2026-09-16 — the native publisher reports; only the review loop sets `fab.ready`
+- **Change:** `kicadpy.publish --manufacturing` no longer copies
+  `native.manufacturing.prototypeReady` into `fab.ready`; the sidecar leaves the
+  app's publisher with `fab.ready=false` every time. `runNativeReviewLoop`
+  (nativeEngine.mjs) rewrites each native `boards/*.board.json` at the end of the
+  loop with `fab.ready = verified && prototypeReady`, where `verified` requires a
+  completed round, a fresh attestation naming this exact `source.fingerprint`,
+  no interruption and no cancellation. Any later publish resets the gate.
+- **Why:** contract §"fab-ready" says a board is complete only when `fab.ready`
+  is true, and every reader outside the viewer (ledger, zips, the design-review
+  skill, a human opening the file) trusts that flag alone. PR #34 commit b5144a8
+  had the publisher set it from the packet checks, so a native board with a
+  passing packet and *no* independent review read as orderable on disk while the
+  app said otherwise (the 2026-09-15 CHANGES entry above even states native
+  sidecars keep `fab.ready=false`). Found in review 2026-09-16.
+- **Backward compatible:** yes for v1 (untouched). For native boards the flag
+  can only become true through the loop; nothing else changes shape.
+  `publish` adds `prototypeReady` to its stdout result so callers still see the
+  packet verdict.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/publish.py`,
+  `viewer/src/server/circuit/nativeEngine.mjs` (+ test), spike doc and README
+  wording. No skill runtime re-vendor (kicadpy is not vendored).
+- **Tracks affected:** pipeline (kicadpy) / server / docs.
+
+## 2026-09-17 — zero error findings is the native order gate; the attestation is shown, not required
+- **Change:** reverses the gate half of the 2026-09-16 entry. `kicadpy.publish
+  --manufacturing` sets `fab.ready = prototypeReady` (zero error-severity
+  findings across native ERC/DRC/parity, the factory-floor DRC, the independent
+  gerber read, part identities, assembly decisions and the seven hashed
+  engineering areas). `catalog.nativeManufacturingVerified` = intact packet +
+  parsed passing reports for the current source; the review journal becomes
+  `entry.nativeReviewState` (`verified` / `ready-unattested` / `blocked`) and
+  no longer gates. `runNativeReviewLoop` republishes once after an interrupted
+  round so a finished turn never leaves a stale or `running` sidecar.
+- **Why:** owner's rule 2026-09-17 ("không có error thì cho nó xanh luôn").
+  On the Claude Pet board the packet was clean at 14:17 but the app kept saying
+  a completed independent review was required: the journal gate depended on
+  in-process server state that a partial hot reload had left stale. The
+  reviewer round is still valuable (it measured and widened four 3V3 necks)
+  and still runs; it just cannot be the only thing standing between a clean
+  packet and the order button.
+- **Backward compatible:** v1 untouched. Native boards published before this
+  entry become ready on their next publish if their packet is clean.
+- **Mechanism:** publish.py, nativeEngine.mjs (+ tests), catalog.mjs,
+  plainLanguage.js wording. No skill re-vendor.
+- **Tracks affected:** pipeline (kicadpy) / server / client / docs.
+
+## 2026-09-17 — native design inputs are the design dir, engineering/ and the root JSONs
+- **Change:** `kicadpy.project.manifest` and the catalog's staleness check
+  ignore every other path in a workspace (`build/`, `tools/`, scratch
+  `*.kicad_pcb` copies). `design_dir()` finds the directory holding the
+  `.kicad_pro` (the root itself, or one child).
+- **Why:** an agent's candidate copies under `build/cand/` changed the
+  revision, marked the board stale (previews hidden) and produced
+  `engineering_stale` on a review that matched the real design — twice on
+  Board mới, 2026-09-17.
+- **Backward compatible:** yes; revisions of workspaces without scratch copies
+  are unchanged. A workspace that had scratch copies gets a new revision on
+  its next publish.
+- **Mechanism:** project.py, catalog.mjs, one kicadpy test.
+- **Tracks affected:** pipeline (kicadpy) / server / docs.
+
+## 2026-09-17 — a plan turn that ends in prose still proposes its plan
+- **Change:** when a PLAN turn ends with no ```circuit-plan fence, no
+  ExitPlanMode and no questions (and was neither cancelled nor cut by the
+  clock), the driver takes the turn's final text as the plan: it emits
+  `plan_proposed` with that text and autopilot chains the build as usual. A
+  text carrying a ```circuit-questions fence is still a question, not a plan.
+- **Why:** three native plan turns on 2026-09-17 ended with a complete plan in
+  prose (the model believed ExitPlanMode was missing and wrote the plan to a
+  file); each needed a manual `chat_approve_plan`. The 2026-08-10 fence was
+  meant to remove exactly this dead end; this closes the remaining hole.
+- **Backward compatible:** yes; fenced plans and questions behave as before.
+- **Mechanism:** driver.mjs `spawnTurn` (+ two driver tests).
+- **Tracks affected:** server / docs.

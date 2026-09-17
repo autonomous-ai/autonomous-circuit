@@ -269,7 +269,7 @@ export default function BoardWorkspace({
         return response.json();
       })
       .then((data) => {
-        if (!cancelled) setSidecar(data);
+        if (!cancelled) setSidecar(selectedEntry?.sourceKind === "kicad-native" ? { ...data, fab: { ...data.fab, ready: data.fab?.ready === true && selectedEntry.nativeManufacturingVerified === true } } : data);
       })
       .catch(() => {
         if (!cancelled) setSidecar(null);
@@ -474,7 +474,7 @@ export default function BoardWorkspace({
   // Never while an older build is on screen: those coordinates describe a file
   // that has since been rewritten, and a drag would move the wrong element by
   // exactly the amount the board has changed since.
-  const canEdit = editing && !viewing;
+  const canEdit = editing && !viewing && selectedEntry?.sourceKind !== "kicad-native";
   // What a net can be routed at, measured on demand. Keyed to the build,
   // because a ceiling is a property of the placement.
   const netWidths = useNetWidths({
@@ -1185,6 +1185,7 @@ export default function BoardWorkspace({
     <div data-slot="board-workspace" className="flex h-full w-full flex-col bg-background">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/60 px-2.5">
         <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous Circuit</span>
+        {projects.some(project => project.id === currentProjectId && project.engine === "kicad-native") ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
         <ProjectMenu />
         {catalogRefreshing ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Refreshing catalog" />
@@ -1210,6 +1211,11 @@ export default function BoardWorkspace({
         )}
       </header>
 
+      {selectedEntry?.sourceKind === "kicad-native" ? (
+        <p className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+          KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : selectedEntry.nativeManufacturingVerified ? "Prototype packet verified; physical hardware is untested." : "Prototype manufacturing review is incomplete; see the reported findings."}
+        </p>
+      ) : null}
       {catalogError ? (
         <p
           data-slot="board-catalog-error"
@@ -1509,6 +1515,7 @@ export default function BoardWorkspace({
           ) : (
             !stagePending ? (
               <StartHere
+              native={projects.some(project => project.id === currentProjectId && project.engine === "kicad-native")}
               status={buildStatus}
               building={building || turnInProgress}
               buildLine={buildLine}
