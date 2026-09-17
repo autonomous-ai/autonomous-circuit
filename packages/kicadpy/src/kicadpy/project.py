@@ -17,11 +17,33 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def design_dir(root):
+    """The directory holding the .kicad_pro: ``root`` itself, or one child of it."""
+    root = Path(root)
+    if any(root.glob('*.kicad_pro')):
+        return root
+    for child in sorted(p for p in root.iterdir() if p.is_dir() and p.name != '.kicadpy'):
+        if any(child.glob('*.kicad_pro')):
+            return child
+    return root
+
+
 def manifest(root):
+    """Design inputs under ``root``: the design directory, ``engineering/`` and
+    the root-level JSON files. Nothing else in a workspace is an input — an
+    agent's scratch copy under ``build/`` or ``tools/`` must not change the
+    revision or mark the board stale (it did, twice, on 2026-09-17)."""
+    root = Path(root)
+    design = design_dir(root)
     result = {}
-    for path in sorted(Path(root).rglob('*')):
-        if '.kicadpy' in path.relative_to(root).parts:
+    for path in sorted(root.rglob('*')):
+        rel = path.relative_to(root)
+        if '.kicadpy' in rel.parts:
             continue
+        if design != root:
+            top = rel.parts[0]
+            if not (top == design.name or top == 'engineering' or (len(rel.parts) == 1 and path.name in NAMES)):
+                continue
         if path.is_symlink():
             raise ValueError(f'symlink dependency unsupported: {path}')
         if path.is_file() and (path.suffix in SUFFIXES or path.name in NAMES or path.relative_to(root).parts[0] == 'engineering'):

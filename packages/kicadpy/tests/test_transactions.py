@@ -189,3 +189,19 @@ def test_worker_response_survives_a_teardown_crash(monkeypatch):
     monkeypatch.setattr(toolchain.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=-11, stdout='', stderr='assert "traits" failed'))
     with pytest.raises(RuntimeError, match='traits'):
         toolchain.worker('inspect', 'x.kicad_pcb')
+
+
+def test_scratch_copies_outside_design_are_not_inputs(tmp_path):
+    # An agent keeps candidate boards under build/ and tools/; they must not
+    # change the revision or the design inputs (Board mới, 2026-09-17).
+    root = tmp_path / 'device'
+    shutil.copytree(Path(__file__).parent / 'fixtures/tiny', root / 'design')
+    (root / 'product.json').write_text('{"layers":2}')
+    before = revision(root)
+    (root / 'build' / 'cand' / 'design').mkdir(parents=True)
+    shutil.copyfile(root / 'design/tiny.kicad_pcb', root / 'build/cand/design/tiny.kicad_pcb')
+    (root / 'tools').mkdir(); (root / 'tools/scratch.kicad_pcb').write_text('(kicad_pcb)')
+    assert revision(root) == before
+    assert not any(k.startswith(('build/', 'tools/')) for k in manifest(root))
+    (root / 'engineering').mkdir(); (root / 'engineering/power.md').write_text('evidence')
+    assert revision(root) != before and 'engineering/power.md' in manifest(root)

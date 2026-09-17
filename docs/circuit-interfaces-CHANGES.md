@@ -628,3 +628,18 @@ first, in this template, before the doc itself is edited:
 - **Mechanism:** publish.py, nativeEngine.mjs (+ tests), catalog.mjs,
   plainLanguage.js wording. No skill re-vendor.
 - **Tracks affected:** pipeline (kicadpy) / server / client / docs.
+
+## 2026-09-17 — native design inputs are the design dir, engineering/ and the root JSONs
+- **Change:** `kicadpy.project.manifest` and the catalog's staleness check
+  ignore every other path in a workspace (`build/`, `tools/`, scratch
+  `*.kicad_pcb` copies). `design_dir()` finds the directory holding the
+  `.kicad_pro` (the root itself, or one child).
+- **Why:** an agent's candidate copies under `build/cand/` changed the
+  revision, marked the board stale (previews hidden) and produced
+  `engineering_stale` on a review that matched the real design — twice on
+  Board mới, 2026-09-17.
+- **Backward compatible:** yes; revisions of workspaces without scratch copies
+  are unchanged. A workspace that had scratch copies gets a new revision on
+  its next publish.
+- **Mechanism:** project.py, catalog.mjs, one kicadpy test.
+- **Tracks affected:** pipeline (kicadpy) / server / docs.

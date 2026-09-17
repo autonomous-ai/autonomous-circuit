@@ -122,7 +122,15 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       if (sourceRoot !== rootDir && sourceRoot !== path.join(rootDir, "design")) throw new Error("invalid native source root");
       const suffixes = new Set([".kicad_pro", ".kicad_pcb", ".kicad_sch", ".kicad_dru", ".kicad_sym", ".kicad_mod", ".step", ".stp", ".wrl"]);
       const names = new Set(["fp-lib-table", "sym-lib-table", "product.json", "parts.json", "manufacturing.json"]);
-      const actual = walkFiles(sourceRoot).filter(f => suffixes.has(path.extname(f)) || names.has(path.basename(f)) || path.relative(sourceRoot,f).split(path.sep)[0] === 'engineering').map(f => relPath(rootDir, f)).sort();
+      // Same rule as kicadpy.project.manifest: inside a workspace only the
+      // design directory, engineering/ and the root JSONs are inputs.
+      const designDir = path.dirname(String(data.source?.file || ''));
+      const isInput = (f) => {
+        const rel = path.relative(sourceRoot, f).split(path.sep);
+        if (designDir !== '.' && sourceRoot === rootDir && !(rel[0] === designDir || rel[0] === 'engineering' || (rel.length === 1 && names.has(rel[0])))) return false;
+        return suffixes.has(path.extname(f)) || names.has(path.basename(f)) || rel[0] === 'engineering';
+      };
+      const actual = walkFiles(sourceRoot).filter(isInput).map(f => relPath(rootDir, f)).sort();
       const addedParentSpec = sourceRoot !== rootDir && ["product.json", "parts.json", "manufacturing.json"].some(n => fs.existsSync(path.join(rootDir, n)));
       const valid = !addedParentSpec && inputs.length > 0 && JSON.stringify(actual) === JSON.stringify(inputs.map(([name]) => name).sort()) && inputs.every(([name, sha]) => {
         const input = path.resolve(rootDir, name);
