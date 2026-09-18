@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Solder's Python: a host Python >= 3.10 with kicadpy and circuitpy on its path.
+# the KiCad harness's Python: a host Python >= 3.10 with kicadpy and circuitpy on its path.
 #
-# Every Solder command is `"$SOLDER_PYTHON" -m kicadpy ...` — this script IS $SOLDER_PYTHON. It
+# Every KiCad harness command is `"$KICAD_HARNESS_PYTHON" -m kicadpy ...` — this script IS $KICAD_HARNESS_PYTHON. It
 # resolves the interpreter the same way the pipeline does (CIRCUIT_PYTHON wins, then the newest
 # python3.x on PATH that is >= 3.10), puts the checkout's packages on PYTHONPATH, points
 # circuitpy at the pinned toolchain (Freerouting jar + JRE), and execs. It never installs anything.
@@ -20,7 +20,7 @@ for cand in "${CIRCUIT_PYTHON:-}" python3.13 python3.12 python3.11 python3.10 py
   fi
 done
 if [ -z "$py" ]; then
-  echo "solder: no python >= 3.10 on PATH (brew install python@3.12, or set CIRCUIT_PYTHON)" >&2
+  echo "kicad: no python >= 3.10 on PATH (brew install python@3.12, or set CIRCUIT_PYTHON)" >&2
   exit 127
 fi
 export PYTHONPATH="$ROOT/packages/kicadpy/src:$ROOT/packages/circuitpy/src${PYTHONPATH:+:$PYTHONPATH}"

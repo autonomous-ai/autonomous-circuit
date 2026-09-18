@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Solder — Harness DSH viewer: the Circuit viewer in viewer-only mode over ONE workspace.
+# KiCad harness — Harness DSH viewer: the Circuit viewer in viewer-only mode over ONE workspace.
 #
 # Harness runs this for the life of the agent's pane with:
 #   HARNESS_VIEWER_PORT   the loopback port to listen on

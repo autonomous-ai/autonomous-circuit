@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Solder — Harness DSH setup. Runs once at install, cwd = the install dir.
+# KiCad harness — Harness DSH setup. Runs once at install, cwd = the install dir.
 #
 # Vendors what a KiCad-native board build needs INTO this checkout, never onto the machine:
 #   1. Freerouting 2.4.1 + the Temurin JRE it needs, under toolchain/freerouting/ (the router
@@ -25,16 +25,16 @@ for prefix in /opt/homebrew /usr/local; do
   fi
 done
 
-echo "[solder:setup] 1/2 Freerouting (pinned jar + JRE)"
+echo "[kicad:setup] 1/2 Freerouting (pinned jar + JRE)"
 scripts/toolchain/install-freerouting.sh
 
-echo "[solder:setup] 2/2 viewer"
+echo "[kicad:setup] 2/2 viewer"
 if [ -f viewer/package-lock.json ]; then
   npm --prefix viewer ci --no-audit --no-fund
 else
   npm --prefix viewer install --no-audit --no-fund
 fi
 npm --prefix viewer run build
-[ -f viewer/dist/index.html ] || { echo "[solder:setup] viewer build incomplete: viewer/dist/index.html missing" >&2; exit 1; }
+[ -f viewer/dist/index.html ] || { echo "[kicad:setup] viewer build incomplete: viewer/dist/index.html missing" >&2; exit 1; }
 
-echo "[solder:setup] done"
+echo "[kicad:setup] done"

@@ -1,6 +1,6 @@
 """The Harness verdict for a KiCad-native workspace — `.harness/verdict.json` (DSH spec 1).
 
-A host such as Harness (Solder, `harness/kicad/`) reads one small file to fill its pane header:
+A host such as Harness (the KiCad tile, `harness/kicad/`) reads one small file to fill its pane header:
 `ready` or not, one summary line, the findings, and a phase strip saying where the work is. The
 `.board.json` sidecars that `kicadpy.publish` writes under `boards/` stay the machine contract for
 the app; this is the same fact folded into the shape every domain harness shares, so the pane can

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Solder — Harness DSH doctor: can THIS machine author, check and show a KiCad-native board?
+# KiCad harness — Harness DSH doctor: can THIS machine author, check and show a KiCad-native board?
 # cwd = the install dir. One line per check: `ok   <what>` / `warn <what>` / `miss <what>`.
 # Exit 1 on any miss.
 #
 # Unlike Copper (the v1 harness), KiCad is REQUIRED here, not reported: the schematic, the PCB,
 # ERC/DRC, the previews and the prototype packet all come out of kicad-cli and pcbnew. Without
 # it there is no board at all, so a missing KiCad is a miss. Freerouting is vendored by setup.sh
-# and a miss means "run setup"; a machine without it hand-routes, which is not a Solder board.
+# and a miss means "run setup"; a machine without it hand-routes, which is not a KiCad harness board.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$(cd "$(dirname "$0")" && pwd)"

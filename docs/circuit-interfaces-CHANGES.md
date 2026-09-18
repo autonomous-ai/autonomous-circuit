@@ -704,3 +704,20 @@ first, in this template, before the doc itself is edited:
   `harness/kicad/**`, `harness/kicad/tests/test_package.py`,
   `scripts/toolchain/install-freerouting.sh`.
 - **Tracks affected:** pipeline (kicadpy) / harness package / toolchain scripts / docs.
+
+## 2026-09-18 — the KiCad-native harness is named after KiCad
+- **Change:** `harness/kicad/` is the **KiCad** tile (`autonomous/kicad`, `formerly:
+  ["autonomous/solder"]`), the skill is `kicad`, and the agent's environment is
+  `KICAD_HARNESS_PYTHON` / `KICAD_HARNESS_ROOT` / `KICAD_HARNESS_BLOCKS` (never a bare
+  `KICAD_*`, which is KiCad's own namespace). Nothing else moves.
+- **Why:** the store names a wrapper after the open-source project it wraps when the
+  wrapper changes little of it (Blender, Typst, Marp); the owner's team asked for the
+  same here (2026-09-18), and Dee had already renamed Copper to Autonomous Circuit.
+  `formerly` keeps a machine that installed `autonomous/solder` from the merged
+  openharness #91 on the same install.
+- **Backward compatible:** for agents, no — a workspace created under the old env names
+  keeps running only until its next session reads the new AGENTS.md; nothing on disk
+  depends on the names. For the store, yes via `formerly`.
+- **Mechanism:** `harness/kicad/**` (text, manifest, skill folder), one docstring in
+  `kicadpy/harness.py`.
+- **Tracks affected:** harness package / docs.

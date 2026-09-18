@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Solder — Harness DSH workspace init. Runs once, after the template copy, cwd = the new workspace,
+# KiCad harness — Harness DSH workspace init. Runs once, after the template copy, cwd = the new workspace,
 # HARNESS_DSH_DIR = the install dir.
 #
 # The template brought project.json (engine: kicad-native — the marker) and product.json. This lays

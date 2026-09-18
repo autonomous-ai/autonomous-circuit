@@ -1,4 +1,4 @@
-"""The Solder harness package holds together: the manifest names files that exist and run.
+"""The KiCad harness package holds together: the manifest names files that exist and run.
 
 Runs under plain `python3 -m unittest` and under pytest. No KiCad, no network, no install: the
 scripts are exercised only where they need nothing vendored (the Python wrapper, workspace init).
@@ -27,8 +27,8 @@ class ManifestTest(unittest.TestCase):
     def test_identity_and_engine(self):
         m = _manifest()
         self.assertEqual(m['spec'], 1)
-        self.assertEqual(m['id'], 'autonomous/solder')
-        self.assertEqual(m['name'], 'Solder')
+        self.assertEqual(m['id'], 'autonomous/kicad')
+        self.assertEqual(m['name'], 'KiCad')
         self.assertEqual(m['category'], 'PCB')
         self.assertIn(m['engine'], ('claude', 'codex'))
         self.assertEqual(m['verdict'], '.harness/verdict.json')
@@ -57,7 +57,7 @@ class ManifestTest(unittest.TestCase):
         m = _manifest()
         expected = '.agents/skills' if m['engine'] == 'codex' else '.claude/skills'
         self.assertTrue(m['agent']['env']['CIRCUIT_SKILLS_DIR'].endswith(expected))
-        self.assertEqual(m['agent']['env']['SOLDER_PYTHON'], '${dsh}/toolchain/python')
+        self.assertEqual(m['agent']['env']['KICAD_HARNESS_PYTHON'], '${dsh}/toolchain/python')
 
     def test_template_marker_is_a_native_project(self):
         meta = json.loads((PKG / 'template' / 'project.json').read_text(encoding='utf-8'))

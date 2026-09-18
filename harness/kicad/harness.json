@@ -1,10 +1,13 @@
 {
   "spec": 1,
-  "id": "autonomous/solder",
-  "name": "Solder",
+  "id": "autonomous/kicad",
+  "name": "KiCad",
   "category": "PCB",
   "author": "Autonomous",
-  "description": "Describe a board; get a KiCad-native PCB — a real schematic, DRC-checked copper, a prototype packet — with a live board view.",
+  "formerly": [
+    "autonomous/solder"
+  ],
+  "description": "Describe a board; get a real KiCad project \u2014 a wired schematic, DRC-checked copper, a prototype packet \u2014 with a live board view.",
   "engine": "claude",
   "workspace": {
     "template": "template",
@@ -13,11 +16,13 @@
   },
   "agent": {
     "instructions": "AGENTS.md",
-    "skills": ["skills"],
+    "skills": [
+      "skills"
+    ],
     "env": {
-      "SOLDER_PYTHON": "${dsh}/toolchain/python",
-      "SOLDER_ROOT": "${dsh}/../..",
-      "SOLDER_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
+      "KICAD_HARNESS_PYTHON": "${dsh}/toolchain/python",
+      "KICAD_HARNESS_ROOT": "${dsh}/../..",
+      "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
       "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",
       "CIRCUIT_SKILLS_DIR": "${workspace}/.claude/skills",
       "DISABLE_AUTOUPDATER": "1"

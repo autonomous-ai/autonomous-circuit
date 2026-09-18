@@ -1,11 +1,11 @@
 ---
-name: solder
-description: The tool card for a Solder (KiCad-native) workspace — every kicadpy command, its request shape, the publisher, the verdict, and how to find KiCad's CLI and Python on this machine. Read before the first board and whenever a command's shape is in doubt.
+name: kicad
+description: The tool card for a KiCad harness (KiCad-native) workspace — every kicadpy command, its request shape, the publisher, the verdict, and how to find KiCad's CLI and Python on this machine. Read before the first board and whenever a command's shape is in doubt.
 ---
 
-# Solder tool card
+# KiCad harness tool card
 
-Every command runs through the host Python Harness gave you: `"$SOLDER_PYTHON"`. It already has
+Every command runs through the host Python Harness gave you: `"$KICAD_HARNESS_PYTHON"`. It already has
 `kicadpy` and `circuitpy` on its path and `CIRCUIT_TOOLCHAIN` set. Each tool prints exactly one
 JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last line of stdout.
 
@@ -14,7 +14,7 @@ JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last li
 ```bash
 ls /Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli || command -v kicad-cli
 ls /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
-"$SOLDER_PYTHON" -c 'from kicadpy import toolchain; print(toolchain.executable("cli")); print(toolchain.executable("python"))'
+"$KICAD_HARNESS_PYTHON" -c 'from kicadpy import toolchain; print(toolchain.executable("cli")); print(toolchain.executable("python"))'
 ```
 
 `kicadpy` finds the macOS bundle by itself; on another layout set `KICADPY_CLI` and
@@ -39,7 +39,7 @@ board = pcbnew.LoadBoard('build/cand/main.kicad_pcb')
 pcbnew.ExportSpecctraDSN(board, 'build/cand/main.dsn')
 ```
 ```bash
-"$SOLDER_PYTHON" -c 'import sys; from pathlib import Path; from circuitpy import toolchain; print(toolchain.run_freerouting(Path(sys.argv[1]), Path(sys.argv[2]), passes=5, threads=1, timeout=600))' build/cand/main.dsn build/cand/main.ses
+"$KICAD_HARNESS_PYTHON" -c 'import sys; from pathlib import Path; from circuitpy import toolchain; print(toolchain.run_freerouting(Path(sys.argv[1]), Path(sys.argv[2]), passes=5, threads=1, timeout=600))' build/cand/main.dsn build/cand/main.ses
 ```
 then `pcbnew.ImportSpecctraSES(board, 'build/cand/main.ses')`, inspect, and copy the accepted
 result into `design/`. The importer replaces tracks; protected wiring may be absent from the SES.
@@ -47,7 +47,7 @@ result into `design/`. The importer replaces tracks; protected wiring may be abs
 ## The transaction tools (`kicadpy`)
 
 ```bash
-"$SOLDER_PYTHON" -m kicadpy <operation> design/main.kicad_pro   # stdin: one JSON object
+"$KICAD_HARNESS_PYTHON" -m kicadpy <operation> design/main.kicad_pro   # stdin: one JSON object
 ```
 
 | Operation | Request on stdin | What it does |
@@ -74,7 +74,7 @@ Close any other writer (KiCad's GUI included) during `commit` and `undo`.
 ## Publish
 
 ```bash
-"$SOLDER_PYTHON" -m kicadpy.publish --manufacturing design/main.kicad_pro
+"$KICAD_HARNESS_PYTHON" -m kicadpy.publish --manufacturing design/main.kicad_pro
 ```
 
 Runs the native checks on a checked copy, renders `_pcb.svg`, `_pcb_bottom.svg`, `_schematic.svg`
@@ -97,25 +97,25 @@ Written by the publisher at every sidecar write. Before your first publish, tell
 you are:
 
 ```bash
-"$SOLDER_PYTHON" -m kicadpy.harness --active build
+"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build
 ```
 
 Phases are Build / Checks / Fab. Never edit `.harness/verdict.json` by hand.
 
 ## The review contract
 
-`MANUFACTURING.md` at `$SOLDER_ROOT/packages/kicadpy/MANUFACTURING.md` is the contract for
+`MANUFACTURING.md` at `$KICAD_HARNESS_ROOT/packages/kicadpy/MANUFACTURING.md` is the contract for
 `manufacturing.json` (seven areas, assembly decisions, `designInputs` hashes, accepted ignored
 checks) and for `.circuit/native-review-attestation.json`. Compute the input hashes after the last
 source edit:
 
 ```bash
-"$SOLDER_PYTHON" -c 'import json; from kicadpy.project import Project; from kicadpy.manufacture import design_inputs; print(json.dumps(design_inputs(Project("design/main.kicad_pro").root), indent=2))'
+"$KICAD_HARNESS_PYTHON" -c 'import json; from kicadpy.project import Project; from kicadpy.manufacture import design_inputs; print(json.dumps(design_inputs(Project("design/main.kicad_pro").root), indent=2))'
 ```
 
 ## Engineering knowledge
 
-`$SOLDER_BLOCKS/<block>/BLOCK.md` — the golden blocks' pin maps, values, layout notes and measured
+`$KICAD_HARNESS_BLOCKS/<block>/BLOCK.md` — the golden blocks' pin maps, values, layout notes and measured
 numbers (usb-c-power, usb-c-data, ldo-3v3, rp2040-core, sensor-bme280, ws2812-chain,
 servo-header, sw-tact, status-led, i2c-bus). Read them for the engineering; author the KiCad
 yourself. Verify every pin map and footprint against the manufacturer before you trust it.
