@@ -657,3 +657,43 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; fenced plans and questions behave as before.
 - **Mechanism:** driver.mjs `spawnTurn` (+ two driver tests).
 - **Tracks affected:** server / docs.
+
+## 2026-09-18 — Solder: the KiCad-native pipeline as a Harness domain harness, and its verdict
+- **Change:** (1) `kicadpy.publish` writes the Harness verdict
+  `<workspace>/.harness/verdict.json` (DSH spec 1) at every sidecar write —
+  running, complete, failed — derived from the native `.board.json` sidecars by
+  the new `kicadpy.harness` (`ready` is `fab.ready`, nothing weaker; `findings`
+  are `validation.warnings` with `detail→message` and `ref` from `ref`/`part`/
+  the native finding's reference; `phases` Build / Checks / Fab, folded to the
+  worst board). `python -m kicadpy.harness [--active build|checks|fab]` writes it
+  on demand so the agent can mark a phase before the first publish. Atomic,
+  best-effort, never fails a publish; a failure is one stderr line so the
+  publisher's stdout JSON line stays clean. (2) `harness/kicad/` — the **Solder**
+  package (`autonomous/solder`, category PCB): manifest, `AGENTS.md` (plan →
+  build → the agent's own two review rounds → done means `fab.ready`), the
+  `solder` skill card, a template whose marker is `project.json` with `engine:
+  kicad-native`, and a toolchain whose `setup.sh` vendors Freerouting and builds
+  the viewer, whose `doctor.sh` FAILS without kicad-cli and pcbnew, and whose
+  `viewer.sh` runs the viewer-only server with `CIRCUIT_DEFAULT_ENGINE=kicad-native`.
+- **Why:** the team moves onto Harness (openharness). Copper (`harness/`, PR #35 on
+  main) wraps the v1 tscircuit pipeline; a second harness carries the KiCad-native
+  one so the two never share a trunk. Under Harness there is no driver: the
+  native review loop (`runNativeReviewLoop`) and the 40-minute plan clock do not
+  run, so the loop is protocol text the agent follows and the verdict is the only
+  thing the host reads. Harness spawns codex without a sandbox, which is what
+  made every Astra build report `gate_did_not_run` in the app.
+  (3) `scripts/toolchain/install-freerouting.sh` exited 1 on EVERY run — after a
+  successful install — because under `set -eo pipefail` `ls a b | head -1` fails
+  when the platform's other glob is unmatched (the `JAVA=` assignment) and
+  `java -version | head -1` takes a SIGPIPE; the presence test had the same
+  glob and re-downloaded the JRE every time. Harness reported `setup exited 1`
+  twice with the files on disk. Now a `find_java` loop, a captured version
+  string, and `curl -fsSL --retry 3` so a failed download says so.
+- **Backward compatible:** yes. The sidecar is unchanged; the verdict is an added
+  file the app ignores. Publish behaviour and its stdout line are unchanged. The
+  installer vendors the same pinned jar and JRE; it just exits 0 when it did.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/harness.py` (+ hook in
+  `publish.py`), `packages/kicadpy/tests/test_harness_verdict.py`,
+  `harness/kicad/**`, `harness/kicad/tests/test_package.py`,
+  `scripts/toolchain/install-freerouting.sh`.
+- **Tracks affected:** pipeline (kicadpy) / harness package / toolchain scripts / docs.
