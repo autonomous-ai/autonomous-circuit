@@ -689,6 +689,13 @@ first, in this template, before the doc itself is edited:
   glob and re-downloaded the JRE every time. Harness reported `setup exited 1`
   twice with the files on disk. Now a `find_java` loop, a captured version
   string, and `curl -fsSL --retry 3` so a failed download says so.
+  (4) The viewer-only mode (`CIRCUIT_WORKSPACE`, main's 9f864fd from PR #35) is
+  cherry-picked onto the v2 branch — it was never there, so Solder's pane opened
+  the FULL app over the global project store (71 projects, chat, wizard) beside
+  the agent, a second server on the same store as the one on :4179. The
+  workspace project store now also carries `engine` from the workspace's
+  `project.json`, because the client keys its native-only surfaces on
+  `project.engine === "kicad-native"` and a Solder workspace rendered as v1.
 - **Backward compatible:** yes. The sidecar is unchanged; the verdict is an added
   file the app ignores. Publish behaviour and its stdout line are unchanged. The
   installer vendors the same pinned jar and JRE; it just exits 0 when it did.

@@ -469,11 +469,22 @@ export function createWorkspaceProjectStore({ workspaceDir, id = WORKSPACE_PROJE
     } catch {
       // the folder went away under us — a zeroed summary still names it
     }
+    // The host laid the workspace out from a template whose project.json names the engine
+    // (Solder: `kicad-native`); the client keys its native-only surfaces on `engine`, so a
+    // workspace without it would render a KiCad project as a v1 board.
+    let engine;
+    try {
+      const m = JSON.parse(fs.readFileSync(metaPath(dir), "utf8"));
+      if (m && m.engine === "kicad-native") engine = m.engine;
+    } catch {
+      // no project.json, or not ours — a v1 workspace
+    }
     return {
       id,
       name: boardName(dir) || path.basename(dir),
       created_at: stat ? Math.floor(stat.birthtimeMs || stat.ctimeMs) : 0,
       updated_at: stat ? Math.floor(stat.mtimeMs) : 0,
+      ...(engine ? { engine } : {}),
     };
   }
 
