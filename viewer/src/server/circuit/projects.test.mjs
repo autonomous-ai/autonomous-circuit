@@ -9,7 +9,9 @@ import path from "node:path";
 
 import {
   PLACEHOLDER_PROJECT_NAME,
+  WORKSPACE_PROJECT_ID,
   createProjectsStore,
+  createWorkspaceProjectStore,
   encodeCwd,
   parseLatestAiTitle,
   sessionJsonlPath,
@@ -194,4 +196,62 @@ test("an unreadable or nameless product.json never blanks the label", () => {
 
   fs.writeFileSync(path.join(workspace, "product.json"), JSON.stringify({ name: "  " }));
   assert.equal(store.get(p.id).name, "Keeps This");
+});
+
+// ---------------------------------------------------------------------------
+// Viewer-only mode: one workspace the host owns, served as the project "workspace".
+// ---------------------------------------------------------------------------
+
+test("a workspace store serves exactly one project, named by product.json, and refuses every mutation", () => {
+  const ws = tmpdir("circuit-workspace-");
+  fs.mkdirSync(path.join(ws, "boards"));
+  fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "<board />");
+  const store = createWorkspaceProjectStore({ workspaceDir: ws });
+
+  const listed = store.list();
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].id, WORKSPACE_PROJECT_ID);
+  // No product.json yet → the folder's own name. The board file makes it an existing project.
+  assert.equal(listed[0].name, path.basename(ws));
+  assert.equal(listed[0].isNew, false);
+  assert.equal(listed[0].hasModel, false);
+
+  fs.writeFileSync(path.join(ws, "product.json"), JSON.stringify({ name: "desk-air-monitor" }));
+  assert.equal(store.get(WORKSPACE_PROJECT_ID).name, "desk-air-monitor");
+
+  // The one id resolves to the folder; anything else is not found — the uuid store's
+  // containment rule, made stricter rather than looser.
+  assert.equal(store.projectDir(WORKSPACE_PROJECT_ID), path.resolve(ws));
+  assert.deepEqual(store.open(WORKSPACE_PROJECT_ID), { workspaceRoot: path.resolve(ws) });
+  assert.equal(store.exists(WORKSPACE_PROJECT_ID), true);
+  assert.equal(store.exists("nope"), false);
+  assert.throws(() => store.projectDir("nope"), { code: "PROJECT_NOT_FOUND" });
+  assert.throws(() => store.projectDir("../" + path.basename(ws)), { code: "PROJECT_NOT_FOUND" });
+
+  // Nothing here writes into the user's folder: no project.json, no rename, no delete.
+  for (const [name, call] of [
+    ["create", () => store.create("x")],
+    ["rename", () => store.rename(WORKSPACE_PROJECT_ID, "x")],
+    ["remove", () => store.remove(WORKSPACE_PROJECT_ID)],
+  ]) {
+    assert.throws(call, { code: "VIEWER_ONLY", statusCode: 409 }, name);
+  }
+  assert.equal(fs.existsSync(path.join(ws, "project.json")), false);
+  assert.equal(fs.existsSync(ws), true);
+});
+
+test("viewer-only: the workspace's project.json engine reaches the summary (Solder lays down kicad-native)", () => {
+  const ws = tmpdir("circuit-ws-");
+  const store = createWorkspaceProjectStore({ workspaceDir: ws });
+  // No project.json, or a v1 one: no engine field at all (the client's default arm).
+  assert.equal("engine" in store.list()[0], false);
+  fs.writeFileSync(path.join(ws, "project.json"), JSON.stringify({ id: "workspace", name: "x", engine: "v1" }));
+  assert.equal("engine" in store.list()[0], false);
+  // The Solder template: the client keys its native-only surfaces on this.
+  fs.writeFileSync(path.join(ws, "project.json"), JSON.stringify({ id: "workspace", name: "x", engine: "kicad-native" }));
+  assert.equal(store.list()[0].engine, "kicad-native");
+  assert.equal(store.get(WORKSPACE_PROJECT_ID).engine, "kicad-native");
+  // A broken project.json is a v1 workspace, not a crash.
+  fs.writeFileSync(path.join(ws, "project.json"), "{ not json");
+  assert.equal("engine" in store.list()[0], false);
 });

@@ -6,6 +6,9 @@ the independent gerber read, part identities, assembly decisions and the seven
 hashed engineering areas. The app's review round can add findings by editing
 the sources and republishing; its attestation is recorded in the journal and
 shown, it is not a second gate (owner's rule, 2026-09-17).
+
+Every sidecar write (running → complete | failed) also refreshes the Harness
+verdict beside it, `.harness/verdict.json` — see `kicadpy.harness`.
 """
 import argparse
 import json
@@ -13,7 +16,7 @@ from pathlib import Path
 import shutil
 import struct
 import tempfile
-from . import checks, toolchain, manufacture
+from . import checks, toolchain, manufacture, harness
 from .project import Project, manifest, revision, write_json, digest
 
 
@@ -32,6 +35,7 @@ def publish(path, manufacturing=False):
                          'assemblyReady': False, 'hardwareTested': False},
                 'validation': {'warnings': [{'kind': 'native_pending', 'severity': 'warning', 'message': 'Native CAD checks are running.'}]}}
         write_json(metadata, base)
+        harness.write_verdict(workspace)
         try:
             with tempfile.TemporaryDirectory(prefix='publish-', dir=project.store) as temp:
                 temp = Path(temp)
@@ -100,6 +104,7 @@ def publish(path, manufacturing=False):
                 for warning in base['validation']['warnings']:
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)
+                harness.write_verdict(workspace)
                 return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
                         'manufacturingFindings': len(packet['findings']) if packet else None,
                         'prototypeReady': packet['prototypeReady'] if packet else None, 'fabricationReady': base['fab']['ready']}
@@ -107,6 +112,7 @@ def publish(path, manufacturing=False):
             base['native']['publication'] = 'failed'
             base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc), 'detail': str(exc)}]
             write_json(metadata, base)
+            harness.write_verdict(workspace)
             raise
 
 

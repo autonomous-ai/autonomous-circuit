@@ -247,6 +247,10 @@ export interface AppSettings {
   claudeOauthToken?: string;
   // Gates the first-run wizard with a single app_settings_read() call.
   hasOnboarded: boolean;
+  // Circuit addition: the server is serving ONE workspace a host owns (Harness) and refuses
+  // chat. The client skips onboarding, hides the chat sidebar and the account controls, and
+  // opens the single project. Absent outside the mode.
+  viewerOnly?: boolean;
   // Update behavior. false (default) = prompt before downloading.
   autoUpdate: boolean;
   // Autopilot. true (default) = no plan-approval gate: after the model asks
