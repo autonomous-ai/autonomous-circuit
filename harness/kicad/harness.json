@@ -8,7 +8,7 @@
     "autonomous/solder"
   ],
   "description": "Describe a board; get a real KiCad project \u2014 a wired schematic, DRC-checked copper, a prototype packet \u2014 with a live board view.",
-  "engine": "claude",
+  "engine": "codex",
   "workspace": {
     "template": "template",
     "marker": "project.json",
@@ -24,9 +24,13 @@
       "KICAD_HARNESS_ROOT": "${dsh}/../..",
       "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
       "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",
-      "CIRCUIT_SKILLS_DIR": "${workspace}/.claude/skills",
+      "CIRCUIT_SKILLS_DIR": "${workspace}/.agents/skills",
       "DISABLE_AUTOUPDATER": "1"
-    }
+    },
+    "args": [
+      "-m",
+      "gpt-6-astra"
+    ]
   },
   "toolchain": {
     "setup": "toolchain/setup.sh",

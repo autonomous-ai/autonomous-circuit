@@ -36,7 +36,8 @@ Then ⌘N in the app → KiCad → a folder → a prompt. `AGENTS.md` and the sk
 edit is live in the next session; after editing `viewer.sh` kill the viewer process and the daemon
 respawns it; after editing `harness.json`, `harness dsh remove autonomous/kicad` and install again.
 
-The engine is `claude` while Astra's Codex quota is out; the codex manifest differs in two lines
-(`"engine": "codex"`, `CIRCUIT_SKILLS_DIR` → `${workspace}/.agents/skills`) plus `agent.args` for the
-model. The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
+The engine is **`codex`** with `agent.args: ["-m", "gpt-6-astra"]` — the tile was always meant to be
+KiCad + Astra; Harness spawns codex with `--dangerously-bypass-approvals-and-sandbox`, so the KiCad
+gate runs unsandboxed. The claude manifest differs in two lines (`"engine": "claude"`,
+`CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills`) and no `args`. The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
 points at `upstream/harness/kicad/…`, the way Copper's does.
