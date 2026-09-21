@@ -730,7 +730,8 @@ first, in this template, before the doc itself is edited:
   `-N` on the current name is not nested), makes it, opens the Harness daemon's
   loopback WebSocket (`ws://127.0.0.1:18473/api/local-ws`), `machine_select`
   with the local machine from `~/.harness/cli/data/machines.json`, then
-  `agent_create { engine, cwd, dsh: $HARNESS_DSH }` with the engine read from
+  `agent_create { engine, cwd, dsh: $HARNESS_DSH, bypassPermission: true }` (a
+  sandboxed codex kills the KiCad gate and asks for every install) with the engine read from
   the installed manifest at `$HARNESS_DSH_DIR/harness.json`; answers
   `{ agentId, cwd, name, dsh, engine, dshName, hint }`. A refusal is
   `HARNESS_NEW_BOARD_FAILED` (502) with the daemon's reason and the folder is

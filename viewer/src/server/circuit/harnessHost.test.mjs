@@ -93,6 +93,7 @@ test("createHarnessAgent speaks machine_select then agent_create and resolves th
   assert.equal(create.dsh, "autonomous/kicad");
   assert.match(create.requestId, /^[0-9a-f]{16}$/);
   assert.match(create.creationId, /^[0-9a-f]{24}$/);
+  assert.equal(create.bypassPermission, true);
   assert.equal(socket.closed, true);
 });
 

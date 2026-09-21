@@ -135,7 +135,10 @@ export function createHarnessAgent({
       }
       const { type, payload } = frame || {};
       if (type === "connected") {
-        send("agent_create", { requestId, engine, cwd, dsh, creationId });
+        // bypassPermission: the Circuit tiles run their pipeline (KiCad, the supplier's catalog,
+        // the router) from the agent's shell; a sandboxed codex kills the KiCad gate and asks
+        // for every install (seen 2026-09-21). It is the desktop's "Advanced" toggle, on.
+        send("agent_create", { requestId, engine, cwd, dsh, creationId, bypassPermission: true });
         return;
       }
       if (type === "machine_select_error") {
