@@ -50,11 +50,20 @@ def inspect(board):
                            'excludedFromPosition': f.IsExcludedFromPosFiles(),
                            'at': point(f.GetPosition()), 'rotationDeg': f.GetOrientationDegrees(),
                            'layer': f.GetLayerName(), 'pads': pads})
-    bbox = board.GetBoardEdgesBoundingBox()
+    # The board's size is the closed outline's centreline, not the drawing stroke around it:
+    # GetBoardEdgesBoundingBox() adds the Edge.Cuts pen width (0.05 mm on a 40 mm board reads
+    # as a 0.9988 'scale error' in the packet check — seen 2026-09-21). Fall back to the edges
+    # box only when there is no closed outline to measure.
+    poly = p.SHAPE_POLY_SET()
+    if board.GetBoardPolygonOutlines(poly, False) and poly.OutlineCount() > 0:
+        bbox, bounds_source = poly.BBox(), 'outline'
+    else:
+        bbox, bounds_source = board.GetBoardEdgesBoundingBox(), 'edges'
     return {'kicad': p.GetBuildVersion(), 'coordinateSystem': 'KiCad absolute mm, y down; layers unmirrored',
             'thicknessMm': p.ToMM(board.GetDesignSettings().GetBoardThickness()),
             'copperLayers': [board.GetLayerName(l) for l in board.GetEnabledLayers().CuStack()],
             'boardBoundsMm': [p.ToMM(bbox.GetX()), p.ToMM(bbox.GetY()), p.ToMM(bbox.GetRight()), p.ToMM(bbox.GetBottom())],
+            'boardBoundsSource': bounds_source,
             'nets': sorted(n.GetNetname() for n in board.GetNetInfo().NetsByName().values()),
             'footprints': footprints, 'copper': [copper(t) for t in board.GetTracks()],
             'zones': [{'uuid': uid(z), 'net': z.GetNetname(), 'layer': z.GetLayerName()} for z in board.Zones()],

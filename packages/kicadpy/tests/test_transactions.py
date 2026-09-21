@@ -205,3 +205,11 @@ def test_scratch_copies_outside_design_are_not_inputs(tmp_path):
     assert not any(k.startswith(('build/', 'tools/')) for k in manifest(root))
     (root / 'engineering').mkdir(); (root / 'engineering/power.md').write_text('evidence')
     assert revision(root) != before and 'engineering/power.md' in manifest(root)
+
+
+def test_board_bounds_are_the_outline_centreline_not_the_drawing_stroke(engine):
+    # tiny's Edge.Cuts is a closed 30 x 20 rectangle drawn with a 0.05 mm pen; the edges bounding
+    # box would say 30.05 x 20.05 and the packet check would call the gerber "scaled by 0.9983".
+    state = engine.inspect()
+    assert state['boardBoundsSource'] == 'outline'
+    assert state['boardBoundsMm'] == pytest.approx([0, 0, 30, 20], abs=1e-6)

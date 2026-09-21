@@ -759,3 +759,21 @@ first, in this template, before the doc itself is edited:
   `BoardWorkspace.jsx`, `StartHere.jsx`. Verified live against the daemon on
   this Mac: a `pet-2` harness on codex, materialized, then deleted.
 - **Tracks affected:** server / client / docs.
+
+## 2026-09-21 — the native board's size is its outline, not its outline's pen
+- **Change:** `kicadpy.worker` reports `boardBoundsMm` from the closed Edge.Cuts
+  polygon (`GetBoardPolygonOutlines`) and says so in `boardBoundsSource:
+  "outline"`; the edges bounding box (which adds the drawing stroke) is only the
+  fallback for a board with no closed outline (`"edges"`).
+- **Why:** with a 0.05 mm pen the old box said a 40 × 40 board was 40.05 × 40.05,
+  and the packet's independent gerber read then reported `gerber_scale_mismatch`
+  "both axes scaled by 0.9988 — a coordinate-format or units error" on a correct
+  packet (two Astra runs, 2026-09-21; one of them monkeypatched the publisher
+  locally to get past it, which is the wrong place for the fix). The check was
+  right to compare, wrong about what it compared against.
+- **Backward compatible:** yes for a board with a closed outline (the number is
+  now the true one; `manufacture.packet_outline`, `verifylib.gerber_truth` and
+  the viewer's bounds all consume it); a board without one is unchanged.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/worker.py`, one test in
+  `test_transactions.py` (runs real KiCad; skips without it).
+- **Tracks affected:** pipeline (kicadpy) / docs.
