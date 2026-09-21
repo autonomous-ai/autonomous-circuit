@@ -31,7 +31,11 @@
       "-m",
       "gpt-6-astra",
       "-c",
-      "model_reasoning_effort=high"
+      "model_reasoning_effort=high",
+      "-c",
+      "approval_policy=never",
+      "-c",
+      "sandbox_mode=danger-full-access"
     ]
   },
   "toolchain": {

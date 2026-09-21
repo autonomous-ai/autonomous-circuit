@@ -36,8 +36,13 @@ Then ⌘N in the app → KiCad → a folder → a prompt. `AGENTS.md` and the sk
 edit is live in the next session; after editing `viewer.sh` kill the viewer process and the daemon
 respawns it; after editing `harness.json`, `harness dsh remove autonomous/kicad` and install again.
 
-The engine is **`codex`** with `agent.args: ["-m", "gpt-6-astra"]` — the tile was always meant to be
-KiCad + Astra; Harness spawns codex with `--dangerously-bypass-approvals-and-sandbox`, so the KiCad
-gate runs unsandboxed. The claude manifest differs in two lines (`"engine": "claude"`,
+The engine is **`codex`** with `agent.args` = Astra at high effort **plus `-c approval_policy=never -c
+sandbox_mode=danger-full-access`**, so a KiCad harness runs unsandboxed and never asks, whatever the
+person picked in New Harness — the pipeline (kicad-cli, pcbnew, the supplier's catalog, Freerouting)
+does not survive codex's `workspace-write` sandbox (a DRC sat in an uninterruptible exit for two hours,
+2026-09-21). Measured on codex 0.155: the `-c` overrides coexist with every flag the daemon adds; the
+`--dangerously-bypass-approvals-and-sandbox` flag cannot go in `args` (it refuses to appear twice or
+beside `--approve-for-me`). One exception: the daemon's "auto" mode adds `--approve-for-me`, which
+wins over the overrides and keeps the sandbox — pick "full" or "ask", never "auto". The claude manifest differs in two lines (`"engine": "claude"`,
 `CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills`) and no `args`. The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
 points at `upstream/harness/kicad/…`, the way Copper's does.
