@@ -11,7 +11,12 @@ JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last li
 
 ## Discover KiCad first
 
+When the tile ships its own KiCad (the store package does), Harness sets `$KICADPY_CLI`,
+`$KICADPY_PYTHON` and `$KICAD_HARNESS_SHARE` (the symbol/footprint libraries) — use those and do not
+look in `/Applications`. Otherwise:
+
 ```bash
+echo "${KICADPY_CLI:-unset} ${KICADPY_PYTHON:-unset} ${KICAD_HARNESS_SHARE:-unset}"
 ls /Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli || command -v kicad-cli
 ls /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
 "$KICAD_HARNESS_PYTHON" -c 'from kicadpy import toolchain; print(toolchain.executable("cli")); print(toolchain.executable("python"))'

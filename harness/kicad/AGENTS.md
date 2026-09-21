@@ -56,7 +56,9 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   every request shape, the paths to discover.
 
 **Two Pythons, two runtimes.** KiCad's bundled Python (`pcbnew`) authors and inspects PCB
-objects; on a Mac it lives inside `/Applications/KiCad/KiCad.app` and may be Python 3.9. The host
+objects. When Harness sets `$KICADPY_CLI` / `$KICADPY_PYTHON` / `$KICAD_HARNESS_SHARE`, that is the
+KiCad this tile ships and the one to use (its libraries are under `$KICAD_HARNESS_SHARE`); otherwise
+on a Mac it lives inside `/Applications/KiCad/KiCad.app` and may be Python 3.9. The host
 Python runs `kicadpy`. Discover both paths — never assume another machine has them — and never
 import `pcbnew` into the host interpreter. The CLI is `kicad-cli`, in the same bundle or on PATH;
 use absolute paths once discovered.
