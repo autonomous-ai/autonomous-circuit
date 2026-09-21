@@ -180,8 +180,15 @@ The app used to run this loop for you; here you run it yourself, without narrati
    measured or calculated analysis with its sources, hashed evidence files, an assembly decision
    for every populated footprint, verified factory rotations (zero needs evidence too). Compute
    `designInputs` with `kicadpy.manufacture.design_inputs` AFTER the last source edit. Pass an
-   area only on real evidence; `blocked` is the honest state for anything else, and a bench test
-   that needs a physical board is `blocked`, not a pass.
+   area on **design evidence**: a calculation, a datasheet number, a routed-copper measurement, a
+   pad/pin audit — things that can be done at this desk. `blocked` means such evidence is missing.
+   A bench measurement that needs a physical board (a temperature, an inrush, a fault current,
+   USB enumeration) is never a prerequisite: write it as a step with a pass/fail limit under
+   `bringup` and pass the area on the design side. Prototype-ready is a design statement.
+   A factory rotation is `verified` once the footprint's zero orientation has been compared with
+   the JLCPCB/EasyEDA library footprint of that LCSC part (or the community conversion table plus
+   that comparison), written down in `engineering/assembly.md`; the placement preview on the
+   JLCPCB site is the orderer's check, named in README, not a blocker.
 4. Republish and read the findings again.
 
 At most two rounds; stop when the packet is ready or a round changed nothing. Then write
