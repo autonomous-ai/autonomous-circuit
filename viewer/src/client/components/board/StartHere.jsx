@@ -34,6 +34,8 @@ function useElapsedS(startedAt, running) {
  * work, and if it stops you can see exactly where.
  */
 export default function StartHere({
+  // Viewer-only (Harness): the conversation is the terminal beside this pane, not a chat here.
+  viewerOnly = false,
   status = null,
   building = false,
   startedAt = 0,
@@ -72,8 +74,8 @@ export default function StartHere({
       <div className="flex w-full max-w-lg flex-col gap-4 px-8">
         <p className="text-xs text-amber-400">KiCad v2 · Experimental</p>
         <h1 className="text-2xl font-semibold text-white">{running ? "Working on your KiCad design" : "Describe a device. Start a KiCad design."}</h1>
-        <p className="text-sm leading-6 text-white/60">Paste your prompt in the chat. Circuit plans the design, then creates native KiCad schematic and board files for review.</p>
-        <p className="text-xs leading-5 text-white/40">{running ? "Follow progress in the chat. " : ""}Prototype ordering requires engineering review and a verified manufacturing packet. Physical hardware testing is a separate step.</p>
+        <p className="text-sm leading-6 text-white/60">{viewerOnly ? "Type your prompt in the terminal beside this pane. Circuit plans the design, then creates native KiCad schematic and board files, and this pane shows them." : "Paste your prompt in the chat. Circuit plans the design, then creates native KiCad schematic and board files for review."}</p>
+        <p className="text-xs leading-5 text-white/40">{running ? (viewerOnly ? "Follow progress in the terminal. " : "Follow progress in the chat. ") : ""}Prototype ordering requires engineering review and a verified manufacturing packet. Physical hardware testing is a separate step.</p>
       </div>
     </div>
   );

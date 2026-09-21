@@ -19,6 +19,7 @@ import {
   projectsRootDir,
 } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
+import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -479,6 +480,9 @@ export function createCircuitServices({
   // viewer in the pane beside it — `harness/toolchain/viewer.sh`). `CIRCUIT_WORKSPACE` is the
   // env spelling of the same option.
   workspaceDir = env.CIRCUIT_WORKSPACE || "",
+  // Viewer-only: how `harness_new_board` reaches the Harness daemon (a WebSocket factory);
+  // tests hand in a fake, production uses Node's global WebSocket (harnessHost.mjs).
+  harnessConnect = undefined,
 } = {}) {
   const home = circuitHome(env);
   const viewerOnly = Boolean(workspaceDir);
@@ -1110,6 +1114,19 @@ export function createCircuitServices({
         );
       };
     }
+  }
+
+  // The one thing a viewer-only pane may ask its host for: another board. A new board is a new
+  // harness, and only the Harness daemon makes those — `harnessHost.mjs` speaks the two frames it
+  // takes. Outside viewer-only mode the command does not exist (the app has project_create).
+  if (viewerOnly) {
+    commands.harness_new_board = async () => {
+      try {
+        return await harnessNewBoard({ workspaceDir: projectsRoot, env, connect: harnessConnect });
+      } catch (err) {
+        throw ipcError("HARNESS_NEW_BOARD_FAILED", err?.message || String(err), 502);
+      }
+    };
   }
 
   // --- middlewares ----------------------------------------------------------

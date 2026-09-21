@@ -721,3 +721,37 @@ first, in this template, before the doc itself is edited:
 - **Mechanism:** `harness/kicad/**` (text, manifest, skill folder), one docstring in
   `kicadpy/harness.py`.
 - **Tracks affected:** harness package / docs.
+
+## 2026-09-21 — viewer-only: a "New board" button that asks the Harness daemon
+- **Change:** in viewer-only mode (`CIRCUIT_WORKSPACE`) the board header shows one
+  **New board** button in place of the account card, and the server gains one
+  command, `harness_new_board` (viewer-only; `UNKNOWN_COMMAND` elsewhere). It
+  picks the next free sibling folder (`<parent>/<base>-N`, N from 2, a trailing
+  `-N` on the current name is not nested), makes it, opens the Harness daemon's
+  loopback WebSocket (`ws://127.0.0.1:18473/api/local-ws`), `machine_select`
+  with the local machine from `~/.harness/cli/data/machines.json`, then
+  `agent_create { engine, cwd, dsh: $HARNESS_DSH }` with the engine read from
+  the installed manifest at `$HARNESS_DSH_DIR/harness.json`; answers
+  `{ agentId, cwd, name, dsh, engine, dshName, hint }`. A refusal is
+  `HARNESS_NEW_BOARD_FAILED` (502) with the daemon's reason and the folder is
+  removed again. `viewer/src/server/circuit/harnessHost.mjs`; the socket
+  factory is injectable (`createCircuitServices({ harnessConnect })`). The
+  viewer-only pitch text now says the prompt goes in the terminal beside the
+  pane, not "in the chat".
+- **Why:** the owner (2026-09-18): a new board took ⌘N → tile → machine →
+  folder → engine, and the pane's old PROJECTS "+" is gone by design. Harness
+  has no hook for this, but its daemon makes harnesses for the desktop over
+  this socket (openharness `store/tools/dsh-e2e.mjs` drives it the same way),
+  so the pane asks the daemon. **Known hole, by design of the host:** the
+  daemon does not place the new pane in a tab — the desktop does — so the hint
+  says ⌘O. The button saves four of five steps, not the fifth. The engine must
+  be the installed tile's base or the daemon answers `INVALID_DSH` (measured:
+  a stale copy of the manifest saying `claude` against an installed `codex`).
+- **Backward compatible:** yes. Nothing changes outside viewer-only mode; the
+  sidecar, the verdict and every other command are untouched.
+- **Mechanism:** `harnessHost.mjs` (+ `harnessHost.test.mjs`, 6 tests), `http.mjs`
+  (+ one `http.test.mjs` case: created / refused / absent), `transport.ts`
+  (`harness_new_board`, `NewBoardResult`), `NewBoardButton.jsx`,
+  `BoardWorkspace.jsx`, `StartHere.jsx`. Verified live against the daemon on
+  this Mac: a `pet-2` harness on codex, materialized, then deleted.
+- **Tracks affected:** server / client / docs.

@@ -233,6 +233,17 @@ export interface PrereqCheck {
   kicadCli?: { found: boolean; version?: string };
 }
 
+/** `harness_new_board`: the new harness the daemon created, and the hint the pane shows. */
+export interface NewBoardResult {
+  agentId: string;
+  cwd: string;
+  name: string;
+  dsh: string;
+  engine: string;
+  dshName: string | null;
+  hint: string;
+}
+
 export interface AppSettings {
   defaultFilament: FilamentKind;
   slicerBinaryPath: string;
@@ -593,6 +604,8 @@ const transportBase = {
   app_info: () => invoke<AppInfo>("app_info"),
   app_prereq_check: () => invoke<PrereqCheck>("app_prereq_check"),
   app_settings_read: () => invoke<AppSettings>("app_settings_read"),
+  // Viewer-only (Harness): ask the daemon for a new harness of this tile in a sibling folder.
+  harness_new_board: () => invoke<NewBoardResult>("harness_new_board"),
   app_settings_write: (settings: AppSettings) =>
     invoke<void>("app_settings_write", { settings }),
   app_install_claude_code: () =>

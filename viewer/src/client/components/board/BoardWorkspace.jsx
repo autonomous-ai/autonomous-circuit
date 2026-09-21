@@ -3,6 +3,7 @@ import { Keyboard as KeyboardIcon, Loader2, SendHorizontal } from "lucide-react"
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
+import NewBoardButton from "./NewBoardButton.jsx";
 import { setPendingViewContext, setProject as setChatProject, startTurn } from "@/store/chat.js";
 import {
   FOCUS_CHAT_INPUT_EVENT,
@@ -1204,7 +1205,9 @@ export default function BoardWorkspace({
             onOpenTab={setActiveTab}
           />
         ) : null}
-        {viewerOnly ? null : (
+        {viewerOnly ? (
+          <NewBoardButton className={selectedEntry ? "" : "ml-auto"} />
+        ) : (
           <div className={cn("flex items-center gap-1", selectedEntry ? "" : "ml-auto")}>
             <SidebarUserCard onOpenAccountScreen={onOpenAccountScreen} />
           </div>
@@ -1515,6 +1518,7 @@ export default function BoardWorkspace({
           ) : (
             !stagePending ? (
               <StartHere
+                viewerOnly={viewerOnly}
               native={projects.some(project => project.id === currentProjectId && project.engine === "kicad-native")}
               status={buildStatus}
               building={building || turnInProgress}
