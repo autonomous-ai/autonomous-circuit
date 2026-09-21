@@ -22,6 +22,14 @@ ls /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/C
 `import pcbnew` — author and inspect PCB objects with it (`tools/*.py`, run with that
 interpreter). The host Python cannot import `pcbnew`, and KiCad's Python cannot import `kicadpy`.
 
+## Never let kicad-cli run in the background
+
+Run `kicad-cli` in the **foreground**, wrapped: `timeout 180 kicad-cli pcb drc …`. Measured
+2026-09-21 on a Codex run: five `kicad-cli pcb drc` processes launched from background terminals
+hung in kernel state `UE` for hours, none wrote its output, and the agent waited on them for 30+
+minutes each. The publisher and `kicadpy check` run it with a 120 s bound — prefer them. If a
+`timeout` fires, the run is wrong, not slow: read the command, do not retry it in the background.
+
 ## Author
 
 Sources live under `design/`: `main.kicad_pro`, `main.kicad_sch`, `main.kicad_pcb`, local

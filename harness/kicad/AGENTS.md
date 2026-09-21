@@ -144,6 +144,11 @@ in your next edit rather than stacking another change on top; `undo` exists for 
 Never disable an electrical or geometric check, never widen a rule to erase a finding: the ignored
 checks you do accept are listed, per category, with the reason in `engineering/`.
 
+**kicad-cli runs in the foreground, with a timeout** (`timeout 180 kicad-cli …`) or through the
+publisher — never from a background terminal: launched that way it can hang in the kernel for
+hours without writing its output (five such processes on one machine, 2026-09-21), and you
+wait on nothing.
+
 **Keep existing correct copper.** A local defect is a local repair (a `replace_track`, a
 `set_width`, a `route` of the nets in one region), never a re-route of the board. A rebuild from
 scratch is for a placement change, and it throws every repair away — so change placement first,
