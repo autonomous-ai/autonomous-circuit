@@ -135,10 +135,14 @@ export function createHarnessAgent({
       }
       const { type, payload } = frame || {};
       if (type === "connected") {
-        // bypassPermission: the Circuit tiles run their pipeline (KiCad, the supplier's catalog,
-        // the router) from the agent's shell; a sandboxed codex kills the KiCad gate and asks
-        // for every install (seen 2026-09-21). It is the desktop's "Advanced" toggle, on.
-        send("agent_create", { requestId, engine, cwd, dsh, creationId, bypassPermission: true });
+        // The Circuit tiles run their pipeline (KiCad, the supplier's catalog, the router) from
+        // the agent's shell, so the engine must run without a sandbox. On the daemon (0.2.58)
+        // `bypassPermission` only selects the "auto" mode — for codex `--approve-for-me`, a
+        // reviewer model over a workspace-write sandbox, under which a kicad-cli DRC sat in an
+        // uninterruptible exit for two hours (2026-09-21). `permissionMode: "full"` is the mode
+        // that maps to `--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-
+        // permissions`; both fields are sent so an older daemon still gets the bypass.
+        send("agent_create", { requestId, engine, cwd, dsh, creationId, bypassPermission: true, permissionMode: "full" });
         return;
       }
       if (type === "machine_select_error") {
