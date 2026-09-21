@@ -29,7 +29,9 @@
     },
     "args": [
       "-m",
-      "gpt-6-astra"
+      "gpt-6-astra",
+      "-c",
+      "model_reasoning_effort=high"
     ]
   },
   "toolchain": {
