@@ -35,7 +35,11 @@
       "-c",
       "approval_policy=never",
       "-c",
-      "sandbox_mode=danger-full-access"
+      "sandbox_mode=danger-full-access",
+      "-c",
+      "hooks.Stop=[{hooks=[{type=\"command\",command=\"\\\"$KICAD_HARNESS_PYTHON\\\" -m kicadpy.autofinish\",timeout=1200}]}]",
+      "-c",
+      "hooks.Interrupt=[{hooks=[{type=\"command\",command=\"\\\"$KICAD_HARNESS_PYTHON\\\" -m kicadpy.autofinish\",timeout=3}]}]"
     ]
   },
   "toolchain": {

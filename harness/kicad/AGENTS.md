@@ -66,8 +66,8 @@ use absolute paths once discovered.
 **What is not here.** No TSX, no `circuitcode` generator, no autorouter-from-source: this engine
 is KiCad. No `parts-book` skill: it is v1-only. You lock parts yourself in `parts.json`, from the
 manufacturer's datasheet and the supplier's live listing, and you never invent an LCSC number, a
-stock level or a package you did not look up. No server-side review loop: the app used to run two
-review rounds after your turn; here you run them yourself (below).
+stock level or a package you did not look up. Review and repair run here (below). On Codex, Circuit’s Stop hook checks an active build and
+requests another repair turn when the packet is unfinished.
 
 ## The two phases, and the review that follows
 
@@ -131,7 +131,9 @@ order `PROMPT-WORKFLOW.md` gives:
 6. Route: for the first pass, Specctra DSN out → Freerouting (`circuitpy.toolchain.run_freerouting`)
    → SES in, **on a copy** — the importer replaces tracks. For every later change, the `kicadpy`
    transaction (`snapshot` → `apply` / `route` → `check` → `commit`, `undo` if worse): it keeps
-   the copper that was already right.
+   the copper that was already right. If other pre-existing findings prevent a passing commit,
+   use `allow_improvement: true`: it accepts only verified strict progress with no new findings,
+   never a weaker manufacturing gate.
 7. Publish after every complete revision:
    ```
    "$KICAD_HARNESS_PYTHON" -m kicadpy.publish --manufacturing design/main.kicad_pro
@@ -191,7 +193,22 @@ The app used to run this loop for you; here you run it yourself, without narrati
    JLCPCB site is the orderer's check, named in README, not a blocker.
 4. Republish and read the findings again.
 
-At most two rounds; stop when the packet is ready or a round changed nothing. Then write
+Continue until the packet is ready. A round that changes nothing is a signal to change repair
+strategy, not to declare completion: inspect the actual failing pads/nets, adjust local placement
+or the repair scope, and compare the next candidate against your snapshot. Keep all requested
+functions and all validation rules. Do not convert missing design evidence to a pass.
+
+`kicadpy.harness --active build` arms Circuit's Codex Stop hook for the approved build. It
+republishes at turn end and supplies current failures in automatic continuation prompts (up to
+eight repair continuations, with a four-hour continuation window). Repeating the build marker
+while active does not reset that budget. Never edit `.circuit/autofinish.json` or re-arm to evade
+a budget. Only start a new run for a new explicit user build/retry request. A user interrupt cancels
+auto-finish. Planning and question-only turns must not arm it. Hook trust must be enabled via
+Codex `/hooks`; if it is unavailable, perform the same repair loop within this turn. At a real
+budget/tooling limit, report unfinished with concrete blockers and your attempted strategies;
+never ask the user to diagnose electrical problems or claim readiness.
+
+Then write
 `.circuit/native-review-attestation.json` — `{status: "pass" | "blocked", reviewer: <your
 identity and model>, summary: <your independent conclusion and remaining limits>,
 sourceFingerprints: [the exact source.fingerprint values from the final sidecars]}`. A `pass`

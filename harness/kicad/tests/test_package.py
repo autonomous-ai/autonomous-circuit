@@ -59,6 +59,14 @@ class ManifestTest(unittest.TestCase):
         self.assertTrue(m['agent']['env']['CIRCUIT_SKILLS_DIR'].endswith(expected))
         self.assertEqual(m['agent']['env']['KICAD_HARNESS_PYTHON'], '${dsh}/toolchain/python')
 
+    def test_manifest_wires_stop_and_interrupt_without_trust_bypass(self):
+        args = _manifest()['agent']['args']
+        for event in ('Stop', 'Interrupt'):
+            config = next(arg for arg in args if arg.startswith('hooks.' + event + '='))
+            self.assertIn('kicadpy.autofinish', config)
+            self.assertIn('$KICAD_HARNESS_PYTHON', config)
+        self.assertFalse(any('bypass-hook-trust' in arg for arg in args))
+
     def test_template_marker_is_a_native_project(self):
         meta = json.loads((PKG / 'template' / 'project.json').read_text(encoding='utf-8'))
         self.assertEqual(meta['engine'], 'kicad-native')

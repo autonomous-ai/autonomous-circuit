@@ -46,3 +46,25 @@ beside `--approve-for-me`). One exception: the daemon's "auto" mode adds `--appr
 wins over the overrides and keeps the sandbox — pick "full" or "ask", never "auto". The claude manifest differs in two lines (`"engine": "claude"`,
 `CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills`) and no `args`. The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
 points at `upstream/harness/kicad/…`, the way Copper's does.
+
+## Codex auto-finish
+
+The manifest supplies Codex `Stop` and `Interrupt` command hooks through `agent.args`;
+no Harness source change or separate background agent is required. Requires a Codex CLI
+with stable hooks (validated config parsing on 0.155.1). In the tile, open `/hooks` and review
+and trust the two Circuit commands before the first build. Approval/sandbox settings do
+not grant hook trust. Changed hook definitions need review again; no trust bypass is installed.
+See https://learn.chatgpt.com/docs/hooks for Codex's hook contract.
+
+An approved build's `kicadpy.harness --active build` arms `.circuit/autofinish.json`.
+At Stop, Circuit republishes native manufacturing packets, parses results and current sidecars,
+and returns current blockers as an automatic repair prompt. An unchanged blocker list requests
+a different strategy. Up to eight repair continuations are allowed within a four-hour window;
+the final continuation reports exhaustion honestly. A user interrupt cancels the run. Planning
+and ordinary questions do not arm it. State and publisher logs remain under `.circuit/`.
+The gate remains the publisher's `fab.ready`; this does not guarantee any arbitrary board will
+converge or validate physical hardware. A trusted hook is required for automatic continuation.
+
+Existing tiles must reload the updated manifest and restart Codex to receive its new arguments;
+editing a linked checkout alone does not change a running CLI's hooks. No workspace migration is
+needed. Do not restart a working session without coordinating with its owner.

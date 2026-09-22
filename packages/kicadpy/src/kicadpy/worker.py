@@ -132,7 +132,7 @@ def main(req):
                 t.SetLocked(locked)
             else:
                 if t.GetNetname() not in scope['nets'] or not inside_route(t):
-                    raise ValueError('router changed copper outside scope')
+                    raise ValueError('router changed copper outside scope: net=%s startMm=%s endMm=%s allowedNets=%s regionMm=%s; inspect the proposed geometry and adjust local scope or placement, not the guard' % (t.GetNetname(), point(t.GetStart()), point(t.GetEnd()), scope['nets'], region))
                 t.SetLocked(False)
                 created.append(uid(t))
         # Native SES omits protected wiring, while KiCad's importer clears

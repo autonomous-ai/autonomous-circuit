@@ -72,7 +72,7 @@ result into `design/`. The importer replaces tracks; protected wiring may be abs
 | `route` | `{expected, scope}` | a candidate with Freerouting's proposal for the scope |
 | `diff` | `{identifier}` | what a candidate changes |
 | `check` | `{identifier}` | native ERC/DRC/parity on a candidate |
-| `commit` | `{identifier, expected}` | the candidate becomes the source (revision advances) |
+| `commit` | `{identifier, expected, allow_improvement?: boolean}` | the candidate becomes the source (revision advances) |
 | `undo` | `{target, expected}` | back to a snapshot revision |
 
 `expected` is the revision you read from `inspect` — a stale one is refused, which is the point.
@@ -132,3 +132,11 @@ source edit:
 numbers (usb-c-power, usb-c-data, ldo-3v3, rp2040-core, sensor-bme280, ws2812-chain,
 servo-header, sw-tact, status-led, i2c-bus). Read them for the engineering; author the KiCad
 yourself. Verify every pin map and footprint against the manufacturer before you trust it.
+
+A local repair on an already failing board may commit with `allow_improvement: true`.
+The default still requires a passing native check. Improvement mode freshly checks a copy of
+its baseline and accepts only a strict subset of the exact previous findings (including warnings),
+with identical tools, coverage and ignored checks. A new or changed finding is rejected even if
+the total count falls. Scope, source freshness, check hashes and undo remain enforced. This is
+progress, not completion: `fabricationReady` remains false; publish the manufacturing packet
+and finish the remaining repairs before claiming `fab.ready=true`.

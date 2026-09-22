@@ -777,3 +777,20 @@ first, in this template, before the doc itself is edited:
 - **Mechanism:** `packages/kicadpy/src/kicadpy/worker.py`, one test in
   `test_transactions.py` (runs real KiCad; skips without it).
 - **Tracks affected:** pipeline (kicadpy) / docs.
+
+
+## 2026-09-22 — bounded native build continuation and incremental repair commits
+- **Change:** KiCad tile supplies Codex Stop/Interrupt hooks. `kicadpy.harness --active build`
+  arms `.circuit/autofinish.json`; `kicadpy.autofinish` verifies fresh manufacturing publications
+  and requests at most eight repair continuations within four hours, respecting interruption.
+  Native `commit` accepts optional `allow_improvement: boolean` (default false) and returns
+  `acceptance` and `remainingFindings` in addition to its existing fields.
+- **Why:** Astra stopped after two review rounds; local fixes on a board with unrelated existing
+  errors could not commit (2026-09-22). User requested Circuit-only autonomous completion.
+- **Backward compatible:** yes for native transaction callers; strict passing commit remains the
+  default. Tile build marker additionally arms continuation. Hooks require explicit Codex trust.
+- **Mechanism:** Harness manifest args, kicadpy autofinish/harness/engine, tile instructions.
+  Improvement commits compare a freshly checked baseline copy against the hashed candidate report:
+  exact findings must strictly decrease, with no new findings or changed coverage/ignored checks.
+  No manufacturing gate changes; no circuitpy runtime re-vendor required.
+- **Tracks affected:** pipeline / skills / docs / Harness tile packaging.

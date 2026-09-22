@@ -181,7 +181,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('workspace', nargs='?', default='.', help='the workspace root (default: cwd)')
     parser.add_argument('--active', choices=PHASES, help='mark this phase active (e.g. build, before the first publish)')
     args = parser.parse_args(argv)
-    target = write_verdict(Path(args.workspace).resolve(), active=args.active)
+    workspace = Path(args.workspace).resolve()
+    if args.active == 'build':
+        from .autofinish import arm
+        arm(workspace)
+    target = write_verdict(workspace, active=args.active)
     if target is None:
         print(json.dumps({'ok': False, 'error': 'verdict not written'}))
         return 1
