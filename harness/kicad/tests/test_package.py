@@ -50,9 +50,16 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(m['agent']['instructions'], base['agent']['instructions'])
         self.assertEqual(m['agent']['skills'], base['agent']['skills'])
         self.assertEqual(m['agent']['env'], base['agent']['env'])
-        for rel in ('AGENTS.md', 'skills', 'template', 'toolchain'):
+        for rel in ('AGENTS.md', 'skills', 'toolchain'):
             self.assertTrue((GROK / rel).is_symlink(), rel)
             self.assertEqual((GROK / rel).resolve(), (PKG / rel).resolve(), rel)
+        # The template is a REAL directory of REAL files: the daemon copies it with cpSync without
+        # dereferencing, so a symlinked template becomes a symlink where the workspace should be
+        # (EEXIST, 2026-09-23) and a symlinked file would let init write through into this repo.
+        self.assertFalse((GROK / 'template').is_symlink())
+        for name in ('project.json', 'product.json'):
+            self.assertFalse((GROK / 'template' / name).is_symlink(), name)
+            self.assertEqual((GROK / 'template' / name).read_bytes(), (PKG / 'template' / name).read_bytes(), name)
 
     def test_grok_args_carry_model_always_approve_and_trust(self):
         args = _manifest(GROK)['agent']['args']

@@ -1,7 +1,8 @@
 # KiCad (Grok) — the KiCad tile on xAI's Grok Build, Grok 4.7
 
-The same harness as [`../kicad`](../kicad/README.md) — same `AGENTS.md`, skill, template and
-toolchain (symlinks, so an edit there is an edit here) — with one different manifest:
+The same harness as [`../kicad`](../kicad/README.md) — same `AGENTS.md`, skill and toolchain
+(symlinks, so an edit there is an edit here; `template/` is a real copy because the daemon copies
+it without dereferencing, and the test pins it byte-identical) — with one different manifest:
 
 - `"engine": "grok"` — Harness spawns [Grok Build](https://docs.x.ai/build/overview) (`grok`,
   found on PATH or at `~/.local/bin/grok`, the installer's default) in the pane.

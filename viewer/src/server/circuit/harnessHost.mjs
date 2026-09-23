@@ -158,7 +158,8 @@ export function createHarnessAgent({
         if (payload.state === "created" && payload.agent?.id) {
           finish(null, { agentId: String(payload.agent.id), agent: payload.agent });
         } else {
-          finish(new Error(`agent_create did not succeed: ${payload.error || payload.failure || payload.state || "unknown"}`));
+          const why = payload.error || payload.failure || payload.state || "unknown";
+          finish(new Error(`agent_create did not succeed: ${typeof why === "string" ? why : JSON.stringify(why)}${payload.detail ? ` — ${payload.detail}` : ""}`));
         }
       }
     });
