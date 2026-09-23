@@ -204,7 +204,8 @@ eight repair continuations, with a four-hour continuation window). Repeating the
 while active does not reset that budget. Never edit `.circuit/autofinish.json` or re-arm to evade
 a budget. Only start a new run for a new explicit user build/retry request. A user interrupt cancels
 auto-finish. Planning and question-only turns must not arm it. Hook trust must be enabled via
-Codex `/hooks`; if it is unavailable, perform the same repair loop within this turn. At a real
+Codex `/hooks` (on Grok Build the tile launches with `--trust`, and the hook is
+`.grok/hooks/kicad.json`); if it is unavailable, perform the same repair loop within this turn. At a real
 budget/tooling limit, report unfinished with concrete blockers and your attempted strategies;
 never ask the user to diagnose electrical problems or claim readiness.
 

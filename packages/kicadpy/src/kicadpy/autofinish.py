@@ -1,4 +1,8 @@
-"""Bounded Codex Stop continuation for an explicitly started native board build.
+"""Bounded Stop continuation for an explicitly started native board build.
+
+One Stop-hook module for both engines: Codex (`-c hooks.Stop=…`, `Interrupt`) and Grok Build
+(`.grok/hooks/kicad.json`, `StopCancelled`). Both send the event as JSON on stdin and read a
+`{"decision": "block", "reason": …}` answer on stdout.
 
 This is orchestration, never a substitute for the manufacturing gate. Each Stop
 runs the real publisher; stale sidecars and successful process exits cannot pass.
@@ -150,16 +154,34 @@ def decide(state, ready, findings, now):
     return state, {'decision': 'block', 'reason': reason}
 
 
+def is_user_cancel(event):
+    """Codex says `Interrupt`; Grok Build says `StopCancelled` and names who cancelled.
+
+    Grok's runtime cancels (`max_turns`, `no_progress`) are not the user walking away: the run
+    stays armed for the next Stop. An unknown `cancelledBy` is treated as the user, as Grok's own
+    docs ask.
+    """
+    name = event.get('hook_event_name')
+    if name == 'Interrupt':
+        return True
+    return name == 'StopCancelled' and event.get('cancelledBy') != 'runtime'
+
+
 def handle(event, inspect=inspect_board):
     workspace = Path(os.environ.get('HARNESS_WORKSPACE') or event.get('cwd') or '.').resolve()
-    session = event.get('session_id')
+    # Codex/Claude put the session under `session_id`; Grok Build under `sessionId`.
+    session = event.get('session_id') or event.get('sessionId')
     if not session:
         return {}
-    if event.get('hook_event_name') == 'Interrupt':
+    if is_user_cancel(event):
         if (workspace / STATE).exists():
             cancel(workspace, session)
         return {}
     if event.get('hook_event_name') != 'Stop':
+        return {}
+    # Grok fires a second Stop at session teardown (`reason` channel_closed / shutdown) whose
+    # decision is ignored; only a real end of turn is worth a publisher run.
+    if event.get('reason') not in (None, 'end_turn'):
         return {}
     # Do not create orchestration state in a workspace that never started a build.
     if not (workspace / STATE).exists():

@@ -7,7 +7,27 @@
 # verdict so the pane header has a state before the first prompt (Build / Checks / Fab, all pending).
 set -euo pipefail
 mkdir -p .harness design tools engineering boards .circuit
-python="${HARNESS_DSH_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/toolchain/python"
+dsh_dir="${HARNESS_DSH_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+python="$dsh_dir/toolchain/python"
+
+# The Stop hook, per engine. Codex takes it as `-c hooks.Stop=…` in the manifest's args; Grok Build
+# reads project hooks from `<workspace>/.grok/hooks/*.json` (gated by folder trust — the grok
+# manifest launches with `--trust`). Same module both ways: `kicadpy.autofinish` republishes at
+# turn end and keeps the agent on an approved build; a user interrupt (`StopCancelled` on Grok,
+# `Interrupt` on Codex) cancels the run. Claude gets none: its tile never had the hook.
+engine="$(sed -n 's/^[[:space:]]*"engine":[[:space:]]*"\([a-z]*\)".*/\1/p' "$dsh_dir/harness.json" 2>/dev/null | head -1)"
+if [ "$engine" = "grok" ]; then
+  mkdir -p .grok/hooks
+  cat > .grok/hooks/kicad.json <<'JSON'
+{
+  "hooks": {
+    "Stop": [{"hooks": [{"type": "command", "command": "\"$KICAD_HARNESS_PYTHON\" -m kicadpy.autofinish", "timeout": 1200}]}],
+    "StopCancelled": [{"hooks": [{"type": "command", "command": "\"$KICAD_HARNESS_PYTHON\" -m kicadpy.autofinish", "timeout": 3}]}]
+  }
+}
+JSON
+fi
+
 if [ -x "$python" ]; then
   "$python" - <<'PY'
 import json, time

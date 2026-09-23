@@ -73,6 +73,23 @@ class AutoFinishTest(unittest.TestCase):
         af.handle({**self.event, 'session_id': 'other', 'hook_event_name': 'Interrupt'})
         self.assertEqual(af.read_state(self.ws)['status'], 'active')
 
+    def test_grok_event_shape_session_id_and_stop_cancelled(self):
+        """Grok Build sends `sessionId`, cancels with `StopCancelled`, and fires a teardown Stop."""
+        self.arm()
+        grok_stop = {'hook_event_name': 'Stop', 'sessionId': 'grok-session', 'cwd': str(self.ws), 'reason': 'end_turn'}
+        response = af.handle(grok_stop, lambda _: (False, ['unconnected C6.1']))
+        self.assertEqual(response['decision'], 'block')
+        self.assertEqual(af.read_state(self.ws)['session'], 'grok-session')
+        # The session-end Stop (reason channel_closed / shutdown) must not run the publisher.
+        def forbidden(_):
+            self.fail('teardown Stop ran publisher')
+        self.assertEqual(af.handle({**grok_stop, 'reason': 'shutdown'}, forbidden), {})
+        # A runtime cancel (max_turns, no_progress) keeps the run armed; the user's interrupt ends it.
+        af.handle({**grok_stop, 'hook_event_name': 'StopCancelled', 'reason': 'max_turns', 'cancelledBy': 'runtime'})
+        self.assertEqual(af.read_state(self.ws)['status'], 'active')
+        af.handle({**grok_stop, 'hook_event_name': 'StopCancelled', 'reason': 'user_interrupt', 'cancelledBy': 'user'})
+        self.assertEqual(af.read_state(self.ws)['status'], 'interrupted')
+
     def test_checker_exception_is_a_blocker(self):
         self.arm()
         def broken(_):

@@ -16,10 +16,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PKG = HERE.parent
 ROOT = PKG.parents[1]
+# The sibling tile: the same harness on Grok Build. Everything but the manifest and README is a symlink here.
+GROK = PKG.parent / 'kicad-grok'
+TILES = {'autonomous/kicad': PKG, 'autonomous/kicad-grok': GROK}
+SKILLS_DIR_FOR = {'claude': '.claude/skills', 'codex': '.agents/skills', 'grok': '.agents/skills'}
 
 
-def _manifest() -> dict:
-    return json.loads((PKG / 'harness.json').read_text(encoding='utf-8'))
+def _manifest(pkg: Path = PKG) -> dict:
+    return json.loads((pkg / 'harness.json').read_text(encoding='utf-8'))
 
 
 class ManifestTest(unittest.TestCase):
@@ -33,12 +37,41 @@ class ManifestTest(unittest.TestCase):
         self.assertIn(m['engine'], ('claude', 'codex'))
         self.assertEqual(m['verdict'], '.harness/verdict.json')
 
+    def test_grok_tile_is_the_same_harness_on_grok(self):
+        m = _manifest(GROK)
+        self.assertEqual(m['spec'], 1)
+        self.assertEqual(m['id'], 'autonomous/kicad-grok')
+        self.assertEqual(m['engine'], 'grok')
+        self.assertEqual(m['category'], 'PCB')
+        self.assertEqual(m['verdict'], '.harness/verdict.json')
+        base = _manifest()
+        for key in ('workspace', 'toolchain', 'viewer'):
+            self.assertEqual(m[key], base[key], key)
+        self.assertEqual(m['agent']['instructions'], base['agent']['instructions'])
+        self.assertEqual(m['agent']['skills'], base['agent']['skills'])
+        self.assertEqual(m['agent']['env'], base['agent']['env'])
+        for rel in ('AGENTS.md', 'skills', 'template', 'toolchain'):
+            self.assertTrue((GROK / rel).is_symlink(), rel)
+            self.assertEqual((GROK / rel).resolve(), (PKG / rel).resolve(), rel)
+
+    def test_grok_args_carry_model_always_approve_and_trust(self):
+        args = _manifest(GROK)['agent']['args']
+        self.assertEqual(args[args.index('-m') + 1], 'grok-4.7')
+        self.assertEqual(args[args.index('--reasoning-effort') + 1], 'high')
+        # The daemon has no permission-mode table for grok: the tile carries its own, the way the
+        # codex manifest carries approval_policy=never. --trust gates AGENTS.md, skills and hooks.
+        self.assertEqual(args[args.index('--permission-mode') + 1], 'bypassPermissions')
+        self.assertIn('--trust', args)
+        self.assertIn('--no-auto-update', args)
+        self.assertFalse(any(a.startswith('-c') or a.startswith('hooks.') for a in args), 'codex-only flags')
+
     def test_every_named_path_exists(self):
-        m = _manifest()
-        for rel in (m['workspace']['template'], m['workspace']['init'], m['agent']['instructions'],
-                    m['toolchain']['setup'], m['toolchain']['doctor'], m['viewer']['command'], *m['agent']['skills']):
-            self.assertTrue((PKG / rel).exists(), rel)
-        self.assertTrue((PKG / m['workspace']['template'] / m['workspace']['marker']).is_file())
+        for tile_id, pkg in TILES.items():
+            m = _manifest(pkg)
+            for rel in (m['workspace']['template'], m['workspace']['init'], m['agent']['instructions'],
+                        m['toolchain']['setup'], m['toolchain']['doctor'], m['viewer']['command'], *m['agent']['skills']):
+                self.assertTrue((pkg / rel).exists(), f'{tile_id}: {rel}')
+            self.assertTrue((pkg / m['workspace']['template'] / m['workspace']['marker']).is_file(), tile_id)
 
     def test_scripts_are_executable(self):
         for rel in ('toolchain/python', 'toolchain/setup.sh', 'toolchain/doctor.sh',
@@ -54,10 +87,13 @@ class ManifestTest(unittest.TestCase):
             self.assertTrue(text.startswith('---\nname: '), card)
 
     def test_skills_dir_follows_the_engine(self):
-        m = _manifest()
-        expected = '.agents/skills' if m['engine'] == 'codex' else '.claude/skills'
-        self.assertTrue(m['agent']['env']['CIRCUIT_SKILLS_DIR'].endswith(expected))
-        self.assertEqual(m['agent']['env']['KICAD_HARNESS_PYTHON'], '${dsh}/toolchain/python')
+        # Harness links a tile's skills into .claude/skills for claude and .agents/skills for every
+        # other engine (cli 0.2.89 `dshSkillsDirFor`); Grok Build scans .agents/skills too.
+        for tile_id, pkg in TILES.items():
+            m = _manifest(pkg)
+            expected = SKILLS_DIR_FOR[m['engine']]
+            self.assertTrue(m['agent']['env']['CIRCUIT_SKILLS_DIR'].endswith(expected), tile_id)
+            self.assertEqual(m['agent']['env']['KICAD_HARNESS_PYTHON'], '${dsh}/toolchain/python', tile_id)
 
     def test_manifest_wires_stop_and_interrupt_without_trust_bypass(self):
         args = _manifest()['agent']['args']
@@ -114,6 +150,26 @@ class InitWorkspaceTest(unittest.TestCase):
             self.assertEqual(verdict['spec'], 1)
             self.assertIs(verdict['ready'], False)
             self.assertEqual([p['state'] for p in verdict['phases']], ['pending', 'pending', 'pending'])
+
+    def test_init_writes_the_grok_stop_hook_only_for_the_grok_tile(self):
+        for pkg, expect_hook in ((GROK, True), (PKG, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                ws = Path(tmp)
+                (ws / 'project.json').write_text((PKG / 'template' / 'project.json').read_text(encoding='utf-8'), encoding='utf-8')
+                env = {**os.environ, 'HARNESS_DSH_DIR': str(pkg)}
+                out = subprocess.run([str(pkg / 'toolchain' / 'init-workspace.sh')], cwd=ws, env=env,
+                                     capture_output=True, text=True, timeout=120)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                hook = ws / '.grok' / 'hooks' / 'kicad.json'
+                self.assertEqual(hook.is_file(), expect_hook, pkg.name)
+                if expect_hook:
+                    hooks = json.loads(hook.read_text(encoding='utf-8'))['hooks']
+                    for event, timeout in (('Stop', 1200), ('StopCancelled', 3)):
+                        (cmd,) = hooks[event][0]['hooks']
+                        self.assertEqual(cmd['type'], 'command')
+                        self.assertIn('kicadpy.autofinish', cmd['command'])
+                        self.assertIn('$KICAD_HARNESS_PYTHON', cmd['command'])
+                        self.assertEqual(cmd['timeout'], timeout)
 
     def test_init_is_idempotent_and_keeps_the_clock(self):
         with tempfile.TemporaryDirectory() as tmp:

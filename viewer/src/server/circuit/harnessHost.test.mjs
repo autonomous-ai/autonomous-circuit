@@ -98,6 +98,20 @@ test("createHarnessAgent speaks machine_select then agent_create and resolves th
   assert.equal(socket.closed, true);
 });
 
+test("createHarnessAgent sends permissionMode only for engines the daemon has a full mode for", async () => {
+  for (const engine of ["claude", "codex"]) {
+    let socket;
+    await createHarnessAgent({ machineId: "m1", engine, cwd: "/w/pet-2", dsh: "autonomous/kicad", connect: () => (socket = fakeSocket(happyDaemon)) });
+    assert.equal(socket.sent[1].payload.permissionMode, "full", engine);
+  }
+  let socket;
+  await createHarnessAgent({ machineId: "m1", engine: "grok", cwd: "/w/pet-2", dsh: "autonomous/kicad-grok", connect: () => (socket = fakeSocket(happyDaemon)) });
+  const create = socket.sent[1].payload;
+  assert.equal(create.engine, "grok");
+  assert.equal(create.bypassPermission, true);
+  assert.equal("permissionMode" in create, false);
+});
+
 test("createHarnessAgent rejects when the daemon refuses, is dead, or never answers", async () => {
   await assert.rejects(
     createHarnessAgent({ machineId: "m1", engine: "claude", cwd: "/w/x", dsh: "d", connect: () => fakeSocket((f) => (f.type === "machine_select" ? [{ type: "machine_select_error", payload: { error: "NO_SUCH_MACHINE" } }] : [])) }),

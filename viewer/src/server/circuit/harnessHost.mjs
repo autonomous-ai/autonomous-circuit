@@ -20,6 +20,8 @@ export const DAEMON_WS_URL = "ws://127.0.0.1:18473/api/local-ws";
 /** Local protocol version the daemon accepts on `machine_select` (cli: `FM`). */
 export const LOCAL_PROTOCOL_VERSION = 1;
 const DEFAULT_TIMEOUT_MS = 30_000;
+/** Engines the daemon has a `permissionMode: "full"` mapping for (cli 0.2.89: `$H`). */
+export const FULL_MODE_ENGINES = new Set(["claude", "codex"]);
 
 /**
  * The next free sibling of `current` for a new board: `<parent>/<base>-N`, N from 2, where
@@ -141,8 +143,11 @@ export function createHarnessAgent({
         // reviewer model over a workspace-write sandbox, under which a kicad-cli DRC sat in an
         // uninterruptible exit for two hours (2026-09-21). `permissionMode: "full"` is the mode
         // that maps to `--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-
-        // permissions`; both fields are sent so an older daemon still gets the bypass.
-        send("agent_create", { requestId, engine, cwd, dsh, creationId, bypassPermission: true, permissionMode: "full" });
+        // permissions`; both fields are sent so an older daemon still gets the bypass. The daemon
+        // (0.2.89) has that table for claude and codex only and refuses the field for any other
+        // engine (`INVALID_PERMISSION_MODE`), so a grok tile gets `bypassPermission` alone and
+        // carries its own always-approve in the manifest's args.
+        send("agent_create", { requestId, engine, cwd, dsh, creationId, bypassPermission: true, ...(FULL_MODE_ENGINES.has(engine) ? { permissionMode: "full" } : {}) });
         return;
       }
       if (type === "machine_select_error") {

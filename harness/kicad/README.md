@@ -44,7 +44,11 @@ does not survive codex's `workspace-write` sandbox (a DRC sat in an uninterrupti
 `--dangerously-bypass-approvals-and-sandbox` flag cannot go in `args` (it refuses to appear twice or
 beside `--approve-for-me`). One exception: the daemon's "auto" mode adds `--approve-for-me`, which
 wins over the overrides and keeps the sandbox — pick "full" or "ask", never "auto". The claude manifest differs in two lines (`"engine": "claude"`,
-`CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills`) and no `args`. The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
+`CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills`) and no `args`. **The Grok arm is the sibling
+tile [`../kicad-grok`](../kicad-grok/README.md)** (`autonomous/kicad-grok`, engine `grok`, Grok 4.7):
+symlinks to this folder's `AGENTS.md`, `skills`, `template` and `toolchain`, its own manifest, and
+`init-workspace.sh` writes the Stop hook as `.grok/hooks/kicad.json` for it. `toolchain/doctor.sh`
+reads the manifest's engine and checks that CLI (claude, codex or grok). The store wrapper (`store/agents/kicad` in openharness) pins a commit of this repository and
 points at `upstream/harness/kicad/…`, the way Copper's does.
 
 ## Codex auto-finish

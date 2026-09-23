@@ -15,14 +15,32 @@ ok()   { echo "ok   $*"; }
 warn() { echo "warn $*"; }
 miss() { echo "miss $*"; status=1; }
 
-# The engine. The manifest names one; either CLI on the machine is reported, Harness enforces.
-if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
-  ok "claude on PATH"
-elif command -v codex >/dev/null 2>&1; then
-  ok "codex on PATH"
-else
-  miss "no engine CLI — install Claude Code (https://claude.ai/install) or Codex (npm i -g @openai/codex)"
-fi
+# The engine. The manifest names one (harness.json in the install dir, the cwd); that CLI must be on
+# the machine. Harness looks on PATH and, for grok, at the installer's default ~/.local/bin/grok.
+engine="$(sed -n 's/^[[:space:]]*"engine":[[:space:]]*"\([a-z]*\)".*/\1/p' harness.json 2>/dev/null | head -1)"
+case "${engine:-claude}" in
+  claude)
+    if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then ok "claude on PATH"
+    else miss "claude not found — install Claude Code (https://claude.ai/install)"; fi ;;
+  codex)
+    if command -v codex >/dev/null 2>&1; then ok "codex on PATH"
+    else miss "codex not found — npm i -g @openai/codex"; fi ;;
+  grok)
+    grok_bin="$(command -v grok 2>/dev/null || true)"
+    [ -z "$grok_bin" ] && [ -x "$HOME/.local/bin/grok" ] && grok_bin="$HOME/.local/bin/grok"
+    [ -z "$grok_bin" ] && [ -x "$HOME/.grok/bin/grok" ] && grok_bin="$HOME/.grok/bin/grok"
+    if [ -n "$grok_bin" ]; then
+      ok "grok $("$grok_bin" --version 2>/dev/null | head -1 | sed 's/^grok //') ($grok_bin)"
+      # Grok Build signs in through a browser session (~/.grok/auth.json) or XAI_API_KEY. The pane's
+      # shell is a login shell, so an export in the shell rc counts even when this check cannot see it.
+      if [ -f "$HOME/.grok/auth.json" ] || [ -n "${XAI_API_KEY:-}" ]; then ok "grok auth (session or XAI_API_KEY)"
+      else warn "no grok auth visible — run \`grok login\`, or export XAI_API_KEY in your shell rc"; fi
+    else
+      miss "grok not found — curl -fsSL https://x.ai/cli/install.sh | bash"
+    fi ;;
+  *)
+    miss "engine \"$engine\" is not one this harness knows (claude, codex, grok)" ;;
+esac
 
 node_bin="$(command -v node || true)"
 [ -z "$node_bin" ] && [ -x /opt/homebrew/opt/node@22/bin/node ] && node_bin=/opt/homebrew/opt/node@22/bin/node
