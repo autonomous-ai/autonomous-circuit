@@ -17,6 +17,13 @@ python="$dsh_dir/toolchain/python"
 # `Interrupt` on Codex) cancels the run. Claude gets none: its tile never had the hook.
 engine="$(sed -n 's/^[[:space:]]*"engine":[[:space:]]*"\([a-z]*\)".*/\1/p' "$dsh_dir/harness.json" 2>/dev/null | head -1)"
 if [ "$engine" = "grok" ]; then
+  # Grok resolves project hooks (and `.grok/` config) at its project ROOT, which is the enclosing
+  # git repository — a plain folder has none, and `grok inspect` lists no project hook for it
+  # (measured 2026-09-23; AGENTS.md and skills are found from the cwd regardless). So the
+  # workspace becomes an empty git repository. Nothing is committed; the agent may commit if it likes.
+  if [ ! -e .git ] && command -v git >/dev/null 2>&1; then
+    git init -q . 2>/dev/null || true
+  fi
   mkdir -p .grok/hooks
   cat > .grok/hooks/kicad.json <<'JSON'
 {

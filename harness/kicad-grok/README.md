@@ -16,7 +16,9 @@ it without dereferencing, and the test pins it byte-identical) — with one diff
 - `toolchain/init-workspace.sh` reads this manifest's engine and writes
   `.grok/hooks/kicad.json` (Stop → `kicadpy.autofinish`, 1200 s; `StopCancelled` → the same
   module, which cancels the run on a user interrupt) — the hook the codex manifest passes as
-  `-c hooks.Stop=…`.
+  `-c hooks.Stop=…`. It also runs `git init` in the workspace: Grok resolves project hooks at
+  the git root only (a plain folder gets AGENTS.md and skills, but no hook — measured with
+  `grok inspect --json`, 2026-09-23).
 
 ## Auth
 

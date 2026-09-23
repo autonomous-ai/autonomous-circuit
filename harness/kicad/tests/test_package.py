@@ -169,6 +169,8 @@ class InitWorkspaceTest(unittest.TestCase):
                 self.assertEqual(out.returncode, 0, out.stderr)
                 hook = ws / '.grok' / 'hooks' / 'kicad.json'
                 self.assertEqual(hook.is_file(), expect_hook, pkg.name)
+                # Grok finds project hooks only at a git root (2026-09-23): the grok workspace is one.
+                self.assertEqual((ws / '.git').is_dir(), expect_hook, pkg.name)
                 if expect_hook:
                     hooks = json.loads(hook.read_text(encoding='utf-8'))['hooks']
                     for event, timeout in (('Stop', 1200), ('StopCancelled', 3)):
