@@ -1,0 +1,1 @@
+../../kicad/toolchain/init-workspace.sh

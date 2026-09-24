@@ -33,8 +33,13 @@ case "${engine:-claude}" in
       ok "grok $("$grok_bin" --version 2>/dev/null | head -1 | sed 's/^grok //') ($grok_bin)"
       # Grok Build signs in through a browser session (~/.grok/auth.json) or XAI_API_KEY. The pane's
       # shell is a login shell, so an export in the shell rc counts even when this check cannot see it.
-      if [ -f "$HOME/.grok/auth.json" ] || [ -n "${XAI_API_KEY:-}" ]; then ok "grok auth (session or XAI_API_KEY)"
-      else warn "no grok auth visible — run \`grok login\`, or export XAI_API_KEY in your shell rc"; fi
+      if [ -f "$HOME/.grok/auth.json" ] || [ -n "${XAI_API_KEY:-}" ] || [ -n "${OPENROUTER_API_KEY:-}" ]; then ok "grok auth (session or an API key in the environment)"
+      else warn "no grok auth visible — run \`grok login\`, or export XAI_API_KEY / OPENROUTER_API_KEY in your shell rc"; fi
+      # The tile's Grok settings (compaction under the 200k tier, no Cursor/Claude imports) live in the
+      # user's ~/.grok/config.toml; setup writes them, grok-config.py --check reads them back.
+      if [ -f "$HERE/grok-config.py" ]; then
+        "$HERE/python" "$HERE/grok-config.py" --check || true
+      fi
     else
       miss "grok not found — curl -fsSL https://x.ai/cli/install.sh | bash"
     fi ;;

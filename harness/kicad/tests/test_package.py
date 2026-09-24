@@ -55,9 +55,19 @@ class ManifestTest(unittest.TestCase):
             env, base_env = dict(m['agent']['env']), dict(base['agent']['env'])
             env.pop('CIRCUIT_SKILLS_DIR'); base_env.pop('CIRCUIT_SKILLS_DIR')
             self.assertEqual(env, base_env, tile_id)
-            for rel in ('AGENTS.md', 'skills', 'toolchain'):
+            for rel in ('AGENTS.md', 'skills'):
                 self.assertTrue((pkg / rel).is_symlink(), f'{tile_id}: {rel}')
                 self.assertEqual((pkg / rel).resolve(), (PKG / rel).resolve(), f'{tile_id}: {rel}')
+            # toolchain: the whole folder shared, or a folder of links that shares every script the
+            # tile does not override (the grok tile owns its setup.sh, which wraps the shared one).
+            tc = pkg / 'toolchain'
+            if tc.is_symlink():
+                self.assertEqual(tc.resolve(), (PKG / 'toolchain').resolve(), tile_id)
+            else:
+                for name in ('python', 'doctor.sh', 'init-workspace.sh', 'viewer.sh'):
+                    self.assertEqual((tc / name).resolve(), (PKG / 'toolchain' / name).resolve(), f'{tile_id}: {name}')
+                self.assertTrue(os.access(tc / 'setup.sh', os.X_OK), tile_id)
+                self.assertIn('kicad/toolchain/setup.sh', (tc / 'setup.sh').read_text(encoding='utf-8'))
             # The template is a REAL directory of REAL files: the daemon copies it with cpSync without
             # dereferencing, so a symlinked template becomes a symlink where the workspace should be
             # (EEXIST, 2026-09-23) and a symlinked file would let init write through into this repo.
@@ -65,6 +75,38 @@ class ManifestTest(unittest.TestCase):
             for name in ('project.json', 'product.json'):
                 self.assertFalse((pkg / 'template' / name).is_symlink(), name)
                 self.assertEqual((pkg / 'template' / name).read_bytes(), (PKG / 'template' / name).read_bytes(), f'{tile_id}: {name}')
+
+    def test_grok_config_is_written_once_and_never_over_the_users_tables(self):
+        script = GROK / 'toolchain' / 'grok-config.py'
+        python = str(GROK / 'toolchain' / 'python')
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {**os.environ, 'GROK_HOME': tmp}
+            cfg = Path(tmp) / 'config.toml'
+            first = subprocess.run([python, str(script)], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(first.stdout.count('added ['), 3)
+            text = cfg.read_text(encoding='utf-8')
+            self.assertIn('[model."grok-4.7"]', text)
+            self.assertIn('context_window = 176000', text)
+            self.assertIn('[compat.cursor]', text)
+            again = subprocess.run([python, str(script)], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(cfg.read_text(encoding='utf-8'), text, 'second run must change nothing')
+            self.assertIn('needed nothing', again.stdout)
+            check = subprocess.run([python, str(script), '--check'], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(check.returncode, 0, check.stdout)
+            self.assertEqual(check.stdout.count('ok   grok config'), 3)
+        with tempfile.TemporaryDirectory() as tmp:
+            # A user table that already exists is left alone even when it disagrees, and reported.
+            env = {**os.environ, 'GROK_HOME': tmp}
+            cfg = Path(tmp) / 'config.toml'
+            cfg.write_text('[model."grok-4.7"]\nmodel = "x-ai/grok-4.7"\ncontext_window = 500000\n', encoding='utf-8')
+            run = subprocess.run([python, str(script)], env=env, capture_output=True, text=True, timeout=60)
+            self.assertIn('left [model.grok-4.7] alone', run.stdout)
+            self.assertEqual(cfg.read_text(encoding='utf-8').count('[model."grok-4.7"]'), 1)
+            self.assertIn('[compat.cursor]', cfg.read_text(encoding='utf-8'))
+            check = subprocess.run([python, str(script), '--check'], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(check.returncode, 1)
+            self.assertIn('set differently', check.stdout)
 
     def test_claude_tile_has_no_args(self):
         # Harness maps its "full" mode to --dangerously-skip-permissions for claude itself, and the

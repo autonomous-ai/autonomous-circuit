@@ -17,6 +17,8 @@ not its replacement.
   Freerouting, the built viewer.
 - `toolchain/init-workspace.sh` — folders, the project clock, the seed verdict.
 - `toolchain/viewer.sh` — the Circuit viewer in viewer-only mode over the one workspace.
+- `prompts/` — the prompts every engine is measured on (`claude-pet.md`), so a run on any tile
+  starts from the same words.
 
 The verdict, `.harness/verdict.json` (spec 1), is written by `kicadpy.publish` at every sidecar
 write and by `python -m kicadpy.harness` on demand — `packages/kicadpy/src/kicadpy/harness.py`.

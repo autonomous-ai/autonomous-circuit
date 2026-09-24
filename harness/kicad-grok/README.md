@@ -20,6 +20,16 @@ it without dereferencing, and the test pins it byte-identical) — with one diff
   the git root only (a plain folder gets AGENTS.md and skills, but no hook — measured with
   `grok inspect --json`, 2026-09-23).
 
+## What setup writes on the machine
+
+`toolchain/setup.sh` runs the shared KiCad setup, then `grok-config.py` appends to the user's
+`~/.grok/config.toml` the three tables Grok Build will not take from a tile (its config overlays
+accept `models` only): `[model."grok-4.7"] context_window = 176000` (compaction near 150k, under
+the 200k price tier), `[compat.cursor]` and `[compat.claude]` with `mcps = false`, `hooks = false`.
+Marked, appended once, never written over a table that already exists (the doctor then says so).
+The provider route — api.x.ai, or OpenRouter via `[model."grok-4.7"] base_url … env_key` — and
+the key stay the user's own.
+
 ## Auth
 
 Grok Build takes an API key from `XAI_API_KEY` (console.x.ai) when no browser session is
