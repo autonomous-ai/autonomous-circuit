@@ -70,6 +70,126 @@ def inspect(board):
             'coverage': {'schematicGraphics': False, 'nativeGeometry': True, 'viewerIntegration': False}}
 
 
+def islands(board, net, near=None):
+    """Which pads and vias of `net` sit on which filled-zone island, per copper layer; optional via-site search.
+
+    Island 0 is the largest fill on that layer; a pad on island >= 1 is stranded (it has copper
+    but that copper is not the plane). With `near` = [x, y, r], every 0.05 mm point in that
+    square is scored by its clearance to non-net copper on BOTH layers and to the board edge;
+    the top sites are where a stitching via can go. Read-only.
+    """
+    layers = ['F.Cu', 'B.Cu']
+    zones = {}
+    for z in board.Zones():
+        if z.GetNetname() == net:
+            zones.setdefault(board.GetLayerName(z.GetFirstLayer()), z)
+    polys = {}
+    for ln, z in zones.items():
+        lid = board.GetLayerID(ln)
+        ps = z.GetFilledPolysList(lid)
+        order = sorted(range(ps.OutlineCount()), key=lambda i: -ps.Outline(i).Area())
+        polys[ln] = (ps, {orig: rank for rank, orig in enumerate(order)})
+
+    def island_of(ln, x, y):
+        if ln not in polys:
+            return None
+        ps, rank = polys[ln]
+        pt = p.VECTOR2I(p.FromMM(x), p.FromMM(y))
+        for i in range(ps.OutlineCount()):
+            if ps.Contains(pt, i):
+                return rank[i]
+        return None
+
+    result = {'net': net, 'layers': {}, 'pads': [], 'vias': [], 'sites': []}
+    for ln, (ps, rank) in polys.items():
+        areas = sorted((p.ToMM(p.ToMM(ps.Outline(i).Area())) for i in range(ps.OutlineCount())), reverse=True)
+        result['layers'][ln] = {'islands': ps.OutlineCount(), 'areasMm2': [round(a, 2) for a in areas]}
+    for f in board.GetFootprints():
+        for pad in f.Pads():
+            if pad.GetNetname() != net:
+                continue
+            x, y = p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y)
+            for ln in layers:
+                if pad.IsOnLayer(board.GetLayerID(ln)) and ln in polys:
+                    result['pads'].append({'ref': f.GetReference(), 'pad': pad.GetNumber(), 'x': x, 'y': y,
+                                           'layer': ln, 'island': island_of(ln, x, y)})
+    for t in board.GetTracks():
+        if isinstance(t, p.PCB_VIA) and t.GetNetname() == net:
+            x, y = p.ToMM(t.GetPosition().x), p.ToMM(t.GetPosition().y)
+            result['vias'].append({'x': x, 'y': y, 'islandF': island_of('F.Cu', x, y), 'islandB': island_of('B.Cu', x, y)})
+    # An island is reachable when a via or a through pad of the net joins it to a reachable island
+    # on the other layer; the largest fill of each layer (island 0) is the plane. Iterate to closure.
+    links = [(v['islandF'], v['islandB']) for v in result['vias']]
+    for f in board.GetFootprints():
+        for pad in f.Pads():
+            if pad.GetNetname() == net and pad.GetAttribute() == p.PAD_ATTRIB_PTH:
+                x, y = p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y)
+                links.append((island_of('F.Cu', x, y), island_of('B.Cu', x, y)))
+    reach = {'F.Cu': {0} if 'F.Cu' in polys else set(), 'B.Cu': {0} if 'B.Cu' in polys else set()}
+    changed = True
+    while changed:
+        changed = False
+        for fi, bi in links:
+            if fi is not None and bi is not None:
+                if fi in reach['F.Cu'] and bi not in reach['B.Cu']:
+                    reach['B.Cu'].add(bi); changed = True
+                if bi in reach['B.Cu'] and fi not in reach['F.Cu']:
+                    reach['F.Cu'].add(fi); changed = True
+    stranded_islands = {ln: sorted(k for k in range(info['islands']) if k not in reach[ln]) for ln, info in result['layers'].items()}
+    for entry in result['pads']:
+        entry['stranded'] = entry['island'] is not None and entry['island'] not in reach[entry['layer']]
+    result['reachableIslands'] = {ln: sorted(v) for ln, v in reach.items()}
+    result['strandedIslands'] = stranded_islands
+    if near:
+        cx, cy, r = (float(v) for v in near)
+
+        def seg_dist(px, py, ax, ay, bx, by):
+            dx, dy = bx - ax, by - ay
+            if dx == 0 and dy == 0:
+                return math.hypot(px - ax, py - ay)
+            k = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+            return math.hypot(px - (ax + k * dx), py - (ay + k * dy))
+
+        obstacles = {ln: [] for ln in layers}
+        for t in board.GetTracks():
+            if t.GetNetname() == net:
+                continue
+            if isinstance(t, p.PCB_VIA):
+                for ln in layers:
+                    obstacles[ln].append(('via', p.ToMM(t.GetPosition().x), p.ToMM(t.GetPosition().y), 0, 0, p.ToMM(t.GetWidth(t.TopLayer())) / 2))
+            else:
+                ln = board.GetLayerName(t.GetLayer())
+                if ln in obstacles:
+                    s, e = t.GetStart(), t.GetEnd()
+                    obstacles[ln].append(('trk', p.ToMM(s.x), p.ToMM(s.y), p.ToMM(e.x), p.ToMM(e.y), p.ToMM(t.GetWidth()) / 2))
+        for f in board.GetFootprints():
+            for pad in f.Pads():
+                if pad.GetNetname() == net:
+                    continue
+                for ln in layers:
+                    if pad.IsOnLayer(board.GetLayerID(ln)):
+                        obstacles[ln].append(('pad', p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y), 0, 0,
+                                              math.hypot(p.ToMM(pad.GetSize().x), p.ToMM(pad.GetSize().y)) / 2))
+        bb = board.GetBoardEdgesBoundingBox()
+        ex0, ey0, ex1, ey1 = p.ToMM(bb.GetLeft()), p.ToMM(bb.GetTop()), p.ToMM(bb.GetRight()), p.ToMM(bb.GetBottom())
+        sites = []
+        n = int(2 * r / 0.05)
+        for i in range(n + 1):
+            for j in range(n + 1):
+                x, y = cx - r + i * 0.05, cy - r + j * 0.05
+                d = min(x - ex0, ex1 - x, y - ey0, ey1 - y) - 0.3
+                for ln, obs in obstacles.items():
+                    for kind, ax, ay, bx, by, rad in obs:
+                        dd = (math.hypot(x - ax, y - ay) if kind != 'trk' else seg_dist(x, y, ax, ay, bx, by)) - rad - 0.3
+                        if dd < d:
+                            d = dd
+                sites.append((round(d, 3), round(x, 3), round(y, 3)))
+        sites.sort(reverse=True)
+        result['sites'] = [{'clearanceMm': d, 'x': x, 'y': y, 'islandF': island_of('F.Cu', x, y), 'islandB': island_of('B.Cu', x, y)}
+                           for d, x, y in sites[:25]]
+    return result
+
+
 def main(req):
     if req['operation'] == 'version':
         return {'pcbnew': p.GetBuildVersion()}
@@ -84,6 +204,8 @@ def main(req):
     op = req['operation']
     if op == 'inspect':
         return inspect(board)
+    if op == 'islands':
+        return islands(board, req.get('net') or 'GND', req.get('near'))
     if op in ('route_export', 'route_import'):
         scope = req['scope']
         original = {uid(t): t for t in board.GetTracks()}

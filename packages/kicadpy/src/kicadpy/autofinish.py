@@ -27,6 +27,10 @@ STATE = Path('.circuit/autofinish.json')
 MAX_CONTINUATIONS = 8
 MAX_SECONDS = 4 * 60 * 60
 PUBLISH_TIMEOUT = 480
+# From this continuation on, the agent is told to leave a handoff note first. Grok 4.7 ran out of
+# credit in the middle of continuation 1 (2026-09-23) and left nothing; the next engine had to
+# reverse-engineer the state from the reports.
+HANDOFF_AT = 3
 
 
 def read_state(workspace):
@@ -150,6 +154,10 @@ def decide(state, ready, findings, now):
             reason += ('The blockers did not change. Use a different repair strategy: inspect actual pad/net geometry, '
                        'adjust local placement or routing scope if needed while preserving correct copper; '
                        'do not repeat the same failed operation. ')
+        if state['continuations'] >= HANDOFF_AT:
+            reason += ('FIRST, before any repair, write engineering/handoff.md: what is on disk, what still blocks '
+                       '(quote `kicadpy.verify gate`), what you tried and what to try next. Budget or credit can end '
+                       'this run at any moment and the next engineer starts from that note. ')
     reason += '\nCurrent findings (full reports and publisher logs are in boards/ and .circuit/):\n' + '\n'.join(findings)[:12000]
     return state, {'decision': 'block', 'reason': reason}
 

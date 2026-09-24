@@ -50,6 +50,13 @@ class AutoFinishTest(unittest.TestCase):
         self.assertEqual(af.read_state(self.ws)['status'], 'exhausted')
         self.assertEqual(af.handle(self.event), {})
 
+    def test_third_continuation_asks_for_a_handoff_note_first(self):
+        self.arm()
+        reasons = [af.handle(self.event, lambda _: (False, [f'error {i}']))['reason'] for i in range(af.HANDOFF_AT + 1)]
+        self.assertNotIn('handoff.md', reasons[0])
+        self.assertIn('handoff.md', reasons[af.HANDOFF_AT - 1])
+        self.assertTrue(reasons[af.HANDOFF_AT - 1].index('handoff.md') < reasons[af.HANDOFF_AT - 1].index('Current findings'))
+
     def test_time_budget_ends(self):
         self.arm()
         state = af.read_state(self.ws)

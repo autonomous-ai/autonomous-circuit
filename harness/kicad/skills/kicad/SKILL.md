@@ -84,6 +84,25 @@ millimetres, y down, no mirroring for the bottom side. `route` proposes only —
 `commit` are still required. Snapshots and candidates live under `.kicadpy/`; keep them for undo.
 Close any other writer (KiCad's GUI included) during `commit` and `undo`.
 
+## Verify — measure, don't claim (`kicadpy.verify`)
+
+```bash
+"$KICAD_HARNESS_PYTHON" -m kicadpy.verify <command> ...   # readable report, then ONE JSON line
+```
+
+| Command | What it measures | When |
+|---|---|---|
+| `gate [workspace]` | the publisher's own counts: sidecar errors/warnings by kind, `check.json` findings by stage/type, manufacturing findings | after every publish; the only numbers you may quote |
+| `netlist design/main.kicad_pro` | every schematic pin's net against every PCB pad's net; symbols with no wire on any pin ("hollow") | after the schematic and again before the first publish |
+| `islands design/main.kicad_pro [--net GND] [--near X Y R]` | which pads/vias of a net sit on which filled-zone island (0 = the plane); with `--near`, via sites ranked by clearance to other copper on both layers | on any `unconnected_items` finding of a zoned net |
+| `easyeda out.json C123 C456 …` | the JLCPCB/EasyEDA footprint pads of each LCSC part (network, once) | before `rotation` |
+| `rotation design/main.kicad_pro parts.json out.json` | the `rotationOffsetDeg` that maps the factory footprint onto yours, per footprint, with the match error | before writing `assembly` in `manufacturing.json`; 0 needs it too |
+| `stock parts.json out.json [C…]` | JLCPCB library type (basic/extended), stock and price, live | at sourcing, and before claiming a part is orderable |
+
+All read-only, host Python (`islands` runs pcbnew in the worker). Born from the harness-12 handoff
+(2026-09-23/24): "ERC 0" counted errors while the gate counted 630 findings, four ICs had no wires,
+the firmware pin table disagreed with the copper, every rotation was guessed at 0.
+
 ## Publish
 
 ```bash

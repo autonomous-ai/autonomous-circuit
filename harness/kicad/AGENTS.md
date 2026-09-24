@@ -134,19 +134,45 @@ order `PROMPT-WORKFLOW.md` gives:
    the copper that was already right. If other pre-existing findings prevent a passing commit,
    use `allow_improvement: true`: it accepts only verified strict progress with no new findings,
    never a weaker manufacturing gate.
-7. Publish after every complete revision:
+7. Publish after every complete revision — and **once early**, as soon as the schematic and a
+   placed (unrouted) PCB exist. The first publish shows the whole finding list while it is still
+   cheap to act on; a board that is routed first hides 490 schematic and parity findings under
+   its silkscreen ones (harness-12, 2026-09-23).
    ```
    "$KICAD_HARNESS_PYTHON" -m kicadpy.publish --manufacturing design/main.kicad_pro
+   "$KICAD_HARNESS_PYTHON" -m kicadpy.verify gate .
    ```
    It writes the checked previews, the reports and the prototype packet under
    `boards/main_review/<revision>/`, the sidecar `boards/main.board.json`, and the verdict.
    Read `reports/` and `manufacturing/manufacturing-report.json`, fix the **causes**, republish.
 
+**The gate counts every finding at `--severity-all`.** "ERC 0 errors" or "DRC 0" from KiCad's
+default severity is not a pass and is not a number you may report: quote `kicadpy.verify gate`
+(the publisher's own count, by type) after every publish, never your own tally. A warning is a
+finding; a finding blocks.
+
+**Measure, don't claim.** Before you write a pin map, a rotation, a stock level or "the
+schematic is right", run the measurement that would prove you wrong:
+`kicadpy.verify netlist` (every schematic pin against every PCB pad; lists symbols with no wire
+on them), `kicadpy.verify islands` (which pads of a net sit on a stranded zone island, and where a
+via fits), `kicadpy.verify easyeda` + `kicadpy.verify rotation` (the factory's own footprint zero
+against yours — a rotation of 0 needs this measurement too), `kicadpy.verify stock` (JLCPCB
+library type and stock, live). A pin table you wrote earlier is a claim, not a source: check it
+against the copper.
+
 **Make every round count.** Read the whole finding list, group the fixes by cause, apply them
 all, then publish once — not one finding per publish. When a revision comes back worse, revert it
 in your next edit rather than stacking another change on top; `undo` exists for exactly this.
-Never disable an electrical or geometric check, never widen a rule to erase a finding: the ignored
-checks you do accept are listed, per category, with the reason in `engineering/`.
+**Two publishes with the same finding count mean the approach is wrong, not the effort:** stop
+repeating it, read the findings' coordinates in `reports/drc.json`, run the verify commands
+above, and change what you are doing. Never disable an electrical or geometric check, never widen
+a rule to erase a finding: the ignored checks you do accept are listed, per category, with the
+reason in `engineering/`.
+
+**Leave a handoff note before you run out.** Whenever budget, credit or context may end the run
+— and from the third auto-finish continuation in any case — write `engineering/handoff.md`
+first: what is on disk, what still blocks (the `verify gate` numbers), what you tried, what to
+try next. The next engineer, human or model, starts from that note.
 
 **kicad-cli runs in the foreground, with a timeout** (`timeout 180 kicad-cli …`) or through the
 publisher — never from a background terminal: launched that way it can hang in the kernel for
