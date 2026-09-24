@@ -188,7 +188,11 @@ wait on nothing.
 **Keep existing correct copper.** A local defect is a local repair (a `replace_track`, a
 `set_width`, a `route` of the nets in one region), never a re-route of the board. A rebuild from
 scratch is for a placement change, and it throws every repair away — so change placement first,
-route, then repair.
+route, then repair. **On a board that still carries hundreds of findings, `commit` with
+`allow_improvement` will refuse most repairs** (it accepts only a strict subset of the exact
+previous findings, coordinates included, so moving one track "creates" findings next to it):
+there, fix the sources directly and publish; save the transaction tool for the last few
+findings on a nearly clean board. Do not fall back to hand-made copies of the board.
 
 **You may search the web** for a datasheet, a package drawing, a current figure, a stock check or
 the fab's current capabilities. Prefer the manufacturer's document and the supplier's own page,

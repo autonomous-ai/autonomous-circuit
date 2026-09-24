@@ -176,7 +176,8 @@ def hollow_findings(hollow):
     """Sidecar findings for symbols the schematic never wires: one error per reference, in plain words."""
     return [{'kind': 'schematic_hollow_symbol', 'severity': 'error', 'part': ref,
              'message': f'{ref}: no pin of it is wired in the schematic, yet its pads carry nets on the PCB — '
-                        'the drawing does not describe the board (derived symbol not resolved, or wires missing)'}
+                        'the drawing does not describe the board (derived symbol not resolved, or wires missing). '
+                        'Run `kicadpy.verify netlist design/main.kicad_pro` and fix the schematic, not the copper.'}
             for ref in hollow]
 
 
