@@ -16,7 +16,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C131941": {
@@ -74,7 +75,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C1548": {
@@ -84,7 +86,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C15850": {
@@ -94,7 +97,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C165948": {
@@ -104,7 +108,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C17168": {
@@ -122,7 +127,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C20625731": {
@@ -132,7 +138,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C20917": {
@@ -141,6 +148,14 @@
    "offsetDeg": 180,
    "sources": [
     "harness-11 2026-09-22"
+   ]
+  },
+  "C2146": {
+   "footprint": "SOT-23",
+   "package": "SOT-23",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-15 2026-09-24"
    ]
   },
   "C25100": {
@@ -159,7 +174,8 @@
    "offsetDeg": 0,
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C25741": {
@@ -167,7 +183,8 @@
    "package": "0402",
    "offsetDeg": 0,
    "sources": [
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24"
    ]
   },
   "C25744": {
@@ -177,7 +194,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C25792": {
@@ -202,7 +220,8 @@
    "offsetDeg": 0,
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C2687116": {
@@ -211,7 +230,8 @@
    "offsetDeg": 270,
    "sources": [
     "harness-9 2026-09-21",
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24"
    ]
   },
   "C2761795": {
@@ -219,7 +239,8 @@
    "package": "5050-4P",
    "offsetDeg": 0,
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C28323": {
@@ -254,6 +275,14 @@
     "harness-11 2026-09-22"
    ]
   },
+  "C2909343": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
   "C318884": {
    "footprint": "SW_Push_1P1T_XKB_TS-1187A",
    "package": "SMD 5.1x5.1",
@@ -261,7 +290,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C3230039": {
@@ -312,6 +342,22 @@
     "harness-11 2026-09-22"
    ]
   },
+  "C492407": {
+   "footprint": "PinHeader_1x08_P2.54mm_Vertical",
+   "package": "Plugin,P=2.54mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
+  "C49257": {
+   "footprint": "PinHeader_1x03_P2.54mm_Vertical",
+   "package": "Plugin,P=2.54mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
   "C5218924": {
    "footprint": "SOT-23",
    "package": "SOT-23-3 DBZ",
@@ -335,7 +381,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C53114384": {
@@ -368,7 +415,8 @@
    "offsetDeg": 180,
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   },
   "C728566": {
@@ -377,6 +425,14 @@
    "offsetDeg": 0,
    "sources": [
     "harness-11 2026-09-22"
+   ]
+  },
+  "C7484": {
+   "footprint": "SOT-23-5",
+   "package": "SOT-23-5",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-15 2026-09-24"
    ]
   },
   "C7519": {
@@ -410,7 +466,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ]
   }
  }

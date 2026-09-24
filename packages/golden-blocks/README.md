@@ -12,6 +12,7 @@ headers), never invents an IC circuit from a datasheet. See
 blocks/<id>/<id>.tsx    the block — a self-contained tscircuit component
 blocks/<id>/BLOCK.md    pin contract, rail budget, pinned LCSC parts, provenance
 testbench/<id>.tsx      a minimal board mounting the block (built by the tests)
+modules/<id>/BLOCK.md   a header-mounted module's pin contract and traps — knowledge only, no TSX (see modules/README.md)
 tests/                  graded testbenches: topology + pinned-BOM + snapshot
 tests/snapshots/        committed circuit-summary snapshots per testbench
 ```

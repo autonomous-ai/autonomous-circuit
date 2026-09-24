@@ -50,6 +50,12 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   RP2040 core, BME280, WS2812 chain, servo header, tact switch, status LED, I²C bus). They are
   **engineering knowledge** — pin maps, values, layout notes, the numbers that were measured —
   not native sheets. A TSX block is never a KiCad schematic; you author the schematic.
+  Beside them, `$KICAD_HARNESS_BLOCKS/../modules/<id>/BLOCK.md` holds header-mounted modules
+  (the 1.54" ST7789 display, the TTP223 touch board): pin order, current, and the trap an
+  earlier run fell into (an NPN low-side on the display's BLK pin never lights the backlight).
+- `kicadpy.knowledge` — what earlier runs measured, keyed by LCSC code: factory rotation offsets
+  and supplier-verified part identities with their traps (`"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge show C6186`).
+  `verify rotation` and `verify stock` read it first. Read it before you search.
 - `$CIRCUIT_TOOLCHAIN` — the pinned Freerouting jar and JRE (`kicadpy route` and the Specctra
   round trip use them). Never build your own router launcher.
 - The `kicad` skill in `$CIRCUIT_SKILLS_DIR/kicad/SKILL.md` is the tool card: every command,
@@ -120,7 +126,11 @@ order `PROMPT-WORKFLOW.md` gives:
 2. `design/main.kicad_pro`, `main.kicad_sch`, `main.kicad_pcb`, with the symbols and footprints
    you need copied **locally** into `design/` (their provenance noted) and the library tables
    pointing at them. Check symbol pin numbers, footprint pad numbers, pin functions and net
-   parity explicitly, against the manufacturer's pin table.
+   parity explicitly, against the manufacturer's pin table. **Write the schematic from a net
+   table with `kicadpy.author`** (`write spec.json design/`, then `check`): it places on the grid,
+   uses global labels, flattens derived symbols and writes the library nickname into every
+   footprint — the four holes every hand-written emitter fell into (harness-11, -12, -14, -15).
+   Never hand-edit a `.kicad_sym`; regenerate it.
 3. The schematic must be real and electrically connected — a wired netlist, not an illustration.
    Footprint paths on the PCB match the schematic instance UUID paths. Prove it before you go on:
    ```
@@ -163,8 +173,9 @@ schematic is right", run the measurement that would prove you wrong:
 on them), `kicadpy.verify islands` (which pads of a net sit on a stranded zone island, and where a
 via fits), `kicadpy.verify easyeda` + `kicadpy.verify rotation` (the factory's own footprint zero
 against yours — a rotation of 0 needs this measurement too), `kicadpy.verify stock` (JLCPCB
-library type and stock, live). A pin table you wrote earlier is a claim, not a source: check it
-against the copper.
+library type and stock, live). Both read `kicadpy.knowledge` first: a part the table knows costs
+no fetch, and a measurement that disagrees with the table is flagged for you to settle, not
+overwrite. A pin table you wrote earlier is a claim, not a source: check it against the copper.
 
 **Make every round count.** Read the whole finding list, group the fixes by cause, apply them
 all, then publish once — not one finding per publish. When a revision comes back worse, revert it
@@ -198,6 +209,17 @@ findings on a nearly clean board. Do not fall back to hand-made copies of the bo
 the fab's current capabilities. Prefer the manufacturer's document and the supplier's own page,
 say which you used, and never state a number you did not actually read. Sourcing happens at the
 top of the build, once; not inside the edit–publish loop.
+
+**The bar a board must clear comes from the prompt, the blocks and the datasheet — never from you.**
+If you find yourself adding a check the user did not ask for (a USB suspend-current proof, a Type-C
+current qualifier, a certification), stop: write it in `bringup.md` as a bench test with a pass/fail
+limit and move on. Buying hardware to pass a bar you set yourself is a design defect, not diligence
+(harness-11 grew from 23 to 79 footprints that way and needs a ≥ 1.5 A USB-C host to switch on).
+The reference for a plain USB device is the Raspberry Pi Pico: what the Pico is allowed to do, the
+board is allowed to do.
+
+**At the end of every run**, before the final message: `"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge learn .`
+— the rotations you measured and the parts you verified join the tables the next run reads.
 
 **Whatever the user put on the board stays on the board.** A capability you cannot source goes
 OFF-BOARD on a labelled pad row carrying its rail and bus, and the rest of the board is built

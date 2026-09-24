@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from kicadpy import verify
 
@@ -66,6 +67,8 @@ class NetlistTest(unittest.TestCase):
         self.assertEqual(out['hollowSymbols'], ['U2'])
         # U2's pads exist on the PCB with nets the schematic never gave them
         self.assertTrue(any(d['pad'] == 'U2.1' and d['schematic'] == '' for d in out['differences']))
+        # ... and the drawing used a sheet-local label for GND: named, so the agent switches to global labels
+        self.assertEqual(out['sheetLocalNets'], ['/GND'])
 
 
 class HollowFindingsTest(unittest.TestCase):
@@ -101,6 +104,35 @@ class RotationTest(unittest.TestCase):
         self.assertEqual([r['reference'] for r in rows], ['SW1'])
         self.assertEqual(rows[0]['rotationOffsetDeg'], 0)
         self.assertIn('geometry', rows[0]['method'])
+
+    def test_the_knowledge_table_fills_an_unfetched_part_and_flags_a_disagreement(self):
+        kicad = [{'number': '1', 'x': -1.0, 'y': -0.95}, {'number': '2', 'x': -1.0, 'y': 0.95}, {'number': '3', 'x': 1.0, 'y': 0.0}]
+        eda = [{'number': n, 'x': x, 'y': y} for n, (x, y) in zip(('1', '2', '3'), (verify._rot(p['x'], p['y'], 90) for p in kicad))]
+        footprints = [{'reference': 'Q1', 'lib': 'SOT-23', 'pads': kicad}, {'reference': 'U9', 'lib': 'SOIC-8', 'pads': kicad},
+                      {'reference': 'R1', 'lib': 'R_0402', 'pads': kicad}]
+        rows = verify.rotation_offsets(footprints, {'Q1': 'C1', 'U9': 'C9', 'R1': 'C5'}, {'C1': {'pads': eda}},
+                                       table={'C1': 180, 'C9': 270})
+        by = {r['reference']: r for r in rows}
+        # Q1 was measured (270) and the table says 180: both numbers shown, disagreement flagged, nothing overwritten
+        self.assertEqual((by['Q1']['rotationOffsetDeg'], by['Q1']['tableOffsetDeg'], by['Q1']['agreesWithTable']), (270, 180, False))
+        # U9 was never fetched from EasyEDA: the table answers, and says so
+        self.assertEqual((by['U9']['rotationOffsetDeg'], by['U9']['method'], by['U9']['meanErrorMm']), (270, 'knowledge table', None))
+        # R1: no fetch, no row — the CLI lists it under `unknown`
+        self.assertNotIn('R1', by)
+
+
+class IdentityTest(unittest.TestCase):
+    def test_stock_rows_carry_what_earlier_runs_verified_and_flag_a_different_part(self):
+        live = {'C2687116': {'componentCode': 'C2687116', 'componentModelEn': 'USBLC6-2SC6', 'componentBrandEn': 'UMW'},
+                'C7519': {'componentCode': 'C7519', 'componentModelEn': 'SOMETHING-ELSE', 'componentBrandEn': 'X'},
+                'C000': {'error': 'not found'}}
+        table = {'C2687116': {'manufacturer': 'UMW', 'mpn': 'USBLC6-2SC6', 'note': 'UMW clone, not ST'},
+                 'C7519': {'manufacturer': 'ST', 'mpn': 'USBLC6-2SC6'}}
+        out = verify.attach_identity(live, part_of=table.get)
+        self.assertEqual(out['C2687116']['known']['note'], 'UMW clone, not ST')
+        self.assertFalse(out['C2687116']['identityMismatch'])
+        self.assertTrue(out['C7519']['identityMismatch'])
+        self.assertNotIn('known', out['C000'])
 
 
 class EasyedaAndJlcTest(unittest.TestCase):
@@ -170,6 +202,19 @@ class GateTest(unittest.TestCase):
 
 @unittest.skipUnless(os.path.isfile('/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3')
                      or os.environ.get('KICADPY_PYTHON'), 'KiCad Python not installed')
+class IslandsNetNameTest(unittest.TestCase):
+    def test_a_missing_net_is_retried_with_the_sheet_local_spelling(self):
+        calls = []
+        def fake_worker(op, pcb, net, near):
+            calls.append(net)
+            return {'net': net, 'pads': [{'ref': 'C1', 'pad': '2'}] if net == '/GND' else [], 'layers': {}, 'sites': []}
+        with patch.object(verify.toolchain, 'worker', fake_worker):
+            out = verify.islands('design/main.kicad_pro', net='GND')
+        self.assertEqual(calls, ['GND', '/GND'])
+        self.assertEqual((out['net'], out['requestedNet'], len(out['pads'])), ('/GND', 'GND', 1))
+        self.assertIn('sheet-local', out['note'])
+
+
 class IslandsWorkerTest(unittest.TestCase):
     def test_islands_reports_the_fixture_without_writing(self):
         fixtures = Path(__file__).parent / 'fixtures' / 'tiny'

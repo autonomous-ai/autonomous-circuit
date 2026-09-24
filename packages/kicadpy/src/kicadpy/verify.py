@@ -10,11 +10,16 @@ scripts, made generic, so any engine runs them instead of writing its own.
     python -m kicadpy.verify netlist  design/main.kicad_pro             # schematic pin->net vs PCB pad->net, hollow symbols
     python -m kicadpy.verify islands  design/main.kicad_pro [--net GND] [--near X Y R]   # zone islands, via sites (pcbnew)
     python -m kicadpy.verify easyeda  build/easyeda_fp.json C123 C456   # fetch EasyEDA footprint pads (network)
-    python -m kicadpy.verify rotation design/main.kicad_pro parts.json build/easyeda_fp.json   # factory rotation offsets
+    python -m kicadpy.verify rotation design/main.kicad_pro parts.json [build/easyeda_fp.json]   # factory rotation offsets
     python -m kicadpy.verify stock    parts.json build/jlc_stock.json   # JLCPCB stock / library type (network)
 
 Every command prints a readable report and, as its LAST line, one JSON object.
 Host Python, read-only: nothing here edits a source file.
+
+`rotation` and `stock` read `kicadpy.knowledge` first (what earlier runs measured, keyed by LCSC
+code): a rotation the table knows needs no EasyEDA fetch, a measurement that disagrees with the
+table is flagged, and a part with a recorded trap (a clone, a wrong maker) says so next to its
+live stock row.
 """
 from __future__ import annotations
 
@@ -29,7 +34,7 @@ import tempfile
 import time
 import urllib.request
 
-from . import toolchain
+from . import knowledge, toolchain
 from .sexp import child, parse, value
 
 
@@ -168,7 +173,11 @@ def compare_netlists(sch_pins, sch_refs, pcb_pad_nets):
     # Hollow = the drawing wires nothing on it while the copper gives its pads nets. A mounting
     # hole (no pins, net-less pad) is not hollow; an IC whose pads say GND/V3_3 on the PCB is.
     hollow = sorted(r for r in sch_refs if r not in wired and r in netted and not r.startswith('#'))
-    return {'differences': diffs, 'hollowSymbols': hollow,
+    # A net named "/GND" is a sheet-local label on the root sheet. The comparison above forgives
+    # it, KiCad's parity check does not once the PCB says "GND", and every tool that takes a net
+    # name (`islands --net GND`) misses it. harness-15 (Grok, 2026-09-24) drew every net that way.
+    local = sorted({n for n in sch_pins.values() if n.startswith('/') and n.count('/') == 1})
+    return {'differences': diffs, 'hollowSymbols': hollow, 'sheetLocalNets': local,
             'schematicPins': len(sch_pins), 'pcbPads': len(pcb_pad_nets)}
 
 
@@ -197,6 +206,10 @@ def netlist(project):
 def print_netlist(out):
     print(f"schematic pins {out['schematicPins']}, pcb pads {out['pcbPads']}, differences {len(out['differences'])}, "
           f"hollow symbols {len(out['hollowSymbols'])}")
+    if out.get('sheetLocalNets'):
+        names = out['sheetLocalNets']
+        print(f"  {len(names)} net(s) are sheet-local labels ({', '.join(names[:6])}{', …' if len(names) > 6 else ''}): "
+              "use global labels — a PCB net named GND will not match /GND, and every --net argument needs the slash")
     for d in out['differences'][:60]:
         print(f"  {d['pad']:10s} schematic={d['schematic']!r:24} pcb={d['pcb']!r}")
     if out['hollowSymbols']:
@@ -208,11 +221,22 @@ def print_netlist(out):
 
 def islands(project, net='GND', near=None):
     pcb = Path(project).with_suffix('.kicad_pcb')
-    return toolchain.worker('islands', pcb, net=net, near=near)
+    out = toolchain.worker('islands', pcb, net=net, near=near)
+    if not out.get('pads') and not net.startswith('/'):
+        # Sheet-local labels name the PCB nets "/GND": try that spelling before reporting nothing.
+        again = toolchain.worker('islands', pcb, net='/' + net, near=near)
+        if again.get('pads'):
+            again['requestedNet'] = net
+            again['note'] = (f'no net "{net}" on this board; "/{net}" (a sheet-local label) has {len(again["pads"])} pads '
+                             '— measured that one; use global labels in the schematic')
+            return again
+    return out
 
 
 def print_islands(out):
     print(f"net {out['net']}:")
+    if out.get('note'):
+        print(f"  note: {out['note']}")
     for layer, info in out['layers'].items():
         print(f"  {layer}: {info['islands']} filled island(s), areas mm2 {info['areasMm2'][:8]}")
     stranded = [p for p in out['pads'] if p.get('stranded')]
@@ -252,18 +276,30 @@ def _score(kp, ep, theta, by_number=True):
     return err / len(kp)
 
 
-def rotation_offsets(footprints, lcsc_of, easyeda):
+def rotation_offsets(footprints, lcsc_of, easyeda, table=None):
     """Per footprint: the theta in {0, 90, 180, 270} that maps the EasyEDA pads onto the KiCad pads.
 
     JLCPCB rotates by its own library's zero; the CPL angle it expects is KiCad angle + theta,
     so theta is the `rotationOffsetDeg` to record. Pads are matched by number, then by geometry
     alone when the numbering styles differ (TS-1187A: 1/1/2/2 vs 1/2/3/4).
+
+    `table` is what earlier runs measured ({lcsc: offset}). A part the table knows and EasyEDA
+    was not fetched for gets its row from the table (`method` "knowledge table"); a measurement
+    that disagrees with the table is flagged (`agreesWithTable` false) for a person to settle.
     """
+    table = table or {}
     rows = []
     for fp in sorted(footprints, key=lambda f: f['reference'] or ''):
         code = lcsc_of.get(fp['reference'])
         eda = easyeda.get(code) if code else None
-        if not code or not eda or not eda.get('pads'):
+        known = table.get(code) if code else None
+        if not code:
+            continue
+        if not eda or not eda.get('pads'):
+            if known is not None:
+                rows.append({'reference': fp['reference'], 'lcsc': code, 'footprint': fp['lib'],
+                             'rotationOffsetDeg': known, 'meanErrorMm': None, 'method': 'knowledge table',
+                             'poorMatch': False, 'tableOffsetDeg': known, 'agreesWithTable': True})
             continue
         kp = _centred([(p['number'], p['x'], p['y']) for p in fp['pads'] if p['number']])
         ep = _centred([(p['number'], p['x'], p['y']) for p in eda['pads']])
@@ -277,23 +313,36 @@ def rotation_offsets(footprints, lcsc_of, easyeda):
         theta = min(results, key=results.get)
         rows.append({'reference': fp['reference'], 'lcsc': code, 'footprint': fp['lib'],
                      'rotationOffsetDeg': theta, 'meanErrorMm': round(results[theta], 3), 'method': method,
-                     'poorMatch': results[theta] > 0.35})
+                     'poorMatch': results[theta] > 0.35, 'tableOffsetDeg': known,
+                     'agreesWithTable': known is None or known == theta})
     return rows
 
 
-def rotation(project, parts_file, easyeda_file):
+def rotation(project, parts_file, easyeda_file=None):
     _, footprints = pcb_pads(Path(project).with_suffix('.kicad_pcb').read_text())
     parts = json.loads(Path(parts_file).read_text())
     lcsc_of = {ref: part['lcsc'] for part in parts.get('parts', []) if part.get('lcsc') for ref in part.get('refdes', [])}
-    easyeda = json.loads(Path(easyeda_file).read_text())
-    return {'rows': rotation_offsets(footprints, lcsc_of, easyeda)}
+    easyeda = json.loads(Path(easyeda_file).read_text()) if easyeda_file else {}
+    table = {code: knowledge.rotation_offset(code) for code in set(lcsc_of.values())}
+    table = {code: off for code, off in table.items() if off is not None}
+    rows = rotation_offsets(footprints, lcsc_of, easyeda, table)
+    coded = {fp['reference'] for fp in footprints if lcsc_of.get(fp['reference'])}
+    return {'rows': rows, 'measured': sum(1 for r in rows if r['method'] != 'knowledge table'),
+            'fromTable': sum(1 for r in rows if r['method'] == 'knowledge table'),
+            'disagreements': [r['reference'] for r in rows if not r['agreesWithTable']],
+            'unknown': sorted(coded - {r['reference'] for r in rows})}
 
 
 def print_rotation(out):
     print(f"{'ref':6s} {'lcsc':10s} {'kicad footprint':44s} offset  err(mm)  method")
     for r in out['rows']:
         flag = '  <- POOR MATCH, check by hand' if r['poorMatch'] else ''
-        print(f"{r['reference']:6s} {r['lcsc']:10s} {r['footprint'][:44]:44s} {r['rotationOffsetDeg']:5d}   {r['meanErrorMm']:.3f}   {r['method']}{flag}")
+        if not r.get('agreesWithTable', True):
+            flag += f"  <- DISAGREES with the knowledge table ({r['tableOffsetDeg']}), settle by hand"
+        err = '  -  ' if r['meanErrorMm'] is None else f"{r['meanErrorMm']:.3f}"
+        print(f"{r['reference']:6s} {r['lcsc']:10s} {r['footprint'][:44]:44s} {r['rotationOffsetDeg']:5d}   {err}   {r['method']}{flag}")
+    if out.get('unknown'):
+        print(f"  no measurement and no table row for: {', '.join(out['unknown'])} — fetch them with `verify easyeda` first")
     print('  offsets are what manufacturing.json assembly.<ref>.rotationOffsetDeg wants; 0 is a measurement too, not a default')
 
 
@@ -370,6 +419,21 @@ def jlc_row(data, code):
     return {'error': 'not found', 'candidates': [(r.get('componentCode'), r.get('erpComponentName')) for r in rows]}
 
 
+def attach_identity(out, part_of=None):
+    """Beside each live row, what earlier runs verified about that code (maker, MPN, the trap found)."""
+    part_of = part_of or knowledge.part
+    for code, row in out.items():
+        known = part_of(code)
+        if not known:
+            continue
+        row['known'] = {k: known.get(k) for k in ('manufacturer', 'mpn', 'note') if known.get(k)}
+        model = str(row.get('componentModelEn') or '')
+        mpn = str(known.get('mpn') or '')
+        if model and mpn:
+            row['identityMismatch'] = mpn.lower() not in model.lower() and model.lower() not in mpn.lower()
+    return out
+
+
 def stock(parts_file, out_file, extra=()):
     parts = json.loads(Path(parts_file).read_text())
     codes = sorted({p.get('lcsc') for p in parts.get('parts', []) if p.get('lcsc')} | set(extra))
@@ -384,16 +448,23 @@ def stock(parts_file, out_file, extra=()):
         except Exception as exc:
             out[code] = {'error': str(exc)}
         time.sleep(0.7)
+    attach_identity(out)
     Path(out_file).write_text(json.dumps(out, indent=1))
     return {'file': str(out_file), 'codes': len(codes), 'found': sum(1 for v in out.values() if 'componentCode' in v),
             'missing': sorted(k for k, v in out.items() if 'error' in v),
             'rows': [{'lcsc': k, 'library': v.get('componentLibraryType'), 'stock': v.get('stockCount'),
-                      'brand': v.get('componentBrandEn'), 'model': v.get('componentModelEn')} for k, v in out.items() if 'componentCode' in v]}
+                      'brand': v.get('componentBrandEn'), 'model': v.get('componentModelEn'),
+                      'known': v.get('known'), 'identityMismatch': v.get('identityMismatch', False)}
+                     for k, v in out.items() if 'componentCode' in v]}
 
 
 def print_stock(out):
     for r in out['rows']:
         print(f"  {r['lcsc']:10s} {str(r['library']):9s} stock {str(r['stock']):>7s}  {r['brand']}  {r['model']}")
+        if r.get('known', {}).get('note'):
+            print(f"             known: {r['known']['note']}")
+        if r.get('identityMismatch'):
+            print(f"             <- the live listing ({r['model']}) is not the part earlier runs verified ({r['known'].get('mpn')}): check the code")
     if out['missing']:
         print('  not found / failed:', ', '.join(out['missing']))
 
@@ -408,7 +479,7 @@ def main(argv=None):
     s = sub.add_parser('islands'); s.add_argument('project'); s.add_argument('--net', default='GND')
     s.add_argument('--near', nargs=3, type=float, metavar=('X', 'Y', 'R'))
     s = sub.add_parser('easyeda'); s.add_argument('out'); s.add_argument('codes', nargs='+')
-    s = sub.add_parser('rotation'); s.add_argument('project'); s.add_argument('parts'); s.add_argument('easyeda')
+    s = sub.add_parser('rotation'); s.add_argument('project'); s.add_argument('parts'); s.add_argument('easyeda', nargs='?')
     s = sub.add_parser('stock'); s.add_argument('parts'); s.add_argument('out'); s.add_argument('codes', nargs='*')
     args = parser.parse_args(argv)
     try:

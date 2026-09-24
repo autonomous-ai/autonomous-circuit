@@ -169,8 +169,23 @@ class ManifestTest(unittest.TestCase):
     def test_agents_md_names_the_commands_the_agent_needs(self):
         text = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
         for needle in ('kicadpy.publish --manufacturing design/main.kicad_pro', 'kicadpy.harness --active build',
-                       'native-review-attestation.json', 'manufacturing.json', 'fab.ready'):
+                       'native-review-attestation.json', 'manufacturing.json', 'fab.ready',
+                       # after harness-15 (2026-09-24): the schematic writer, the measured-facts tables, the bar rule
+                       'kicadpy.author', 'kicadpy.knowledge learn .', 'kicadpy.verify netlist design/main.kicad_pro',
+                       'The bar a board must clear comes from the prompt'):
             self.assertIn(needle, text, needle)
+
+    def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
+        card = (PKG / 'skills' / 'kicad' / 'SKILL.md').read_text(encoding='utf-8')
+        for needle in ('kicadpy.author write spec.json design/', 'kicadpy.knowledge show', 'modules/<id>/BLOCK.md'):
+            self.assertIn(needle, card, needle)
+        # the header-mounted modules the KiCad tile reads beside the golden blocks: knowledge only, no TSX
+        blocks = ROOT / 'packages' / 'golden-blocks'
+        for module in ('st7789-1.54-module', 'ttp223-module'):
+            block_md = blocks / 'modules' / module / 'BLOCK.md'
+            self.assertTrue(block_md.is_file(), module)
+            self.assertNotIn(module, [p.name for p in (blocks / 'blocks').iterdir()], f'{module} must not be a golden block')
+        self.assertIn('BLK', (blocks / 'modules' / 'st7789-1.54-module' / 'BLOCK.md').read_text(encoding='utf-8'))
 
 
 class PythonWrapperTest(unittest.TestCase):

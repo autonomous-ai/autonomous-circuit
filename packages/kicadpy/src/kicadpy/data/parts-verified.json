@@ -18,7 +18,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -101,7 +102,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -112,7 +114,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21",
    "note": "maker is FH (Guangdong Fenghua), not Yageo (harness-14 review)"
@@ -124,7 +127,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -135,7 +139,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -155,7 +160,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -166,7 +172,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -178,6 +185,15 @@
     "harness-11 2026-09-22"
    ],
    "checkedDate": "2026-09-22"
+  },
+  "C2146": {
+   "manufacturer": "Jiangsu Changjing Electronics Technology Co., Ltd.",
+   "mpn": "S8050 J3Y(RANGE:200-350)",
+   "package": "SOT-23",
+   "sources": [
+    "harness-15 2026-09-24"
+   ],
+   "checkedDate": "2026-09-24"
   },
   "C25100": {
    "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
@@ -196,7 +212,8 @@
    "package": "0402",
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21",
    "note": "UNI-ROYAL 0402WGF3300TCE is the real MPN; a run wrongly deleted it as invented (harness-14 review)"
@@ -206,7 +223,8 @@
    "mpn": "0402WGF1003TCE",
    "package": "0402",
    "sources": [
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-22"
   },
@@ -217,7 +235,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -245,7 +264,8 @@
    "package": "0402",
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -255,7 +275,8 @@
    "package": "SOT-23-6",
    "sources": [
     "harness-9 2026-09-21",
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21",
    "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)"
@@ -265,7 +286,8 @@
    "mpn": "WS2812B-B/T",
    "package": "5050-4P",
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -305,6 +327,15 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C2909343": {
+   "manufacturer": "FOJAN",
+   "mpn": "FRC0402F27R0TS",
+   "package": "0402",
+   "sources": [
+    "harness-15 2026-09-24"
+   ],
+   "checkedDate": "2026-09-24"
+  },
   "C2937625": {
    "manufacturer": "XFCN",
    "mpn": "PZ254V-11-03P",
@@ -321,7 +352,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -384,7 +416,17 @@
    "mpn": "PZ254V-11-08P",
    "package": "1x8 2.54 mm THT, 6.1 mm mating, gold",
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
+   ],
+   "checkedDate": "2026-09-24"
+  },
+  "C49257": {
+   "manufacturer": "BOOMELE(Boom Precision Elec)",
+   "mpn": "2.54-1*3PPin",
+   "package": "Plugin,P=2.54mm",
+   "sources": [
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -413,7 +455,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -450,7 +493,8 @@
    "package": "SOT-223",
    "sources": [
     "harness-9 2026-09-21",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21",
    "note": "AMS1117-3.3 SOT-223, the ldo-3v3 block part; tab = VOUT"
@@ -463,6 +507,15 @@
     "harness-11 2026-09-22"
    ],
    "checkedDate": "2026-09-22"
+  },
+  "C7484": {
+   "manufacturer": "Texas Instruments",
+   "mpn": "SN74AHCT1G125DBVR",
+   "package": "SOT-23-5",
+   "sources": [
+    "harness-15 2026-09-24"
+   ],
+   "checkedDate": "2026-09-24"
   },
   "C7519": {
    "manufacturer": "STMicroelectronics",
@@ -499,7 +552,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24"
    ],
    "checkedDate": "2026-09-21"
   }
