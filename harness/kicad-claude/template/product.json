@@ -1,0 +1,9 @@
+{
+  "name": "new-board",
+  "description": "one sentence: what this device does for its owner",
+  "power": "usb-c-5v",
+  "envelopeMm": [60, 40],
+  "layers": 2,
+  "fab": "jlcpcb",
+  "assembly": true
+}

@@ -18,7 +18,9 @@ PKG = HERE.parent
 ROOT = PKG.parents[1]
 # The sibling tile: the same harness on Grok Build. Everything but the manifest and README is a symlink here.
 GROK = PKG.parent / 'kicad-grok'
-TILES = {'autonomous/kicad': PKG, 'autonomous/kicad-grok': GROK}
+CLAUDE = PKG.parent / 'kicad-claude'
+TILES = {'autonomous/kicad': PKG, 'autonomous/kicad-grok': GROK, 'autonomous/kicad-claude': CLAUDE}
+SIBLINGS = {'autonomous/kicad-grok': GROK, 'autonomous/kicad-claude': CLAUDE}
 SKILLS_DIR_FOR = {'claude': '.claude/skills', 'codex': '.agents/skills', 'grok': '.agents/skills'}
 
 
@@ -37,29 +39,37 @@ class ManifestTest(unittest.TestCase):
         self.assertIn(m['engine'], ('claude', 'codex'))
         self.assertEqual(m['verdict'], '.harness/verdict.json')
 
-    def test_grok_tile_is_the_same_harness_on_grok(self):
-        m = _manifest(GROK)
-        self.assertEqual(m['spec'], 1)
-        self.assertEqual(m['id'], 'autonomous/kicad-grok')
-        self.assertEqual(m['engine'], 'grok')
-        self.assertEqual(m['category'], 'PCB')
-        self.assertEqual(m['verdict'], '.harness/verdict.json')
+    def test_sibling_tiles_are_the_same_harness_on_another_engine(self):
         base = _manifest()
-        for key in ('workspace', 'toolchain', 'viewer'):
-            self.assertEqual(m[key], base[key], key)
-        self.assertEqual(m['agent']['instructions'], base['agent']['instructions'])
-        self.assertEqual(m['agent']['skills'], base['agent']['skills'])
-        self.assertEqual(m['agent']['env'], base['agent']['env'])
-        for rel in ('AGENTS.md', 'skills', 'toolchain'):
-            self.assertTrue((GROK / rel).is_symlink(), rel)
-            self.assertEqual((GROK / rel).resolve(), (PKG / rel).resolve(), rel)
-        # The template is a REAL directory of REAL files: the daemon copies it with cpSync without
-        # dereferencing, so a symlinked template becomes a symlink where the workspace should be
-        # (EEXIST, 2026-09-23) and a symlinked file would let init write through into this repo.
-        self.assertFalse((GROK / 'template').is_symlink())
-        for name in ('project.json', 'product.json'):
-            self.assertFalse((GROK / 'template' / name).is_symlink(), name)
-            self.assertEqual((GROK / 'template' / name).read_bytes(), (PKG / 'template' / name).read_bytes(), name)
+        for tile_id, pkg, engine in (('autonomous/kicad-grok', GROK, 'grok'), ('autonomous/kicad-claude', CLAUDE, 'claude')):
+            m = _manifest(pkg)
+            self.assertEqual(m['spec'], 1, tile_id)
+            self.assertEqual(m['id'], tile_id)
+            self.assertEqual(m['engine'], engine, tile_id)
+            self.assertEqual(m['category'], 'PCB')
+            self.assertEqual(m['verdict'], '.harness/verdict.json')
+            for key in ('workspace', 'toolchain', 'viewer'):
+                self.assertEqual(m[key], base[key], f'{tile_id}: {key}')
+            self.assertEqual(m['agent']['instructions'], base['agent']['instructions'])
+            self.assertEqual(m['agent']['skills'], base['agent']['skills'])
+            env, base_env = dict(m['agent']['env']), dict(base['agent']['env'])
+            env.pop('CIRCUIT_SKILLS_DIR'); base_env.pop('CIRCUIT_SKILLS_DIR')
+            self.assertEqual(env, base_env, tile_id)
+            for rel in ('AGENTS.md', 'skills', 'toolchain'):
+                self.assertTrue((pkg / rel).is_symlink(), f'{tile_id}: {rel}')
+                self.assertEqual((pkg / rel).resolve(), (PKG / rel).resolve(), f'{tile_id}: {rel}')
+            # The template is a REAL directory of REAL files: the daemon copies it with cpSync without
+            # dereferencing, so a symlinked template becomes a symlink where the workspace should be
+            # (EEXIST, 2026-09-23) and a symlinked file would let init write through into this repo.
+            self.assertFalse((pkg / 'template').is_symlink(), tile_id)
+            for name in ('project.json', 'product.json'):
+                self.assertFalse((pkg / 'template' / name).is_symlink(), name)
+                self.assertEqual((pkg / 'template' / name).read_bytes(), (PKG / 'template' / name).read_bytes(), f'{tile_id}: {name}')
+
+    def test_claude_tile_has_no_args(self):
+        # Harness maps its "full" mode to --dangerously-skip-permissions for claude itself, and the
+        # Stop hook is not wired for this arm yet (README); nothing else belongs on the command line.
+        self.assertNotIn('args', _manifest(CLAUDE)['agent'])
 
     def test_grok_args_carry_model_always_approve_and_trust(self):
         args = _manifest(GROK)['agent']['args']
@@ -159,7 +169,7 @@ class InitWorkspaceTest(unittest.TestCase):
             self.assertEqual([p['state'] for p in verdict['phases']], ['pending', 'pending', 'pending'])
 
     def test_init_writes_the_grok_stop_hook_only_for_the_grok_tile(self):
-        for pkg, expect_hook in ((GROK, True), (PKG, False)):
+        for pkg, expect_hook in ((GROK, True), (PKG, False), (CLAUDE, False)):
             with tempfile.TemporaryDirectory() as tmp:
                 ws = Path(tmp)
                 (ws / 'project.json').write_text((PKG / 'template' / 'project.json').read_text(encoding='utf-8'), encoding='utf-8')
