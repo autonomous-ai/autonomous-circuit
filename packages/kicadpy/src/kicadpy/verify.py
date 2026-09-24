@@ -172,6 +172,14 @@ def compare_netlists(sch_pins, sch_refs, pcb_pad_nets):
             'schematicPins': len(sch_pins), 'pcbPads': len(pcb_pad_nets)}
 
 
+def hollow_findings(hollow):
+    """Sidecar findings for symbols the schematic never wires: one error per reference, in plain words."""
+    return [{'kind': 'schematic_hollow_symbol', 'severity': 'error', 'part': ref,
+             'message': f'{ref}: no pin of it is wired in the schematic, yet its pads carry nets on the PCB — '
+                        'the drawing does not describe the board (derived symbol not resolved, or wires missing)'}
+            for ref in hollow]
+
+
 def netlist(project):
     project = Path(project)
     root, stem = project.parent, project.stem

@@ -68,6 +68,15 @@ class NetlistTest(unittest.TestCase):
         self.assertTrue(any(d['pad'] == 'U2.1' and d['schematic'] == '' for d in out['differences']))
 
 
+class HollowFindingsTest(unittest.TestCase):
+    def test_one_error_per_reference_in_plain_words(self):
+        rows = verify.hollow_findings(['U1', 'U4'])
+        self.assertEqual([r['part'] for r in rows], ['U1', 'U4'])
+        self.assertTrue(all(r['severity'] == 'error' and r['kind'] == 'schematic_hollow_symbol' for r in rows))
+        self.assertIn('U4: no pin of it is wired', rows[1]['message'])
+        self.assertEqual(verify.hollow_findings([]), [])
+
+
 class RotationTest(unittest.TestCase):
     def test_offset_is_the_rotation_that_maps_easyeda_pads_onto_kicad_pads(self):
         # A three-pad SOT-23 as KiCad draws it (pads 1,2 left column, 3 right) ...

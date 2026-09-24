@@ -122,7 +122,13 @@ order `PROMPT-WORKFLOW.md` gives:
    pointing at them. Check symbol pin numbers, footprint pad numbers, pin functions and net
    parity explicitly, against the manufacturer's pin table.
 3. The schematic must be real and electrically connected — a wired netlist, not an illustration.
-   Footprint paths on the PCB match the schematic instance UUID paths.
+   Footprint paths on the PCB match the schematic instance UUID paths. Prove it before you go on:
+   ```
+   "$KICAD_HARNESS_PYTHON" -m kicadpy.verify netlist design/main.kicad_pro
+   ```
+   must report 0 differences and 0 hollow symbols (a symbol with no wire on any pin while its
+   pads carry nets — harness-12 shipped four of those under an "ERC 0"). The publisher reports
+   them as `schematic_hollow_symbol` errors too.
 4. Write the design rules and netclasses into the `.kicad_pro` **before** routing: trace widths
    from the current budget, clearances from the fab's floor, the stackup explicit.
 5. Place with KiCad's Python and inspect what you placed. Decoupling beside its IC pins, the

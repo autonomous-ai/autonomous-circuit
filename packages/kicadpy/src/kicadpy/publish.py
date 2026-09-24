@@ -16,7 +16,7 @@ from pathlib import Path
 import shutil
 import struct
 import tempfile
-from . import checks, toolchain, manufacture, harness
+from . import checks, toolchain, manufacture, harness, verify
 from .project import Project, manifest, revision, write_json, digest
 
 
@@ -93,6 +93,15 @@ def publish(path, manufacturing=False):
                 base['validation']['warnings'] = [
                     {'kind': f.get('type', 'native_finding'), 'severity': 'error' if f['severity'] == 'error' else 'warning', 'message': f.get('description', ''), 'native': f}
                     for f in report['findings']]
+                # Symbols with no wire on them while their pads carry nets: parity already fails such a
+                # board, but as 199 net_conflict rows nobody reads (harness-12). Name the references.
+                try:
+                    hollow = verify.netlist(root / (project.stem + '.kicad_pro'))['hollowSymbols']
+                    base['native']['hollowSymbols'] = hollow
+                    base['validation']['warnings'] += verify.hollow_findings(hollow)
+                except Exception as exc:
+                    base['validation']['warnings'].append({'kind': 'native_netlist_unavailable', 'severity': 'warning',
+                                                           'message': f'schematic netlist could not be compared with the PCB: {exc}'})
                 base['validation']['warnings'].append({'kind': 'native_coverage', 'severity': 'warning',
                     'message': 'Experimental v2: native CAD checks only; engineering checks, PCBA data and hardware validation are incomplete.'})
                 if model_warning:
