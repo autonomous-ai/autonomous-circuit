@@ -6,6 +6,9 @@ the independent gerber read, part identities, assembly decisions and the seven
 hashed engineering areas. The app's review round can add findings by editing
 the sources and republishing; its attestation is recorded in the journal and
 shown, it is not a second gate (owner's rule, 2026-09-17).
+
+Every sidecar write (running → complete | failed) also refreshes the Harness
+verdict beside it, `.harness/verdict.json` — see `kicadpy.harness`.
 """
 import argparse
 import json
@@ -13,7 +16,7 @@ from pathlib import Path
 import shutil
 import struct
 import tempfile
-from . import checks, toolchain, manufacture
+from . import checks, toolchain, manufacture, harness, verify
 from .project import Project, manifest, revision, write_json, digest
 
 
@@ -32,6 +35,7 @@ def publish(path, manufacturing=False):
                          'assemblyReady': False, 'hardwareTested': False},
                 'validation': {'warnings': [{'kind': 'native_pending', 'severity': 'warning', 'message': 'Native CAD checks are running.'}]}}
         write_json(metadata, base)
+        harness.write_verdict(workspace)
         try:
             with tempfile.TemporaryDirectory(prefix='publish-', dir=project.store) as temp:
                 temp = Path(temp)
@@ -89,6 +93,36 @@ def publish(path, manufacturing=False):
                 base['validation']['warnings'] = [
                     {'kind': f.get('type', 'native_finding'), 'severity': 'error' if f['severity'] == 'error' else 'warning', 'message': f.get('description', ''), 'native': f}
                     for f in report['findings']]
+                # Symbols with no wire on them while their pads carry nets: parity already fails such a
+                # board, but as 199 net_conflict rows nobody reads (harness-12). Name the references.
+                try:
+                    hollow = verify.netlist(root / (project.stem + '.kicad_pro'))['hollowSymbols']
+                    base['native']['hollowSymbols'] = hollow
+                    base['validation']['warnings'] += verify.hollow_findings(hollow)
+                except Exception as exc:
+                    base['validation']['warnings'].append({'kind': 'native_netlist_unavailable', 'severity': 'warning',
+                                                           'message': f'schematic netlist could not be compared with the PCB: {exc}'})
+                # Power as built: capacitance per rail against the limits product.json declares
+                # (`power.railLimitsUF`, e.g. {"VBUS": 10}) and the distance from every IC power pin to
+                # its nearest capacitor (block rule 3 mm). harness-14 shipped 16 mm and 10.2 uF, -17
+                # 30.1 uF, each under a "power: pass"; a second engine found them, this finds them first.
+                try:
+                    limits = {}
+                    product_file = workspace / 'product.json'
+                    if product_file.is_file():
+                        product = json.loads(product_file.read_text())
+                        # product.json's `power` is prose; the limits live in their own top-level key.
+                        limits = product.get('railLimitsUF') or {}
+                        if not isinstance(limits, dict):
+                            limits = {}
+                    power = verify.power(root / (project.stem + '.kicad_pro'), {k: float(v) for k, v in limits.items()},
+                                         parts_file=workspace / 'parts.json')
+                    base['native']['power'] = {'rails': power['rails'], 'overLimit': power['overLimit'],
+                                               'pinsOverLimit': power['pinsOverLimit'], 'limitMm': power['limitMm']}
+                    base['validation']['warnings'] += verify.power_findings(power)
+                except Exception as exc:
+                    base['validation']['warnings'].append({'kind': 'native_power_unavailable', 'severity': 'warning',
+                                                           'message': f'rail capacitance and decoupling distances could not be measured: {exc}'})
                 base['validation']['warnings'].append({'kind': 'native_coverage', 'severity': 'warning',
                     'message': 'Experimental v2: native CAD checks only; engineering checks, PCBA data and hardware validation are incomplete.'})
                 if model_warning:
@@ -96,10 +130,14 @@ def publish(path, manufacturing=False):
                 if packet is not None:
                     base['native']['manufacturing'] = packet
                     base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
-                    base['fab']['ready'] = bool(packet['prototypeReady'])
+                    # The contract: zero error findings. The publisher's own measurements (hollow symbols,
+                    # a rail over its declared capacitance limit) count like the native ones.
+                    base['fab']['ready'] = bool(packet['prototypeReady']) and not any(
+                        w.get('severity') == 'error' for w in base['validation']['warnings'])
                 for warning in base['validation']['warnings']:
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)
+                harness.write_verdict(workspace)
                 return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
                         'manufacturingFindings': len(packet['findings']) if packet else None,
                         'prototypeReady': packet['prototypeReady'] if packet else None, 'fabricationReady': base['fab']['ready']}
@@ -107,6 +145,7 @@ def publish(path, manufacturing=False):
             base['native']['publication'] = 'failed'
             base['validation']['warnings'] = [{'kind': 'native_check_failed', 'severity': 'error', 'message': str(exc), 'detail': str(exc)}]
             write_json(metadata, base)
+            harness.write_verdict(workspace)
             raise
 
 

@@ -50,15 +50,199 @@ def inspect(board):
                            'excludedFromPosition': f.IsExcludedFromPosFiles(),
                            'at': point(f.GetPosition()), 'rotationDeg': f.GetOrientationDegrees(),
                            'layer': f.GetLayerName(), 'pads': pads})
-    bbox = board.GetBoardEdgesBoundingBox()
+    # The board's size is the closed outline's centreline, not the drawing stroke around it:
+    # GetBoardEdgesBoundingBox() adds the Edge.Cuts pen width (0.05 mm on a 40 mm board reads
+    # as a 0.9988 'scale error' in the packet check — seen 2026-09-21). Fall back to the edges
+    # box only when there is no closed outline to measure.
+    poly = p.SHAPE_POLY_SET()
+    if board.GetBoardPolygonOutlines(poly, False) and poly.OutlineCount() > 0:
+        bbox, bounds_source = poly.BBox(), 'outline'
+    else:
+        bbox, bounds_source = board.GetBoardEdgesBoundingBox(), 'edges'
     return {'kicad': p.GetBuildVersion(), 'coordinateSystem': 'KiCad absolute mm, y down; layers unmirrored',
             'thicknessMm': p.ToMM(board.GetDesignSettings().GetBoardThickness()),
             'copperLayers': [board.GetLayerName(l) for l in board.GetEnabledLayers().CuStack()],
             'boardBoundsMm': [p.ToMM(bbox.GetX()), p.ToMM(bbox.GetY()), p.ToMM(bbox.GetRight()), p.ToMM(bbox.GetBottom())],
+            'boardBoundsSource': bounds_source,
             'nets': sorted(n.GetNetname() for n in board.GetNetInfo().NetsByName().values()),
             'footprints': footprints, 'copper': [copper(t) for t in board.GetTracks()],
             'zones': [{'uuid': uid(z), 'net': z.GetNetname(), 'layer': z.GetLayerName()} for z in board.Zones()],
             'coverage': {'schematicGraphics': False, 'nativeGeometry': True, 'viewerIntegration': False}}
+
+
+def islands(board, net, near=None):
+    """Which pads and vias of `net` sit on which filled-zone island, per copper layer; optional via-site search.
+
+    Island 0 is the largest fill on that layer; a pad on island >= 1 is stranded (it has copper
+    but that copper is not the plane). With `near` = [x, y, r], every 0.05 mm point in that
+    square is scored by its clearance to non-net copper on BOTH layers and to the board edge;
+    the top sites are where a stitching via can go. Read-only.
+    """
+    layers = ['F.Cu', 'B.Cu']
+    zones = {}
+    for z in board.Zones():
+        if z.GetNetname() == net:
+            zones.setdefault(board.GetLayerName(z.GetFirstLayer()), z)
+    polys = {}
+    for ln, z in zones.items():
+        lid = board.GetLayerID(ln)
+        ps = z.GetFilledPolysList(lid)
+        order = sorted(range(ps.OutlineCount()), key=lambda i: -ps.Outline(i).Area())
+        polys[ln] = (ps, {orig: rank for rank, orig in enumerate(order)})
+
+    def island_of(ln, x, y):
+        if ln not in polys:
+            return None
+        ps, rank = polys[ln]
+        pt = p.VECTOR2I(p.FromMM(x), p.FromMM(y))
+        for i in range(ps.OutlineCount()):
+            if ps.Contains(pt, i):
+                return rank[i]
+        return None
+
+    result = {'net': net, 'layers': {}, 'pads': [], 'vias': [], 'sites': []}
+    for ln, (ps, rank) in polys.items():
+        areas = sorted((p.ToMM(p.ToMM(ps.Outline(i).Area())) for i in range(ps.OutlineCount())), reverse=True)
+        result['layers'][ln] = {'islands': ps.OutlineCount(), 'areasMm2': [round(a, 2) for a in areas]}
+    for f in board.GetFootprints():
+        for pad in f.Pads():
+            if pad.GetNetname() != net:
+                continue
+            x, y = p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y)
+            for ln in layers:
+                if pad.IsOnLayer(board.GetLayerID(ln)) and ln in polys:
+                    result['pads'].append({'ref': f.GetReference(), 'pad': pad.GetNumber(), 'x': x, 'y': y,
+                                           'layer': ln, 'island': island_of(ln, x, y)})
+    for t in board.GetTracks():
+        if isinstance(t, p.PCB_VIA) and t.GetNetname() == net:
+            x, y = p.ToMM(t.GetPosition().x), p.ToMM(t.GetPosition().y)
+            result['vias'].append({'x': x, 'y': y, 'islandF': island_of('F.Cu', x, y), 'islandB': island_of('B.Cu', x, y)})
+    # An island is reachable when a via or a through pad of the net joins it to a reachable island
+    # on the other layer; the largest fill of each layer (island 0) is the plane. Iterate to closure.
+    links = [(v['islandF'], v['islandB']) for v in result['vias']]
+    for f in board.GetFootprints():
+        for pad in f.Pads():
+            if pad.GetNetname() == net and pad.GetAttribute() == p.PAD_ATTRIB_PTH:
+                x, y = p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y)
+                links.append((island_of('F.Cu', x, y), island_of('B.Cu', x, y)))
+    reach = {'F.Cu': {0} if 'F.Cu' in polys else set(), 'B.Cu': {0} if 'B.Cu' in polys else set()}
+    changed = True
+    while changed:
+        changed = False
+        for fi, bi in links:
+            if fi is not None and bi is not None:
+                if fi in reach['F.Cu'] and bi not in reach['B.Cu']:
+                    reach['B.Cu'].add(bi); changed = True
+                if bi in reach['B.Cu'] and fi not in reach['F.Cu']:
+                    reach['F.Cu'].add(fi); changed = True
+    stranded_islands = {ln: sorted(k for k in range(info['islands']) if k not in reach[ln]) for ln, info in result['layers'].items()}
+    for entry in result['pads']:
+        entry['stranded'] = entry['island'] is not None and entry['island'] not in reach[entry['layer']]
+    result['reachableIslands'] = {ln: sorted(v) for ln, v in reach.items()}
+    result['strandedIslands'] = stranded_islands
+    if near:
+        cx, cy, r = (float(v) for v in near)
+
+        def seg_dist(px, py, ax, ay, bx, by):
+            dx, dy = bx - ax, by - ay
+            if dx == 0 and dy == 0:
+                return math.hypot(px - ax, py - ay)
+            k = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+            return math.hypot(px - (ax + k * dx), py - (ay + k * dy))
+
+        obstacles = {ln: [] for ln in layers}
+        for t in board.GetTracks():
+            if t.GetNetname() == net:
+                continue
+            if isinstance(t, p.PCB_VIA):
+                for ln in layers:
+                    obstacles[ln].append(('via', p.ToMM(t.GetPosition().x), p.ToMM(t.GetPosition().y), 0, 0, p.ToMM(t.GetWidth(t.TopLayer())) / 2))
+            else:
+                ln = board.GetLayerName(t.GetLayer())
+                if ln in obstacles:
+                    s, e = t.GetStart(), t.GetEnd()
+                    obstacles[ln].append(('trk', p.ToMM(s.x), p.ToMM(s.y), p.ToMM(e.x), p.ToMM(e.y), p.ToMM(t.GetWidth()) / 2))
+        for f in board.GetFootprints():
+            for pad in f.Pads():
+                if pad.GetNetname() == net:
+                    continue
+                for ln in layers:
+                    if pad.IsOnLayer(board.GetLayerID(ln)):
+                        obstacles[ln].append(('pad', p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y), 0, 0,
+                                              math.hypot(p.ToMM(pad.GetSize().x), p.ToMM(pad.GetSize().y)) / 2))
+        bb = board.GetBoardEdgesBoundingBox()
+        ex0, ey0, ex1, ey1 = p.ToMM(bb.GetLeft()), p.ToMM(bb.GetTop()), p.ToMM(bb.GetRight()), p.ToMM(bb.GetBottom())
+        sites = []
+        n = int(2 * r / 0.05)
+        for i in range(n + 1):
+            for j in range(n + 1):
+                x, y = cx - r + i * 0.05, cy - r + j * 0.05
+                d = min(x - ex0, ex1 - x, y - ey0, ey1 - y) - 0.3
+                for ln, obs in obstacles.items():
+                    for kind, ax, ay, bx, by, rad in obs:
+                        dd = (math.hypot(x - ax, y - ay) if kind != 'trk' else seg_dist(x, y, ax, ay, bx, by)) - rad - 0.3
+                        if dd < d:
+                            d = dd
+                sites.append((round(d, 3), round(x, 3), round(y, 3)))
+        sites.sort(reverse=True)
+        result['sites'] = [{'clearanceMm': d, 'x': x, 'y': y, 'islandF': island_of('F.Cu', x, y), 'islandB': island_of('B.Cu', x, y)}
+                           for d, x, y in sites[:25]]
+    return result
+
+
+def pads(board):
+    """Every footprint with its pads in absolute board coordinates (mm, y down) and their nets.
+
+    The host-side measurements (`kicadpy.verify power`) need real positions; the .kicad_pcb text
+    holds pads in the footprint's own frame, and getting the rotation convention wrong by a sign
+    would silently mis-measure every distance. pcbnew already knows.
+    """
+    out = []
+    for f in board.GetFootprints():
+        entry = {'ref': f.GetReference(), 'value': f.GetValue(), 'lib': f.GetFPIDAsString(),
+                 'x': p.ToMM(f.GetPosition().x), 'y': p.ToMM(f.GetPosition().y),
+                 'rotationDeg': f.GetOrientationDegrees(), 'pads': []}
+        for pad in f.Pads():
+            layers = [board.GetLayerName(board.GetLayerID(ln)) for ln in ('F.Cu', 'B.Cu') if pad.IsOnLayer(board.GetLayerID(ln))]
+            entry['pads'].append({'number': pad.GetNumber(), 'net': pad.GetNetname(),
+                                  'x': p.ToMM(pad.GetPosition().x), 'y': p.ToMM(pad.GetPosition().y),
+                                  'layers': layers, 'through': pad.GetAttribute() == p.PAD_ATTRIB_PTH})
+        out.append(entry)
+    return {'footprints': out}
+
+
+def copper_area(board, ref, pad_number):
+    """The filled copper a pad actually sits on: the zone island under it, per layer, and the vias of
+    its net inside that island. 0 mm2 means the "heatsink pour" a report describes does not exist.
+    """
+    target = None
+    for f in board.GetFootprints():
+        if f.GetReference() == ref:
+            for pad in f.Pads():
+                if pad.GetNumber() == pad_number:
+                    target = pad
+    if target is None:
+        raise ValueError(f'{ref}.{pad_number}: no such pad')
+    net = target.GetNetname()
+    pt = target.GetPosition()
+    result = {'ref': ref, 'pad': pad_number, 'net': net, 'layers': {}}
+    for ln in ('F.Cu', 'B.Cu'):
+        lid = board.GetLayerID(ln)
+        if not target.IsOnLayer(lid):
+            continue
+        found = None
+        for z in board.Zones():
+            if z.GetNetname() != net or not z.IsOnLayer(lid):
+                continue
+            ps = z.GetFilledPolysList(lid)
+            for i in range(ps.OutlineCount()):
+                if ps.Contains(pt, i):
+                    area = p.ToMM(p.ToMM(ps.Outline(i).Area()))
+                    vias = sum(1 for t in board.GetTracks() if isinstance(t, p.PCB_VIA) and t.GetNetname() == net
+                               and ps.Contains(t.GetPosition(), i))
+                    found = {'areaMm2': round(area, 3), 'viasOnIsland': vias}
+        result['layers'][ln] = found or {'areaMm2': 0.0, 'viasOnIsland': 0}
+    return result
 
 
 def main(req):
@@ -75,6 +259,12 @@ def main(req):
     op = req['operation']
     if op == 'inspect':
         return inspect(board)
+    if op == 'islands':
+        return islands(board, req.get('net') or 'GND', req.get('near'))
+    if op == 'pads':
+        return pads(board)
+    if op == 'copper_area':
+        return copper_area(board, req['ref'], req['pad'])
     if op in ('route_export', 'route_import'):
         scope = req['scope']
         original = {uid(t): t for t in board.GetTracks()}
@@ -123,7 +313,7 @@ def main(req):
                 t.SetLocked(locked)
             else:
                 if t.GetNetname() not in scope['nets'] or not inside_route(t):
-                    raise ValueError('router changed copper outside scope')
+                    raise ValueError('router changed copper outside scope: net=%s startMm=%s endMm=%s allowedNets=%s regionMm=%s; inspect the proposed geometry and adjust local scope or placement, not the guard' % (t.GetNetname(), point(t.GetStart()), point(t.GetEnd()), scope['nets'], region))
                 t.SetLocked(False)
                 created.append(uid(t))
         # Native SES omits protected wiring, while KiCad's importer clears

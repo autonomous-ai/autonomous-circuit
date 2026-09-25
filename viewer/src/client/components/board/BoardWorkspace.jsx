@@ -3,6 +3,7 @@ import { Keyboard as KeyboardIcon, Loader2, SendHorizontal } from "lucide-react"
 import { cn } from "@/ui/utils";
 import ProjectMenu from "@/components/project/ProjectMenu.jsx";
 import SidebarUserCard from "@/components/workbench/SidebarUserCard.jsx";
+import NewBoardButton from "./NewBoardButton.jsx";
 import { setPendingViewContext, setProject as setChatProject, startTurn } from "@/store/chat.js";
 import {
   FOCUS_CHAT_INPUT_EVENT,
@@ -115,6 +116,10 @@ export default function BoardWorkspace({
   onToolsSheetChange,
   closeLeftSidebarSignal = 0,
   onOpenAccountScreen,
+  // The server is a host's board pane (Harness): there is no chat to send a view to and no
+  // account to open, so those two controls are not drawn. Everything else on the stage —
+  // the tabs, the verdict, the parts panel, placement editing — works as it does in the app.
+  viewerOnly = false,
 }) {
   const [selectedFile, setSelectedFile] = useState("");
   const [treeOpen, setTreeOpen] = useState(true);
@@ -1200,9 +1205,13 @@ export default function BoardWorkspace({
             onOpenTab={setActiveTab}
           />
         ) : null}
-        <div className={cn("flex items-center gap-1", selectedEntry ? "" : "ml-auto")}>
-          <SidebarUserCard onOpenAccountScreen={onOpenAccountScreen} />
-        </div>
+        {viewerOnly ? (
+          <NewBoardButton className={selectedEntry ? "" : "ml-auto"} />
+        ) : (
+          <div className={cn("flex items-center gap-1", selectedEntry ? "" : "ml-auto")}>
+            <SidebarUserCard onOpenAccountScreen={onOpenAccountScreen} />
+          </div>
+        )}
       </header>
 
       {selectedEntry?.sourceKind === "kicad-native" ? (
@@ -1321,16 +1330,18 @@ export default function BoardWorkspace({
                   <kbd className="font-mono text-[10px] opacity-70">?</kbd>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleSendToAI}
-                  title="Send this view to the chat"
-                  data-slot="board-send-to-ai"
-                  className="ml-1 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <SendHorizontal className="size-3" aria-hidden />
-                  Send to AI
-                </button>
+                {viewerOnly ? null : (
+                  <button
+                    type="button"
+                    onClick={handleSendToAI}
+                    title="Send this view to the chat"
+                    data-slot="board-send-to-ai"
+                    className="ml-1 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <SendHorizontal className="size-3" aria-hidden />
+                    Send to AI
+                  </button>
+                )}
               </div>
 
               {/* The verdict lives above the panes and outside the tab switch:
@@ -1507,6 +1518,7 @@ export default function BoardWorkspace({
           ) : (
             !stagePending ? (
               <StartHere
+                viewerOnly={viewerOnly}
               native={projects.some(project => project.id === currentProjectId && project.engine === "kicad-native")}
               status={buildStatus}
               building={building || turnInProgress}

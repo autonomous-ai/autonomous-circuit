@@ -1,0 +1,54 @@
+{
+  "spec": 1,
+  "id": "autonomous/kicad",
+  "name": "KiCad",
+  "category": "PCB",
+  "author": "Autonomous",
+  "formerly": [
+    "autonomous/solder"
+  ],
+  "description": "Describe a board; get a real KiCad project \u2014 a wired schematic, DRC-checked copper, a prototype packet \u2014 with a live board view.",
+  "engine": "codex",
+  "workspace": {
+    "template": "template",
+    "marker": "project.json",
+    "init": "toolchain/init-workspace.sh"
+  },
+  "agent": {
+    "instructions": "AGENTS.md",
+    "skills": [
+      "skills"
+    ],
+    "env": {
+      "KICAD_HARNESS_PYTHON": "${dsh}/toolchain/python",
+      "KICAD_HARNESS_ROOT": "${dsh}/../..",
+      "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
+      "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",
+      "CIRCUIT_SKILLS_DIR": "${workspace}/.agents/skills",
+      "DISABLE_AUTOUPDATER": "1"
+    },
+    "args": [
+      "-m",
+      "gpt-6-astra",
+      "-c",
+      "model_reasoning_effort=high",
+      "-c",
+      "approval_policy=never",
+      "-c",
+      "sandbox_mode=danger-full-access",
+      "-c",
+      "hooks.Stop=[{hooks=[{type=\"command\",command=\"\\\"$KICAD_HARNESS_PYTHON\\\" -m kicadpy.autofinish\",timeout=1200}]}]",
+      "-c",
+      "hooks.Interrupt=[{hooks=[{type=\"command\",command=\"\\\"$KICAD_HARNESS_PYTHON\\\" -m kicadpy.autofinish\",timeout=3}]}]"
+    ]
+  },
+  "toolchain": {
+    "setup": "toolchain/setup.sh",
+    "doctor": "toolchain/doctor.sh"
+  },
+  "viewer": {
+    "command": "toolchain/viewer.sh",
+    "url": "http://127.0.0.1:${port}/"
+  },
+  "verdict": ".harness/verdict.json"
+}

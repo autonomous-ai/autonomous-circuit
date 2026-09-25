@@ -21,7 +21,7 @@ Every tool prints one `{ok, result}` or `{ok:false, error, kind}` JSON line.
 | apply | `{expected, scope, edits}` |
 | route | `{expected, scope}` |
 | diff / check | `{identifier}` (candidate ID) |
-| commit | `{identifier, expected}` |
+| commit | `{identifier, expected, allow_improvement?: boolean}` |
 | undo | `{target, expected}` (snapshot revision and current revision) |
 
 Scope is `{uuids: [...], nets: [...], regionMm: [x0,y0,x1,y1], refillZones: []}`.
@@ -67,3 +67,11 @@ A separate native review/repair loop writes engineering evidence; readiness
 requires both that review and independent native/packet checks. Physical hardware
 remains untested. Canvas editing is disabled; request edits through chat.
 See PROMPT-WORKFLOW.md and MANUFACTURING.md.
+
+A local repair on an already failing board may commit with `allow_improvement: true`.
+The default still requires a passing native check. Improvement mode freshly checks a copy of
+its baseline and accepts only a strict subset of the exact previous findings (including warnings),
+with identical tools, coverage and ignored checks. A new or changed finding is rejected even if
+the total count falls. Scope, source freshness, check hashes and undo remain enforced. This is
+progress, not completion: `fabricationReady` remains false; publish the manufacturing packet
+and finish the remaining repairs before claiming `fab.ready=true`.

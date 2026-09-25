@@ -541,3 +541,216 @@ test("a second turn on a live project is refused instead of racing the first", a
     s.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Viewer-only mode (CIRCUIT_WORKSPACE): the server a host embeds beside its own terminal.
+// ---------------------------------------------------------------------------
+
+async function bootWorkspaceServer() {
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-") }));
+  return s;
+}
+
+/** `bootServer` with the env edited before the services are built. */
+async function bootServerWith(editEnv, serviceOptions = {}) {
+  const home = tmpdir("circuit-home-");
+  const cfgDir = tmpdir("circuit-cfg-");
+  const scenarioPath = path.join(home, "scenario.json");
+  fs.writeFileSync(scenarioPath, "{}");
+  const env = editEnv({
+    ...process.env,
+    CIRCUIT_HOME: home,
+    CLAUDE_CONFIG_DIR: cfgDir,
+    CIRCUIT_CLAUDE_BIN: FAKE_CLAUDE,
+    CIRCUIT_CODEX_BIN: path.join(home, "no-codex-here"),
+    CIRCUIT_FAKE_SCENARIO: scenarioPath,
+  });
+  const services = createCircuitServices({ env, ...serviceOptions });
+  const server = http.createServer((req, res) => {
+    services.apiMiddleware(req, res, () => {
+      services.assetMiddleware(req, res, () => {
+        res.statusCode = 404;
+        res.end("fallthrough");
+      });
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  async function post(cmd, body = {}) {
+    const response = await fetch(`${base}/api/${cmd}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  }
+  return { services, server, base, post, close() { services.close(); server.close(); }, env };
+}
+
+test("viewer-only: one workspace project, open from the first request, chat refused, assets served from the folder", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    assert.equal(s.services.viewerOnly, true);
+    assert.equal(s.services.projectsRoot, path.resolve(ws));
+
+    // The settings reply is where the client learns the mode; the normal server never sends it.
+    const settings = await s.post("app_settings_read");
+    assert.equal(settings.body.viewerOnly, true);
+    assert.equal((await s.post("app_info")).body.rootPath, path.resolve(ws));
+
+    // Exactly one project, and it is already the active one: no project_open needed before
+    // the catalog answers, which is the state the host's page boots into.
+    const listed = await s.post("project_list");
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.body.map((p) => p.id), ["workspace"]);
+    fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "boards", "main.tsx"), "<board />");
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.equal(catalog.status, 200);
+    assert.deepEqual(catalog.body.entries.map((e) => e.file), ["boards/main.tsx"]);
+    assert.equal(catalog.body.rootPath, fs.realpathSync(ws));
+
+    // The folder is the user's: nothing here creates, renames or deletes a project in it.
+    for (const [cmd, body] of [
+      ["project_create", { name: "x" }],
+      ["project_rename", { id: "workspace", name: "x" }],
+      ["project_delete", { id: "workspace" }],
+    ]) {
+      const refused = await s.post(cmd, body);
+      assert.equal(refused.status, 409, cmd);
+      assert.equal(refused.body.code, "VIEWER_ONLY", cmd);
+    }
+    assert.equal(fs.existsSync(path.join(ws, "project.json")), false);
+
+    // The conversation lives in the host's terminal; a turn started here would put a second
+    // `claude` on the same workspace.
+    for (const [cmd, body] of [
+      ["chat_start_turn", { projectId: "workspace", userMessage: "hi" }],
+      ["chat_approve_plan", { projectId: "workspace", planText: "p" }],
+      ["chat_session_create", { projectId: "workspace" }],
+    ]) {
+      const refused = await s.post(cmd, body);
+      assert.equal(refused.status, 409, cmd);
+      assert.equal(refused.body.code, "VIEWER_ONLY", cmd);
+    }
+
+    // Assets resolve inside the workspace, and the traversal guard still holds.
+    fs.mkdirSync(path.join(ws, "boards", "main_review"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "boards", "main_review", "_pcb.png"), "png-bytes");
+    const png = await fetch(`${s.base}/projects/workspace/boards/main_review/_pcb.png?v=1-1`);
+    assert.equal(png.status, 200);
+    assert.equal(png.headers.get("content-type"), "image/png");
+    assert.equal(await png.text(), "png-bytes");
+    const outside = await fetch(`${s.base}/projects/workspace/..%2F..%2Fetc%2Fpasswd`);
+    assert.notEqual(outside.status, 200);
+    const other = await fetch(`${s.base}/projects/other/boards/main.tsx`);
+    assert.equal(other.status, 404);
+  } finally {
+    s.close();
+  }
+});
+
+test("viewer-only: `.harness/` is invisible to the catalog, and a write there still bumps nothing an artifact would", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    fs.mkdirSync(path.join(ws, ".harness"), { recursive: true });
+    fs.writeFileSync(path.join(ws, ".harness", "verdict.json"), JSON.stringify({ spec: 1, ready: false }));
+    fs.writeFileSync(path.join(ws, "NOTES.md"), "# notes");
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.deepEqual(catalog.body.entries.map((e) => e.file), ["NOTES.md"]);
+  } finally {
+    s.close();
+  }
+});
+
+test("viewer-only: harness_new_board asks the daemon for a sibling harness; the command does not exist elsewhere", async () => {
+  // A fake daemon: answers machine_select with `connected`, agent_create with a created agent.
+  const frames = [];
+  const fakeConnect = () => {
+    const listeners = { open: [], message: [], error: [], close: [] };
+    const socket = {
+      addEventListener: (t, fn) => listeners[t].push(fn),
+      send(text) {
+        const frame = JSON.parse(text);
+        frames.push(frame);
+        const reply = frame.type === "machine_select"
+          ? { type: "connected", payload: { machineId: frame.payload.machineId } }
+          : { type: "agent_create_result", payload: { requestId: frame.payload.requestId, state: "created", agent: { id: "agent-9", dshName: "KiCad" } } };
+        setTimeout(() => listeners.message.forEach((fn) => fn({ data: JSON.stringify(reply) })), 0);
+      },
+      close() {},
+    };
+    setTimeout(() => listeners.open.forEach((fn) => fn({})), 0);
+    return socket;
+  };
+  const home = tmpdir("circuit-nb-home-");
+  fs.mkdirSync(path.join(home, ".harness", "cli", "data"), { recursive: true });
+  fs.writeFileSync(path.join(home, ".harness", "cli", "data", "machines.json"), JSON.stringify({ machines: [{ machineId: "m-local", local: true }] }));
+  const dshDir = tmpdir("circuit-nb-dsh-");
+  fs.writeFileSync(path.join(dshDir, "harness.json"), JSON.stringify({ engine: "codex" }));
+  const parent = tmpdir("circuit-nb-");
+  const ws = path.join(parent, "pet");
+  fs.mkdirSync(ws);
+  const s = await bootServerWith(
+    (env) => ({ ...env, CIRCUIT_WORKSPACE: ws, HOME: home, HARNESS_DSH: "autonomous/kicad", HARNESS_DSH_DIR: dshDir }),
+    { harnessConnect: fakeConnect },
+  );
+  try {
+    const made = await s.post("harness_new_board");
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    assert.equal(made.body.name, "pet-2");
+    assert.equal(made.body.cwd, path.join(parent, "pet-2"));
+    assert.equal(made.body.engine, "codex");
+    assert.equal(made.body.agentId, "agent-9");
+    assert.match(made.body.hint, /⌘O/);
+    assert.equal(fs.existsSync(path.join(parent, "pet-2")), true);
+    assert.deepEqual(frames.map((f) => f.type), ["machine_select", "agent_create"]);
+    assert.equal(frames[1].payload.dsh, "autonomous/kicad");
+    assert.equal(frames[1].payload.cwd, path.join(parent, "pet-2"));
+  } finally {
+    s.close();
+  }
+
+  // A daemon that refuses is a 502 with its reason, and the folder is not left behind.
+  const refusing = () => {
+    const listeners = { open: [], message: [], error: [], close: [] };
+    return {
+      addEventListener: (t, fn) => listeners[t].push(fn),
+      send(text) {
+        const frame = JSON.parse(text);
+        const reply = frame.type === "machine_select" ? { type: "connected", payload: {} } : { type: "agent_create_result", payload: { requestId: frame.payload.requestId, state: "unconfirmed" } };
+        setTimeout(() => listeners.message.forEach((fn) => fn({ data: JSON.stringify(reply) })), 0);
+      },
+      close() {},
+      ...(setTimeout(() => listeners.open.forEach((fn) => fn({})), 0), {}),
+    };
+  };
+  const s2 = await bootServerWith(
+    (env) => ({ ...env, CIRCUIT_WORKSPACE: ws, HOME: home, HARNESS_DSH: "autonomous/kicad", HARNESS_DSH_DIR: dshDir }),
+    { harnessConnect: refusing },
+  );
+  try {
+    const refused = await s2.post("harness_new_board");
+    assert.equal(refused.status, 502);
+    assert.equal(refused.body.code, "HARNESS_NEW_BOARD_FAILED");
+    assert.match(refused.body.message, /unconfirmed/);
+    assert.equal(fs.existsSync(path.join(parent, "pet-3")), false);
+  } finally {
+    s2.close();
+  }
+
+  // The app proper has project_create; this command is viewer-only.
+  const s3 = await bootServer();
+  try {
+    const absent = await s3.post("harness_new_board");
+    assert.equal(absent.status, 404);
+    assert.equal(absent.body.code, "UNKNOWN_COMMAND");
+  } finally {
+    s3.close();
+  }
+});

@@ -23,7 +23,7 @@ JRE_URL="https://api.adoptium.net/v3/binary/latest/${JRE_MAJOR}/ga/${JRE_OS}/${J
 
 if [ ! -f "${DEST}/${FR_JAR}" ]; then
   echo "fetching ${FR_JAR}"
-  curl -sL -o "${DEST}/${FR_JAR}.part" "${FR_URL}"
+  curl -fsSL --retry 3 -o "${DEST}/${FR_JAR}.part" "${FR_URL}"
   mv "${DEST}/${FR_JAR}.part" "${DEST}/${FR_JAR}"
 fi
 have="$(shasum -a 256 "${DEST}/${FR_JAR}" | cut -c1-16)"
@@ -31,13 +31,25 @@ if [ "${have}" != "${FR_SHA256}" ]; then
   echo "${FR_JAR} sha256 prefix ${have} != pinned ${FR_SHA256}" >&2; exit 1
 fi
 
-if ! ls -d "${DEST}"/jdk-*/Contents/Home/bin/java "${DEST}"/jdk-*/bin/java >/dev/null 2>&1; then
+# One glob matches per platform (mac: Contents/Home, linux: bin). Never `ls a b | head -1` here:
+# under `set -eo pipefail` the unmatched glob makes ls exit 1, the pipeline fails, and the script
+# dies (an assignment) or re-downloads a JRE it already has (a test) — both seen on every run.
+find_java() {
+  local cand
+  for cand in "${DEST}"/jdk-*/Contents/Home/bin/java "${DEST}"/jdk-*/bin/java; do
+    if [ -x "${cand}" ]; then echo "${cand}"; return 0; fi
+  done
+  return 1
+}
+if ! find_java >/dev/null; then
   echo "fetching Temurin ${JRE_MAJOR} JRE (${JRE_OS}/${JRE_ARCH})"
-  curl -sL -o "${DEST}/jre.tar.gz" "${JRE_URL}"
+  curl -fsSL --retry 3 -o "${DEST}/jre.tar.gz" "${JRE_URL}"
   tar -xzf "${DEST}/jre.tar.gz" -C "${DEST}"
   rm -f "${DEST}/jre.tar.gz"
 fi
-JAVA="$(ls -d "${DEST}"/jdk-*/Contents/Home/bin/java "${DEST}"/jdk-*/bin/java 2>/dev/null | head -1)"
-"${JAVA}" -version 2>&1 | head -1
+JAVA="$(find_java)" || { echo "no java under ${DEST} after unpacking the JRE" >&2; exit 1; }
+# Not `| head -1`: under `pipefail` head closing the pipe early gives java SIGPIPE (141) and the
+# script exits 1 AFTER a successful install — which is what Harness saw on every setup run.
+ver="$("${JAVA}" -version 2>&1)"; echo "${ver%%$'\n'*}"
 "${JAVA}" -Djava.awt.headless=true -jar "${DEST}/${FR_JAR}" -h 2>&1 | grep -m1 "Freerouting v" || true
 echo "freerouting ready at ${DEST}"
