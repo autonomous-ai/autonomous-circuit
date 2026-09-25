@@ -202,6 +202,108 @@ class GateTest(unittest.TestCase):
 
 @unittest.skipUnless(os.path.isfile('/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3')
                      or os.environ.get('KICADPY_PYTHON'), 'KiCad Python not installed')
+class PowerTest(unittest.TestCase):
+    def test_capacitor_values_parse_and_resistors_do_not(self):
+        self.assertAlmostEqual(verify.cap_farads('10uF'), 10e-6)
+        self.assertAlmostEqual(verify.cap_farads('100nF'), 100e-9)
+        self.assertAlmostEqual(verify.cap_farads('4.7u'), 4.7e-6)
+        self.assertAlmostEqual(verify.cap_farads('0.1µF'), 100e-9)
+        self.assertAlmostEqual(verify.cap_farads('15pF'), 15e-12)
+        self.assertIsNone(verify.cap_farads('10k'))
+        self.assertIsNone(verify.cap_farads('AMS1117-3.3'))
+
+    def test_rail_totals_and_decoupling_distance(self):
+        # harness-17's shape: three caps hang on VBUS (30 uF against a 10 uF limit); the IC's
+        # DVDD pin has its cap 7 mm away, its IOVDD pin has one 1.5 mm away, VREG_IN has none.
+        fps = [
+            {'ref': 'C1', 'value': '10uF', 'pads': [{'number': '1', 'net': 'VBUS', 'x': 0, 'y': 0}, {'number': '2', 'net': 'GND', 'x': 1, 'y': 0}]},
+            {'ref': 'C2', 'value': '10uF', 'pads': [{'number': '1', 'net': '/VBUS', 'x': 5, 'y': 0}, {'number': '2', 'net': '/GND', 'x': 6, 'y': 0}]},
+            {'ref': 'C21', 'value': '10u', 'pads': [{'number': '1', 'net': 'VBUS', 'x': 9, 'y': 0}, {'number': '2', 'net': 'GND', 'x': 10, 'y': 0}]},
+            {'ref': 'C12', 'value': '1uF', 'pads': [{'number': '1', 'net': 'DVDD', 'x': 20, 'y': 7}, {'number': '2', 'net': 'GND', 'x': 21, 'y': 7}]},
+            {'ref': 'C4', 'value': '100nF', 'pads': [{'number': '1', 'net': 'V3_3', 'x': 21.5, 'y': 0}, {'number': '2', 'net': 'GND', 'x': 22.5, 'y': 0}]},
+            {'ref': 'C9', 'value': '100nF', 'pads': [{'number': '1', 'net': 'V3_3', 'x': 40, 'y': 0}, {'number': '2', 'net': 'LCD_CS', 'x': 41, 'y': 0}]},   # series cap: not a rail total
+            {'ref': 'R1', 'value': '10k', 'pads': [{'number': '1', 'net': 'VBUS', 'x': 0, 'y': 5}, {'number': '2', 'net': 'GND', 'x': 1, 'y': 5}]},
+            {'ref': 'U3', 'value': 'RP2040', 'pads': [{'number': '23', 'net': 'DVDD', 'x': 20, 'y': 0}, {'number': '42', 'net': 'V3_3', 'x': 20, 'y': 0},
+                                                      {'number': '44', 'net': 'VREG_IN', 'x': 20, 'y': 1}, {'number': '19', 'net': 'GND', 'x': 20, 'y': 2},
+                                                      {'number': '30', 'net': 'LCD_CS', 'x': 20, 'y': 3}]},
+        ]
+        out = verify.power_report(fps, rails={'VBUS': 10.0}, limit_mm=3.0)
+        self.assertEqual(out['rails']['VBUS']['uF'], 30.0)
+        self.assertEqual(out['overLimit'], ['VBUS'])
+        self.assertNotIn('LCD_CS', out['rails'])
+        by = {f"{q['ref']}.{q['pad']}": q for q in out['pins']}
+        self.assertEqual(set(by), {'U3.23', 'U3.42', 'U3.44'})          # GND and signal pads are not power pins
+        self.assertEqual(by['U3.23']['distanceMm'], 7.0); self.assertTrue(by['U3.23']['overLimit'])
+        self.assertEqual(by['U3.42']['distanceMm'], 1.5); self.assertFalse(by['U3.42']['overLimit'])
+        self.assertIsNone(by['U3.44']['distanceMm']); self.assertTrue(by['U3.44']['overLimit'])
+        self.assertEqual(out['pinsOverLimit'], ['U3.23', 'U3.44'])
+        kinds = [f['kind'] for f in verify.power_findings(out)]
+        self.assertEqual(kinds, ['rail_capacitance', 'decoupling_distance', 'decoupling_distance'])
+        self.assertEqual(verify.power_findings(out)[0]['severity'], 'error')
+        # an ESD array's VBUS pin is a clamp reference: the knowledge table's noSupplyDecoupling skips it
+        fps.append({'ref': 'U1', 'value': 'USBLC6-2SC6', 'pads': [{'number': '5', 'net': 'VBUS', 'x': 60, 'y': 0}]})
+        self.assertIn('U1.5', verify.power_report(fps, limit_mm=3.0)['pinsOverLimit'])
+        self.assertNotIn('U1.5', verify.power_report(fps, limit_mm=3.0, skip_refs=['U1'])['pinsOverLimit'])
+        from kicadpy import knowledge
+        self.assertTrue(knowledge.part('C2687116').get('noSupplyDecoupling'))
+
+
+class EnablesTest(unittest.TestCase):
+    def test_a_pin_rule_from_the_table_is_checked_against_the_copper(self):
+        table = {'C7484': {'mpn': 'SN74AHCT1G125', 'pinRules': [{'pin': '1', 'name': '/OE', 'require': 'GND', 'why': 'OE high = Hi-Z'}]}}
+        pads = {'U6.1': '/VBUS', 'U6.2': 'LED_DATA', 'U7.1': 'GND'}
+        out = verify.enables_check(pads, {'U6': 'C7484', 'U7': 'C7484', 'U1': 'C2687116'}, table.get)
+        self.assertEqual(out['violations'], ['U6.1'])
+        self.assertEqual([r['ok'] for r in out['rows']], [False, True])
+        # the shipped table carries the rule that would have caught harness-17
+        from kicadpy import knowledge
+        self.assertEqual(knowledge.part('C7484')['pinRules'][0]['require'], 'GND')
+
+
+class ModulesTest(unittest.TestCase):
+    CARD = """# st7789
+| Header pin | Name | Board side | Notes |
+|---|---|---|---|
+| 1 | GND | GND | |
+| 2 | VCC | 3V3 | |
+| 3 | SCL | GPIO SCK | |
+| 4 | SDA | GPIO MOSI | |
+| 5 | RES | GPIO | |
+| 6 | DC | GPIO | |
+| 7 | CS | GPIO | |
+| 8 | BLK | see below | |
+"""
+
+    def test_header_order_is_compared_pin_by_pin_with_aliases(self):
+        pins = verify.module_card_pins(self.CARD)
+        self.assertEqual([n for n, _ in pins], ['1', '2', '3', '4', '5', '6', '7', '8'])
+        # harness-14's order: DC on 5, CS on 6, RST on 7 — a straight cable will not work
+        pads = {'J2.1': 'GND', 'J2.2': '/V3_3', 'J2.3': '/LCD_SCK', 'J2.4': '/LCD_MOSI', 'J2.5': '/LCD_DC', 'J2.6': '/LCD_CS', 'J2.7': '/LCD_RST', 'J2.8': '/LCD_BLK'}
+        out = verify.modules_check(pads, 'J2', pins)
+        self.assertEqual(out['mismatches'], ['5', '6', '7'])
+        # harness-18's order matches the module
+        pads = {'J2.1': 'GND', 'J2.2': 'V3_3', 'J2.3': 'LCD_SCK', 'J2.4': 'LCD_MOSI', 'J2.5': 'LCD_RST', 'J2.6': 'LCD_DC', 'J2.7': 'LCD_CS', 'J2.8': 'LCD_BLK'}
+        self.assertEqual(verify.modules_check(pads, 'J2', pins)['mismatches'], [])
+
+
+class StaleTest(unittest.TestCase):
+    def test_sources_newer_than_the_sidecar_are_listed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / 'design').mkdir(); (ws / 'boards').mkdir(); (ws / 'engineering').mkdir()
+            (ws / 'design' / 'main.kicad_pcb').write_text('(kicad_pcb)')
+            (ws / 'parts.json').write_text('{}')
+            self.assertEqual(verify.stale(ws)['sidecar'], None)
+            side = ws / 'boards' / 'main.board.json'; side.write_text('{}')
+            old = side.stat().st_mtime - 100
+            os.utime(ws / 'design' / 'main.kicad_pcb', (old, old)); os.utime(ws / 'parts.json', (old, old))
+            self.assertEqual(verify.stale(ws)['stale'], [])
+            new = side.stat().st_mtime + 100
+            os.utime(ws / 'design' / 'main.kicad_pcb', (new, new))
+            (ws / 'engineering' / 'thermal.md').write_text('# t'); os.utime(ws / 'engineering' / 'thermal.md', (new, new))
+            self.assertEqual(verify.stale(ws)['stale'], ['design/main.kicad_pcb', 'engineering/thermal.md'])
+
+
 class IslandsNetNameTest(unittest.TestCase):
     def test_a_missing_net_is_retried_with_the_sheet_local_spelling(self):
         calls = []
@@ -228,6 +330,17 @@ class IslandsWorkerTest(unittest.TestCase):
         self.assertIn('layers', out)
         self.assertIn('strandedIslands', out)
         self.assertIsInstance(out['sites'], list)
+
+    def test_pads_come_back_in_board_coordinates_and_copper_area_is_zero_without_zones(self):
+        fixtures = Path(__file__).parent / 'fixtures' / 'tiny'
+        with tempfile.TemporaryDirectory() as tmp:
+            shutil.copytree(fixtures, Path(tmp) / 'tiny')
+            pcb = Path(tmp) / 'tiny' / 'tiny.kicad_pcb'
+            fps = verify.toolchain.worker('pads', pcb)['footprints']
+            self.assertEqual(sorted(f['ref'] for f in fps), ['TP1', 'TP2', 'TP3', 'TP4'])
+            self.assertTrue(all('x' in pd and 'net' in pd and 'layers' in pd for f in fps for pd in f['pads']))
+            area = verify.thermal(pcb.with_suffix('.kicad_pro'), 'TP1', fps[0]['pads'][0]['number'] if fps[0]['ref'] == 'TP1' else next(f for f in fps if f['ref'] == 'TP1')['pads'][0]['number'])
+            self.assertTrue(all(info['areaMm2'] == 0 for info in area['layers'].values()))
 
 
 if __name__ == '__main__':

@@ -56,6 +56,10 @@ pcbnew.ExportSpecctraDSN(board, 'build/cand/main.dsn')
 ```
 then `pcbnew.ImportSpecctraSES(board, 'build/cand/main.ses')`, inspect, and copy the accepted
 result into `design/`. The importer replaces tracks; protected wiring may be absent from the SES.
+**Export the DSN with no zones on the board.** An unfilled zone still goes into the Specctra
+export as a pour and the router treats it as an obstacle; two routes died that way at 34–40
+unrouted before the agent removed the zones (harness-17). Add the GND zones after the copper
+exists, then refill (`refillZones` in the transaction scope, or the publisher).
 
 ## Authoring a schematic by script — the four holes, and the tool that closes them
 
@@ -123,6 +127,11 @@ Close any other writer (KiCad's GUI included) during `commit` and `undo`.
 | `easyeda out.json C123 C456 …` | the JLCPCB/EasyEDA footprint pads of each LCSC part (network, once) | before `rotation`, for parts the knowledge table does not know |
 | `rotation design/main.kicad_pro parts.json [out.json]` | the `rotationOffsetDeg` that maps the factory footprint onto yours, per footprint, with the match error; parts the knowledge table knows need no fetch, a disagreement with the table is flagged | before writing `assembly` in `manufacturing.json`; 0 needs it too |
 | `stock parts.json out.json [C…]` | JLCPCB library type (basic/extended), stock and price, live, beside what earlier runs verified about the code (maker, MPN, the trap) | at sourcing, and before claiming a part is orderable |
+| `power design/main.kicad_pro [--rail VBUS=10] [--limit-mm 3]` | capacitance per rail (every C between the rail and GND, summed) against the limit; for every IC power pin the distance to its nearest capacitor on that rail (pcbnew positions) | after placement, and before writing power.md; the publisher repeats it with the limits from product.json |
+| `enables design/main.kicad_pro parts.json` | pins the knowledge table says must sit on a net (an active-low /OE on GND) against the copper | after the schematic |
+| `modules design/main.kicad_pro J2 st7789-1.54-module` | the header's pin order against the module card's pin table (aliases: SCL/SCK, RES/RST…) | after the schematic, once per module header |
+| `thermal design/main.kicad_pro U2 2` | the filled copper under a pad per layer and the net's vias on that island (pcbnew) | before writing thermal.md; 0 mm² = no pour |
+| `stale [workspace]` | source files newer than the newest sidecar | before the final message; must be empty |
 
 All read-only, host Python (`islands` runs pcbnew in the worker). Born from the harness-12 handoff
 (2026-09-23/24): "ERC 0" counted errors while the gate counted 630 findings, four ICs had no wires,

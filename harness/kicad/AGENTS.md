@@ -138,7 +138,21 @@ order `PROMPT-WORKFLOW.md` gives:
    ```
    must report 0 differences and 0 hollow symbols (a symbol with no wire on any pin while its
    pads carry nets — harness-12 shipped four of those under an "ERC 0"). The publisher reports
-   them as `schematic_hollow_symbol` errors too.
+   them as `schematic_hollow_symbol` errors too. **Parity is question one of three.** A schematic
+   and a PCB that are both wired wrong still match. Before you leave the schematic, answer the
+   other two with measurements, not prose:
+   - *Does the circuit do what the prompt says?* `kicadpy.verify enables design/main.kicad_pro parts.json`
+     (enable and strap pins against the knowledge table: an /OE tied to VBUS silences a level
+     shifter — harness-17), `kicadpy.verify modules design/main.kicad_pro J2 st7789-1.54-module`
+     (header order against the module card — harness-14's display header was DC/CS/RST where the
+     module wants RST/DC/CS), and the reset-state questions below.
+   - *Is the power as built?* `kicadpy.verify power design/main.kicad_pro --rail VBUS=10`: every
+     capacitor between a rail and GND is summed (three 10 µF on VBUS are 30 µF, not "10 µF after
+     the connector" — harness-17), and every IC power pin gets the distance to its nearest
+     capacitor on that rail (block rule ≤ 3 mm; harness-14 shipped 16 mm under "power: pass").
+     Declare the rail limits in `product.json` as a top-level `"railLimitsUF": {"VBUS": 10}` and
+     the publisher checks them on every publish (`rail_capacitance` blocks, `decoupling_distance`
+     warns).
 4. Write the design rules and netclasses into the `.kicad_pro` **before** routing: trace widths
    from the current budget, clearances from the fab's floor, the stackup explicit.
 5. Place with KiCad's Python and inspect what you placed. Decoupling beside its IC pins, the
@@ -166,6 +180,18 @@ order `PROMPT-WORKFLOW.md` gives:
 default severity is not a pass and is not a number you may report: quote `kicadpy.verify gate`
 (the publisher's own count, by type) after every publish, never your own tally. A warning is a
 finding; a finding blocks.
+
+**Loads with memory, and pins that switch things: reason about the reset state on paper.** Every
+"default off" claim needs the answer to: what does this pin see while the MCU is in reset, with
+an empty flash, in BOOTSEL? A PNP with a pull-down on its base conducts at reset (harness-17); a
+WS2812 keeps its last colour through a warm reset and a low DIN does not turn it off (every Pet
+board until harness-18 — switch its rail); a module input with an internal pull-up (the ST7789
+BLK) lights when the board merely stops driving it. Write the reasoning into `engineering/power.md`
+next to the measurement, and never "the firmware will handle it".
+
+**A thermal claim is a copper measurement.** `kicadpy.verify thermal design/main.kicad_pro U2 2`
+reports the filled copper under the LDO tab per layer and the vias on it. 0 mm² means the
+"heatsink pour" in thermal.md does not exist (harness-14 and -17 both wrote one that did not).
 
 **Measure, don't claim.** Before you write a pin map, a rotation, a stock level or "the
 schematic is right", run the measurement that would prove you wrong:
@@ -218,8 +244,11 @@ limit and move on. Buying hardware to pass a bar you set yourself is a design de
 The reference for a plain USB device is the Raspberry Pi Pico: what the Pico is allowed to do, the
 board is allowed to do.
 
-**At the end of every run**, before the final message: `"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge learn .`
-— the rotations you measured and the parts you verified join the tables the next run reads.
+**At the end of every run**, before the final message: `"$KICAD_HARNESS_PYTHON" -m kicadpy.verify stale .`
+must list nothing — a source edited after the last publish means the packet, the sidecar and every
+number you are about to quote describe a board that is no longer on disk (three Grok workspaces
+ended that way). Then `"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge learn .` — the rotations you
+measured and the parts you verified join the tables the next run reads.
 
 **Whatever the user put on the board stays on the board.** A capability you cannot source goes
 OFF-BOARD on a labelled pad row carrying its rail and bus, and the rest of the board is built

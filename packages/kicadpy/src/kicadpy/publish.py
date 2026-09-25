@@ -102,6 +102,27 @@ def publish(path, manufacturing=False):
                 except Exception as exc:
                     base['validation']['warnings'].append({'kind': 'native_netlist_unavailable', 'severity': 'warning',
                                                            'message': f'schematic netlist could not be compared with the PCB: {exc}'})
+                # Power as built: capacitance per rail against the limits product.json declares
+                # (`power.railLimitsUF`, e.g. {"VBUS": 10}) and the distance from every IC power pin to
+                # its nearest capacitor (block rule 3 mm). harness-14 shipped 16 mm and 10.2 uF, -17
+                # 30.1 uF, each under a "power: pass"; a second engine found them, this finds them first.
+                try:
+                    limits = {}
+                    product_file = workspace / 'product.json'
+                    if product_file.is_file():
+                        product = json.loads(product_file.read_text())
+                        # product.json's `power` is prose; the limits live in their own top-level key.
+                        limits = product.get('railLimitsUF') or {}
+                        if not isinstance(limits, dict):
+                            limits = {}
+                    power = verify.power(root / (project.stem + '.kicad_pro'), {k: float(v) for k, v in limits.items()},
+                                         parts_file=workspace / 'parts.json')
+                    base['native']['power'] = {'rails': power['rails'], 'overLimit': power['overLimit'],
+                                               'pinsOverLimit': power['pinsOverLimit'], 'limitMm': power['limitMm']}
+                    base['validation']['warnings'] += verify.power_findings(power)
+                except Exception as exc:
+                    base['validation']['warnings'].append({'kind': 'native_power_unavailable', 'severity': 'warning',
+                                                           'message': f'rail capacitance and decoupling distances could not be measured: {exc}'})
                 base['validation']['warnings'].append({'kind': 'native_coverage', 'severity': 'warning',
                     'message': 'Experimental v2: native CAD checks only; engineering checks, PCBA data and hardware validation are incomplete.'})
                 if model_warning:
@@ -109,7 +130,10 @@ def publish(path, manufacturing=False):
                 if packet is not None:
                     base['native']['manufacturing'] = packet
                     base['validation']['warnings'] = [w for w in base['validation']['warnings'] if w['kind'] != 'native_coverage'] + packet['findings']
-                    base['fab']['ready'] = bool(packet['prototypeReady'])
+                    # The contract: zero error findings. The publisher's own measurements (hollow symbols,
+                    # a rail over its declared capacitance limit) count like the native ones.
+                    base['fab']['ready'] = bool(packet['prototypeReady']) and not any(
+                        w.get('severity') == 'error' for w in base['validation']['warnings'])
                 for warning in base['validation']['warnings']:
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)

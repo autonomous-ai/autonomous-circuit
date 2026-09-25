@@ -6,7 +6,8 @@
    "mpn": "S8550(RANGE:120-200)",
    "package": "SOT-23",
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-24",
    "note": "CJ S8550 PNP, used high-side for a 3V3 backlight (BLK needs a driven high)"
@@ -19,7 +20,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -82,7 +84,8 @@
    "mpn": "AO3401A",
    "package": "SOT-23",
    "sources": [
-    "harness-9 2026-09-21"
+    "harness-9 2026-09-21",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -103,7 +106,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -115,7 +119,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21",
    "note": "maker is FH (Guangdong Fenghua), not Yageo (harness-14 review)"
@@ -128,7 +133,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -140,7 +146,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -153,6 +160,15 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C1746": {
+   "manufacturer": "Samsung Electro-Mechanics",
+   "mpn": "CL21A475KOFNNNE",
+   "package": "0805 16V X5R",
+   "sources": [
+    " 2026-09-25"
+   ],
+   "checkedDate": "2026-09-25"
+  },
   "C2040": {
    "manufacturer": "Raspberry Pi",
    "mpn": "RP2040",
@@ -161,7 +177,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -173,7 +190,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -182,7 +200,8 @@
    "mpn": "AO3400A",
    "package": "SOT-23",
    "sources": [
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-22"
   },
@@ -213,7 +232,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21",
    "note": "UNI-ROYAL 0402WGF3300TCE is the real MPN; a run wrongly deleted it as invented (harness-14 review)"
@@ -236,7 +256,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -254,7 +275,8 @@
    "mpn": "0402WGF4701TCE",
    "package": "0402",
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -265,7 +287,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -276,10 +299,12 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21",
-   "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)"
+   "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)",
+   "noSupplyDecoupling": true
   },
   "C2761795": {
    "manufacturer": "Worldsemi",
@@ -287,16 +312,19 @@
    "package": "5050-4P",
    "sources": [
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
-   "checkedDate": "2026-09-24"
+   "checkedDate": "2026-09-24",
+   "note": "WS2812B keeps its last PWM through a warm reset; pulling DIN low does not turn it off — switch its rail (harness-14/15/17 all left it lit)."
   },
   "C28323": {
    "manufacturer": "Samsung Electro-Mechanics",
    "mpn": "CL21B105KBFNNNE",
    "package": "0805",
    "sources": [
-    "harness-11 2026-09-22"
+    "harness-11 2026-09-22",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-22"
   },
@@ -332,7 +360,8 @@
    "mpn": "FRC0402F27R0TS",
    "package": "0402",
    "sources": [
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -353,7 +382,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -417,7 +447,8 @@
    "package": "1x8 2.54 mm THT, 6.1 mm mating, gold",
    "sources": [
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -426,7 +457,8 @@
    "mpn": "2.54-1*3PPin",
    "package": "Plugin,P=2.54mm",
    "sources": [
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -456,7 +488,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -494,7 +527,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21",
    "note": "AMS1117-3.3 SOT-223, the ldo-3v3 block part; tab = VOUT"
@@ -513,9 +547,18 @@
    "mpn": "SN74AHCT1G125DBVR",
    "package": "SOT-23-5",
    "sources": [
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
-   "checkedDate": "2026-09-24"
+   "checkedDate": "2026-09-24",
+   "pinRules": [
+    {
+     "pin": "1",
+     "name": "/OE",
+     "require": "GND",
+     "why": "SN74AHCT1G125 (TI SCLS378): OE high = output high-impedance; tied to VBUS the LED data never leaves the shifter (harness-17)"
+    }
+   ]
   },
   "C7519": {
    "manufacturer": "STMicroelectronics",
@@ -525,7 +568,8 @@
     "harness-14 2026-09-24"
    ],
    "checkedDate": "2026-09-24",
-   "note": "ST USBLC6-2SC6, the original the usb-c-data block clone stands in for"
+   "note": "ST USBLC6-2SC6, the original the usb-c-data block clone stands in for",
+   "noSupplyDecoupling": true
   },
   "C7827": {
    "manufacturer": "Texas Instruments",
@@ -553,7 +597,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    " 2026-09-25"
    ],
    "checkedDate": "2026-09-21"
   }

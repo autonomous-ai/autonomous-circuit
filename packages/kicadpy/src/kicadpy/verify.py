@@ -12,6 +12,16 @@ scripts, made generic, so any engine runs them instead of writing its own.
     python -m kicadpy.verify easyeda  build/easyeda_fp.json C123 C456   # fetch EasyEDA footprint pads (network)
     python -m kicadpy.verify rotation design/main.kicad_pro parts.json [build/easyeda_fp.json]   # factory rotation offsets
     python -m kicadpy.verify stock    parts.json build/jlc_stock.json   # JLCPCB stock / library type (network)
+    python -m kicadpy.verify power    design/main.kicad_pro [--rail VBUS=10] [--limit-mm 3]   # cap totals per rail, cap-to-pin distances (pcbnew)
+    python -m kicadpy.verify enables  design/main.kicad_pro parts.json   # enable/strap pins against the knowledge table's pin rules
+    python -m kicadpy.verify modules  design/main.kicad_pro J2 st7789-1.54-module   # header pin order against the module card
+    python -m kicadpy.verify thermal  design/main.kicad_pro U2 2       # the copper island under a pad, per layer (pcbnew)
+    python -m kicadpy.verify stale    [workspace]                       # sources newer than the published packet
+
+The last five came from what a second engine kept finding behind a first engine's fab.ready
+(harness-14, -15, -17, -18): a level shifter with its enable pin tied to a rail, 30 uF on a
+rail limited to 10, decoupling 16 mm from the pin, a header wired in the wrong order, a
+"heatsink pour" that was not on the board, and sources edited after the packet was made.
 
 Every command prints a readable report and, as its LAST line, one JSON object.
 Host Python, read-only: nothing here edits a source file.
@@ -27,7 +37,9 @@ import argparse
 import collections
 import json
 import math
+import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -137,12 +149,15 @@ def pcb_pads(pcb_text):
     for node in root[1:]:
         if not (isinstance(node, list) and node and node[0] == 'footprint'):
             continue
-        ref = None
+        ref, val = None, ''
         for prop in node[1:]:
-            if isinstance(prop, list) and prop[0] == 'property' and len(prop) > 2 and value(prop[1]) == 'Reference':
-                ref = value(prop[2])
+            if isinstance(prop, list) and prop[0] == 'property' and len(prop) > 2:
+                if value(prop[1]) == 'Reference':
+                    ref = value(prop[2])
+                elif value(prop[1]) == 'Value':
+                    val = value(prop[2])
         at = child(node, 'at') or ['at', '0', '0']
-        fp = {'reference': ref, 'lib': value(node[1]) if len(node) > 1 and isinstance(node[1], str) else '',
+        fp = {'reference': ref, 'value': val, 'lib': value(node[1]) if len(node) > 1 and isinstance(node[1], str) else '',
               'at': [float(at[1]), float(at[2])], 'rotationDeg': float(at[3]) if len(at) > 3 else 0.0, 'pads': []}
         for pad in node[1:]:
             if not (isinstance(pad, list) and pad[0] == 'pad'):
@@ -469,6 +484,267 @@ def print_stock(out):
         print('  not found / failed:', ', '.join(out['missing']))
 
 
+# ---------------------------------------------------------------- power (pcbnew positions)
+
+CAP_UNITS = {'p': 1e-12, 'n': 1e-9, 'u': 1e-6, 'µ': 1e-6, 'μ': 1e-6, 'm': 1e-3, 'f': 1.0}
+RAIL_NAME = re.compile(r'^/?(V\d|V[A-Z0-9_]*|.*VDD.*|.*VCC.*|.*AVDD.*|.*IOVDD.*|3V3|5V|VBUS|VIN|VOUT|DVDD|VREG.*|.*_?V3_?3.*|LED_?V.*)$', re.I)
+
+
+def cap_farads(text):
+    """'10uF', '100nF', '4.7u', '0.1µF', '15pF', '1u' -> farads; None when the value is not a capacitance."""
+    m = re.match(r'^\s*(\d+(?:[.,]\d+)?)\s*([pnuµμmf])?F?\b', str(text or ''), re.I)
+    if not m:
+        return None
+    number = float(m.group(1).replace(',', '.'))
+    unit = (m.group(2) or 'f').lower()
+    if unit == 'f' and not re.search(r'\d\s*F', str(text), re.I):
+        return None          # a bare number is a resistor or a voltage, not a capacitor value
+    return number * CAP_UNITS.get(unit, 1.0)
+
+
+def _is_rail(net):
+    return bool(net) and net.upper() not in ('GND', '/GND', 'AGND', '/AGND') and bool(RAIL_NAME.match(net))
+
+
+def power_report(footprints, rails=None, limit_mm=3.0, ic_prefixes=('U',), cap_prefix='C', skip_refs=()):
+    """Two measurements a report tends to get wrong.
+
+    1. Capacitance per rail: every capacitor (ref C*) with a pad on the rail and its other pad on
+       GND, summed by value. `rails` = {'VBUS': 10.0} adds the limit in uF; a rail over its limit
+       is listed under `overLimit`.
+    2. Decoupling distance: for every IC pad (ref U*) on a rail, the nearest capacitor pad on the
+       same rail, in mm; `limit_mm` is the block rule (rp2040-core: 3 mm). Pins with no capacitor
+       on their rail at all are listed too — a rail with 8 caps 16 mm away is not decoupled.
+    `footprints` is the worker's `pads` result (absolute positions).
+    """
+    rails = {k.lstrip('/'): v for k, v in (rails or {}).items()}
+    def norm(n): return (n or '').lstrip('/')
+    caps = []
+    for fp in footprints:
+        if not fp['ref'].startswith(cap_prefix):
+            continue
+        farads = cap_farads(fp.get('value'))
+        nets = [norm(pd['net']) for pd in fp['pads']]
+        if farads is None or len(fp['pads']) < 2:
+            continue
+        caps.append({'ref': fp['ref'], 'farads': farads, 'nets': nets, 'pads': fp['pads']})
+    totals = {}
+    for c in caps:
+        rail_nets = [n for n in c['nets'] if _is_rail(n)]
+        if len(rail_nets) == 1 and any(n.upper() in ('GND', 'AGND') for n in c['nets']):
+            totals.setdefault(rail_nets[0], {'uF': 0.0, 'caps': []})
+            totals[rail_nets[0]]['uF'] += c['farads'] * 1e6
+            totals[rail_nets[0]]['caps'].append(f"{c['ref']}={c['farads'] * 1e6:g}u")
+    for rail, info in totals.items():
+        info['uF'] = round(info['uF'], 3)
+        if rail in rails:
+            info['limitUF'] = rails[rail]
+    over = [rail for rail, info in totals.items() if 'limitUF' in info and info['uF'] > info['limitUF']]
+    missing_rails = [rail for rail in rails if rail not in totals]
+    cap_pads = {}
+    for c in caps:
+        for pd in c['pads']:
+            n = norm(pd['net'])
+            if _is_rail(n):
+                cap_pads.setdefault(n, []).append((c['ref'], pd['number'], pd['x'], pd['y']))
+    pins = []
+    for fp in footprints:
+        if not fp['ref'].startswith(tuple(ic_prefixes)) or fp['ref'] in set(skip_refs):
+            continue
+        for pd in fp['pads']:
+            n = norm(pd['net'])
+            if not _is_rail(n):
+                continue
+            best = None
+            for ref, num, x, y in cap_pads.get(n, []):
+                d = math.hypot(x - pd['x'], y - pd['y'])
+                if best is None or d < best[0]:
+                    best = (d, ref, num)
+            pins.append({'ref': fp['ref'], 'pad': pd['number'], 'net': n,
+                         'nearestCap': None if best is None else f'{best[1]}.{best[2]}',
+                         'distanceMm': None if best is None else round(best[0], 3),
+                         'overLimit': best is None or best[0] > limit_mm})
+    return {'limitMm': limit_mm, 'rails': totals, 'overLimit': over, 'railsWithoutCaps': missing_rails,
+            'pins': pins, 'pinsOverLimit': [f"{q['ref']}.{q['pad']}" for q in pins if q['overLimit']]}
+
+
+def power(project, rails=None, limit_mm=3.0, parts_file=None):
+    pcb = Path(project).with_suffix('.kicad_pcb')
+    footprints = toolchain.worker('pads', pcb)['footprints']
+    # An ESD array's VBUS pin is a clamp reference, not a supply: the knowledge table says which
+    # parts need no capacitor of their own (`noSupplyDecoupling`), keyed by LCSC code.
+    skip = []
+    if parts_file and Path(parts_file).is_file():
+        parts = json.loads(Path(parts_file).read_text())
+        for part in parts.get('parts', []):
+            known = knowledge.part(part.get('lcsc') or '') or {}
+            if known.get('noSupplyDecoupling'):
+                skip += part.get('refdes', [])
+    out = power_report(footprints, rails, limit_mm, skip_refs=skip)
+    out['skippedRefs'] = sorted(skip)
+    return out
+
+
+def print_power(out):
+    for rail, info in sorted(out['rails'].items()):
+        flag = f"  <- OVER the {info['limitUF']} uF limit" if rail in out['overLimit'] else ''
+        lim = f" (limit {info['limitUF']} uF)" if 'limitUF' in info else ''
+        print(f"  rail {rail:10s} {info['uF']:8.3f} uF{lim}: {', '.join(info['caps'])}{flag}")
+    for rail in out['railsWithoutCaps']:
+        print(f"  rail {rail:10s} has NO capacitor to GND")
+    print(f"  decoupling: {len(out['pins'])} IC power pins, {len(out['pinsOverLimit'])} farther than {out['limitMm']} mm from a capacitor on their rail")
+    for q in out['pins']:
+        if q['overLimit']:
+            d = 'no capacitor on this rail' if q['distanceMm'] is None else f"{q['distanceMm']:.3f} mm to {q['nearestCap']}"
+            print(f"    {q['ref']}.{q['pad']:4s} {q['net']:12s} {d}")
+    print('  totals count every capacitor between the rail and GND; the block limit for decoupling is per pin, not per BOM')
+
+
+def power_findings(out):
+    """Publisher findings: a rail over its declared limit, an IC power pin without a capacitor within the limit."""
+    findings = []
+    for rail in out['overLimit']:
+        info = out['rails'][rail]
+        findings.append({'kind': 'rail_capacitance', 'severity': 'error', 'net': rail,
+                         'message': f"{rail}: {info['uF']:g} uF of capacitance to GND ({', '.join(info['caps'])}) exceeds the declared limit of {info['limitUF']:g} uF."})
+    for q in out['pins']:
+        if q['overLimit']:
+            where = 'no capacitor on that rail' if q['distanceMm'] is None else f"nearest {q['nearestCap']} is {q['distanceMm']:g} mm away"
+            findings.append({'kind': 'decoupling_distance', 'severity': 'warning', 'part': q['ref'],
+                             'message': f"{q['ref']}.{q['pad']} ({q['net']}): {where}; the block rule is a capacitor within {out['limitMm']:g} mm of the pin it serves."})
+    return findings
+
+
+# ---------------------------------------------------------------- enables (knowledge pin rules)
+
+def enables_check(pad_nets, lcsc_of, part_of):
+    """Pins the knowledge table says must sit on a given net (an active-low /OE on GND, a strap pin)."""
+    rows = []
+    for ref, code in sorted(lcsc_of.items()):
+        known = part_of(code) or {}
+        for rule in known.get('pinRules', []):
+            actual = pad_nets.get(f"{ref}.{rule['pin']}")
+            want = rule.get('require')
+            ok = actual is not None and actual.lstrip('/').upper() == str(want).lstrip('/').upper()
+            rows.append({'ref': ref, 'lcsc': code, 'pin': rule['pin'], 'name': rule.get('name', ''),
+                         'require': want, 'actual': actual, 'ok': ok, 'why': rule.get('why', '')})
+    return {'rows': rows, 'violations': [f"{r['ref']}.{r['pin']}" for r in rows if not r['ok']]}
+
+
+def enables(project, parts_file):
+    pad_nets, _ = pcb_pads(Path(project).with_suffix('.kicad_pcb').read_text())
+    parts = json.loads(Path(parts_file).read_text())
+    lcsc_of = {ref: part['lcsc'] for part in parts.get('parts', []) if part.get('lcsc') for ref in part.get('refdes', [])}
+    return enables_check(pad_nets, lcsc_of, knowledge.part)
+
+
+def print_enables(out):
+    if not out['rows']:
+        print('  no part on this board has a pin rule in the knowledge table (nothing checked, nothing proven)')
+    for r in out['rows']:
+        mark = 'ok  ' if r['ok'] else 'BAD '
+        print(f"  {mark}{r['ref']}.{r['pin']} {r['name']:8s} must be {r['require']}, is {r['actual']}   {r['why'] if not r['ok'] else ''}")
+
+
+# ---------------------------------------------------------------- modules (header order vs the card)
+
+PIN_ALIASES = {'GND': ('GND',), 'VCC': ('VCC', '3V3', 'V3_3', '3.3V', 'VDD', 'VBUS', '5V'),
+               'SCL': ('SCL', 'SCK', 'CLK'), 'SDA': ('SDA', 'MOSI', 'SDI', 'DIN', 'DATA'),
+               'RES': ('RES', 'RST', 'RESET'), 'DC': ('DC', 'D/C', 'RS'), 'CS': ('CS', 'SS'),
+               'BLK': ('BLK', 'BL', 'LED', 'BACKLIGHT'), 'OUT': ('OUT', 'TOUCH', 'SIG')}
+
+
+def module_card_pins(text):
+    """The first pin table of a modules/<id>/BLOCK.md: [(pin number, name)] in card order."""
+    pins = []
+    for line in text.splitlines():
+        m = re.match(r'^\|\s*(\d+)\s*\|\s*([A-Za-z0-9_/]+)\s*\|', line)
+        if m:
+            pins.append((m.group(1), m.group(2).upper()))
+    return pins
+
+
+def modules_check(pad_nets, ref, pins):
+    rows = []
+    for number, name in pins:
+        net = pad_nets.get(f'{ref}.{number}')
+        bare = (net or '').lstrip('/').upper()
+        tokens = PIN_ALIASES.get(name, (name,))
+        ok = bool(bare) and any(t in bare for t in tokens)
+        rows.append({'pin': number, 'expected': name, 'net': net, 'ok': ok})
+    return {'ref': ref, 'rows': rows, 'mismatches': [r['pin'] for r in rows if not r['ok']]}
+
+
+def modules(project, ref, card):
+    card_path = Path(card)
+    if not card_path.is_file():
+        blocks = os.environ.get('KICAD_HARNESS_BLOCKS')
+        if blocks:
+            card_path = Path(blocks).parent / 'modules' / card / 'BLOCK.md'
+    if not card_path.is_file():
+        raise FileNotFoundError(f'module card not found: {card} (a path, or an id under $KICAD_HARNESS_BLOCKS/../modules)')
+    pins = module_card_pins(card_path.read_text(encoding='utf-8'))
+    if not pins:
+        raise ValueError(f'{card_path}: no pin table')
+    pad_nets, _ = pcb_pads(Path(project).with_suffix('.kicad_pcb').read_text())
+    out = modules_check(pad_nets, ref, pins)
+    out['card'] = str(card_path)
+    return out
+
+
+def print_modules(out):
+    for r in out['rows']:
+        print(f"  {'ok ' if r['ok'] else 'BAD'} {out['ref']}.{r['pin']} card says {r['expected']:5s} board net {r['net']}")
+    if out['mismatches']:
+        print(f"  {len(out['mismatches'])} pin(s) do not match the card: a straight cable will not work — reorder the header or document the crossed cable")
+
+
+# ---------------------------------------------------------------- thermal (pcbnew)
+
+def thermal(project, ref, pad):
+    pcb = Path(project).with_suffix('.kicad_pcb')
+    return toolchain.worker('copper_area', pcb, ref=ref, pad=pad)
+
+
+def print_thermal(out):
+    for ln, info in out['layers'].items():
+        print(f"  {out['ref']}.{out['pad']} ({out['net']}) on {ln}: {info['areaMm2']:.2f} mm2 of filled copper under the pad, {info['viasOnIsland']} via(s) of the net on that island")
+    if all(info['areaMm2'] == 0 for info in out['layers'].values()):
+        print('  0 mm2 everywhere: no pour touches this pad — a thermal claim about it is not true of this board')
+
+
+# ---------------------------------------------------------------- stale (sources vs packet)
+
+SOURCE_GLOBS = ('design/**/*', 'parts.json', 'product.json', 'manufacturing.json', 'engineering/*.md')
+
+
+def stale(workspace='.'):
+    """Files edited after the newest sidecar: the packet no longer describes the sources."""
+    workspace = Path(workspace)
+    sidecars = sorted(workspace.glob('boards/*.board.json'), key=lambda f: f.stat().st_mtime)
+    if not sidecars:
+        return {'sidecar': None, 'stale': [], 'note': 'no packet published yet'}
+    sidecar = sidecars[-1]
+    since = sidecar.stat().st_mtime
+    newer = []
+    for pattern in SOURCE_GLOBS:
+        for f in workspace.glob(pattern):
+            if f.is_file() and not f.name.startswith('~') and f.stat().st_mtime > since + 1:
+                newer.append(str(f.relative_to(workspace)))
+    return {'sidecar': str(sidecar.relative_to(workspace)), 'sidecarMtime': since, 'stale': sorted(newer)}
+
+
+def print_stale(out):
+    if out['sidecar'] is None:
+        print('  ' + out['note'])
+    elif out['stale']:
+        print(f"  {len(out['stale'])} source file(s) newer than {out['sidecar']} — publish again before you report a number:")
+        for f in out['stale'][:40]:
+            print('    ' + f)
+    else:
+        print(f"  {out['sidecar']} is newer than every source: the packet describes what is on disk")
+
+
 # ---------------------------------------------------------------- cli
 
 def main(argv=None):
@@ -481,6 +757,12 @@ def main(argv=None):
     s = sub.add_parser('easyeda'); s.add_argument('out'); s.add_argument('codes', nargs='+')
     s = sub.add_parser('rotation'); s.add_argument('project'); s.add_argument('parts'); s.add_argument('easyeda', nargs='?')
     s = sub.add_parser('stock'); s.add_argument('parts'); s.add_argument('out'); s.add_argument('codes', nargs='*')
+    s = sub.add_parser('power'); s.add_argument('project'); s.add_argument('--rail', action='append', default=[], metavar='NET=MAX_UF')
+    s.add_argument('--limit-mm', type=float, default=3.0); s.add_argument('--parts', default='parts.json')
+    s = sub.add_parser('enables'); s.add_argument('project'); s.add_argument('parts')
+    s = sub.add_parser('modules'); s.add_argument('project'); s.add_argument('ref'); s.add_argument('card')
+    s = sub.add_parser('thermal'); s.add_argument('project'); s.add_argument('ref'); s.add_argument('pad')
+    s = sub.add_parser('stale'); s.add_argument('workspace', nargs='?', default='.')
     args = parser.parse_args(argv)
     try:
         if args.command == 'gate':
@@ -493,6 +775,20 @@ def main(argv=None):
             out = easyeda(args.out, args.codes); print(f"fetched {out['fetched']}, failed {out['failed']}")
         elif args.command == 'rotation':
             out = rotation(args.project, args.parts, args.easyeda); print_rotation(out)
+        elif args.command == 'power':
+            rails = {}
+            for item in args.rail:
+                name, _, limit = item.partition('=')
+                rails[name] = float(limit) if limit else float('inf')
+            out = power(args.project, rails, args.limit_mm, args.parts); print_power(out)
+        elif args.command == 'enables':
+            out = enables(args.project, args.parts); print_enables(out)
+        elif args.command == 'modules':
+            out = modules(args.project, args.ref, args.card); print_modules(out)
+        elif args.command == 'thermal':
+            out = thermal(args.project, args.ref, args.pad); print_thermal(out)
+        elif args.command == 'stale':
+            out = stale(args.workspace); print_stale(out)
         else:
             out = stock(args.parts, args.out, args.codes); print_stock(out)
         print(json.dumps({'ok': True, 'command': args.command, 'result': out}))

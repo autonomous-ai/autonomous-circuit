@@ -190,6 +190,61 @@ def islands(board, net, near=None):
     return result
 
 
+def pads(board):
+    """Every footprint with its pads in absolute board coordinates (mm, y down) and their nets.
+
+    The host-side measurements (`kicadpy.verify power`) need real positions; the .kicad_pcb text
+    holds pads in the footprint's own frame, and getting the rotation convention wrong by a sign
+    would silently mis-measure every distance. pcbnew already knows.
+    """
+    out = []
+    for f in board.GetFootprints():
+        entry = {'ref': f.GetReference(), 'value': f.GetValue(), 'lib': f.GetFPIDAsString(),
+                 'x': p.ToMM(f.GetPosition().x), 'y': p.ToMM(f.GetPosition().y),
+                 'rotationDeg': f.GetOrientationDegrees(), 'pads': []}
+        for pad in f.Pads():
+            layers = [board.GetLayerName(board.GetLayerID(ln)) for ln in ('F.Cu', 'B.Cu') if pad.IsOnLayer(board.GetLayerID(ln))]
+            entry['pads'].append({'number': pad.GetNumber(), 'net': pad.GetNetname(),
+                                  'x': p.ToMM(pad.GetPosition().x), 'y': p.ToMM(pad.GetPosition().y),
+                                  'layers': layers, 'through': pad.GetAttribute() == p.PAD_ATTRIB_PTH})
+        out.append(entry)
+    return {'footprints': out}
+
+
+def copper_area(board, ref, pad_number):
+    """The filled copper a pad actually sits on: the zone island under it, per layer, and the vias of
+    its net inside that island. 0 mm2 means the "heatsink pour" a report describes does not exist.
+    """
+    target = None
+    for f in board.GetFootprints():
+        if f.GetReference() == ref:
+            for pad in f.Pads():
+                if pad.GetNumber() == pad_number:
+                    target = pad
+    if target is None:
+        raise ValueError(f'{ref}.{pad_number}: no such pad')
+    net = target.GetNetname()
+    pt = target.GetPosition()
+    result = {'ref': ref, 'pad': pad_number, 'net': net, 'layers': {}}
+    for ln in ('F.Cu', 'B.Cu'):
+        lid = board.GetLayerID(ln)
+        if not target.IsOnLayer(lid):
+            continue
+        found = None
+        for z in board.Zones():
+            if z.GetNetname() != net or not z.IsOnLayer(lid):
+                continue
+            ps = z.GetFilledPolysList(lid)
+            for i in range(ps.OutlineCount()):
+                if ps.Contains(pt, i):
+                    area = p.ToMM(p.ToMM(ps.Outline(i).Area()))
+                    vias = sum(1 for t in board.GetTracks() if isinstance(t, p.PCB_VIA) and t.GetNetname() == net
+                               and ps.Contains(t.GetPosition(), i))
+                    found = {'areaMm2': round(area, 3), 'viasOnIsland': vias}
+        result['layers'][ln] = found or {'areaMm2': 0.0, 'viasOnIsland': 0}
+    return result
+
+
 def main(req):
     if req['operation'] == 'version':
         return {'pcbnew': p.GetBuildVersion()}
@@ -206,6 +261,10 @@ def main(req):
         return inspect(board)
     if op == 'islands':
         return islands(board, req.get('net') or 'GND', req.get('near'))
+    if op == 'pads':
+        return pads(board)
+    if op == 'copper_area':
+        return copper_area(board, req['ref'], req['pad'])
     if op in ('route_export', 'route_import'):
         scope = req['scope']
         original = {uid(t): t for t in board.GetTracks()}

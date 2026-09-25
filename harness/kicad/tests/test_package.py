@@ -172,7 +172,10 @@ class ManifestTest(unittest.TestCase):
                        'native-review-attestation.json', 'manufacturing.json', 'fab.ready',
                        # after harness-15 (2026-09-24): the schematic writer, the measured-facts tables, the bar rule
                        'kicadpy.author', 'kicadpy.knowledge learn .', 'kicadpy.verify netlist design/main.kicad_pro',
-                       'The bar a board must clear comes from the prompt'):
+                       'The bar a board must clear comes from the prompt',
+                       # after harness-18 (2026-09-25): the function-level measurements
+                       'kicadpy.verify power', 'kicadpy.verify enables', 'kicadpy.verify modules', 'kicadpy.verify thermal',
+                       'kicadpy.verify stale .', 'railLimitsUF'):
             self.assertIn(needle, text, needle)
 
     def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
