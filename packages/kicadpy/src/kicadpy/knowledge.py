@@ -60,7 +60,7 @@ def parts_rows():
 
 def learn(workspace, today=None):
     """Harvest a finished workspace: assembly offsets and part identities, with the run named."""
-    workspace = Path(workspace)
+    workspace = Path(workspace).resolve()          # `learn .` must name the workspace, not ''
     today = today or datetime.date.today().isoformat()
     source = f'{workspace.name} {today}'
     manufacturing = json.loads((workspace / 'manufacturing.json').read_text(encoding='utf-8'))

@@ -54,6 +54,14 @@ class LearnTest(unittest.TestCase):
                 self.assertIsNone(knowledge.rotation_offset('C1'))   # a disputed offset is no answer
                 self.assertEqual(table['C9'], {'footprint': 'SOIC-8', 'package': 'SOIC-8', 'offsetDeg': 270, 'sources': ['harness-99 2026-09-30']})
                 self.assertEqual(knowledge.part('C9')['mpn'], 'X')
+                # `learn .` from inside the workspace names it (Astra's run wrote ' 2026-09-25' before)
+                import os
+                cwd = os.getcwd(); os.chdir(ws)
+                try:
+                    knowledge.learn('.', today='2026-10-01')
+                finally:
+                    os.chdir(cwd)
+                self.assertIn('harness-99 2026-10-01', knowledge.rotation_rows()['C9']['sources'])
                 # a second learn of the same run adds nothing new
                 again = knowledge.learn(ws, today='2026-09-30')
                 self.assertEqual(again, {'rotation': [], 'parts': [], 'conflicts': ['C1']})
