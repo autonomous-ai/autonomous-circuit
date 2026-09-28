@@ -184,6 +184,10 @@ export function buildClaudeCheckLoop({
  * (the Continue button), not here — an onboarded machine is left alone.
  */
 export function shouldOnboard(settings) {
+  // A viewer-only server (Harness owns the conversation and the machine's setup) never shows
+  // the wizard: there is nothing here for it to set up, and a prereq screen inside a pane the
+  // user cannot act on is a dead end.
+  if (settings?.viewerOnly) return false;
   return !Boolean(settings?.hasOnboarded);
 }
 

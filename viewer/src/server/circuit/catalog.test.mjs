@@ -33,6 +33,9 @@ function seedProject(dir) {
   fs.writeFileSync(path.join(dir, "blocks", "regulator.tsx"), "golden");
   fs.writeFileSync(path.join(dir, ".circuit", "cache", "tmp.svg"), "svg");
   fs.writeFileSync(path.join(dir, "inputs", "ref.png"), "png");
+  // Hidden: .harness/ — the verdict Harness reads is progress, never an artifact.
+  fs.mkdirSync(path.join(dir, ".harness"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".harness", "verdict.md"), "hidden");
   // Hidden: _review/ + _fab/ members — grouped under the board artifact.
   fs.writeFileSync(path.join(dir, "boards", "main_review", "_schematic.png"), "png");
   fs.writeFileSync(path.join(dir, "boards", "main_review", "_schematic.svg"), "svg");

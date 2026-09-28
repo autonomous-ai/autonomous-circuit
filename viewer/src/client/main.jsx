@@ -76,6 +76,9 @@ function bootstrap() {
 function useOnboardingGate() {
   // Tri-state: null = still probing; true = wizard should show; false = run app.
   const [needsOnboarding, setNeedsOnboarding] = useState(null);
+  // Viewer-only (see transport.ts AppSettings.viewerOnly): the same settings read that gates
+  // the wizard also says whether this page is the whole app or a host's board pane.
+  const [viewerOnly, setViewerOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +86,7 @@ function useOnboardingGate() {
       .app_settings_read()
       .then((settings) => {
         if (cancelled) return;
+        setViewerOnly(Boolean(settings?.viewerOnly));
         // Bring-your-own Claude Code is the primary path, so the gate keys
         // solely on hasOnboarded — an onboarded local-only user is fully valid
         // and is left alone. "At least one working method" is enforced inside
@@ -103,7 +107,7 @@ function useOnboardingGate() {
   // Stable callbacks so consumers' effects don't re-subscribe every render.
   const complete = useCallback(() => setNeedsOnboarding(false), []);
   const restart = useCallback(() => setNeedsOnboarding(true), []);
-  return [needsOnboarding, complete, restart];
+  return [needsOnboarding, complete, restart, viewerOnly];
 }
 
 function AppRoot() {
@@ -113,7 +117,7 @@ function AppRoot() {
   const catalogRefreshing = useCatalogStore((state) => state.refreshing);
   const catalogError = useCatalogStore((state) => state.error);
   const artifactActivity = useCatalogStore((state) => state.artifactActivity);
-  const [needsOnboarding, completeOnboarding, restartOnboarding] = useOnboardingGate();
+  const [needsOnboarding, completeOnboarding, restartOnboarding, viewerOnly] = useOnboardingGate();
   const onboarded = needsOnboarding === false;
 
   // Live catalog: `catalog_changed` SSE → refetch; `artifact_changed` chat
@@ -279,7 +283,10 @@ function AppRoot() {
   // Windows"; the menu was never missing, its condition had simply stopped
   // being true. Window controls stay gated on a real desktop shell inside the
   // bar itself.
-  const showWindowMenuBar = true;
+  // Viewer-only is a pane inside somebody else's window: no menu row (its window controls and
+  // "run setup again" belong to the host), no chat, no account — the board and its tabs, full
+  // width.
+  const showWindowMenuBar = !viewerOnly;
 
   // On a phone-width viewport the create/chat panel becomes full-screen (the
   // primary task) instead of a fixed sidebar squeezed next to the board stage.
@@ -304,7 +311,7 @@ function AppRoot() {
         <div className="relative flex min-h-0 w-full flex-1 overflow-hidden">
           <div
             className="flex-1 overflow-hidden"
-            style={{ paddingRight: isMobile ? 0 : chatSidebarWidth }}
+            style={{ paddingRight: isMobile || viewerOnly ? 0 : chatSidebarWidth }}
           >
             <BoardWorkspace
               manifestRevision={revision}
@@ -319,15 +326,18 @@ function AppRoot() {
               onToolsSheetChange={handleToolsSheetChange}
               closeLeftSidebarSignal={closeLeftSidebarSignal}
               onOpenAccountScreen={() => setAccountScreenOpen(true)}
+              viewerOnly={viewerOnly}
             />
           </div>
-          <ChatSidebar
-            width={effectiveChatWidth}
-            onWidthChange={setChatSidebarWidth}
-            layout={chatLayout}
-            onRequestCloseLeftSidebar={requestCloseLeftSidebar}
-            menuBarVisible={showWindowMenuBar}
-          />
+          {viewerOnly ? null : (
+            <ChatSidebar
+              width={effectiveChatWidth}
+              onWidthChange={setChatSidebarWidth}
+              layout={chatLayout}
+              onRequestCloseLeftSidebar={requestCloseLeftSidebar}
+              menuBarVisible={showWindowMenuBar}
+            />
+          )}
         </div>
       </div>
     );

@@ -657,3 +657,140 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; fenced plans and questions behave as before.
 - **Mechanism:** driver.mjs `spawnTurn` (+ two driver tests).
 - **Tracks affected:** server / docs.
+
+## 2026-09-18 — Solder: the KiCad-native pipeline as a Harness domain harness, and its verdict
+- **Change:** (1) `kicadpy.publish` writes the Harness verdict
+  `<workspace>/.harness/verdict.json` (DSH spec 1) at every sidecar write —
+  running, complete, failed — derived from the native `.board.json` sidecars by
+  the new `kicadpy.harness` (`ready` is `fab.ready`, nothing weaker; `findings`
+  are `validation.warnings` with `detail→message` and `ref` from `ref`/`part`/
+  the native finding's reference; `phases` Build / Checks / Fab, folded to the
+  worst board). `python -m kicadpy.harness [--active build|checks|fab]` writes it
+  on demand so the agent can mark a phase before the first publish. Atomic,
+  best-effort, never fails a publish; a failure is one stderr line so the
+  publisher's stdout JSON line stays clean. (2) `harness/kicad/` — the **Solder**
+  package (`autonomous/solder`, category PCB): manifest, `AGENTS.md` (plan →
+  build → the agent's own two review rounds → done means `fab.ready`), the
+  `solder` skill card, a template whose marker is `project.json` with `engine:
+  kicad-native`, and a toolchain whose `setup.sh` vendors Freerouting and builds
+  the viewer, whose `doctor.sh` FAILS without kicad-cli and pcbnew, and whose
+  `viewer.sh` runs the viewer-only server with `CIRCUIT_DEFAULT_ENGINE=kicad-native`.
+- **Why:** the team moves onto Harness (openharness). Copper (`harness/`, PR #35 on
+  main) wraps the v1 tscircuit pipeline; a second harness carries the KiCad-native
+  one so the two never share a trunk. Under Harness there is no driver: the
+  native review loop (`runNativeReviewLoop`) and the 40-minute plan clock do not
+  run, so the loop is protocol text the agent follows and the verdict is the only
+  thing the host reads. Harness spawns codex without a sandbox, which is what
+  made every Astra build report `gate_did_not_run` in the app.
+  (3) `scripts/toolchain/install-freerouting.sh` exited 1 on EVERY run — after a
+  successful install — because under `set -eo pipefail` `ls a b | head -1` fails
+  when the platform's other glob is unmatched (the `JAVA=` assignment) and
+  `java -version | head -1` takes a SIGPIPE; the presence test had the same
+  glob and re-downloaded the JRE every time. Harness reported `setup exited 1`
+  twice with the files on disk. Now a `find_java` loop, a captured version
+  string, and `curl -fsSL --retry 3` so a failed download says so.
+  (4) The viewer-only mode (`CIRCUIT_WORKSPACE`, main's 9f864fd from PR #35) is
+  cherry-picked onto the v2 branch — it was never there, so Solder's pane opened
+  the FULL app over the global project store (71 projects, chat, wizard) beside
+  the agent, a second server on the same store as the one on :4179. The
+  workspace project store now also carries `engine` from the workspace's
+  `project.json`, because the client keys its native-only surfaces on
+  `project.engine === "kicad-native"` and a Solder workspace rendered as v1.
+- **Backward compatible:** yes. The sidecar is unchanged; the verdict is an added
+  file the app ignores. Publish behaviour and its stdout line are unchanged. The
+  installer vendors the same pinned jar and JRE; it just exits 0 when it did.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/harness.py` (+ hook in
+  `publish.py`), `packages/kicadpy/tests/test_harness_verdict.py`,
+  `harness/kicad/**`, `harness/kicad/tests/test_package.py`,
+  `scripts/toolchain/install-freerouting.sh`.
+- **Tracks affected:** pipeline (kicadpy) / harness package / toolchain scripts / docs.
+
+## 2026-09-18 — the KiCad-native harness is named after KiCad
+- **Change:** `harness/kicad/` is the **KiCad** tile (`autonomous/kicad`, `formerly:
+  ["autonomous/solder"]`), the skill is `kicad`, and the agent's environment is
+  `KICAD_HARNESS_PYTHON` / `KICAD_HARNESS_ROOT` / `KICAD_HARNESS_BLOCKS` (never a bare
+  `KICAD_*`, which is KiCad's own namespace). Nothing else moves.
+- **Why:** the store names a wrapper after the open-source project it wraps when the
+  wrapper changes little of it (Blender, Typst, Marp); the owner's team asked for the
+  same here (2026-09-18), and Dee had already renamed Copper to Autonomous Circuit.
+  `formerly` keeps a machine that installed `autonomous/solder` from the merged
+  openharness #91 on the same install.
+- **Backward compatible:** for agents, no — a workspace created under the old env names
+  keeps running only until its next session reads the new AGENTS.md; nothing on disk
+  depends on the names. For the store, yes via `formerly`.
+- **Mechanism:** `harness/kicad/**` (text, manifest, skill folder), one docstring in
+  `kicadpy/harness.py`.
+- **Tracks affected:** harness package / docs.
+
+## 2026-09-21 — viewer-only: a "New board" button that asks the Harness daemon
+- **Change:** in viewer-only mode (`CIRCUIT_WORKSPACE`) the board header shows one
+  **New board** button in place of the account card, and the server gains one
+  command, `harness_new_board` (viewer-only; `UNKNOWN_COMMAND` elsewhere). It
+  picks the next free sibling folder (`<parent>/<base>-N`, N from 2, a trailing
+  `-N` on the current name is not nested), makes it, opens the Harness daemon's
+  loopback WebSocket (`ws://127.0.0.1:18473/api/local-ws`), `machine_select`
+  with the local machine from `~/.harness/cli/data/machines.json`, then
+  `agent_create { engine, cwd, dsh: $HARNESS_DSH, bypassPermission: true, permissionMode:
+  "full" }` — on daemon 0.2.58 `bypassPermission` alone is the "auto" mode (codex:
+  `--approve-for-me`, a reviewer model over a workspace-write sandbox, under which a
+  kicad-cli DRC hung in an uninterruptible exit for two hours); "full" is the unsandboxed
+  mode our pipeline needs — with the engine read from
+  the installed manifest at `$HARNESS_DSH_DIR/harness.json`; answers
+  `{ agentId, cwd, name, dsh, engine, dshName, hint }`. A refusal is
+  `HARNESS_NEW_BOARD_FAILED` (502) with the daemon's reason and the folder is
+  removed again. `viewer/src/server/circuit/harnessHost.mjs`; the socket
+  factory is injectable (`createCircuitServices({ harnessConnect })`). The
+  viewer-only pitch text now says the prompt goes in the terminal beside the
+  pane, not "in the chat".
+- **Why:** the owner (2026-09-18): a new board took ⌘N → tile → machine →
+  folder → engine, and the pane's old PROJECTS "+" is gone by design. Harness
+  has no hook for this, but its daemon makes harnesses for the desktop over
+  this socket (openharness `store/tools/dsh-e2e.mjs` drives it the same way),
+  so the pane asks the daemon. **Known hole, by design of the host:** the
+  daemon does not place the new pane in a tab — the desktop does — so the hint
+  says ⌘O. The button saves four of five steps, not the fifth. The engine must
+  be the installed tile's base or the daemon answers `INVALID_DSH` (measured:
+  a stale copy of the manifest saying `claude` against an installed `codex`).
+- **Backward compatible:** yes. Nothing changes outside viewer-only mode; the
+  sidecar, the verdict and every other command are untouched.
+- **Mechanism:** `harnessHost.mjs` (+ `harnessHost.test.mjs`, 6 tests), `http.mjs`
+  (+ one `http.test.mjs` case: created / refused / absent), `transport.ts`
+  (`harness_new_board`, `NewBoardResult`), `NewBoardButton.jsx`,
+  `BoardWorkspace.jsx`, `StartHere.jsx`. Verified live against the daemon on
+  this Mac: a `pet-2` harness on codex, materialized, then deleted.
+- **Tracks affected:** server / client / docs.
+
+## 2026-09-21 — the native board's size is its outline, not its outline's pen
+- **Change:** `kicadpy.worker` reports `boardBoundsMm` from the closed Edge.Cuts
+  polygon (`GetBoardPolygonOutlines`) and says so in `boardBoundsSource:
+  "outline"`; the edges bounding box (which adds the drawing stroke) is only the
+  fallback for a board with no closed outline (`"edges"`).
+- **Why:** with a 0.05 mm pen the old box said a 40 × 40 board was 40.05 × 40.05,
+  and the packet's independent gerber read then reported `gerber_scale_mismatch`
+  "both axes scaled by 0.9988 — a coordinate-format or units error" on a correct
+  packet (two Astra runs, 2026-09-21; one of them monkeypatched the publisher
+  locally to get past it, which is the wrong place for the fix). The check was
+  right to compare, wrong about what it compared against.
+- **Backward compatible:** yes for a board with a closed outline (the number is
+  now the true one; `manufacture.packet_outline`, `verifylib.gerber_truth` and
+  the viewer's bounds all consume it); a board without one is unchanged.
+- **Mechanism:** `packages/kicadpy/src/kicadpy/worker.py`, one test in
+  `test_transactions.py` (runs real KiCad; skips without it).
+- **Tracks affected:** pipeline (kicadpy) / docs.
+
+
+## 2026-09-22 — bounded native build continuation and incremental repair commits
+- **Change:** KiCad tile supplies Codex Stop/Interrupt hooks. `kicadpy.harness --active build`
+  arms `.circuit/autofinish.json`; `kicadpy.autofinish` verifies fresh manufacturing publications
+  and requests at most eight repair continuations within four hours, respecting interruption.
+  Native `commit` accepts optional `allow_improvement: boolean` (default false) and returns
+  `acceptance` and `remainingFindings` in addition to its existing fields.
+- **Why:** Astra stopped after two review rounds; local fixes on a board with unrelated existing
+  errors could not commit (2026-09-22). User requested Circuit-only autonomous completion.
+- **Backward compatible:** yes for native transaction callers; strict passing commit remains the
+  default. Tile build marker additionally arms continuation. Hooks require explicit Codex trust.
+- **Mechanism:** Harness manifest args, kicadpy autofinish/harness/engine, tile instructions.
+  Improvement commits compare a freshly checked baseline copy against the hashed candidate report:
+  exact findings must strictly decrease, with no new findings or changed coverage/ignored checks.
+  No manufacturing gate changes; no circuitpy runtime re-vendor required.
+- **Tracks affected:** pipeline / skills / docs / Harness tile packaging.

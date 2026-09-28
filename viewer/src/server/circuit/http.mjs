@@ -11,8 +11,15 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 
-import { createProjectsStore, projectsRootDir, circuitHome } from "./projects.mjs";
+import {
+  WORKSPACE_PROJECT_ID,
+  circuitHome,
+  createProjectsStore,
+  createWorkspaceProjectStore,
+  projectsRootDir,
+} from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
+import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { createCatalogService } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -466,10 +473,23 @@ function readViewerVersion() {
  *   server.use(circuit.assetMiddleware); // GET /projects/<id>/<rel>?v=…
  *   … circuit.close();
  */
-export function createCircuitServices({ env = process.env } = {}) {
+export function createCircuitServices({
+  env = process.env,
+  // Viewer-only mode: serve THIS one folder as the single project and refuse chat. Set by a host
+  // that owns the conversation elsewhere (Harness runs `claude` in a terminal pane and puts this
+  // viewer in the pane beside it — `harness/toolchain/viewer.sh`). `CIRCUIT_WORKSPACE` is the
+  // env spelling of the same option.
+  workspaceDir = env.CIRCUIT_WORKSPACE || "",
+  // Viewer-only: how `harness_new_board` reaches the Harness daemon (a WebSocket factory);
+  // tests hand in a fake, production uses Node's global WebSocket (harnessHost.mjs).
+  harnessConnect = undefined,
+} = {}) {
   const home = circuitHome(env);
-  const projectsRoot = projectsRootDir(env);
-  fs.mkdirSync(projectsRoot, { recursive: true });
+  const viewerOnly = Boolean(workspaceDir);
+  const projectsRoot = viewerOnly ? path.resolve(workspaceDir) : projectsRootDir(env);
+  if (!viewerOnly) {
+    fs.mkdirSync(projectsRoot, { recursive: true });
+  }
 
   const settings = createSettingsStore({ filePath: settingsFilePath(env) });
 
@@ -502,11 +522,13 @@ export function createCircuitServices({ env = process.env } = {}) {
   }
 
   // --- stores + services ---------------------------------------------------
-  const projects = createProjectsStore({
-    rootDir: projectsRoot,
-    env,
-    sessionIdForProject,
-  });
+  const projects = viewerOnly
+    ? createWorkspaceProjectStore({ workspaceDir: projectsRoot })
+    : createProjectsStore({
+        rootDir: projectsRoot,
+        env,
+        sessionIdForProject,
+      });
 
   const catalog = createCatalogService({
     projectDir: (id) => projects.projectDir(id),
@@ -520,7 +542,13 @@ export function createCircuitServices({ env = process.env } = {}) {
     env,
   });
 
-  let activeProjectId = null;
+  // In viewer-only mode the one project is open from the first request: the host's page has no
+  // project picker, and the watcher must already be on the folder when the agent's first build
+  // lands — `catalog_read` before any `project_open` would otherwise answer an empty catalog.
+  let activeProjectId = viewerOnly ? WORKSPACE_PROJECT_ID : null;
+  if (viewerOnly) {
+    catalog.activate(WORKSPACE_PROJECT_ID);
+  }
 
   function requireProject(id) {
     if (!id || !projects.exists(id)) {
@@ -933,7 +961,14 @@ export function createCircuitServices({ env = process.env } = {}) {
       return verdict;
     },
 
-    app_settings_read: async () => settings.readWire(),
+    // `viewerOnly` rides on the settings reply because it is the first thing the client reads:
+    // the onboarding gate keys off this one call, and viewer-only skips the wizard, the chat and
+    // the account controls in the same breath. Absent (not false) outside the mode, so an older
+    // client reads the shape it always did.
+    app_settings_read: async () => ({
+      ...settings.readWire(),
+      ...(viewerOnly ? { viewerOnly: true } : {}),
+    }),
     app_settings_write: async ({ settings: next }) => {
       settings.write(next && typeof next === "object" ? next : {});
       return null;
@@ -1058,6 +1093,41 @@ export function createCircuitServices({ env = process.env } = {}) {
       return chat.createSession(String(projectId));
     },
   };
+
+  // Viewer-only: the conversation lives in the host's terminal, so anything that would start a
+  // turn here — and thereby spawn a second `claude` on the same workspace, which the CLI refuses
+  // with "Session ID already in use" — is answered with one refusal instead. Reads
+  // (`chat_session_state`, `chat_session_list`) stay: they only look at the transcript.
+  if (viewerOnly) {
+    for (const name of [
+      "chat_start_turn",
+      "chat_approve_plan",
+      "chat_request_plan_changes",
+      "chat_cancel_turn",
+      "chat_session_create",
+    ]) {
+      commands[name] = async () => {
+        throw ipcError(
+          "VIEWER_ONLY",
+          `${name} is not available in viewer-only mode — the conversation lives in the host's terminal`,
+          409,
+        );
+      };
+    }
+  }
+
+  // The one thing a viewer-only pane may ask its host for: another board. A new board is a new
+  // harness, and only the Harness daemon makes those — `harnessHost.mjs` speaks the two frames it
+  // takes. Outside viewer-only mode the command does not exist (the app has project_create).
+  if (viewerOnly) {
+    commands.harness_new_board = async () => {
+      try {
+        return await harnessNewBoard({ workspaceDir: projectsRoot, env, connect: harnessConnect });
+      } catch (err) {
+        throw ipcError("HARNESS_NEW_BOARD_FAILED", err?.message || String(err), 502);
+      }
+    };
+  }
 
   // --- middlewares ----------------------------------------------------------
 
@@ -1282,6 +1352,7 @@ export function createCircuitServices({ env = process.env } = {}) {
   return {
     home,
     projectsRoot,
+    viewerOnly,
     settings,
     projects,
     catalog,

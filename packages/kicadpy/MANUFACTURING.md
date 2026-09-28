@@ -42,6 +42,18 @@ At project root, write `manufacturing.json`:
 All seven checks are required: `power`, `protection`, `pinout`, `thermal`,
 `assembly`, `fabricator`, `bringup`. Allowed pass requires a nonempty analysis
 and actual hashed evidence in `engineering/`. Use `blocked` when unresolved.
+`blocked` means DESIGN evidence is missing — a calculation, a datasheet
+number, a routed-copper measurement, a pad/pin audit that could have been
+done at the desk and was not. A bench measurement that needs a physical
+board (temperature, inrush, fault current, enumeration) is never a
+prerequisite for `pass`: write it as a step with a limit under `bringup`
+and pass the area on the design evidence. Prototype-ready is a design
+statement; hardware stays untested until someone measures it, and the
+packet says so. A factory rotation counts as verified once the footprint's
+zero orientation has been compared with the JLCPCB/EasyEDA library footprint
+of that LCSC part (the community conversion table plus that comparison),
+with the comparison written in `engineering/assembly.md`; the placement
+preview on the JLCPCB site is the orderer's check, not a blocker.
 Every populated, non-BOM-excluded footprint must have an assembly decision.
 Factory components require exact manufacturer/MPN, footprint and LCSC identity.
 Manual assembly remains explicitly documented; do not silently move difficult

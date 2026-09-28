@@ -11,6 +11,8 @@ dependencies = []
 kicadpy = "kicadpy.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
+[tool.setuptools.package-data]
+kicadpy = ["data/*.json"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "../circuitpy/src"]
 testpaths = ["tests"]

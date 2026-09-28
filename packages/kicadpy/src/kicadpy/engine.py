@@ -1,9 +1,11 @@
 """A candidate is never the live board until a checked single-file commit."""
+from collections import Counter
 import json
 from pathlib import Path
 import re
 import shutil
 import uuid
+import tempfile
 from . import checks, sexp, toolchain
 from .project import Project, atomic, digest, manifest, revision, write_json
 
@@ -118,7 +120,19 @@ class Engine:
             write_json(path / 'metadata.json', metadata)
             return dict(result, diff=delta, candidate=identifier)
 
-    def commit(self, identifier, expected):
+    @staticmethod
+    def _require_improvement(before, after):
+        # Exact finding multisets deliberately reject ambiguous replacements: fewer
+        # errors alone must never trade an unrouted net for a short or a new warning.
+        for field in ('tools', 'coverage', 'ignoredChecks'):
+            if before[field] != after[field]:
+                raise ValueError('repair changed check coverage, ignored checks or toolchain')
+        old = Counter(json.dumps(f, sort_keys=True) for f in before['findings'])
+        new = Counter(json.dumps(f, sort_keys=True) for f in after['findings'])
+        if not (new < old):
+            raise ValueError('candidate is not a strict improvement: findings must decrease with no new findings')
+
+    def commit(self, identifier, expected, allow_improvement=False):
         with self.project.lock():
             self.project.expect(expected)
             path, metadata = self._candidate(identifier)
@@ -126,18 +140,34 @@ class Engine:
                 raise ValueError('candidate was prepared against a different revision')
             raw = (path / 'reports/check.json').read_bytes()
             report = json.loads(raw)
-            if digest(raw) != metadata.get('checkHash') or not report['passed']:
+            if digest(raw) != metadata.get('checkHash'):
+                raise ValueError('candidate lacks a passing check')
+            if not isinstance(allow_improvement, bool):
+                raise ValueError('allow_improvement must be boolean')
+            if not report['passed'] and not allow_improvement:
                 raise ValueError('candidate lacks a passing check')
             if report['tools'] != toolchain.versions() or revision(path / 'design') != report['revision']:
                 raise ValueError('stale candidate or toolchain check')
             self._guard(self._diff(path, metadata), metadata)
+            if not report['passed']:
+                # Check a disposable copy; zone refill must not mutate the immutable
+                # baseline snapshot or live board. The same native tools check both.
+                with tempfile.TemporaryDirectory(prefix='baseline-', dir=path) as temp:
+                    baseline = Path(temp) / 'design'
+                    shutil.copytree(self.project.store / 'snapshots' / expected, baseline)
+                    before = checks.check(baseline, self.project.stem, Path(temp) / 'reports')
+                    self._require_improvement(before, report)
+            if revision(path / 'design') != report['revision']:
+                raise ValueError('candidate changed during baseline check')
             # Only PCB is mutable in this spike. No multi-file partial commit.
             self.project.expect(expected)
             atomic(self.project.pcb, (path / 'design' / self.project.pcb_name).read_bytes())
             actual = revision(self.project.root)
             if actual != report['revision']:
                 raise ValueError('external dependency edit during commit; re-inspect project')
-            return {'revision': actual, 'undoRevision': expected, 'fabricationReady': False}
+            return {'revision': actual, 'undoRevision': expected, 'fabricationReady': False,
+                    'acceptance': 'passed' if report['passed'] else 'improved',
+                    'remainingFindings': len(report['findings'])}
 
     def undo(self, target, expected):
         if not re.fullmatch('[0-9a-f]{64}', target):

@@ -53,7 +53,10 @@ const server = http.createServer((req, res) => runMiddleware(0, req, res));
 server.on("close", () => circuit.close());
 
 server.listen(port, host, () => {
-  console.log(`[circuit:server] listening on http://${host}:${port}/ (projects: ${circuit.projectsRoot})`);
+  const scope = circuit.viewerOnly
+    ? `workspace: ${circuit.projectsRoot}, viewer-only`
+    : `projects: ${circuit.projectsRoot}`;
+  console.log(`[circuit:server] listening on http://${host}:${port}/ (${scope})`);
   if (serverLifetimeMs !== null) {
     scheduleProcessShutdown({
       lifetimeMs: serverLifetimeMs,

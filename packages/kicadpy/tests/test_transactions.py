@@ -205,3 +205,55 @@ def test_scratch_copies_outside_design_are_not_inputs(tmp_path):
     assert not any(k.startswith(('build/', 'tools/')) for k in manifest(root))
     (root / 'engineering').mkdir(); (root / 'engineering/power.md').write_text('evidence')
     assert revision(root) != before and 'engineering/power.md' in manifest(root)
+
+
+def test_board_bounds_are_the_outline_centreline_not_the_drawing_stroke(engine):
+    # tiny's Edge.Cuts is a closed 30 x 20 rectangle drawn with a 0.05 mm pen; the edges bounding
+    # box would say 30.05 x 20.05 and the packet check would call the gerber "scaled by 0.9983".
+    state = engine.inspect()
+    assert state['boardBoundsSource'] == 'outline'
+    assert state['boardBoundsMm'] == pytest.approx([0, 0, 30, 20], abs=1e-6)
+
+
+def test_improvement_requires_strict_subset_without_new_findings():
+    def report(findings, **overrides):
+        return dict(tools={'kicad': '10'}, coverage={'drc': True}, ignoredChecks={}, findings=findings, **overrides)
+    a = {'type': 'unconnected', 'severity': 'error', 'items': [{'uuid': 'a'}]}
+    b = {'type': 'clearance', 'severity': 'error', 'items': [{'uuid': 'b'}]}
+    c = {'type': 'short', 'severity': 'error', 'items': [{'uuid': 'c'}]}
+    Engine._require_improvement(report([a, b]), report([b]))
+    for after in ([a, b], [c], [a, a], [a, b, c]):
+        with pytest.raises(ValueError, match='strict improvement'):
+            Engine._require_improvement(report([a, b]), report(after))
+    changed = report([b])
+    changed['ignoredChecks'] = {'drc': ['a']}
+    with pytest.raises(ValueError, match='coverage'):
+        Engine._require_improvement(report([a, b]), changed)
+
+
+def test_improvement_cannot_commit_unchanged_short(engine):
+    rev, scope, edits = request(engine, False)
+    candidate = engine.apply(rev, scope, edits)['candidate']
+    engine.check(candidate)
+    with pytest.raises(ValueError, match='strict improvement'):
+        engine.commit(candidate, rev, allow_improvement=True)
+    assert revision(engine.project.root) == rev
+
+
+def test_partial_repair_commits_and_undoes_with_existing_edge_error(engine):
+    # The unrelated /OTHER track crosses the board edge. Repairing /SIGNAL's
+    # short must be saveable without pretending the edge violation disappeared.
+    pcb = engine.project.pcb
+    pcb.write_text(pcb.read_text().replace('(end 15 15)', '(end 15 25)'))
+    rev, scope, edits = request(engine)
+    candidate = engine.apply(rev, scope, edits)['candidate']
+    report = engine.check(candidate)
+    assert not report['passed']
+    with pytest.raises(ValueError, match='passing check'):
+        engine.commit(candidate, rev)
+    committed = engine.commit(candidate, rev, allow_improvement=True)
+    assert committed['acceptance'] == 'improved'
+    assert committed['remainingFindings'] > 0
+    assert committed['fabricationReady'] is False
+    engine.undo(rev, committed['revision'])
+    assert revision(engine.project.root) == rev

@@ -1,0 +1,505 @@
+{
+ "_about": "Factory (JLCPCB/EasyEDA) zero-orientation offset per LCSC part, measured with kicadpy.verify rotation or by hand in the named runs. offsetDeg is what manufacturing.json assembly.<ref>.rotationOffsetDeg wants. Keyed by LCSC code because two parts in the same package can differ (SOT-23-6: C2687116 = 270, C131941 = 180). A run adds rows with `python -m kicadpy.knowledge learn <workspace>`.",
+ "parts": {
+  "C105432": {
+   "footprint": "SOT-23",
+   "package": "SOT-23",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-14 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C11702": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C131941": {
+   "footprint": "SOT-23-6",
+   "package": "SOT-23-6",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-9 2026-09-21"
+   ]
+  },
+  "C132554": {
+   "footprint": "TUSB320_RWB",
+   "package": "X2QFN-12 RWB 1.6x1.6mm",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C138019": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C140412": {
+   "footprint": "CP_EIA-3528-21_Kemet-B",
+   "package": "3528 case B 10V",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-9 2026-09-21"
+   ]
+  },
+  "C15127": {
+   "footprint": "SOT-23",
+   "package": "SOT-23",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C15195": {
+   "footprint": "C_0402_1005Metric",
+   "package": "0402 50V X7R",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21"
+   ]
+  },
+  "C1525": {
+   "footprint": "C_0402_1005Metric",
+   "package": "0402 16V X7R",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C1548": {
+   "footprint": "C_0402_1005Metric",
+   "package": "0402 50V C0G",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C15850": {
+   "footprint": "C_0805_2012Metric",
+   "package": "0805 25V X5R",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C165948": {
+   "footprint": "USB_C_Receptacle_HRO_TYPE-C-31-M-12",
+   "package": "SMD+PTH USB-C",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C17168": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C1746": {
+   "footprint": "C_0805_2012Metric",
+   "package": "0805 16V X5R",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C2040": {
+   "footprint": "QFN-56-1EP_7x7mm_P0.4mm_EP3.2x3.2mm",
+   "package": "QFN-56 7x7 P0.4 EP3.2",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C20625731": {
+   "footprint": "Crystal_SMD_3225-4Pin_3.2x2.5mm",
+   "package": "3225-4P",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C20917": {
+   "footprint": "SOT-23",
+   "package": "SOT-23",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C2146": {
+   "footprint": "SOT-23",
+   "package": "SOT-23",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
+  "C25100": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24"
+   ]
+  },
+  "C25104": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C25741": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24"
+   ]
+  },
+  "C25744": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C25792": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C25900": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-14 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C25905": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C2687116": {
+   "footprint": "SOT-23-6",
+   "package": "SOT-23-6",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C2761795": {
+   "footprint": "LED_WS2812B_PLCC4_5.0x5.0mm_P3.2mm",
+   "package": "5050-4P",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C28323": {
+   "footprint": "C_0805_2012Metric",
+   "package": "0805",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C2860681": {
+   "footprint": "TPS62841_DLC",
+   "package": "VSON-8 DLC 1.5x2mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C2870605": {
+   "footprint": "TSSOP-16_4.4x5mm_P0.65mm",
+   "package": "TSSOP-16 4.4x5mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C2887324": {
+   "footprint": "TPS7A02_DBV",
+   "package": "SOT-23-5 DBV",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C2909343": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C318884": {
+   "footprint": "SW_Push_1P1T_XKB_TS-1187A",
+   "package": "SMD 5.1x5.1",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C3230039": {
+   "footprint": "TPS22950_YBH",
+   "package": "DSBGA-6 YBH 0.4mm pitch",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C335105": {
+   "footprint": "C_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C337893": {
+   "footprint": "DFE201612E",
+   "package": "SMD 2.0x1.6mm",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C4109": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C4142": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C4267913": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C492407": {
+   "footprint": "PinHeader_1x08_P2.54mm_Vertical",
+   "package": "Plugin,P=2.54mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
+  "C49257": {
+   "footprint": "PinHeader_1x03_P2.54mm_Vertical",
+   "package": "Plugin,P=2.54mm",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-15 2026-09-24"
+   ]
+  },
+  "C5218924": {
+   "footprint": "SOT-23",
+   "package": "SOT-23-3 DBZ",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C52917433": {
+   "footprint": "LED_WS2812B_PLCC4_5.0x5.0mm_P3.2mm",
+   "package": "5050-4P",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21"
+   ]
+  },
+  "C52923": {
+   "footprint": "C_0402_1005Metric",
+   "package": "0402 25V X5R",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C53114384": {
+   "footprint": "SOT-353_SC-70-5",
+   "package": "SOT-353 (SC-70-5)",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-14 2026-09-24"
+   ]
+  },
+  "C55266": {
+   "footprint": "TPS2553_DBV",
+   "package": "SOT-23-6 DBV",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C60580": {
+   "footprint": "D_SOD-323",
+   "package": "SOD-323",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C6186": {
+   "footprint": "SOT-223-3_TabPin2",
+   "package": "SOT-223",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C728566": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C7484": {
+   "footprint": "SOT-23-5",
+   "package": "SOT-23-5",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  },
+  "C7519": {
+   "footprint": "SOT-23-6",
+   "package": "SOT-23-6L",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-14 2026-09-24"
+   ]
+  },
+  "C7827": {
+   "footprint": "TPS7A02_DBV",
+   "package": "SOT-23-5 DBV",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C965840": {
+   "footprint": "XL_1615RGBC_RF",
+   "package": "SMD 1.6x1.5mm 4P common anode",
+   "offsetDeg": 180,
+   "sources": [
+    "harness-11 2026-09-22"
+   ]
+  },
+  "C97521": {
+   "footprint": "SOIC-8_5.3x5.3mm_P1.27mm",
+   "package": "SOIC-8 208mil",
+   "offsetDeg": 270,
+   "sources": [
+    "harness-9 2026-09-21",
+    "harness-11 2026-09-22",
+    "harness-14 2026-09-24",
+    "harness-15 2026-09-24",
+    "harness-18 2026-09-25"
+   ]
+  }
+ }
+}
