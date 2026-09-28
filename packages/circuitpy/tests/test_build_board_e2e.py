@@ -58,6 +58,16 @@ class GoodBoardE2E(unittest.TestCase):
 
     # -- artifact set --------------------------------------------------------
 
+    def test_harness_verdict_lands_beside_the_sidecar(self):
+        verdict = json.loads((self.root / ".harness" / "verdict.json").read_text(encoding="utf-8"))
+        self.assertEqual(verdict["spec"], 1)
+        self.assertEqual(verdict["ready"], self.sidecar["fab"]["ready"])
+        self.assertEqual(verdict["artifact"], "boards/main.board.json")
+        self.assertEqual(
+            [f["kind"] for f in verdict["findings"]],
+            [w["kind"] for w in (self.sidecar.get("validation") or {}).get("warnings", [])],
+        )
+
     def test_artifact_set_on_disk(self) -> None:
         for rel in (
             "main.circuit.json",

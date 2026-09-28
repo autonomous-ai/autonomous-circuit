@@ -498,6 +498,48 @@ first, in this template, before the doc itself is edited:
   geometry) and every gate still grades it.
 - **Tracks affected:** toolchain, routerlib, pipeline (`router_bridge.py`,
   `toolchain.py`), build script, SKILL.md.
+## 2026-09-14 — Harness: the verdict beside the sidecar, `.harness/` skipped, a viewer-only server
+- **Change:** three additive pieces so Autonomous Circuit installs as a Harness
+  *domain-specific harness* (the `harness.json` manifest at the repo root; the
+  contract is `autonomous-harness/dsh/spec`). (1) `build_board()` writes
+  `<project>/.harness/verdict.json` right after the `.board.json` sidecar —
+  spec-1 shape `{spec, ready, summary, findings[{severity, kind, message, ref}],
+  artifact, updatedAt}`, derived from the sidecar by
+  `circuitpy.generation.harness_verdict` (`ready` is `fab.ready`, nothing
+  weaker; `findings` are `validation.warnings` with `part→ref`, `detail→message`).
+  Atomic, best-effort, never fails a build; a failure is one stderr line so the
+  stdout JSON line stays clean. A build that dies before the sidecar (compile
+  error, timeout, missing pipeline) gets the same file from the skill CLI
+  instead — `scripts/circuit/cli.py` `write_failure_verdict`, `ready: false`,
+  `summary: "Build failed: <CODE>"`, one error finding — so a host never keeps
+  showing the previous build. (2) `.harness` joins the catalog/snapshotter
+  skip-list next to `.circuit` (`viewer/src/server/circuit/projects.mjs`). (3)
+  `createCircuitServices({ workspaceDir })` / env `CIRCUIT_WORKSPACE`: the
+  server serves that one folder as the single project `workspace`
+  (`createWorkspaceProjectStore`), reports `viewerOnly: true` on
+  `app_settings_read`, and answers `chat_start_turn`, `chat_approve_plan`,
+  `chat_request_plan_changes`, `chat_cancel_turn`, `chat_session_create`,
+  `project_create`, `project_rename`, `project_delete` with `VIEWER_ONLY` (409).
+  The client, on `viewerOnly`, skips the wizard and renders the board workspace
+  full width with no chat sidebar, menu row, account card or "Send to AI".
+  Skill docs resolve their own location through `CIRCUIT_SKILLS_DIR`
+  (default `~/.claude/skills`), since Harness links skills into
+  `<workspace>/.claude/skills/` rather than the global folder.
+- **Why:** Harness (2026-09-14) runs `claude` in a terminal pane and puts this
+  viewer in the pane beside it; it reads one verdict file per workspace for the
+  pane header and must not start a second conversation on the same session.
+  Four Autonomous products each re-implemented the same driver/chat/catalog
+  shell; the shell moves to Harness and each product keeps its skills,
+  pipeline and viewer.
+- **Backward compatible:** yes — the sidecar, the stdout line, the artifact
+  order and every existing command are unchanged; `viewerOnly` is absent (not
+  false) outside the mode; the skill commands default to the global path.
+- **Mechanism:** `generation.py` (+ `tests/test_harness_verdict.py`, one e2e
+  assertion), **skill runtime re-vendor required**; `projects.mjs`, `http.mjs`,
+  `server.mjs`, `main.jsx`, `BoardWorkspace.jsx`, `onboardingHelpers.js`,
+  `transport.ts`; `harness.json`, `harness/AGENTS.md`, `harness/template/`,
+  `harness/toolchain/{setup,doctor,init-workspace,viewer}.sh`.
+- **Tracks affected:** pipeline, server, client, skills, docs.
 
 (No further entries yet.)
 
