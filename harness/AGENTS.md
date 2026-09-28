@@ -23,6 +23,8 @@ You never start a viewer, never print a URL, and never need the `board-viewer` s
   never invoke it through `bun` (measured 2026-09-08: a hand-made bun launcher hung for 35 minutes
   on 0.04 seconds of CPU and took the whole turn with it). If you believe the toolchain has a bug,
   write down the reproduction and say so in your answer; the patch is not yours to apply mid-board.
+- **Firmware** lives in `firmware/` at the workspace root — `README.md` plus sources — and is
+  written after the board is fab-ready (below). The viewer shows it under the Firmware tab.
 - **The verdict.** Every build writes `.harness/verdict.json` beside the `.board.json` sidecar.
   Harness reads it into the pane header (ready, or the error and warning counts). Never edit it,
   and never edit any other generated artifact (`.circuit.json`, `.board.json`, SVGs, PNGs, the
@@ -224,6 +226,33 @@ For placement and parts, edit the TSX and regenerate. For a finding that names c
 place with `--edits`. Read the whole finding list, group the fixes by cause, apply them all, then
 rebuild once. A round may not leave the board worse than it found it: compare blocking findings
 before and after, and when a rebuild comes back worse, revert that change yourself.
+
+### Firmware — after the board is fab-ready, into `firmware/`
+
+A board that checks out still does nothing until code runs on it, and the person watching the
+pane has a **Firmware** tab that stays empty until you fill it. Once `fab.ready` is `true` and
+the craft round is done, write the firmware in the same turn, without being asked again:
+
+- **Where.** `firmware/` at the workspace root. `firmware/README.md` first: what the code does,
+  the toolchain, the exact build and flash commands, the pin table, and what has not been tried
+  on hardware. The viewer renders that README on top of the tab and lists every source under it
+  (`.c .h .cpp .ino .py .rs`, `platformio.ini`, `CMakeLists.txt`, `Makefile`); binaries, `build/`
+  and `.pio/` are never shown.
+- **Which toolchain.** The chip's usual one — pico-sdk (CMake) or Arduino/PlatformIO for an
+  RP2040, ESP-IDF or Arduino for an ESP32, CircuitPython where `product.json` asks for it. One
+  toolchain, the one a hobbyist with that chip already has; not a framework you invent.
+- **The pin map is the copper.** Every GPIO, bus and peripheral number in the code comes from
+  the built board — `boards/main.tsx` as it stands after the last build and the netlist in
+  `boards/main.circuit.json` — never from the plan or from memory. Put the table in the README
+  with the net name beside each pin, and say so where a pin differs from what `product.json`
+  asked for.
+- **What it must do.** The function `product.json` describes, end to end — every input read,
+  every output driven — starting with a blink on the status LED, then each peripheral. Compile
+  it when the toolchain is on this machine and say whether it compiled; never say it ran on
+  hardware.
+- **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
+  your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
+  is a later board revision, not a `#define` that hides it.
 
 ## Done means fab-ready
 

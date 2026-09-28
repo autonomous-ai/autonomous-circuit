@@ -531,7 +531,7 @@ export default function OverviewTab({
         {artifact?.kicadProjectUrl || roles.length ? (
           <Section title="When the boards arrive">
             <div className="rounded-xl border border-border/60 bg-card/30 p-4 text-sm leading-6 text-muted-foreground">
-              <ArrivalChecklist roles={roles} />
+              <ArrivalChecklist roles={roles} artifact={artifact} />
             </div>
           </Section>
         ) : null}
@@ -546,7 +546,7 @@ export default function OverviewTab({
  * that is not there, and none of them promises behaviour we cannot see in the
  * files: they say where to look, not what will happen.
  */
-function ArrivalChecklist({ roles }) {
+function ArrivalChecklist({ roles, artifact = null }) {
   const byRole = new Map(roles.map((role) => [role.role, role]));
   const items = [];
 
@@ -567,7 +567,9 @@ function ArrivalChecklist({ roles }) {
   const brain = byRole.get("brain");
   if (brain?.items?.length) {
     items.push(
-      `${brain.items[0].refdes} is the chip that runs your code. Until you load firmware onto it, the board does nothing on its own.`,
+      artifact?.firmware
+        ? `${brain.items[0].refdes} is the chip that runs your code. Its firmware is under the Firmware tab — build and flash it as the README there says.`
+        : `${brain.items[0].refdes} is the chip that runs your code. Until you load firmware onto it, the board does nothing on its own.`,
     );
   }
   const control = byRole.get("control");
