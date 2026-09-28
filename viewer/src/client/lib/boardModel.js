@@ -20,6 +20,7 @@ export const BUILDING_ACTIVITY_WINDOW_MS = 30_000;
 export function isBoardEntry(entry) {
   if (!entry) return false;
   const file = String(entry.file || "");
+  if (/^design\/[^/_][^/]*\.kicad_pcb$/.test(file)) return true;
   if (!file.startsWith(BOARDS_DIR)) return false;
   const rest = file.slice(BOARDS_DIR.length);
   if (!rest || rest.includes("/") || rest.startsWith("_")) return false;

@@ -84,6 +84,9 @@ npm --prefix viewer run build
 
 # skills
 cd skills/circuitcode && /Users/d/miniconda/bin/python3.12 -m pytest tests/ -q
+
+# kicadpy (native KiCad v2; needs KiCad 10, skips are not a pass)
+PYTHONPATH=packages/kicadpy/src:packages/circuitpy/src CIRCUIT_PARTS_ENGINE=off /Users/d/miniconda/bin/python3.12 -m pytest -q packages/kicadpy
 ```
 
 Dev / build:

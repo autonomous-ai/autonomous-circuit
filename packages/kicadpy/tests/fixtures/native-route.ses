@@ -1,0 +1,44 @@
+(session route
+  (base_design route)
+  (placement
+    (resolution um 10)
+    (component Test:TP
+      (place TP3 150000 -80000 front 0)
+      (place TP2 250000 -80000 front 0)
+      (place TP4 150000 -150000 front 0)
+      (place TP1 50000 -80000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.5")
+    )
+    (library_out
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle F.Cu 6000 0 0)
+        )
+        (shape
+          (circle B.Cu 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out
+      (net "/SIGNAL"
+        (wire
+          (path F.Cu 2000
+            50000 -80000
+            60602 -69398
+            239398 -69398
+            250000 -80000
+          )
+        )
+      )
+    )
+  )
+)

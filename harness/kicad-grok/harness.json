@@ -1,0 +1,47 @@
+{
+  "spec": 1,
+  "id": "autonomous/kicad-grok",
+  "name": "KiCad (Grok)",
+  "category": "PCB",
+  "author": "Autonomous",
+  "description": "The KiCad tile on xAI's Grok Build with Grok 4.7: describe a board; get a real KiCad project — a wired schematic, DRC-checked copper, a prototype packet — with a live board view.",
+  "engine": "grok",
+  "workspace": {
+    "template": "template",
+    "marker": "project.json",
+    "init": "toolchain/init-workspace.sh"
+  },
+  "agent": {
+    "instructions": "AGENTS.md",
+    "skills": [
+      "skills"
+    ],
+    "env": {
+      "KICAD_HARNESS_PYTHON": "${dsh}/toolchain/python",
+      "KICAD_HARNESS_ROOT": "${dsh}/../..",
+      "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
+      "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",
+      "CIRCUIT_SKILLS_DIR": "${workspace}/.agents/skills",
+      "DISABLE_AUTOUPDATER": "1"
+    },
+    "args": [
+      "-m",
+      "grok-4.7",
+      "--reasoning-effort",
+      "high",
+      "--permission-mode",
+      "bypassPermissions",
+      "--trust",
+      "--no-auto-update"
+    ]
+  },
+  "toolchain": {
+    "setup": "toolchain/setup.sh",
+    "doctor": "toolchain/doctor.sh"
+  },
+  "viewer": {
+    "command": "toolchain/viewer.sh",
+    "url": "http://127.0.0.1:${port}/"
+  },
+  "verdict": ".harness/verdict.json"
+}

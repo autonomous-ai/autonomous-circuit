@@ -141,6 +141,13 @@ test("boardVerdict gates on fab.ready and nothing else", () => {
   assert.equal(boardVerdict({ sidecar: null, building: true }).tone, "building");
 });
 
+test("native verdict requires engineering review even if a sidecar claims fab ready", () => {
+  const verdict = boardVerdict({ sidecar: { source: { engine: "kicad-native" }, fab: { ready: true } }, groups: [] });
+  assert.equal(verdict.tone, "blocked");
+  assert.match(verdict.line, /does not enable ordering/);
+  assert.equal(verdict.action, null);
+});
+
 test("boardVerdict never says orderable when the packet is not ready and nothing is named", () => {
   const verdict = boardVerdict({ sidecar: { fab: { ready: false } }, groups: [] });
   assert.equal(verdict.tone, "blocked");

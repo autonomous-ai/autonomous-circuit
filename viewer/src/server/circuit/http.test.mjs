@@ -552,7 +552,7 @@ async function bootWorkspaceServer() {
 }
 
 /** `bootServer` with the env edited before the services are built. */
-async function bootServerWith(editEnv) {
+async function bootServerWith(editEnv, serviceOptions = {}) {
   const home = tmpdir("circuit-home-");
   const cfgDir = tmpdir("circuit-cfg-");
   const scenarioPath = path.join(home, "scenario.json");
@@ -565,7 +565,7 @@ async function bootServerWith(editEnv) {
     CIRCUIT_CODEX_BIN: path.join(home, "no-codex-here"),
     CIRCUIT_FAKE_SCENARIO: scenarioPath,
   });
-  const services = createCircuitServices({ env });
+  const services = createCircuitServices({ env, ...serviceOptions });
   const server = http.createServer((req, res) => {
     services.apiMiddleware(req, res, () => {
       services.assetMiddleware(req, res, () => {
@@ -665,5 +665,92 @@ test("viewer-only: `.harness/` is invisible to the catalog, and a write there st
     assert.deepEqual(catalog.body.entries.map((e) => e.file), ["NOTES.md"]);
   } finally {
     s.close();
+  }
+});
+
+test("viewer-only: harness_new_board asks the daemon for a sibling harness; the command does not exist elsewhere", async () => {
+  // A fake daemon: answers machine_select with `connected`, agent_create with a created agent.
+  const frames = [];
+  const fakeConnect = () => {
+    const listeners = { open: [], message: [], error: [], close: [] };
+    const socket = {
+      addEventListener: (t, fn) => listeners[t].push(fn),
+      send(text) {
+        const frame = JSON.parse(text);
+        frames.push(frame);
+        const reply = frame.type === "machine_select"
+          ? { type: "connected", payload: { machineId: frame.payload.machineId } }
+          : { type: "agent_create_result", payload: { requestId: frame.payload.requestId, state: "created", agent: { id: "agent-9", dshName: "KiCad" } } };
+        setTimeout(() => listeners.message.forEach((fn) => fn({ data: JSON.stringify(reply) })), 0);
+      },
+      close() {},
+    };
+    setTimeout(() => listeners.open.forEach((fn) => fn({})), 0);
+    return socket;
+  };
+  const home = tmpdir("circuit-nb-home-");
+  fs.mkdirSync(path.join(home, ".harness", "cli", "data"), { recursive: true });
+  fs.writeFileSync(path.join(home, ".harness", "cli", "data", "machines.json"), JSON.stringify({ machines: [{ machineId: "m-local", local: true }] }));
+  const dshDir = tmpdir("circuit-nb-dsh-");
+  fs.writeFileSync(path.join(dshDir, "harness.json"), JSON.stringify({ engine: "codex" }));
+  const parent = tmpdir("circuit-nb-");
+  const ws = path.join(parent, "pet");
+  fs.mkdirSync(ws);
+  const s = await bootServerWith(
+    (env) => ({ ...env, CIRCUIT_WORKSPACE: ws, HOME: home, HARNESS_DSH: "autonomous/kicad", HARNESS_DSH_DIR: dshDir }),
+    { harnessConnect: fakeConnect },
+  );
+  try {
+    const made = await s.post("harness_new_board");
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    assert.equal(made.body.name, "pet-2");
+    assert.equal(made.body.cwd, path.join(parent, "pet-2"));
+    assert.equal(made.body.engine, "codex");
+    assert.equal(made.body.agentId, "agent-9");
+    assert.match(made.body.hint, /⌘O/);
+    assert.equal(fs.existsSync(path.join(parent, "pet-2")), true);
+    assert.deepEqual(frames.map((f) => f.type), ["machine_select", "agent_create"]);
+    assert.equal(frames[1].payload.dsh, "autonomous/kicad");
+    assert.equal(frames[1].payload.cwd, path.join(parent, "pet-2"));
+  } finally {
+    s.close();
+  }
+
+  // A daemon that refuses is a 502 with its reason, and the folder is not left behind.
+  const refusing = () => {
+    const listeners = { open: [], message: [], error: [], close: [] };
+    return {
+      addEventListener: (t, fn) => listeners[t].push(fn),
+      send(text) {
+        const frame = JSON.parse(text);
+        const reply = frame.type === "machine_select" ? { type: "connected", payload: {} } : { type: "agent_create_result", payload: { requestId: frame.payload.requestId, state: "unconfirmed" } };
+        setTimeout(() => listeners.message.forEach((fn) => fn({ data: JSON.stringify(reply) })), 0);
+      },
+      close() {},
+      ...(setTimeout(() => listeners.open.forEach((fn) => fn({})), 0), {}),
+    };
+  };
+  const s2 = await bootServerWith(
+    (env) => ({ ...env, CIRCUIT_WORKSPACE: ws, HOME: home, HARNESS_DSH: "autonomous/kicad", HARNESS_DSH_DIR: dshDir }),
+    { harnessConnect: refusing },
+  );
+  try {
+    const refused = await s2.post("harness_new_board");
+    assert.equal(refused.status, 502);
+    assert.equal(refused.body.code, "HARNESS_NEW_BOARD_FAILED");
+    assert.match(refused.body.message, /unconfirmed/);
+    assert.equal(fs.existsSync(path.join(parent, "pet-3")), false);
+  } finally {
+    s2.close();
+  }
+
+  // The app proper has project_create; this command is viewer-only.
+  const s3 = await bootServer();
+  try {
+    const absent = await s3.post("harness_new_board");
+    assert.equal(absent.status, 404);
+    assert.equal(absent.body.code, "UNKNOWN_COMMAND");
+  } finally {
+    s3.close();
   }
 });

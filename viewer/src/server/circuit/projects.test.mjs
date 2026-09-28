@@ -239,3 +239,19 @@ test("a workspace store serves exactly one project, named by product.json, and r
   assert.equal(fs.existsSync(path.join(ws, "project.json")), false);
   assert.equal(fs.existsSync(ws), true);
 });
+
+test("viewer-only: the workspace's project.json engine reaches the summary (Solder lays down kicad-native)", () => {
+  const ws = tmpdir("circuit-ws-");
+  const store = createWorkspaceProjectStore({ workspaceDir: ws });
+  // No project.json, or a v1 one: no engine field at all (the client's default arm).
+  assert.equal("engine" in store.list()[0], false);
+  fs.writeFileSync(path.join(ws, "project.json"), JSON.stringify({ id: "workspace", name: "x", engine: "v1" }));
+  assert.equal("engine" in store.list()[0], false);
+  // The Solder template: the client keys its native-only surfaces on this.
+  fs.writeFileSync(path.join(ws, "project.json"), JSON.stringify({ id: "workspace", name: "x", engine: "kicad-native" }));
+  assert.equal(store.list()[0].engine, "kicad-native");
+  assert.equal(store.get(WORKSPACE_PROJECT_ID).engine, "kicad-native");
+  // A broken project.json is a v1 workspace, not a crash.
+  fs.writeFileSync(path.join(ws, "project.json"), "{ not json");
+  assert.equal("engine" in store.list()[0], false);
+});

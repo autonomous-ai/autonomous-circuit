@@ -1,0 +1,86 @@
+{
+  "source": "desk-cube-direct/release/design/cube.kicad_pro",
+  "sourceRevision": "3f6eaab2d77daf0af94cd55fb36919ac18bb581472d736200fb534d614a9aafa",
+  "footprints": 85,
+  "copperItems": 1093,
+  "injectedTrack": {
+    "uuid": "04d1cfdc-7fe7-4b76-a096-b318892e4dd5",
+    "net": "GPIO7",
+    "layer": "F.Cu",
+    "widthMm": 0.15,
+    "locked": false,
+    "kind": "track",
+    "start": [
+      27.975,
+      3.475
+    ],
+    "end": [
+      28.3767,
+      3.475
+    ]
+  },
+  "beforeFindings": 5,
+  "afterFindings": 0,
+  "diff": {
+    "objects": [
+      {
+        "uuid": "04d1cfdc-7fe7-4b76-a096-b318892e4dd5",
+        "kind": "segment",
+        "change": "modified"
+      }
+    ],
+    "settingsChanged": false,
+    "zoneFillsChanged": [],
+    "dependenciesChanged": []
+  },
+  "undoByteExact": true,
+  "tools": {
+    "kicad": "10.0.5",
+    "pcbnew": "10.0.5",
+    "workerSha256": "467c109fc62dc94cb18b21d2ebe7a4da3f72bcaaf4072fde48e91009d76daabc"
+  },
+  "ignoredChecks": {
+    "drc": [
+      {
+        "description": "Footprint has no courtyard defined",
+        "key": "missing_courtyard"
+      },
+      {
+        "description": "Track endpoint not centered on via",
+        "key": "track_not_centered_on_via"
+      },
+      {
+        "description": "Tuning profile track geometries",
+        "key": "tuning_profile_track_geometries"
+      },
+      {
+        "description": "Footprint doesn't match symbol's footprint filters",
+        "key": "footprint_filters_mismatch"
+      },
+      {
+        "description": "Footprint component type doesn't match footprint pads",
+        "key": "footprint_type_mismatch"
+      }
+    ],
+    "erc": [
+      {
+        "description": "Global label only appears once in the schematic",
+        "key": "single_global_label"
+      },
+      {
+        "description": "Four connection points are joined together",
+        "key": "four_way_junction"
+      },
+      {
+        "description": "SPICE model issue",
+        "key": "simulation_model_issue"
+      },
+      {
+        "description": "Assigned footprint doesn't match footprint filters",
+        "key": "footprint_filter"
+      }
+    ]
+  },
+  "fabricationReady": false,
+  "hardwareTested": false
+}

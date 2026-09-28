@@ -312,6 +312,8 @@ class Pad:
     height: float
     plated_hole: bool = False
     hole_diameter: float | None = None
+    mask_required: bool = True
+    paste_required: bool = True
 
     @property
     def rect(self) -> Rect:

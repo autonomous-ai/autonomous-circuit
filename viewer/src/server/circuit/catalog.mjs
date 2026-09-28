@@ -15,11 +15,12 @@
 // revision, and reports catalog_changed for the SSE stream.
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 
 import { skipDirNames } from "./projects.mjs";
 
-export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md"]);
+export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md", "kicad_pcb"]);
 
 const DEBOUNCE_MS = 150;
 
@@ -75,8 +76,7 @@ function relPath(rootDir, filePath) {
 /** Is this file a member of a generated `<stem>_review/` or `<stem>_fab/`
  * dir? Members are hidden as entries — grouped under the board's artifact. */
 function inGeneratedDir(absPath) {
-  const parent = path.basename(path.dirname(absPath));
-  return parent.endsWith("_review") || parent.endsWith("_fab");
+  return absPath.split(path.sep).some(part => part.endsWith("_review") || part.endsWith("_fab"));
 }
 
 /**
@@ -105,6 +105,73 @@ export function scanProjectCatalog({ projectDir, projectId }) {
 
   const entries = [];
   const url = (abs) => mediaUrl(projectId, relPath(rootDir, abs), abs);
+
+  // Native board source with a versioned, checked SVG bundle. Never offer
+  // v1 Circuit JSON or a TSX edit path for a native board.
+  for (const pcb of byExt.get("kicad_pcb") || []) {
+    const rel = relPath(rootDir, pcb);
+    if (!/^design\/[^/_][^/]*\.kicad_pcb$/.test(rel)) continue;
+    const stem = path.basename(pcb, ".kicad_pcb");
+    const entry = { file: rel, kind: "kicad_pcb", sourceKind: "kicad-native", url: url(pcb), artifact: {} };
+    const meta = path.join(rootDir, "boards", `${stem}.board.json`);
+    try {
+      const data = JSON.parse(fs.readFileSync(meta, "utf8"));
+      entry.artifact.metadataUrl = url(meta);
+      const inputs = Object.entries(data.native?.inputs || {});
+      const sourceRoot = path.resolve(rootDir, data.native?.inputRoot || "design");
+      if (sourceRoot !== rootDir && sourceRoot !== path.join(rootDir, "design")) throw new Error("invalid native source root");
+      const suffixes = new Set([".kicad_pro", ".kicad_pcb", ".kicad_sch", ".kicad_dru", ".kicad_sym", ".kicad_mod", ".step", ".stp", ".wrl"]);
+      const names = new Set(["fp-lib-table", "sym-lib-table", "product.json", "parts.json", "manufacturing.json"]);
+      // Same rule as kicadpy.project.manifest: inside a workspace only the
+      // design directory, engineering/ and the root JSONs are inputs.
+      const designDir = path.dirname(String(data.source?.file || ''));
+      const isInput = (f) => {
+        const rel = path.relative(sourceRoot, f).split(path.sep);
+        if (designDir !== '.' && sourceRoot === rootDir && !(rel[0] === designDir || rel[0] === 'engineering' || (rel.length === 1 && names.has(rel[0])))) return false;
+        return suffixes.has(path.extname(f)) || names.has(path.basename(f)) || rel[0] === 'engineering';
+      };
+      const actual = walkFiles(sourceRoot).filter(isInput).map(f => relPath(rootDir, f)).sort();
+      const addedParentSpec = sourceRoot !== rootDir && ["product.json", "parts.json", "manufacturing.json"].some(n => fs.existsSync(path.join(rootDir, n)));
+      const valid = !addedParentSpec && inputs.length > 0 && JSON.stringify(actual) === JSON.stringify(inputs.map(([name]) => name).sort()) && inputs.every(([name, sha]) => {
+        const input = path.resolve(rootDir, name);
+        return input.startsWith(rootDir + path.sep) && crypto.createHash("sha256").update(fs.readFileSync(input)).digest("hex") === sha;
+      });
+      entry.nativeStale = !valid;
+      if (valid && data.native?.publication === "complete") {
+        const bundle = path.resolve(rootDir, data.native.previewDir);
+        if (!bundle.startsWith(path.join(rootDir, "boards", `${stem}_review`) + path.sep)) throw new Error("invalid preview bundle");
+        for (const [key, file] of [["pcbUrl", "_pcb.svg"], ["pcbBottomUrl", "_pcb_bottom.svg"], ["schematicUrl", "_schematic.svg"], ["glbUrl", "board.glb"]]) {
+          const asset = path.join(bundle, file);
+          if (fs.existsSync(asset)) entry.artifact[key] = url(asset);
+        }
+        const packet = data.native?.manufacturing;
+        const packetDir = path.join(bundle,'manufacturing');
+        const members = Object.entries(packet?.files || {});
+        const intact = members.length > 0 && members.every(([name,sha]) => {
+          const file = path.resolve(packetDir,name);
+          return file.startsWith(packetDir + path.sep) && fs.existsSync(file) && crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') === sha;
+        });
+        let reportsPassed = false;
+        try {
+          const report=JSON.parse(fs.readFileSync(path.join(packetDir,'manufacturing-report.json'),'utf8'));
+          const nativeCheck=JSON.parse(fs.readFileSync(path.join(packetDir,'native-check.json'),'utf8'));
+          reportsPassed=Object.hasOwn(packet?.files || {},'manufacturing-report.json') && Object.hasOwn(packet?.files || {},'native-check.json') && report.prototypeReady===true && report.checkedRevision===data.native.checkedRevision && Array.isArray(report.findings) && !report.findings.some(f=>f.severity==='error') && nativeCheck.passed===true && nativeCheck.revision===data.native.checkedRevision && nativeCheck.findings?.length===0;
+        } catch { /* unreadable reports: not verified */ }
+        // The reviewer's journal is shown, not required (owner's rule 2026-09-17):
+        // an intact packet with zero error findings for the current source is ready.
+        try {
+          const journal=JSON.parse(fs.readFileSync(path.join(rootDir,'.circuit/native-review.json'),'utf8'));
+          entry.nativeReviewState = String(journal.state || '');
+        } catch { entry.nativeReviewState = ''; }
+        entry.nativeManufacturingVerified = reportsPassed && intact && packet.prototypeReady === true && packet.checkedRevision === data.native.checkedRevision && data.native.checksPassed === true;
+        if (intact) for (const [key,name] of [['gerbersUrl','gerbers.zip'],['bomUrl','bom.csv'],['cplUrl','cpl.csv'],['orderUrl','ORDER.md'],['kicadProjectUrl','kicad-project.zip'],['manufacturingReportUrl','manufacturing-report.json']]) {
+          const file = path.join(packetDir,name);
+          if (Object.hasOwn(packet.files,name) && fs.existsSync(file)) entry.artifact[key] = url(file);
+        }
+      }
+    } catch { entry.nativeStale = true; }
+    entries.push(entry);
+  }
 
   // tsx — board entries (with the grouped artifact object). Names starting
   // `_` are hidden (helper sources); blocks/ never reaches here (skip-list).
@@ -155,7 +222,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
 
   // svg / png / zip / csv / md — visible standalone files, hidden inside
   // `_review/` and `_fab/` dirs (those surface via the board artifact).
-  for (const kind of ["svg", "png", "zip", "csv", "md"]) {
+  for (const kind of ["svg", "png", "zip", "csv", "md", "kicad_pcb"]) {
     for (const file of byExt.get(kind) || []) {
       if (inGeneratedDir(file)) {
         continue;

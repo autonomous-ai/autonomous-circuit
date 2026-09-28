@@ -23,11 +23,13 @@
 export interface AppInfo {
   rootPath: string;
   appVersion: string;
+  defaultEngine?: "v1" | "kicad-native";
   pid: number;
 }
 
 // Circuit's catalog kinds (contract §2): `tsx | json | svg | png | zip | csv | md`.
 export type CatalogKind =
+  | "kicad_pcb"
   | "tsx"
   | "json"
   | "svg"
@@ -35,7 +37,7 @@ export type CatalogKind =
   | "zip"
   | "csv"
   | "md";
-export type SourceKindValue = "python" | "static";
+export type SourceKindValue = "python" | "static" | "tsx" | "kicad-native";
 
 /**
  * The board entry's grouped artifact (contract §2). Every URL carries
@@ -63,6 +65,7 @@ export interface CatalogArtifact {
   orderUrl?: string;
   /** `<stem>_fab/board.glb` best-effort 3D body (viewer tab is post-v1). */
   glbUrl?: string;
+  manufacturingReportUrl?: string;
 }
 
 export interface CatalogEntry {
@@ -71,6 +74,8 @@ export interface CatalogEntry {
   sourceKind: SourceKindValue | null;
   url: string;
   artifact?: CatalogArtifact;
+  nativeStale?: boolean;
+  nativeManufacturingVerified?: boolean;
   relations?: Record<string, string>;
 }
 
@@ -201,6 +206,7 @@ export interface ProjectSummary {
   createdAt: number;
   updatedAt: number;
   hasModel: boolean;
+  engine?: "v1" | "kicad-native";
   /** True only while the workspace contains metadata/inputs but no design. */
   isNew?: boolean;
 }
@@ -225,6 +231,17 @@ export interface PrereqCheck {
   toolchain?: { found: boolean };
   python?: { found: boolean; version?: string; healthy?: boolean };
   kicadCli?: { found: boolean; version?: string };
+}
+
+/** `harness_new_board`: the new harness the daemon created, and the hint the pane shows. */
+export interface NewBoardResult {
+  agentId: string;
+  cwd: string;
+  name: string;
+  dsh: string;
+  engine: string;
+  dshName: string | null;
+  hint: string;
 }
 
 export interface AppSettings {
@@ -587,6 +604,8 @@ const transportBase = {
   app_info: () => invoke<AppInfo>("app_info"),
   app_prereq_check: () => invoke<PrereqCheck>("app_prereq_check"),
   app_settings_read: () => invoke<AppSettings>("app_settings_read"),
+  // Viewer-only (Harness): ask the daemon for a new harness of this tile in a sibling folder.
+  harness_new_board: () => invoke<NewBoardResult>("harness_new_board"),
   app_settings_write: (settings: AppSettings) =>
     invoke<void>("app_settings_write", { settings }),
   app_install_claude_code: () =>

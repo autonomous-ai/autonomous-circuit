@@ -2036,3 +2036,47 @@ test("the plan prompt plans a repair, not a rebuild, for a copper finding on a r
   assert.ok(PLAN_SYSTEM_PROMPT.includes("--edits <edits.json>"));
   assert.ok(PLAN_SYSTEM_PROMPT.includes("Do NOT plan `pcbPath`"));
 });
+
+
+test("plan turn: prose with no fence and no questions still proposes a plan (fallback)", async () => {
+  const dir = tmpdir("circuit-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    plan: { lines: [delta("## Plan\n"), delta("Swap U5 for a Pico 2 module. ")], sleepAfterMs: 0 },
+  });
+  const events = [];
+  const result = await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-prose"),
+    message: "design a board",
+    turnId: "t-prose",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+  const proposed = events.filter((e) => e.kind === "plan_proposed");
+  assert.equal(proposed.length, 1);
+  assert.equal(proposed[0].plan, "## Plan\nSwap U5 for a Pico 2 module.");
+  assert.equal(result.proposedPlan, "## Plan\nSwap U5 for a Pico 2 module.");
+  assert.ok(events.findIndex((e) => e.kind === "plan_proposed") < events.findIndex((e) => e.kind === "turn_end"));
+});
+
+test("plan turn: prose that carries a circuit-questions fence proposes nothing", async () => {
+  const dir = tmpdir("circuit-run-");
+  const workspace = path.join(dir, "ws");
+  const scenarioPath = writeScenario(dir, {
+    plan: { lines: [delta("Need one answer.\n```circuit-questions\n{\"questions\":[]}\n```\n")], sleepAfterMs: 0 },
+  });
+  const events = [];
+  const result = await spawnTurn({
+    workspace,
+    sessionId: sessionIdForProject("p-qfence"),
+    message: "design a board",
+    turnId: "t-qfence",
+    phase: PHASE.PLAN,
+    onEvent: (e) => events.push(e),
+    env: makeEnv({ scenarioPath, cfgDir: path.join(dir, "cfg") }),
+  });
+  assert.equal(events.filter((e) => e.kind === "plan_proposed").length, 0);
+  assert.equal(result.proposedPlan, null);
+});
