@@ -1442,6 +1442,7 @@ export default function BoardWorkspace({
                       artifact={artifact}
                       sidecar={effectiveSidecar}
                       boardName={selectedStem}
+                      projectId={currentProjectId || ""}
                       onOpenTab={setActiveTab}
                       className="min-h-0 flex-1"
                     />

@@ -248,8 +248,23 @@ the craft round is done, write the firmware in the same turn, without being aske
   asked for.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — starting with a blink on the status LED, then each peripheral. Compile
-  it when the toolchain is on this machine and say whether it compiled; never say it ran on
-  hardware.
+  it when the toolchain is on this machine and say whether it compiled. You never flash it
+  yourself: the person does, with the Flash button on the pane (below). Until they tell you what
+  the board did, it is untested — say so.
+- **`firmware/flash.json` — the recipe the pane's Flash button runs.** You never flash; the
+  person does, from the Firmware tab, and the button only works when this file names the board:
+  ```json
+  {"family": "esp32", "tool": "arduino-cli", "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc",
+   "sketch": "deck", "build": "../build/firmware-ssd1306", "usbVid": ["0x303a"], "baud": 115200}
+  ```
+  `family` is `esp32` (arduino-cli: `fqbn`, `sketch` and `build` relative to `firmware/`, optional
+  `compileArgs` / `uploadArgs`) or `rp2040` (`uf2` relative to `firmware/`, copied onto the
+  `RPI-RP2` volume). `usbVid` is the vendor id the chip enumerates with (Espressif `0x303a`; a
+  CH340 bridge `0x1a86`; Raspberry Pi `0x2e8a`) — the button refuses any USB device whose id is
+  not on that list, which is what keeps another board on the desk from being overwritten. The
+  button looks first and shows the exact port, then writes to that port only, then reads the
+  serial console for a few seconds; the README's flash section should say the same thing in
+  words for someone without the pane.
 - **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
   your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
   is a later board revision, not a `#define` that hides it.

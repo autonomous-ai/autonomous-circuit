@@ -17,6 +17,8 @@ from pathlib import Path
 
 FIRMWARE_DIR = 'firmware'
 README = 'README.md'
+#: The Flash button's recipe (viewer firmwareFlash.mjs). Asked for, never required for `written`.
+RECIPE = 'flash.json'
 SOURCE_SUFFIXES = frozenset({
     '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.ino', '.s', '.asm', '.ld',
     '.py', '.rs', '.js', '.ts', '.lua',
@@ -79,4 +81,6 @@ def missing(workspace: Path | str) -> list[str]:
         gaps.append(f'{FIRMWARE_DIR}/{README} (what it does, toolchain, build + flash commands, the pin table, what is untested)')
     if not sources(workspace):
         gaps.append(f"{FIRMWARE_DIR}/ sources for the chip's usual toolchain (main.c / main.cpp / main.ino / code.py, plus the build file)")
+    if not (Path(workspace) / FIRMWARE_DIR / RECIPE).is_file():
+        gaps.append(f"{FIRMWARE_DIR}/{RECIPE} (the recipe the pane's Flash button runs: family, fqbn, sketch, build, usbVid — see AGENTS.md)")
     return gaps

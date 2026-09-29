@@ -273,10 +273,18 @@ The donor machinery carries over wholesale; this section records only the deltas
   hidden; `blocks/` hidden; `firmware/` hidden as entries. Board entry `artifact`:
   `{schematicUrl, pcbUrl, pcbBottomUrl?, metadataUrl, circuitJsonUrl, gerbersUrl?, bomUrl?,
   cplUrl?, orderUrl?, glbUrl?, firmware?}`, where `firmware` is the workspace's `firmware/`
-  tree as the Firmware tab reads it — `{readmeUrl?, files: [{file, url, bytes}], truncated}`,
-  text sources only, present on every board entry when the tree has one. Every media URL
+  tree as the Firmware tab reads it — `{readmeUrl?, flashUrl?, files: [{file, url, bytes}],
+  truncated}`, text sources only, present on every board entry when the tree has one;
+  `flashUrl` is `firmware/flash.json`, the recipe the Flash button runs. Every media URL
   carries `?v=<mtime_nanos>-<size>`; firmware sources are served as `text/plain` and only
   from under `firmware/`.
+- Flash button (`viewer/src/server/circuit/firmwareFlash.mjs`): `firmware_detect {id}` →
+  `{family, recipe, decision: one|none|many, candidates, others, ignored, hint}` reads
+  `arduino-cli board list` (or the BOOTSEL volume) and writes nothing; `firmware_flash
+  {id, port}` re-detects, refuses unless `port` is the single candidate (`FLASH_REFUSED`,
+  `FLASH_PORT_MISMATCH`), then compiles and uploads (esp32 via arduino-cli) or copies the
+  `.uf2` (rp2040) and reads the serial console → `{ok, port, target, steps, serial}`. Only a
+  person's click reaches either; the agent never flashes.
 - Client surgery: keep chat + stores + transport + ui verbatim. Replace
   `components/episode/*` with `components/board/*` behind the same 6-prop main.jsx seam:
   **BoardWorkspace** (rail of boards w/ status dots — episodeModel logic ports verbatim as
