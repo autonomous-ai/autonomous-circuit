@@ -331,6 +331,11 @@ the review is closed, write the firmware in the same turn, without being asked a
 - **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
   your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
   is a later board revision, not a `#define` that hides it.
+- **A prompt that says "do not flash", "do not order", or "the PCB task only records the
+  firmware contract" limits what touches hardware and daemons, not what you write.** The code
+  still goes into `firmware/`, unflashed, with the contract in its README. Only an explicit
+  "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
+  silently empty.
 
 ## Done means prototype-ready
 
@@ -341,6 +346,11 @@ unfinished board, not a finished board with caveats: a blocking finding, a missi
 an unverified rotation, an area without evidence. There is no "done, but not orderable" state. A
 turn that ends short of ready reports an unfinished board and says exactly what remains and **who
 closes it** — you in a later revision, the fab at quote time, or a bench test — never the user.
+
+**The turn is not over at prototype-ready.** The pane's phase strip has a fourth phase,
+**Firmware**, that stays active until `firmware/README.md` and a source exist, and the Stop hook
+asks once for them when the board is ready and `firmware/` is empty. `fab.ready` stays the
+board's gate; the firmware is the turn's last deliverable, not a caveat on the board.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or

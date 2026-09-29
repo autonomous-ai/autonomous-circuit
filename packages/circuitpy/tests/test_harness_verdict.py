@@ -31,7 +31,7 @@ def _sidecar(*, ready: bool, warnings: list[dict] | None = None) -> dict:
 class HarnessVerdictTest(unittest.TestCase):
 
     def test_ready_is_fab_ready_and_nothing_weaker(self):
-        v = generation.harness_verdict(_sidecar(ready=True), artifact="boards/main.board.json")
+        v = generation.harness_verdict(_sidecar(ready=True), artifact="boards/main.board.json", firmware=True)
         self.assertEqual(v["spec"], 1)
         self.assertIs(v["ready"], True)
         self.assertEqual(v["summary"], "Fab-ready")
@@ -99,12 +99,34 @@ if __name__ == "__main__":
 def test_phases_follow_the_gates():
     from circuitpy.generation import harness_verdict
 
-    ready = harness_verdict({"fab": {"ready": True}, "validation": {"warnings": []}}, artifact="b.board.json")
-    assert [(p["name"], p["state"]) for p in ready["phases"]] == [("Build", "done"), ("Checks", "done"), ("Fab", "done")]
+    ready = harness_verdict({"fab": {"ready": True}, "validation": {"warnings": []}}, artifact="b.board.json", firmware=True)
+    assert [(p["name"], p["state"]) for p in ready["phases"]] == [("Build", "done"), ("Checks", "done"), ("Fab", "done"), ("Firmware", "done")]
+    assert ready["summary"] == "Fab-ready"
+    # Ready without firmware: still ready — the strip keeps Firmware active and the summary says so.
+    waiting = harness_verdict({"fab": {"ready": True}, "validation": {"warnings": []}}, artifact="b.board.json")
+    assert waiting["ready"] is True
+    assert [p["state"] for p in waiting["phases"]] == ["done", "done", "done", "active"]
+    assert waiting["summary"] == "Fab-ready — firmware not written yet"
     blocked = harness_verdict(
         {"fab": {"ready": False}, "validation": {"warnings": [{"severity": "error", "kind": "k", "detail": "d"}]}},
         artifact="b.board.json",
     )
-    assert [(p["name"], p["state"]) for p in blocked["phases"]] == [("Build", "done"), ("Checks", "failed"), ("Fab", "pending")]
+    assert [(p["name"], p["state"]) for p in blocked["phases"]] == [("Build", "done"), ("Checks", "failed"), ("Fab", "pending"), ("Firmware", "pending")]
     unverified = harness_verdict({"fab": {"ready": False}, "validation": {"warnings": []}}, artifact="b.board.json")
-    assert [p["state"] for p in unverified["phases"]] == ["done", "done", "active"]
+    assert [p["state"] for p in unverified["phases"]] == ["done", "done", "active", "pending"]
+
+
+def test_firmware_written_needs_a_readme_and_a_source(tmp_path):
+    from circuitpy.generation import firmware_written
+
+    assert firmware_written(tmp_path) is False
+    fw = tmp_path / "firmware"
+    fw.mkdir()
+    (fw / "README.md").write_text("# flash it")
+    (fw / "firmware.uf2").write_text("binary")
+    (fw / "build").mkdir()
+    (fw / "build" / "main.c").write_text("generated")
+    assert firmware_written(tmp_path) is False
+    (fw / "src").mkdir()
+    (fw / "src" / "main.ino").write_text("void setup() {}")
+    assert firmware_written(tmp_path) is True

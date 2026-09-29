@@ -1,7 +1,7 @@
 """`.harness/verdict.json` for a KiCad-native workspace — the Harness DSH verdict (spec 1).
 
 The `.board.json` sidecar is the app's machine contract; the verdict is the same fact in the one
-shape every domain harness shares, with a phase strip (Build / Checks / Fab) so the pane header
+shape every domain harness shares, with a phase strip (Build / Checks / Fab / Firmware) so the pane header
 can say where the work is. Pure derivation is tested here without KiCad; the publisher's hook is
 tested by pointing `write_verdict` at a workspace with sidecars on disk.
 
@@ -43,14 +43,14 @@ class VerdictDerivationTest(unittest.TestCase):
         self.assertIs(v['ready'], False)
         self.assertEqual(v['summary'], 'No board yet')
         self.assertEqual(v['findings'], [])
-        self.assertEqual([p['id'] for p in v['phases']], ['build', 'checks', 'fab'])
-        self.assertEqual(_states(v), ['pending', 'pending', 'pending'])
+        self.assertEqual([p['id'] for p in v['phases']], ['build', 'checks', 'fab', 'firmware'])
+        self.assertEqual(_states(v), ['pending', 'pending', 'pending', 'pending'])
         self.assertNotIn('artifact', v)
         self.assertRegex(v['updatedAt'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
 
     def test_the_agent_can_mark_build_active_before_the_first_publish(self):
         v = harness.verdict([], active='build')
-        self.assertEqual(_states(v), ['active', 'pending', 'pending'])
+        self.assertEqual(_states(v), ['active', 'pending', 'pending', 'pending'])
         self.assertEqual(v['summary'], 'Designing the board')
 
     def test_an_unknown_phase_is_the_callers_bug(self):
@@ -58,17 +58,43 @@ class VerdictDerivationTest(unittest.TestCase):
             harness.verdict([], active='ship')
 
     def test_ready_is_fab_ready_and_nothing_weaker(self):
-        v = harness.verdict([('boards/main.board.json', _sidecar(ready=True))])
+        v = harness.verdict([('boards/main.board.json', _sidecar(ready=True))], firmware=True)
         self.assertIs(v['ready'], True)
         self.assertEqual(v['summary'], 'Prototype-ready — physical hardware untested')
-        self.assertEqual(_states(v), ['done', 'done', 'done'])
+        self.assertEqual(_states(v), ['done', 'done', 'done', 'done'])
         self.assertEqual(v['artifact'], 'boards/main.board.json')
+
+    def test_firmware_is_a_phase_after_the_packet_and_never_a_factor_in_ready(self):
+        # Ready board, no firmware: still ready — the pane says so and keeps Firmware active.
+        v = harness.verdict([('boards/main.board.json', _sidecar(ready=True))])
+        self.assertIs(v['ready'], True)
+        self.assertEqual(v['summary'], 'Prototype-ready — firmware not written yet')
+        self.assertEqual(_states(v), ['done', 'done', 'done', 'active'])
+        # Not ready: firmware is pending whatever is on disk — the pin map is not final.
+        v = harness.verdict([('boards/main.board.json', _sidecar(ready=False))], firmware=True)
+        self.assertIs(v['ready'], False)
+        self.assertEqual(_states(v)[-1], 'pending')
+
+    def test_write_reads_the_firmware_tree_from_the_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / 'boards').mkdir()
+            (ws / 'boards' / 'main.board.json').write_text(json.dumps(_sidecar(ready=True)))
+            harness.write_verdict(ws)
+            self.assertEqual(json.loads((ws / '.harness' / 'verdict.json').read_text())['phases'][-1]['state'], 'active')
+            (ws / 'firmware' / 'src').mkdir(parents=True)
+            (ws / 'firmware' / 'README.md').write_text('# flash it')
+            (ws / 'firmware' / 'src' / 'main.c').write_text('int main(void) {}')
+            harness.write_verdict(ws)
+            payload = json.loads((ws / '.harness' / 'verdict.json').read_text())
+            self.assertEqual(payload['phases'][-1]['state'], 'done')
+            self.assertEqual(payload['summary'], 'Prototype-ready — physical hardware untested')
 
     def test_a_clean_publication_that_is_not_ready_keeps_fab_active(self):
         # Zero error findings but the packet is not ready (e.g. published without --manufacturing).
         v = harness.verdict([('boards/main.board.json', _sidecar(ready=False))])
         self.assertIs(v['ready'], False)
-        self.assertEqual(_states(v), ['done', 'done', 'active'])
+        self.assertEqual(_states(v), ['done', 'done', 'active', 'pending'])
         self.assertEqual(v['summary'], 'Not prototype-ready')
 
     def test_findings_keep_severity_and_the_open_kind_and_count_into_the_summary(self):
@@ -82,7 +108,7 @@ class VerdictDerivationTest(unittest.TestCase):
         v = harness.verdict([('boards/main.board.json', _sidecar(ready=False, warnings=warnings))])
         self.assertIs(v['ready'], False)
         self.assertEqual(v['summary'], '2 errors, 1 warning')
-        self.assertEqual(_states(v), ['done', 'failed', 'pending'])
+        self.assertEqual(_states(v), ['done', 'failed', 'pending', 'pending'])
         self.assertEqual(v['findings'][0],
                          {'severity': 'error', 'kind': 'drc_clearance', 'message': 'Track too close to pad U3.7', 'ref': 'U3'})
         self.assertEqual(v['findings'][1]['ref'], 'U1.4')
@@ -93,21 +119,21 @@ class VerdictDerivationTest(unittest.TestCase):
         v = harness.verdict([('boards/main.board.json', _sidecar(
             ready=False, publication='running',
             warnings=[{'kind': 'native_pending', 'severity': 'warning', 'message': 'Native CAD checks are running.'}]))])
-        self.assertEqual(_states(v), ['done', 'active', 'pending'])
+        self.assertEqual(_states(v), ['done', 'active', 'pending', 'pending'])
         self.assertEqual(v['summary'], 'Native checks running')
 
     def test_a_failed_publication_says_why(self):
         v = harness.verdict([('boards/main.board.json', _sidecar(
             ready=False, publication='failed',
             warnings=[{'kind': 'native_check_failed', 'severity': 'error', 'message': 'KiCad cli unavailable; set KICADPY_CLI'}]))])
-        self.assertEqual(_states(v), ['done', 'failed', 'pending'])
+        self.assertEqual(_states(v), ['done', 'failed', 'pending', 'pending'])
         self.assertEqual(v['summary'], 'Native checks failed: KiCad cli unavailable; set KICADPY_CLI')
 
     def test_an_unknown_severity_degrades_to_info_rather_than_breaking_the_reader(self):
         v = harness.verdict([('boards/main.board.json', _sidecar(
             ready=False, warnings=[{'kind': 'k', 'severity': 'fatal', 'message': 'd'}]))])
         self.assertEqual(v['findings'][0]['severity'], 'info')
-        self.assertEqual(_states(v), ['done', 'done', 'active'])
+        self.assertEqual(_states(v), ['done', 'done', 'active', 'pending'])
 
     def test_two_boards_fold_to_the_worst_and_ready_needs_both(self):
         v = harness.verdict([
@@ -115,7 +141,7 @@ class VerdictDerivationTest(unittest.TestCase):
             ('boards/b.board.json', _sidecar(ready=False, warnings=[{'kind': 'x', 'severity': 'error', 'message': 'm'}])),
         ])
         self.assertIs(v['ready'], False)
-        self.assertEqual(_states(v), ['done', 'failed', 'pending'])
+        self.assertEqual(_states(v), ['done', 'failed', 'pending', 'pending'])
         self.assertEqual(v['artifact'], 'boards/a.board.json')
 
     def test_a_long_summary_is_cut_to_the_spec_limit(self):
@@ -154,7 +180,7 @@ class VerdictOnDiskTest(unittest.TestCase):
             target = harness.write_verdict(tmp, active='build')
             on_disk = json.loads(target.read_text(encoding='utf-8'))
             self.assertIs(on_disk['ready'], False)
-            self.assertEqual(_states(on_disk), ['active', 'pending', 'pending'])
+            self.assertEqual(_states(on_disk), ['active', 'pending', 'pending', 'pending'])
 
     def test_write_never_raises_on_io(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -253,6 +253,11 @@ the craft round is done, write the firmware in the same turn, without being aske
 - **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
   your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
   is a later board revision, not a `#define` that hides it.
+- **A prompt that says "do not flash", "do not order", or "the PCB task only records the
+  firmware contract" limits what touches hardware and daemons, not what you write.** The code
+  still goes into `firmware/`, unflashed, with the contract in its README. Only an explicit
+  "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
+  silently empty.
 
 ## Done means fab-ready
 
@@ -264,3 +269,7 @@ rather than KiCad. There is no "done, but not orderable" state. A turn that ends
 the board as done. When `kicad-cli` is not installed on this machine, say so: the board still
 builds, but its gerbers are unverified and `ORDER.md` is not written until KiCad is present
 (`brew install --cask kicad`).
+
+**The turn is not over at fab-ready.** The pane's phase strip has a fourth phase, **Firmware**,
+that stays active until `firmware/README.md` and a source exist. `fab.ready` stays the board's
+gate; the firmware is the turn's last deliverable, not a caveat on the board.
