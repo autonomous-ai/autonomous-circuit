@@ -35,6 +35,9 @@ class AutoFinishTest(unittest.TestCase):
         self.assertIn('C6.1', response['reason'])
         af.arm(self.ws)
         self.assertEqual(af.read_state(self.ws)['continuations'], 1)
+        (self.ws / 'firmware').mkdir()
+        (self.ws / 'firmware' / 'README.md').write_text('# flash it')
+        (self.ws / 'firmware' / 'main.c').write_text('int main(void) {}')
         response = af.handle(self.event, lambda _: (True, []))
         self.assertNotIn('decision', response)
         self.assertEqual(af.read_state(self.ws)['status'], 'ready')
@@ -175,3 +178,63 @@ class AutoFinishTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FirmwareContinuationTest(unittest.TestCase):
+    """A ready board with an empty firmware/ gets one more turn, then may stop with the gap named."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ws = Path(self.tmp.name)
+        self.env = patch.dict(os.environ, {'HARNESS_WORKSPACE': str(self.ws), 'CODEX_THREAD_ID': ''})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.event = {'hook_event_name': 'Stop', 'session_id': 'test-session', 'cwd': str(self.ws)}
+
+    def arm(self):
+        af.arm(self.ws)
+
+    def write_firmware(self):
+        (self.ws / 'firmware' / 'src').mkdir(parents=True)
+        (self.ws / 'firmware' / 'README.md').write_text('# flash it')
+        (self.ws / 'firmware' / 'src' / 'main.c').write_text('int main(void) {}')
+
+    def test_ready_without_firmware_is_asked_once_then_allowed_to_stop(self):
+        self.arm()
+        first = af.handle(self.event, lambda _: (True, []))
+        self.assertEqual(first['decision'], 'block')
+        self.assertIn('firmware/ is empty', first['reason'])
+        self.assertIn('firmware/README.md', first['reason'])
+        self.assertIn('does not forbid writing the code', first['reason'])
+        state = af.read_state(self.ws)
+        self.assertEqual(state['status'], 'active', 'the run stays armed for the firmware turn')
+        self.assertEqual(state['firmware_continuations'], 1)
+        self.assertEqual(state['continuations'], 0, 'not a repair: never charged to the repair budget')
+
+        second = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', second)
+        self.assertIn('firmware/ is still empty', second['systemMessage'])
+        self.assertEqual(af.read_state(self.ws)['status'], 'ready')
+
+    def test_ready_with_firmware_ends_the_loop_at_once(self):
+        self.arm()
+        self.write_firmware()
+        response = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', response)
+        self.assertNotIn('firmware', response['systemMessage'])
+        self.assertEqual(af.read_state(self.ws)['status'], 'ready')
+
+    def test_firmware_written_during_the_extra_turn_ends_clean(self):
+        self.arm()
+        af.handle(self.event, lambda _: (True, []))
+        self.write_firmware()
+        response = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', response)
+        self.assertNotIn('firmware', response['systemMessage'])
+
+    def test_a_board_that_is_not_ready_is_never_asked_for_firmware(self):
+        self.arm()
+        response = af.handle(self.event, lambda _: (False, ['unconnected C6.1']))
+        self.assertNotIn('firmware', response['reason'])
+        self.assertNotIn('firmware_continuations', af.read_state(self.ws))

@@ -226,7 +226,7 @@ class InitWorkspaceTest(unittest.TestCase):
             verdict = json.loads((ws / '.harness' / 'verdict.json').read_text(encoding='utf-8'))
             self.assertEqual(verdict['spec'], 1)
             self.assertIs(verdict['ready'], False)
-            self.assertEqual([p['state'] for p in verdict['phases']], ['pending', 'pending', 'pending'])
+            self.assertEqual([p['state'] for p in verdict['phases']], ['pending', 'pending', 'pending', 'pending'])
 
     def test_init_writes_the_grok_stop_hook_only_for_the_grok_tile(self):
         for pkg, expect_hook in ((GROK, True), (PKG, False), (CLAUDE, False)):

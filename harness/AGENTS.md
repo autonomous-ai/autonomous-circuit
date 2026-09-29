@@ -23,6 +23,8 @@ You never start a viewer, never print a URL, and never need the `board-viewer` s
   never invoke it through `bun` (measured 2026-09-08: a hand-made bun launcher hung for 35 minutes
   on 0.04 seconds of CPU and took the whole turn with it). If you believe the toolchain has a bug,
   write down the reproduction and say so in your answer; the patch is not yours to apply mid-board.
+- **Firmware** lives in `firmware/` at the workspace root — `README.md` plus sources — and is
+  written after the board is fab-ready (below). The viewer shows it under the Firmware tab.
 - **The verdict.** Every build writes `.harness/verdict.json` beside the `.board.json` sidecar.
   Harness reads it into the pane header (ready, or the error and warning counts). Never edit it,
   and never edit any other generated artifact (`.circuit.json`, `.board.json`, SVGs, PNGs, the
@@ -225,6 +227,38 @@ place with `--edits`. Read the whole finding list, group the fixes by cause, app
 rebuild once. A round may not leave the board worse than it found it: compare blocking findings
 before and after, and when a rebuild comes back worse, revert that change yourself.
 
+### Firmware — after the board is fab-ready, into `firmware/`
+
+A board that checks out still does nothing until code runs on it, and the person watching the
+pane has a **Firmware** tab that stays empty until you fill it. Once `fab.ready` is `true` and
+the craft round is done, write the firmware in the same turn, without being asked again:
+
+- **Where.** `firmware/` at the workspace root. `firmware/README.md` first: what the code does,
+  the toolchain, the exact build and flash commands, the pin table, and what has not been tried
+  on hardware. The viewer renders that README on top of the tab and lists every source under it
+  (`.c .h .cpp .ino .py .rs`, `platformio.ini`, `CMakeLists.txt`, `Makefile`); binaries, `build/`
+  and `.pio/` are never shown.
+- **Which toolchain.** The chip's usual one — pico-sdk (CMake) or Arduino/PlatformIO for an
+  RP2040, ESP-IDF or Arduino for an ESP32, CircuitPython where `product.json` asks for it. One
+  toolchain, the one a hobbyist with that chip already has; not a framework you invent.
+- **The pin map is the copper.** Every GPIO, bus and peripheral number in the code comes from
+  the built board — `boards/main.tsx` as it stands after the last build and the netlist in
+  `boards/main.circuit.json` — never from the plan or from memory. Put the table in the README
+  with the net name beside each pin, and say so where a pin differs from what `product.json`
+  asked for.
+- **What it must do.** The function `product.json` describes, end to end — every input read,
+  every output driven — starting with a blink on the status LED, then each peripheral. Compile
+  it when the toolchain is on this machine and say whether it compiled; never say it ran on
+  hardware.
+- **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
+  your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
+  is a later board revision, not a `#define` that hides it.
+- **A prompt that says "do not flash", "do not order", or "the PCB task only records the
+  firmware contract" limits what touches hardware and daemons, not what you write.** The code
+  still goes into `firmware/`, unflashed, with the contract in its README. Only an explicit
+  "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
+  silently empty.
+
 ## Done means fab-ready
 
 **A board is complete only when `fab.ready` is `true`** in the stdout line and the sidecar, and
@@ -235,3 +269,7 @@ rather than KiCad. There is no "done, but not orderable" state. A turn that ends
 the board as done. When `kicad-cli` is not installed on this machine, say so: the board still
 builds, but its gerbers are unverified and `ORDER.md` is not written until KiCad is present
 (`brew install --cask kicad`).
+
+**The turn is not over at fab-ready.** The pane's phase strip has a fourth phase, **Firmware**,
+that stays active until `firmware/README.md` and a source exist. `fab.ready` stays the board's
+gate; the firmware is the turn's last deliverable, not a caveat on the board.

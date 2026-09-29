@@ -2297,7 +2297,49 @@ def build_board(
 HARNESS_VERDICT_PATH = Path(".harness") / "verdict.json"
 
 
-def harness_verdict(sidecar: dict, *, artifact: str) -> dict[str, object]:
+#: The firmware tree the Firmware tab reads (viewer catalog.mjs, kicadpy.firmware — same rules).
+FIRMWARE_DIR = "firmware"
+_FIRMWARE_SUFFIXES = frozenset({
+    ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".ino", ".s", ".asm", ".ld",
+    ".py", ".rs", ".js", ".ts", ".lua",
+    ".txt", ".ini", ".toml", ".yaml", ".yml", ".json", ".cfg", ".cmake", ".mk", ".sh",
+})
+_FIRMWARE_BARE = frozenset({"Makefile", "makefile", "GNUmakefile", "Kconfig", "Dockerfile"})
+_FIRMWARE_SKIP = frozenset({
+    "node_modules", ".pio", ".pioenvs", ".piolibdeps", "build", "cmake-build-debug", "cmake-build-release",
+    "target", "dist", "out", "__pycache__", ".venv", "venv", ".cache", ".git", ".idea", ".vscode",
+})
+
+
+def firmware_written(project_root: Path) -> bool:
+    """`firmware/README.md` plus at least one source the Firmware tab would show."""
+    root = Path(project_root) / FIRMWARE_DIR
+    if not root.is_dir():
+        return False
+    readme = False
+    source = False
+    stack = [root]
+    while stack:
+        directory = stack.pop()
+        try:
+            entries = list(directory.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_dir():
+                if entry.name not in _FIRMWARE_SKIP and not entry.name.startswith("."):
+                    stack.append(entry)
+                continue
+            if not entry.is_file() or entry.name.startswith("."):
+                continue
+            if directory == root and entry.name.lower() == "readme.md":
+                readme = True
+            elif entry.name in _FIRMWARE_BARE or entry.suffix.lower() in _FIRMWARE_SUFFIXES:
+                source = True
+    return readme and source
+
+
+def harness_verdict(sidecar: dict, *, artifact: str, firmware: bool = False) -> dict[str, object]:
     """The spec-1 verdict a host reads, derived from the `.board.json` sidecar.
 
     The sidecar stays the machine contract for the app's review loop; this is the same fact
@@ -2327,7 +2369,7 @@ def harness_verdict(sidecar: dict, *, artifact: str) -> dict[str, object]:
     warns = sum(1 for f in findings if f["severity"] == "warning")
     kinds = {f["kind"] for f in findings}
     if ready:
-        summary = "Fab-ready"
+        summary = "Fab-ready" if firmware else "Fab-ready — firmware not written yet"
     else:
         parts = []
         if errors:
@@ -2339,11 +2381,14 @@ def harness_verdict(sidecar: dict, *, artifact: str) -> dict[str, object]:
         summary = ", ".join(parts) if parts else "Not fab-ready"
     # Where the board is, for the host's phase strip: the build that wrote this sidecar is
     # done; the checks are done when nothing blocks; fab is done when `fab.ready`. A plan
-    # phase precedes all three but leaves no sidecar, so the strip starts at Build.
+    # phase precedes all three but leaves no sidecar, so the strip starts at Build. Firmware
+    # comes after the packet: pending until `fab.ready`, active until `firmware/` is written
+    # (README + a source), done then — and never a factor in `ready`.
     phases = [
         {"id": "build", "name": "Build", "state": "done"},
         {"id": "checks", "name": "Checks", "state": "done" if errors == 0 else "failed"},
         {"id": "fab", "name": "Fab", "state": "done" if ready else "active" if errors == 0 else "pending"},
+        {"id": "firmware", "name": "Firmware", "state": ("done" if firmware else "active") if ready else "pending"},
     ]
     return {
         "spec": 1,
@@ -2371,7 +2416,7 @@ def write_harness_verdict(project_root: Path, sidecar_path: Path, sidecar: dict)
             artifact = os.path.relpath(sidecar_path, project_root)
         except ValueError:  # different drive (Windows)
             artifact = str(sidecar_path)
-        payload = harness_verdict(sidecar, artifact=artifact.replace(os.sep, "/"))
+        payload = harness_verdict(sidecar, artifact=artifact.replace(os.sep, "/"), firmware=firmware_written(project_root))
         tmp = target.with_name(target.name + ".tmp")
         tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(tmp, target)

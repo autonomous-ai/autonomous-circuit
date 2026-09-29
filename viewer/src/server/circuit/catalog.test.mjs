@@ -168,3 +168,60 @@ test("catalog service: fs.watch → 150ms debounce → catalog_changed", async (
   assert.equal(catalog.revision, revisions.at(-1));
   service.close();
 });
+
+test("firmware/ is grouped under every board entry's artifact, as text sources only, and hidden as entries", () => {
+  const dir = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
+  fs.mkdirSync(path.join(dir, "firmware", "src"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "firmware", ".pio", "build"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "firmware", "build"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "firmware", "README.md"), "# flash it");
+  fs.writeFileSync(path.join(dir, "firmware", "platformio.ini"), "[env:pico]");
+  fs.writeFileSync(path.join(dir, "firmware", "Makefile"), "all:");
+  fs.writeFileSync(path.join(dir, "firmware", "src", "main.c"), "int main(void) {}");
+  fs.writeFileSync(path.join(dir, "firmware", "src", "pins.h"), "#define LED 25");
+  // Not firmware anyone reads: build output, binaries, a dotfile, the build trees.
+  fs.writeFileSync(path.join(dir, "firmware", "firmware.uf2"), "binary");
+  fs.writeFileSync(path.join(dir, "firmware", "firmware.elf"), "binary");
+  fs.writeFileSync(path.join(dir, "firmware", ".gitignore"), "build/");
+  fs.writeFileSync(path.join(dir, "firmware", ".pio", "build", "main.o"), "obj");
+  fs.writeFileSync(path.join(dir, "firmware", "build", "main.c"), "generated");
+
+  const { entries } = scanProjectCatalog({ projectDir: dir, projectId: "fw" });
+  // The README is an .md, but it is the firmware's, so it is not a standalone entry.
+  assert.deepEqual(entries.map((e) => e.file), ["boards/main.tsx"]);
+
+  const firmware = entries[0].artifact.firmware;
+  assert.ok(firmware, "the board entry carries the firmware tree");
+  assert.deepEqual(
+    firmware.files.map((f) => f.file),
+    ["Makefile", "README.md", "platformio.ini", "src/main.c", "src/pins.h"],
+  );
+  assert.equal(firmware.truncated, false);
+  assert.match(firmware.readmeUrl, /^\/projects\/fw\/firmware\/README\.md\?v=\d+-\d+$/);
+  const main = firmware.files.find((f) => f.file === "src/main.c");
+  assert.match(main.url, /^\/projects\/fw\/firmware\/src\/main\.c\?v=\d+-\d+$/);
+  assert.equal(main.bytes, "int main(void) {}".length);
+
+  // An empty firmware/ dir is no firmware: the tab keeps its "not yet" copy.
+  const bare = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(bare, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(bare, "firmware"), { recursive: true });
+  fs.writeFileSync(path.join(bare, "boards", "main.tsx"), "<board />");
+  const none = scanProjectCatalog({ projectDir: bare, projectId: "fw2" }).entries[0];
+  assert.equal(none.artifact, undefined);
+});
+
+test("a native board entry carries the firmware tree too", () => {
+  const dir = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(dir, "design"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "firmware"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb)");
+  fs.writeFileSync(path.join(dir, "firmware", "main.py"), "import board");
+  const { entries } = scanProjectCatalog({ projectDir: dir, projectId: "nat" });
+  const board = entries.find((e) => e.sourceKind === "kicad-native");
+  assert.ok(board);
+  assert.deepEqual(board.artifact.firmware.files.map((f) => f.file), ["main.py"]);
+  assert.equal(board.artifact.firmware.readmeUrl, undefined);
+});

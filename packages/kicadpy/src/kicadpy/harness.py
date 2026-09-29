@@ -25,14 +25,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .firmware import firmware_written
+
 #: Where the host reads the verdict, relative to the workspace root.
 VERDICT_PATH = Path('.harness') / 'verdict.json'
 #: Sidecars written by `kicadpy.publish`, relative to the workspace root.
 BOARDS_DIR = 'boards'
 NATIVE_ENGINE = 'kicad-native'
 SEVERITIES = ('error', 'warning', 'info')
-PHASES = ('build', 'checks', 'fab')
-PHASE_NAMES = {'build': 'Build', 'checks': 'Checks', 'fab': 'Fab'}
+PHASES = ('build', 'checks', 'fab', 'firmware')
+PHASE_NAMES = {'build': 'Build', 'checks': 'Checks', 'fab': 'Fab', 'firmware': 'Firmware'}
 #: The pane header is one line; the spec caps it.
 SUMMARY_MAX = 200
 
@@ -82,14 +84,16 @@ def _phase(id_: str, state: str) -> dict[str, str]:
     return {'id': id_, 'name': PHASE_NAMES[id_], 'state': state}
 
 
-def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None) -> dict[str, object]:
+def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firmware: bool = False) -> dict[str, object]:
     """The spec-1 verdict for a workspace, folded from its native sidecars.
 
     No sidecar yet: nothing is ready and every phase is pending (or the one the agent marked
     active). Otherwise `ready` is every board's `fab.ready`; findings concatenate; the phase strip
     reads the worst board: a publication still `running` keeps Checks active, a `failed` one marks
     Checks failed, a `complete` one marks Checks done when no error finding remains and Fab done
-    when the packet is ready.
+    when the packet is ready. Firmware — `firmware` is `kicadpy.firmware.firmware_written` — is
+    pending until the packet is ready, then active until the tree is written, then done. It never
+    touches `ready`: the summary names it so the pane can say the board is done and the code is not.
     """
     if active is not None and active not in PHASES:
         raise ValueError(f'unknown phase {active!r}; one of {", ".join(PHASES)}')
@@ -121,13 +125,14 @@ def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None) -> d
         checks, fab_state = 'failed', 'pending'
     else:
         checks, fab_state = 'done', 'done' if ready else 'active'
-    phases = [_phase('build', 'done'), _phase('checks', checks), _phase('fab', fab_state)]
+    firmware_state = ('done' if firmware else 'active') if ready else 'pending'
+    phases = [_phase('build', 'done'), _phase('checks', checks), _phase('fab', fab_state), _phase('firmware', firmware_state)]
     if active == 'build':
         # The agent is editing sources again: the board on disk is the previous revision.
         phases[0]['state'] = 'active'
 
     if ready:
-        summary = 'Prototype-ready — physical hardware untested'
+        summary = 'Prototype-ready — physical hardware untested' if firmware else 'Prototype-ready — firmware not written yet'
     elif running:
         summary = 'Native checks running'
     elif failed:
@@ -163,7 +168,7 @@ def write_verdict(workspace: Path | str, *, active: str | None = None) -> Path |
     bug and does raise.
     """
     workspace = Path(workspace)
-    payload = verdict(native_sidecars(workspace), active=active)
+    payload = verdict(native_sidecars(workspace), active=active, firmware=firmware_written(workspace))
     try:
         target = workspace / VERDICT_PATH
         target.parent.mkdir(parents=True, exist_ok=True)

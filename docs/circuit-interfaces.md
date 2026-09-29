@@ -270,9 +270,13 @@ The donor machinery carries over wholesale; this section records only the deltas
 - Catalog kinds: `tsx | json | svg | png | zip | csv | md`. Visibility: `.json` hidden
   (sidecar surfaced via the board entry's `artifact.metadataUrl`); `_review/` and `_fab/`
   members hidden, grouped under the board entry's `artifact`; `.tsx` names starting `_`
-  hidden; `blocks/` hidden. Board entry `artifact`: `{schematicUrl, pcbUrl,
-  pcbBottomUrl?, metadataUrl, circuitJsonUrl, gerbersUrl?, bomUrl?, cplUrl?, orderUrl?,
-  glbUrl?}`. Every media URL carries `?v=<mtime_nanos>-<size>`.
+  hidden; `blocks/` hidden; `firmware/` hidden as entries. Board entry `artifact`:
+  `{schematicUrl, pcbUrl, pcbBottomUrl?, metadataUrl, circuitJsonUrl, gerbersUrl?, bomUrl?,
+  cplUrl?, orderUrl?, glbUrl?, firmware?}`, where `firmware` is the workspace's `firmware/`
+  tree as the Firmware tab reads it — `{readmeUrl?, files: [{file, url, bytes}], truncated}`,
+  text sources only, present on every board entry when the tree has one. Every media URL
+  carries `?v=<mtime_nanos>-<size>`; firmware sources are served as `text/plain` and only
+  from under `firmware/`.
 - Client surgery: keep chat + stores + transport + ui verbatim. Replace
   `components/episode/*` with `components/board/*` behind the same 6-prop main.jsx seam:
   **BoardWorkspace** (rail of boards w/ status dots — episodeModel logic ports verbatim as

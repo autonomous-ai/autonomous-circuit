@@ -7,8 +7,11 @@
 //   `blocks/` and `.circuit/` skipped (projects skip-list). Board entries
 //   (`boards/<stem>.tsx`) carry `artifact: {schematicUrl, pcbUrl,
 //   pcbBottomUrl?, metadataUrl, circuitJsonUrl, gerbersUrl?, bomUrl?,
-//   cplUrl?, orderUrl?, glbUrl?}` — members present only when the file
-//   exists on disk. EVERY media URL carries `?v=<mtime_nanos>-<size>`.
+//   cplUrl?, orderUrl?, glbUrl?, firmware?}` — members present only when the
+//   file exists on disk. EVERY media URL carries `?v=<mtime_nanos>-<size>`.
+//   `firmware/` — the code the agent writes for the board once it checks out —
+//   is grouped the same way: hidden as entries, surfaced as
+//   `artifact.firmware = {readmeUrl?, files: [{file, url, bytes}]}`.
 //
 // The service watches the activated project dirs (fs.watch recursive — no
 // chokidar dependency in this package), debounces 150ms, rescans, bumps the
@@ -21,6 +24,31 @@ import path from "node:path";
 import { skipDirNames } from "./projects.mjs";
 
 export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md", "kicad_pcb"]);
+
+// The firmware tree is source the Firmware tab shows as text, so only text
+// lands in the catalog: the languages an MCU toolchain reads plus its build
+// files. Objects, ELFs, UF2s and whatever a build directory leaves behind are
+// not firmware anyone reads, and a `.pio/` or `build/` tree can hold thousands
+// of them. Shared with the asset route (http.mjs), which serves exactly these.
+export const FIRMWARE_DIR = "firmware";
+export const FIRMWARE_TEXT_EXTENSIONS = new Set([
+  ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".ino", ".s", ".asm", ".ld",
+  ".py", ".rs", ".js", ".ts", ".lua",
+  ".md", ".txt", ".ini", ".toml", ".yaml", ".yml", ".json", ".cfg", ".cmake", ".mk", ".sh", ".csv",
+]);
+export const FIRMWARE_BARE_NAMES = new Set(["Makefile", "makefile", "GNUmakefile", "Kconfig", "Dockerfile"]);
+const FIRMWARE_SKIP_DIRS = new Set([
+  "node_modules", ".pio", ".pioenvs", ".piolibdeps", "build", "cmake-build-debug", "cmake-build-release",
+  "target", "dist", "out", "__pycache__", ".venv", "venv", ".cache", ".git", ".idea", ".vscode",
+]);
+const FIRMWARE_MAX_FILES = 200;
+
+/** Is this basename one the firmware tree surfaces (text a person reads)? */
+export function isFirmwareSource(name) {
+  const base = path.basename(String(name || ""));
+  if (!base || base.startsWith(".")) return false;
+  return FIRMWARE_BARE_NAMES.has(base) || FIRMWARE_TEXT_EXTENSIONS.has(path.extname(base).toLowerCase());
+}
 
 const DEBOUNCE_MS = 150;
 
@@ -73,6 +101,63 @@ function relPath(rootDir, filePath) {
   return path.relative(rootDir, filePath).split(path.sep).join("/");
 }
 
+/**
+ * The firmware tree, `<root>/firmware/`, as the Firmware tab reads it: the
+ * README (rendered on top) and every source file with a media URL, sorted by
+ * path, capped so a vendored SDK cannot swamp the catalog. `null` when there is
+ * nothing to show — the tab then explains when firmware appears.
+ */
+function scanFirmware(rootDir, url) {
+  const firmwareDir = path.join(rootDir, FIRMWARE_DIR);
+  let stat;
+  try {
+    stat = fs.statSync(firmwareDir);
+  } catch {
+    return null;
+  }
+  if (!stat.isDirectory()) return null;
+
+  const files = [];
+  const stack = [firmwareDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    let dirents;
+    try {
+      dirents = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirents) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!FIRMWARE_SKIP_DIRS.has(entry.name) && !entry.name.startsWith(".")) stack.push(full);
+        continue;
+      }
+      if (entry.isFile() && isFirmwareSource(entry.name)) files.push(full);
+    }
+  }
+  if (!files.length) return null;
+
+  files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const members = [];
+  let readmeUrl;
+  for (const file of files.slice(0, FIRMWARE_MAX_FILES)) {
+    const rel = path.relative(firmwareDir, file).split(path.sep).join("/");
+    let bytes = 0;
+    try {
+      bytes = fs.statSync(file).size;
+    } catch {
+      // raced with a delete — listed with its stale token, like every other member
+    }
+    const member = { file: rel, url: url(file), bytes };
+    if (!readmeUrl && /^readme\.md$/i.test(rel)) readmeUrl = member.url;
+    members.push(member);
+  }
+  const firmware = { files: members, truncated: files.length > FIRMWARE_MAX_FILES };
+  if (readmeUrl) firmware.readmeUrl = readmeUrl;
+  return firmware;
+}
+
 /** Is this file a member of a generated `<stem>_review/` or `<stem>_fab/`
  * dir? Members are hidden as entries — grouped under the board's artifact. */
 function inGeneratedDir(absPath) {
@@ -105,6 +190,9 @@ export function scanProjectCatalog({ projectDir, projectId }) {
 
   const entries = [];
   const url = (abs) => mediaUrl(projectId, relPath(rootDir, abs), abs);
+  // One firmware tree per workspace; every board entry carries it, because
+  // the tab that shows it hangs off whichever board is selected.
+  const firmware = scanFirmware(rootDir, url);
 
   // Native board source with a versioned, checked SVG bundle. Never offer
   // v1 Circuit JSON or a TSX edit path for a native board.
@@ -170,6 +258,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
         }
       }
     } catch { entry.nativeStale = true; }
+    if (firmware) entry.artifact.firmware = firmware;
     entries.push(entry);
   }
 
@@ -214,6 +303,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
         artifact[key] = url(absPath);
       }
     }
+    if (firmware) artifact.firmware = firmware;
     if (Object.keys(artifact).length) {
       entry.artifact = artifact;
     }
@@ -221,10 +311,11 @@ export function scanProjectCatalog({ projectDir, projectId }) {
   }
 
   // svg / png / zip / csv / md — visible standalone files, hidden inside
-  // `_review/` and `_fab/` dirs (those surface via the board artifact).
+  // `_review/` and `_fab/` dirs and under `firmware/` (those surface via the
+  // board artifact).
   for (const kind of ["svg", "png", "zip", "csv", "md", "kicad_pcb"]) {
     for (const file of byExt.get(kind) || []) {
-      if (inGeneratedDir(file)) {
+      if (inGeneratedDir(file) || relPath(rootDir, file).startsWith(`${FIRMWARE_DIR}/`)) {
         continue;
       }
       entries.push({

@@ -20,7 +20,7 @@ import {
 } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
-import { createCatalogService } from "./catalog.mjs";
+import { createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
   createEditQueue,
@@ -57,6 +57,24 @@ const ASSET_CONTENT_TYPES = new Map([
   [".md", "text/markdown; charset=utf-8"],
   [".glb", "model/gltf-binary"],
 ]);
+
+/**
+ * The content type an asset under a project is served with, or null when it
+ * is not one the app serves. Two families: the catalog's own kinds (above),
+ * anywhere in the project; and the firmware tree's source files — `.c`, `.h`,
+ * `Makefile`, `platformio.ini` — only under `firmware/`, as text, so the
+ * Firmware tab can read them and nothing else in a workspace (`tools/`, a
+ * vendored SDK) becomes a download by accident.
+ */
+export function assetContentType(rel, candidate) {
+  const ext = path.extname(candidate).toLowerCase();
+  if (ASSET_CONTENT_TYPES.has(ext)) return ASSET_CONTENT_TYPES.get(ext);
+  const firmwareRel = String(rel || "").split(path.sep).join("/");
+  if (firmwareRel.startsWith(`${FIRMWARE_DIR}/`) && isFirmwareSource(candidate)) {
+    return "text/plain; charset=utf-8";
+  }
+  return null;
+}
 
 function ipcError(code, message, statusCode = 500, detail = undefined) {
   const err = new Error(message);
@@ -1239,10 +1257,11 @@ export function createCircuitServices({
       error.statusCode = 403;
       throw error;
     }
-    if (!ASSET_CONTENT_TYPES.has(path.extname(candidate).toLowerCase())) {
+    const contentType = assetContentType(path.relative(projectRoot, candidate), candidate);
+    if (!contentType) {
       return null;
     }
-    return candidate;
+    return { assetPath: candidate, contentType };
   }
 
   function assetMiddleware(req, res, next) {
@@ -1257,18 +1276,19 @@ export function createCircuitServices({
       next();
       return;
     }
-    let assetPath;
+    let asset;
     try {
-      assetPath = assetPathForRequest(requestUrl.pathname);
+      asset = assetPathForRequest(requestUrl.pathname);
     } catch (error) {
       res.statusCode = Number(error?.statusCode) || 403;
       res.end("Forbidden");
       return;
     }
-    if (!assetPath) {
+    if (!asset) {
       next();
       return;
     }
+    const { assetPath, contentType } = asset;
     fs.stat(assetPath, (error, stats) => {
       if (res.destroyed) {
         return;
@@ -1279,7 +1299,6 @@ export function createCircuitServices({
         res.end("Not found");
         return;
       }
-      const contentType = ASSET_CONTENT_TYPES.get(path.extname(assetPath).toLowerCase());
       res.setHeader("content-type", contentType);
       res.setHeader("accept-ranges", "bytes");
       // URLs are cache-busted with ?v=<mtimeNs>-<size>, so long-cache is safe.

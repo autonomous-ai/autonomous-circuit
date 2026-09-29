@@ -33,6 +33,7 @@ import useBuildStatus from "./useBuildStatus.js";
 import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
+import FirmwareTab from "./FirmwareTab.jsx";
 import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
@@ -79,13 +80,16 @@ const TABS = Object.freeze([
   // came here from Altium or KiCad looking for it.
   { id: "bom", label: "Parts", hint: "Every part on the board, with what it costs (the BOM)" },
   { id: "fab", label: "Files", hint: "The files a factory needs to build it (the fab packet)" },
+  // Last, because it is the last thing written: the agent writes firmware
+  // after the board checks out, so the pin map is read off finished copper.
+  { id: "firmware", label: "Firmware", hint: "The code that runs on the board, written once the board checks out" },
 ]);
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
 // their own inspector, so the EDA panels along the bottom and the right would
 // be a second copy of the same numbers in the vocabulary the tab is avoiding.
-const PLAIN_TABS = new Set(["overview", "function"]);
+const PLAIN_TABS = new Set(["overview", "function", "firmware"]);
 
 /**
  * The board workspace — an Altium-shaped PCB tool with our chat on the side.
@@ -1429,6 +1433,15 @@ export default function BoardWorkspace({
                       artifact={artifact}
                       sidecar={effectiveSidecar}
                       groups={findingGroups}
+                      onOpenTab={setActiveTab}
+                      className="min-h-0 flex-1"
+                    />
+                  ) : null}
+                  {activeTab === "firmware" ? (
+                    <FirmwareTab
+                      artifact={artifact}
+                      sidecar={effectiveSidecar}
+                      boardName={selectedStem}
                       onOpenTab={setActiveTab}
                       className="min-h-0 flex-1"
                     />

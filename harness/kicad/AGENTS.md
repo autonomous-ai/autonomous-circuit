@@ -25,6 +25,8 @@ design/              THE SOURCE — main.kicad_pro, main.kicad_sch, main.kicad_p
                      .kicad_sym / .pretty libraries, fp-lib-table, sym-lib-table, the rules.
                      ${KIPRJMOD} is this directory.
 tools/               your own scripts (KiCad-Python authoring, helpers)
+firmware/            the code that runs on the board — written AFTER the board is
+                     prototype-ready (below); README.md + sources, shown in the Firmware tab
 engineering/         evidence: power.md protection.md pinout.md thermal.md assembly.md
                      fabricator.md bringup.md — calculations, sources, what only a bench settles
 manufacturing.json   the review contract (packages/kicadpy/MANUFACTURING.md)
@@ -303,6 +305,38 @@ sourceFingerprints: [the exact source.fingerprint values from the final sidecars
 attests to your review of these exact sources; do not write it while a blocker remains. Zero
 error-severity findings in the publication is the gate; the attestation is recorded beside it.
 
+### Firmware — after the board is prototype-ready, into `firmware/`
+
+A board that checks out still does nothing until code runs on it, and the person watching the
+pane has a **Firmware** tab that stays empty until you fill it. Once `fab.ready` is `true` and
+the review is closed, write the firmware in the same turn, without being asked again:
+
+- **Where.** `firmware/` at the workspace root. `firmware/README.md` first: what the code does,
+  the toolchain, the exact build and flash commands, the pin table, and what has not been tried
+  on hardware. The viewer renders that README on top of the tab and lists every source under it
+  (`.c .h .cpp .ino .py .rs`, `platformio.ini`, `CMakeLists.txt`, `Makefile`); binaries, `build/`
+  and `.pio/` are never shown, so do not point the reader at them.
+- **Which toolchain.** The chip's usual one — pico-sdk (CMake) or Arduino/PlatformIO for an
+  RP2040, ESP-IDF or Arduino for an ESP32, CircuitPython where `product.json` asks for it. One
+  toolchain, the one a hobbyist with that chip already has; not a framework you invent.
+- **The pin map is the copper.** Every GPIO, bus and peripheral number in the code comes from
+  the final schematic and netlist (`engineering/pinout.md`, checked against the published
+  sidecar), never from the plan or from memory: a plan's table may have moved during layout.
+  Put the table in the README with the net name beside each pin, and say so where a pin
+  differs from what `product.json` asked for.
+- **What it must do.** The function `product.json` describes, end to end — every input read,
+  every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
+  status LED first, then each peripheral). Compile it when the toolchain is on this machine and
+  say whether it compiled; never say it ran on hardware.
+- **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
+  your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
+  is a later board revision, not a `#define` that hides it.
+- **A prompt that says "do not flash", "do not order", or "the PCB task only records the
+  firmware contract" limits what touches hardware and daemons, not what you write.** The code
+  still goes into `firmware/`, unflashed, with the contract in its README. Only an explicit
+  "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
+  silently empty.
+
 ## Done means prototype-ready
 
 **A board is complete only when `fab.ready` is `true` in `boards/main.board.json`** — which is
@@ -313,6 +347,11 @@ an unverified rotation, an area without evidence. There is no "done, but not ord
 turn that ends short of ready reports an unfinished board and says exactly what remains and **who
 closes it** — you in a later revision, the fab at quote time, or a bench test — never the user.
 
+**The turn is not over at prototype-ready.** The pane's phase strip has a fourth phase,
+**Firmware**, that stays active until `firmware/README.md` and a source exist, and the Stop hook
+asks once for them when the board is ready and `firmware/` is empty. `fab.ready` stays the
+board's gate; the firmware is the turn's last deliverable, not a caveat on the board.
+
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or
 say that anything was ordered: exporting a packet authorises nothing.
@@ -320,5 +359,6 @@ say that anything was ordered: exporting a packet authorises nothing.
 ## Reporting to the user
 
 Short, in plain language. What the board is, its size, how it is powered, what is on it, whether
-it is prototype-ready and, if not, what remains and who closes it. The board is already on their
-screen — describe what they can experience, not the netlist.
+it is prototype-ready and, if not, what remains and who closes it; and where the firmware is
+(the Firmware tab, and how to flash it) or that it is not written yet. The board is already on
+their screen — describe what they can experience, not the netlist.

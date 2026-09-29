@@ -754,3 +754,35 @@ test("viewer-only: harness_new_board asks the daemon for a sibling harness; the 
     s3.close();
   }
 });
+
+test("asset routes: firmware sources are served as text, only under firmware/", async () => {
+  const s = await bootServer();
+  try {
+    const { body: project } = await s.post("project_create", { req: { name: "Firmware" } });
+    const dir = path.join(s.services.projectsRoot, project.id);
+    fs.mkdirSync(path.join(dir, "firmware", "src"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "firmware", "src", "main.c"), "int main(void) {}");
+    fs.writeFileSync(path.join(dir, "firmware", "Makefile"), "all:");
+    fs.writeFileSync(path.join(dir, "firmware", "firmware.uf2"), "binary");
+    fs.writeFileSync(path.join(dir, "tools", "helper.py"), "print('not firmware')");
+
+    const main = await fetch(`${s.base}/projects/${project.id}/firmware/src/main.c?v=1-1`);
+    assert.equal(main.status, 200);
+    assert.equal(main.headers.get("content-type"), "text/plain; charset=utf-8");
+    assert.equal(await main.text(), "int main(void) {}");
+
+    const makefile = await fetch(`${s.base}/projects/${project.id}/firmware/Makefile`);
+    assert.equal(makefile.status, 200);
+    assert.equal(makefile.headers.get("content-type"), "text/plain; charset=utf-8");
+
+    // A binary in the tree and a script outside it are not assets: the route
+    // passes and the SPA fallback answers, exactly as for any unknown path.
+    const uf2 = await fetch(`${s.base}/projects/${project.id}/firmware/firmware.uf2`);
+    assert.notEqual(uf2.headers.get("content-type"), "text/plain; charset=utf-8");
+    const tool = await fetch(`${s.base}/projects/${project.id}/tools/helper.py`);
+    assert.notEqual(tool.headers.get("content-type"), "text/plain; charset=utf-8");
+  } finally {
+    s.close();
+  }
+});
