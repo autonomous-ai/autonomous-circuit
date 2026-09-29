@@ -11,7 +11,7 @@
 //   file exists on disk. EVERY media URL carries `?v=<mtime_nanos>-<size>`.
 //   `firmware/` — the code the agent writes for the board once it checks out —
 //   is grouped the same way: hidden as entries, surfaced as
-//   `artifact.firmware = {readmeUrl?, files: [{file, url, bytes}]}`.
+//   `artifact.firmware = {readmeUrl?, flashUrl?, files: [{file, url, bytes}]}`.
 //
 // The service watches the activated project dirs (fs.watch recursive — no
 // chokidar dependency in this package), debounces 150ms, rescans, bumps the
@@ -155,6 +155,10 @@ function scanFirmware(rootDir, url) {
   }
   const firmware = { files: members, truncated: files.length > FIRMWARE_MAX_FILES };
   if (readmeUrl) firmware.readmeUrl = readmeUrl;
+  // The recipe the Flash button runs (firmwareFlash.mjs). Its presence is what
+  // enables the button; the tab reads it for the confirm line.
+  const recipe = path.join(firmwareDir, "flash.json");
+  if (fs.existsSync(recipe)) firmware.flashUrl = url(recipe);
   return firmware;
 }
 

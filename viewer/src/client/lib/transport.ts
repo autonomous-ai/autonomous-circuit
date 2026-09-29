@@ -233,6 +233,38 @@ export interface PrereqCheck {
   kicadCli?: { found: boolean; version?: string };
 }
 
+/** `firmware_detect`: what the Flash button would write to, before anything is written. */
+export interface FirmwarePort {
+  address: string;
+  kind?: "volume";
+  vid: string;
+  pid: string;
+  serial: string;
+  boards: string[];
+}
+export interface FirmwareDetect {
+  family: "esp32" | "rp2040";
+  recipe: string;
+  decision: "one" | "none" | "many";
+  candidates: FirmwarePort[];
+  others: FirmwarePort[];
+  ignored: number;
+  hint: string;
+}
+export interface FirmwareFlashStep {
+  name: string;
+  command: string;
+  code: number;
+  output: string;
+}
+export interface FirmwareFlashResult {
+  ok: boolean;
+  port: string;
+  target: FirmwarePort;
+  steps: FirmwareFlashStep[];
+  serial: { text: string; note: string } | null;
+}
+
 /** `harness_new_board`: the new harness the daemon created, and the hint the pane shows. */
 export interface NewBoardResult {
   agentId: string;
@@ -606,6 +638,9 @@ const transportBase = {
   app_settings_read: () => invoke<AppSettings>("app_settings_read"),
   // Viewer-only (Harness): ask the daemon for a new harness of this tile in a sibling folder.
   harness_new_board: () => invoke<NewBoardResult>("harness_new_board"),
+  // The Flash button: look first, then write to exactly the address that look returned.
+  firmware_detect: (id: string) => invoke<FirmwareDetect>("firmware_detect", { id }),
+  firmware_flash: (id: string, port: string) => invoke<FirmwareFlashResult>("firmware_flash", { id, port }),
   app_settings_write: (settings: AppSettings) =>
     invoke<void>("app_settings_write", { settings }),
   app_install_claude_code: () =>

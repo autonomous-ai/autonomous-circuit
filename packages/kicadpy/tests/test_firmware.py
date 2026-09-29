@@ -23,15 +23,14 @@ class FirmwareWrittenTest(unittest.TestCase):
         self.assertFalse(firmware.firmware_written(self.ws))
         self.write('firmware/README.md', '# flash it')
         self.assertFalse(firmware.firmware_written(self.ws))
-        self.assertEqual(firmware.missing(self.ws), [
-            "firmware/ sources for the chip's usual toolchain (main.c / main.cpp / main.ino / code.py, plus the build file)",
-        ])
+        self.assertEqual([g.split(' ')[0] for g in firmware.missing(self.ws)], ['firmware/', 'firmware/flash.json'])
 
     def test_a_source_without_a_readme_is_not_written_either(self):
         self.write('firmware/src/main.c', 'int main(void) {}')
         self.assertFalse(firmware.firmware_written(self.ws))
-        self.assertEqual(len(firmware.missing(self.ws)), 1)
+        self.assertEqual(len(firmware.missing(self.ws)), 2)
         self.assertIn('README.md', firmware.missing(self.ws)[0])
+        self.assertIn('flash.json', firmware.missing(self.ws)[1])
 
     def test_readme_plus_source_is_written_and_binaries_and_build_trees_do_not_count(self):
         self.write('firmware/README.md', '# flash it')
@@ -44,7 +43,11 @@ class FirmwareWrittenTest(unittest.TestCase):
         self.assertTrue(firmware.firmware_written(self.ws))
         self.write('firmware/src/main.c', 'int main(void) {}')
         self.assertEqual(firmware.sources(self.ws), ['firmware/Makefile', 'firmware/src/main.c'])
+        # Written, but the Flash button still wants its recipe — that is the last gap named.
+        self.assertEqual(len(firmware.missing(self.ws)), 1)
+        self.write('firmware/flash.json', '{"family": "rp2040", "uf2": "fw.uf2"}')
         self.assertEqual(firmware.missing(self.ws), [])
+        self.assertTrue(firmware.firmware_written(self.ws))
 
     def test_is_source_matches_the_viewer_catalog_rules(self):
         for name in ('main.c', 'pins.h', 'main.ino', 'code.py', 'platformio.ini', 'CMakeLists.txt', 'Makefile', 'sdkconfig.defaults.yml'):

@@ -225,3 +225,18 @@ test("a native board entry carries the firmware tree too", () => {
   assert.deepEqual(board.artifact.firmware.files.map((f) => f.file), ["main.py"]);
   assert.equal(board.artifact.firmware.readmeUrl, undefined);
 });
+
+test("firmware/flash.json surfaces as artifact.firmware.flashUrl — what enables the Flash button", () => {
+  const dir = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "firmware"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "boards", "main.tsx"), "<board />");
+  fs.writeFileSync(path.join(dir, "firmware", "README.md"), "# flash it");
+  fs.writeFileSync(path.join(dir, "firmware", "main.c"), "int main(void) {}");
+  let firmware = scanProjectCatalog({ projectDir: dir, projectId: "fw" }).entries[0].artifact.firmware;
+  assert.equal(firmware.flashUrl, undefined);
+  fs.writeFileSync(path.join(dir, "firmware", "flash.json"), JSON.stringify({ family: "esp32" }));
+  firmware = scanProjectCatalog({ projectDir: dir, projectId: "fw" }).entries[0].artifact.firmware;
+  assert.match(firmware.flashUrl, /^\/projects\/fw\/firmware\/flash\.json\?v=\d+-\d+$/);
+  assert.ok(firmware.files.some((f) => f.file === "flash.json"), "the recipe is also a readable file in the tab");
+});

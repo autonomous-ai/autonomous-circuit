@@ -3,6 +3,7 @@ import { Cpu, ExternalLink, FileCode2, Loader2 } from "lucide-react";
 import { cn } from "@/ui/utils";
 import Markdown from "@/components/chat/Markdown.jsx";
 import ChatCodeBlock from "@/components/chat/ChatCodeBlock";
+import FirmwareFlashButton from "./FirmwareFlashButton.jsx";
 
 /**
  * The Firmware tab: the code the agent writes for the board once the board
@@ -21,6 +22,7 @@ import ChatCodeBlock from "@/components/chat/ChatCodeBlock";
  *   artifact?: object|null,   // catalog entry.artifact; reads .firmware
  *   sidecar?: object|null,    // parsed .board.json; reads fab.ready for the empty state
  *   boardName?: string,
+ *   projectId?: string,      // for the Flash button's commands
  *   onOpenTab?: (id: string) => void,
  *   className?: string,
  * }} props
@@ -138,7 +140,7 @@ function EmptyState({ ready, onOpenTab, className }) {
   );
 }
 
-export default function FirmwareTab({ artifact = null, sidecar = null, boardName = "board", onOpenTab, className }) {
+export default function FirmwareTab({ artifact = null, sidecar = null, boardName = "board", projectId = "", onOpenTab, className }) {
   const firmware = artifact?.firmware || null;
   const files = Array.isArray(firmware?.files) ? firmware.files : [];
   const [selectedFile, setSelectedFile] = useState("");
@@ -163,6 +165,8 @@ export default function FirmwareTab({ artifact = null, sidecar = null, boardName
               {" · "}written by the agent, not yet run on hardware
             </p>
           </div>
+          {/* The one way firmware reaches a board: a person, two clicks, the exact USB device named. */}
+          <FirmwareFlashButton projectId={projectId} ready={sidecar?.fab?.ready === true} hasRecipe={Boolean(firmware.flashUrl)} />
         </div>
 
         {firmware.readmeUrl ? (

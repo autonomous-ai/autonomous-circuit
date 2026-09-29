@@ -786,3 +786,51 @@ test("asset routes: firmware sources are served as text, only under firmware/", 
     s.close();
   }
 });
+
+test("firmware_detect and firmware_flash: the Flash button's two steps over HTTP, on a fake arduino-cli", async () => {
+  const calls = [];
+  const list = { detected_ports: [{ matching_boards: [{ name: "ESP32C3 Dev Module" }], port: { address: "/dev/cu.usbmodem7", properties: { vid: "0x303A", pid: "0x1001", serialNumber: "AA" } } }] };
+  const flashRun = async (cmd, args) => {
+    calls.push(args[0]);
+    if (args[0] === "board") return { code: 0, output: JSON.stringify(list) };
+    return { code: 0, output: `${args[0]} ok` };
+  };
+  const flashSerial = async () => ({ text: "boot ok", note: "read 8s" });
+  const s = await bootServerWith((env) => ({ ...env, ARDUINO_CLI: process.execPath }), { flashRun, flashSerial });
+  try {
+    const { body: project } = await s.post("project_create", { req: { name: "Flash" } });
+    const dir = path.join(s.services.projectsRoot, project.id);
+
+    // No recipe yet: the button's reason, as a coded error.
+    const missing = await s.post("firmware_detect", { id: project.id });
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.code, "FLASH_RECIPE_MISSING");
+
+    fs.mkdirSync(path.join(dir, "firmware", "deck"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "firmware", "deck", "deck.ino"), "void setup() {}");
+    fs.writeFileSync(path.join(dir, "firmware", "flash.json"), JSON.stringify({ family: "esp32", fqbn: "esp32:esp32:esp32c3", sketch: "deck", build: "../build/fw" }));
+
+    const seen = await s.post("firmware_detect", { id: project.id });
+    assert.equal(seen.status, 200, JSON.stringify(seen.body));
+    assert.equal(seen.body.decision, "one");
+    assert.equal(seen.body.candidates[0].address, "/dev/cu.usbmodem7");
+    assert.deepEqual(calls, ["board"], "detect writes nothing");
+
+    const wrong = await s.post("firmware_flash", { id: project.id, port: "/dev/cu.usbmodem8" });
+    assert.equal(wrong.status, 409);
+    assert.equal(wrong.body.code, "FLASH_PORT_MISMATCH");
+
+    const done = await s.post("firmware_flash", { id: project.id, port: "/dev/cu.usbmodem7" });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.equal(done.body.ok, true);
+    assert.deepEqual(done.body.steps.map((st) => st.name), ["compile", "upload"]);
+    assert.equal(done.body.serial.text, "boot ok");
+    // detect, the refused flash's look, the real flash's look, then the two writes.
+    assert.deepEqual(calls, ["board", "board", "board", "compile", "upload"], "flash looks again before it writes");
+
+    const nope = await s.post("firmware_flash", { id: "nope", port: "/dev/cu.usbmodem7" });
+    assert.equal(nope.status, 404);
+  } finally {
+    s.close();
+  }
+});

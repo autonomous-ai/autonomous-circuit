@@ -20,6 +20,7 @@ import {
 } from "./projects.mjs";
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
+import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
 import { createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -501,6 +502,11 @@ export function createCircuitServices({
   // Viewer-only: how `harness_new_board` reaches the Harness daemon (a WebSocket factory);
   // tests hand in a fake, production uses Node's global WebSocket (harnessHost.mjs).
   harnessConnect = undefined,
+  // The Flash button's tool runner and BOOTSEL-volume finder (firmwareFlash.mjs); tests hand
+  // in fakes so no arduino-cli runs and no port is written.
+  flashRun = undefined,
+  flashVolumes = undefined,
+  flashSerial = undefined,
 } = {}) {
   const home = circuitHome(env);
   const viewerOnly = Boolean(workspaceDir);
@@ -1133,6 +1139,32 @@ export function createCircuitServices({
       };
     }
   }
+
+  // The Flash button, in two steps a person clicks through (firmwareFlash.mjs): `firmware_detect`
+  // names exactly which USB device the recipe would write to; `firmware_flash` writes to that
+  // address and nothing else. Every project, both modes — the tab is the same everywhere.
+  const flashDeps = () => ({
+    ...(flashRun ? { run: flashRun } : {}),
+    ...(flashVolumes ? { volumes: flashVolumes } : {}),
+    ...(flashSerial ? { serial: flashSerial } : {}),
+    env,
+  });
+  commands.firmware_detect = async ({ id }) => {
+    const projectId = requireProject(id);
+    try {
+      return await firmwareDetect({ projectRoot: projects.projectDir(projectId), ...flashDeps() });
+    } catch (err) {
+      throw ipcError(err?.code || "FIRMWARE_DETECT_FAILED", err?.message || String(err), err?.statusCode || 500);
+    }
+  };
+  commands.firmware_flash = async ({ id, port }) => {
+    const projectId = requireProject(id);
+    try {
+      return await firmwareFlash({ projectRoot: projects.projectDir(projectId), port: String(port || ""), ...flashDeps() });
+    } catch (err) {
+      throw ipcError(err?.code || "FIRMWARE_FLASH_FAILED", err?.message || String(err), err?.statusCode || 500);
+    }
+  };
 
   // The one thing a viewer-only pane may ask its host for: another board. A new board is a new
   // harness, and only the Harness daemon makes those — `harnessHost.mjs` speaks the two frames it

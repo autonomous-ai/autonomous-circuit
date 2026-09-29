@@ -149,7 +149,8 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
                       + '; '.join(firmware_gaps or firmware_missing_default())
                       + '. The pin map comes off the final schematic and netlist, never the plan. '
                       'Compile it if the toolchain is on this machine and say whether it compiled. '
-                      'Never flash, never order, never edit the board or any derived file for this. '
+                      'Never flash it yourself (the Flash button on the pane is the person\'s, and it needs '
+                      'firmware/flash.json), never order, never edit the board or any derived file for this. '
                       'A prompt that forbids flashing or ordering does not forbid writing the code; '
                       'only an explicit "no firmware" does, and then say so in firmware/README.md.')
             return state, {'decision': 'block', 'reason': reason}
