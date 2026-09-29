@@ -23,6 +23,8 @@ import { transport } from "@/lib/transport.ts";
  *   className?: string,
  * }} props
  */
+const FAMILY_LABEL = { esp32: "ESP32-family", rp2040: "RP2040" };
+
 export default function FirmwareFlashButton({ projectId, ready, hasRecipe, className }) {
   const [state, setState] = useState({ phase: "idle" });
 
@@ -78,9 +80,13 @@ export default function FirmwareFlashButton({ projectId, ready, hasRecipe, class
           <p className="flex items-start gap-1.5">
             <Usb className="mt-0.5 size-3.5 shrink-0 text-amber-500" aria-hidden />
             <span>
-              Found <strong>{state.found.candidates[0].boards[0] || state.found.family}</strong> at{" "}
+              {/* The family is the fact (it came from the vendor id); the board name is
+                  arduino-cli's guess from a product id many boards share — a C3 SuperMini
+                  reads as "Ozobot DRVKit" — so it is shown as a guess, after the fact. */}
+              Found an <strong>{FAMILY_LABEL[state.found.family] || state.found.family}</strong> device at{" "}
               <code className="font-mono">{state.found.candidates[0].address}</code>
-              {state.found.candidates[0].vid ? ` (vid ${state.found.candidates[0].vid}${state.found.candidates[0].pid ? ` · pid ${state.found.candidates[0].pid}` : ""}${state.found.candidates[0].serial ? ` · ${state.found.candidates[0].serial}` : ""})` : ""}.
+              {state.found.candidates[0].vid ? ` (vid ${state.found.candidates[0].vid}${state.found.candidates[0].pid ? ` · pid ${state.found.candidates[0].pid}` : ""}${state.found.candidates[0].serial ? ` · ${state.found.candidates[0].serial}` : ""})` : ""}
+              {state.found.candidates[0].boards?.length ? `; arduino-cli calls it "${state.found.candidates[0].boards[0]}"` : ""}.
               Write <strong>{state.found.recipe}</strong> to it?
             </span>
           </p>

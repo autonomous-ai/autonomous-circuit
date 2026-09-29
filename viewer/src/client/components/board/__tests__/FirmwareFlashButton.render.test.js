@@ -64,7 +64,8 @@ test("first click only looks; the confirm names the device; the second click fla
     assert.deepEqual(calls, [["detect", "p"]], "nothing written on the first click");
     const confirm = q(ui, "firmware-flash-confirm");
     assert.ok(confirm, "the confirm card renders");
-    assert.match(confirm.textContent, /ESP32C3 Dev Module/);
+    assert.match(confirm.textContent, /Found an ESP32-family device/);
+    assert.match(confirm.textContent, /arduino-cli calls it "ESP32C3 Dev Module"/);
     assert.match(confirm.textContent, /\/dev\/cu\.usbmodem1201/);
     assert.match(confirm.textContent, /vid 0x303a · pid 0x1001 · E0:72:A1:6C:D3:F8/);
     assert.match(confirm.textContent, /firmware\/deck/);
