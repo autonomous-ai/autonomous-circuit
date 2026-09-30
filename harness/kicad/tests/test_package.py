@@ -181,6 +181,30 @@ class ManifestTest(unittest.TestCase):
                        'kicadpy.verify stale .', 'railLimitsUF'):
             self.assertIn(needle, text, needle)
 
+    def test_every_tile_carries_the_rp2040_toolchain_and_the_rules_that_need_it(self):
+        # The Firmware phase is done only when the recipe's binary exists (kicadpy.firmware.built),
+        # so the tile vendors the compiler (setup), reports it (doctor), exports the paths pico-sdk's
+        # CMake reads (manifests) and tells the agent where to read and what "done" means (AGENTS.md).
+        setup = (PKG / 'toolchain' / 'setup.sh').read_text(encoding='utf-8')
+        self.assertIn('scripts/toolchain/install-pico-toolchain.sh', setup)
+        installer = ROOT / 'scripts' / 'toolchain' / 'install-pico-toolchain.sh'
+        self.assertTrue(os.access(installer, os.X_OK))
+        self.assertIn('toolchain/pico/', (ROOT / '.gitignore').read_text(encoding='utf-8'))
+        doctor = (PKG / 'toolchain' / 'doctor.sh').read_text(encoding='utf-8')
+        self.assertIn('rp2040 toolchain', doctor)
+        self.assertIn('arduino-cli', doctor)
+        for tile_id, pkg in TILES.items():
+            env = _manifest(pkg)['agent']['env']
+            self.assertEqual(env['PICO_SDK_PATH'], '${dsh}/../../toolchain/pico/pico-sdk', tile_id)
+            self.assertEqual(env['PICO_TOOLCHAIN_PATH'], '${dsh}/../../toolchain/pico/arm-gnu-toolchain', tile_id)
+            self.assertEqual(env['CMAKE_PREFIX_PATH'], '${dsh}/../../toolchain/pico/picotool', tile_id)
+            self.assertEqual(env['KICAD_HARNESS_PICO_SDK'], env['PICO_SDK_PATH'], tile_id)
+            self.assertEqual(env['KICAD_HARNESS_ARM_TOOLCHAIN'], env['PICO_TOOLCHAIN_PATH'], tile_id)
+        agents = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
+        for phrase in ('Written is not done; built is.', 'kicadpy.firmware.built', 'Where you read.',
+                       'Never another workspace', "The checker is the tile's.", 'KICAD_HARNESS_PICO_SDK'):
+            self.assertIn(phrase, agents, phrase)
+
     def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
         card = (PKG / 'skills' / 'kicad' / 'SKILL.md').read_text(encoding='utf-8')
         for needle in ('kicadpy.author write spec.json design/', 'kicadpy.knowledge show', 'modules/<id>/BLOCK.md'):

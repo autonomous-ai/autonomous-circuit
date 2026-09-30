@@ -60,8 +60,26 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   `verify rotation` and `verify stock` read it first. Read it before you search.
 - `$CIRCUIT_TOOLCHAIN` — the pinned Freerouting jar and JRE (`kicadpy route` and the Specctra
   round trip use them). Never build your own router launcher.
+- `$KICAD_HARNESS_PICO_SDK` and `$KICAD_HARNESS_ARM_TOOLCHAIN` — pico-sdk 2.2.0 and Arm GNU
+  14.2 for RP2040 firmware, vendored with the tile; `PICO_SDK_PATH`, `PICO_TOOLCHAIN_PATH` and
+  `CMAKE_PREFIX_PATH` (picotool) are already exported, so `cmake -S firmware -B build/firmware` needs no flags.
 - The `kicad` skill in `$CIRCUIT_SKILLS_DIR/kicad/SKILL.md` is the tool card: every command,
   every request shape, the paths to discover.
+
+**Where you read.** This workspace, `$KICAD_HARNESS_ROOT` and `$KICAD_HARNESS_BLOCKS` — and the web
+for datasheets, supplier pages and fab rules. Never another workspace: not `~/harnesses`, not
+`~/projects`, not an earlier board's `engineering/`, `tools/` or `design/`, however finished it
+looks. Every board here is graded on what *you* derived from the datasheets; a run that opened
+another board's folder (2026-09-29: eleven reads of a finished Deck before drawing its own) is
+counted as a copy, not a design. If a prompt names a repository to read, that one path is the
+exception and the reason goes in `engineering/sources.md`.
+
+**The checker is the tile's.** Run `kicadpy` only as `"$KICAD_HARNESS_PYTHON" -m kicadpy…` from
+`$KICAD_HARNESS_ROOT`'s copy. Never copy `kicadpy` or `verifylib` into the workspace, patch a
+private copy, or put a `kicadpy/` directory anywhere `python -m` would import it first (2026-09-30:
+one run did, to work around a store path and a DSN export; the fix belongs in the tile, and the
+package now refuses to run from inside a workspace). A tool that is wrong is a line in your report
+with the command and the error, not a fork.
 
 **Two Pythons, two runtimes.** KiCad's bundled Python (`pcbnew`) authors and inspects PCB
 objects. When Harness sets `$KICADPY_CLI` / `$KICADPY_PYTHON` / `$KICAD_HARNESS_SHARE`, that is the
@@ -326,9 +344,19 @@ the review is closed, write the firmware in the same turn, without being asked a
   differs from what `product.json` asked for.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
-  status LED first, then each peripheral). Compile it when the toolchain is on this machine and
-  say whether it compiled. You never flash it yourself: the person does, with the Flash button
-  on the pane (below). Until they tell you what the board did, it is untested — say so.
+  status LED first, then each peripheral). You never flash it yourself: the person does, with
+  the Flash button on the pane (below). Until they tell you what the board did, it is untested —
+  say so.
+- **Written is not done; built is.** The Firmware phase turns done only when `flash.json` names a
+  binary that exists and is newer than the sources (`kicadpy.firmware.built`): the UF2 for an
+  RP2040, `<build>/<sketch>.ino.bin` for an ESP32. Build with what the tile carries — the pico-sdk
+  and Arm GNU under `$KICAD_HARNESS_PICO_SDK` / `$KICAD_HARNESS_ARM_TOOLCHAIN` (already in
+  `PICO_SDK_PATH` / `PICO_TOOLCHAIN_PATH` / `CMAKE_PREFIX_PATH`), `arduino-cli` with the esp32 core for
+  an ESP32 — into `build/` (outside `firmware/`, which the tab lists), and point `flash.json` at
+  the result. A compile error is a finding to fix, not a sentence in the README; host unit tests
+  are welcome and are not a build. A run that wrote sources it could not compile, named a UF2
+  that did not exist and was marked done (2026-09-30) is why this line exists. If the toolchain
+  for the chip is truly absent, say exactly which command failed and leave the phase active.
 - **`firmware/flash.json` — the recipe the pane's Flash button runs.** You never flash; the
   person does, from the Firmware tab, and the button only works when this file names the board:
   ```json
