@@ -74,6 +74,13 @@ class VerdictDerivationTest(unittest.TestCase):
         v = harness.verdict([('boards/main.board.json', _sidecar(ready=False))], firmware=True)
         self.assertIs(v['ready'], False)
         self.assertEqual(_states(v)[-1], 'pending')
+        # Written but never built: still active, and the summary says which half is missing.
+        v = harness.verdict([('boards/main.board.json', _sidecar(ready=True))], firmware=True, built=False)
+        self.assertIs(v['ready'], True)
+        self.assertEqual(_states(v), ['done', 'done', 'done', 'active'])
+        self.assertEqual(v['summary'], 'Prototype-ready — firmware written, not built')
+        v = harness.verdict([('boards/main.board.json', _sidecar(ready=True))], firmware=True, built=True)
+        self.assertEqual(_states(v)[-1], 'done')
 
     def test_write_reads_the_firmware_tree_from_the_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -85,6 +92,13 @@ class VerdictDerivationTest(unittest.TestCase):
             (ws / 'firmware' / 'src').mkdir(parents=True)
             (ws / 'firmware' / 'README.md').write_text('# flash it')
             (ws / 'firmware' / 'src' / 'main.c').write_text('int main(void) {}')
+            (ws / 'firmware' / 'flash.json').write_text('{"family": "rp2040", "uf2": "../build/fw.uf2"}')
+            harness.write_verdict(ws)
+            payload = json.loads((ws / '.harness' / 'verdict.json').read_text())
+            self.assertEqual(payload['phases'][-1]['state'], 'active', 'written is not built')
+            self.assertEqual(payload['summary'], 'Prototype-ready — firmware written, not built')
+            (ws / 'build').mkdir()
+            (ws / 'build' / 'fw.uf2').write_bytes(b'UF2\n')
             harness.write_verdict(ws)
             payload = json.loads((ws / '.harness' / 'verdict.json').read_text())
             self.assertEqual(payload['phases'][-1]['state'], 'done')
