@@ -112,3 +112,26 @@ chứng trong engineering/ và manufacturing.json; README.md bằng lời thư�
 đầu tiên trên bàn: cắm nguồn 5 V vào cọc vít, cắm một servo vào kênh 1, gửi `S1 1500`, servo
 về giữa, và điện áp VBUS trên cổng USB không đổi. Người đọc không đọc schematic.
 ```
+
+## Short form (the ⌘N dialog takes ~2000 characters)
+
+The full block above is the contract; this is what fits in the dialog and points at it. Paste as-is
+(1 700 characters / under 2 000 bytes, measured 2026-09-30).
+
+```
+Đọc hết rồi mới làm. Plan ≤ 20 dòng rồi build luôn trong turn này. Không hỏi, không chờ "yes".
+
+ĐỀ ĐẦY ĐỦ, là hợp đồng: $KICAD_HARNESS_ROOT/harness/kicad/prompts/claude-servo-bench.md — đọc nguyên khối trong ``` và làm đúng từng dòng. Tóm tắt:
+
+LUẬT ĐỌC: chỉ workspace này, $KICAD_HARNESS_ROOT, $KICAD_HARNESS_BLOCKS và web cho datasheet/LCSC/JLC. Không ls ~/harnesses, không mở folder run khác hay ~/projects, không copy gì từ board khác. Tao đếm từng lệnh trong transcript.
+
+BOARD: Claude Servo Bench — cắm USB vào Mac, agent điều khiển 4 servo hobby qua USB serial. Không màn, không radio, không pin. Chuẩn tham chiếu: Pico — check nào Pico rớt là check sai.
+
+CHỐT: RP2040 minimal theo block rp2040-core. USB-C data → LDO 3V3 chỉ nuôi logic (100/500 mA, tụ VBUS ≤ 10 µF, không IC CC/supervisor/load switch). V_SERVO RIÊNG từ cọc vít 5.08 mm ≥ 5 A, 5–6 V, KHÔNG nối VBUS, GND chung. Chống ngược cực: (a) không + silk to, hoặc (b) P-MOSFET; không diode nối tiếp. Tụ lớn V_SERVO tính từ dòng kẹt trong datasheet, ghi phép tính. 4 header servo theo block, V+ chân giữa, cùng hướng, silk số kênh. Đường đồng tính cho 4 servo kẹt. 1 LED status, chỉ RESET+BOOTSEL, 4 lỗ M3. Pin tạm: SERVO1..4 = GPIO2..5, LED = GPIO16, SWD 3 chân.
+
+PASS: mỗi fail phải trích được một dòng trong đề, AGENTS.md, BLOCK.md hoặc datasheet. ≤ 30 footprint, ≤ $6, vượt thì ghi lý do từng con. 2 lớp, JLCPCB Standard, một mặt.
+
+FIRMWARE, sau prototype-ready: HELLO/PONG servo v1, S<n> <us> (500–2500), OFF, ALL, STATUS. Boot không xung. Unit test host. BUILD RA UF2 bằng toolchain của tile (PICO_SDK_PATH có sẵn): chưa có UF2 là chưa xong.
+
+BÀN GIAO: publish --manufacturing, engineering/, README lời thường + phép thử S1 1500.
+```
