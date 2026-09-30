@@ -275,6 +275,18 @@ OFF-BOARD on a labelled pad row carrying its rail and bus, and the rest of the b
 around it; say so in the sources and the report. Stopping is for a safety refusal and nothing
 else.
 
+**Power-entry copper, before the first route.** The supply-input nets — USB `VBUS` from the
+connector to the bulk capacitor and regulator, and any external input rail (`V_SERVO`, `*_IN`) —
+carry a floor of **0.6 mm at 1 oz** (`kicadpy.verify power` → `entryWidths`; the publisher records
+`power_entry_narrow`). The hardware reviewer rejected 0.225–0.3 mm VBUS on the Claude Servo Bench
+(2026-09-30) and widening it after routing cost nine clearance faults and a hand reroute. So: put
+those nets in their own netclass in the `.kicad_pro` (track 0.6 mm, via 0.8/0.4) before the first
+Freerouting pass, and at placement leave a straight corridor from the connector's power pads to the
+input capacitor and regulator — no fine-pitch pads or other nets' vias in the way. The floor is
+for the entry run only; a rail's fanout under a QFN is as wide as the pitch allows and no wider.
+Name extra entry nets in `product.json` as `"powerEntryNets": ["VBUS", "V_IN"]` when the defaults
+would miss one.
+
 ### Review — your own, after the build, silently
 
 The app used to run this loop for you; here you run it yourself, without narrating it, following

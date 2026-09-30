@@ -115,10 +115,14 @@ def publish(path, manufacturing=False):
                         limits = product.get('railLimitsUF') or {}
                         if not isinstance(limits, dict):
                             limits = {}
+                    entry_nets = None
+                    if product_file.is_file() and isinstance(product.get('powerEntryNets'), list):
+                        entry_nets = [str(n) for n in product['powerEntryNets']]
                     power = verify.power(root / (project.stem + '.kicad_pro'), {k: float(v) for k, v in limits.items()},
-                                         parts_file=workspace / 'parts.json')
+                                         parts_file=workspace / 'parts.json', entry_nets=entry_nets)
                     base['native']['power'] = {'rails': power['rails'], 'overLimit': power['overLimit'],
-                                               'pinsOverLimit': power['pinsOverLimit'], 'limitMm': power['limitMm']}
+                                               'pinsOverLimit': power['pinsOverLimit'], 'limitMm': power['limitMm'],
+                                               'entryWidths': power.get('entryWidths', {})}
                     base['validation']['warnings'] += verify.power_findings(power)
                 except Exception as exc:
                     base['validation']['warnings'].append({'kind': 'native_power_unavailable', 'severity': 'warning',

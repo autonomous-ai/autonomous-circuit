@@ -298,6 +298,14 @@ def main(req):
         def signature(t):
             data = copper(t)
             data.pop('uuid'); data.pop('locked')
+            # The Specctra round trip moves untouched copper by up to 0.0005 mm (2026-09-30: a local
+            # `kicadpy route` was refused for exactly that); 0.01 mm is below anything a fab resolves.
+            for key in ('start', 'end', 'mid', 'at'):
+                if key in data:
+                    data[key] = [round(v, 2) for v in data[key]]
+            for key in ('widthMm', 'drillMm'):
+                if key in data:
+                    data[key] = round(data[key], 2)
             # Segment orientation is irrelevant to preservation.
             if data['kind'] == 'track':
                 data['start'], data['end'] = sorted([data['start'], data['end']])
