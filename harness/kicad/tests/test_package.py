@@ -108,10 +108,13 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(check.returncode, 1)
             self.assertIn('set differently', check.stdout)
 
-    def test_claude_tile_has_no_args(self):
-        # Harness maps its "full" mode to --dangerously-skip-permissions for claude itself, and the
-        # Stop hook is not wired for this arm yet (README); nothing else belongs on the command line.
-        self.assertNotIn('args', _manifest(CLAUDE)['agent'])
+    def test_claude_args_carry_model_and_effort_only(self):
+        # The model and effort are pinned the way the codex and grok tiles pin theirs: without them a
+        # run follows whatever `/model` last saved as the machine's default. Harness maps its "full"
+        # mode to --dangerously-skip-permissions for claude itself, and the Stop hook is not wired
+        # for this arm yet (README); nothing else belongs on the command line.
+        args = _manifest(CLAUDE)['agent']['args']
+        self.assertEqual(args, ['--model', 'claude-opus-5-5', '--effort', 'high'])
 
     def test_grok_args_carry_model_always_approve_and_trust(self):
         args = _manifest(GROK)['agent']['args']
