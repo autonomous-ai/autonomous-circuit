@@ -23,7 +23,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -111,7 +112,9 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "opus5.5---claude-pet 2026-09-29",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -125,7 +128,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21",
    "note": "maker is FH (Guangdong Fenghua), not Yageo (harness-14 review)"
@@ -140,7 +144,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -154,7 +159,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -177,6 +183,15 @@
    ],
    "checkedDate": "2026-09-25"
   },
+  "C18078126": {
+   "manufacturer": "Bossie",
+   "mpn": "BX-PM2.54-1-3PY",
+   "package": "Plugin,P=2.54mm",
+   "sources": [
+    "4-servors-hobby 2026-09-30"
+   ],
+   "checkedDate": "2026-09-30"
+  },
   "C2040": {
    "manufacturer": "Raspberry Pi",
    "mpn": "RP2040",
@@ -187,7 +202,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -201,7 +217,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -225,6 +242,24 @@
    ],
    "checkedDate": "2026-09-24"
   },
+  "C2297": {
+   "manufacturer": "Hubei KENTO Elec",
+   "mpn": "KT-0805G",
+   "package": "0805",
+   "sources": [
+    "4-servors-hobby 2026-09-30"
+   ],
+   "checkedDate": "2026-09-30"
+  },
+  "C25091": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "0402WGF2200TCE",
+   "package": "R_0402_1005Metric",
+   "sources": [
+    "opus5.5---claude-pet 2026-09-29"
+   ],
+   "checkedDate": "2026-09-29"
+  },
   "C25100": {
    "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
    "mpn": "0402WGF270JTCE",
@@ -232,7 +267,8 @@
    "sources": [
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -256,7 +292,8 @@
    "package": "0402",
    "sources": [
     "harness-11 2026-09-22",
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    "opus5.5---claude-pet 2026-09-29"
    ],
    "checkedDate": "2026-09-22"
   },
@@ -270,7 +307,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -290,7 +328,8 @@
    "sources": [
     "harness-14 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "opus5.5---claude-pet 2026-09-29"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -303,7 +342,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -316,7 +356,8 @@
     "harness-11 2026-09-22",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21",
    "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)",
@@ -403,7 +444,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -461,6 +503,24 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C431196": {
+   "manufacturer": "Alpha & Omega Semicon",
+   "mpn": "AONR21357",
+   "package": "DFN-8(3x3)",
+   "sources": [
+    "4-servors-hobby 2026-09-30"
+   ],
+   "checkedDate": "2026-09-30"
+  },
+  "C474952": {
+   "manufacturer": "Cixi Kefa Elec",
+   "mpn": "KF128-5.08-2P-AA",
+   "package": "Plugin,P=5.08mm",
+   "sources": [
+    "4-servors-hobby 2026-09-30"
+   ],
+   "checkedDate": "2026-09-30"
+  },
   "C492407": {
    "manufacturer": "XFCN",
    "mpn": "PZ254V-11-08P",
@@ -512,7 +572,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -552,7 +613,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21",
    "note": "AMS1117-3.3 SOT-223, the ldo-3v3 block part; tab = VOUT"
@@ -573,7 +635,8 @@
    "sources": [
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "opus5.5---claude-pet 2026-09-29"
    ],
    "checkedDate": "2026-09-24",
    "pinRules": [
@@ -614,6 +677,15 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C970714": {
+   "manufacturer": "DMBJ",
+   "mpn": "RVT1C102M1010 1000UF 16V",
+   "package": "SMD,D10xL10.2mm",
+   "sources": [
+    "4-servors-hobby 2026-09-30"
+   ],
+   "checkedDate": "2026-09-30"
+  },
   "C97521": {
    "manufacturer": "Winbond Elec",
    "mpn": "W25Q128JVSIQ",
@@ -624,7 +696,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "4-servors-hobby 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   }
