@@ -286,6 +286,12 @@ def main(req):
                     board.Remove(t)
                 else:
                     t.SetLocked(True)
+            # Zones go into the Specctra export as pours and the router treats them as obstacles
+            # (harness-17: two routes died at 34-40 unrouted). The skill card told agents to strip
+            # them by hand; Astra patched a private copy of this file to do it (2026-09-30). The
+            # board in memory is export-only here, nothing is saved, so drop them.
+            for zone in list(board.Zones()):
+                board.Remove(zone)
             if not p.ExportSpecctraDSN(board, req['output']):
                 raise ValueError('DSN export failed')
             return {'ok': True}
