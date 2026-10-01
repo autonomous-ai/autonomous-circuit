@@ -105,21 +105,21 @@ Mac vào USB module, gửi `M 30 30`, hai bánh quay cùng chiều tiến, gửi
 ## Short form (the ⌘N dialog takes ~2000 characters)
 
 ```
-Đọc hết rồi mới làm. Plan ≤ 20 dòng rồi build luôn trong turn này, không hỏi.
+Đọc hết rồi mới làm. Plan ≤ 20 dòng rồi build luôn, không hỏi.
 
 ĐỀ ĐẦY ĐỦ, là hợp đồng: $KICAD_HARNESS_ROOT/harness/kicad/prompts/claude-pet-rover.md — đọc khối trong ``` và làm đúng từng dòng. Tóm tắt:
 
 LUẬT ĐỌC: chỉ workspace này, $KICAD_HARNESS_ROOT, $KICAD_HARNESS_BLOCKS (+ ../modules) và web datasheet/LCSC/JLC. Không mở folder run khác.
 
-BOARD: Claude Pet Rover kiểu xe SMARS — hộp nằm ngang 4 bánh, 2 bánh có servo, mặt OLED 0.96" I2C, mắt HC-SR04, bụng TTP223, 2 LED RGB đèn pha, còi, não ESP32-C3 SuperMini cắm socket, nói với Mac qua USB module. Không tự cân bằng, không pin trên board.
+BOARD: Claude Pet Rover kiểu xe SMARS — hộp nằm ngang 4 bánh, 2 bánh có servo, mặt OLED 0.96" I2C, mắt HC-SR04, bụng TTP223, 2 LED RGB, còi, não ESP32-C3 SuperMini cắm socket, nói với Mac qua USB module. Không pin trên board.
 
-CHỐT: C3 theo modules/esp32-c3-supermini. Nguồn: cổng USB-C NGUỒN RIÊNG (block usb-c-power, Rd 5.1k) từ pin sạc dự phòng ≥ 2 A → rail V5 nuôi servo, LED, HC-SR04 và chân 5V module qua Schottky; rail servo KHÔNG BAO GIỜ về USB module. 2 servo SG90 quay liên tục theo modules/sg90-continuous-module trên block servo-header (V+ giữa), 2 × 0.8 A kẹt, tụ lớn tính từ đó, đồng 2 mm. OLED theo modules/oled-0.96-i2c-module + 1 header I2C dự phòng. Touch theo modules/ttp223-module. 2 WS2812 theo block ws2812-chain (dịch mức). 1 LED status, 1 buzzer GPIO, header HC-SR04 (ECHO chia áp), 2 header EDGE_L/R. Ngoại vi 3V3 ≤ 40 mA.
+CHỐT: C3 theo modules/esp32-c3-supermini. Nguồn: cổng USB-C NGUỒN RIÊNG (block usb-c-power, Rd 5.1k) từ pin dự phòng ≥ 2 A → rail V5 nuôi servo, LED, HC-SR04 và chân 5V module qua Schottky; V5 KHÔNG BAO GIỜ về USB module. 2 servo theo modules/sg90-continuous-module trên block servo-header (V+ giữa), 2 × 0.8 A kẹt, tụ lớn tính từ đó, đồng 2 mm. OLED theo modules/oled-0.96-i2c-module + 1 header I2C dự phòng. Touch theo modules/ttp223-module. 2 WS2812 theo block ws2812-chain (dịch mức). 1 LED status, 1 buzzer GPIO, header HC-SR04 (ECHO chia áp), 2 header EDGE_L/R. Ngoại vi 3V3 ≤ 40 mA.
 
-HÌNH: board chữ nhật trên nóc xe, nhỏ nhất đủ chỗ, mày đề xuất; 4 lỗ M2; hai USB ra đuôi, OLED/HC-SR04/LED ra mũi. 2 lớp, JLCPCB Standard, một mặt.
+HÌNH: board chữ nhật trên nóc xe, nhỏ nhất đủ chỗ, mày đề xuất; 4 lỗ M2; USB ra đuôi, OLED/HC-SR04/LED ra mũi. 2 lớp, JLCPCB Standard, một mặt.
 
-PASS: mỗi fail trích được dòng trong đề/AGENTS/BLOCK/datasheet. ≤ 40 footprint, ≤ $8 chưa kể module; vượt ghi lý do.
+PASS: mỗi fail trích được dòng trong đề/AGENTS/BLOCK/datasheet. ≤ 40 footprint, ≤ $8 chưa kể module.
 
-FIRMWARE (Arduino C3): boot không xung; HELLO/PONG pet v1; M, STOP, TRIM lưu flash, BEEP, LED, oled sh1106; STATE <idle|thinking|needs_user|done|error> → cử chỉ trong firmware (nhích ít rồi dừng, dừng khi vật < 8 cm hoặc mất mặt bàn); mất kết nối 2 s → STOP. Unit test host. Build ra .bin, flash.json esp32. Chưa có .bin là chưa xong.
+FIRMWARE (Arduino C3): boot không xung; HELLO/PONG pet v1; M, STOP, TRIM lưu flash, BEEP, LED, oled sh1106; STATE <idle|thinking|needs_user|done|error> → cử chỉ trong firmware (nhích ít rồi dừng; dừng khi vật < 8 cm hoặc mất mặt bàn); mất kết nối 2 s → STOP. Unit test host. Build ra .bin, flash.json esp32. Chưa có .bin là chưa xong.
 
-BÀN GIAO: publish --manufacturing, gate 0, README lời thường + phép thử: cắm pin dự phòng, gửi STATE needs_user, xe tiến 3 cm, bíp 2 tiếng, dừng.
+BÀN GIAO: publish --manufacturing, gate 0, README lời thường + phép thử: cắm pin, gửi STATE needs_user, xe tiến 3 cm, bíp 2 tiếng, dừng.
 ```
