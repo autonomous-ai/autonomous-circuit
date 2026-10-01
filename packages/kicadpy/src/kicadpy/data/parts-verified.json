@@ -24,7 +24,9 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -114,7 +116,9 @@
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
     "opus5.5---claude-pet 2026-09-29",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -129,7 +133,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21",
    "note": "maker is FH (Guangdong Fenghua), not Yageo (harness-14 review)"
@@ -145,7 +150,9 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -160,7 +167,9 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -188,7 +197,8 @@
    "mpn": "BX-PM2.54-1-3PY",
    "package": "Plugin,P=2.54mm",
    "sources": [
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-30"
   },
@@ -203,7 +213,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -218,7 +229,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -238,7 +250,8 @@
    "mpn": "S8050 J3Y(RANGE:200-350)",
    "package": "SOT-23",
    "sources": [
-    "harness-15 2026-09-24"
+    "harness-15 2026-09-24",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -247,7 +260,9 @@
    "mpn": "KT-0805G",
    "package": "0805",
    "sources": [
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-30"
   },
@@ -268,7 +283,8 @@
     "harness-9 2026-09-21",
     "harness-11 2026-09-22",
     "harness-14 2026-09-24",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -281,7 +297,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21",
    "note": "UNI-ROYAL 0402WGF3300TCE is the real MPN; a run wrongly deleted it as invented (harness-14 review)"
@@ -293,7 +310,8 @@
    "sources": [
     "harness-11 2026-09-22",
     "harness-15 2026-09-24",
-    "opus5.5---claude-pet 2026-09-29"
+    "opus5.5---claude-pet 2026-09-29",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-22"
   },
@@ -308,9 +326,38 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
+  },
+  "C25764": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "0402WGF2003TCE",
+   "package": "0402",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
+  "C25765": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "0402WGF2002TCE",
+   "package": "0402",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
+  "C25779": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "0402WGF3302TCE",
+   "package": "0402",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
   },
   "C25792": {
    "manufacturer": "UNI-ROYAL",
@@ -329,7 +376,8 @@
     "harness-14 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus5.5---claude-pet 2026-09-29"
+    "opus5.5---claude-pet 2026-09-29",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -343,7 +391,9 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -357,11 +407,22 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-21",
    "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)",
    "noSupplyDecoupling": true
+  },
+  "C2691448": {
+   "manufacturer": "XFCN",
+   "mpn": "PZ254V-11-04P",
+   "package": "Plugin,P=2.54mm 1x4 male",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
   },
   "C2761795": {
    "manufacturer": "Worldsemi",
@@ -371,7 +432,8 @@
     "harness-14 2026-09-24",
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-24",
    "note": "WS2812B keeps its last PWM through a warm reset; pulling DIN low does not turn it off — switch its rail (harness-14/15/17 all left it lit)."
@@ -430,9 +492,19 @@
    "mpn": "PZ254V-11-03P",
    "package": "1x3 2.54 mm THT, 6.1 mm mating, gold",
    "sources": [
-    "harness-14 2026-09-24"
+    "harness-14 2026-09-24",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-24"
+  },
+  "C29718": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "4D03WGJ0103T5E",
+   "package": "0603x4",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
   },
   "C318884": {
    "manufacturer": "XKB Connection",
@@ -445,7 +517,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -494,6 +567,15 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C42431840": {
+   "manufacturer": "JXTCONN",
+   "mpn": "PM2.54-1X8PM-H85",
+   "package": "Plugin,P=2.54mm 1x8 female 8.5 mm",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
   "C4267913": {
    "manufacturer": "Vishay",
    "mpn": "CRCW0402887KFKED",
@@ -517,7 +599,8 @@
    "mpn": "KF128-5.08-2P-AA",
    "package": "Plugin,P=5.08mm",
    "sources": [
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-30"
   },
@@ -573,7 +656,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -614,7 +698,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21",
    "note": "AMS1117-3.3 SOT-223, the ldo-3v3 block part; tab = VOUT"
@@ -636,7 +721,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus5.5---claude-pet 2026-09-29"
+    "opus5.5---claude-pet 2026-09-29",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-24",
    "pinRules": [
@@ -668,6 +754,33 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C81598": {
+   "manufacturer": "ST(Semtech)",
+   "mpn": "1N4148W",
+   "package": "SOD-123",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
+  "C8678": {
+   "manufacturer": "MDD(Microdiode Semiconductor)",
+   "mpn": "SS34",
+   "package": "SMA(DO-214AC)",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
+  "C96127": {
+   "manufacturer": "Jiangsu Huaneng Elec",
+   "mpn": "MLT-9650",
+   "package": "SMD 9.6x9.6mm",
+   "sources": [
+    "opus-pet-rover 2026-10-01"
+   ],
+   "checkedDate": "2026-10-01"
+  },
   "C965840": {
    "manufacturer": "XINGLIGHT",
    "mpn": "XL-1615RGBC-RF",
@@ -682,7 +795,9 @@
    "mpn": "RVT1C102M1010 1000UF 16V",
    "package": "SMD,D10xL10.2mm",
    "sources": [
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30",
+    "opus-pet-rover 2026-10-01"
    ],
    "checkedDate": "2026-09-30"
   },
@@ -697,7 +812,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "4-servors-hobby 2026-09-30"
+    "4-servors-hobby 2026-09-30",
+    "opus-5.5---4-servors-test 2026-09-30"
    ],
    "checkedDate": "2026-09-21"
   }
