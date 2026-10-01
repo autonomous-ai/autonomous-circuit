@@ -348,6 +348,28 @@ export function boardSourceRelPath(file) {
 
 /** The repo's pinned Node toolchain dir: env CIRCUIT_TOOLCHAIN > repo default
  * (`<repo>/toolchain`, four levels above this file). */
+/**
+ * Where `export_gerbers` writes: `CIRCUIT_EXPORT_DIR` when set (tests, a host
+ * that wants its own folder), else the Desktop, else Downloads, else home —
+ * the first one that exists. A person asked "export the zip to the Desktop and
+ * tell me" (2026-10-01); a path they can see beats a browser download they
+ * cannot find.
+ */
+export function exportDir(env = process.env) {
+  const configured = String(env.CIRCUIT_EXPORT_DIR || "").trim();
+  if (configured) {
+    fs.mkdirSync(configured, { recursive: true });
+    return path.resolve(configured);
+  }
+  const home = os.homedir();
+  for (const candidate of [path.join(home, "Desktop"), path.join(home, "Downloads")]) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) return candidate;
+    } catch { /* next */ }
+  }
+  return home;
+}
+
 export function toolchainDir(env = process.env) {
   if (env.CIRCUIT_TOOLCHAIN) {
     return path.resolve(env.CIRCUIT_TOOLCHAIN);
@@ -681,6 +703,33 @@ export function createCircuitServices({
     // event carries it. The client polls this while a turn is running so a
     // 90-second build reads as "Cross-checking with KiCad" rather than a
     // spinner that might be a hang.
+    // The Harness pane is a webview with no download manager: an `<a download>`
+    // there navigates to the zip and paints its bytes as text (2026-10-01). The
+    // server runs on the person's own machine, so it writes the file where they
+    // will look — the Desktop — and tells the strip the path.
+    export_gerbers: async ({ id, url, filename }) => {
+      const projectId = requireProject(id);
+      let pathname;
+      try {
+        pathname = new URL(String(url || ""), "http://127.0.0.1").pathname;
+      } catch {
+        throw ipcError("INVALID_ARGS", "export_gerbers needs the packet's gerbers URL", 400);
+      }
+      if (!pathname.startsWith(`/projects/${encodeURIComponent(projectId)}/`) && !pathname.startsWith(`/projects/${projectId}/`)) {
+        throw ipcError("INVALID_ARGS", "the gerbers URL does not belong to this project", 400);
+      }
+      const resolved = assetPathForRequest(pathname);   // throws 403 on traversal
+      if (!resolved || !resolved.assetPath.toLowerCase().endsWith(".zip") || !fs.existsSync(resolved.assetPath)) {
+        throw ipcError("NOT_FOUND", "no gerbers.zip in the packet yet — build the board first", 404);
+      }
+      const dir = exportDir(env);
+      const wanted = path.basename(String(filename || "").trim() || "gerbers.zip").replace(/[^\w.-]+/g, "-");
+      const base = wanted.toLowerCase().endsWith(".zip") ? wanted.slice(0, -4) : wanted;
+      let target = path.join(dir, `${base}.zip`);
+      for (let n = 2; fs.existsSync(target); n += 1) target = path.join(dir, `${base}-${n}.zip`);
+      fs.copyFileSync(resolved.assetPath, target);
+      return { path: target, dir, filename: path.basename(target), bytes: fs.statSync(target).size };
+    },
     build_status: async ({ id }) => {
       const projectId = requireProject(id);
       const file = path.join(

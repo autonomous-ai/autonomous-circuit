@@ -1,7 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CircleAlert, CircleCheck, CircleDashed, Download, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
-import { triggerUrlDownload } from "@/ui/download.js";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
 import { helpVerdict, readRoutingHelp } from "@/lib/routingHelp.js";
 import { formatElapsed } from "./buildStatus.js";
@@ -67,10 +66,31 @@ export default function BoardVerdict({
   boardName = "",
   turnActive = false,
   gerbersUrl = "",
+  onExportGerbers,
   onOpenTab,
   onFix,
   className,
 }) {
+  // What the last Export Gerber click did, in words, for nine seconds.
+  const [exportNote, setExportNote] = useState("");
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    if (!exportNote) return undefined;
+    const timer = setTimeout(() => setExportNote(""), 9000);
+    return () => clearTimeout(timer);
+  }, [exportNote]);
+  const exportGerbers = async () => {
+    if (!onExportGerbers || exporting) return;
+    setExporting(true);
+    try {
+      const result = await onExportGerbers();
+      setExportNote(result?.path ? `Saved to ${result.path}` : "Saved");
+    } catch (error) {
+      setExportNote(`Could not export: ${error?.message || error}`);
+    } finally {
+      setExporting(false);
+    }
+  };
   // When copper is missing, the router's own diagnosis replaces the finding
   // count in this strip. "A connection was never drawn, in 7 places" is a
   // symptom; "move U3 0.2mm up the board and 4 of them go through" is the
@@ -185,24 +205,27 @@ export default function BoardVerdict({
           uploads, as a file, for a fab the walkthrough does not know — a local
           shop, a university lab. One gate for both buttons (`fab.ready`), and
           the file only exists once the packet does, so an absent URL hides the
-          button rather than greying it. */}
-      {verdict.tone === "ready" && gerbersUrl ? (
+          button rather than greying it. The server copies the zip to the
+          Desktop and the strip says the path: a browser download is invisible
+          in the Harness pane (it is a webview with no download manager — the
+          first click painted the zip's bytes as text, 2026-10-01). */}
+      {verdict.tone === "ready" && gerbersUrl && onExportGerbers ? (
         <button
           type="button"
-          onClick={() => {
-            try {
-              triggerUrlDownload(gerbersUrl, { filename: `${boardName || "board"}-gerbers.zip` });
-            } catch {
-              /* the browser said no; the Download menu in the top bar is the second way */
-            }
-          }}
+          onClick={exportGerbers}
+          disabled={exporting}
           data-slot="verdict-gerbers"
-          title="Download the gerbers and drill files to send to any PCB maker"
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-emerald-500/20"
+          title="Save the gerbers and drill files to your Desktop, to send to any PCB maker"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-emerald-500/20 disabled:opacity-60"
         >
           <Download className="size-3.5" aria-hidden />
-          Export Gerber
+          {exporting ? "Exporting…" : "Export Gerber"}
         </button>
+      ) : null}
+      {exportNote ? (
+        <span data-slot="verdict-export-note" className="shrink-0 truncate font-mono text-[11px] text-muted-foreground" title={exportNote}>
+          {exportNote}
+        </span>
       ) : null}
 
       {verdict.tone !== "building" && verdict.tone !== "failed" ? (

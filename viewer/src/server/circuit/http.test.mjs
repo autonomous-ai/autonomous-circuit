@@ -834,3 +834,46 @@ test("firmware_detect and firmware_flash: the Flash button's two steps over HTTP
     s.close();
   }
 });
+
+test("export_gerbers copies the packet's zip to the export folder and names the path; traversal and missing files are refused", async () => {
+  const exportDir = tmpdir("circuit-export-");
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-"), CIRCUIT_EXPORT_DIR: exportDir }));
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    // The Harness pane is a webview with no download manager (2026-10-01): the file has to land
+    // on disk where the person looks, and the strip has to say where.
+    const packet = path.join(ws, "boards", "main_fab");
+    fs.mkdirSync(packet, { recursive: true });
+    fs.writeFileSync(path.join(packet, "gerbers.zip"), "PK\u0003\u0004 not really a zip");
+    const url = "/projects/workspace/boards/main_fab/gerbers.zip?v=1-1";
+
+    const first = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.equal(first.body.path, path.join(exportDir, "pet-rover-gerbers.zip"));
+    assert.equal(fs.readFileSync(first.body.path, "utf8"), "PK\u0003\u0004 not really a zip");
+
+    // A second export never overwrites the first — the person may have edited it.
+    const second = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
+    assert.equal(second.body.filename, "pet-rover-gerbers-2.zip");
+
+    // A filename is a name, never a path.
+    const stripped = await s.post("export_gerbers", { id: "workspace", url, filename: "../../evil.zip" });
+    assert.equal(stripped.body.filename, "evil.zip");
+    assert.equal(path.dirname(stripped.body.path), exportDir);
+
+    // The URL must be this project's packet, inside the workspace.
+    // `new URL` folds the `..` away before the prefix check (400); a `..` that survives
+    // encoding meets the asset guard (403). Either way nothing lands in the export folder.
+    const outside = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/../../etc/passwd" });
+    assert.ok([400, 403].includes(outside.status), String(outside.status));
+    const encoded = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/%2e%2e/%2e%2e/etc/passwd" });
+    assert.ok([400, 403].includes(encoded.status), String(encoded.status));
+    assert.deepEqual(fs.readdirSync(exportDir).sort(), ["evil.zip", "pet-rover-gerbers-2.zip", "pet-rover-gerbers.zip"]);
+    const other = await s.post("export_gerbers", { id: "workspace", url: "/projects/other/boards/main_fab/gerbers.zip" });
+    assert.equal(other.status, 400);
+    const missing = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/boards/main_fab/nope.zip" });
+    assert.equal(missing.status, 404);
+  } finally {
+    s.close();
+  }
+});
