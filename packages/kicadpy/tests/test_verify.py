@@ -258,9 +258,12 @@ class EnablesTest(unittest.TestCase):
             {'net': 'V_SERVO', 'kind': 'track', 'widthMm': 2.0}, {'net': 'V_IN_SERVO', 'kind': 'arc', 'widthMm': 2.0},
             {'net': 'V3_3', 'kind': 'track', 'widthMm': 0.15}, {'net': 'GND', 'kind': 'track', 'widthMm': 0.15},
             {'net': '/VSYS', 'kind': 'via', 'widthMm': 0.5},
+            # the rover's power-bank rail (2026-10-01) was named V5 and slipped past the first pattern
+            {'net': 'V5', 'kind': 'track', 'widthMm': 0.6},
         ]
         report = verify.entry_width_report(copper)
-        self.assertEqual(sorted(report), ['VBUS', 'VSYS', 'V_IN_SERVO', 'V_SERVO'])
+        self.assertEqual(sorted(report), ['V5', 'VBUS', 'VSYS', 'V_IN_SERVO', 'V_SERVO'])
+        self.assertFalse(report['V5']['narrow'])
         self.assertEqual(report['VBUS']['narrowestMm'], 0.225)
         self.assertEqual(report['VBUS']['narrowTracks'], 2)
         self.assertTrue(report['VBUS']['narrow'])

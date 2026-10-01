@@ -514,7 +514,7 @@ def _is_rail(net):
 #: rail cannot exist (circuitpy.netwidth). Give the entry nets their own netclass before routing.
 POWER_ENTRY_MIN_WIDTH_MM = 0.6
 #: Nets that are a supply *input* to the board: USB VBUS and anything named like an input rail.
-POWER_ENTRY_NAME = re.compile(r'^/?(VBUS|VIN|V_IN\w*|\w+_IN|V_?SERVO\w*|V_?MOTOR\w*|VSYS)$', re.I)
+POWER_ENTRY_NAME = re.compile(r'^/?(VBUS|VIN|V_IN\w*|\w+_IN|V_?SERVO\w*|V_?MOTOR\w*|VSYS|V5|5V|\+5V|V5_IN)$', re.I)
 
 
 def entry_width_report(copper, entry_nets=None, floor_mm=POWER_ENTRY_MIN_WIDTH_MM):
