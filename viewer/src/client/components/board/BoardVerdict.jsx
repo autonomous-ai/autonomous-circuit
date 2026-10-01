@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { CircleAlert, CircleCheck, CircleDashed, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, Download, Hammer, Loader2, TriangleAlert, Wrench } from "lucide-react";
 import { cn } from "@/ui/utils";
+import { triggerUrlDownload } from "@/ui/download.js";
 import { boardShapeLine, boardVerdict, groupFixRequest } from "@/lib/plainLanguage.js";
 import { helpVerdict, readRoutingHelp } from "@/lib/routingHelp.js";
 import { formatElapsed } from "./buildStatus.js";
@@ -65,6 +66,7 @@ export default function BoardVerdict({
   buildStatus = null,
   boardName = "",
   turnActive = false,
+  gerbersUrl = "",
   onOpenTab,
   onFix,
   className,
@@ -176,6 +178,30 @@ export default function BoardVerdict({
           className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-emerald-500/20"
         >
           Order at JLCPCB
+        </button>
+      ) : null}
+
+      {/* The other exit from "ready": the same gerbers the JLCPCB walkthrough
+          uploads, as a file, for a fab the walkthrough does not know — a local
+          shop, a university lab. One gate for both buttons (`fab.ready`), and
+          the file only exists once the packet does, so an absent URL hides the
+          button rather than greying it. */}
+      {verdict.tone === "ready" && gerbersUrl ? (
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              triggerUrlDownload(gerbersUrl, { filename: `${boardName || "board"}-gerbers.zip` });
+            } catch {
+              /* the browser said no; the Download menu in the top bar is the second way */
+            }
+          }}
+          data-slot="verdict-gerbers"
+          title="Download the gerbers and drill files to send to any PCB maker"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-emerald-500/20"
+        >
+          <Download className="size-3.5" aria-hidden />
+          Export Gerber
         </button>
       ) : null}
 

@@ -1361,6 +1361,7 @@ export default function BoardWorkspace({
                 buildStatus={buildStatus}
                 turnActive={turnInProgress}
                 boardName={selectedStem}
+                gerbersUrl={artifact?.gerbersUrl || ""}
                 onOpenTab={setActiveTab}
                 onFix={handlePrefillNote}
               />
