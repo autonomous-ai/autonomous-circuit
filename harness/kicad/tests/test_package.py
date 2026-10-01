@@ -108,10 +108,13 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(check.returncode, 1)
             self.assertIn('set differently', check.stdout)
 
-    def test_claude_tile_has_no_args(self):
-        # Harness maps its "full" mode to --dangerously-skip-permissions for claude itself, and the
-        # Stop hook is not wired for this arm yet (README); nothing else belongs on the command line.
-        self.assertNotIn('args', _manifest(CLAUDE)['agent'])
+    def test_claude_args_carry_model_and_effort_only(self):
+        # The model and effort are pinned the way the codex and grok tiles pin theirs: without them a
+        # run follows whatever `/model` last saved as the machine's default. Harness maps its "full"
+        # mode to --dangerously-skip-permissions for claude itself, and the Stop hook is not wired
+        # for this arm yet (README); nothing else belongs on the command line.
+        args = _manifest(CLAUDE)['agent']['args']
+        self.assertEqual(args, ['--model', 'claude-opus-5-5', '--effort', 'high'])
 
     def test_grok_args_carry_model_always_approve_and_trust(self):
         args = _manifest(GROK)['agent']['args']
@@ -178,17 +181,43 @@ class ManifestTest(unittest.TestCase):
                        'kicadpy.verify stale .', 'railLimitsUF'):
             self.assertIn(needle, text, needle)
 
+    def test_every_tile_carries_the_rp2040_toolchain_and_the_rules_that_need_it(self):
+        # The Firmware phase is done only when the recipe's binary exists (kicadpy.firmware.built),
+        # so the tile vendors the compiler (setup), reports it (doctor), exports the paths pico-sdk's
+        # CMake reads (manifests) and tells the agent where to read and what "done" means (AGENTS.md).
+        setup = (PKG / 'toolchain' / 'setup.sh').read_text(encoding='utf-8')
+        self.assertIn('scripts/toolchain/install-pico-toolchain.sh', setup)
+        installer = ROOT / 'scripts' / 'toolchain' / 'install-pico-toolchain.sh'
+        self.assertTrue(os.access(installer, os.X_OK))
+        self.assertIn('toolchain/pico/', (ROOT / '.gitignore').read_text(encoding='utf-8'))
+        doctor = (PKG / 'toolchain' / 'doctor.sh').read_text(encoding='utf-8')
+        self.assertIn('rp2040 toolchain', doctor)
+        self.assertIn('arduino-cli', doctor)
+        for tile_id, pkg in TILES.items():
+            env = _manifest(pkg)['agent']['env']
+            self.assertEqual(env['PICO_SDK_PATH'], '${dsh}/../../toolchain/pico/pico-sdk', tile_id)
+            self.assertEqual(env['PICO_TOOLCHAIN_PATH'], '${dsh}/../../toolchain/pico/arm-gnu-toolchain', tile_id)
+            self.assertEqual(env['CMAKE_PREFIX_PATH'], '${dsh}/../../toolchain/pico/picotool', tile_id)
+            self.assertEqual(env['KICAD_HARNESS_PICO_SDK'], env['PICO_SDK_PATH'], tile_id)
+            self.assertEqual(env['KICAD_HARNESS_ARM_TOOLCHAIN'], env['PICO_TOOLCHAIN_PATH'], tile_id)
+        agents = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
+        for phrase in ('Written is not done; built is.', 'kicadpy.firmware.built', 'Where you read.',
+                       'Never another workspace', "The checker is the tile's.", 'KICAD_HARNESS_PICO_SDK'):
+            self.assertIn(phrase, agents, phrase)
+
     def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
         card = (PKG / 'skills' / 'kicad' / 'SKILL.md').read_text(encoding='utf-8')
         for needle in ('kicadpy.author write spec.json design/', 'kicadpy.knowledge show', 'modules/<id>/BLOCK.md'):
             self.assertIn(needle, card, needle)
         # the header-mounted modules the KiCad tile reads beside the golden blocks: knowledge only, no TSX
         blocks = ROOT / 'packages' / 'golden-blocks'
-        for module in ('st7789-1.54-module', 'ttp223-module'):
+        for module in ('st7789-1.54-module', 'ttp223-module', 'esp32-c3-supermini', 'sg90-continuous-module', 'oled-0.96-i2c-module'):
             block_md = blocks / 'modules' / module / 'BLOCK.md'
             self.assertTrue(block_md.is_file(), module)
             self.assertNotIn(module, [p.name for p in (blocks / 'blocks').iterdir()], f'{module} must not be a golden block')
         self.assertIn('BLK', (blocks / 'modules' / 'st7789-1.54-module' / 'BLOCK.md').read_text(encoding='utf-8'))
+        self.assertIn('15.24 mm', (blocks / 'modules' / 'esp32-c3-supermini' / 'BLOCK.md').read_text(encoding='utf-8'))
+        self.assertIn('1.5 ms = stop', (blocks / 'modules' / 'sg90-continuous-module' / 'BLOCK.md').read_text(encoding='utf-8'))
 
 
 class PythonWrapperTest(unittest.TestCase):

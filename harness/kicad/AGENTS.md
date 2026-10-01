@@ -53,15 +53,36 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   **engineering knowledge** — pin maps, values, layout notes, the numbers that were measured —
   not native sheets. A TSX block is never a KiCad schematic; you author the schematic.
   Beside them, `$KICAD_HARNESS_BLOCKS/../modules/<id>/BLOCK.md` holds header-mounted modules
-  (the 1.54" ST7789 display, the TTP223 touch board): pin order, current, and the trap an
-  earlier run fell into (an NPN low-side on the display's BLK pin never lights the backlight).
+  (the 1.54" ST7789 display, the 0.96" I²C OLED, the TTP223 touch board, the ESP32-C3 SuperMini
+  on sockets, the SG90-class continuous-rotation servo): pin order, current, and the trap an
+  earlier run fell into (an NPN low-side on the display's BLK pin never lights the backlight; a
+  dev module's 5V pin is raw USB VBUS with no diode). What a module card says is what a board
+  may rely on; an earlier board's folder is not a source.
 - `kicadpy.knowledge` — what earlier runs measured, keyed by LCSC code: factory rotation offsets
   and supplier-verified part identities with their traps (`"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge show C6186`).
   `verify rotation` and `verify stock` read it first. Read it before you search.
 - `$CIRCUIT_TOOLCHAIN` — the pinned Freerouting jar and JRE (`kicadpy route` and the Specctra
   round trip use them). Never build your own router launcher.
+- `$KICAD_HARNESS_PICO_SDK` and `$KICAD_HARNESS_ARM_TOOLCHAIN` — pico-sdk 2.2.0 and Arm GNU
+  14.2 for RP2040 firmware, vendored with the tile; `PICO_SDK_PATH`, `PICO_TOOLCHAIN_PATH` and
+  `CMAKE_PREFIX_PATH` (picotool) are already exported, so `cmake -S firmware -B build/firmware` needs no flags.
 - The `kicad` skill in `$CIRCUIT_SKILLS_DIR/kicad/SKILL.md` is the tool card: every command,
   every request shape, the paths to discover.
+
+**Where you read.** This workspace, `$KICAD_HARNESS_ROOT` and `$KICAD_HARNESS_BLOCKS` — and the web
+for datasheets, supplier pages and fab rules. Never another workspace: not `~/harnesses`, not
+`~/projects`, not an earlier board's `engineering/`, `tools/` or `design/`, however finished it
+looks. Every board here is graded on what *you* derived from the datasheets; a run that opened
+another board's folder (2026-09-29: eleven reads of a finished Deck before drawing its own) is
+counted as a copy, not a design. If a prompt names a repository to read, that one path is the
+exception and the reason goes in `engineering/sources.md`.
+
+**The checker is the tile's.** Run `kicadpy` only as `"$KICAD_HARNESS_PYTHON" -m kicadpy…` from
+`$KICAD_HARNESS_ROOT`'s copy. Never copy `kicadpy` or `verifylib` into the workspace, patch a
+private copy, or put a `kicadpy/` directory anywhere `python -m` would import it first (2026-09-30:
+one run did, to work around a store path and a DSN export; the fix belongs in the tile, and the
+package now refuses to run from inside a workspace). A tool that is wrong is a line in your report
+with the command and the error, not a fork.
 
 **Two Pythons, two runtimes.** KiCad's bundled Python (`pcbnew`) authors and inspects PCB
 objects. When Harness sets `$KICADPY_CLI` / `$KICADPY_PYTHON` / `$KICAD_HARNESS_SHARE`, that is the
@@ -257,6 +278,18 @@ OFF-BOARD on a labelled pad row carrying its rail and bus, and the rest of the b
 around it; say so in the sources and the report. Stopping is for a safety refusal and nothing
 else.
 
+**Power-entry copper, before the first route.** The supply-input nets — USB `VBUS` from the
+connector to the bulk capacitor and regulator, and any external input rail (`V_SERVO`, `*_IN`) —
+carry a floor of **0.6 mm at 1 oz** (`kicadpy.verify power` → `entryWidths`; the publisher records
+`power_entry_narrow`). The hardware reviewer rejected 0.225–0.3 mm VBUS on the Claude Servo Bench
+(2026-09-30) and widening it after routing cost nine clearance faults and a hand reroute. So: put
+those nets in their own netclass in the `.kicad_pro` (track 0.6 mm, via 0.8/0.4) before the first
+Freerouting pass, and at placement leave a straight corridor from the connector's power pads to the
+input capacitor and regulator — no fine-pitch pads or other nets' vias in the way. The floor is
+for the entry run only; a rail's fanout under a QFN is as wide as the pitch allows and no wider.
+Name extra entry nets in `product.json` as `"powerEntryNets": ["VBUS", "V_IN"]` when the defaults
+would miss one.
+
 ### Review — your own, after the build, silently
 
 The app used to run this loop for you; here you run it yourself, without narrating it, following
@@ -326,9 +359,19 @@ the review is closed, write the firmware in the same turn, without being asked a
   differs from what `product.json` asked for.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
-  status LED first, then each peripheral). Compile it when the toolchain is on this machine and
-  say whether it compiled. You never flash it yourself: the person does, with the Flash button
-  on the pane (below). Until they tell you what the board did, it is untested — say so.
+  status LED first, then each peripheral). You never flash it yourself: the person does, with
+  the Flash button on the pane (below). Until they tell you what the board did, it is untested —
+  say so.
+- **Written is not done; built is.** The Firmware phase turns done only when `flash.json` names a
+  binary that exists and is newer than the sources (`kicadpy.firmware.built`): the UF2 for an
+  RP2040, `<build>/<sketch>.ino.bin` for an ESP32. Build with what the tile carries — the pico-sdk
+  and Arm GNU under `$KICAD_HARNESS_PICO_SDK` / `$KICAD_HARNESS_ARM_TOOLCHAIN` (already in
+  `PICO_SDK_PATH` / `PICO_TOOLCHAIN_PATH` / `CMAKE_PREFIX_PATH`), `arduino-cli` with the esp32 core for
+  an ESP32 — into `build/` (outside `firmware/`, which the tab lists), and point `flash.json` at
+  the result. A compile error is a finding to fix, not a sentence in the README; host unit tests
+  are welcome and are not a build. A run that wrote sources it could not compile, named a UF2
+  that did not exist and was marked done (2026-09-30) is why this line exists. If the toolchain
+  for the chip is truly absent, say exactly which command failed and leave the phase active.
 - **`firmware/flash.json` — the recipe the pane's Flash button runs.** You never flash; the
   person does, from the Firmware tab, and the button only works when this file names the board:
   ```json

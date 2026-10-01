@@ -38,6 +38,8 @@ class AutoFinishTest(unittest.TestCase):
         (self.ws / 'firmware').mkdir()
         (self.ws / 'firmware' / 'README.md').write_text('# flash it')
         (self.ws / 'firmware' / 'main.c').write_text('int main(void) {}')
+        (self.ws / 'firmware' / 'flash.json').write_text('{"family": "rp2040", "uf2": "fw.uf2"}')
+        (self.ws / 'firmware' / 'fw.uf2').write_bytes(b'UF2\n')
         response = af.handle(self.event, lambda _: (True, []))
         self.assertNotIn('decision', response)
         self.assertEqual(af.read_state(self.ws)['status'], 'ready')
@@ -181,7 +183,7 @@ if __name__ == '__main__':
 
 
 class FirmwareContinuationTest(unittest.TestCase):
-    """A ready board with an empty firmware/ gets one more turn, then may stop with the gap named."""
+    """A ready board whose firmware is not written and built gets one more turn, then may stop with the gaps named."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -195,16 +197,20 @@ class FirmwareContinuationTest(unittest.TestCase):
     def arm(self):
         af.arm(self.ws)
 
-    def write_firmware(self):
+    def write_firmware(self, build=True):
         (self.ws / 'firmware' / 'src').mkdir(parents=True)
         (self.ws / 'firmware' / 'README.md').write_text('# flash it')
         (self.ws / 'firmware' / 'src' / 'main.c').write_text('int main(void) {}')
+        (self.ws / 'firmware' / 'flash.json').write_text('{"family": "rp2040", "uf2": "../build/fw.uf2"}')
+        if build:
+            (self.ws / 'build').mkdir(exist_ok=True)
+            (self.ws / 'build' / 'fw.uf2').write_bytes(b'UF2\n')
 
     def test_ready_without_firmware_is_asked_once_then_allowed_to_stop(self):
         self.arm()
         first = af.handle(self.event, lambda _: (True, []))
         self.assertEqual(first['decision'], 'block')
-        self.assertIn('firmware/ is empty', first['reason'])
+        self.assertIn('the firmware is not finished', first['reason'])
         self.assertIn('firmware/README.md', first['reason'])
         self.assertIn('does not forbid writing the code', first['reason'])
         state = af.read_state(self.ws)
@@ -214,7 +220,24 @@ class FirmwareContinuationTest(unittest.TestCase):
 
         second = af.handle(self.event, lambda _: (True, []))
         self.assertNotIn('decision', second)
-        self.assertIn('firmware/ is still empty', second['systemMessage'])
+        self.assertIn('not written and built', second['systemMessage'])
+        self.assertEqual(af.read_state(self.ws)['status'], 'ready')
+
+    def test_written_but_not_built_is_asked_for_the_build_with_the_binary_named(self):
+        # The Opus 5.5 servo bench (2026-09-30): README, sources, tests, a flash.json naming a UF2
+        # that was never produced — and the pane said done. Now the hook names the binary.
+        self.arm()
+        self.write_firmware(build=False)
+        first = af.handle(self.event, lambda _: (True, []))
+        self.assertEqual(first['decision'], 'block')
+        self.assertIn('build/fw.uf2 is missing', first['reason'])
+        self.assertIn('KICAD_HARNESS_PICO_SDK', first['reason'])
+        self.assertNotIn('firmware/README.md (', first['reason'], 'only the real gap is named')
+        (self.ws / 'build').mkdir(exist_ok=True)
+        (self.ws / 'build' / 'fw.uf2').write_bytes(b'UF2\n')
+        second = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', second)
+        self.assertNotIn('firmware', second['systemMessage'])
         self.assertEqual(af.read_state(self.ws)['status'], 'ready')
 
     def test_ready_with_firmware_ends_the_loop_at_once(self):

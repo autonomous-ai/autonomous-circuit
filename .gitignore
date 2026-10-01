@@ -37,3 +37,5 @@ tmp/
 
 # Freerouting jar + JRE: installed by scripts/toolchain/install-freerouting.sh, never committed
 toolchain/freerouting/
+# RP2040 firmware toolchain (Arm GNU + pico-sdk + picotool): scripts/toolchain/install-pico-toolchain.sh
+toolchain/pico/

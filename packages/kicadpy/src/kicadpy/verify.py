@@ -12,7 +12,7 @@ scripts, made generic, so any engine runs them instead of writing its own.
     python -m kicadpy.verify easyeda  build/easyeda_fp.json C123 C456   # fetch EasyEDA footprint pads (network)
     python -m kicadpy.verify rotation design/main.kicad_pro parts.json [build/easyeda_fp.json]   # factory rotation offsets
     python -m kicadpy.verify stock    parts.json build/jlc_stock.json   # JLCPCB stock / library type (network)
-    python -m kicadpy.verify power    design/main.kicad_pro [--rail VBUS=10] [--limit-mm 3]   # cap totals per rail, cap-to-pin distances (pcbnew)
+    python -m kicadpy.verify power    design/main.kicad_pro [--rail VBUS=10] [--limit-mm 3] [--entry-net VBUS]   # cap totals per rail, cap-to-pin distances, power-entry track width (pcbnew)
     python -m kicadpy.verify enables  design/main.kicad_pro parts.json   # enable/strap pins against the knowledge table's pin rules
     python -m kicadpy.verify modules  design/main.kicad_pro J2 st7789-1.54-module   # header pin order against the module card
     python -m kicadpy.verify thermal  design/main.kicad_pro U2 2       # the copper island under a pad, per layer (pcbnew)
@@ -506,6 +506,40 @@ def _is_rail(net):
     return bool(net) and net.upper() not in ('GND', '/GND', 'AGND', '/AGND') and bool(RAIL_NAME.match(net))
 
 
+#: The narrowest a power-entry track may be, 1 oz copper. A house rule, not physics: the hardware
+#: reviewer rejected 0.225-0.3 mm VBUS between the USB-C and the LDO on the Claude Servo Bench
+#: (2026-09-30, "dây nguồn phải to hơn, gấp 2 lần") and the agent widened it to 0.6 mm by hand,
+#: through nine clearance faults. It applies to the entry run only — connector to bulk capacitor
+#: and regulator — never to a rail's fanout under a fine-pitch IC, where v1 measured that a wide
+#: rail cannot exist (circuitpy.netwidth). Give the entry nets their own netclass before routing.
+POWER_ENTRY_MIN_WIDTH_MM = 0.6
+#: Nets that are a supply *input* to the board: USB VBUS and anything named like an input rail.
+POWER_ENTRY_NAME = re.compile(r'^/?(VBUS|VIN|V_IN\w*|\w+_IN|V_?SERVO\w*|V_?MOTOR\w*|VSYS|V5|5V|\+5V|V5_IN)$', re.I)
+
+
+def entry_width_report(copper, entry_nets=None, floor_mm=POWER_ENTRY_MIN_WIDTH_MM):
+    """Per power-entry net, the narrowest track as built against the floor.
+
+    `copper` is the worker's `inspect` copper list (tracks, arcs, vias with `net`, `kind`,
+    `widthMm`). Vias are not tracks: their size is reported separately and never flags. A net
+    with no track (a pour-only rail) reports `narrowestMm: None` and is not flagged either —
+    the pour is measured by `thermal`, not here.
+    """
+    def norm(n): return (n or '').lstrip('/')
+    nets_on_board = {norm(item['net']) for item in copper if item.get('net')}
+    wanted = {norm(n) for n in (entry_nets or [])} or {n for n in nets_on_board if POWER_ENTRY_NAME.match(n)}
+    report = {}
+    for net in sorted(wanted):
+        tracks = [item for item in copper if norm(item.get('net')) == net and item.get('kind') in ('track', 'arc')]
+        vias = [item for item in copper if norm(item.get('net')) == net and item.get('kind') == 'via']
+        narrowest = min((float(t['widthMm']) for t in tracks), default=None)
+        report[net] = {'narrowestMm': narrowest, 'tracks': len(tracks),
+                       'narrowTracks': sum(1 for t in tracks if float(t['widthMm']) < floor_mm - 1e-6),
+                       'viaMinMm': min((float(v['widthMm']) for v in vias), default=None),
+                       'floorMm': floor_mm, 'narrow': narrowest is not None and narrowest < floor_mm - 1e-6}
+    return report
+
+
 def power_report(footprints, rails=None, limit_mm=3.0, ic_prefixes=('U',), cap_prefix='C', skip_refs=()):
     """Two measurements a report tends to get wrong.
 
@@ -568,7 +602,7 @@ def power_report(footprints, rails=None, limit_mm=3.0, ic_prefixes=('U',), cap_p
             'pins': pins, 'pinsOverLimit': [f"{q['ref']}.{q['pad']}" for q in pins if q['overLimit']]}
 
 
-def power(project, rails=None, limit_mm=3.0, parts_file=None):
+def power(project, rails=None, limit_mm=3.0, parts_file=None, entry_nets=None, entry_floor_mm=POWER_ENTRY_MIN_WIDTH_MM):
     pcb = Path(project).with_suffix('.kicad_pcb')
     footprints = toolchain.worker('pads', pcb)['footprints']
     # An ESD array's VBUS pin is a clamp reference, not a supply: the knowledge table says which
@@ -582,6 +616,8 @@ def power(project, rails=None, limit_mm=3.0, parts_file=None):
                 skip += part.get('refdes', [])
     out = power_report(footprints, rails, limit_mm, skip_refs=skip)
     out['skippedRefs'] = sorted(skip)
+    copper = toolchain.worker('inspect', pcb).get('copper', [])
+    out['entryWidths'] = entry_width_report(copper, entry_nets, entry_floor_mm)
     return out
 
 
@@ -597,6 +633,12 @@ def print_power(out):
         if q['overLimit']:
             d = 'no capacitor on this rail' if q['distanceMm'] is None else f"{q['distanceMm']:.3f} mm to {q['nearestCap']}"
             print(f"    {q['ref']}.{q['pad']:4s} {q['net']:12s} {d}")
+    for net, info in sorted(out.get('entryWidths', {}).items()):
+        if info['narrowestMm'] is None:
+            print(f"  entry {net:10s} no track (pour only)")
+        else:
+            flag = f"  <- NARROWER than the {info['floorMm']:g} mm power-entry floor ({info['narrowTracks']} track(s))" if info['narrow'] else ''
+            print(f"  entry {net:10s} narrowest track {info['narrowestMm']:.3f} mm over {info['tracks']} track(s){flag}")
     print('  totals count every capacitor between the rail and GND; the block limit for decoupling is per pin, not per BOM')
 
 
@@ -612,6 +654,12 @@ def power_findings(out):
             where = 'no capacitor on that rail' if q['distanceMm'] is None else f"nearest {q['nearestCap']} is {q['distanceMm']:g} mm away"
             findings.append({'kind': 'decoupling_distance', 'severity': 'warning', 'part': q['ref'],
                              'message': f"{q['ref']}.{q['pad']} ({q['net']}): {where}; the block rule is a capacitor within {out['limitMm']:g} mm of the pin it serves."})
+    for net, info in sorted(out.get('entryWidths', {}).items()):
+        if info['narrow']:
+            findings.append({'kind': 'power_entry_narrow', 'severity': 'warning', 'net': net,
+                             'message': f"{net}: narrowest track {info['narrowestMm']:g} mm ({info['narrowTracks']} of {info['tracks']} under the floor); "
+                                        f"a supply-input run is >= {info['floorMm']:g} mm at 1 oz from the connector to the bulk capacitor and regulator "
+                                        f"(hardware review 2026-09-30). Give it its own netclass before routing; widening afterwards costs clearance faults."})
     return findings
 
 
@@ -759,6 +807,8 @@ def main(argv=None):
     s = sub.add_parser('stock'); s.add_argument('parts'); s.add_argument('out'); s.add_argument('codes', nargs='*')
     s = sub.add_parser('power'); s.add_argument('project'); s.add_argument('--rail', action='append', default=[], metavar='NET=MAX_UF')
     s.add_argument('--limit-mm', type=float, default=3.0); s.add_argument('--parts', default='parts.json')
+    s.add_argument('--entry-net', action='append', default=[], metavar='NET', help='a supply-input net to hold to the width floor (default: VBUS and *_IN / V_SERVO-like names)')
+    s.add_argument('--entry-floor-mm', type=float, default=POWER_ENTRY_MIN_WIDTH_MM)
     s = sub.add_parser('enables'); s.add_argument('project'); s.add_argument('parts')
     s = sub.add_parser('modules'); s.add_argument('project'); s.add_argument('ref'); s.add_argument('card')
     s = sub.add_parser('thermal'); s.add_argument('project'); s.add_argument('ref'); s.add_argument('pad')
@@ -780,7 +830,7 @@ def main(argv=None):
             for item in args.rail:
                 name, _, limit = item.partition('=')
                 rails[name] = float(limit) if limit else float('inf')
-            out = power(args.project, rails, args.limit_mm, args.parts); print_power(out)
+            out = power(args.project, rails, args.limit_mm, args.parts, args.entry_net or None, args.entry_floor_mm); print_power(out)
         elif args.command == 'enables':
             out = enables(args.project, args.parts); print_enables(out)
         elif args.command == 'modules':

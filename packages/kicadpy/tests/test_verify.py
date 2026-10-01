@@ -249,6 +249,39 @@ class PowerTest(unittest.TestCase):
 
 
 class EnablesTest(unittest.TestCase):
+    def test_power_entry_tracks_are_held_to_the_floor_but_fanout_rails_are_not(self):
+        # The servo bench as first routed (2026-09-30): VBUS 0.225-0.3 mm from the USB-C to the LDO,
+        # rejected by the hardware reviewer. V3_3 at 0.15 mm under the RP2040 is a fanout, never flagged.
+        copper = [
+            {'net': 'VBUS', 'kind': 'track', 'widthMm': 0.3}, {'net': 'VBUS', 'kind': 'track', 'widthMm': 0.225},
+            {'net': 'VBUS', 'kind': 'via', 'widthMm': 0.6},
+            {'net': 'V_SERVO', 'kind': 'track', 'widthMm': 2.0}, {'net': 'V_IN_SERVO', 'kind': 'arc', 'widthMm': 2.0},
+            {'net': 'V3_3', 'kind': 'track', 'widthMm': 0.15}, {'net': 'GND', 'kind': 'track', 'widthMm': 0.15},
+            {'net': '/VSYS', 'kind': 'via', 'widthMm': 0.5},
+            # the rover's power-bank rail (2026-10-01) was named V5 and slipped past the first pattern
+            {'net': 'V5', 'kind': 'track', 'widthMm': 0.6},
+        ]
+        report = verify.entry_width_report(copper)
+        self.assertEqual(sorted(report), ['V5', 'VBUS', 'VSYS', 'V_IN_SERVO', 'V_SERVO'])
+        self.assertFalse(report['V5']['narrow'])
+        self.assertEqual(report['VBUS']['narrowestMm'], 0.225)
+        self.assertEqual(report['VBUS']['narrowTracks'], 2)
+        self.assertTrue(report['VBUS']['narrow'])
+        self.assertFalse(report['V_SERVO']['narrow'])
+        self.assertIsNone(report['VSYS']['narrowestMm'], 'a pour-only rail has no track to measure')
+        self.assertFalse(report['VSYS']['narrow'])
+        findings = verify.power_findings({'overLimit': [], 'rails': {}, 'pins': [], 'limitMm': 3.0, 'entryWidths': report})
+        self.assertEqual([f['kind'] for f in findings], ['power_entry_narrow'])
+        self.assertEqual(findings[0]['severity'], 'warning')
+        self.assertIn('0.225 mm', findings[0]['message'])
+        self.assertIn('>= 0.6 mm', findings[0]['message'])
+        # After the widening: nothing to say. An explicit net list and floor override the defaults.
+        fixed = [dict(c, widthMm=0.6) if c['net'] == 'VBUS' and c['kind'] == 'track' else c for c in copper]
+        self.assertFalse(verify.entry_width_report(fixed)['VBUS']['narrow'])
+        custom = verify.entry_width_report(fixed, entry_nets=['V3_3'], floor_mm=0.3)
+        self.assertEqual(list(custom), ['V3_3'])
+        self.assertTrue(custom['V3_3']['narrow'])
+
     def test_a_pin_rule_from_the_table_is_checked_against_the_copper(self):
         table = {'C7484': {'mpn': 'SN74AHCT1G125', 'pinRules': [{'pin': '1', 'name': '/OE', 'require': 'GND', 'why': 'OE high = Hi-Z'}]}}
         pads = {'U6.1': '/VBUS', 'U6.2': 'LED_DATA', 'U7.1': 'GND'}

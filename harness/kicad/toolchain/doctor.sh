@@ -102,6 +102,27 @@ else
   miss "freerouting not vendored at $fr — run harness/kicad/toolchain/setup.sh"
 fi
 
+# Firmware toolchains. RP2040 is vendored by setup.sh (the Firmware phase asks for a built binary,
+# so a missing compiler is a miss); ESP32 firmware builds with the machine's arduino-cli + esp32 core,
+# which the tile does not vendor — reported, not required.
+pico="$ROOT/toolchain/pico"
+if [ -x "$pico/arm-gnu-toolchain/bin/arm-none-eabi-gcc" ] && [ -f "$pico/pico-sdk/lib/tinyusb/src/tusb.h" ]; then
+  gccv="$("$pico/arm-gnu-toolchain/bin/arm-none-eabi-gcc" --version 2>/dev/null)"; gccv="${gccv%%$'\n'*}"
+  ok "rp2040 toolchain: ${gccv#arm-none-eabi-gcc } + pico-sdk (toolchain/pico)"
+  if [ -f "$pico/picotool/picotool/picotoolConfig.cmake" ]; then ok "picotool vendored (toolchain/pico/picotool)"
+  else warn "picotool not vendored — pico-sdk builds it per project from the network"; fi
+  if command -v cmake >/dev/null 2>&1; then ok "cmake $(cmake --version 2>/dev/null | head -1 | sed 's/cmake version //')"
+  else miss "cmake not found — RP2040 firmware cannot be built (brew install cmake ninja)"; fi
+else
+  miss "rp2040 toolchain not vendored at $pico — run harness/kicad/toolchain/setup.sh"
+fi
+if command -v arduino-cli >/dev/null 2>&1; then
+  if arduino-cli core list 2>/dev/null | grep -q '^esp32:esp32'; then ok "arduino-cli with the esp32 core (ESP32 firmware builds)"
+  else warn "arduino-cli without the esp32 core — ESP32 firmware will not build (arduino-cli core install esp32:esp32)"; fi
+else
+  warn "arduino-cli not found — ESP32 firmware will not build on this machine (brew install arduino-cli)"
+fi
+
 if [ -f "$ROOT/viewer/dist/index.html" ]; then
   ok "viewer built"
 else

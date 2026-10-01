@@ -286,12 +286,26 @@ def main(req):
                     board.Remove(t)
                 else:
                     t.SetLocked(True)
+            # Zones go into the Specctra export as pours and the router treats them as obstacles
+            # (harness-17: two routes died at 34-40 unrouted). The skill card told agents to strip
+            # them by hand; Astra patched a private copy of this file to do it (2026-09-30). The
+            # board in memory is export-only here, nothing is saved, so drop them.
+            for zone in list(board.Zones()):
+                board.Remove(zone)
             if not p.ExportSpecctraDSN(board, req['output']):
                 raise ValueError('DSN export failed')
             return {'ok': True}
         def signature(t):
             data = copper(t)
             data.pop('uuid'); data.pop('locked')
+            # The Specctra round trip moves untouched copper by up to 0.0005 mm (2026-09-30: a local
+            # `kicadpy route` was refused for exactly that); 0.01 mm is below anything a fab resolves.
+            for key in ('start', 'end', 'mid', 'at'):
+                if key in data:
+                    data[key] = [round(v, 2) for v in data[key]]
+            for key in ('widthMm', 'drillMm'):
+                if key in data:
+                    data[key] = round(data[key], 2)
             # Segment orientation is irrelevant to preservation.
             if data['kind'] == 'track':
                 data['start'], data['end'] = sorted([data['start'], data['end']])

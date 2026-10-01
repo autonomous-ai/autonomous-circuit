@@ -4,7 +4,8 @@ The same harness as [`../kicad`](../kicad/README.md) — same `AGENTS.md`, skill
 (symlinks; `template/` is a real copy because the daemon copies it without dereferencing, and the
 test pins it byte-identical) — with the claude manifest: `"engine": "claude"`,
 `CIRCUIT_SKILLS_DIR` → `${workspace}/.claude/skills` (where Harness links a claude tile's skills),
-and no `args`. Harness writes the workspace `CLAUDE.md` with an `@AGENTS.md` import and passes
+and `args` that pin the model and effort (`--model claude-opus-5-5 --effort high`), so a run does
+not follow whatever `/model` last saved as the machine's default. Harness writes the workspace `CLAUDE.md` with an `@AGENTS.md` import and passes
 `--dangerously-skip-permissions` when the harness is created in "full" mode (the viewer's New
 board button does; pick "full" in the desktop's Advanced step).
 

@@ -21,7 +21,7 @@ import sys
 import time
 import uuid
 
-from .firmware import firmware_written, missing as firmware_missing
+from .firmware import firmware_built, missing as firmware_missing
 from .project import write_json
 
 STATE = Path('.circuit/autofinish.json')
@@ -32,10 +32,12 @@ PUBLISH_TIMEOUT = 480
 # credit in the middle of continuation 1 (2026-09-23) and left nothing; the next engine had to
 # reverse-engineer the state from the reports.
 HANDOFF_AT = 3
-# A ready board with an empty firmware/ gets exactly one more turn to write it. One, because
-# writing firmware is one turn's work and a second nudge would be nagging an agent that has
-# decided (or been told) not to; the pane's Firmware phase then stays active and the report
-# says so. Never counted against the repair budget: it is not a repair.
+# A ready board whose firmware is not written AND built gets exactly one more turn for it. One,
+# because writing and building firmware is one turn's work and a second nudge would be nagging an
+# agent that has decided (or been told) not to; the pane's Firmware phase then stays active and
+# the report says so. Never counted against the repair budget: it is not a repair. "Built" is
+# `kicadpy.firmware.built`: the recipe's binary exists and is current (2026-09-30: a tree with
+# sources that did not compile passed as done).
 FIRMWARE_CONTINUATIONS = 1
 
 
@@ -137,18 +139,19 @@ def inspect_board(workspace):
 def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
     """Return the next persisted state and the Codex hook response.
 
-    `firmware` is whether `firmware/` holds a README and a source (kicadpy.firmware); a ready
-    board without one is asked for it once, then allowed to stop with the gap named.
+    `firmware` is whether `firmware/` is written and built (kicadpy.firmware.firmware_built); a
+    ready board without that is asked for it once, then allowed to stop with the gaps named.
     """
     state = dict(state)
     if ready:
         if not firmware and state.get('firmware_continuations', 0) < FIRMWARE_CONTINUATIONS:
             state.update(findings=[], firmware_continuations=state.get('firmware_continuations', 0) + 1)
-            reason = ('Circuit verification: every board is prototype-ready (fab.ready=true) but firmware/ is empty. '
-                      'Write the firmware now, in this turn, as the AGENTS.md "Firmware" section says: '
+            reason = ('Circuit verification: every board is prototype-ready (fab.ready=true) but the firmware is not finished. '
+                      'Finish it now, in this turn, as the AGENTS.md "Firmware" section says — still missing: '
                       + '; '.join(firmware_gaps or firmware_missing_default())
                       + '. The pin map comes off the final schematic and netlist, never the plan. '
-                      'Compile it if the toolchain is on this machine and say whether it compiled. '
+                      'Build it with the toolchain the tile carries and say what the build produced; '
+                      'the Firmware phase is done only when flash.json names a binary that exists. '
                       'Never flash it yourself (the Flash button on the pane is the person\'s, and it needs '
                       'firmware/flash.json), never order, never edit the board or any derived file for this. '
                       'A prompt that forbids flashing or ordering does not forbid writing the code; '
@@ -157,7 +160,7 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
         state.update(status='ready', findings=[])
         message = 'Circuit freshly published every board: fab.ready=true. Physical hardware remains untested.'
         if not firmware:
-            message += ' firmware/ is still empty: the Firmware tab shows nothing. Say so in your report.'
+            message += ' The firmware is not written and built: the Flash button has nothing to write. Say so in your report.'
         return state, {'systemMessage': message}
     unchanged = state.get('unchanged', 0) + 1 if findings == state.get('findings') else 0
     state.update(findings=findings, unchanged=unchanged)
@@ -188,7 +191,7 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
 
 
 def firmware_missing_default():
-    return ['firmware/README.md', 'firmware/ sources']
+    return ['firmware/README.md', 'firmware/ sources', 'firmware/flash.json and the binary it names']
 
 
 def is_user_cancel(event):
@@ -238,7 +241,7 @@ def handle(event, inspect=inspect_board):
         current = read_state(workspace)
         if current.get('run') != state.get('run') or current.get('status') != 'active':
             return {}
-        firmware = firmware_written(workspace) if ready else True
+        firmware = firmware_built(workspace) if ready else True
         gaps = firmware_missing(workspace) if ready and not firmware else ()
         updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps)
         write_json(workspace / STATE, updated)

@@ -7,7 +7,7 @@
   "formerly": [
     "autonomous/solder"
   ],
-  "description": "Describe a board; get a real KiCad project \u2014 a wired schematic, DRC-checked copper, a prototype packet \u2014 with a live board view.",
+  "description": "Describe a board; get a real KiCad project — a wired schematic, DRC-checked copper, a prototype packet — with a live board view.",
   "engine": "codex",
   "workspace": {
     "template": "template",
@@ -24,6 +24,11 @@
       "KICAD_HARNESS_ROOT": "${dsh}/../..",
       "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
       "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",
+      "KICAD_HARNESS_PICO_SDK": "${dsh}/../../toolchain/pico/pico-sdk",
+      "KICAD_HARNESS_ARM_TOOLCHAIN": "${dsh}/../../toolchain/pico/arm-gnu-toolchain",
+      "PICO_SDK_PATH": "${dsh}/../../toolchain/pico/pico-sdk",
+      "PICO_TOOLCHAIN_PATH": "${dsh}/../../toolchain/pico/arm-gnu-toolchain",
+      "CMAKE_PREFIX_PATH": "${dsh}/../../toolchain/pico/picotool",
       "CIRCUIT_SKILLS_DIR": "${workspace}/.agents/skills",
       "DISABLE_AUTOUPDATER": "1"
     },
