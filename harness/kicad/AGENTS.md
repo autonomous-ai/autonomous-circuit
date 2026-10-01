@@ -53,8 +53,11 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   **engineering knowledge** — pin maps, values, layout notes, the numbers that were measured —
   not native sheets. A TSX block is never a KiCad schematic; you author the schematic.
   Beside them, `$KICAD_HARNESS_BLOCKS/../modules/<id>/BLOCK.md` holds header-mounted modules
-  (the 1.54" ST7789 display, the TTP223 touch board): pin order, current, and the trap an
-  earlier run fell into (an NPN low-side on the display's BLK pin never lights the backlight).
+  (the 1.54" ST7789 display, the 0.96" I²C OLED, the TTP223 touch board, the ESP32-C3 SuperMini
+  on sockets, the SG90-class continuous-rotation servo): pin order, current, and the trap an
+  earlier run fell into (an NPN low-side on the display's BLK pin never lights the backlight; a
+  dev module's 5V pin is raw USB VBUS with no diode). What a module card says is what a board
+  may rely on; an earlier board's folder is not a source.
 - `kicadpy.knowledge` — what earlier runs measured, keyed by LCSC code: factory rotation offsets
   and supplier-verified part identities with their traps (`"$KICAD_HARNESS_PYTHON" -m kicadpy.knowledge show C6186`).
   `verify rotation` and `verify stock` read it first. Read it before you search.

@@ -211,11 +211,13 @@ class ManifestTest(unittest.TestCase):
             self.assertIn(needle, card, needle)
         # the header-mounted modules the KiCad tile reads beside the golden blocks: knowledge only, no TSX
         blocks = ROOT / 'packages' / 'golden-blocks'
-        for module in ('st7789-1.54-module', 'ttp223-module'):
+        for module in ('st7789-1.54-module', 'ttp223-module', 'esp32-c3-supermini', 'sg90-continuous-module', 'oled-0.96-i2c-module'):
             block_md = blocks / 'modules' / module / 'BLOCK.md'
             self.assertTrue(block_md.is_file(), module)
             self.assertNotIn(module, [p.name for p in (blocks / 'blocks').iterdir()], f'{module} must not be a golden block')
         self.assertIn('BLK', (blocks / 'modules' / 'st7789-1.54-module' / 'BLOCK.md').read_text(encoding='utf-8'))
+        self.assertIn('15.24 mm', (blocks / 'modules' / 'esp32-c3-supermini' / 'BLOCK.md').read_text(encoding='utf-8'))
+        self.assertIn('1.5 ms = stop', (blocks / 'modules' / 'sg90-continuous-module' / 'BLOCK.md').read_text(encoding='utf-8'))
 
 
 class PythonWrapperTest(unittest.TestCase):
