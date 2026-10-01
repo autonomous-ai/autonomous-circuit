@@ -834,3 +834,88 @@ test("firmware_detect and firmware_flash: the Flash button's two steps over HTTP
     s.close();
   }
 });
+
+test("export_gerbers copies the packet's zip to the export folder and names the path; traversal and missing files are refused", async () => {
+  const exportDir = tmpdir("circuit-export-");
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-"), CIRCUIT_EXPORT_DIR: exportDir }));
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  try {
+    // The Harness pane is a webview with no download manager (2026-10-01): the file has to land
+    // on disk where the person looks, and the strip has to say where.
+    const packet = path.join(ws, "boards", "main_fab");
+    fs.mkdirSync(packet, { recursive: true });
+    fs.writeFileSync(path.join(packet, "gerbers.zip"), "PK\u0003\u0004 not really a zip");
+    const url = "/projects/workspace/boards/main_fab/gerbers.zip?v=1-1";
+
+    // The file is named after the workspace folder — what the person typed into ⌘N — never
+    // after the board file, which every native workspace calls `main` (owner, 2026-10-01).
+    const folder = path.basename(fs.realpathSync(ws));
+    const first = await s.post("export_gerbers", { id: "workspace", url, stem: "main" });
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.equal(first.body.path, path.join(exportDir, `${folder}-gerbers.zip`));
+    assert.equal(fs.readFileSync(first.body.path, "utf8"), "PK\u0003\u0004 not really a zip");
+
+    // A second export never overwrites the first — the person may have edited it.
+    const second = await s.post("export_gerbers", { id: "workspace", url, stem: "main" });
+    assert.equal(second.body.filename, `${folder}-gerbers-2.zip`);
+
+    // A second board in the same folder keeps its own name; an explicit filename still wins.
+    const carrier = await s.post("export_gerbers", { id: "workspace", url, stem: "carrier" });
+    assert.equal(carrier.body.filename, `${folder}-carrier-gerbers.zip`);
+    const named = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
+    assert.equal(named.body.filename, "pet-rover-gerbers.zip");
+
+    // A filename is a name, never a path.
+    const stripped = await s.post("export_gerbers", { id: "workspace", url, filename: "../../evil.zip" });
+    assert.equal(stripped.body.filename, "evil.zip");
+    assert.equal(path.dirname(stripped.body.path), exportDir);
+
+    // The URL must be this project's packet, inside the workspace.
+    // `new URL` folds the `..` away before the prefix check (400); a `..` that survives
+    // encoding meets the asset guard (403). Either way nothing lands in the export folder.
+    const outside = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/../../etc/passwd" });
+    assert.ok([400, 403].includes(outside.status), String(outside.status));
+    const encoded = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/%2e%2e/%2e%2e/etc/passwd" });
+    assert.ok([400, 403].includes(encoded.status), String(encoded.status));
+    assert.deepEqual(fs.readdirSync(exportDir).sort(), [`${folder}-carrier-gerbers.zip`, `${folder}-gerbers-2.zip`, `${folder}-gerbers.zip`, "evil.zip", "pet-rover-gerbers.zip"].sort());
+    const other = await s.post("export_gerbers", { id: "workspace", url: "/projects/other/boards/main_fab/gerbers.zip" });
+    assert.equal(other.status, 400);
+    const missing = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/boards/main_fab/nope.zip" });
+    assert.equal(missing.status, 404);
+  } finally {
+    s.close();
+  }
+});
+
+test("export_reveal shows an exported file in the file manager, and only a file in the export folder", async () => {
+  const exportDir = tmpdir("circuit-export-");
+  const log = path.join(tmpdir("circuit-reveal-"), "args.txt");
+  const fakeOpen = path.join(path.dirname(log), "fake-open.sh");
+  fs.writeFileSync(fakeOpen, `#!/bin/sh\nprintf '%s\\n' "$@" > "${log}"\n`);
+  fs.chmodSync(fakeOpen, 0o755);
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-"), CIRCUIT_EXPORT_DIR: exportDir, CIRCUIT_REVEAL_BIN: fakeOpen }));
+  try {
+    const saved = path.join(exportDir, "pet-rover-gerbers.zip");
+    fs.writeFileSync(saved, "zip");
+    const ok = await s.post("export_reveal", { path: saved });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(fs.readFileSync(log, "utf8").trim(), saved);
+    // Outside the export folder, or gone: refused, and the file manager never runs.
+    fs.unlinkSync(log);
+    for (const target of ["/etc/passwd", path.join(exportDir, "..", "elsewhere.zip"), path.join(exportDir, "gone.zip")]) {
+      const refused = await s.post("export_reveal", { path: target });
+      assert.equal(refused.status, 404, target);
+    }
+    assert.equal(fs.existsSync(log), false);
+  } finally {
+    s.close();
+  }
+});
+
+test("revealCommand picks the platform's file manager and honours the override", async () => {
+  const { revealCommand } = await import("./http.mjs");
+  assert.deepEqual(revealCommand("/a/b.zip", {}, "darwin"), { bin: "open", args: ["-R", "/a/b.zip"] });
+  assert.deepEqual(revealCommand("/a/b.zip", {}, "linux"), { bin: "xdg-open", args: ["/a"] });
+  assert.deepEqual(revealCommand("C:\\a\\b.zip", {}, "win32").bin, "explorer");
+  assert.deepEqual(revealCommand("/a/b.zip", { CIRCUIT_REVEAL_BIN: "/x/fake" }, "darwin"), { bin: "/x/fake", args: ["/a/b.zip"] });
+});

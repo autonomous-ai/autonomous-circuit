@@ -348,6 +348,41 @@ export function boardSourceRelPath(file) {
 
 /** The repo's pinned Node toolchain dir: env CIRCUIT_TOOLCHAIN > repo default
  * (`<repo>/toolchain`, four levels above this file). */
+/**
+ * Where `export_gerbers` writes: `CIRCUIT_EXPORT_DIR` when set (tests, a host
+ * that wants its own folder), else the Desktop, else Downloads, else home —
+ * the first one that exists. A person asked "export the zip to the Desktop and
+ * tell me" (2026-10-01); a path they can see beats a browser download they
+ * cannot find.
+ */
+export function exportDir(env = process.env) {
+  const configured = String(env.CIRCUIT_EXPORT_DIR || "").trim();
+  if (configured) {
+    fs.mkdirSync(configured, { recursive: true });
+    return path.resolve(configured);
+  }
+  const home = os.homedir();
+  for (const candidate of [path.join(home, "Desktop"), path.join(home, "Downloads")]) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) return candidate;
+    } catch { /* next */ }
+  }
+  return home;
+}
+
+/**
+ * How this machine shows a file in its file manager: `open -R` on a Mac,
+ * `xdg-open <dir>` on Linux, `explorer /select,` on Windows. `CIRCUIT_REVEAL_BIN`
+ * replaces the binary (tests hand in a script that records its arguments).
+ */
+export function revealCommand(target, env = process.env, platform = process.platform) {
+  const override = String(env.CIRCUIT_REVEAL_BIN || "").trim();
+  if (override) return { bin: override, args: [target] };
+  if (platform === "darwin") return { bin: "open", args: ["-R", target] };
+  if (platform === "win32") return { bin: "explorer", args: [`/select,${target}`] };
+  return { bin: "xdg-open", args: [path.dirname(target)] };
+}
+
 export function toolchainDir(env = process.env) {
   if (env.CIRCUIT_TOOLCHAIN) {
     return path.resolve(env.CIRCUIT_TOOLCHAIN);
@@ -681,6 +716,53 @@ export function createCircuitServices({
     // event carries it. The client polls this while a turn is running so a
     // 90-second build reads as "Cross-checking with KiCad" rather than a
     // spinner that might be a hang.
+    // The Harness pane is a webview with no download manager: an `<a download>`
+    // there navigates to the zip and paints its bytes as text (2026-10-01). The
+    // server runs on the person's own machine, so it writes the file where they
+    // will look — the Desktop — and tells the strip the path.
+    export_gerbers: async ({ id, url, filename, stem }) => {
+      const projectId = requireProject(id);
+      let pathname;
+      try {
+        pathname = new URL(String(url || ""), "http://127.0.0.1").pathname;
+      } catch {
+        throw ipcError("INVALID_ARGS", "export_gerbers needs the packet's gerbers URL", 400);
+      }
+      if (!pathname.startsWith(`/projects/${encodeURIComponent(projectId)}/`) && !pathname.startsWith(`/projects/${projectId}/`)) {
+        throw ipcError("INVALID_ARGS", "the gerbers URL does not belong to this project", 400);
+      }
+      const resolved = assetPathForRequest(pathname);   // throws 403 on traversal
+      if (!resolved || !resolved.assetPath.toLowerCase().endsWith(".zip") || !fs.existsSync(resolved.assetPath)) {
+        throw ipcError("NOT_FOUND", "no gerbers.zip in the packet yet — build the board first", 404);
+      }
+      const dir = exportDir(env);
+      // Named after the folder the person made for the board ("opus-pet-rover-gerbers.zip"),
+      // not the board file inside it (every native workspace calls that one `main`); a second
+      // board in the same folder keeps its own name. A caller may still name the file itself.
+      const folder = path.basename(fs.realpathSync(projects.projectDir(projectId)));
+      const stemName = String(stem || "").trim();
+      const defaultName = `${folder}${stemName && stemName !== "main" ? `-${stemName}` : ""}-gerbers.zip`;
+      const wanted = path.basename(String(filename || "").trim() || defaultName).replace(/[^\w.-]+/g, "-");
+      const base = wanted.toLowerCase().endsWith(".zip") ? wanted.slice(0, -4) : wanted;
+      let target = path.join(dir, `${base}.zip`);
+      for (let n = 2; fs.existsSync(target); n += 1) target = path.join(dir, `${base}-${n}.zip`);
+      fs.copyFileSync(resolved.assetPath, target);
+      return { path: target, dir, filename: path.basename(target), bytes: fs.statSync(target).size };
+    },
+    // "Saved to /Users/me/Desktop/x.zip" as a link: the file manager opens on the file. Only a
+    // file inside the export folder — the server never becomes a general "open anything".
+    export_reveal: async ({ path: target }) => {
+      const dir = exportDir(env);
+      const resolved = path.resolve(String(target || ""));
+      if (!resolved.startsWith(`${dir}${path.sep}`) || !fs.existsSync(resolved)) {
+        throw ipcError("NOT_FOUND", "that file is not in the export folder any more", 404);
+      }
+      const { bin, args } = revealCommand(resolved, env);
+      await new Promise((resolve, reject) => {
+        execFile(bin, args, { timeout: 5000 }, (error) => (error ? reject(ipcError("REVEAL_FAILED", `could not open the file manager: ${error.message}`, 500)) : resolve()));
+      });
+      return { path: resolved };
+    },
     build_status: async ({ id }) => {
       const projectId = requireProject(id);
       const file = path.join(

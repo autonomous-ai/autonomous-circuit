@@ -662,6 +662,15 @@ const transportBase = {
     invoke<Catalog>("project_catalog_read", { id }),
   generation_status_read: () => invoke<GenerationStatus>("generation_status_read"),
   build_status: (id: string) => invoke<BuildStatus | null>("build_status", { id }),
+  /** Copy the packet's gerbers.zip to the person's Desktop (server side) and say where. */
+  export_gerbers: (id: string, url: string, stem?: string) =>
+    invoke<{ path: string; dir: string; filename: string; bytes: number }>("export_gerbers", {
+      id,
+      url,
+      ...(stem ? { stem } : {}),
+    }),
+  /** Show an exported file in the file manager (Finder on a Mac). */
+  export_reveal: (path: string) => invoke<{ path: string }>("export_reveal", { path }),
   build_revisions: (id: string, limit?: number) =>
     invoke<BuildHistory>("build_revisions", { id, ...(limit === undefined ? {} : { limit }) }),
 

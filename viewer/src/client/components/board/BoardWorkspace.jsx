@@ -1361,6 +1361,11 @@ export default function BoardWorkspace({
                 buildStatus={buildStatus}
                 turnActive={turnInProgress}
                 boardName={selectedStem}
+                gerbersUrl={artifact?.gerbersUrl || ""}
+                onExportGerbers={() =>
+                  transport.export_gerbers(currentProjectId || "", artifact?.gerbersUrl || "", selectedStem || "")
+                }
+                onRevealExport={(savedPath) => transport.export_reveal(savedPath)}
                 onOpenTab={setActiveTab}
                 onFix={handlePrefillNote}
               />
