@@ -67,28 +67,43 @@ export default function BoardVerdict({
   turnActive = false,
   gerbersUrl = "",
   onExportGerbers,
+  onRevealExport,
   onOpenTab,
   onFix,
   className,
 }) {
   // What the last Export Gerber click did, in words, for nine seconds.
   const [exportNote, setExportNote] = useState("");
+  const [exportPath, setExportPath] = useState("");
   const [exporting, setExporting] = useState(false);
   useEffect(() => {
     if (!exportNote) return undefined;
+    // A saved path stays until the next export — it is the thing to click. An error fades.
+    if (exportPath) return undefined;
     const timer = setTimeout(() => setExportNote(""), 9000);
     return () => clearTimeout(timer);
-  }, [exportNote]);
+  }, [exportNote, exportPath]);
   const exportGerbers = async () => {
     if (!onExportGerbers || exporting) return;
     setExporting(true);
     try {
       const result = await onExportGerbers();
+      setExportPath(result?.path || "");
       setExportNote(result?.path ? `Saved to ${result.path}` : "Saved");
     } catch (error) {
+      setExportPath("");
       setExportNote(`Could not export: ${error?.message || error}`);
     } finally {
       setExporting(false);
+    }
+  };
+  const revealExport = async () => {
+    if (!exportPath || !onRevealExport) return;
+    try {
+      await onRevealExport(exportPath);
+    } catch (error) {
+      setExportPath("");
+      setExportNote(`Could not show the file: ${error?.message || error}`);
     }
   };
   // When copper is missing, the router's own diagnosis replaces the finding
@@ -222,7 +237,17 @@ export default function BoardVerdict({
           {exporting ? "Exporting…" : "Export Gerber"}
         </button>
       ) : null}
-      {exportNote ? (
+      {exportNote && exportPath && onRevealExport ? (
+        <button
+          type="button"
+          onClick={revealExport}
+          data-slot="verdict-export-note"
+          title="Show the file in Finder"
+          className="shrink-0 truncate rounded px-1 font-mono text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+        >
+          {exportNote}
+        </button>
+      ) : exportNote ? (
         <span data-slot="verdict-export-note" className="shrink-0 truncate font-mono text-[11px] text-muted-foreground" title={exportNote}>
           {exportNote}
         </span>

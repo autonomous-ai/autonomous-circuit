@@ -669,6 +669,8 @@ const transportBase = {
       url,
       ...(filename ? { filename } : {}),
     }),
+  /** Show an exported file in the file manager (Finder on a Mac). */
+  export_reveal: (path: string) => invoke<{ path: string }>("export_reveal", { path }),
   build_revisions: (id: string, limit?: number) =>
     invoke<BuildHistory>("build_revisions", { id, ...(limit === undefined ? {} : { limit }) }),
 

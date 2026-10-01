@@ -370,6 +370,19 @@ export function exportDir(env = process.env) {
   return home;
 }
 
+/**
+ * How this machine shows a file in its file manager: `open -R` on a Mac,
+ * `xdg-open <dir>` on Linux, `explorer /select,` on Windows. `CIRCUIT_REVEAL_BIN`
+ * replaces the binary (tests hand in a script that records its arguments).
+ */
+export function revealCommand(target, env = process.env, platform = process.platform) {
+  const override = String(env.CIRCUIT_REVEAL_BIN || "").trim();
+  if (override) return { bin: override, args: [target] };
+  if (platform === "darwin") return { bin: "open", args: ["-R", target] };
+  if (platform === "win32") return { bin: "explorer", args: [`/select,${target}`] };
+  return { bin: "xdg-open", args: [path.dirname(target)] };
+}
+
 export function toolchainDir(env = process.env) {
   if (env.CIRCUIT_TOOLCHAIN) {
     return path.resolve(env.CIRCUIT_TOOLCHAIN);
@@ -729,6 +742,20 @@ export function createCircuitServices({
       for (let n = 2; fs.existsSync(target); n += 1) target = path.join(dir, `${base}-${n}.zip`);
       fs.copyFileSync(resolved.assetPath, target);
       return { path: target, dir, filename: path.basename(target), bytes: fs.statSync(target).size };
+    },
+    // "Saved to /Users/me/Desktop/x.zip" as a link: the file manager opens on the file. Only a
+    // file inside the export folder — the server never becomes a general "open anything".
+    export_reveal: async ({ path: target }) => {
+      const dir = exportDir(env);
+      const resolved = path.resolve(String(target || ""));
+      if (!resolved.startsWith(`${dir}${path.sep}`) || !fs.existsSync(resolved)) {
+        throw ipcError("NOT_FOUND", "that file is not in the export folder any more", 404);
+      }
+      const { bin, args } = revealCommand(resolved, env);
+      await new Promise((resolve, reject) => {
+        execFile(bin, args, { timeout: 5000 }, (error) => (error ? reject(ipcError("REVEAL_FAILED", `could not open the file manager: ${error.message}`, 500)) : resolve()));
+      });
+      return { path: resolved };
     },
     build_status: async ({ id }) => {
       const projectId = requireProject(id);

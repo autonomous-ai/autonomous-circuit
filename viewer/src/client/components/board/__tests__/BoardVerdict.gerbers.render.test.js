@@ -36,6 +36,7 @@ test("a ready board with gerbers offers Export Gerber beside Order; clicking ask
       calls.push(1);
       return { path: "/Users/me/Desktop/pet-rover-gerbers.zip", filename: "pet-rover-gerbers.zip" };
     },
+    onRevealExport: async (savedPath) => { calls.push(savedPath); },
   });
   try {
     assert.ok(ui.container.querySelector('[data-slot="verdict-order"]'), "the JLCPCB walkthrough button is missing");
@@ -49,6 +50,11 @@ test("a ready board with gerbers offers Export Gerber beside Order; clicking ask
     const note = ui.container.querySelector('[data-slot="verdict-export-note"]');
     assert.ok(note, "the strip did not say where the file went");
     assert.equal(note.textContent, "Saved to /Users/me/Desktop/pet-rover-gerbers.zip");
+    // The path is a link: clicking it asks the server to show the file in Finder.
+    assert.equal(note.tagName, "BUTTON");
+    click(note);
+    await flush();
+    assert.deepEqual(calls, [1, "/Users/me/Desktop/pet-rover-gerbers.zip"]);
     assert.deepEqual(ui.errors, []);
   } finally {
     ui.unmount?.();

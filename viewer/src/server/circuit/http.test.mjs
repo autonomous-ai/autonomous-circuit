@@ -877,3 +877,36 @@ test("export_gerbers copies the packet's zip to the export folder and names the 
     s.close();
   }
 });
+
+test("export_reveal shows an exported file in the file manager, and only a file in the export folder", async () => {
+  const exportDir = tmpdir("circuit-export-");
+  const log = path.join(tmpdir("circuit-reveal-"), "args.txt");
+  const fakeOpen = path.join(path.dirname(log), "fake-open.sh");
+  fs.writeFileSync(fakeOpen, `#!/bin/sh\nprintf '%s\\n' "$@" > "${log}"\n`);
+  fs.chmodSync(fakeOpen, 0o755);
+  const s = await bootServerWith((env) => ({ ...env, CIRCUIT_WORKSPACE: tmpdir("circuit-ws-"), CIRCUIT_EXPORT_DIR: exportDir, CIRCUIT_REVEAL_BIN: fakeOpen }));
+  try {
+    const saved = path.join(exportDir, "pet-rover-gerbers.zip");
+    fs.writeFileSync(saved, "zip");
+    const ok = await s.post("export_reveal", { path: saved });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(fs.readFileSync(log, "utf8").trim(), saved);
+    // Outside the export folder, or gone: refused, and the file manager never runs.
+    fs.unlinkSync(log);
+    for (const target of ["/etc/passwd", path.join(exportDir, "..", "elsewhere.zip"), path.join(exportDir, "gone.zip")]) {
+      const refused = await s.post("export_reveal", { path: target });
+      assert.equal(refused.status, 404, target);
+    }
+    assert.equal(fs.existsSync(log), false);
+  } finally {
+    s.close();
+  }
+});
+
+test("revealCommand picks the platform's file manager and honours the override", async () => {
+  const { revealCommand } = await import("./http.mjs");
+  assert.deepEqual(revealCommand("/a/b.zip", {}, "darwin"), { bin: "open", args: ["-R", "/a/b.zip"] });
+  assert.deepEqual(revealCommand("/a/b.zip", {}, "linux"), { bin: "xdg-open", args: ["/a"] });
+  assert.deepEqual(revealCommand("C:\\a\\b.zip", {}, "win32").bin, "explorer");
+  assert.deepEqual(revealCommand("/a/b.zip", { CIRCUIT_REVEAL_BIN: "/x/fake" }, "darwin"), { bin: "/x/fake", args: ["/a/b.zip"] });
+});
