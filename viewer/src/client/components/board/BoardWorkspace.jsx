@@ -1363,7 +1363,7 @@ export default function BoardWorkspace({
                 boardName={selectedStem}
                 gerbersUrl={artifact?.gerbersUrl || ""}
                 onExportGerbers={() =>
-                  transport.export_gerbers(currentProjectId || "", artifact?.gerbersUrl || "", `${selectedStem || "board"}-gerbers.zip`)
+                  transport.export_gerbers(currentProjectId || "", artifact?.gerbersUrl || "", selectedStem || "")
                 }
                 onRevealExport={(savedPath) => transport.export_reveal(savedPath)}
                 onOpenTab={setActiveTab}

@@ -663,11 +663,11 @@ const transportBase = {
   generation_status_read: () => invoke<GenerationStatus>("generation_status_read"),
   build_status: (id: string) => invoke<BuildStatus | null>("build_status", { id }),
   /** Copy the packet's gerbers.zip to the person's Desktop (server side) and say where. */
-  export_gerbers: (id: string, url: string, filename?: string) =>
+  export_gerbers: (id: string, url: string, stem?: string) =>
     invoke<{ path: string; dir: string; filename: string; bytes: number }>("export_gerbers", {
       id,
       url,
-      ...(filename ? { filename } : {}),
+      ...(stem ? { stem } : {}),
     }),
   /** Show an exported file in the file manager (Finder on a Mac). */
   export_reveal: (path: string) => invoke<{ path: string }>("export_reveal", { path }),

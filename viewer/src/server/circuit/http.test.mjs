@@ -847,14 +847,23 @@ test("export_gerbers copies the packet's zip to the export folder and names the 
     fs.writeFileSync(path.join(packet, "gerbers.zip"), "PK\u0003\u0004 not really a zip");
     const url = "/projects/workspace/boards/main_fab/gerbers.zip?v=1-1";
 
-    const first = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
+    // The file is named after the workspace folder — what the person typed into ⌘N — never
+    // after the board file, which every native workspace calls `main` (owner, 2026-10-01).
+    const folder = path.basename(fs.realpathSync(ws));
+    const first = await s.post("export_gerbers", { id: "workspace", url, stem: "main" });
     assert.equal(first.status, 200, JSON.stringify(first.body));
-    assert.equal(first.body.path, path.join(exportDir, "pet-rover-gerbers.zip"));
+    assert.equal(first.body.path, path.join(exportDir, `${folder}-gerbers.zip`));
     assert.equal(fs.readFileSync(first.body.path, "utf8"), "PK\u0003\u0004 not really a zip");
 
     // A second export never overwrites the first — the person may have edited it.
-    const second = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
-    assert.equal(second.body.filename, "pet-rover-gerbers-2.zip");
+    const second = await s.post("export_gerbers", { id: "workspace", url, stem: "main" });
+    assert.equal(second.body.filename, `${folder}-gerbers-2.zip`);
+
+    // A second board in the same folder keeps its own name; an explicit filename still wins.
+    const carrier = await s.post("export_gerbers", { id: "workspace", url, stem: "carrier" });
+    assert.equal(carrier.body.filename, `${folder}-carrier-gerbers.zip`);
+    const named = await s.post("export_gerbers", { id: "workspace", url, filename: "pet-rover-gerbers.zip" });
+    assert.equal(named.body.filename, "pet-rover-gerbers.zip");
 
     // A filename is a name, never a path.
     const stripped = await s.post("export_gerbers", { id: "workspace", url, filename: "../../evil.zip" });
@@ -868,7 +877,7 @@ test("export_gerbers copies the packet's zip to the export folder and names the 
     assert.ok([400, 403].includes(outside.status), String(outside.status));
     const encoded = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/%2e%2e/%2e%2e/etc/passwd" });
     assert.ok([400, 403].includes(encoded.status), String(encoded.status));
-    assert.deepEqual(fs.readdirSync(exportDir).sort(), ["evil.zip", "pet-rover-gerbers-2.zip", "pet-rover-gerbers.zip"]);
+    assert.deepEqual(fs.readdirSync(exportDir).sort(), [`${folder}-carrier-gerbers.zip`, `${folder}-gerbers-2.zip`, `${folder}-gerbers.zip`, "evil.zip", "pet-rover-gerbers.zip"].sort());
     const other = await s.post("export_gerbers", { id: "workspace", url: "/projects/other/boards/main_fab/gerbers.zip" });
     assert.equal(other.status, 400);
     const missing = await s.post("export_gerbers", { id: "workspace", url: "/projects/workspace/boards/main_fab/nope.zip" });

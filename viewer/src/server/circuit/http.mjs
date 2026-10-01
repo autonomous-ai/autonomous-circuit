@@ -720,7 +720,7 @@ export function createCircuitServices({
     // there navigates to the zip and paints its bytes as text (2026-10-01). The
     // server runs on the person's own machine, so it writes the file where they
     // will look — the Desktop — and tells the strip the path.
-    export_gerbers: async ({ id, url, filename }) => {
+    export_gerbers: async ({ id, url, filename, stem }) => {
       const projectId = requireProject(id);
       let pathname;
       try {
@@ -736,7 +736,13 @@ export function createCircuitServices({
         throw ipcError("NOT_FOUND", "no gerbers.zip in the packet yet — build the board first", 404);
       }
       const dir = exportDir(env);
-      const wanted = path.basename(String(filename || "").trim() || "gerbers.zip").replace(/[^\w.-]+/g, "-");
+      // Named after the folder the person made for the board ("opus-pet-rover-gerbers.zip"),
+      // not the board file inside it (every native workspace calls that one `main`); a second
+      // board in the same folder keeps its own name. A caller may still name the file itself.
+      const folder = path.basename(fs.realpathSync(projects.projectDir(projectId)));
+      const stemName = String(stem || "").trim();
+      const defaultName = `${folder}${stemName && stemName !== "main" ? `-${stemName}` : ""}-gerbers.zip`;
+      const wanted = path.basename(String(filename || "").trim() || defaultName).replace(/[^\w.-]+/g, "-");
       const base = wanted.toLowerCase().endsWith(".zip") ? wanted.slice(0, -4) : wanted;
       let target = path.join(dir, `${base}.zip`);
       for (let n = 2; fs.existsSync(target); n += 1) target = path.join(dir, `${base}-${n}.zip`);
