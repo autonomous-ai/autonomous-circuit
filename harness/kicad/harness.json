@@ -29,6 +29,8 @@
       "PICO_SDK_PATH": "${dsh}/../../toolchain/pico/pico-sdk",
       "PICO_TOOLCHAIN_PATH": "${dsh}/../../toolchain/pico/arm-gnu-toolchain",
       "CMAKE_PREFIX_PATH": "${dsh}/../../toolchain/pico/picotool",
+      "KICAD_HARNESS_CMAKE": "${dsh}/../../toolchain/pico/tools/bin/cmake",
+      "KICAD_HARNESS_NINJA": "${dsh}/../../toolchain/pico/tools/bin/ninja",
       "CIRCUIT_SKILLS_DIR": "${workspace}/.agents/skills",
       "DISABLE_AUTOUPDATER": "1"
     },

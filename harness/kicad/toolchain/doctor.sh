@@ -111,8 +111,10 @@ if [ -x "$pico/arm-gnu-toolchain/bin/arm-none-eabi-gcc" ] && [ -f "$pico/pico-sd
   ok "rp2040 toolchain: ${gccv#arm-none-eabi-gcc } + pico-sdk (toolchain/pico)"
   if [ -f "$pico/picotool/picotool/picotoolConfig.cmake" ]; then ok "picotool vendored (toolchain/pico/picotool)"
   else warn "picotool not vendored — pico-sdk builds it per project from the network"; fi
-  if command -v cmake >/dev/null 2>&1; then ok "cmake $(cmake --version 2>/dev/null | head -1 | sed 's/cmake version //')"
-  else miss "cmake not found — RP2040 firmware cannot be built (brew install cmake ninja)"; fi
+  if [ -x "$pico/tools/bin/cmake" ] && [ -x "$pico/tools/bin/ninja" ]; then
+    ok "cmake $("$pico/tools/bin/cmake" --version 2>/dev/null | head -1 | sed 's/cmake version //') + ninja vendored (toolchain/pico/tools)"
+  elif command -v cmake >/dev/null 2>&1; then ok "cmake $(cmake --version 2>/dev/null | head -1 | sed 's/cmake version //') on PATH (not vendored — run setup.sh to vendor it)"
+  else miss "cmake not found — RP2040 firmware cannot be built (run harness/kicad/toolchain/setup.sh, or brew install cmake ninja)"; fi
 else
   miss "rp2040 toolchain not vendored at $pico — run harness/kicad/toolchain/setup.sh"
 fi
