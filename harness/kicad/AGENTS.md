@@ -65,7 +65,10 @@ and a hand-edited sidecar or report is a claimed pass, which is worse than a fai
   round trip use them). Never build your own router launcher.
 - `$KICAD_HARNESS_PICO_SDK` and `$KICAD_HARNESS_ARM_TOOLCHAIN` — pico-sdk 2.2.0 and Arm GNU
   14.2 for RP2040 firmware, vendored with the tile; `PICO_SDK_PATH`, `PICO_TOOLCHAIN_PATH` and
-  `CMAKE_PREFIX_PATH` (picotool) are already exported, so `cmake -S firmware -B build/firmware` needs no flags.
+  `CMAKE_PREFIX_PATH` (picotool) are already exported. `$KICAD_HARNESS_CMAKE` and
+  `$KICAD_HARNESS_NINJA` are the tile's own cmake and ninja — use them, never assume the machine
+  has either: `"$KICAD_HARNESS_CMAKE" -S firmware -B build/firmware -G Ninja
+  -DCMAKE_MAKE_PROGRAM="$KICAD_HARNESS_NINJA"` needs no other flag.
 - The `kicad` skill in `$CIRCUIT_SKILLS_DIR/kicad/SKILL.md` is the tool card: every command,
   every request shape, the paths to discover.
 
@@ -366,7 +369,8 @@ the review is closed, write the firmware in the same turn, without being asked a
   binary that exists and is newer than the sources (`kicadpy.firmware.built`): the UF2 for an
   RP2040, `<build>/<sketch>.ino.bin` for an ESP32. Build with what the tile carries — the pico-sdk
   and Arm GNU under `$KICAD_HARNESS_PICO_SDK` / `$KICAD_HARNESS_ARM_TOOLCHAIN` (already in
-  `PICO_SDK_PATH` / `PICO_TOOLCHAIN_PATH` / `CMAKE_PREFIX_PATH`), `arduino-cli` with the esp32 core for
+  `PICO_SDK_PATH` / `PICO_TOOLCHAIN_PATH` / `CMAKE_PREFIX_PATH`) with the tile's `$KICAD_HARNESS_CMAKE`
+  and `$KICAD_HARNESS_NINJA`, `arduino-cli` with the esp32 core for
   an ESP32 — into `build/` (outside `firmware/`, which the tab lists), and point `flash.json` at
   the result. A compile error is a finding to fix, not a sentence in the README; host unit tests
   are welcome and are not a build. A run that wrote sources it could not compile, named a UF2
@@ -386,6 +390,13 @@ the review is closed, write the firmware in the same turn, without being asked a
   button looks first and shows the exact port, then writes to that port only, then reads the
   serial console for a few seconds; the README's flash section should say the same thing in
   words for someone without the pane.
+- **If the person asks you to flash anyway** (they did, 2026-10-02): first read the whole flash
+  back and keep it (`esptool read-flash 0 <size> build/backup-<board>.bin`, then `verify-flash` so
+  the chip itself confirms the copy); stop every other program on that serial port before you
+  touch it — a desk daemon (`launchctl bootout …`) or a listener of your own — and expect the
+  Harness daemon's "cable" to open any `usbmodem` port for ~20 s after every reset, probing for an
+  Autonomous device, which swallows the board's first greeting; when you are done, write the backup
+  back and verify it. Three programs on one port looked like a dead board for an hour.
 - **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
   your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
   is a later board revision, not a `#define` that hides it.

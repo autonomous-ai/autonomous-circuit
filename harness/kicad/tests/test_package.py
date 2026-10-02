@@ -189,6 +189,7 @@ class ManifestTest(unittest.TestCase):
         self.assertIn('scripts/toolchain/install-pico-toolchain.sh', setup)
         installer = ROOT / 'scripts' / 'toolchain' / 'install-pico-toolchain.sh'
         self.assertTrue(os.access(installer, os.X_OK))
+        self.assertIn('pip install -q --disable-pip-version-check cmake ninja', installer.read_text(encoding='utf-8'))
         self.assertIn('toolchain/pico/', (ROOT / '.gitignore').read_text(encoding='utf-8'))
         doctor = (PKG / 'toolchain' / 'doctor.sh').read_text(encoding='utf-8')
         self.assertIn('rp2040 toolchain', doctor)
@@ -200,9 +201,14 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(env['CMAKE_PREFIX_PATH'], '${dsh}/../../toolchain/pico/picotool', tile_id)
             self.assertEqual(env['KICAD_HARNESS_PICO_SDK'], env['PICO_SDK_PATH'], tile_id)
             self.assertEqual(env['KICAD_HARNESS_ARM_TOOLCHAIN'], env['PICO_TOOLCHAIN_PATH'], tile_id)
+            # cmake and ninja come from PyPI wheels in the toolchain, never from the machine (a Store
+            # install on a blank Mac has neither; 2026-10-02)
+            self.assertEqual(env['KICAD_HARNESS_CMAKE'], '${dsh}/../../toolchain/pico/tools/bin/cmake', tile_id)
+            self.assertEqual(env['KICAD_HARNESS_NINJA'], '${dsh}/../../toolchain/pico/tools/bin/ninja', tile_id)
         agents = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
         for phrase in ('Written is not done; built is.', 'kicadpy.firmware.built', 'Where you read.',
-                       'Never another workspace', "The checker is the tile's.", 'KICAD_HARNESS_PICO_SDK'):
+                       'Never another workspace', "The checker is the tile's.", 'KICAD_HARNESS_PICO_SDK',
+                       'KICAD_HARNESS_CMAKE', 'If the person asks you to flash anyway', 'read-flash'):
             self.assertIn(phrase, agents, phrase)
 
     def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
