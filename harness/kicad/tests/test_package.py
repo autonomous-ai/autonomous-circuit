@@ -108,6 +108,15 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(check.returncode, 1)
             self.assertIn('set differently', check.stdout)
 
+    def test_codex_args_pin_sol_6_1_at_high_effort(self):
+        # 2026-10-05: the codex arm moves from Astra to GPT-6.1 Sol — OpenAI's table puts Sol level with
+        # Astra on agentic coding at a fifth of the price (README). The pin is what makes a run comparable
+        # to the Astra and Opus boards on the board; a drift back to the machine's default would not be.
+        args = _manifest()['agent']['args']
+        self.assertEqual(args[args.index('-m') + 1], 'gpt-6.1-sol')
+        self.assertIn('model_reasoning_effort=high', args)
+        self.assertNotIn('gpt-6-astra', args)
+
     def test_claude_args_carry_model_and_effort_only(self):
         # The model and effort are pinned the way the codex and grok tiles pin theirs: without them a
         # run follows whatever `/model` last saved as the machine's default. Harness maps its "full"

@@ -38,7 +38,11 @@ Then ⌘N in the app → KiCad → a folder → a prompt. `AGENTS.md` and the sk
 edit is live in the next session; after editing `viewer.sh` kill the viewer process and the daemon
 respawns it; after editing `harness.json`, `harness dsh remove autonomous/kicad` and install again.
 
-The engine is **`codex`** with `agent.args` = Astra at high effort **plus `-c approval_policy=never -c
+The engine is **`codex`** with `agent.args` = GPT-6.1 Sol at high effort (was Astra until 2026-10-05:
+OpenAI's own table has Sol 6.1 level with Astra on agentic coding — DeepSWE 1.1 75.2 vs 74.8, OSWorld 2.0
+71.4 vs 73.5 — at $2/$10 per M against $10/$50; a servo-bench run on Astra cost ≈ $48, so the trial is
+whether Sol reaches the same gate at a fifth of the bill; needs codex ≥ 0.160, where the model first
+appears in the picker) **plus `-c approval_policy=never -c
 sandbox_mode=danger-full-access`**, so a KiCad harness runs unsandboxed and never asks, whatever the
 person picked in New Harness — the pipeline (kicad-cli, pcbnew, the supplier's catalog, Freerouting)
 does not survive codex's `workspace-write` sandbox (a DRC sat in an uninterruptible exit for two hours,
