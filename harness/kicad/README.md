@@ -40,7 +40,7 @@ respawns it; after editing `harness.json`, `harness dsh remove autonomous/kicad`
 
 The engine is **`codex`** with `agent.args` = GPT-6.1 Sol at high effort (was Astra until 2026-10-05:
 OpenAI's own table has Sol 6.1 level with Astra on agentic coding — DeepSWE 1.1 75.2 vs 74.8, OSWorld 2.0
-71.4 vs 73.5 — at $2/$10 per M against $10/$50; a servo-bench run on Astra cost ≈ $48, so the trial is
+71.4 vs 73.5 — at $2/$10 per M against $10/$50; the servo bench on Astra came to ≈ $27 at API price (0.65M fresh + 16.45M cached in, 74k out), so the trial is
 whether Sol reaches the same gate at a fifth of the bill; needs codex ≥ 0.160, where the model first
 appears in the picker) **plus `-c approval_policy=never -c
 sandbox_mode=danger-full-access`**, so a KiCad harness runs unsandboxed and never asks, whatever the
