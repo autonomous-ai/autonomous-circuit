@@ -177,7 +177,10 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
                   'Continue the already approved build, fix the causes below, then publish and inspect previews. '
                   'Do not stop merely because two review rounds ended. Snapshot before edits; revert regressions. '
                   'Never weaken checks, remove requested functions, fabricate evidence, or edit derived reports. '
-                  'Resolve engineering decisions yourself using datasheets/calculations; physical bench tests belong in bringup. ')
+                  'Resolve engineering decisions yourself using datasheets/calculations; physical bench tests belong in bringup. '
+                  'A part the person owns but cannot name is never a blocker and never a question: design on its reference '
+                  '(modules/<id>/BLOCK.md or the most common listing), mark it GIẢ ĐỊNH with its source, add one bench check '
+                  'under bringup, and pass the engineering area on that reference. Do not ask the person anything technical. ')
         if unchanged:
             reason += ('The blockers did not change. Use a different repair strategy: inspect actual pad/net geometry, '
                        'adjust local placement or routing scope if needed while preserving correct copper; '

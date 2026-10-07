@@ -103,23 +103,51 @@ requests another repair turn when the packet is unfinished.
 
 ## The two phases, and the review that follows
 
-A turn is a **plan** or a **build**, never both at once.
+**One shot is the default.** A message that asks for a board, or for a change to one, gets a plan of
+at most 20 lines and then the build, in the same turn, until the board is prototype-ready and the
+firmware is written. The person who uses this tile usually does not know electronics: every
+question you ask them is a question they cannot answer, and every stop to wait is a board that
+does not get made. A turn is plan-only only when the person explicitly asks for a plan, options or
+a price, or when their message is a question; then present the plan and stop.
 
-### Plan — design, do not build
+### Plan — then build, in the same turn
 
-Plan first for every new board and for any change that is more than a trivial edit. Planning is
-read-only: read `product.json`, `parts.json`, the sources under `design/` and the latest sidecar to
-ground the plan in what exists, but write no file and run no publisher until the user has said
-yes. Keep the plan turn short; datasheet and supplier research belongs to the build.
+Read `product.json`, `parts.json`, the sources under `design/` and the latest sidecar to ground the
+plan in what exists. Keep the plan short; datasheet and supplier research belongs to the build.
+Right after the plan, run `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build` and start
+building — that arms the Stop hook that carries the build to ready.
 
 **Engineering decisions are yours**: part choices, values, copper, thermal, protection, process
-and order settings. Never ask the user a technical question — decide, and write the reason and the
-evidence under `engineering/` when you build. The user answers only what they can experience:
-which device it connects to, how big, which battery, what it must do. For a new board open with
-2–4 such questions; if your tooling has a question tool use it, otherwise ask in prose and wait.
-Every question's first option is "Let KiCad choose" (recommended); when the user picks it, use
-your best default and do not re-ask. **Every option you offer must be buildable**: settle the
-sourcing in your head before you offer a capability.
+and order settings. Never ask the person a technical question — no voltage, current, pinout,
+footprint, connector, rating or part number. Decide, and write the reason and the evidence under
+`engineering/`. Whatever the request does not say (power source, size, which device it talks to,
+PCBA or bare board), choose the most common sensible default and say what you chose in one line of
+the plan; the person can change it afterwards. If they ask to be asked, ask 2–4 questions about
+what they can experience, each with "Let KiCad choose" first, and build on that default the
+moment they pick it. **Every option you offer must be buildable.**
+
+### Parts the person owns but cannot name
+
+"I have an ESP32-C3 mini, a 1.54 inch screen and two hobby servos, I don't know the exact models"
+is the normal case, not a blocker. Design for a **reference part** and say so:
+
+- **Which reference.** The module's card in `$KICAD_HARNESS_BLOCKS/../modules/<id>/BLOCK.md`
+  first (ESP32-C3 SuperMini, the 8-pin ST7789 1.54", SG90, TTP223, the 0.96" OLED live there);
+  otherwise the most common listing of that product, with its datasheet or listing as the source.
+- **Mark it.** Every choice that rests on a reference is written **GIẢ ĐỊNH** (ASSUMPTION) in
+  README, `product.json` and `engineering/`, with the source you read.
+- **One bench check per assumption** in `engineering/bringup.md`, one a person who does not know
+  electronics can do: "set the module on the socket unpowered, USB toward the USB mark; every pin
+  name printed on the module must match the silk", "the servo label reads SG90", "the screen's pins
+  read GND VCC SCL SDA RES DC CS BLK".
+- **Design for the mismatch.** Silk names every socket and header pad, modules plug in, test
+  points on every rail, so a different clone is a rewire, not a respin.
+- **The engineering areas pass on the reference.** An unidentified owned module is resolved by
+  this rule and is never a reason to mark `power`, `protection`, `pinout`, `thermal` or
+  `assembly` `blocked`, never a reason to stop, and never a reason to ask.
+- **A photo is optional.** If the person sends one, read it and adjust; never ask for it and
+  never wait for it.
+- Only the reference is assumed. `hardwareTested` stays false; never invent a measurement.
 
 A full plan is an engineering spec: the brief resolved; the outline and size against
 `product.json`'s envelope; the power budget (source, per-rail current sums, headroom); every
@@ -127,23 +155,23 @@ component with its exact part; the net and pin allocation table; the placement i
 stackup and copper weight; and how you will verify it. Mark every number you did not measure or
 calculate as an estimate. A trivial edit needs only the exact change and its consequence.
 
-**The safety envelope is non-negotiable and refused at spec time**: no mains ever (low-voltage DC
-≤ 24 V only), battery power only through a sealed, validated charge/protect module, radio only as
-a certified module. Refuse in the plan, say why, and offer the nearest thing inside the envelope.
+**The safety envelope is non-negotiable**: no mains ever (low-voltage DC ≤ 24 V only), battery
+power only through a sealed, validated charge/protect module, radio only as a certified module.
+When a request crosses it, build the nearest thing inside the envelope (USB or a 5 V adapter
+instead of a bare cell, a certified module instead of a radio) and say in one line what was left
+out and why. Do not stop to ask.
 
-**The board size is the user's decision.** If the size they asked for cannot hold the parts, do
-not plan a bigger board; ask one question — keep the size and move X off-board, or grow to Y —
-and stop.
+**Size.** An explicit size the person gave is kept: if the parts do not fit, move what can live
+off-board (a module on a cable, a connector instead of the part) and say so. With no size given,
+pick one that is easy to assemble and wire rather than the smallest that routes.
 
 **Placement is the lever; the router is the router.** A two-layer board with parts on both sides
 is a board the router will not finish. Plan one populated side unless the user asked for the
 price of two, and say the price.
 
-End the plan by presenting it whole, then **wait for the user to approve** before you build.
-Restate the entire plan when you resume a conversation — a plan the user cannot see is not a plan
-they can approve.
+Restate the plan when you resume a conversation, so the person can see what is being built.
 
-### Build — implement the approved plan
+### Build — implement the plan
 
 Tell the pane you started: `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build`. Then, in the
 order `PROMPT-WORKFLOW.md` gives:
@@ -309,6 +337,8 @@ The app used to run this loop for you; here you run it yourself, without narrati
    `designInputs` with `kicadpy.manufacture.design_inputs` AFTER the last source edit. Pass an
    area on **design evidence**: a calculation, a datasheet number, a routed-copper measurement, a
    pad/pin audit — things that can be done at this desk. `blocked` means such evidence is missing.
+   An owned module the person cannot name is designed on its reference part (above) and passes on
+   that reference's datasheet; its identity is a bringup check, never a `blocked` area.
    A bench measurement that needs a physical board (a temperature, an inrush, a fault current,
    USB enumeration) is never a prerequisite: write it as a step with a pass/fail limit under
    `bringup` and pass the area on the design side. Prototype-ready is a design statement.
@@ -323,12 +353,13 @@ strategy, not to declare completion: inspect the actual failing pads/nets, adjus
 or the repair scope, and compare the next candidate against your snapshot. Keep all requested
 functions and all validation rules. Do not convert missing design evidence to a pass.
 
-`kicadpy.harness --active build` arms Circuit's Codex Stop hook for the approved build. It
+`kicadpy.harness --active build` arms Circuit's Codex Stop hook for the build. It
 republishes at turn end and supplies current failures in automatic continuation prompts (up to
 eight repair continuations, with a four-hour continuation window). Repeating the build marker
 while active does not reset that budget. Never edit `.circuit/autofinish.json` or re-arm to evade
 a budget. Only start a new run for a new explicit user build/retry request. A user interrupt cancels
-auto-finish. Planning and question-only turns must not arm it. Hook trust must be enabled via
+auto-finish. Plan-only and question-only turns must not arm it; a one-shot turn arms it right after
+its plan. Hook trust must be enabled via
 Codex `/hooks` (on Grok Build the tile launches with `--trust`, and the hook is
 `.grok/hooks/kicad.json`); if it is unavailable, perform the same repair loop within this turn. At a real
 budget/tooling limit, report unfinished with concrete blockers and your attempted strategies;
@@ -411,7 +442,8 @@ the review is closed, write the firmware in the same turn, without being asked a
 **A board is complete only when `fab.ready` is `true` in `boards/main.board.json`** — which is
 the same moment the pane's verdict says ready — and you have looked at the previews
 (`_schematic.svg`, `_pcb.svg`, `_pcb_bottom.svg`) and read the last report. Anything else is an
-unfinished board, not a finished board with caveats: a blocking finding, a missing part identity,
+unfinished board, not a finished board with caveats: a blocking finding, a missing factory part
+identity (manufacturer, MPN, LCSC of a part the fab places),
 an unverified rotation, an area without evidence. There is no "done, but not orderable" state. A
 turn that ends short of ready reports an unfinished board and says exactly what remains and **who
 closes it** — you in a later revision, the fab at quote time, or a bench test — never the user.
