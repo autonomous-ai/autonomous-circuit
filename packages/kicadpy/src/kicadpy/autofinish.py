@@ -268,7 +268,9 @@ def handle(event, inspect=inspect_board):
     advice = None
     if time.monotonic() - started < ADVISOR_DEADLINE:
         firmware_now = firmware_built(workspace) if ready else True
-        when = advisor.moment(state, ready, findings, firmware_now)
+        # Only when an advisor is chosen for this run: with none, nothing is counted or marked,
+        # so the state reads exactly as it did before advisors existed.
+        when = advisor.moment(state, ready, findings, firmware_now) if advisor.spec(None, workspace) else None
         if when:
             try:
                 advice = (when, advisor.ask(when, workspace, findings))
@@ -281,7 +283,8 @@ def handle(event, inspect=inspect_board):
             return {}
         firmware = firmware_built(workspace) if ready else True
         gaps = firmware_missing(workspace) if ready and not firmware else ()
-        state.setdefault('advisor_calls', current.get('advisor_calls', 0))
+        if 'advisor_calls' in current:
+            state.setdefault('advisor_calls', current['advisor_calls'])
         updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps, advice=advice)
         write_json(workspace / STATE, updated)
     return response

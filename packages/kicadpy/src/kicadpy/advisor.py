@@ -17,7 +17,7 @@ reads a small bundle of artifacts, not the builder's transcript (tens of million
 At most `MAX_CALLS` per run; a failure or timeout is skipped, never a blocker.
 
 Which advisor (`codex:<model>`, `claude:<model>` or `off`): the first line of
-`<workspace>/.circuit/advisor` for one run, else `KICAD_ADVISOR`, else `~/.harness/kicad-advisor`.
+`<workspace>/.circuit/advisor.conf` for one run, else `KICAD_ADVISOR`, else `~/.harness/kicad-advisor`.
 Empty or absent everywhere: off, and the hook behaves exactly as before.
 """
 from __future__ import annotations
@@ -40,6 +40,9 @@ PER_FILE = 6000
 BUNDLE_MAX = 40000
 NO_CONCERNS = 'NO CONCERNS'
 CONFIG = Path.home() / '.harness' / 'kicad-advisor'
+#: Per-run switch. Not `.circuit/advisor`: that is the log folder, and a file there stopped the
+#: logs being written, which skipped every call (2026-10-08, ab-sol-astra).
+SWITCH = Path('.circuit') / 'advisor.conf'
 
 #: What the advisor reads, in order; the first existing path of each group.
 BUNDLE = (
@@ -57,14 +60,14 @@ BUNDLE = (
 def spec(env=None, workspace=None):
     """`(engine, model)` or None when the advisor is off.
 
-    Precedence: `<workspace>/.circuit/advisor` (one run, e.g. the two sides of an A/B), then
+    Precedence: `<workspace>/.circuit/advisor.conf` (one run, e.g. the two sides of an A/B), then
     `KICAD_ADVISOR`, then `~/.harness/kicad-advisor` (this machine).
     """
     env = os.environ if env is None else env
     raw = ''
     if workspace is not None:
         try:
-            raw = (Path(workspace) / '.circuit' / 'advisor').read_text(encoding='utf-8').splitlines()[0].strip()
+            raw = (Path(workspace) / SWITCH).read_text(encoding='utf-8').splitlines()[0].strip()
         except (OSError, IndexError):
             raw = ''
     if not raw:
@@ -153,11 +156,12 @@ def usage_of(stream):
     return total
 
 
-def ask(moment, workspace, findings=(), env=None, run=subprocess.run, timeout=TIMEOUT):
+def ask(moment, workspace, findings=(), env=None, run=None, timeout=TIMEOUT):
     """The advisor's answer, or None when it is off, fails, times out, or cites nothing real.
 
     Every call, used or not, is logged under `.circuit/advisor/` so a person can see what was said.
     """
+    run = run or subprocess.run   # resolved per call, so a patched subprocess.run is honoured
     chosen = spec(env, workspace)
     if not chosen:
         return None

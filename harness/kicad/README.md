@@ -92,7 +92,7 @@ skipped. Off by default. Turn it on for this machine:
 echo codex:gpt-6-astra > ~/.harness/kicad-advisor     # or claude:<model>; `off` or delete to stop
 ```
 
-`KICAD_ADVISOR` in the environment wins over that file, and `<workspace>/.circuit/advisor` wins over
+`KICAD_ADVISOR` in the environment wins over that file, and `<workspace>/.circuit/advisor.conf` wins over
 both, for one run (an A/B: `off` in one folder, `codex:gpt-6-astra` in the other). Measured 2026-10-08 on the Sol-only desk
 pet: Astra at medium effort took 139 s and raised two power points the builder missed. Checked
 against the files: 10.1 µF across USB VBUS (C1 10 µF + C7 0.1 µF) is over USB's 10 µF, and the

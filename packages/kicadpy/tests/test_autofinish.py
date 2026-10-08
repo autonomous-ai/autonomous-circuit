@@ -4,6 +4,15 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+
+from kicadpy import advisor as _advisor_for_isolation  # # isolate-from-machine-advisor
+
+
+def setUpModule():
+    # The machine may have an advisor switched on (~/.harness/kicad-advisor); tests never call a real model.
+    _advisor_for_isolation.CONFIG = Path('/nonexistent/kicad-advisor')
+    import os as _os
+    _os.environ.pop('KICAD_ADVISOR', None)
 from unittest.mock import patch
 
 from kicadpy import autofinish as af

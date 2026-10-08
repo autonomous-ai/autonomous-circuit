@@ -5,6 +5,15 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+
+from kicadpy import advisor as _advisor_for_isolation  # # isolate-from-machine-advisor
+
+
+def setUpModule():
+    # The machine may have an advisor switched on (~/.harness/kicad-advisor); tests never call a real model.
+    _advisor_for_isolation.CONFIG = Path('/nonexistent/kicad-advisor')
+    import os as _os
+    _os.environ.pop('KICAD_ADVISOR', None)
 from unittest.mock import patch
 
 from kicadpy import advisor
@@ -51,11 +60,11 @@ class AdvisorTest(unittest.TestCase):
         self.assertEqual(advisor.spec({}), ('codex', 'gpt-6-astra'))
         # One run can differ from the machine: the two sides of an A/B.
         (self.ws / '.circuit').mkdir(exist_ok=True)
-        (self.ws / '.circuit' / 'advisor').write_text('off\n')
+        (self.ws / '.circuit' / 'advisor.conf').write_text('off\n')
         self.assertIsNone(advisor.spec({'KICAD_ADVISOR': 'codex:gpt-6-astra'}, self.ws))
-        (self.ws / '.circuit' / 'advisor').write_text('claude:claude-opus-5-5\n')
+        (self.ws / '.circuit' / 'advisor.conf').write_text('claude:claude-opus-5-5\n')
         self.assertEqual(advisor.spec({}, self.ws), ('claude', 'claude-opus-5-5'))
-        (self.ws / '.circuit' / 'advisor').unlink()
+        (self.ws / '.circuit' / 'advisor.conf').unlink()
         self.assertIsNone(advisor.ask('stuck', self.ws, env={'KICAD_ADVISOR': 'off'}, run=fake_run('x')))
 
     def test_bundle_is_small_artifacts_not_the_transcript(self):
@@ -175,15 +184,38 @@ class HandleCallsTheAdvisorTest(unittest.TestCase):
 
     def test_stuck_twice_then_the_advisor_is_asked_with_the_findings(self):
         asked = []
-        with patch.object(af.advisor, 'ask', lambda when, ws, findings=(), **k: asked.append((when, list(findings))) or '1. product.json: x'):
+        with patch.object(af.advisor, 'spec', lambda env=None, workspace=None: ('codex', 'm')), \
+             patch.object(af.advisor, 'ask', lambda when, ws, findings=(), **k: asked.append((when, list(findings))) or '1. product.json: x'):
             for _ in range(3):
                 resp = af.handle(self.event, lambda _: (False, ['unconnected C6.1']))
         self.assertEqual(asked, [('stuck', ['unconnected C6.1'])])
         self.assertIn('independent advisor', resp['reason'])
         self.assertEqual(af.read_state(self.ws)['advisor_calls'], 1)
 
+    def test_the_switch_and_the_logs_live_side_by_side(self):
+        # 2026-10-08: the switch was a file named like the log folder, so every call failed to log
+        # and was skipped. Switch on per run, the call must happen and leave its log.
+        (self.ws / '.circuit' / 'advisor.conf').write_text('codex:gpt-6-astra\n')
+
+        def run(cmd, **kw):
+            Path(cmd[cmd.index('-o') + 1]).write_text('NO CONCERNS')
+            return subprocess.CompletedProcess(cmd, 0, stdout='', stderr='')
+        with patch.object(af.advisor.shutil, 'which', lambda n: '/usr/bin/' + n), \
+             patch.object(af.advisor.subprocess, 'run', run), \
+             patch.object(af, 'firmware_built', lambda ws: True):
+            af.handle(self.event, lambda _: (True, []))
+        self.assertEqual(len(list((self.ws / '.circuit' / 'advisor').glob('*-ready.md'))), 1)
+
+    def test_advisor_off_means_no_call_and_nothing_counted(self):
+        with patch.object(af.advisor, 'spec', lambda env=None, workspace=None: None), \
+             patch.object(af, 'firmware_built', lambda ws: True):
+            af.handle(self.event, lambda _: (True, []))
+        state = af.read_state(self.ws)
+        self.assertNotIn('advisor_calls', state)
+        self.assertNotIn('advisor_ready', state)
+
     def test_advisor_off_means_no_call(self):
-        with patch.object(af.advisor, 'spec', lambda env=None: None):
+        with patch.object(af.advisor, 'spec', lambda env=None, workspace=None: None):
             with patch.object(af.advisor.subprocess, 'run', side_effect=AssertionError('ran an advisor while off')):
                 for _ in range(4):
                     af.handle(self.event, lambda _: (False, ['same']))
