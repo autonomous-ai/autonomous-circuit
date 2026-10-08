@@ -365,6 +365,16 @@ Codex `/hooks` (on Grok Build the tile launches with `--trust`, and the hook is
 budget/tooling limit, report unfinished with concrete blockers and your attempted strategies;
 never ask the user to diagnose electrical problems or claim readiness.
 
+**An advisor may be reading over your shoulder.** When the person turned one on, the Stop hook asks
+a second model to read the board at two moments — when your blockers come back unchanged twice,
+and once when the board first goes green — and puts its points into your next continuation. It
+reads files only; it never edits, never talks to the person. Treat each point as a colleague's
+review: check it against the datasheet and the files, fix what is real, and for each point you
+reject write one line in `.circuit/advisor-response.md` saying why (not under `engineering/`: that
+folder is a design input, and a note written after the last publish marks the board stale). The gate stays the
+referee: never weaken a check or drop a requested function to satisfy the advisor. Its raw
+answers are logged under `.circuit/advisor/`.
+
 Then write
 `.circuit/native-review-attestation.json` — `{status: "pass" | "blocked", reviewer: <your
 identity and model>, summary: <your independent conclusion and remaining limits>,
