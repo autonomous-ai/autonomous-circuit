@@ -18,7 +18,7 @@ At most `MAX_CALLS` per run; a failure or timeout is skipped, never a blocker.
 
 Which advisor (`codex:<model>`, `claude:<model>` or `off`): the first line of
 `<workspace>/.circuit/advisor.conf` for one run, else `KICAD_ADVISOR`, else `~/.harness/kicad-advisor`.
-Empty or absent everywhere: off, and the hook behaves exactly as before.
+Absent everywhere: the default, `codex:gpt-6-astra`. `off` in any of them turns it off.
 """
 from __future__ import annotations
 
@@ -43,6 +43,9 @@ CONFIG = Path.home() / '.harness' / 'kicad-advisor'
 #: Per-run switch. Not `.circuit/advisor`: that is the log folder, and a file there stopped the
 #: logs being written, which skipped every call (2026-10-08, ab-sol-astra).
 SWITCH = Path('.circuit') / 'advisor.conf'
+#: On by default since 2026-10-08: a real call cost ~97 s and ~3 % of the builder's tokens, and the
+#: first one caught a USB VBUS capacitance the builder had hidden by raising its own limit.
+DEFAULT = 'codex:gpt-6-astra'
 
 #: What the advisor reads, in order; the first existing path of each group.
 BUNDLE = (
@@ -77,7 +80,9 @@ def spec(env=None, workspace=None):
             raw = CONFIG.read_text(encoding='utf-8').splitlines()[0].strip()
         except (OSError, IndexError):
             raw = ''
-    if not raw or raw.lower() in ('off', 'none', '0'):
+    if not raw:
+        raw = DEFAULT
+    if raw.lower() in ('off', 'none', '0'):
         return None
     engine, _, model = raw.partition(':')
     engine = engine.strip().lower()

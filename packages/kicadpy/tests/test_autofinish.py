@@ -12,7 +12,7 @@ def setUpModule():
     # The machine may have an advisor switched on (~/.harness/kicad-advisor); tests never call a real model.
     _advisor_for_isolation.CONFIG = Path('/nonexistent/kicad-advisor')
     import os as _os
-    _os.environ.pop('KICAD_ADVISOR', None)
+    _os.environ['KICAD_ADVISOR'] = 'off'   # the default is on; tests opt in explicitly
 from unittest.mock import patch
 
 from kicadpy import autofinish as af

@@ -13,7 +13,7 @@ def setUpModule():
     # The machine may have an advisor switched on (~/.harness/kicad-advisor); tests never call a real model.
     _advisor_for_isolation.CONFIG = Path('/nonexistent/kicad-advisor')
     import os as _os
-    _os.environ.pop('KICAD_ADVISOR', None)
+    _os.environ['KICAD_ADVISOR'] = 'off'   # the default is on; tests opt in explicitly
 from unittest.mock import patch
 
 from kicadpy import advisor
@@ -50,7 +50,7 @@ class AdvisorTest(unittest.TestCase):
         self.addCleanup(which.stop)
 
     def test_off_unless_chosen_and_the_spec_is_parsed(self):
-        self.assertIsNone(advisor.spec({}))
+        self.assertEqual(advisor.spec({}), ('codex', 'gpt-6-astra'), 'on by default')
         self.assertIsNone(advisor.spec({'KICAD_ADVISOR': 'off'}))
         self.assertIsNone(advisor.spec({'KICAD_ADVISOR': 'grok:x'}))
         self.assertIsNone(advisor.spec({'KICAD_ADVISOR': 'codex:'}))

@@ -86,10 +86,10 @@ come back unchanged twice, and once when the board first goes green (`kicadpy/ad
 from the Stop hook). It reads a small bundle of artifacts (product.json, pinout, power, bringup,
 firmware README and flash.json, the gate findings) in a read-only sandbox, answers in at most 8
 points that each name a file, or `NO CONCERNS`. At most 3 calls per run; a failure or timeout is
-skipped. Off by default. Turn it on for this machine:
+skipped. **On by default** (`codex:gpt-6-astra`). Change or turn it off for this machine:
 
 ```sh
-echo codex:gpt-6-astra > ~/.harness/kicad-advisor     # or claude:<model>; `off` or delete to stop
+echo off > ~/.harness/kicad-advisor                   # or claude:<model> / codex:<model>
 ```
 
 `KICAD_ADVISOR` in the environment wins over that file, and `<workspace>/.circuit/advisor.conf` wins over
