@@ -919,3 +919,26 @@ test("revealCommand picks the platform's file manager and honours the override",
   assert.deepEqual(revealCommand("C:\\a\\b.zip", {}, "win32").bin, "explorer");
   assert.deepEqual(revealCommand("/a/b.zip", { CIRCUIT_REVEAL_BIN: "/x/fake" }, "darwin"), { bin: "/x/fake", args: ["/a/b.zip"] });
 });
+
+test("workspace_prompts: the original request comes back over HTTP from the engine's logs", async () => {
+  const home = tmpdir("circuit-wp-home-");
+  const s = await bootServerWith((env) => ({ ...env, HOME: home, CODEX_HOME: path.join(home, ".codex"), CLAUDE_CONFIG_DIR: path.join(home, ".claude") }));
+  try {
+    const { body: project } = await s.post("project_create", { req: { name: "Prompted" } });
+    const dir = path.join(s.services.projectsRoot, project.id);
+    const sdir = path.join(home, ".codex", "sessions", "2026", "10", "08");
+    fs.mkdirSync(sdir, { recursive: true });
+    fs.writeFileSync(path.join(sdir, "rollout-a.jsonl"), [
+      { timestamp: "2026-10-08T01:00:00Z", type: "session_meta", payload: { id: "a", timestamp: "2026-10-08T01:00:00Z", cwd: dir } },
+      { timestamp: "2026-10-08T01:00:05Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "làm desk pet đi" }] } },
+    ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+    const r = await s.post("workspace_prompts", { id: project.id });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.original.text, "làm desk pet đi");
+    assert.equal(r.body.sessions.length, 1);
+    const missing = await s.post("workspace_prompts", { id: "nope" });
+    assert.equal(missing.status, 404);
+  } finally {
+    s.close();
+  }
+});
