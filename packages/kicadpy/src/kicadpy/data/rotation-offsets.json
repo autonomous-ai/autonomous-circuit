@@ -24,7 +24,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C131941": {
@@ -59,6 +60,14 @@
     "harness-9 2026-09-21"
    ]
   },
+  "C149100": {
+   "footprint": "Array_4x100k",
+   "package": "0603x4",
+   "offsetDeg": 0,
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ]
+  },
   "C15127": {
    "footprint": "SOT-23",
    "package": "SOT-23",
@@ -91,7 +100,8 @@
     "opus5.5---claude-pet 2026-09-29",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C1548": {
@@ -138,7 +148,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C17168": {
@@ -284,7 +295,8 @@
    "sources": [
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C25091": {
@@ -317,7 +329,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C25741": {
@@ -344,7 +357,16 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
+   ]
+  },
+  "C25756": {
+   "footprint": "R_0402_1005Metric",
+   "package": "0402",
+   "offsetDeg": 0,
+   "sources": [
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C25764": {
@@ -360,7 +382,8 @@
    "package": "0402",
    "offsetDeg": 0,
    "sources": [
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C25779": {
@@ -402,7 +425,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C2687116": {
@@ -417,7 +441,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C2761795": {
@@ -429,7 +454,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C28323": {
@@ -666,7 +692,8 @@
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
     "opus5.5---claude-pet 2026-09-29",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C7519": {
@@ -698,7 +725,8 @@
    "package": "SMA(DO-214AC)",
    "offsetDeg": 0,
    "sources": [
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ]
   },
   "C96127": {
