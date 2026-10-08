@@ -47,7 +47,11 @@ number, a routed-copper measurement, a pad/pin audit that could have been
 done at the desk and was not. A bench measurement that needs a physical
 board (temperature, inrush, fault current, enumeration) is never a
 prerequisite for `pass`: write it as a step with a limit under `bringup`
-and pass the area on the design evidence. Prototype-ready is a design
+and pass the area on the design evidence. A module the person owns but
+cannot name is designed on a stated reference part (an assumption with its
+source and a bench check under `bringup`); the area passes on that
+reference, and the identity is never itself a reason for `blocked`.
+Prototype-ready is a design
 statement; hardware stays untested until someone measures it, and the
 packet says so. A factory rotation counts as verified once the footprint's
 zero orientation has been compared with the JLCPCB/EasyEDA library footprint

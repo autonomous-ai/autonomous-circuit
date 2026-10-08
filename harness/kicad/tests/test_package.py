@@ -174,6 +174,20 @@ class ManifestTest(unittest.TestCase):
             self.assertIn('$KICAD_HARNESS_PYTHON', config)
         self.assertFalse(any('bypass-hook-trust' in arg for arg in args))
 
+    def test_agents_md_builds_in_one_shot_and_never_asks_technical_questions(self):
+        # The person using this tile does not know electronics (2026-10-07: the same desk pet took
+        # 5 h and several rounds of questions under "ask before you assume", 39 min and zero
+        # questions under "design on a reference part and say so"). Every rule that made the
+        # agent stop and wait is gone; the reference-part rule is in.
+        text = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
+        self.assertIn('**One shot is the default.**', text)
+        self.assertIn('kicadpy.harness --active build` and start', text)
+        self.assertIn('### Parts the person owns but cannot name', text)
+        self.assertIn('GIẢ ĐỊNH', text)
+        self.assertIn('never a reason to stop, and never a reason to ask', text)
+        for stop in ('wait for the user to approve', 'For a new board open with', 'ask one question', 'Refuse in the plan'):
+            self.assertNotIn(stop, text)
+
     def test_template_marker_is_a_native_project(self):
         meta = json.loads((PKG / 'template' / 'project.json').read_text(encoding='utf-8'))
         self.assertEqual(meta['engine'], 'kicad-native')

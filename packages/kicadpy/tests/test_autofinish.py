@@ -44,6 +44,17 @@ class AutoFinishTest(unittest.TestCase):
         self.assertNotIn('decision', response)
         self.assertEqual(af.read_state(self.ws)['status'], 'ready')
 
+    def test_repair_reason_resolves_unnamed_owned_parts_without_asking(self):
+        # 2026-10-06: a desk pet burned 8 continuations (7 unchanged) and then asked the person for
+        # servo part numbers they did not know. The reason the agent reads when stuck says how to
+        # resolve an unknown identity, and that the person is never asked.
+        self.arm()
+        reason = af.handle(self.event, lambda _: (False, ['engineering_power: owned servo unknown']))['reason']
+        self.assertIn('never a blocker and never a question', reason)
+        self.assertIn('GIẢ ĐỊNH', reason)
+        self.assertIn('modules/<id>/BLOCK.md', reason)
+        self.assertIn('Do not ask the person anything technical', reason)
+
     def test_stagnation_changes_strategy_and_budget_ends(self):
         self.arm()
         for i in range(af.MAX_CONTINUATIONS):
