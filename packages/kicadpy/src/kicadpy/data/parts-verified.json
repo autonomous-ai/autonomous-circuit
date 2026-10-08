@@ -26,7 +26,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -84,6 +85,15 @@
    ],
    "checkedDate": "2026-09-21"
   },
+  "C149100": {
+   "manufacturer": "BOURNS",
+   "mpn": "CAY16-104J4LF",
+   "package": "0603x4",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
+  },
   "C15127": {
    "manufacturer": "AOS",
    "mpn": "AO3401A",
@@ -118,7 +128,8 @@
     "opus5.5---claude-pet 2026-09-29",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -169,7 +180,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -262,7 +274,8 @@
    "sources": [
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-30"
   },
@@ -298,7 +311,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21",
    "note": "UNI-ROYAL 0402WGF3300TCE is the real MPN; a run wrongly deleted it as invented (harness-14 review)"
@@ -328,9 +342,19 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21"
+  },
+  "C25756": {
+   "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
+   "mpn": "0402WGF1502TCE",
+   "package": "0402",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
   },
   "C25764": {
    "manufacturer": "UNI-ROYAL(Uniroyal Elec)",
@@ -346,7 +370,8 @@
    "mpn": "0402WGF2002TCE",
    "package": "0402",
    "sources": [
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-10-01"
   },
@@ -377,7 +402,8 @@
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
     "opus5.5---claude-pet 2026-09-29",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-24"
   },
@@ -393,7 +419,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21"
   },
@@ -409,7 +436,8 @@
     "harness-19 2026-09-25",
     "4-servors-hobby 2026-09-30",
     "opus-5.5---4-servors-test 2026-09-30",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-21",
    "note": "UMW clone of the USBLC6-2SC6; the ST original is C7519 (harness-14 review)",
@@ -424,6 +452,15 @@
    ],
    "checkedDate": "2026-10-01"
   },
+  "C27438": {
+   "manufacturer": "BOOMELE(Boom Precision Elec)",
+   "mpn": "2.54-1*8P",
+   "package": "Plugin,P=2.54mm",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
+  },
   "C2761795": {
    "manufacturer": "Worldsemi",
    "mpn": "WS2812B-B/T",
@@ -433,7 +470,8 @@
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-24",
    "note": "WS2812B keeps its last PWM through a warm reset; pulling DIN low does not turn it off — switch its rail (harness-14/15/17 all left it lit)."
@@ -567,6 +605,15 @@
    ],
    "checkedDate": "2026-09-22"
   },
+  "C42431787": {
+   "manufacturer": "JXTCONN",
+   "mpn": "PZ2.54-1X4P-H25",
+   "package": "Through Hole,P=2.54mm",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
+  },
   "C42431840": {
    "manufacturer": "JXTCONN",
    "mpn": "PM2.54-1X8PM-H85",
@@ -623,9 +670,19 @@
    "sources": [
     "harness-15 2026-09-24",
     "harness-18 2026-09-25",
-    "harness-19 2026-09-25"
+    "harness-19 2026-09-25",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-24"
+  },
+  "C494548": {
+   "manufacturer": "KNSCHA",
+   "mpn": "SHW1000UF10V8X12",
+   "package": "Plugin,D8xL12mm",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
   },
   "C5218924": {
    "manufacturer": "Texas Instruments",
@@ -722,7 +779,8 @@
     "harness-18 2026-09-25",
     "harness-19 2026-09-25",
     "opus5.5---claude-pet 2026-09-29",
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-09-24",
    "pinRules": [
@@ -744,6 +802,15 @@
    "checkedDate": "2026-09-24",
    "note": "ST USBLC6-2SC6, the original the usb-c-data block clone stands in for",
    "noSupplyDecoupling": true
+  },
+  "C76871": {
+   "manufacturer": "TDK",
+   "mpn": "PS1240P02BT",
+   "package": "Plugin,D=12.2mm",
+   "sources": [
+    "sol-pet-rover 2026-10-05"
+   ],
+   "checkedDate": "2026-10-05"
   },
   "C7827": {
    "manufacturer": "Texas Instruments",
@@ -768,7 +835,8 @@
    "mpn": "SS34",
    "package": "SMA(DO-214AC)",
    "sources": [
-    "opus-pet-rover 2026-10-01"
+    "opus-pet-rover 2026-10-01",
+    "sol-pet-rover 2026-10-05"
    ],
    "checkedDate": "2026-10-01"
   },
