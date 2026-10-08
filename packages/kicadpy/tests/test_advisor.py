@@ -49,6 +49,13 @@ class AdvisorTest(unittest.TestCase):
         self.assertEqual(advisor.spec({'KICAD_ADVISOR': 'claude:claude-opus-5-5'}), ('claude', 'claude-opus-5-5'))
         (self.ws / 'no-config').write_text('codex:gpt-6-astra\n')
         self.assertEqual(advisor.spec({}), ('codex', 'gpt-6-astra'))
+        # One run can differ from the machine: the two sides of an A/B.
+        (self.ws / '.circuit').mkdir(exist_ok=True)
+        (self.ws / '.circuit' / 'advisor').write_text('off\n')
+        self.assertIsNone(advisor.spec({'KICAD_ADVISOR': 'codex:gpt-6-astra'}, self.ws))
+        (self.ws / '.circuit' / 'advisor').write_text('claude:claude-opus-5-5\n')
+        self.assertEqual(advisor.spec({}, self.ws), ('claude', 'claude-opus-5-5'))
+        (self.ws / '.circuit' / 'advisor').unlink()
         self.assertIsNone(advisor.ask('stuck', self.ws, env={'KICAD_ADVISOR': 'off'}, run=fake_run('x')))
 
     def test_bundle_is_small_artifacts_not_the_transcript(self):

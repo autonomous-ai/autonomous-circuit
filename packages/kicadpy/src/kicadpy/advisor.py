@@ -16,8 +16,9 @@ decides anything: the gate stays the referee, and the builder may reject advice 
 reads a small bundle of artifacts, not the builder's transcript (tens of millions of tokens).
 At most `MAX_CALLS` per run; a failure or timeout is skipped, never a blocker.
 
-Which advisor: `KICAD_ADVISOR` (`codex:<model>` or `claude:<model>`), else the first line of
-`~/.harness/kicad-advisor`. Empty or absent: off, and the hook behaves exactly as before.
+Which advisor (`codex:<model>`, `claude:<model>` or `off`): the first line of
+`<workspace>/.circuit/advisor` for one run, else `KICAD_ADVISOR`, else `~/.harness/kicad-advisor`.
+Empty or absent everywhere: off, and the hook behaves exactly as before.
 """
 from __future__ import annotations
 
@@ -53,10 +54,21 @@ BUNDLE = (
 )
 
 
-def spec(env=None):
-    """`(engine, model)` or None when the advisor is off."""
+def spec(env=None, workspace=None):
+    """`(engine, model)` or None when the advisor is off.
+
+    Precedence: `<workspace>/.circuit/advisor` (one run, e.g. the two sides of an A/B), then
+    `KICAD_ADVISOR`, then `~/.harness/kicad-advisor` (this machine).
+    """
     env = os.environ if env is None else env
-    raw = (env.get('KICAD_ADVISOR') or '').strip()
+    raw = ''
+    if workspace is not None:
+        try:
+            raw = (Path(workspace) / '.circuit' / 'advisor').read_text(encoding='utf-8').splitlines()[0].strip()
+        except (OSError, IndexError):
+            raw = ''
+    if not raw:
+        raw = (env.get('KICAD_ADVISOR') or '').strip()
     if not raw:
         try:
             raw = CONFIG.read_text(encoding='utf-8').splitlines()[0].strip()
@@ -146,7 +158,7 @@ def ask(moment, workspace, findings=(), env=None, run=subprocess.run, timeout=TI
 
     Every call, used or not, is logged under `.circuit/advisor/` so a person can see what was said.
     """
-    chosen = spec(env)
+    chosen = spec(env, workspace)
     if not chosen:
         return None
     engine, model = chosen
