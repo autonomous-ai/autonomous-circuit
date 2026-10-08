@@ -233,6 +233,22 @@ export interface PrereqCheck {
   kicadCli?: { found: boolean; version?: string };
 }
 
+/** `workspace_prompts`: what the person typed into the agent sessions of this workspace. */
+export interface WorkspacePrompt {
+  at: string;
+  text: string;
+}
+export interface WorkspacePromptSession {
+  engine: "codex" | "claude" | "grok";
+  sessionId: string;
+  startedAt: string;
+  prompts: WorkspacePrompt[];
+}
+export interface WorkspacePrompts {
+  original: { engine: string; sessionId: string; at: string; text: string } | null;
+  sessions: WorkspacePromptSession[];
+}
+
 /** `firmware_detect`: what the Flash button would write to, before anything is written. */
 export interface FirmwarePort {
   address: string;
@@ -639,6 +655,7 @@ const transportBase = {
   // Viewer-only (Harness): ask the daemon for a new harness of this tile in a sibling folder.
   harness_new_board: () => invoke<NewBoardResult>("harness_new_board"),
   // The Flash button: look first, then write to exactly the address that look returned.
+  workspace_prompts: (id: string) => invoke<WorkspacePrompts>("workspace_prompts", { id }),
   firmware_detect: (id: string) => invoke<FirmwareDetect>("firmware_detect", { id }),
   firmware_flash: (id: string, port: string) => invoke<FirmwareFlashResult>("firmware_flash", { id, port }),
   app_settings_write: (settings: AppSettings) =>

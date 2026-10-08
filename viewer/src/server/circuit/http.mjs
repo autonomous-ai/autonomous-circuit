@@ -21,6 +21,7 @@ import {
 import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
+import { readWorkspacePrompts } from "./workspacePrompts.mjs";
 import { createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -1231,6 +1232,12 @@ export function createCircuitServices({
     ...(flashSerial ? { serial: flashSerial } : {}),
     env,
   });
+  // The person's original request, read from the engine's session logs for this workspace
+  // (workspacePrompts.mjs). Read-only; the header's Prompt button shows it.
+  commands.workspace_prompts = async ({ id }) => {
+    const projectId = requireProject(id);
+    return readWorkspacePrompts({ dir: projects.projectDir(projectId), env });
+  };
   commands.firmware_detect = async ({ id }) => {
     const projectId = requireProject(id);
     try {

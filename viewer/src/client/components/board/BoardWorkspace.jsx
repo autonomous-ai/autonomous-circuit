@@ -34,6 +34,7 @@ import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
 import FirmwareTab from "./FirmwareTab.jsx";
+import OriginalPromptButton from "./OriginalPromptButton.jsx";
 import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
@@ -1276,6 +1277,9 @@ export default function BoardWorkspace({
                   </button>
                 ))}
                 <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
+                {/* What the board was made from, one click away — in a Harness pane the request is
+                    otherwise hundreds of turns up the agent's terminal. */}
+                <OriginalPromptButton projectId={currentProjectId || ""} fallbackText={requestText} />
 
                 <RevisionPager
                   className="ml-2"

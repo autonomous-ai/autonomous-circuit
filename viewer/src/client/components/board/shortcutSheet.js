@@ -345,6 +345,14 @@ export const INLINE_BINDINGS = Object.freeze([
     when: "in the Move-by-exact-amount box",
     effect: "ba602e52",
   },
+  {
+    id: "prompt.close",
+    surface: "prompt",
+    file: "OriginalPromptButton.jsx",
+    combo: "Esc",
+    when: "while the original prompt is open",
+    effect: "4fcd04c8",
+  },
 ]);
 
 /** The files INLINE_BINDINGS claims to describe, for the test to scan. */
@@ -353,6 +361,7 @@ export const INLINE_SOURCES = Object.freeze([
   { surface: "properties", file: "PropertiesPanel.jsx" },
   { surface: "move-exact", file: "BoardContextMenu.jsx" },
   { surface: "net-width", file: "NetWidthRow.jsx" },
+  { surface: "prompt", file: "OriginalPromptButton.jsx" },
 ]);
 
 // --- the words ---------------------------------------------------------------
@@ -465,6 +474,7 @@ export const SHORTCUT_COPY = Object.freeze({
   // opens. The row says the thing that is always true.
   "sheet.toggle": { group: "help", order: 10, label: "Open this list" },
   "sheet.close": { group: "help", order: 20, label: "Close this list" },
+  "prompt.close": { group: "help", order: 30, label: "Close the original prompt" },
 });
 
 // --- assembly ----------------------------------------------------------------
