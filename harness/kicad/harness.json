@@ -36,7 +36,7 @@
     },
     "args": [
       "-m",
-      "gpt-6-astra",
+      "gpt-6.1-sol",
       "-c",
       "model_reasoning_effort=high",
       "-c",
