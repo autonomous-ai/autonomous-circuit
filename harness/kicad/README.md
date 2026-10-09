@@ -78,3 +78,24 @@ converge or validate physical hardware. A trusted hook is required for automatic
 Existing tiles must reload the updated manifest and restart Codex to receive its new arguments;
 editing a linked checkout alone does not change a running CLI's hooks. No workspace migration is
 needed. Do not restart a working session without coordinating with its owner.
+
+## Advisor (optional)
+
+A second model can review what the builder draws, at the two moments it pays: when the blockers
+come back unchanged twice, and once when the board first goes green (`kicadpy/advisor.py`, called
+from the Stop hook). It reads a small bundle of artifacts (product.json, pinout, power, bringup,
+firmware README and flash.json, the gate findings) in a read-only sandbox, answers in at most 8
+points that each name a file, or `NO CONCERNS`. At most 3 calls per run; a failure or timeout is
+skipped. **On by default** (`codex:gpt-6-astra`). Change or turn it off for this machine:
+
+```sh
+echo off > ~/.harness/kicad-advisor                   # or claude:<model> / codex:<model>
+```
+
+`KICAD_ADVISOR` in the environment wins over that file, and `<workspace>/.circuit/advisor.conf` wins over
+both, for one run (an A/B: `off` in one folder, `codex:gpt-6-astra` in the other). Measured 2026-10-08 on the Sol-only desk
+pet: Astra at medium effort took 139 s and raised two power points the builder missed. Checked
+against the files: 10.1 µF across USB VBUS (C1 10 µF + C7 0.1 µF) is over USB's 10 µF, and the
+builder had raised its own `railLimitsUF.VBUS` to 11 to pass; the LDO's 10 µF output cap meets the
+LD1117 minimum only at nominal, not after its ±20 % tolerance. Each call's seconds and tokens are
+in its log.

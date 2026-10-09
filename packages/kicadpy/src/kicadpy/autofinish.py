@@ -21,6 +21,7 @@ import sys
 import time
 import uuid
 
+from . import advisor
 from .firmware import firmware_built, missing as firmware_missing
 from .project import write_json
 
@@ -32,6 +33,8 @@ PUBLISH_TIMEOUT = 480
 # credit in the middle of continuation 1 (2026-09-23) and left nothing; the next engine had to
 # reverse-engineer the state from the reports.
 HANDOFF_AT = 3
+# Leave the advisor out when the publisher has used most of the Stop hook's 1200 s.
+ADVISOR_DEADLINE = 850   # + advisor.TIMEOUT (300) stays inside the hook's 1200 s
 # A ready board whose firmware is not written AND built gets exactly one more turn for it. One,
 # because writing and building firmware is one turn's work and a second nudge would be nagging an
 # agent that has decided (or been told) not to; the pane's Firmware phase then stays active and
@@ -136,7 +139,7 @@ def inspect_board(workspace):
     return not problems, sorted(set(problems))
 
 
-def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
+def decide(state, ready, findings, now, firmware=True, firmware_gaps=(), advice=None):
     """Return the next persisted state and the Codex hook response.
 
     `firmware` is whether `firmware/` is written and built (kicadpy.firmware.firmware_built); a
@@ -157,6 +160,20 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
                       'A prompt that forbids flashing or ordering does not forbid writing the code; '
                       'only an explicit "no firmware" does, and then say so in firmware/README.md.')
             return state, {'decision': 'block', 'reason': reason}
+        if advice and advice[0] == 'ready':
+            # One independent review per run, at the moment the board went green. "NO CONCERNS"
+            # (or no usable answer) lets the run finish; anything else is one more turn, not a gate.
+            state['advisor_ready'] = True
+            state['advisor_calls'] = state.get('advisor_calls', 0) + 1
+            text = advice[1]
+            if text and not text.strip().upper().startswith(advisor.NO_CONCERNS):
+                state.update(findings=[])
+                reason = ('Circuit verification: the board is prototype-ready, and an independent advisor reviewed it. '
+                          'Its points are below. Fix what is real, then publish again and check the gate is still clean; '
+                          'for every point you reject, write one line in .circuit/advisor-response.md saying why (not under engineering/, which is a design input). '
+                          'The gate is the referee, not the advisor: never weaken a check or remove a requested function '
+                          'to satisfy it, and do not ask the person anything technical.\n\nAdvisor:\n' + text[:6000])
+                return state, {'decision': 'block', 'reason': reason}
         state.update(status='ready', findings=[])
         message = 'Circuit freshly published every board: fab.ready=true. Physical hardware remains untested.'
         if not firmware:
@@ -185,6 +202,12 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=()):
             reason += ('The blockers did not change. Use a different repair strategy: inspect actual pad/net geometry, '
                        'adjust local placement or routing scope if needed while preserving correct copper; '
                        'do not repeat the same failed operation. ')
+        if advice and advice[0] == 'stuck':
+            state['advisor_calls'] = state.get('advisor_calls', 0) + 1
+            if advice[1]:
+                reason += ('An independent advisor read the board because the blockers keep coming back. Check its '
+                           'points against the files before acting; it may be wrong, the gate decides. Advisor:\n'
+                           + advice[1][:4000] + '\n')
         if state['continuations'] >= HANDOFF_AT:
             reason += ('FIRST, before any repair, write engineering/handoff.md: what is on disk, what still blocks '
                        '(quote `kicadpy.verify gate`), what you tried and what to try next. Budget or credit can end '
@@ -211,6 +234,7 @@ def is_user_cancel(event):
 
 
 def handle(event, inspect=inspect_board):
+    started = time.monotonic()
     workspace = Path(os.environ.get('HARNESS_WORKSPACE') or event.get('cwd') or '.').resolve()
     # Codex/Claude put the session under `session_id`; Grok Build under `sessionId`.
     session = event.get('session_id') or event.get('sessionId')
@@ -239,6 +263,19 @@ def handle(event, inspect=inspect_board):
         ready, findings = inspect(workspace)
     except Exception as exc:
         ready, findings = False, [f'Circuit verification failed: {exc}. Diagnose the checker before claiming readiness.']
+    # The advisor runs outside the lock (it takes minutes) and only while the hook's own time budget
+    # allows: the Stop hook is given 1200 s and the publisher may already have used most of it.
+    advice = None
+    if time.monotonic() - started < ADVISOR_DEADLINE:
+        firmware_now = firmware_built(workspace) if ready else True
+        # Only when an advisor is chosen for this run: with none, nothing is counted or marked,
+        # so the state reads exactly as it did before advisors existed.
+        when = advisor.moment(state, ready, findings, firmware_now) if advisor.spec(None, workspace) else None
+        if when:
+            try:
+                advice = (when, advisor.ask(when, workspace, findings))
+            except Exception:  # an advisor is advice; it never breaks the hook
+                advice = (when, None)
     # Interrupt can arrive while the publisher runs. Never revive its cancelled run.
     with state_lock(workspace):
         current = read_state(workspace)
@@ -246,7 +283,9 @@ def handle(event, inspect=inspect_board):
             return {}
         firmware = firmware_built(workspace) if ready else True
         gaps = firmware_missing(workspace) if ready and not firmware else ()
-        updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps)
+        if 'advisor_calls' in current:
+            state.setdefault('advisor_calls', current['advisor_calls'])
+        updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps, advice=advice)
         write_json(workspace / STATE, updated)
     return response
 
