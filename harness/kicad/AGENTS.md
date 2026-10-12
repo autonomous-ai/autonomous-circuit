@@ -471,16 +471,28 @@ prints it) and write `case/interfaces.json`:
 
 ```json
 {"orientation": {"mount": "upright", "faceToUser": "top", "upEdge": "top"},
- "interfaces": {"J2": {"confirm": true},
+ "interfaces": {"J2": {"confirm": true, "seatHeightMm": 5.08},
+                "J1#usb": {"confirm": true},
+                "J1#button": {"ignore": true},
                 "SW1": {"confirm": true, "note": "belly: plunger through the logo"},
+                "J6": {"offboard": true, "confirm": true},
                 "J7": {"ignore": true}},
  "extra": [{"name": "lanyard slot", "kind": "cable", "centerMm": [0, 32]}]}
 ```
 
+- Keys are refs, or `ref#kind` for one feature of a module (`J1#usb`, `J1#button`, `J1#antenna`
+  on a SuperMini): a plain `J1` applies to all of them, so ignoring `J1` would hide the port.
 - **Confirm** every interface the person uses; **override** a kind the generator got wrong;
   **ignore** what stays inside (a spare header, BOOT/RESET when the back opens); **add** under
   `extra` what it cannot see — a part on wires (`offboard: true` items: say where it lives in the
   body), an edge sensor, a strap slot.
+- **Placement.** A single-header module is assumed to hang toward the board centre. When the
+  contract reports `enclosure_modules_overlap`, `enclosure_module_on_tall_part` or
+  `enclosure_module_outside_board`, it guessed wrong: set `bodyToward: "away"` for that ref, or
+  `offboard: true` when the module is on wires.
+- **Heights.** The class table is an assumption. A socket's height goes in `parts.json`
+  (`seatHeightMm` on that entry) or here (`seatHeightMm`); any part's in `heightMm`. The pet's
+  Samtec CES sockets are 5.08 mm, not the 8.5 mm default — the screen's face moves 3.4 mm.
 - **Orientation** says how the product stands: `flat` or `upright`, which board face looks at the
   person, which board edge points up. The pet stands upright with the screen facing out; a deck
   lies flat.

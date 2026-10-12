@@ -124,6 +124,23 @@ class RoverTest(unittest.TestCase):
         self.assertEqual(unplaced, ['J10', 'J11', 'J7'])
 
 
+class PlacementTest(unittest.TestCase):
+    def test_modules_that_cannot_be_where_they_were_put_are_findings(self):
+        rover = {(f['kind'], f['ref']) for f in build('rover')['findings']}
+        self.assertIn(('enclosure_modules_overlap', 'J6'), rover, 'OLED and touch module land on each other')
+        self.assertIn(('enclosure_module_on_tall_part', 'J6'), rover, 'over the 16 mm bulk capacitor')
+        self.assertFalse(any(k.startswith('enclosure_module') for k, _ in {(f['kind'], f['ref']) for f in build('pet')['findings']}),
+                         'the pet board is consistent')
+
+    def test_offboard_closes_the_finding(self):
+        deck = {f['kind'] for f in build('deck')['findings']}
+        self.assertIn('enclosure_modules_overlap', deck, "the deck's OLED cannot sit on the SuperMini")
+        fixed = build('deck', {'interfaces': {'J3': {'offboard': True, 'confirm': True}}})
+        self.assertNotIn('enclosure_modules_overlap', {f['kind'] for f in fixed['findings']})
+        oled = next(i for i in fixed['interfaces'] if i['kind'] == 'display')
+        self.assertEqual((oled['accessFace'], oled.get('offboard')), ('off-board', True))
+
+
 class DeckTest(unittest.TestCase):
     def test_keys_knob_and_light_on_wires(self):
         kinds = by_kind(build('deck'))
@@ -156,6 +173,30 @@ class IntentTest(unittest.TestCase):
         self.assertIn('enclosure_intent_unknown_ref', kinds, 'Q9 is not on the board')
         self.assertNotIn('J2', [f.get('ref') for f in doc['findings'] if f['kind'] == 'enclosure_interface_unconfirmed'])
 
+    def test_one_feature_of_a_module_can_be_ignored_without_hiding_the_port(self):
+        # Ignoring the SuperMini's BOOT/RESET must not ignore its USB-C, the pet's only port.
+        doc = build('pet', {'interfaces': {'J1#button': {'ignore': True}, 'J1#usb': {'confirm': True}}})
+        status = {i['key']: i['status'] for i in doc['interfaces']}
+        self.assertEqual(status['J1#button'], 'ignored')
+        self.assertEqual(status['J1#usb'], 'confirmed')
+        self.assertEqual(status['J1#antenna'], 'proposed')
+        self.assertNotIn('enclosure_intent_unknown_ref', {f['kind'] for f in doc['findings']})
+
+    def test_seat_height_from_intent_or_parts_json_moves_the_display_face(self):
+        # The pet's sockets are Samtec CES, 5.08 mm, not the 8.5 mm table default.
+        display = lambda doc: next(i for i in doc['interfaces'] if i['kind'] == 'display')
+        assumed = display(build('pet'))
+        self.assertEqual(assumed['zMm'], 13.0)
+        declared = build('pet', {'interfaces': {'J2': {'seatHeightMm': 5.08}}})
+        self.assertEqual(display(declared)['zMm'], 9.58)
+        self.assertEqual(next(m for m in declared['modules'] if m['refs'] == ['J2'])['seatSource'], 'case/interfaces.json')
+        recorded = enclosure.build(fixture('pet'), parts_doc={'parts': [{'refdes': ['J1', 'J2', 'J3'], 'mpn': 'CES-108-01-T-S', 'seatHeightMm': 5.08}]},
+                                   modules=enclosure.load_modules(MODULES))
+        self.assertEqual(display(recorded)['zMm'], 9.58)
+        self.assertFalse(any('seat height' in a and 'st7789' in a for a in recorded['assumptions']))
+        tall = enclosure.build(fixture('pet'), intent={'interfaces': {'SW1': {'heightMm': 5.0}}}, modules=enclosure.load_modules(MODULES))
+        self.assertEqual(next(p for p in tall['parts'] if p['ref'] == 'SW1')['heightSource'], 'case/interfaces.json')
+
     def test_unconfirmed_interfaces_are_findings(self):
         doc = build('pet')
         self.assertTrue(all(i['status'] == 'proposed' for i in doc['interfaces']))
@@ -181,17 +222,26 @@ class WriteTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in (ws / 'design').iterdir()), ['main.kicad_pcb'])
 
     def test_case_folder_is_not_a_design_input(self):
+        # kicadpy's revision manifest of a workspace: design/, engineering/ and root JSONs only.
+        # Writing the intent after the board went green must not change it (it would mark the
+        # board stale), while an engineering note does — so this test can fail.
         from kicadpy.project import manifest
         with tempfile.TemporaryDirectory() as tmp:
             ws = Path(tmp)
             (ws / 'design').mkdir()
             (ws / 'design' / 'main.kicad_pro').write_text('{}')
             (ws / 'design' / 'main.kicad_pcb').write_text('(kicad_pcb)')
-            before = manifest(ws / 'design')
+            (ws / 'product.json').write_text('{}')
+            before = manifest(ws)
+            self.assertIn('design/main.kicad_pcb', before)
             (ws / 'case').mkdir()
-            (ws / 'case' / 'interfaces.json').write_text('{}')
-            self.assertEqual(manifest(ws / 'design'), before, 'writing the intent must not make the board stale')
-
+            (ws / 'case' / 'interfaces.json').write_text('{"interfaces": {}}')
+            (ws / 'boards').mkdir()
+            (ws / 'boards' / 'main.enclosure.json').write_text('{}')
+            self.assertEqual(manifest(ws), before, 'case/ and the contract are not inputs')
+            (ws / 'engineering').mkdir()
+            (ws / 'engineering' / 'power.md').write_text('x')
+            self.assertNotEqual(manifest(ws), before, 'control: an engineering note is an input')
 
 if __name__ == '__main__':
     unittest.main()

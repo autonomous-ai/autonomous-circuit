@@ -216,11 +216,74 @@ def _edge_name(vec, frame_note=None):
     return 'top-edge' if y > 0 else 'bottom-edge'
 
 
-def build(state, *, product=None, intent=None, modules=None, stem='main'):
-    """The contract from a worker `inspect` result. Pure: no files, no KiCad."""
+def parts_heights(parts_doc):
+    """ref -> {'heightMm', 'seatHeightMm'} from parts.json entries that record them."""
+    out = {}
+    items = (parts_doc or {}).get('parts', parts_doc) if isinstance(parts_doc, dict) else parts_doc
+    for entry in (items.values() if isinstance(items, dict) else items or []):
+        if not isinstance(entry, dict):
+            continue
+        refs = entry.get('refdes') or entry.get('refs') or []
+        refs = [refs] if isinstance(refs, str) else refs
+        got = {k: float(entry[k]) for k in ('heightMm', 'seatHeightMm') if isinstance(entry.get(k), (int, float))}
+        for ref in refs:
+            if got:
+                out[str(ref)] = got
+    return out
+
+
+def _bbox(points):
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def _overlap(a, b, margin=0.5):
+    return a[0] < b[2] - margin and b[0] < a[2] - margin and a[1] < b[3] - margin and b[1] < a[3] - margin
+
+
+def placement_findings(placed, parts, frame):
+    """A module placed where it cannot physically be: off the board, on another module, on a tall part.
+
+    The generator guesses which side of a single header the body hangs (toward the board centre);
+    these findings are how a wrong guess surfaces instead of a case built around it.
+    """
+    out = []
+    onboard = [m for m in placed if not m['offboard']]
+    for m in onboard:
+        box = _bbox(m['outlineCornersMm'])
+        half_w, half_h = frame.w / 2, frame.h / 2
+        if box[0] < -half_w - 1 or box[2] > half_w + 1 or box[1] < -half_h - 1 or box[3] > half_h + 1:
+            out.append({'kind': 'enclosure_module_outside_board', 'severity': 'warning', 'ref': m['refs'][0],
+                        'message': f"{m['id']} on {', '.join(m['refs'])} reaches past the board outline; if it really "
+                                   'overhangs, say so; otherwise set bodyToward (board-center | away) or offboard: true '
+                                   'for that ref in case/interfaces.json'})
+        for p in parts:
+            if p['side'] != m['side'] or p['ref'] in m['refs'] or p['heightMm'] <= m['seatHeightMm']:
+                continue
+            if _overlap(box, p['boxMm']):
+                out.append({'kind': 'enclosure_module_on_tall_part', 'severity': 'warning', 'ref': m['refs'][0],
+                            'message': f"{m['id']} on {', '.join(m['refs'])} sits {m['seatHeightMm']} mm up, over "
+                                       f"{p['ref']} ({p['heightMm']} mm tall)"})
+    for i, a in enumerate(onboard):
+        for b in onboard[i + 1:]:
+            if a['side'] == b['side'] and _overlap(_bbox(a['outlineCornersMm']), _bbox(b['outlineCornersMm'])):
+                out.append({'kind': 'enclosure_modules_overlap', 'severity': 'warning', 'ref': a['refs'][0],
+                            'message': f"{a['id']} ({', '.join(a['refs'])}) and {b['id']} ({', '.join(b['refs'])}) "
+                                       'land on top of each other; one of them hangs the other way (bodyToward) or '
+                                       'lives off the board (offboard: true) — declare it in case/interfaces.json'})
+    return out
+
+
+def build(state, *, parts_doc=None, intent=None, modules=None, stem='main'):
+    """The contract from a worker `inspect` result. Pure: no files, no KiCad.
+
+    Heights, most trusted first: the agent's intent (`heightMm` / `seatHeightMm` per ref), then
+    parts.json entries that record one, then module.json / the class table (an assumption).
+    """
     modules = load_modules() if modules is None else modules
     intent = intent or {}
     declared = intent.get('interfaces') or {}
+    recorded = parts_heights(parts_doc)
     frame = Frame(state['boardBoundsMm'])
     t = float(state.get('thicknessMm') or 1.6)
     footprints = [f for f in state['footprints'] if not f.get('dnp')]
@@ -231,6 +294,11 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
         kind, module = classify(fp)
         box = frame.box(fp.get('courtyardMm') or fp.get('bboxMm') or [fp['at'][0], fp['at'][1]] * 2)
         hmm, hsrc = height(fp)
+        ref_decl = declared.get(fp['reference']) or {}
+        if isinstance(ref_decl.get('heightMm'), (int, float)):
+            hmm, hsrc = float(ref_decl['heightMm']), 'case/interfaces.json'
+        elif 'heightMm' in recorded.get(fp['reference'], {}):
+            hmm, hsrc = recorded[fp['reference']]['heightMm'], 'parts.json'
         side = _side(fp)
         parts.append({'ref': fp['reference'], 'value': fp['value'], 'footprint': fp['footprint'], 'side': side,
                       'centerMm': frame.pt(fp['at']), 'rotationDeg': fp['rotationDeg'], 'boxMm': box,
@@ -269,19 +337,31 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
             toward = (declared.get(refs[0]) or {}).get('bodyToward')
             centre, u, n = place_module(module, [c['fp'] for c in inst], frame, toward)
             side = inst[0]['side']
-            seat = module.get('seatHeightMm', 0.0)
+            mdecl = declared.get(refs[0]) or {}
+            seat, seat_src = module.get('seatHeightMm', 0.0), 'module.json (assumed)'
+            for r in refs:
+                if 'seatHeightMm' in recorded.get(r, {}):
+                    seat, seat_src = recorded[r]['seatHeightMm'], 'parts.json'
+            if isinstance(mdecl.get('seatHeightMm'), (int, float)):
+                seat, seat_src = float(mdecl['seatHeightMm']), 'case/interfaces.json'
+            offboard_module = bool(mdecl.get('offboard')) or module.get('mount') == 'cable'
             z_face = seat + module.get('bodyHeightMm', 0.0)
             ow, oh = module['outlineMm']
             corners = [_to_board(centre, u, n, (sx * ow / 2, sy * oh / 2)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
             placed_modules.append({'id': mid, 'refs': refs, 'side': side, 'centerMm': [round(centre[0], 3), round(centre[1], 3)],
                                    'axisX': [round(u[0], 4), round(u[1], 4)], 'axisY': [round(n[0], 4), round(n[1], 4)],
-                                   'outlineCornersMm': corners, 'seatHeightMm': seat, 'frontZMm': round(z_face if side == 'top' else -t - z_face, 3),
+                                   'outlineCornersMm': corners, 'seatHeightMm': seat, 'seatSource': seat_src,
+                                   'offboard': offboard_module, 'frontZMm': round(z_face if side == 'top' else -t - z_face, 3),
                                    'mount': module.get('mount'), 'holesMm': [_to_board(centre, u, n, h) for h in module.get('mountingHolesMm', [])],
                                    'assumptions': module.get('assumptions', [])})
             assumptions.update(f'{mid}: {a}' for a in module.get('assumptions', []))
+            if seat_src.endswith('(assumed)'):
+                assumptions.add(f'{mid} ({", ".join(refs)}): seat height {seat} mm assumed; record the socket height '
+                                'in parts.json (seatHeightMm) or case/interfaces.json')
             for feat in module.get('features', []):
                 vec = _face_vector(feat['face'], side, u, n)
-                item = {'name': f"{mid} {feat['name']}", 'kind': feat['kind'], 'refs': refs, 'module': mid, 'side': side,
+                item = {'name': f"{mid} {feat['name']}", 'key': f"{refs[0]}#{feat['kind']}", 'kind': feat['kind'],
+                        'refs': refs, 'module': mid, 'side': side,
                         'centerMm': _to_board(centre, u, n, feat['centerMm']), 'sizeMm': feat['sizeMm'],
                         'angleDeg': round(math.degrees(math.atan2(u[1], u[0])), 2), 'access': vec,
                         'accessFace': _edge_name(vec), 'zMm': round(z_face if side == 'top' else -t - z_face, 3),
@@ -289,6 +369,8 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
                 for key in ('plugMm', 'maxWallMm'):
                     if key in feat:
                         item[key] = feat[key]
+                if mdecl.get('offboard') and module.get('mount') != 'cable':
+                    item['offboard'], item['accessFace'] = True, 'off-board'
                 interfaces.append(item)
 
     for c in candidates:
@@ -300,7 +382,8 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
         edge, gap = frame.edge(c['box'])
         if c['kind'] in ('usb', 'connector') and edge:
             vec = {'left': [-1.0, 0.0, 0.0], 'right': [1.0, 0.0, 0.0], 'top': [0.0, 1.0, 0.0], 'bottom': [0.0, -1.0, 0.0]}[edge]
-        item = {'name': f"{fp['reference']} {fp['value']}", 'kind': c['kind'], 'refs': [fp['reference']], 'module': c['module'],
+        item = {'name': f"{fp['reference']} {fp['value']}", 'key': fp['reference'], 'kind': c['kind'],
+                'refs': [fp['reference']], 'module': c['module'],
                 'side': side, 'centerMm': frame.pt(fp['at']),
                 'sizeMm': [round(c['box'][2] - c['box'][0], 3), round(c['box'][3] - c['box'][1], 3)],
                 'angleDeg': fp['rotationDeg'], 'access': vec, 'accessFace': _edge_name(vec),
@@ -322,7 +405,8 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
     # Intent: confirm, override, ignore, add.
     for item in interfaces:
         ref = item['refs'][0]
-        decl = declared.get(ref) or {}
+        # 'J1#usb' targets one feature of a module; plain 'J1' applies to all of them.
+        decl = declared.get(item.get('key')) or declared.get(ref) or {}
         item['status'] = 'proposed'
         if decl.get('ignore'):
             item['status'] = 'ignored'
@@ -335,7 +419,8 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
                 item['note'] = (item['note'] + ' ' + decl['note']).strip()
     for extra in intent.get('extra') or []:
         interfaces.append({**extra, 'status': 'declared', 'source': 'case/interfaces.json', 'rule': RULES.get(extra.get('kind'), '')})
-    known_refs = {r for i in interfaces for r in i.get('refs', [])} | {p['ref'] for p in parts}
+    known_refs = {r for i in interfaces for r in i.get('refs', [])} | {p['ref'] for p in parts} | \
+        {i['key'] for i in interfaces if i.get('key')}
     for ref in declared:
         if ref not in known_refs:
             findings.append({'kind': 'enclosure_intent_unknown_ref', 'severity': 'warning', 'ref': ref,
@@ -344,6 +429,7 @@ def build(state, *, product=None, intent=None, modules=None, stem='main'):
         if item['status'] == 'proposed':
             findings.append({'kind': 'enclosure_interface_unconfirmed', 'severity': 'warning', 'ref': item['refs'][0] if item.get('refs') else '',
                              'message': f"{item['name']} ({item['kind']}) was found but not confirmed in case/interfaces.json"})
+    findings += placement_findings(placed_modules, parts, frame)
     tallest = {'top': max([p['heightMm'] for p in parts if p['side'] == 'top'] + [0.0]),
                'bottom': max([p['heightMm'] for p in parts if p['side'] == 'bottom'] + [0.0])}
     for m in placed_modules:
@@ -390,9 +476,9 @@ def write(workspace, pcb=None, inspect=None):
     workspace = Path(workspace)
     pcb = Path(pcb) if pcb else next((workspace / 'design').glob('*.kicad_pcb'))
     state = inspect(pcb) if inspect else toolchain.worker('inspect', pcb)
-    product = _json(workspace / 'product.json') or _json(workspace / 'design' / 'product.json')
+    parts_doc = _json(workspace / 'parts.json') or _json(workspace / 'design' / 'parts.json')
     intent = _json(workspace / INTENT)
-    doc = build(state, product=product, intent=intent, stem=pcb.stem)
+    doc = build(state, parts_doc=parts_doc, intent=intent, stem=pcb.stem)
     target = workspace / 'boards' / f'{pcb.stem}.enclosure.json'
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix('.json.tmp')
