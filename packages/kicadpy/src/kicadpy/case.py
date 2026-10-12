@@ -22,7 +22,8 @@ the verdict only read whether a fresh report passed.
     "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # CadQuery; writes the report, prints a summary
 
 What a fresh, passing report means:
-- every part listed exists in both formats and fits the bed in its print orientation;
+- every part listed exists in both formats, its STL in the same assembled frame as its STEP, and
+  fits the bed in its print orientation;
 - no part goes into the board, a part's body or a seated module (keep-outs from the contract);
 - every interface the person uses has its opening: a display's active area, a light (or a skin
   of 0.8 mm or less), a USB-C plug corridor to the outside, a button reached by a plunger or a
@@ -81,6 +82,31 @@ def status(workspace):
     if not report.get('passed'):
         return 'failed', f"{len(report.get('errors') or [])} case error(s)"
     return 'passed', 'the case fits the board and opens for every interface'
+
+
+MESH_FRAME_TOL_MM = 0.5
+
+
+def stl_bounds(path):
+    """(min, max) corners of an STL, binary or ASCII, without CadQuery. None when unreadable."""
+    import re
+    import struct
+    data = Path(path).read_bytes()
+    pts = []
+    if len(data) >= 84:
+        count = struct.unpack('<I', data[80:84])[0]
+        if 84 + count * 50 == len(data):
+            for i in range(count):
+                base = 84 + i * 50 + 12
+                for k in range(3):
+                    pts.append(struct.unpack('<3f', data[base + 12 * k: base + 12 * k + 12]))
+    if not pts:
+        pts = [tuple(map(float, m.groups())) for m in
+               re.finditer(rb'vertex\s+(\S+)\s+(\S+)\s+(\S+)', data)]
+    if not pts:
+        return None
+    xs, ys, zs = zip(*pts)
+    return (min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))
 
 
 # ---- geometry (CadQuery only below) ---------------------------------------------------------
@@ -208,6 +234,20 @@ def check(workspace, write=True):
             errors.append({'kind': 'case_part_unreadable', 'part': name, 'message': f'{name}: {exc}'})
             continue
         solids.append((name, part.get('role', 'other'), shape))
+        # The STL is what the Case tab draws and what gets printed; it must be the same part, in
+        # the same assembled frame, as the STEP measured here. The slicer turns it for printing.
+        stl = workspace / OUT / (part.get('stl') or '')
+        if stl.is_file():
+            bb = shape.val().BoundingBox()
+            mesh = stl_bounds(stl)
+            want = ((bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax))
+            if mesh is None:
+                errors.append({'kind': 'case_part_unreadable', 'part': name, 'message': f'{name}: {part["stl"]} has no triangles'})
+            elif any(abs(a - b) > MESH_FRAME_TOL_MM for corner in range(2) for a, b in zip(mesh[corner], want[corner])):
+                fmt = lambda c: ' .. '.join('(' + ', '.join(f'{v:.1f}' for v in p) + ')' for p in c)
+                errors.append({'kind': 'case_mesh_frame_mismatch', 'part': name,
+                               'message': f'{name}: the STL spans {fmt(mesh)} but the STEP spans {fmt(want)}. Export the STL '
+                                          'assembled, in the contract frame, like the STEP; printRotateDeg tells the slicer how to turn it'})
         rot = part.get('printRotateDeg') or [0, 0, 0]
         placed = shape
         for axis, deg in zip(((1, 0, 0), (0, 1, 0), (0, 0, 1)), rot):

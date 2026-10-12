@@ -193,6 +193,36 @@ class ContractIsStableTest(unittest.TestCase):
 
 
 @unittest.skipIf(cq is None, 'CadQuery is not installed (run with toolchain/case-python)')
+class MeshFrameTest(unittest.TestCase):
+    def test_an_stl_exported_in_print_orientation_is_caught(self):
+        # 2026-10-12, claude-pet-case: STEP assembled, STL flipped face down and dropped to z = 0.
+        # The checker read the STEP and passed; the Case tab drew the STL and the board sat outside.
+        from kicadpy.case_template import build_box
+        with tempfile.TemporaryDirectory() as tmp:
+            ws, _ = workspace('pet', tmp)
+            out = build_box(ws)
+            self.assertEqual(kinds(case.check(ws)), [])
+            front = cq.importers.importStep(str(out / 'front.step'))
+            flipped = front.rotate((0, 0, 0), (1, 0, 0), 180)
+            flipped = flipped.translate((0, 0, -flipped.val().BoundingBox().zmin))
+            cq.exporters.export(flipped, str(out / 'front.stl'))
+            report = case.check(ws)
+            self.assertEqual(kinds(report), ['case_mesh_frame_mismatch'])
+            self.assertIn('front', report['errors'][0]['message'])
+
+    def test_stl_bounds_reads_binary_and_ascii(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            box = cq.Workplane('XY').box(2, 4, 6).translate((1, 2, 3))
+            path = Path(tmp) / 'b.stl'
+            cq.exporters.export(box, str(path))
+            lo, hi = case.stl_bounds(path)
+            self.assertEqual([round(v, 3) for v in lo + hi], [0, 0, 0, 2, 4, 6])
+            path.write_text('solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 5 -2\n'
+                            'endloop\nendfacet\nendsolid t\n')
+            self.assertEqual(case.stl_bounds(path), ((0, 0, -2), (1, 5, 0)))
+
+
+@unittest.skipIf(cq is None, 'CadQuery is not installed (run with toolchain/case-python)')
 class TouchWallTest(unittest.TestCase):
     def test_too_much_plastic_over_a_touch_pad(self):
         from kicadpy.case_template import shapes

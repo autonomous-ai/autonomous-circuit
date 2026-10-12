@@ -537,10 +537,14 @@ board revision, not a moved footprint.
   `case/out/parts.json` lists every part (`name`, `role`: shell, lid, plunger, membrane,
   diffuser, bracket or other; `stl`, `step`, `printRotateDeg`, `supports`) and the `contractSha`
   of the `enclosure.json` it was built from. Only a plunger or a membrane may sit over a button.
+  **Both files of a part are assembled, in the contract frame** — the STL too. Never export the
+  STL turned for the bed: `printRotateDeg` is how the slicer turns it, and the checker fails a STL
+  whose extent differs from its STEP (`case_mesh_frame_mismatch`). A flipped STL once passed a
+  check of its STEP and drew the board outside its own case in the Case tab (2026-10-12).
 - **The checker is the tile's.** It reads your STEP files, never your code, and fails a case
   that goes into the board, a part or a seated module (`case_collides`), covers an interface
   (`case_interface_blocked`), puts more than the pad's limit of plastic over a touch pad
-  (`case_touch_wall`), does not fit the bed (`case_part_too_big`; `printer.bedMm` in
+  (`case_touch_wall`), ships an STL that is not its STEP (`case_mesh_frame_mismatch`), does not fit the bed (`case_part_too_big`; `printer.bedMm` in
   `case/interfaces.json`, default 220 x 220 x 250) or was built from an older board
   (`case_built_from_old_board`). Fix the model, rebuild, recheck, until it passes. A changed
   board or a rebuilt part makes the report stale, and the phase goes back to active.
