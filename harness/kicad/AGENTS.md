@@ -521,7 +521,9 @@ board revision, not a moved footprint.
   build_box('.')
   ```
   It writes a two-part box from the contract — `front` (walls and face plate, printed face down),
-  `back` (floor with a boss under every mounting hole) and a `plunger_<ref>` per tact button —
+  `back` (floor with a boss under every mounting hole), a `plunger_<ref>` per tact button and a
+  `coupon` (role `coupon`: the plate around the screen and the wall around the port, cut from the
+  shells — the few-minute print that proves the numbers before the whole body) —
   with a window over each display's active area, a light window per LED, a 14 mm cutout per key,
   a hole per knob, a grille per buzzer and a plug-sized corridor per USB-C. Reshape it for the
   product (`kicadpy.case_template.shapes(contract)` returns the CadQuery solids to start from):
@@ -551,6 +553,11 @@ board revision, not a moved footprint.
   the whole body; a generous cavity (0.6 mm) beats exact numbers nobody measured; no supports
   (open faces down, ports open to an edge); walls of at least 1.6 mm; module geometry marked as an
   assumption goes into `engineering/bringup.md` as a bench check against the coupon.
+- **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
+  from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
+  print orientation in words, and the checker's status and errors. When you reshape the case, keep
+  a part with role `coupon` cut from your final shells; the tab lists it first, as the thing to
+  print first.
 - **Report** the parts, the print orientation of each, the material (PLA unless the product
   says otherwise) and what is assumed rather than measured. A passing check is a fit in the
   model, not on the desk: never say the case fits until the person has printed it.

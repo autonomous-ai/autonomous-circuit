@@ -240,3 +240,62 @@ test("firmware/flash.json surfaces as artifact.firmware.flashUrl — what enable
   assert.match(firmware.flashUrl, /^\/projects\/fw\/firmware\/flash\.json\?v=\d+-\d+$/);
   assert.ok(firmware.files.some((f) => f.file === "flash.json"), "the recipe is also a readable file in the tab");
 });
+
+test("case/ is grouped under the native board's artifact: parts from parts.json, the contract, and the check's status", async () => {
+  const crypto = await import("node:crypto");
+  const sha = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  const dir = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(dir, "design"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "case", "out"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb)");
+  const contract = path.join(dir, "boards", "main.enclosure.json");
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2 }));
+
+  // A contract and no case yet: the tab can say the case comes next.
+  let enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "none");
+  assert.deepEqual(enclosure.parts, []);
+  assert.match(enclosure.contractUrl, /^\/projects\/cs\/boards\/main\.enclosure\.json\?v=\d+-\d+$/);
+
+  const out = path.join(dir, "case", "out");
+  for (const name of ["front.stl", "front.step", "coupon.stl"]) fs.writeFileSync(path.join(out, name), `solid ${name}`);
+  fs.writeFileSync(path.join(out, "parts.json"), JSON.stringify({
+    parts: [
+      { name: "front", role: "shell", stl: "front.stl", step: "front.step", printRotateDeg: [180, 0, 0], supports: false },
+      { name: "coupon", role: "coupon", stl: "coupon.stl", step: "coupon.step" },   // no STEP on disk
+      { name: "escape", role: "shell", stl: "../../boards/main.enclosure.json" },   // outside case/out: dropped
+      { name: "mesh-less", role: "lid", stl: "lid.stl" },                           // missing: dropped
+    ],
+  }));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "stale", "built, never checked");
+  assert.deepEqual(enclosure.parts.map((p) => [p.name, p.role, Boolean(p.stepUrl)]), [["front", "shell", true], ["coupon", "coupon", false]]);
+  assert.match(enclosure.parts[0].stlUrl, /^\/projects\/cs\/case\/out\/front\.stl\?v=\d+-\d+$/);
+  assert.deepEqual(enclosure.parts[0].printRotateDeg, [180, 0, 0]);
+  assert.equal(enclosure.parts[0].supports, false);
+
+  // A passing report bound to this board and these files.
+  fs.mkdirSync(path.join(dir, "case", "reports"), { recursive: true });
+  const report = path.join(dir, "case", "reports", "case-check.json");
+  const bound = { passed: true, errors: [], contractSha: sha(contract),
+    partShas: { "front.stl": sha(path.join(out, "front.stl")), "parts.json": sha(path.join(out, "parts.json")) } };
+  fs.writeFileSync(report, JSON.stringify(bound));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "passed");
+  assert.match(enclosure.reportUrl, /case-check\.json/);
+
+  // A rebuilt part makes it stale; a failed check says how many errors.
+  fs.writeFileSync(path.join(out, "front.stl"), "solid moved");
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+  bound.partShas["front.stl"] = sha(path.join(out, "front.stl"));
+  fs.writeFileSync(report, JSON.stringify({ ...bound, passed: false, errors: [{ kind: "case_collides" }, { kind: "case_interface_blocked" }] }));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.deepEqual([enclosure.state, enclosure.reason], ["failed", "2 case errors"]);
+  // A new board makes any report stale.
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2, moved: true }));
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+
+  // The meshes are never standalone entries.
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.filter((e) => e.file.startsWith("case/")).length, 0);
+});

@@ -942,3 +942,15 @@ test("workspace_prompts: the original request comes back over HTTP from the engi
     s.close();
   }
 });
+
+test("the case's meshes and solids are served only from case/", async () => {
+  const { assetContentType } = await import("./http.mjs");
+  assert.equal(assetContentType("case/out/front.stl", "/w/case/out/front.stl"), "model/stl");
+  assert.equal(assetContentType("case/out/front.step", "/w/case/out/front.step"), "model/step");
+  assert.equal(assetContentType(path.join("case", "out", "a.stp"), "/w/case/out/a.stp"), "model/step");
+  // a footprint's 3D model under design/ and a stray STL elsewhere stay private
+  assert.equal(assetContentType("design/lib/part.step", "/w/design/lib/part.step"), null);
+  assert.equal(assetContentType("tools/body.stl", "/w/tools/body.stl"), null);
+  // case/build.py is the agent's code, not an asset
+  assert.equal(assetContentType("case/build.py", "/w/case/build.py"), null);
+});

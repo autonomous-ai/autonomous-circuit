@@ -34,6 +34,7 @@ import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
 import FirmwareTab from "./FirmwareTab.jsx";
+import CaseTab from "./CaseTab.jsx";
 import OriginalPromptButton from "./OriginalPromptButton.jsx";
 import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
@@ -84,13 +85,16 @@ const TABS = Object.freeze([
   // Last, because it is the last thing written: the agent writes firmware
   // after the board checks out, so the pin map is read off finished copper.
   { id: "firmware", label: "Firmware", hint: "The code that runs on the board, written once the board checks out" },
+  // After the firmware, because it is modelled around the finished board: where
+  // the screen, buttons and ports actually ended up.
+  { id: "case", label: "Case", hint: "The printable case around the board, with every part to download" },
 ]);
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
 // their own inspector, so the EDA panels along the bottom and the right would
 // be a second copy of the same numbers in the vocabulary the tab is avoiding.
-const PLAIN_TABS = new Set(["overview", "function", "firmware"]);
+const PLAIN_TABS = new Set(["overview", "function", "firmware", "case"]);
 
 /**
  * The board workspace — an Altium-shaped PCB tool with our chat on the side.
@@ -1445,6 +1449,9 @@ export default function BoardWorkspace({
                       onOpenTab={setActiveTab}
                       className="min-h-0 flex-1"
                     />
+                  ) : null}
+                  {activeTab === "case" ? (
+                    <CaseTab artifact={artifact} boardName={selectedStem} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
                   ) : null}
                   {activeTab === "firmware" ? (
                     <FirmwareTab

@@ -9,7 +9,8 @@ assembled** (`boards/<stem>.enclosure.json`: mm, origin at the board outline cen
                                       "step": "front.step", "printRotateDeg": [180, 0, 0],
                                       "supports": false}, ...]}
 
-`role` is shell, lid, plunger, membrane, diffuser, bracket or other. Plungers and membranes are
+`role` is shell, lid, plunger, membrane, diffuser, bracket, coupon (the test-fit piece, cut from a
+shell and never assembled) or other. Plungers and membranes are
 the parts a button may press through; everything else must leave each interface open.
 
 The checker reads the STEP files (the mesh is what prints; the STEP is what can be measured),

@@ -15,6 +15,9 @@ keeps passing. Built in the contract frame (`boards/<stem>.enclosure.json`), ass
   (at most its wall limit);
 - **back**: the floor and walls below the board, with a boss under every mounting hole;
 - **plunger_<ref>**: one per tact button, its flange caught under the face plate;
+- **coupon**: the test-fit coupon — the case cut down to the plate around each display and the
+  wall around each edge port, a few minutes of print to hold against the real board before the
+  whole body (role `coupon`: never assembled, checked like the shell it is cut from);
 - edge interfaces (a USB-C) get a corridor through the wall the size of the plug, at the
   height of the receptacle; interfaces facing the bottom go through the floor.
 
@@ -122,7 +125,43 @@ def shapes(contract, wall=WALL, clearance=CLEARANCE):
             back = back.cut(cut)
     parts = {'front': ('shell', front), 'back': ('shell', back)}
     parts.update(plungers)
+    coupon = test_fit_coupon(cq, contract, front, back, (ow, oh))
+    if coupon is not None:
+        parts['coupon'] = ('coupon', coupon)
     return parts
+
+
+COUPON_MARGIN = 6.0   # plastic kept around each opening on the coupon
+
+
+def test_fit_coupon(cq, contract, front, back, outer):
+    """The pieces of the case that a wrong number would ruin: the plate around each display
+    window and the wall around each edge port, cut from the real parts. None when the board has
+    neither (a coupon of nothing teaches nothing)."""
+    reach = max(outer) * 2
+    pieces = []
+    for item in contract['interfaces']:
+        if item.get('status') == 'ignored' or item.get('offboard'):
+            continue
+        cx, cy = item['centerMm']
+        sx, sy = item.get('sizeMm') or [2.0, 2.0]
+        access = item.get('access') or [0, 0, 1]
+        if item['kind'] == 'display' and abs(access[2]) >= 0.5:
+            window = _rect(cq, cx, cy, sx + 2 * COUPON_MARGIN, sy + 2 * COUPON_MARGIN, -reach, reach,
+                           item.get('angleDeg', 0.0))
+            pieces.append((front if access[2] > 0 else back).intersect(window))
+        elif item['kind'] in ('usb', 'connector') and abs(access[2]) < 0.5:
+            w = (item.get('plugMm') or [sx, 3.0])[0] + 2 * COUPON_MARGIN
+            heading = math.degrees(math.atan2(access[1], access[0]))
+            corridor = _rect(cq, cx + access[0] * reach / 2, cy + access[1] * reach / 2, reach, w, -reach, reach, heading)
+            pieces.append(front.intersect(corridor).union(back.intersect(corridor)))
+    pieces = [p for p in pieces if p.solids().size()]
+    if not pieces:
+        return None
+    coupon = pieces[0]
+    for piece in pieces[1:]:
+        coupon = coupon.union(piece)
+    return coupon
 
 
 def build_box(workspace='.', wall=WALL, clearance=CLEARANCE):
@@ -137,7 +176,7 @@ def build_box(workspace='.', wall=WALL, clearance=CLEARANCE):
     for name, (role, solid) in shapes(contract, wall, clearance).items():
         cq.exporters.export(solid, str(out / f'{name}.stl'))
         cq.exporters.export(solid, str(out / f'{name}.step'))
-        rotate = [180, 0, 0] if name == 'front' else [0, 0, 0]       # face plate down, no supports
+        rotate = [180, 0, 0] if name in ('front', 'coupon') else [0, 0, 0]   # face plate down, no supports
         manifest['parts'].append({'name': name, 'role': role, 'stl': f'{name}.stl', 'step': f'{name}.step',
                                   'printRotateDeg': rotate, 'supports': False})
     (out / 'parts.json').write_text(json.dumps(manifest, indent=1) + '\n', encoding='utf-8')

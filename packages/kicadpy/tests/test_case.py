@@ -50,7 +50,7 @@ def export(ws, parts):
         cq.exporters.export(solid, str(out / f'{name}.stl'))
         cq.exporters.export(solid, str(out / f'{name}.step'))
         manifest['parts'].append({'name': name, 'role': role, 'stl': f'{name}.stl', 'step': f'{name}.step',
-                                  'printRotateDeg': [180, 0, 0] if name == 'front' else [0, 0, 0]})
+                                  'printRotateDeg': [180, 0, 0] if name in ('front', 'coupon') else [0, 0, 0]})
     (out / 'parts.json').write_text(json.dumps(manifest))
 
 
@@ -102,6 +102,27 @@ class TemplateCasePassesTest(unittest.TestCase):
                 self.assertTrue(all(p['stl'] and (ws / 'case' / 'out' / p['stl']).exists() for p in parts))
                 buttons = [i for i in doc['interfaces'] if i['kind'] == 'button' and i['status'] != 'ignored' and not i.get('offboard')]
                 self.assertEqual(sum(p['role'] == 'plunger' for p in parts), len(buttons), f'{name}: a plunger per button')
+
+    def test_the_coupon_is_the_plate_around_the_screen_and_the_wall_around_the_port(self):
+        from kicadpy.case_template import shapes
+        with tempfile.TemporaryDirectory() as tmp:
+            _, doc = workspace('pet', tmp)
+            parts = shapes(doc)
+            role, coupon = parts['coupon']
+            self.assertEqual(role, 'coupon')
+            front, back = parts['front'][1], parts['back'][1]
+            volume = lambda w: sum(s.Volume() for s in w.solids().vals())
+            self.assertLess(volume(coupon), (volume(front) + volume(back)) / 3, 'a few minutes of print, not the case')
+            display = next(i for i in doc['interfaces'] if i['kind'] == 'display')
+            usb = next(i for i in doc['interfaces'] if i['kind'] == 'usb')
+            bb = coupon.val().BoundingBox()
+            for item in (display, usb):
+                x, y = item['centerMm']
+                self.assertTrue(bb.xmin <= x <= bb.xmax and bb.ymin <= y <= bb.ymax, item['name'])
+            self.assertGreaterEqual(len(coupon.solids().vals()), 1)
+            # deck: no display on the board (the OLED is on wires) but a USB-C: the coupon is the port wall
+            _, deck = workspace('deck', tmp)
+            self.assertIn('coupon', shapes(deck))
 
 
 @unittest.skipIf(cq is None, 'CadQuery is not installed (run with toolchain/case-python)')

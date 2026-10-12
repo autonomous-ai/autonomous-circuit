@@ -12,6 +12,8 @@
 //   `firmware/` — the code the agent writes for the board once it checks out —
 //   is grouped the same way: hidden as entries, surfaced as
 //   `artifact.firmware = {readmeUrl?, flashUrl?, files: [{file, url, bytes}]}`.
+//   `case/` — the printable enclosure the agent models after the firmware — is
+//   grouped the same way as `artifact.case` (scanCase below).
 //
 // The service watches the activated project dirs (fs.watch recursive — no
 // chokidar dependency in this package), debounces 150ms, rescans, bumps the
@@ -162,6 +164,102 @@ function scanFirmware(rootDir, url) {
   return firmware;
 }
 
+export const CASE_DIR = "case";
+const CASE_OUT = path.join(CASE_DIR, "out");
+const CASE_REPORT = path.join(CASE_DIR, "reports", "case-check.json");
+const CASE_MAX_PARTS = 32;
+
+function sha256File(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** A path from parts.json, kept inside case/out/ — the manifest is the agent's, not trusted. */
+function caseMember(outDir, name) {
+  if (typeof name !== "string" || !name) return null;
+  const full = path.resolve(outDir, name);
+  if (!full.startsWith(outDir + path.sep) || !fs.existsSync(full)) return null;
+  return full;
+}
+
+/**
+ * Has the case been checked against the board it is built for? The same rule
+ * as kicadpy.case.status, read without CadQuery: none (no parts.json), stale
+ * (never checked, or the board, a part or the manifest changed since), failed,
+ * or passed.
+ */
+export function caseStatus(rootDir) {
+  const outDir = path.join(rootDir, CASE_OUT);
+  if (!fs.existsSync(path.join(outDir, "parts.json"))) return { state: "none", reason: "no case yet" };
+  const report = readJson(path.join(rootDir, CASE_REPORT));
+  if (!report) return { state: "stale", reason: "the case has not been checked yet" };
+  let contract = null;
+  try {
+    contract = fs.readdirSync(path.join(rootDir, "boards")).filter((n) => n.endsWith(".enclosure.json")).sort()[0] || null;
+  } catch {
+    contract = null;
+  }
+  try {
+    if (!contract || report.contractSha !== sha256File(path.join(rootDir, "boards", contract))) {
+      return { state: "stale", reason: "the board changed since the case was checked" };
+    }
+    for (const [name, digest] of Object.entries(report.partShas || {})) {
+      const file = caseMember(outDir, name);
+      if (!file || sha256File(file) !== digest) return { state: "stale", reason: `case/out/${name} changed since the case was checked` };
+    }
+  } catch {
+    return { state: "stale", reason: "the case files could not be read" };
+  }
+  if (report.passed !== true) {
+    const n = Array.isArray(report.errors) ? report.errors.length : 0;
+    return { state: "failed", reason: n === 1 ? "1 case error" : `${n} case errors` };
+  }
+  return { state: "passed", reason: "the case fits the board and opens for every interface" };
+}
+
+/**
+ * The case, `<root>/case/`, as the Case tab reads it: every part parts.json
+ * lists with its STL and STEP, the board's contract (the frame the parts are
+ * modelled in, drawn under them), the checker's report and its status.
+ * `null` when there is neither a manifest nor a contract — nothing to show.
+ */
+function scanCase(rootDir, url, stem) {
+  const outDir = path.join(rootDir, CASE_OUT);
+  const contract = path.join(rootDir, "boards", `${stem}.enclosure.json`);
+  const manifest = readJson(path.join(outDir, "parts.json"));
+  const hasContract = fs.existsSync(contract);
+  if (!manifest && !hasContract) return null;
+  const result = { parts: [], ...caseStatus(rootDir) };
+  if (hasContract) result.contractUrl = url(contract);
+  const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
+  if (fs.existsSync(intent)) result.intentUrl = url(intent);
+  const report = path.join(rootDir, CASE_REPORT);
+  if (fs.existsSync(report)) result.reportUrl = url(report);
+  for (const part of (Array.isArray(manifest?.parts) ? manifest.parts : []).slice(0, CASE_MAX_PARTS)) {
+    const stl = caseMember(outDir, part?.stl);
+    if (!stl || path.extname(stl).toLowerCase() !== ".stl") continue;
+    const step = caseMember(outDir, part?.step);
+    const member = {
+      name: String(part.name || path.basename(stl, ".stl")),
+      role: String(part.role || "other"),
+      stlUrl: url(stl),
+      bytes: fs.statSync(stl).size,
+    };
+    if (step && /\.(step|stp)$/i.test(step)) member.stepUrl = url(step);
+    if (Array.isArray(part.printRotateDeg)) member.printRotateDeg = part.printRotateDeg.slice(0, 3).map(Number);
+    if (typeof part.supports === "boolean") member.supports = part.supports;
+    result.parts.push(member);
+  }
+  return result;
+}
+
 /** Is this file a member of a generated `<stem>_review/` or `<stem>_fab/`
  * dir? Members are hidden as entries — grouped under the board's artifact. */
 function inGeneratedDir(absPath) {
@@ -263,6 +361,8 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       }
     } catch { entry.nativeStale = true; }
     if (firmware) entry.artifact.firmware = firmware;
+    const enclosure = scanCase(rootDir, url, stem);
+    if (enclosure) entry.artifact.case = enclosure;
     entries.push(entry);
   }
 

@@ -22,7 +22,7 @@ import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
 import { readWorkspacePrompts } from "./workspacePrompts.mjs";
-import { createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
+import { CASE_DIR, createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
   createEditQueue,
@@ -60,13 +60,21 @@ const ASSET_CONTENT_TYPES = new Map([
   [".glb", "model/gltf-binary"],
 ]);
 
+const CASE_CONTENT_TYPES = new Map([
+  [".stl", "model/stl"],
+  [".step", "model/step"],
+  [".stp", "model/step"],
+]);
+
 /**
  * The content type an asset under a project is served with, or null when it
  * is not one the app serves. Two families: the catalog's own kinds (above),
  * anywhere in the project; and the firmware tree's source files — `.c`, `.h`,
  * `Makefile`, `platformio.ini` — only under `firmware/`, as text, so the
  * Firmware tab can read them and nothing else in a workspace (`tools/`, a
- * vendored SDK) becomes a download by accident.
+ * vendored SDK) becomes a download by accident. A third, as narrow: the case's
+ * meshes and solids, only under `case/` (the Case tab draws the STL and offers
+ * both as downloads; a footprint's .step under design/ stays private).
  */
 export function assetContentType(rel, candidate) {
   const ext = path.extname(candidate).toLowerCase();
@@ -75,6 +83,7 @@ export function assetContentType(rel, candidate) {
   if (firmwareRel.startsWith(`${FIRMWARE_DIR}/`) && isFirmwareSource(candidate)) {
     return "text/plain; charset=utf-8";
   }
+  if (firmwareRel.startsWith(`${CASE_DIR}/`) && CASE_CONTENT_TYPES.has(ext)) return CASE_CONTENT_TYPES.get(ext);
   return null;
 }
 
