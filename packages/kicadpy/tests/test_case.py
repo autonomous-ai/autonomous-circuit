@@ -69,13 +69,17 @@ class StatusWithoutCadQueryTest(unittest.TestCase):
             (out / 'front.stl').write_text('solid')
             self.assertEqual(case.status(ws)[0], 'stale', 'built but never checked')
             report = {'passed': True, 'contractSha': case.sha(ws / 'boards' / 'main.enclosure.json'),
-                      'partShas': {'front.stl': case.sha(out / 'front.stl')}}
+                      'partShas': {'front.stl': case.sha(out / 'front.stl'), 'parts.json': case.sha(out / 'parts.json')}}
             (ws / 'case' / 'reports').mkdir()
             (ws / 'case' / 'reports' / 'case-check.json').write_text(json.dumps(report))
             self.assertEqual(case.status(ws)[0], 'passed')
             (out / 'front.stl').write_text('solid changed')
             self.assertEqual(case.status(ws), ('stale', 'case/out/front.stl changed since the case was checked'))
             (out / 'front.stl').write_text('solid')
+            (out / 'parts.json').write_text('{"parts": [{"name": "front", "role": "plunger"}]}')
+            self.assertEqual(case.status(ws), ('stale', 'case/out/parts.json changed since the case was checked'),
+                             'relabelling a shell as a plunger after the check is a new case')
+            (out / 'parts.json').write_text('{}')
             (ws / 'boards' / 'main.enclosure.json').write_text('{"changed": true}')
             self.assertEqual(case.status(ws)[0], 'stale', 'a new board makes the case stale')
             (ws / 'case' / 'reports' / 'case-check.json').write_text(json.dumps({**report, 'passed': False, 'errors': [{}],
@@ -150,6 +154,21 @@ class EveryWrongCaseIsCaughtTest(unittest.TestCase):
         manifest['contractSha'] = 'an older board'
         (self.ws / 'case' / 'out' / 'parts.json').write_text(json.dumps(manifest))
         self.assertEqual(kinds(case.check(self.ws)), ['case_built_from_old_board', 'case_part_too_big'])
+
+
+class ContractIsStableTest(unittest.TestCase):
+    def test_republishing_an_unchanged_board_keeps_the_case_fresh(self):
+        # status() compares the contract's sha: the same board must give the same bytes every publish.
+        state = json.loads((FIX / 'pet.json').read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / 'design').mkdir()
+            (ws / 'design' / 'main.kicad_pcb').write_text('')
+            (ws / 'case').mkdir()
+            (ws / 'case' / 'interfaces.json').write_text(json.dumps(INTENTS['pet']))
+            first = enclosure.write(ws, inspect=lambda pcb: json.loads(json.dumps(state))).read_bytes()
+            second = enclosure.write(ws, inspect=lambda pcb: json.loads(json.dumps(state))).read_bytes()
+            self.assertEqual(first, second)
 
 
 @unittest.skipIf(cq is None, 'CadQuery is not installed (run with toolchain/case-python)')

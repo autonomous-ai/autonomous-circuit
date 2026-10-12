@@ -189,7 +189,7 @@ def check(workspace, write=True):
         errors.append({'kind': 'case_built_from_old_board', 'message': 'case/out/parts.json was built from an older '
                        'enclosure.json; rebuild the case from the current board'})
 
-    solids, part_shas = [], {}
+    solids, part_shas = [], {'parts.json': sha(manifest_path)}   # a relabelled or added part is a new case
     for part in manifest.get('parts') or []:
         name = part.get('name', '?')
         for key in ('stl', 'step'):

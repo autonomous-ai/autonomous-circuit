@@ -542,6 +542,10 @@ board revision, not a moved footprint.
   `case/interfaces.json`, default 220 x 220 x 250) or was built from an older board
   (`case_built_from_old_board`). Fix the model, rebuild, recheck, until it passes. A changed
   board or a rebuilt part makes the report stale, and the phase goes back to active.
+- **If `$KICAD_CASE_PYTHON` exits 127**, CadQuery is not installed on this machine (setup could
+  not download it). Say so in one line with the command that fixes it
+  (`scripts/toolchain/install-cadquery.sh` in the tile checkout), leave the phase active, and still
+  write `case/interfaces.json`; never install CadQuery anywhere else.
 - **What a print teaches** (from cases that were printed and did not fit): print a **test-fit
   coupon** first — the face plate around the screen and one port, a few minutes of print — before
   the whole body; a generous cavity (0.6 mm) beats exact numbers nobody measured; no supports
