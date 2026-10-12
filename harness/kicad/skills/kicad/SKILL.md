@@ -171,6 +171,18 @@ BOM, position file, project archive, `ORDER.md`, `manufacturing-report.json`), a
 floor DRC, the independent gerber read, part identities, assembly decisions and the seven
 engineering areas. The publisher never sets it any other way, and neither do you.
 
+## The case contract (`kicadpy.enclosure`)
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.enclosure .      # regenerate boards/<stem>.enclosure.json and print it
+```
+
+Written at every publish too. One frame (mm, origin at the outline centre, +x right, +y up from
+the top, z = 0 on the top copper). `interfaces[]`: kind, refs, module, side, centre, size, angle,
+`accessFace`, `zMm`, the opening `rule`, `status` (proposed / confirmed / overridden / ignored /
+declared). `modules[]`: plug-in modules placed from their header pads. `case/interfaces.json` is
+your intent (AGENTS.md, "The case contract"); it is read on every regeneration.
+
 ## The verdict
 
 Written by the publisher at every sidecar write. Before your first publish, tell the pane where

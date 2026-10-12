@@ -6,6 +6,12 @@ is the **pin contract**, the current it draws, and the trap that bit an earlier 
 what `modules/<id>/BLOCK.md` holds — no TSX, no testbench, no snapshot.
 
 The KiCad harness reads them beside the golden blocks (`$KICAD_HARNESS_BLOCKS/../modules/`).
+Each module also carries a **`module.json`**: its outline, header positions, seat height and the
+user-facing features (a display's active area, the SuperMini's USB-C, a touch pad), in one module
+frame, with sources and assumptions. `kicadpy.enclosure` places them on the board from their header
+pads to build the case contract (`boards/<stem>.enclosure.json`); `tests/test_enclosure.py` checks
+every module directory has one.
+
 `tests/test_blocks.py` enumerates `blocks/` only; a module directory needs its BLOCK.md and
 nothing else.
 

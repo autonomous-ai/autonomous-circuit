@@ -27,6 +27,8 @@ design/              THE SOURCE — main.kicad_pro, main.kicad_sch, main.kicad_p
 tools/               your own scripts (KiCad-Python authoring, helpers)
 firmware/            the code that runs on the board — written AFTER the board is
                      prototype-ready (below); README.md + sources, shown in the Firmware tab
+case/interfaces.json what the case must give the person (yours: confirm what the contract
+                     found, override, ignore, add) — not a design input, never makes the board stale
 engineering/         evidence: power.md protection.md pinout.md thermal.md assembly.md
                      fabricator.md bringup.md — calculations, sources, what only a bench settles
 manufacturing.json   the review contract (packages/kicadpy/MANUFACTURING.md)
@@ -446,6 +448,50 @@ the review is closed, write the firmware in the same turn, without being asked a
   still goes into `firmware/`, unflashed, with the contract in its README. Only an explicit
   "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
   silently empty.
+
+### The case contract — `boards/<stem>.enclosure.json` and `case/interfaces.json`
+
+Every publish writes `boards/<stem>.enclosure.json` (`kicadpy.enclosure`, Copper's
+`enclosure.json` shape with `schema: 2`): the board in one frame — millimetres, origin at the
+outline centre, +x right, +y up viewed from the top, z = 0 on the top copper — its mounting holes,
+every part with its side, box and estimated height, the plug-in modules placed from their header
+pads, and the **interfaces**: what the person sees and touches, each with where it is, which way
+it faces (`accessFace`: top, bottom, an edge, or off-board) and the opening its kind needs.
+
+A case that only fits the board is the wrong case. The interface is the product: a screen gets a
+window over its **active area** (not the module outline), a button a plunger or membrane over its
+actuator, a light a window or a skin of 0.8 mm or less, a USB-C a corridor the size of the **plug**,
+a touch pad 2 mm or less of plastic and no metal, an antenna no screws or metal over it, an MX key
+a 14 x 14 mm plate cutout. Most of these sit on modules (`$KICAD_HARNESS_BLOCKS/../modules/<id>/
+module.json` holds their outline, active area, USB position and seat height) — on the pet the only
+port is the SuperMini's USB-C under the board.
+
+After the firmware is built, open the contract (`"$KICAD_HARNESS_PYTHON" -m kicadpy.enclosure .`
+prints it) and write `case/interfaces.json`:
+
+```json
+{"orientation": {"mount": "upright", "faceToUser": "top", "upEdge": "top"},
+ "interfaces": {"J2": {"confirm": true},
+                "SW1": {"confirm": true, "note": "belly: plunger through the logo"},
+                "J7": {"ignore": true}},
+ "extra": [{"name": "lanyard slot", "kind": "cable", "centerMm": [0, 32]}]}
+```
+
+- **Confirm** every interface the person uses; **override** a kind the generator got wrong;
+  **ignore** what stays inside (a spare header, BOOT/RESET when the back opens); **add** under
+  `extra` what it cannot see — a part on wires (`offboard: true` items: say where it lives in the
+  body), an edge sensor, a strap slot.
+- **Orientation** says how the product stands: `flat` or `upright`, which board face looks at the
+  person, which board edge points up. The pet stands upright with the screen facing out; a deck
+  lies flat.
+- Every `enclosure_unclassified_connector` and `enclosure_interface_unconfirmed` finding is
+  closed by a line in this file. Module geometry marked as an assumption gets a bench check in
+  `engineering/bringup.md` (hold the module against a printed test-fit before printing the body).
+
+Rules the case designer will follow, so lay the board out for them: **one origin** (this frame,
+never a second one — a 9 mm offset once came from mixing two); a **generous cavity** beats exact
+numbers for modules nobody measured; parts printable **without supports** (open faces down, ports
+open to an edge); a minimum wall of 1.6 mm.
 
 ## Done means prototype-ready
 

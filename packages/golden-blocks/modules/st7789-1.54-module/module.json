@@ -1,0 +1,68 @@
+{
+ "schema": 1,
+ "id": "st7789-1.54-module",
+ "frame": "Module frame: origin at the outline centre; +x along the header row from pin 1 to the last pin (two-row modules: along the rows, pin 1 end at -x); +y from the header toward the module body (two-row modules: from the first-listed row to the second). Millimetres. 'front' is the face away from the carrier board.",
+ "kind": "display",
+ "mount": "socket",
+ "outlineMm": [
+  32.0,
+  43.7
+ ],
+ "bodyHeightMm": 4.5,
+ "seatHeightMm": 8.5,
+ "headers": [
+  {
+   "name": "GND VCC SCL SDA RES DC CS BLK",
+   "pins": 8,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    -19.35
+   ]
+  }
+ ],
+ "features": [
+  {
+   "kind": "display",
+   "name": "active area 240x240",
+   "centerMm": [
+    0.0,
+    0.0
+   ],
+   "sizeMm": [
+    27.72,
+    27.72
+   ],
+   "face": "front",
+   "note": "cut the window over the active area plus about 0.5 mm, not over the module outline"
+  }
+ ],
+ "mountingHolesMm": [
+  [
+   -13.5,
+   -19.35
+  ],
+  [
+   13.5,
+   -19.35
+  ],
+  [
+   -13.5,
+   19.35
+  ],
+  [
+   13.5,
+   19.35
+  ]
+ ],
+ "holeDiameterMm": 2.2,
+ "sources": [
+  "BLOCK.md: module 32 x 43.7 mm, stands off the board, the header is the only fixation",
+  "lcdwiki MSP1541: 1.54\" 240x240 IPS"
+ ],
+ "assumptions": [
+  "header row 2.5 mm from the module edge",
+  "active area centred on the module",
+  "mounting hole positions are typical, measure before relying on them"
+ ]
+}

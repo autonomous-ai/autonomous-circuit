@@ -1,0 +1,89 @@
+{
+ "schema": 1,
+ "id": "esp32-c3-supermini",
+ "frame": "Module frame: origin at the outline centre; +x along the header row from pin 1 to the last pin (two-row modules: along the rows, pin 1 end at -x); +y from the header toward the module body (two-row modules: from the first-listed row to the second). Millimetres. 'front' is the face away from the carrier board.",
+ "kind": "mcu",
+ "mount": "socket",
+ "outlineMm": [
+  22.52,
+  18.0
+ ],
+ "bodyHeightMm": 4.4,
+ "seatHeightMm": 8.5,
+ "headers": [
+  {
+   "name": "row A (5V GND 3V3 IO4..IO0)",
+   "pins": 8,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    -7.62
+   ]
+  },
+  {
+   "name": "row B (IO5..IO10 IO20 IO21)",
+   "pins": 8,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    7.62
+   ]
+  }
+ ],
+ "features": [
+  {
+   "kind": "usb",
+   "name": "USB-C receptacle",
+   "centerMm": [
+    -11.26,
+    0.0
+   ],
+   "sizeMm": [
+    8.94,
+    3.26
+   ],
+   "face": "edge-x",
+   "plugMm": [
+    12.5,
+    7.0
+   ],
+   "note": "USB-C is at the pin-1 end; the case corridor is sized to the plug overmold, not the receptacle"
+  },
+  {
+   "kind": "antenna",
+   "name": "PCB antenna end",
+   "centerMm": [
+    8.26,
+    0.0
+   ],
+   "sizeMm": [
+    6.0,
+    18.0
+   ],
+   "face": "front",
+   "note": "no metal and no screws over the antenna end; plastic wall is fine"
+  },
+  {
+   "kind": "button",
+   "name": "BOOT / RESET (on the module)",
+   "centerMm": [
+    -4.0,
+    0.0
+   ],
+   "sizeMm": [
+    8.0,
+    12.0
+   ],
+   "face": "front",
+   "note": "reached only to recover a board that will not flash; the case may cover them if the back opens"
+  }
+ ],
+ "sources": [
+  "BLOCK.md: supplier drawing pages 2-3, read 2026-09-28 (18.00 x 22.52 mm, rows 15.24 mm apart, USB at the pin-1 end)"
+ ],
+ "assumptions": [
+  "seatHeightMm 8.5 is a standard 2.54 mm female socket",
+  "bodyHeightMm is board 1.0 + USB-C 3.2 + margin",
+  "antenna and BOOT/RESET positions are typical clone layout, not measured"
+ ]
+}

@@ -35,6 +35,19 @@ def copper(item):
     return result
 
 
+def box(bb):
+    return [p.ToMM(bb.GetX()), p.ToMM(bb.GetY()), p.ToMM(bb.GetRight()), p.ToMM(bb.GetBottom())]
+
+
+def courtyard(f):
+    layer = p.B_CrtYd if f.GetLayer() == p.B_Cu else p.F_CrtYd
+    try:
+        poly = f.GetCourtyard(layer)
+        return box(poly.BBox()) if poly.OutlineCount() else None
+    except Exception:
+        return None
+
+
 def inspect(board):
     footprints = []
     for f in board.GetFootprints():
@@ -49,7 +62,11 @@ def inspect(board):
                            'dnp': f.IsDNP(), 'excludedFromBOM': f.IsExcludedFromBOM(),
                            'excludedFromPosition': f.IsExcludedFromPosFiles(),
                            'at': point(f.GetPosition()), 'rotationDeg': f.GetOrientationDegrees(),
-                           'layer': f.GetLayerName(), 'pads': pads})
+                           'layer': f.GetLayerName(), 'pads': pads,
+                           # What the part occupies, for the case contract (kicadpy.enclosure): the body
+                           # box without reference text, and the courtyard on its own side when drawn.
+                           'bboxMm': box(f.GetBoundingBox(False, False)),
+                           'courtyardMm': courtyard(f)})
     # The board's size is the closed outline's centreline, not the drawing stroke around it:
     # GetBoardEdgesBoundingBox() adds the Edge.Cuts pen width (0.05 mm on a 40 mm board reads
     # as a 0.9988 'scale error' in the packet check — seen 2026-09-21). Fall back to the edges

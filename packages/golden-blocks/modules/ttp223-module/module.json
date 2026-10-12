@@ -1,0 +1,47 @@
+{
+ "schema": 1,
+ "id": "ttp223-module",
+ "frame": "Module frame: origin at the outline centre; +x along the header row from pin 1 to the last pin (two-row modules: along the rows, pin 1 end at -x); +y from the header toward the module body (two-row modules: from the first-listed row to the second). Millimetres. 'front' is the face away from the carrier board.",
+ "kind": "touch",
+ "mount": "socket",
+ "outlineMm": [
+  11.0,
+  15.0
+ ],
+ "bodyHeightMm": 2.5,
+ "seatHeightMm": 8.5,
+ "headers": [
+  {
+   "name": "VCC OUT GND (DFR0030 order differs)",
+   "pins": 3,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    -6.0
+   ]
+  }
+ ],
+ "features": [
+  {
+   "kind": "touch",
+   "name": "touch pad",
+   "centerMm": [
+    0.0,
+    2.0
+   ],
+   "sizeMm": [
+    9.0,
+    9.0
+   ],
+   "face": "front",
+   "maxWallMm": 2.0,
+   "note": "plastic over the pad at most 2 mm, no metal, no air gap"
+  }
+ ],
+ "sources": [
+  "BLOCK.md: TTP223 module on a 1x3 header; Claude Pet carrier product.json outline 15 x 11"
+ ],
+ "assumptions": [
+  "pad position and wall limit are typical for TTP223 modules, tune sensitivity on the bench"
+ ]
+}
