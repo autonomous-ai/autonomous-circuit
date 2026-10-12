@@ -8,7 +8,9 @@
 #   2. The RP2040 firmware toolchain — Arm GNU 14.2.Rel1, pico-sdk 2.2.0, picotool — under
 #      toolchain/pico/ (the Firmware phase is done only when the recipe's binary exists; a tile
 #      that asks for a build carries the compiler. ~1.1 GB, like the vendored KiCad.)
-#   3. The Circuit viewer, built, so viewer.sh can serve the board beside the terminal.
+#   3. CadQuery 2.7 in its own venv, under toolchain/case/ (the Case phase: the agent models the
+#      enclosure in case/build.py and kicadpy.case checks it against the board; ~870 MB).
+#   4. The Circuit viewer, built, so viewer.sh can serve the board beside the terminal.
 # KiCad itself is the machine's (brew install --cask kicad): 1 GB, not a thing to vendor.
 # doctor.sh is what reports that, and the Pythons, afterwards.
 set -euo pipefail
@@ -28,13 +30,16 @@ for prefix in /opt/homebrew /usr/local; do
   fi
 done
 
-echo "[kicad:setup] 1/3 Freerouting (pinned jar + JRE)"
+echo "[kicad:setup] 1/4 Freerouting (pinned jar + JRE)"
 scripts/toolchain/install-freerouting.sh
 
-echo "[kicad:setup] 2/3 RP2040 firmware toolchain (Arm GNU + pico-sdk + picotool)"
+echo "[kicad:setup] 2/4 RP2040 firmware toolchain (Arm GNU + pico-sdk + picotool)"
 scripts/toolchain/install-pico-toolchain.sh
 
-echo "[kicad:setup] 3/3 viewer"
+echo "[kicad:setup] 3/4 CadQuery (the Case phase)"
+scripts/toolchain/install-cadquery.sh
+
+echo "[kicad:setup] 4/4 viewer"
 if [ -f viewer/package-lock.json ]; then
   npm --prefix viewer ci --no-audit --no-fund
 else

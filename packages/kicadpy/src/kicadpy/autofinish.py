@@ -22,6 +22,7 @@ import time
 import uuid
 
 from . import advisor
+from .case import status as case_status
 from .firmware import firmware_built, missing as firmware_missing
 from .project import write_json
 
@@ -42,6 +43,8 @@ ADVISOR_DEADLINE = 850   # + advisor.TIMEOUT (300) stays inside the hook's 1200 
 # `kicadpy.firmware.built`: the recipe's binary exists and is current (2026-09-30: a tree with
 # sources that did not compile passed as done).
 FIRMWARE_CONTINUATIONS = 1
+# Same rule for the case: once the firmware is built, one turn to build and check it.
+CASE_CONTINUATIONS = 1
 
 
 def read_state(workspace):
@@ -139,7 +142,7 @@ def inspect_board(workspace):
     return not problems, sorted(set(problems))
 
 
-def decide(state, ready, findings, now, firmware=True, firmware_gaps=(), advice=None):
+def decide(state, ready, findings, now, firmware=True, firmware_gaps=(), advice=None, case=('passed', '')):
     """Return the next persisted state and the Codex hook response.
 
     `firmware` is whether `firmware/` is written and built (kicadpy.firmware.firmware_built); a
@@ -174,10 +177,23 @@ def decide(state, ready, findings, now, firmware=True, firmware_gaps=(), advice=
                           'The gate is the referee, not the advisor: never weaken a check or remove a requested function '
                           'to satisfy it, and do not ask the person anything technical.\n\nAdvisor:\n' + text[:6000])
                 return state, {'decision': 'block', 'reason': reason}
+        case_state, case_reason = case
+        if firmware and case_state != 'passed' and state.get('case_continuations', 0) < CASE_CONTINUATIONS:
+            state.update(findings=[], case_continuations=state.get('case_continuations', 0) + 1)
+            reason = ('Circuit verification: the board is prototype-ready and its firmware is built, but the case is not '
+                      f'done ({case_reason}). Build it now, in this turn, as the AGENTS.md "Case" section says: confirm the '
+                      'interfaces in case/interfaces.json against boards/*.enclosure.json, model the case in case/build.py '
+                      'in the contract frame, export case/out/ (STL + STEP + parts.json), then run '
+                      '"$KICAD_CASE_PYTHON" -m kicadpy.case check . until it passes. Every screen, button, light and port '
+                      'the person uses must have its opening. Never edit the board for the case; a board change is a later '
+                      'revision. Do not ask the person anything technical.')
+            return state, {'decision': 'block', 'reason': reason}
         state.update(status='ready', findings=[])
         message = 'Circuit freshly published every board: fab.ready=true. Physical hardware remains untested.'
         if not firmware:
             message += ' The firmware is not written and built: the Flash button has nothing to write. Say so in your report.'
+        elif case_state != 'passed':
+            message += f' The case is not done ({case_reason}). Say so in your report.'
         return state, {'systemMessage': message}
     unchanged = state.get('unchanged', 0) + 1 if findings == state.get('findings') else 0
     state.update(findings=findings, unchanged=unchanged)
@@ -285,7 +301,9 @@ def handle(event, inspect=inspect_board):
         gaps = firmware_missing(workspace) if ready and not firmware else ()
         if 'advisor_calls' in current:
             state.setdefault('advisor_calls', current['advisor_calls'])
-        updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps, advice=advice)
+        case = case_status(workspace) if ready and firmware else ('passed', '')
+        updated, response = decide(state, ready, findings, time.time(), firmware=firmware, firmware_gaps=gaps, advice=advice,
+                                   case=case)
         write_json(workspace / STATE, updated)
     return response
 

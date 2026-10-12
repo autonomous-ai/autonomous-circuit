@@ -183,6 +183,17 @@ the top, z = 0 on the top copper). `interfaces[]`: kind, refs, module, side, cen
 declared). `modules[]`: plug-in modules placed from their header pads. `case/interfaces.json` is
 your intent (AGENTS.md, "The case contract"); it is read on every regeneration.
 
+## The case (`kicadpy.case`)
+
+```sh
+"$KICAD_CASE_PYTHON" case/build.py               # your model -> case/out/ (start: kicadpy.case_template.build_box('.'))
+"$KICAD_CASE_PYTHON" -m kicadpy.case check .     # the tile's checker -> case/reports/case-check.json
+"$KICAD_HARNESS_PYTHON" -m kicadpy.case status . # none / stale / failed / passed, no CadQuery needed
+```
+
+Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part_too_big`,
+`case_part_missing`, `case_built_from_old_board`. Fix the model, never the board (AGENTS.md, "Case").
+
 ## The verdict
 
 Written by the publisher at every sidecar write. Before your first publish, tell the pane where
@@ -192,7 +203,7 @@ you are:
 "$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build
 ```
 
-Phases are Build / Checks / Fab. Never edit `.harness/verdict.json` by hand.
+Phases are Build / Checks / Fab / Firmware / Case. Never edit `.harness/verdict.json` by hand.
 
 ## The review contract
 

@@ -4,7 +4,7 @@
 #
 # The template brought project.json (engine: kicad-native — the marker) and product.json. This lays
 # out the folders the native workflow writes into, stamps the project's clock, and seeds the first
-# verdict so the pane header has a state before the first prompt (Build / Checks / Fab, all pending).
+# verdict so the pane header has a state before the first prompt (Build / Checks / Fab / Firmware / Case, all pending).
 set -euo pipefail
 mkdir -p .harness design tools engineering boards .circuit
 dsh_dir="${HARNESS_DSH_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
@@ -60,6 +60,8 @@ else
 {"spec": 1, "ready": false, "summary": "No board yet", "findings": [],
  "phases": [{"id": "build", "name": "Build", "state": "pending"},
             {"id": "checks", "name": "Checks", "state": "pending"},
-            {"id": "fab", "name": "Fab", "state": "pending"}]}
+            {"id": "fab", "name": "Fab", "state": "pending"},
+            {"id": "firmware", "name": "Firmware", "state": "pending"},
+            {"id": "case", "name": "Case", "state": "pending"}]}
 JSON
 fi

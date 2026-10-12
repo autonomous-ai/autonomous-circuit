@@ -125,6 +125,13 @@ else
   warn "arduino-cli not found — ESP32 firmware will not build on this machine (brew install arduino-cli)"
 fi
 
+# The Case phase: CadQuery in its own venv, vendored by setup.sh. Without it no case is built or checked.
+if cqv="$("$HERE/case-python" -c 'import cadquery, kicadpy.case; print(cadquery.__version__)' 2>/dev/null)"; then
+  ok "cadquery $cqv (toolchain/case, the Case phase)"
+else
+  miss "cadquery not vendored at toolchain/case — run harness/kicad/toolchain/setup.sh"
+fi
+
 if [ -f "$ROOT/viewer/dist/index.html" ]; then
   ok "viewer built"
 else

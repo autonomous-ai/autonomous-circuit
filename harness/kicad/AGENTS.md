@@ -29,6 +29,8 @@ firmware/            the code that runs on the board — written AFTER the board
                      prototype-ready (below); README.md + sources, shown in the Firmware tab
 case/interfaces.json what the case must give the person (yours: confirm what the contract
                      found, override, ignore, add) — not a design input, never makes the board stale
+case/build.py        the enclosure model (CadQuery, yours) -> case/out/ (STL + STEP + parts.json);
+                     case/reports/case-check.json is the tile's checker's verdict on it
 engineering/         evidence: power.md protection.md pinout.md thermal.md assembly.md
                      fabricator.md bringup.md — calculations, sources, what only a bench settles
 manufacturing.json   the review contract (packages/kicadpy/MANUFACTURING.md)
@@ -505,6 +507,50 @@ never a second one — a 9 mm offset once came from mixing two); a **generous ca
 numbers for modules nobody measured; parts printable **without supports** (open faces down, ports
 open to an edge); a minimum wall of 1.6 mm.
 
+### Case — after the contract, into `case/`
+
+The pane's fifth phase, **Case**, is a printable enclosure that fits this board and opens for
+every interface. It comes after the firmware is built and `case/interfaces.json` is written, in
+the same turn, without being asked again. You design it; the tile's checker decides whether it
+fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
+board revision, not a moved footprint.
+
+- **Start from the template.** `case/build.py` can begin as two lines and then grow:
+  ```python
+  from kicadpy.case_template import build_box
+  build_box('.')
+  ```
+  It writes a two-part box from the contract — `front` (walls and face plate, printed face down),
+  `back` (floor with a boss under every mounting hole) and a `plunger_<ref>` per tact button —
+  with a window over each display's active area, a light window per LED, a 14 mm cutout per key,
+  a hole per knob, a grille per buzzer and a plug-sized corridor per USB-C. Reshape it for the
+  product (`kicadpy.case_template.shapes(contract)` returns the CadQuery solids to start from):
+  a character, rounded corners, a stand, a lanyard slot. Keep the frame: model **assembled, in
+  the contract's frame**, one origin, never a second one.
+- **Build and check** with the tile's CadQuery:
+  ```bash
+  "$KICAD_CASE_PYTHON" case/build.py               # -> case/out/*.stl, *.step, parts.json
+  "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # -> case/reports/case-check.json
+  ```
+  `case/out/parts.json` lists every part (`name`, `role`: shell, lid, plunger, membrane,
+  diffuser, bracket or other; `stl`, `step`, `printRotateDeg`, `supports`) and the `contractSha`
+  of the `enclosure.json` it was built from. Only a plunger or a membrane may sit over a button.
+- **The checker is the tile's.** It reads your STEP files, never your code, and fails a case
+  that goes into the board, a part or a seated module (`case_collides`), covers an interface
+  (`case_interface_blocked`), puts more than the pad's limit of plastic over a touch pad
+  (`case_touch_wall`), does not fit the bed (`case_part_too_big`; `printer.bedMm` in
+  `case/interfaces.json`, default 220 x 220 x 250) or was built from an older board
+  (`case_built_from_old_board`). Fix the model, rebuild, recheck, until it passes. A changed
+  board or a rebuilt part makes the report stale, and the phase goes back to active.
+- **What a print teaches** (from cases that were printed and did not fit): print a **test-fit
+  coupon** first — the face plate around the screen and one port, a few minutes of print — before
+  the whole body; a generous cavity (0.6 mm) beats exact numbers nobody measured; no supports
+  (open faces down, ports open to an edge); walls of at least 1.6 mm; module geometry marked as an
+  assumption goes into `engineering/bringup.md` as a bench check against the coupon.
+- **Report** the parts, the print orientation of each, the material (PLA unless the product
+  says otherwise) and what is assumed rather than measured. A passing check is a fit in the
+  model, not on the desk: never say the case fits until the person has printed it.
+
 ## Done means prototype-ready
 
 **A board is complete only when `fab.ready` is `true` in `boards/main.board.json`** — which is
@@ -519,7 +565,9 @@ closes it** — you in a later revision, the fab at quote time, or a bench test 
 **The turn is not over at prototype-ready.** The pane's phase strip has a fourth phase,
 **Firmware**, that stays active until `firmware/README.md` and a source exist, and the Stop hook
 asks once for them when the board is ready and `firmware/` is empty. `fab.ready` stays the
-board's gate; the firmware is the turn's last deliverable, not a caveat on the board.
+board's gate. After it comes the fifth, **Case**: active until a case built from the current
+board passes `kicadpy.case check` (the hook asks once). Neither gates `fab.ready`; they are the
+turn's last deliverables, not caveats on the board.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or

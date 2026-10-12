@@ -13,6 +13,9 @@ def setUpModule():
     _advisor_for_isolation.CONFIG = Path('/nonexistent/kicad-advisor')
     import os as _os
     _os.environ['KICAD_ADVISOR'] = 'off'   # the default is on; tests opt in explicitly
+    # Board + firmware tests run as if the case were done; CaseContinuationTest drives it explicitly.
+    from kicadpy import autofinish as _af
+    _af.case_status = lambda ws: ('passed', '')
 from unittest.mock import patch
 
 from kicadpy import autofinish as af
@@ -281,3 +284,51 @@ class FirmwareContinuationTest(unittest.TestCase):
         response = af.handle(self.event, lambda _: (False, ['unconnected C6.1']))
         self.assertNotIn('firmware', response['reason'])
         self.assertNotIn('firmware_continuations', af.read_state(self.ws))
+
+
+class CaseContinuationTest(unittest.TestCase):
+    """Board and firmware done, no case: one turn to build and check it, then the run may stop."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ws = Path(self.tmp.name)
+        env = patch.dict(os.environ, {'HARNESS_WORKSPACE': str(self.ws), 'CODEX_THREAD_ID': ''})
+        env.start()
+        self.addCleanup(env.stop)
+        self.event = {'hook_event_name': 'Stop', 'session_id': 's', 'cwd': str(self.ws)}
+        af.arm(self.ws)
+        fw = patch.object(af, 'firmware_built', lambda ws: True)
+        fw.start()
+        self.addCleanup(fw.stop)
+
+    def test_asked_once_for_the_case_then_allowed_to_stop_with_the_gap_named(self):
+        with patch.object(af, 'case_status', lambda ws: ('none', 'no case/out/parts.json yet')):
+            first = af.handle(self.event, lambda _: (True, []))
+            self.assertEqual(first['decision'], 'block')
+            self.assertIn('kicadpy.case check', first['reason'])
+            self.assertIn('case/interfaces.json', first['reason'])
+            self.assertIn('Never edit the board for the case', first['reason'])
+            state = af.read_state(self.ws)
+            self.assertEqual((state['status'], state['case_continuations'], state['continuations']), ('active', 1, 0))
+            second = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', second)
+        self.assertIn('The case is not done', second['systemMessage'])
+        self.assertEqual(af.read_state(self.ws)['status'], 'ready')
+
+    def test_a_passed_case_ends_the_run_at_once(self):
+        with patch.object(af, 'case_status', lambda ws: ('passed', 'ok')):
+            resp = af.handle(self.event, lambda _: (True, []))
+        self.assertNotIn('decision', resp)
+        self.assertNotIn('case', resp['systemMessage'])
+
+    def test_no_case_nudge_before_the_firmware_is_built(self):
+        with patch.object(af, 'firmware_built', lambda ws: False), \
+             patch.object(af, 'case_status', lambda ws: ('none', 'no case')):
+            resp = af.handle(self.event, lambda _: (True, []))
+        self.assertIn('firmware', resp['reason'].lower())
+        self.assertNotIn('kicadpy.case check', resp['reason'])
+
+
+if __name__ == '__main__':
+    unittest.main()

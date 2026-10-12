@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# The Case phase's Python: CadQuery (toolchain/case/.venv, installed by
+# scripts/toolchain/install-cadquery.sh) with kicadpy on its path. $KICAD_CASE_PYTHON.
+#
+#   "$KICAD_CASE_PYTHON" case/build.py               # the agent's case model -> case/out/
+#   "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # the case checker -> case/reports/case-check.json
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+py="$ROOT/toolchain/case/.venv/bin/python"
+if [ ! -x "$py" ]; then
+  echo "kicad: CadQuery is not installed — run scripts/toolchain/install-cadquery.sh (setup does)" >&2
+  exit 127
+fi
+export PYTHONPATH="$ROOT/packages/kicadpy/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$py" "$@"
