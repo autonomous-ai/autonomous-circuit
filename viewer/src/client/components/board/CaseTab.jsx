@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, Eye, EyeOff, Package, RefreshCw } from "lucide-react";
 import { cn } from "@/ui/utils";
 import CaseScene from "./CaseScene.jsx";
-import { defaultVisibility, describeStatus, downloadName, formatBytes, orderParts, printNote, roleLabel } from "./caseView.js";
+import { transport } from "@/lib/transport.ts";
+import { defaultVisibility, describeStatus, formatBytes, orderParts, printNote, roleLabel } from "./caseView.js";
 
 /**
  * The Case tab: the printable enclosure the agent models after the firmware,
@@ -74,7 +75,7 @@ function EmptyState({ hasContract, onOpenTab, className }) {
   );
 }
 
-export default function CaseTab({ artifact = null, boardName = "board", onOpenTab, Scene = CaseScene, className }) {
+export default function CaseTab({ artifact = null, boardName = "board", projectId = "", onOpenTab, Scene = CaseScene, className }) {
   const enclosure = artifact?.case || null;
   const parts = useMemo(() => orderParts(enclosure?.parts || []), [enclosure?.parts]);
   const partsKey = parts.map((p) => p.name).join("|");
@@ -82,6 +83,22 @@ export default function CaseTab({ artifact = null, boardName = "board", onOpenTa
   const [exploded, setExploded] = useState(false);
   const [seeThrough, setSeeThrough] = useState(true);
   const [showBoard, setShowBoard] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(null);
+  const [exportError, setExportError] = useState("");
+  const context = useRef(""); context.current = `${projectId}|${boardName}`;
+  useEffect(() => { setSaved(null); setExportError(""); setSaving(false); }, [projectId, boardName]);
+  const save = async (format, part) => {
+    const startedIn = context.current;
+    setSaving(true); setExportError("");
+    try { const result = await transport.export_case(projectId, boardName, format, part); if (context.current === startedIn) setSaved({ ...result, format }); }
+    catch (error) { if (context.current === startedIn) setExportError(error.message || String(error)); }
+    finally { if (context.current === startedIn) setSaving(false); }
+  };
+  const openSaved = async (command) => {
+    try { await command(saved.path); setExportError(""); }
+    catch (error) { setExportError(error.message || String(error)); }
+  };
   const status = describeStatus(enclosure?.state, enclosure?.reason);
   const errors = useReportErrors(enclosure?.reportUrl || "", enclosure?.state === "failed");
 
@@ -129,6 +146,20 @@ export default function CaseTab({ artifact = null, boardName = "board", onOpenTa
             ))}
           </ul>
         ) : null}
+
+        <button type="button" data-slot="case-print-all" disabled={saving || !projectId || enclosure.state !== "passed"} onClick={() => save("3mf")}
+          className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 text-sm font-medium disabled:opacity-40">
+          {saving ? "Saving…" : "Print all · 3MF"}
+        </button>
+        <p className="text-[11px] leading-4 text-muted-foreground">Printable parts laid out separately; reference models excluded. Choose your printer in the slicer, then slice.</p>
+        {saved ? <div data-slot="case-saved" className="rounded-md border border-border/60 px-2 py-2 text-xs break-all">
+          Saved: {saved.path}
+          <div className="mt-1 flex flex-wrap gap-2">
+            <button type="button" onClick={() => openSaved(transport.export_reveal)} className="underline">Show in Finder</button>
+            {saved.format === "3mf" && saved.canOpenBambu ? <button type="button" data-slot="case-open-bambu" onClick={() => openSaved(transport.export_open_bambu)} className="underline">Open in Bambu Studio</button> : null}
+          </div>
+        </div> : null}
+        {exportError ? <p role="alert" className="text-xs text-red-300">{exportError}</p> : null}
 
         {coupon ? (
           <div data-slot="case-coupon" className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5">
@@ -183,27 +214,25 @@ export default function CaseTab({ artifact = null, boardName = "board", onOpenTa
                       {roleLabel(part.role)} · {formatBytes(part.bytes)}
                     </p>
                   </div>
-                  <a
-                    href={part.stlUrl}
-                    download={downloadName(boardName, part.name, "stl")}
+                  <button
+                    type="button" disabled={saving || !projectId} onClick={() => save("stl", part.name)}
                     data-slot="case-download-stl"
                     className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground"
                   >
                     <Download className="size-3" aria-hidden />
                     STL
-                  </a>
+                  </button>
                   {part.stepUrl ? (
-                    <a
-                      href={part.stepUrl}
-                      download={downloadName(boardName, part.name, "step")}
+                    <button
+                      type="button" disabled={saving || !projectId} onClick={() => save("step", part.name)}
                       data-slot="case-download-step"
                       className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground"
                     >
                       STEP
-                    </a>
+                    </button>
                   ) : null}
                 </div>
-                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">To print: {printNote(part)}.</p>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{part.printable === false ? "Reference model · excluded from Print all." : `To print: ${printNote(part)}.`}</p>
               </li>
             );
           })}

@@ -688,6 +688,9 @@ const transportBase = {
     }),
   /** Show an exported file in the file manager (Finder on a Mac). */
   export_reveal: (path: string) => invoke<{ path: string }>("export_reveal", { path }),
+  export_case: (id: string, stem: string, format: "stl" | "step" | "3mf", part?: string) =>
+    invoke<{ path: string; filename: string; bytes: number; canOpenBambu?: boolean }>("export_case", { id, stem, format, ...(part ? { part } : {}) }),
+  export_open_bambu: (path: string) => invoke<{ path: string }>("export_open_bambu", { path }),
   build_revisions: (id: string, limit?: number) =>
     invoke<BuildHistory>("build_revisions", { id, ...(limit === undefined ? {} : { limit }) }),
 

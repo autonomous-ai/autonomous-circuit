@@ -836,3 +836,10 @@ first, in this template, before the doc itself is edited:
   exact findings must strictly decrease, with no new findings or changed coverage/ignored checks.
   No manufacturing gate changes; no circuitpy runtime re-vendor required.
 - **Tracks affected:** pipeline / skills / docs / Harness tile packaging.
+
+## 2026-10-13 — Case downloads and Print all in the Harness webview
+- **Change:** `export_case {id, stem, part?, format: stl|step|3mf}` saves Case files in `CIRCUIT_EXPORT_DIR` or Desktop, returning `{path, dir, filename, bytes, canOpenBambu}`. `export_open_bambu {path}` opens an exported 3MF in Bambu Studio on macOS. `CIRCUIT_BAMBU_BIN` is a local launcher override for tests/hosts. Existing `export_reveal` shows the saved file.
+- **Why:** the Harness webview follows `<a download>` as navigation and shows STL bytes instead of saving a file. The person requested Print all and an easy handoff to Bambu Studio.
+- **Backward compatible:** additive commands. Individual parts remain available as STL/STEP. Print all requires a current passing check for the selected board; old Case reports without `meshValidation: surface-v1` require a recheck because matching bounding boxes did not prove the printable STL matched the checked STEP.
+- **Mechanism:** local server exports only manifest members inside real `case/out/`, avoids overwrites, and writes standard 3MF Core/OPC ZIP containing separate named printable meshes rotated by `printRotateDeg`, lowered to the bed and spaced apart. `printable: false` parts and legacy `DO_NOT_PRINT` references are excluded from printing and assembly collision checks, while their file hashes remain in the report. It exports geometry, without printer/material profiles or toolpaths, and never starts printing. The Case tab shows the saved path and Finder/Bambu buttons. Catalog status is bound to the selected contract and source freshness. CadQuery's existing VTK dependency compares STL/STEP sampled surfaces in both directions at the existing 0.5 mm tolerance. No circuitpy runtime re-vendor required.
+- **Tracks affected:** pipeline / server / client / docs.

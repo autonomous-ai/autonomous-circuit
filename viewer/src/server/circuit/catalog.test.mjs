@@ -251,6 +251,8 @@ test("case/ is grouped under the native board's artifact: parts from parts.json,
   fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb)");
   const contract = path.join(dir, "boards", "main.enclosure.json");
   fs.writeFileSync(contract, JSON.stringify({ schema: 2 }));
+  fs.writeFileSync(path.join(dir, "boards", "main.board.json"), JSON.stringify({ source: { engine: "kicad-native", file: "design/main.kicad_pcb" },
+    native: { inputRoot: ".", inputs: { "design/main.kicad_pcb": sha(path.join(dir, "design/main.kicad_pcb")) }, publication: "complete", previewDir: "boards/main_review/test" } }));
 
   // A contract and no case yet: the tab can say the case comes next.
   let enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
@@ -278,16 +280,21 @@ test("case/ is grouped under the native board's artifact: parts from parts.json,
   // A passing report bound to this board and these files.
   fs.mkdirSync(path.join(dir, "case", "reports"), { recursive: true });
   const report = path.join(dir, "case", "reports", "case-check.json");
-  const bound = { passed: true, errors: [], contractSha: sha(contract),
+  const bound = { passed: true, meshValidation: "surface-v1", errors: [], contractSha: sha(contract),
     partShas: { "front.stl": sha(path.join(out, "front.stl")), "parts.json": sha(path.join(out, "parts.json")) } };
   fs.writeFileSync(report, JSON.stringify(bound));
   enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
   assert.equal(enclosure.state, "passed");
   assert.match(enclosure.reportUrl, /case-check\.json/);
+  fs.writeFileSync(report, JSON.stringify({ ...bound, meshValidation: undefined }));
+  const { caseStatus: readCaseStatus } = await import("./catalog.mjs");
+  assert.equal(readCaseStatus(dir, "main").state, "stale", "old extent-only checks cannot authorize Print all");
+  fs.writeFileSync(report, JSON.stringify(bound));
 
   // A rebuilt part makes it stale; a failed check says how many errors.
   fs.writeFileSync(path.join(out, "front.stl"), "solid moved");
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+
   bound.partShas["front.stl"] = sha(path.join(out, "front.stl"));
   fs.writeFileSync(report, JSON.stringify({ ...bound, passed: false, errors: [{ kind: "case_collides" }, { kind: "case_interface_blocked" }] }));
   enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
@@ -295,6 +302,18 @@ test("case/ is grouped under the native board's artifact: parts from parts.json,
   // A new board makes any report stale.
   fs.writeFileSync(contract, JSON.stringify({ schema: 2, moved: true }));
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2 }));
+  fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb moved_display)");
+  const changed = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.find(e => e.file === "design/main.kicad_pcb");
+  assert.equal(changed.nativeStale, true);
+  assert.equal(changed.artifact.case.state, "stale", "changed copper invalidates case status before the next publish");
+  fs.writeFileSync(path.join(dir, "design", "other.kicad_pcb"), "(kicad_pcb)");
+  fs.writeFileSync(path.join(dir, "boards", "other.enclosure.json"), JSON.stringify({ schema: 2, different: true }));
+  fs.writeFileSync(path.join(dir, "boards", "other.board.json"), JSON.stringify({ source: { engine: "kicad-native", file: "design/other.kicad_pcb" },
+    native: { inputRoot: ".", inputs: {}, publication: "complete" } }));
+  const { caseStatus } = await import("./catalog.mjs");
+  assert.equal(caseStatus(dir, "other").state, "stale", "a report for main cannot bless other");
 
   // The meshes are never standalone entries.
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.filter((e) => e.file.startsWith("case/")).length, 0);

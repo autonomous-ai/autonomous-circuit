@@ -72,6 +72,8 @@ def status(workspace):
         report = json.loads(report_path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return 'stale', 'the case has not been checked (no case/reports/case-check.json)'
+    if report.get('meshValidation') != 'surface-v1':
+        return 'stale', 'recheck the case with printable-surface validation'
     contract = contract_path(workspace)
     if not contract or report.get('contractSha') != sha(contract):
         return 'stale', 'the board changed since the case was checked'
@@ -107,6 +109,62 @@ def stl_bounds(path):
         return None
     xs, ys, zs = zip(*pts)
     return (min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))
+
+
+def mesh_surface_error(path, shape):
+    """Compare the printable surface with STEP in both directions, not just their extents.
+
+    VTK ships with the pinned CadQuery/OCP toolchain. Sample triangular surfaces at <=1 mm
+    edges; bound refinement so an unreasonable mesh fails rather than holding the check forever.
+    The existing 0.5 mm mesh tolerance allows ordinary STL tessellation of curved surfaces.
+    """
+    import numpy as np
+    from vtkmodules.vtkCommonCore import vtkPoints
+    from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
+    from vtkmodules.vtkFiltersGeneral import vtkDistancePolyDataFilter
+    from vtkmodules.vtkFiltersModeling import vtkAdaptiveSubdivisionFilter
+    from vtkmodules.vtkIOGeometry import vtkSTLReader
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+    reader = vtkSTLReader()
+    reader.SetFileName(str(path))
+    reader.Update()
+    mesh = reader.GetOutput()
+    if not mesh.GetNumberOfPolys():
+        raise ValueError('STL contains no readable surface')
+    vertices, faces = shape.tessellate(0.05, 0.1)
+    points, cells = vtkPoints(), vtkCellArray()
+    for vertex in vertices:
+        points.InsertNextPoint(vertex.toTuple())
+    for face in faces:
+        cells.InsertNextCell(3)
+        for index in face:
+            cells.InsertCellPoint(index)
+    reference = vtkPolyData()
+    reference.SetPoints(points)
+    reference.SetPolys(cells)
+    worst = 0.0
+    for source, target in ((mesh, reference), (reference, mesh)):
+        sample = vtkAdaptiveSubdivisionFilter()
+        sample.SetInputData(source)
+        sample.SetMaximumEdgeLength(1.0)
+        sample.SetMaximumNumberOfTriangles(500000)
+        sample.SetMaximumNumberOfPasses(12)
+        sample.Update()
+        dense = sample.GetOutput()
+        if dense.GetNumberOfPolys() >= 500000:
+            raise ValueError('mesh comparison exceeded its refinement limit')
+        distance = vtkDistancePolyDataFilter()
+        distance.SetInputData(0, dense)
+        distance.SetInputData(1, target)
+        distance.SignedDistanceOff()
+        distance.ComputeSecondDistanceOff()
+        distance.ComputeCellCenterDistanceOff()
+        distance.Update()
+        values = vtk_to_numpy(distance.GetOutput().GetPointData().GetScalars())
+        if not values.size or not np.isfinite(values).all():
+            raise ValueError('mesh surface distance could not be measured')
+        worst = max(worst, float(values.max()))
+    return worst
 
 
 # ---- geometry (CadQuery only below) ---------------------------------------------------------
@@ -225,6 +283,9 @@ def check(workspace, write=True):
                 errors.append({'kind': 'case_part_missing', 'part': name, 'message': f'{name}: {key} file missing in case/out/'})
             else:
                 part_shas[part[key]] = sha(path)
+        # Reference envelopes may be shown in the viewer, but are never assembled or printed.
+        if part.get('printable') is False or 'DO_NOT_PRINT' in str(name).upper():
+            continue
         step = workspace / OUT / (part.get('step') or '')
         if not step.is_file():
             continue
@@ -248,6 +309,15 @@ def check(workspace, write=True):
                 errors.append({'kind': 'case_mesh_frame_mismatch', 'part': name,
                                'message': f'{name}: the STL spans {fmt(mesh)} but the STEP spans {fmt(want)}. Export the STL '
                                           'assembled, in the contract frame, like the STEP; printRotateDeg tells the slicer how to turn it'})
+            else:
+                try:
+                    distance = mesh_surface_error(stl, shape.val())
+                    if distance > MESH_FRAME_TOL_MM:
+                        errors.append({'kind': 'case_mesh_geometry_mismatch', 'part': name,
+                                       'message': f'{name}: STL surface differs from STEP by {distance:.2f} mm. Export both from the same assembled solid'})
+                except Exception as exc:
+                    errors.append({'kind': 'case_part_unreadable', 'part': name,
+                                   'message': f'{name}: printable mesh could not be compared with STEP: {exc}'})
         rot = part.get('printRotateDeg') or [0, 0, 0]
         placed = shape
         for axis, deg in zip(((1, 0, 0), (0, 1, 0), (0, 0, 1)), rot):
@@ -309,7 +379,7 @@ def check(workspace, write=True):
                              'message': f"{hole['name']} has no boss or clamp around it"})
 
     import cadquery
-    report = {'schema': 1, 'passed': not errors, 'errors': errors, 'warnings': warnings,
+    report = {'schema': 1, 'meshValidation': 'surface-v1', 'passed': not errors, 'errors': errors, 'warnings': warnings,
               'contract': str(contract_file.relative_to(workspace)), 'contractSha': sha(contract_file),
               'partShas': part_shas, 'parts': [n for n, _, _ in solids], 'bedMm': bed,
               'checkedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'cadquery': cadquery.__version__}

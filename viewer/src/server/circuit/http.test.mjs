@@ -954,3 +954,35 @@ test("the case's meshes and solids are served only from case/", async () => {
   // case/build.py is the agent's code, not an asset
   assert.equal(assetContentType("case/build.py", "/w/case/build.py"), null);
 });
+
+test("Case exports save real STL/STEP/3MF files and only open exported 3MF in Bambu", async () => {
+  const crypto = await import("node:crypto"), root = tmpdir("case-export-ws-"), dir = tmpdir("case-export-files-");
+  const out = path.join(root, "case/out"); fs.mkdirSync(out, { recursive: true }); fs.mkdirSync(path.join(root, "boards")); fs.mkdirSync(path.join(root, "design")); fs.mkdirSync(path.join(root, "case/reports"));
+  const sha = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  const stl = Buffer.from('solid tetra\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid tetra');
+  fs.writeFileSync(path.join(out, "front.stl"), stl); fs.writeFileSync(path.join(out, "front.step"), "STEP bytes");
+  const parts = { parts: [{ name: "front", stl: "front.stl", step: "front.step", printRotateDeg: [180, 0, 0] }] };
+  fs.writeFileSync(path.join(out, "parts.json"), JSON.stringify(parts));
+  const contract = path.join(root, "boards/main.enclosure.json"); fs.writeFileSync(contract, "{}");
+  const pcb = path.join(root, "design/main.kicad_pcb"); fs.writeFileSync(pcb, "(kicad_pcb)");
+  fs.writeFileSync(path.join(root, "boards/main.board.json"), JSON.stringify({ source: { file: "design/main.kicad_pcb", engine: "kicad-native" }, native: { inputRoot: ".", inputs: { "design/main.kicad_pcb": sha(pcb) }, publication: "complete", previewDir: "boards/main_review/test" } }));
+  const report = { passed: true, meshValidation: "surface-v1", contractSha: sha(contract), partShas: Object.fromEntries(["parts.json", "front.stl", "front.step"].map(n => [n, sha(path.join(out, n))])) };
+  fs.writeFileSync(path.join(root, "case/reports/case-check.json"), JSON.stringify(report));
+  const log = path.join(dir, "opened.txt"), fake = path.join(dir, "fake-bambu.sh"); fs.writeFileSync(fake, `#!/bin/sh\nprintf '%s\\n' "$1" > "${log}"\n`); fs.chmodSync(fake, 0o755);
+  const s = await bootServerWith(env => ({ ...env, CIRCUIT_WORKSPACE: root, CIRCUIT_EXPORT_DIR: dir, CIRCUIT_BAMBU_BIN: fake }));
+  try {
+    for (const format of ["stl", "step"]) {
+      const saved = await s.post("export_case", { id: "workspace", stem: "main", part: "front", format });
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      assert.deepEqual(fs.readFileSync(saved.body.path), fs.readFileSync(path.join(out, `front.${format}`)));
+    }
+    const all = await s.post("export_case", { id: "workspace", stem: "main", format: "3mf" });
+    assert.equal(all.status, 200, JSON.stringify(all.body)); assert.equal(fs.readFileSync(all.body.path).subarray(0, 2).toString(), "PK");
+    assert.equal((await s.post("export_open_bambu", { path: all.body.path })).status, 200);
+    assert.equal(fs.readFileSync(log, "utf8").trim(), fs.realpathSync(all.body.path));
+    assert.equal((await s.post("export_open_bambu", { path: pcb })).status, 400);
+    assert.equal((await s.post("export_case", { id: "workspace", format: "stl", part: "../../private" })).status, 404);
+    fs.writeFileSync(pcb, "(kicad_pcb changed)");
+    assert.equal((await s.post("export_case", { id: "workspace", stem: "main", format: "3mf" })).status, 409);
+  } finally { s.close(); }
+});

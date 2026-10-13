@@ -68,11 +68,15 @@ class StatusWithoutCadQueryTest(unittest.TestCase):
             (out / 'parts.json').write_text('{}')
             (out / 'front.stl').write_text('solid')
             self.assertEqual(case.status(ws)[0], 'stale', 'built but never checked')
-            report = {'passed': True, 'contractSha': case.sha(ws / 'boards' / 'main.enclosure.json'),
+            report = {'passed': True, 'meshValidation': 'surface-v1', 'contractSha': case.sha(ws / 'boards' / 'main.enclosure.json'),
                       'partShas': {'front.stl': case.sha(out / 'front.stl'), 'parts.json': case.sha(out / 'parts.json')}}
             (ws / 'case' / 'reports').mkdir()
             (ws / 'case' / 'reports' / 'case-check.json').write_text(json.dumps(report))
             self.assertEqual(case.status(ws)[0], 'passed')
+            old = {k: v for k, v in report.items() if k != 'meshValidation'}
+            (ws / 'case' / 'reports' / 'case-check.json').write_text(json.dumps(old))
+            self.assertEqual(case.status(ws)[0], 'stale', 'old bounding-box-only checks need a recheck')
+            (ws / 'case' / 'reports' / 'case-check.json').write_text(json.dumps(report))
             (out / 'front.stl').write_text('solid changed')
             self.assertEqual(case.status(ws), ('stale', 'case/out/front.stl changed since the case was checked'))
             (out / 'front.stl').write_text('solid')
@@ -194,6 +198,43 @@ class ContractIsStableTest(unittest.TestCase):
 
 @unittest.skipIf(cq is None, 'CadQuery is not installed (run with toolchain/case-python)')
 class MeshFrameTest(unittest.TestCase):
+    def test_same_bounds_do_not_hide_a_closed_display_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / 'boards').mkdir()
+            (ws / 'case/out').mkdir(parents=True)
+            (ws / 'case/interfaces.json').write_text('{}')
+            contract = {'board': {'widthMm': 20, 'heightMm': 20, 'thicknessMm': 1.6},
+                        'parts': [], 'modules': [], 'mountingHoles': [],
+                        'interfaces': [{'name': 'screen', 'kind': 'display', 'centerMm': [0, 0],
+                                        'sizeMm': [4, 4], 'zMm': 1, 'side': 'top', 'access': [0, 0, 1], 'status': 'confirmed'}]}
+            (ws / 'boards/main.enclosure.json').write_text(json.dumps(contract))
+            closed = cq.Workplane('XY').box(30, 30, 2).translate((0, 0, 6))
+            opened = closed.cut(cq.Workplane('XY').box(4.4, 4.4, 4).translate((0, 0, 6)))
+            export(ws, {'front': ('shell', opened)})
+            self.assertEqual(kinds(case.check(ws)), [])
+            cq.exporters.export(closed, str(ws / 'case/out/front.stl'))
+            report = case.check(ws)
+            self.assertEqual(kinds(report), ['case_mesh_geometry_mismatch'])
+
+    def test_reference_envelopes_are_hashed_but_not_assembled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws, _ = workspace('pet', tmp)
+            from kicadpy.case_template import build_box
+            out = build_box(ws)
+            reference = cq.Workplane('XY').box(10, 10, 10)
+            cq.exporters.export(reference, str(out / 'reference.stl'))
+            cq.exporters.export(reference, str(out / 'reference.step'))
+            manifest_path = out / 'parts.json'
+            manifest = json.loads(manifest_path.read_text())
+            manifest['parts'].append({'name': 'ref_DO_NOT_PRINT', 'role': 'other', 'printable': False,
+                                      'stl': 'reference.stl', 'step': 'reference.step'})
+            manifest_path.write_text(json.dumps(manifest))
+            report = case.check(ws)
+            self.assertEqual(kinds(report), [])
+            self.assertIn('reference.stl', report['partShas'])
+            self.assertNotIn('ref_DO_NOT_PRINT', report['parts'])
+
     def test_an_stl_exported_in_print_orientation_is_caught(self):
         # 2026-10-12, claude-pet-case: STEP assembled, STL flipped face down and dropped to z = 0.
         # The checker read the STEP and passed; the Case tab drew the STL and the board sat outside.

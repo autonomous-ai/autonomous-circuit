@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { click, flush, mount } from "../../../test/render.js";
 import CaseTab from "../CaseTab.jsx";
+import { __setTransportForTesting } from "@/lib/transport.ts";
 
 const sceneProps = [];
 function StubScene(props) {
@@ -48,7 +49,9 @@ test("no case yet: the tab says what comes first", () => {
 
 test("a checked case: coupon first and hidden from the assembly, every part downloadable", () => {
   sceneProps.length = 0;
-  const ui = mount(CaseTab, { artifact: caseArtifact(), boardName: "main", Scene: StubScene });
+  const calls = [];
+  const restore = __setTransportForTesting({ export_case: async (...args) => { calls.push(args); return { path: "/Desktop/main-front.stl" }; } });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", boardName: "main", Scene: StubScene });
   try {
     const status = ui.container.querySelector('[data-slot="case-status"]');
     assert.equal(status.dataset.state, "passed");
@@ -59,8 +62,7 @@ test("a checked case: coupon first and hidden from the assembly, every part down
     assert.deepEqual(rows.map((r) => r.dataset.part), ["coupon", "back", "front"]);
     const front = rows[2];
     const stl = front.querySelector('[data-slot="case-download-stl"]');
-    assert.equal(stl.getAttribute("download"), "main-front.stl");
-    assert.equal(stl.getAttribute("href"), "/projects/p/case/out/front.stl?v=1-1");
+    assert.equal(stl.tagName, "BUTTON", "the webview must not navigate to STL bytes");
     assert.ok(front.querySelector('[data-slot="case-download-step"]'));
     assert.equal(rows[1].querySelector('[data-slot="case-download-step"]'), null, "no STEP on disk, no link");
     assert.match(front.textContent, /flip it face down on the bed, no supports/);
@@ -74,10 +76,33 @@ test("a checked case: coupon first and hidden from the assembly, every part down
     click(ui.container.querySelector('[data-slot="case-explode"]'));
     assert.equal(sceneProps.at(-1).visible.coupon, true);
     assert.equal(sceneProps.at(-1).exploded, true);
+    click(stl);
+    assert.deepEqual(calls, [["p", "main", "stl", "front"]]);
     assert.deepEqual(ui.errors, []);
   } finally {
+    restore();
     ui.unmount();
   }
+});
+
+test("Print all exports 3MF and opens the saved file in Bambu; stale cases cannot print", async () => {
+  const calls = [];
+  const restore = __setTransportForTesting({
+    export_case: async (...args) => { calls.push(["save", ...args]); return { path: "/Desktop/pet.3mf", canOpenBambu: true }; },
+    export_open_bambu: async path => { calls.push(["open", path]); },
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", boardName: "main", Scene: StubScene });
+  try {
+    click(ui.container.querySelector('[data-slot="case-print-all"]'));
+    for (let i = 0; i < 4; i++) await flush();
+    assert.deepEqual(calls, [["save", "p", "main", "3mf", undefined]]);
+    assert.match(ui.container.querySelector('[data-slot="case-saved"]').textContent, /\/Desktop\/pet.3mf/);
+    click(ui.container.querySelector('[data-slot="case-open-bambu"]'));
+    for (let i = 0; i < 4; i++) await flush();
+    assert.deepEqual(calls[1], ["open", "/Desktop/pet.3mf"]);
+    ui.set({ artifact: caseArtifact("stale") });
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
+  } finally { restore(); ui.unmount(); }
 });
 
 test("a failed check lists the checker's errors; a stale one says not to print", async () => {

@@ -167,7 +167,7 @@ function scanFirmware(rootDir, url) {
 export const CASE_DIR = "case";
 const CASE_OUT = path.join(CASE_DIR, "out");
 const CASE_REPORT = path.join(CASE_DIR, "reports", "case-check.json");
-const CASE_MAX_PARTS = 32;
+const CASE_MAX_PARTS = 128;
 
 function sha256File(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
@@ -195,14 +195,15 @@ function caseMember(outDir, name) {
  * (never checked, or the board, a part or the manifest changed since), failed,
  * or passed.
  */
-export function caseStatus(rootDir) {
+export function caseStatus(rootDir, stem) {
   const outDir = path.join(rootDir, CASE_OUT);
   if (!fs.existsSync(path.join(outDir, "parts.json"))) return { state: "none", reason: "no case yet" };
   const report = readJson(path.join(rootDir, CASE_REPORT));
   if (!report) return { state: "stale", reason: "the case has not been checked yet" };
+  if (report.meshValidation !== "surface-v1") return { state: "stale", reason: "recheck the case with printable-surface validation" };
   let contract = null;
   try {
-    contract = fs.readdirSync(path.join(rootDir, "boards")).filter((n) => n.endsWith(".enclosure.json")).sort()[0] || null;
+    contract = stem ? `${stem}.enclosure.json` : fs.readdirSync(path.join(rootDir, "boards")).filter((n) => n.endsWith(".enclosure.json")).sort()[0] || null;
   } catch {
     contract = null;
   }
@@ -236,7 +237,7 @@ function scanCase(rootDir, url, stem) {
   const manifest = readJson(path.join(outDir, "parts.json"));
   const hasContract = fs.existsSync(contract);
   if (!manifest && !hasContract) return null;
-  const result = { parts: [], ...caseStatus(rootDir) };
+  const result = { parts: [], ...caseStatus(rootDir, stem) };
   if (hasContract) result.contractUrl = url(contract);
   const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
   if (fs.existsSync(intent)) result.intentUrl = url(intent);
@@ -251,6 +252,7 @@ function scanCase(rootDir, url, stem) {
       role: String(part.role || "other"),
       stlUrl: url(stl),
       bytes: fs.statSync(stl).size,
+      printable: part.printable !== false && !/DO_NOT_PRINT/i.test(String(part.name || "")),
     };
     if (step && /\.(step|stp)$/i.test(step)) member.stepUrl = url(step);
     if (Array.isArray(part.printRotateDeg)) member.printRotateDeg = part.printRotateDeg.slice(0, 3).map(Number);
@@ -362,6 +364,10 @@ export function scanProjectCatalog({ projectDir, projectId }) {
     } catch { entry.nativeStale = true; }
     if (firmware) entry.artifact.firmware = firmware;
     const enclosure = scanCase(rootDir, url, stem);
+    if (enclosure && entry.nativeStale && enclosure.state !== "none") {
+      enclosure.state = "stale";
+      enclosure.reason = "the board sources changed; publish the board and recheck the case";
+    }
     if (enclosure) entry.artifact.case = enclosure;
     entries.push(entry);
   }

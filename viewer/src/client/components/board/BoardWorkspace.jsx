@@ -1451,7 +1451,7 @@ export default function BoardWorkspace({
                     />
                   ) : null}
                   {activeTab === "case" ? (
-                    <CaseTab artifact={artifact} boardName={selectedStem} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
+                    <CaseTab artifact={artifact} boardName={selectedStem} projectId={currentProjectId || ""} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
                   ) : null}
                   {activeTab === "firmware" ? (
                     <FirmwareTab
