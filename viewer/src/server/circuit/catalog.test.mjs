@@ -318,3 +318,16 @@ test("case/ is grouped under the native board's artifact: parts from parts.json,
   // The meshes are never standalone entries.
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.filter((e) => e.file.startsWith("case/")).length, 0);
 });
+
+test('Case overview discovers the motion demo or an explicit confined manifest file', t => {
+  const dir=tmpdir('circuit-case-overview-');t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(dir,'design'));fs.mkdirSync(path.join(dir,'boards'));fs.mkdirSync(path.join(dir,'case/out'),{recursive:true});fs.mkdirSync(path.join(dir,'case/motion'));
+  fs.writeFileSync(path.join(dir,'design/main.kicad_pcb'),'(kicad_pcb)');fs.writeFileSync(path.join(dir,'boards/main.board.json'),JSON.stringify({source:{engine:'kicad-native',file:'design/main.kicad_pcb'}}));
+  const manifest=path.join(dir,'case/out/parts.json');fs.writeFileSync(manifest,JSON.stringify({parts:[]}));
+  fs.writeFileSync(path.join(dir,'case/motion/motion-view.html'),'<canvas></canvas>');
+  const read=()=>scanProjectCatalog({projectDir:dir,projectId:'p'}).entries.find(e=>e.file==='design/main.kicad_pcb').artifact.case;
+  assert.match(read().overviewUrl,/case\/motion\/motion-view\.html\?v=/);
+  fs.writeFileSync(path.join(dir,'case/custom.html'),'<p>Custom</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../custom.html'}));assert.match(read().overviewUrl,/case\/custom\.html/);
+  fs.writeFileSync(path.join(dir,'outside.html'),'<p>outside</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../../outside.html'}));assert.equal(read().overviewUrl,undefined);
+  fs.symlinkSync(path.join(dir,'outside.html'),path.join(dir,'case/link.html'));fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../link.html'}));assert.equal(read().overviewUrl,undefined);
+});

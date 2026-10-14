@@ -276,6 +276,18 @@ function scanCase(rootDir, url, stem) {
   result.nativePCBCheckerApplies = manifest?.verification?.nativePCBCheckerApplies !== false;
   if (!result.nativePCBCheckerApplies) result.printReportUrl = url(path.join(rootDir, "case/reports/print-check.json"));
   if (hasContract) result.contractUrl = url(contract);
+  // Agent-authored overviews are HTML assets, rendered in an isolated frame.
+  const overviewMembers = manifest?.overview ? [manifest.overview] : ["../overview.html", "../motion/motion-view.html"];
+  for (const member of overviewMembers) {
+    if (typeof member !== "string") continue;
+    try {
+      const root = fs.realpathSync(rootDir), file = fs.realpathSync(path.resolve(outDir, member));
+      if (file.startsWith(path.join(root, CASE_DIR) + path.sep) && path.extname(file).toLowerCase() === ".html" && fs.statSync(file).isFile()) {
+        result.overviewUrl = url(file); break;
+      }
+    } catch { /* no overview or unsafe member */ }
+  }
+
   const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
   if (fs.existsSync(intent)) result.intentUrl = url(intent);
   const report = path.join(rootDir, CASE_REPORT);

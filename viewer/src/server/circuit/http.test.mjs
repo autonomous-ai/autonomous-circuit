@@ -1002,3 +1002,18 @@ test("Case exports save real STL/STEP/3MF files and only open exported 3MF in Ba
 
   } finally { s.close(); }
 });
+
+test('self-contained case HTML is served with origin/network isolation and no escaped symlinks',async () => {
+  const root=tmpdir('case-html-');fs.mkdirSync(path.join(root,'case/motion'),{recursive:true});
+  const html='<canvas></canvas><script>document.body.dataset.ready="yes"</script>';
+  fs.writeFileSync(path.join(root,'case/motion/motion-view.html'),html);fs.writeFileSync(path.join(root,'outside.html'),'<p>Outside</p>');
+  fs.symlinkSync(path.join(root,'outside.html'),path.join(root,'case/escape.html'));
+  const s=await bootServerWith(env=>({...env,CIRCUIT_WORKSPACE:root}));
+  try {
+    const response=await fetch(`${s.base}/projects/workspace/case/motion/motion-view.html`);
+    assert.equal(response.status,200);assert.equal(await response.text(),html);
+    const csp=response.headers.get('content-security-policy');assert.match(csp,/default-src 'none'/);assert.match(csp,/sandbox allow-scripts/);assert.doesNotMatch(csp,/allow-same-origin/);
+    assert.equal((await fetch(`${s.base}/projects/workspace/case/escape.html`)).status,403);
+    assert.equal((await fetch(`${s.base}/projects/workspace/outside.html`)).status,404);
+  }finally{s.close();}
+});

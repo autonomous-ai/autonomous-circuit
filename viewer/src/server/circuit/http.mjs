@@ -62,6 +62,7 @@ const ASSET_CONTENT_TYPES = new Map([
 ]);
 
 const CASE_CONTENT_TYPES = new Map([
+  [".html", "text/html; charset=utf-8"],
   [".stl", "model/stl"],
   [".step", "model/step"],
   [".stp", "model/step"],
@@ -1426,6 +1427,15 @@ export function createCircuitServices({
     if (!contentType) {
       return null;
     }
+    if (contentType.startsWith("text/html")) {
+      try {
+        const root = fs.realpathSync(projectRoot), file = fs.realpathSync(candidate);
+        if (!file.startsWith(path.join(root, CASE_DIR) + path.sep)) throw ipcError("FORBIDDEN", "Case overview is outside case/", 403);
+      } catch (error) {
+        if (error.statusCode) throw error;
+        return null;
+      }
+    }
     return { assetPath: candidate, contentType };
   }
 
@@ -1465,6 +1475,11 @@ export function createCircuitServices({
         return;
       }
       res.setHeader("content-type", contentType);
+      if (contentType.startsWith("text/html")) {
+        // Inline canvas demos work; scripts cannot access our origin, APIs or network.
+        res.setHeader("content-security-policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; sandbox allow-scripts");
+        res.setHeader("x-content-type-options", "nosniff");
+      }
       res.setHeader("accept-ranges", "bytes");
       // URLs are cache-busted with ?v=<mtimeNs>-<size>, so long-cache is safe.
       res.setHeader("cache-control", requestUrl.searchParams.has("v")

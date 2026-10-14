@@ -245,6 +245,7 @@ export interface WorkspacePromptSession {
   prompts: WorkspacePrompt[];
 }
 export interface WorkspacePrompts {
+  current?: { text: string; at: string; source: "file" | "conversation"; file?: string } | null;
   original: { engine: string; sessionId: string; at: string; text: string } | null;
   sessions: WorkspacePromptSession[];
 }
