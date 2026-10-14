@@ -253,30 +253,21 @@ def probe(cq, contract, item, reach):
     return _box(cq, cx, cy, size[0], size[1], z0, z1, angle)
 
 
-def check(workspace, write=True):
-    """Run every check; write the report. Returns the report."""
+def check_parts(workspace, manifest, bed):
+    """Validate printable STEP/STL and bed fit independently of PCB placement."""
     cq = _cq()
-    workspace = Path(workspace)
-    errors, warnings = [], []
-    contract_file = contract_path(workspace)
-    if not contract_file:
-        raise SystemExit('no boards/*.enclosure.json: publish the board first (python -m kicadpy.enclosure .)')
-    contract = json.loads(contract_file.read_text(encoding='utf-8'))
-    manifest_path = workspace / OUT / 'parts.json'
-    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-    intent = {}
-    try:
-        intent = json.loads((workspace / 'case' / 'interfaces.json').read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        warnings.append({'kind': 'case_intent_missing', 'message': 'case/interfaces.json is missing: no interface was confirmed'})
-    bed = (intent.get('printer') or {}).get('bedMm') or DEFAULT_BED
-    if manifest.get('contractSha') and manifest['contractSha'] != sha(contract_file):
-        errors.append({'kind': 'case_built_from_old_board', 'message': 'case/out/parts.json was built from an older '
-                       'enclosure.json; rebuild the case from the current board'})
-
+    errors = []
+    manifest_path = workspace / OUT / "parts.json"
+    if not (workspace / OUT).resolve().is_relative_to(workspace.resolve()):
+        raise ValueError("Case output must be inside the project")
     solids, part_shas = [], {'parts.json': sha(manifest_path)}   # a relabelled or added part is a new case
     for part in manifest.get('parts') or []:
         name = part.get('name', '?')
+        if any(not isinstance(part.get(key), str) or not part[key] or
+               not (workspace / OUT / part[key]).resolve().is_relative_to((workspace / OUT).resolve())
+               for key in ('stl', 'step')):
+            errors.append({'kind': 'case_part_missing', 'part': name, 'message': f'{name}: files must be inside case/out/'})
+            continue
         for key in ('stl', 'step'):
             path = workspace / OUT / (part.get(key) or '')
             if not part.get(key) or not path.is_file():
@@ -331,6 +322,33 @@ def check(workspace, write=True):
                                       f'{bed[0]:.0f} x {bed[1]:.0f} x {bed[2]:.0f}'})
     if not solids:
         errors.append({'kind': 'case_empty', 'message': 'case/out/parts.json lists no readable part'})
+
+    return solids, part_shas, errors
+
+
+def check(workspace, write=True):
+    """Run every check; write the report. Returns the report."""
+    cq = _cq()
+    workspace = Path(workspace)
+    errors, warnings = [], []
+    contract_file = contract_path(workspace)
+    if not contract_file:
+        raise SystemExit('no boards/*.enclosure.json: publish the board first (python -m kicadpy.enclosure .)')
+    contract = json.loads(contract_file.read_text(encoding='utf-8'))
+    manifest_path = workspace / OUT / 'parts.json'
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    intent = {}
+    try:
+        intent = json.loads((workspace / 'case' / 'interfaces.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        warnings.append({'kind': 'case_intent_missing', 'message': 'case/interfaces.json is missing: no interface was confirmed'})
+    bed = (intent.get('printer') or {}).get('bedMm') or DEFAULT_BED
+    if manifest.get('contractSha') and manifest['contractSha'] != sha(contract_file):
+        errors.append({'kind': 'case_built_from_old_board', 'message': 'case/out/parts.json was built from an older '
+                       'enclosure.json; rebuild the case from the current board'})
+
+    solids, part_shas, part_errors = check_parts(workspace, manifest, bed)
+    errors.extend(part_errors)
 
     # 1. Nothing goes into the board, a part, or a module.
     for label, keep in keepouts(cq, contract):
@@ -390,23 +408,83 @@ def check(workspace, write=True):
     return report
 
 
+def check_print(workspace, write=True, stem='main'):
+    """A print receipt for a handwired assembly; never bless the native PCB Case phase.
+
+    Consume the variant's checked mechanical report, require hash coverage of every
+    STEP/STL (including references), then independently compare printable surfaces.
+    Agent scripts are not executed. The receipt also binds the manifest and intent.
+    """
+    workspace = Path(workspace).resolve()
+    if not (workspace / 'case').resolve().is_relative_to(workspace) or not (workspace / OUT).resolve().is_relative_to((workspace / 'case').resolve()):
+        raise ValueError('Case output must be inside case/')
+    manifest_digest = sha(workspace / OUT / 'parts.json')
+    manifest = json.loads((workspace / OUT / 'parts.json').read_text())
+    verification = manifest.get('verification') or {}
+    if verification.get('nativePCBCheckerApplies') is not False:
+        raise ValueError('check-print is for explicitly handwired cases; use check for PCB enclosures')
+    member = verification.get('report')
+    if not isinstance(member, str) or not member:
+        raise ValueError('Handwired case must declare verification.report')
+    report_file = (workspace / OUT / member).resolve()
+    if not report_file.is_relative_to((workspace / 'case').resolve()):
+        raise ValueError('Verification report must be inside case/')
+    digest = sha(report_file)
+    mechanical = json.loads(report_file.read_text())
+    if mechanical.get('passed') is not True or not mechanical.get('scope'):
+        raise ValueError('Handwired mechanical report has not passed')
+    if any(value for key, value in mechanical.items() if key == 'errors' or key.lower().endswith('collisions')):
+        raise ValueError('Handwired mechanical report still contains errors or collisions')
+    hashes = mechanical.get('partShas') or {}
+    for part in manifest.get('parts') or []:
+        for key in ('step', 'stl'):
+            name = part.get(key)
+            if not isinstance(name, str) or not name:
+                raise ValueError('Each part needs STEP and STL')
+            file = (workspace / OUT / name).resolve()
+            if not file.is_relative_to((workspace / OUT).resolve()) or hashes.get(name) != sha(file):
+                raise ValueError(f'Handwired mechanical report is stale or omits {name}')
+    intent_file = workspace / 'case/interfaces.json'
+    intent_digest = sha(intent_file) if intent_file.exists() else None
+    intent = json.loads(intent_file.read_text()) if intent_file.exists() else {}
+    bed = (intent.get('printer') or {}).get('bedMm') or DEFAULT_BED
+    solids, part_shas, errors = check_parts(workspace, manifest, bed)
+    # Reject concurrent edits to the evidence or any mesh during validation.
+    if (digest != sha(report_file) or manifest_digest != sha(workspace / OUT / 'parts.json') or
+            intent_digest != (sha(intent_file) if intent_file.exists() else None) or
+            any(sha(workspace / OUT / name) != value for name, value in part_shas.items())):
+        raise ValueError('Case changed during print validation; run check-print again')
+    report = {'schema': 1, 'meshValidation': 'surface-v1', 'validationScope': 'handwired-print',
+              'stem': stem, 'passed': not errors, 'errors': errors, 'warnings': [],
+              'scope': mechanical['scope'], 'hardwareTested': False,
+              'verificationReport': str(report_file.relative_to(workspace)), 'verificationSha': digest,
+              'partShas': part_shas, 'intentSha': intent_digest,
+              'parts': [name for name, _, _ in solids], 'bedMm': bed,
+              'checkedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    if write:
+        target = workspace / 'case/reports/print-check.json'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(report, indent=1, sort_keys=True) + '\n')
+    return report
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if not argv or argv[0] not in ('check', 'status'):
-        print('usage: python -m kicadpy.case check|status [workspace]', file=sys.stderr)
+    if not argv or argv[0] not in ('check', 'check-print', 'status'):
+        print('usage: python -m kicadpy.case check|check-print|status [workspace] [stem]', file=sys.stderr)
         return 2
     workspace = Path(argv[1] if len(argv) > 1 else '.').resolve()
     if argv[0] == 'status':
         state, reason = status(workspace)
         print(json.dumps({'ok': True, 'case': state, 'reason': reason}))
         return 0
-    report = check(workspace)
+    report = check_print(workspace, stem=argv[2] if len(argv) > 2 else 'main') if argv[0] == 'check-print' else check(workspace)
     for e in report['errors']:
         print(f"  ✗ {e['kind']}: {e['message']}")
     for w in report['warnings']:
         print(f"  ! {w['kind']}: {w['message']}")
     print(json.dumps({'ok': True, 'passed': report['passed'], 'errors': len(report['errors']),
-                      'warnings': len(report['warnings']), 'report': str(REPORT)}))
+                      'warnings': len(report['warnings']), 'report': str(Path('case/reports/print-check.json') if argv[0] == 'check-print' else REPORT)}))
     return 0 if report['passed'] else 1
 
 

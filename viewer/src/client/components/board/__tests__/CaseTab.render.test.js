@@ -121,3 +121,20 @@ test("a failed check lists the checker's errors; a stale one says not to print",
     ui.unmount();
   }
 });
+
+test('a checked handwired assembly exports despite the irrelevant PCB report failing', async () => {
+  const calls=[];
+  const restore=__setTransportForTesting({export_case: async (...args) => {calls.push(args); return {path:'/Desktop/handwired.3mf'};}});
+  const ui=mount(CaseTab,{artifact:caseArtifact('failed',{nativePCBCheckerApplies:false,printStatus:{state:'passed',scope:'handwired',reason:'Mechanical and printable surfaces checked; fit has not been tested on hardware.'}}),projectId:'p',boardName:'main',Scene:StubScene});
+  try {
+    await flush();
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled,false);
+    assert.match(ui.container.querySelector('[data-slot="case-status"]').textContent,/Handwired case checked/);
+    assert.doesNotMatch(ui.container.querySelector('[data-slot="case-status"]').textContent,/Fits the board/);
+    assert.equal(sceneProps.at(-1).showBoard,false);
+    click(ui.container.querySelector('[data-slot="case-print-all"]')); await flush();
+    assert.deepEqual(calls,[['p','main','3mf',undefined]]);
+    ui.set({artifact:caseArtifact('failed',{nativePCBCheckerApplies:false,printStatus:{state:'stale',scope:'handwired',reason:'case changed'}})});
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled,true);
+  } finally {ui.unmount();restore();}
+});

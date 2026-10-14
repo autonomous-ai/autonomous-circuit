@@ -99,8 +99,13 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
     try { await command(saved.path); setExportError(""); }
     catch (error) { setExportError(error.message || String(error)); }
   };
-  const status = describeStatus(enclosure?.state, enclosure?.reason);
-  const errors = useReportErrors(enclosure?.reportUrl || "", enclosure?.state === "failed");
+  const handwired = enclosure?.nativePCBCheckerApplies === false;
+  const readiness = enclosure?.printStatus || enclosure;
+  const displayState = handwired ? readiness?.state : enclosure?.state;
+  const status = describeStatus(displayState, handwired ? readiness?.reason : enclosure?.reason);
+  if (handwired && displayState === "passed") { status.title = "Handwired case checked"; status.detail = readiness.reason; }
+  const errors = useReportErrors((handwired ? enclosure?.printReportUrl : enclosure?.reportUrl) || "", displayState === "failed");
+  useEffect(() => { setShowBoard(!handwired); }, [handwired, projectId, boardName]);
 
   // New parts (a rebuild added a plunger): keep what the person chose, default the rest.
   useEffect(() => {
@@ -129,7 +134,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
       />
 
       <aside className="scrollbar-thin flex w-80 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border/60 p-3">
-        <div data-slot="case-status" data-state={enclosure.state} className="flex gap-2.5 rounded-xl border border-border/60 bg-card/30 px-3 py-2.5">
+        <div data-slot="case-status" data-state={displayState} className="flex gap-2.5 rounded-xl border border-border/60 bg-card/30 px-3 py-2.5">
           <StatusIcon className={cn("mt-0.5 size-4 shrink-0", tone.className)} aria-hidden />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">{status.title}</p>
@@ -147,7 +152,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           </ul>
         ) : null}
 
-        <button type="button" data-slot="case-print-all" disabled={saving || !projectId || enclosure.state !== "passed"} onClick={() => save("3mf")}
+        <button type="button" data-slot="case-print-all" disabled={saving || !projectId || readiness?.state !== "passed"} onClick={() => save("3mf")}
           className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 text-sm font-medium disabled:opacity-40">
           {saving ? "Saving…" : "Print all · 3MF"}
         </button>

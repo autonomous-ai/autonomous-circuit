@@ -279,3 +279,62 @@ class TouchWallTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipIf(cq is None, 'CadQuery is not installed')
+class HandwiredPrintTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ws, _ = workspace('pet', self.tmp.name)
+        export(self.ws, {'front': ('shell', cq.Workplane('XY').box(20, 20, 2))})
+        self.out = self.ws / 'case/out'
+        self.mechanical = self.ws / 'case/reports/mechanical.json'
+        self.mechanical.parent.mkdir()
+        manifest = json.loads((self.out / 'parts.json').read_text())
+        manifest['verification'] = {'nativePCBCheckerApplies': False, 'report': '../reports/mechanical.json'}
+        (self.out / 'parts.json').write_text(json.dumps(manifest))
+        self.bind()
+
+    def bind(self, **extra):
+        self.mechanical.write_text(json.dumps({'passed': True, 'scope': 'handwired assembly', 'collisions': [],
+            'partShas': {n: case.sha(self.out / n) for n in ('front.step', 'front.stl')}, **extra}))
+
+    def test_print_passes_without_blessing_pcb_and_without_pcb_contract(self):
+        self.assertFalse(case.check(self.ws, write=False)['passed'], 'this box collides with the native PCB')
+        (self.ws / 'boards/main.enclosure.json').unlink()
+        result = case.check_print(self.ws)
+        self.assertTrue(result['passed'], result['errors'])
+        self.assertEqual(result['validationScope'], 'handwired-print')
+        self.assertEqual(result['verificationSha'], case.sha(self.mechanical))
+        self.assertIn('parts.json', result['partShas'])
+        self.assertFalse((self.ws / case.REPORT).exists(), 'the native Case report is untouched')
+
+    def test_missing_changed_failed_and_collision_evidence_is_rejected(self):
+        for changes in ({'passed': False}, {'collisions': [{}]}, {'partShas': {}}):
+            self.bind(**changes)
+            with self.assertRaises(ValueError): case.check_print(self.ws)
+        self.bind()
+        with (self.out / 'front.stl').open('a') as f: f.write('\nchanged')
+        with self.assertRaises(ValueError): case.check_print(self.ws)
+
+    def test_matching_bounds_cannot_hide_filled_stl_hole(self):
+        box = cq.Workplane('XY').box(20, 20, 2)
+        ring = box.cut(cq.Workplane('XY').circle(4).extrude(4,both=True))
+        cq.exporters.export(ring, str(self.out / 'front.step'))
+        cq.exporters.export(box, str(self.out / 'front.stl'))
+        self.bind()
+        result = case.check_print(self.ws)
+        self.assertFalse(result['passed'])
+        self.assertIn('case_mesh_geometry_mismatch', kinds(result))
+
+    def test_escape_and_print_bed_changes(self):
+        manifest = json.loads((self.out / 'parts.json').read_text())
+        manifest['verification']['report'] = '../../outside.json'
+        (self.out / 'parts.json').write_text(json.dumps(manifest))
+        with self.assertRaises(ValueError): case.check_print(self.ws)
+        manifest['verification']['report'] = '../reports/mechanical.json'
+        (self.out / 'parts.json').write_text(json.dumps(manifest))
+        (self.ws / 'case/interfaces.json').write_text(json.dumps({'printer': {'bedMm': [10,10,10]}}))
+        result = case.check_print(self.ws)
+        self.assertIn('case_part_too_big', kinds(result))

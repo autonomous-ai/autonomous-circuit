@@ -984,5 +984,21 @@ test("Case exports save real STL/STEP/3MF files and only open exported 3MF in Ba
     assert.equal((await s.post("export_case", { id: "workspace", format: "stl", part: "../../private" })).status, 404);
     fs.writeFileSync(pcb, "(kicad_pcb changed)");
     assert.equal((await s.post("export_case", { id: "workspace", stem: "main", format: "3mf" })).status, 409);
+    // Handwired geometry is independent of stale PCB copper, but needs its own receipt.
+    parts.verification = { nativePCBCheckerApplies: false, report: '../reports/mechanical.json' };
+    fs.writeFileSync(path.join(out, 'parts.json'), JSON.stringify(parts));
+    const mechanical = { passed: true, scope: 'handwired assembly', collisions: [], partShas: Object.fromEntries(['front.stl','front.step'].map(n => [n,sha(path.join(out,n))])) };
+    fs.writeFileSync(path.join(root,'case/reports/mechanical.json'),JSON.stringify(mechanical));
+    assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,409);
+    const receipt = {passed:true,errors:[],stem:'main',meshValidation:'surface-v1',validationScope:'handwired-print',intentSha:null,
+      verificationReport:'case/reports/mechanical.json',verificationSha:sha(path.join(root,'case/reports/mechanical.json')),
+      partShas:Object.fromEntries(['parts.json','front.stl','front.step'].map(n => [n,sha(path.join(out,n))]))};
+    fs.writeFileSync(path.join(root,'case/reports/print-check.json'),JSON.stringify(receipt));
+    const wired = await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'});
+    assert.equal(wired.status,200,JSON.stringify(wired.body));
+    assert.equal((await s.post('export_case',{id:'workspace',stem:'other',format:'3mf'})).status,409);
+    fs.appendFileSync(path.join(out,'front.stl'),'changed');
+    assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,409);
+
   } finally { s.close(); }
 });

@@ -22,7 +22,7 @@ import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
 import { readWorkspacePrompts } from "./workspacePrompts.mjs";
-import { CASE_DIR, caseStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog } from "./catalog.mjs";
+import { CASE_DIR, casePrintStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog } from "./catalog.mjs";
 import { caseFile, printAll3mf, safeName, saveExport } from "./caseExport.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -769,7 +769,8 @@ export function createCircuitServices({
         let bytes, name;
         if (format === "3mf") {
           const board = scanProjectCatalog({ projectDir: root, projectId }).entries.find(e => e.file === `design/${stem}.kicad_pcb`);
-          if (!board || board.nativeStale || caseStatus(root, stem).state !== "passed") throw ipcError("CASE_NOT_READY", "Publish the board and check the case before Print all", 409);
+          const readiness = casePrintStatus(root, stem);
+          if (readiness.state !== "passed" || (readiness.scope === "pcb" && (!board || board.nativeStale))) throw ipcError("CASE_NOT_READY", readiness.reason || "Check the case before Print all", 409);
           bytes = printAll3mf(root, manifest); name = `${prefix}-print-all.3mf`;
         } else {
           const member = manifest.parts?.find(p => p.name === part);

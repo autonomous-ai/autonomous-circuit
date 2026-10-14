@@ -594,3 +594,15 @@ Short, in plain language. What the board is, its size, how it is powered, what i
 it is prototype-ready and, if not, what remains and who closes it; and where the firmware is
 (the Firmware tab, and how to flash it) or that it is not written yet. The board is already on
 their screen — describe what they can experience, not the netlist.
+
+
+### Exporting a handwired case without the carrier PCB
+When the person explicitly chooses a handwired assembly, do not change the native PCB
+contract or mark its Case phase passed. `case/out/parts.json` may declare
+`verification: {nativePCBCheckerApplies: false, report: "../reports/mechanical.json"}`.
+The scoped mechanical report must pass with current `partShas` for every STEP/STL,
+including references, and no collision/error findings. Run
+`"$KICAD_CASE_PYTHON" -m kicadpy.case check-print .` after publishing the case.
+This independently validates printable surfaces/bed fit and writes a hash-bound
+`case/reports/print-check.json` for Print all. It certifies export readiness only;
+prototype verdict, PCB fit, hardware tests and the person's print/Flash actions stay separate.
