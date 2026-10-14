@@ -857,3 +857,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** existing internal tab IDs/keyboard navigation remain supported; Electric Overview is still the initial view. `workspace_prompts` adds `current {text,at,source,file?}`. It prefers `prompts/current.md` or `PROMPT.md` within the workspace and appends newer user messages; otherwise it preserves the original request and follow-ups in time order, without interpreting questions as approved requirements.
 - **Mechanism:** Case catalog exposes cache-busted `overviewUrl` from manifest `overview` relative to `case/out/`, confined to real `case/`; fallback files are `case/overview.html` and `case/motion/motion-view.html`. Case HTML is served with a sandbox CSP allowing inline scripts/styles for self-contained demos, but denying same-origin privileges, network requests, forms and base URL changes. The iframe also uses `sandbox="allow-scripts"`. Native PCB manufacturing verdict is displayed in Electric; handwired print gates remain unchanged.
 - **Tracks affected:** server / client / docs.
+
+## 2026-10-14 — Print all includes larger clip/coupon assemblies
+- **Change:** Printable-object count uses the existing 128-entry manifest ceiling rather than a second 32-object export limit. Existing total STL byte and per-mesh triangle bounds remain enforced.
+- **Why:** the live handwired case gained snap closures and coupons, reaching 38 printable objects. The extra export-only limit rejected a valid checked assembly.
+- **Backward compatible:** previously supported packages retain the same geometry and format; no changes to mechanical or surface validation.
+- **Mechanism:** removes the redundant printable-object cap in `caseExport.mjs`; independent ZIP/XML regression covers 40 objects and refuses a 129-entry manifest.
+- **Tracks affected:** server / docs.

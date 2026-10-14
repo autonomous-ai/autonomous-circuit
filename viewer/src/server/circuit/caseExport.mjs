@@ -97,7 +97,6 @@ export function printAll3mf(root, manifest) {
   if (!Array.isArray(manifest.parts) || !manifest.parts.length || manifest.parts.length > 128) throw new Error("Invalid case parts list");
   const printable = manifest.parts.filter(part => part.printable !== false && !/DO_NOT_PRINT/i.test(String(part.name || "")));
   if (!printable.length) throw new Error("The case has no printable parts");
-  if (printable.length > 32) throw new Error("A print package can contain at most 32 printable parts");
   let bytes = 0;
   const parts = printable.map(part => {
     const file = caseFile(root, part.stl);

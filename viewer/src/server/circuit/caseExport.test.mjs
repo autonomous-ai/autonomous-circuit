@@ -59,3 +59,15 @@ test("case exports refuse traversal/symlinks and never overwrite a saved file", 
   const a = saveExport(root, "front.stl", Buffer.from("one")), b = saveExport(root, "front.stl", Buffer.from("two"));
   assert.equal(fs.readFileSync(a.path, "utf8"), "one"); assert.equal(b.filename, "front-2.stl");
 });
+
+test('a case with more than 32 printable clips and coupons fits the existing bounded manifest contract',() => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'case-many-parts-'));
+  try {
+    const out=path.join(root,'case/out');fs.mkdirSync(out,{recursive:true});
+    fs.writeFileSync(path.join(out,'part.stl'),'solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid part');
+    const manifest={parts:Array.from({length:40},(_,i)=>({name:`clip-${i}`,stl:'part.stl'}))};
+    const file=path.join(root,'many.3mf');fs.writeFileSync(file,printAll3mf(root,manifest));
+    execFileSync('python3',['-c','import zipfile,sys,xml.etree.ElementTree as E; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; r=E.fromstring(z.read("3D/3dmodel.model")); n={"m":"http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}; assert len(r.findall("m:resources/m:object",n))==40; assert len(r.findall("m:build/m:item",n))==40',file],{encoding:'utf8'});
+    assert.throws(()=>printAll3mf(root,{parts:Array.from({length:129},()=>manifest.parts[0])}),/Invalid case parts list/);
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
