@@ -194,6 +194,18 @@ your intent (AGENTS.md, "The case contract"); it is read on every regeneration.
 Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part_too_big`,
 `case_part_missing`, `case_built_from_old_board`. Fix the model, never the board (AGENTS.md, "Case").
 
+### Interactive overview — immediately after the 3D build
+
+Every case build also generates `case/overview.html`, automatically in the same turn. Use the
+actual assembled geometry, component labels, shell visibility and wire paths. For a moving
+case, include controls for its checked axes and a stop/centre control; for a static case, keep
+inspection controls without invented motion. Make it a self-contained phone-friendly HTML
+file (embedded geometry/scripts/styles; no network or CDN), set manifest `overview` relative
+to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. An existing
+`case/motion/motion-view.html` can be used with `overview: "../motion/motion-view.html"`.
+Call the overview generator from `case/build.py` so final model repairs regenerate it too.
+The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
+
 ## The verdict
 
 Written by the publisher at every sidecar write. Before your first publish, tell the pane where

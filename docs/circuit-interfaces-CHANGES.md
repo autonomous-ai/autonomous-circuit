@@ -864,3 +864,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** previously supported packages retain the same geometry and format; no changes to mechanical or surface validation.
 - **Mechanism:** removes the redundant printable-object cap in `caseExport.mjs`; independent ZIP/XML regression covers 40 objects and refuses a 129-entry manifest.
 - **Tracks affected:** server / docs.
+
+## 2026-10-14 — Interactive Case overview is a required post-3D step
+- **Change:** The KiCad agent workflow and tool card require an interactive overview immediately after every case 3D build, in the same turn without another user request. The build calls its overview generator and declares the HTML path in the manifest.
+- **Why:** the person wants future runs to automatically produce the useful motion/inside/wiring overview as part of the 3D deliverable.
+- **Backward compatible:** no API, manufacturing/fit gate or firmware action changes. Existing motion-specific HTML paths remain supported.
+- **Mechanism:** overview must use the final assembled geometry, phone-friendly self-contained HTML compatible with the existing sandbox, shell/wiring inspection and controls for actual checked motion axes. Rebuild it after repairs and verify it through Case → Overview before finishing. Static cases do not invent motion; animation does not certify physical fit.
+- **Tracks affected:** agent workflow / tool card / docs.

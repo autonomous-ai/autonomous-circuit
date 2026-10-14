@@ -541,6 +541,29 @@ board revision, not a moved footprint.
   STL turned for the bed: `printRotateDeg` is how the slicer turns it, and the checker fails a STL
   whose extent differs from its STEP (`case_mesh_frame_mismatch`). A flipped STL once passed a
   check of its STEP and drew the board outside its own case in the Case tab (2026-10-12).
+- **Immediately after drawing/building the case in 3D, make its interactive overview in the
+  same turn.** Do this automatically, without waiting for another request. Write a reproducible
+  generator (for example `tools/render_case_overview.py`) and have `case/build.py` regenerate
+  `case/overview.html` after exporting the assembled STEP/STL. Set the `overview` field in
+  `case/out/parts.json` to `"../overview.html"`; an existing motion-specific file is
+  also valid when the manifest points to it (for example `"../motion/motion-view.html"`).
+  - Use the actual final assembly geometry, in its assembled frame, with component labels and
+    controls to change the viewing angle, open/hide the shells, and show the wire paths when
+    the design has them. Do not redraw a different illustrative model. References may appear
+    in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - For moving designs, add a control for each real axis (such as yaw/pitch), a stop/centre
+    control, and visible moving/stationary groups. Derive pivots, limits and poses from the
+    checked mechanism, keep motion within its checked range, and show wire routing through
+    the joints. Static designs get inspection controls; never invent a joint or motion.
+  - Make the HTML self-contained and usable on a phone: embed geometry, scripts and styles;
+    no CDN imports, external scripts or fetch calls. Case Overview runs inside a script-only
+    sandbox with network and same-origin access denied. Clearly label assumptions and
+    untested hardware; animation is a model demonstration, not a mechanical fit test.
+  - Rebuild the overview whenever the case changes, including the final repair, so it always
+    shows the same revision as the downloadable files. Open it through the viewer's
+    **Case → Overview** and verify its controls, moving groups and wire paths before finishing;
+    then rerun the applicable case/print checks. Do not stop at a static 3D render or an
+    unrelated HTML link.
 - **The checker is the tile's.** It reads your STEP files, never your code, and fails a case
   that goes into the board, a part or a seated module (`case_collides`), covers an interface
   (`case_interface_blocked`), puts more than the pad's limit of plastic over a touch pad
@@ -582,7 +605,9 @@ closes it** — you in a later revision, the fab at quote time, or a bench test 
 asks once for them when the board is ready and `firmware/` is empty. `fab.ready` stays the
 board's gate. After it comes the fifth, **Case**: active until a case built from the current
 board passes `kicadpy.case check` (the hook asks once). Neither gates `fab.ready`; they are the
-turn's last deliverables, not caveats on the board.
+turn's last deliverables, not caveats on the board. The Case deliverable also includes the current
+interactive overview: build the 3D model → regenerate its overview → verify both and the applicable
+checks, all in the same turn.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or
