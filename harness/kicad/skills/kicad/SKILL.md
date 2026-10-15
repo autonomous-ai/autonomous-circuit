@@ -195,6 +195,11 @@ Do not substitute a chat-only answer or a case-folder link for this file. See AG
 
 ## The case (`kicadpy.case`)
 
+Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
+guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
+sequence as well as the final pose, then regenerate the overview from that same revision.
+
 ```sh
 "$KICAD_CASE_PYTHON" case/build.py               # your model -> case/out/ (start: kicadpy.case_template.build_box('.'))
 "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # the tile's checker -> case/reports/case-check.json

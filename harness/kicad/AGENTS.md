@@ -535,6 +535,13 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
+- **Design the assembly before detailing the solids.** Read
+  `$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md` before designing or repairing a case.
+  Its assembly, coupon and revision rules are required for static and moving cases. Plan the
+  insertion order, tool access, owned hardware and fit assumptions first; use the simplest
+  mechanism that preserves the requested function. Deliver a current, linked assembly/print
+  guide with numbered parts, tested insertion paths, a separate coupon procedure and an exact
+  reuse/reprint list. A collision-free final pose alone does not prove a person can assemble it.
 - **Start from the template.** `case/build.py` can begin as two lines and then grow:
   ```python
   from kicadpy.case_template import build_box
@@ -596,10 +603,12 @@ board revision, not a moved footprint.
   (`scripts/toolchain/install-cadquery.sh` in the tile checkout), leave the phase active, and still
   write `case/interfaces.json`; never install CadQuery anywhere else.
 - **What a print teaches** (from cases that were printed and did not fit): print a **test-fit
-  coupon** first — the face plate around the screen and one port, a few minutes of print — before
-  the whole body; a generous cavity (0.6 mm) beats exact numbers nobody measured; no supports
-  (open faces down, ports open to an edge); walls of at least 1.6 mm; module geometry marked as an
-  assumption goes into `engineering/bringup.md` as a bench check against the coupon.
+  coupon** first, cut from the final mating geometry. Give it a physical `TEST ONLY` label and
+  a plain-language test/pass/fail procedure; it is not an assembly part. Choose and document
+  clearance per interface, printer/material and measurement confidence; a single universal gap
+  does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
+  orientation/support needs, and put assumed module dimensions and coupon results in the
+  bring-up notes. Do not promise a press fit from nominal reference dimensions.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep
