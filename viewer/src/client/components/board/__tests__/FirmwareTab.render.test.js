@@ -128,6 +128,42 @@ test("pickFirstFile prefers the entry point, then any source, never the README",
   const main = { file: "src/main.cpp" };
   assert.equal(pickFirstFile([readme, ini, main]), main);
   assert.equal(pickFirstFile([readme, ini]), ini);
+  assert.equal(pickFirstFile([readme, {file: "WIRING.md"}, ini]), ini);
   assert.equal(pickFirstFile([readme]), readme);
   assert.equal(pickFirstFile([]), null);
+});
+
+test('the wiring guide is pinned, resolves its own links and clears stale instructions when the project changes',async () => {
+  const original=globalThis.fetch;
+  const texts={...FILES,
+    '/projects/p/firmware/README.md':'# Firmware\n[Wiring](WIRING.md)',
+    '/projects/p/firmware/WIRING.md':'# Connect the display\nSCL → GPIO4.\n[Bring-up](../engineering/bringup.md)\n[Unsafe](javascript:alert)'};
+  globalThis.fetch=async input => {const text=texts[String(input).split('?')[0]];return {ok:text!==undefined,status:text===undefined?404:200,text:async()=>text||''};};
+  const artifact=firmwareArtifact();artifact.firmware.wiringUrl='/projects/p/firmware/WIRING.md?v=2';
+  const ui=mount(FirmwareTab,{artifact});
+  try {
+    await settleFetches();const guide=ui.container.querySelector('[data-slot="firmware-wiring"]');
+    assert.match(guide.textContent,/SCL → GPIO4/);
+    assert.ok(ui.container.querySelector('[data-slot="firmware-wiring"] + [data-slot="firmware-readme"]'));
+    const links=[...guide.querySelectorAll('a')];
+    assert.equal(links[0].getAttribute('href'),'/projects/p/engineering/bringup.md');
+    assert.doesNotMatch(links[1].getAttribute('href') || '',/javascript/i);
+    assert.equal(ui.container.querySelector('[data-slot="firmware-readme"] a').getAttribute('href'),'/projects/p/firmware/WIRING.md');
+    ui.set({artifact:{firmware:{...artifact.firmware,wiringUrl:'/projects/q/firmware/WIRING.md?v=1'}}});
+    assert.doesNotMatch(ui.container.querySelector('[data-slot="firmware-wiring"]').textContent,/GPIO4/);
+    await settleFetches();assert.match(ui.container.querySelector('[data-slot="firmware-wiring"]').textContent,/could not be read/);
+    ui.set({artifact:firmwareArtifact()});await settleFetches();assert.equal(ui.container.querySelector('[data-slot="firmware-wiring"]'),null);
+    assert.deepEqual(ui.errors,[]);
+  }finally{ui.unmount();globalThis.fetch=original;}
+});
+
+test('Markdown asset URLs retain the existing safe URL handling',async () => {
+  const {markdownAssetUrl}=await import('../../chat/Markdown.jsx');
+  const base='/projects/p/firmware/WIRING.md?v=2';
+  assert.equal(markdownAssetUrl('../case/wiring.png',base),'/projects/p/case/wiring.png');
+  assert.equal(markdownAssetUrl('https://example.com/spec',base),'https://example.com/spec');
+  assert.equal(markdownAssetUrl('javascript:alert(1)',base),'');
+  assert.equal(markdownAssetUrl('data:text/html,hello',base),'');
+  assert.equal(markdownAssetUrl('#power',base),'#power');
+  assert.equal(markdownAssetUrl('../wiring.md',''),'../wiring.md');
 });

@@ -183,6 +183,16 @@ the top, z = 0 on the top copper). `interfaces[]`: kind, refs, module, side, cen
 declared). `modules[]`: plug-in modules placed from their header pads. `case/interfaces.json` is
 your intent (AGENTS.md, "The case contract"); it is read on every regeneration.
 
+## Firmware wiring guide — part of the firmware deliverable
+
+Write `firmware/WIRING.md` with the firmware, without waiting to be asked. Link it from
+`firmware/README.md`; the viewer displays it prominently. Use the current assembly variant,
+actual firmware GPIO definitions and final schematic/netlist. Show physical-label-to-label
+connections, viewing direction, voltage/polarity, grounds and separate motor supplies, needed
+passives, safe unpowered assembly checks and the user's first-power-on observations. Keep it
+consistent after pin/assembly changes. Unknown modules remain GIẢ ĐỊNH with no invented pinout.
+Do not substitute a chat-only answer or a case-folder link for this file. See AGENTS.md, "Firmware".
+
 ## The case (`kicadpy.case`)
 
 ```sh

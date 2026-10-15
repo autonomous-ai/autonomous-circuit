@@ -7,7 +7,8 @@ import FirmwareFlashButton from "./FirmwareFlashButton.jsx";
 
 /**
  * The Firmware tab: the code the agent writes for the board once the board
- * itself checks out, read straight from `firmware/` in the project.
+ * itself checks out, read straight from `firmware/` in the project. The wiring
+ * guide is pinned above the build README so assembly instructions stay easy to find.
  *
  * Two states, on purpose. Before there is a `firmware/` tree the tab says
  * when one appears and why not sooner (the pin map comes off finished copper,
@@ -68,21 +69,19 @@ export function languageFor(file) {
   return LANGUAGE_BY_EXTENSION[ext] || "text";
 }
 
-function isReadme(file) {
-  return /^readme\.md$/i.test(String(file || ""));
+function isRenderedDoc(file) {
+  return /^(?:readme|wiring)\.md$/i.test(String(file || ""));
 }
 
 /**
  * The file to open first: the entry point if there is one (`main.*`, at any
- * depth), else the first source that is not the README. The README is already
- * rendered above the code, so opening it again as text would be the one
- * choice that shows the user nothing new.
+ * depth), else the first source that is not an already rendered README or wiring guide.
  */
 export function pickFirstFile(files) {
   const list = Array.isArray(files) ? files : [];
-  const entry = list.find((f) => /(^|\/)main\.[a-z0-9]+$/i.test(f.file) && !isReadme(f.file));
+  const entry = list.find((f) => /(^|\/)main\.[a-z0-9]+$/i.test(f.file) && !isRenderedDoc(f.file));
   if (entry) return entry;
-  return list.find((f) => !isReadme(f.file)) || list[0] || null;
+  return list.find((f) => !isRenderedDoc(f.file)) || list[0] || null;
 }
 
 /** Fetch a text asset; `state` is idle | loading | ready | failed. */
@@ -107,7 +106,7 @@ function useText(url) {
       cancelled = true;
     };
   }, [url]);
-  return result;
+  return result.url === (url || "") ? result : { url: url || "", state: url ? "loading" : "idle", text: "" };
 }
 
 function formatBytes(bytes) {
@@ -146,6 +145,7 @@ export default function FirmwareTab({ artifact = null, sidecar = null, boardName
   const [selectedFile, setSelectedFile] = useState("");
   const active = files.find((f) => f.file === selectedFile) || pickFirstFile(files);
   const readme = useText(firmware?.readmeUrl || "");
+  const wiring = useText(firmware?.wiringUrl || "");
   const source = useText(active?.url || "");
 
   if (!firmware || !files.length) {
@@ -169,12 +169,24 @@ export default function FirmwareTab({ artifact = null, sidecar = null, boardName
           <FirmwareFlashButton projectId={projectId} ready={sidecar?.fab?.ready === true} hasRecipe={Boolean(firmware.flashUrl)} />
         </div>
 
+        {firmware.wiringUrl ? (
+          <section data-slot="firmware-wiring" className="rounded-xl border border-sky-400/30 bg-card/30 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold">Wiring guide</h2>
+              <span className="ml-auto font-mono text-[11px] text-muted-foreground">firmware/WIRING.md</span>
+            </div>
+            {wiring.state === "loading" ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Loading wiring guide" /> :
+              wiring.state === "ready" ? <Markdown source={wiring.text} baseUrl={firmware.wiringUrl} className="text-sm" /> :
+              <p role="alert" className="text-xs text-muted-foreground">The wiring guide could not be read. Reload this tab to try again.</p>}
+          </section>
+        ) : null}
+
         {firmware.readmeUrl ? (
           <section data-slot="firmware-readme" className="rounded-xl border border-border/60 bg-card/30 p-4">
             {readme.state === "loading" ? (
               <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
             ) : readme.state === "ready" ? (
-              <Markdown source={readme.text} className="text-sm" />
+              <Markdown source={readme.text} baseUrl={firmware.readmeUrl} className="text-sm" />
             ) : (
               <p className="text-xs text-muted-foreground">The README could not be read.</p>
             )}

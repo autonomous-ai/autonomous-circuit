@@ -331,3 +331,15 @@ test('Case overview discovers the motion demo or an explicit confined manifest f
   fs.writeFileSync(path.join(dir,'outside.html'),'<p>outside</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../../outside.html'}));assert.equal(read().overviewUrl,undefined);
   fs.symlinkSync(path.join(dir,'outside.html'),path.join(dir,'case/link.html'));fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../link.html'}));assert.equal(read().overviewUrl,undefined);
 });
+
+test('firmware wiring guide stays discoverable beyond the source-list cap and changes its cache token after edits',t => {
+  const dir=tmpdir('circuit-wiring-');t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(dir,'design'));fs.mkdirSync(path.join(dir,'firmware'));
+  fs.writeFileSync(path.join(dir,'design/main.kicad_pcb'),'(kicad_pcb)');
+  const wiring=path.join(dir,'firmware/WIRING.md');fs.writeFileSync(wiring,'# Physical pins\nSCL → GPIO4');
+  for(let i=0;i<400;i++)fs.writeFileSync(path.join(dir,`firmware/A${i}.h`),'// source');
+  const read=()=>scanProjectCatalog({projectDir:dir,projectId:'p'}).entries.find(e=>e.sourceKind==='kicad-native').artifact.firmware;
+  const before=read();assert.equal(before.truncated,true);assert.match(before.wiringUrl,/firmware\/WIRING\.md\?v=/);
+  fs.appendFileSync(wiring,'\nGround → GND');assert.notEqual(read().wiringUrl,before.wiringUrl);
+  fs.unlinkSync(wiring);assert.equal(read().wiringUrl,undefined);
+});

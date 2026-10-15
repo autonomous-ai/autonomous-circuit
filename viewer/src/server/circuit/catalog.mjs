@@ -157,6 +157,9 @@ function scanFirmware(rootDir, url) {
   }
   const firmware = { files: members, truncated: files.length > FIRMWARE_MAX_FILES };
   if (readmeUrl) firmware.readmeUrl = readmeUrl;
+  // Pin the assembly guide even when a vendored source tree exhausts the file-list cap.
+  const wiring = files.find(file => path.dirname(file) === firmwareDir && /^wiring\.md$/i.test(path.basename(file)));
+  if (wiring) firmware.wiringUrl = url(wiring);
   // The recipe the Flash button runs (firmwareFlash.mjs). Its presence is what
   // enables the button; the tab reads it for the confirm line.
   const recipe = path.join(firmwareDir, "flash.json");

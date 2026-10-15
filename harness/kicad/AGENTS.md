@@ -397,6 +397,26 @@ the review is closed, write the firmware in the same turn, without being asked a
   on hardware. The viewer renders that README on top of the tab and lists every source under it
   (`.c .h .cpp .ino .py .rs`, `platformio.ini`, `CMakeLists.txt`, `Makefile`); binaries, `build/`
   and `.pio/` are never shown, so do not point the reader at them.
+- **Write the wiring guide with the firmware, in the same turn.** Always create
+  `firmware/WIRING.md` and link it prominently from `firmware/README.md`; the Firmware tab
+  pins it above the build instructions. Do not leave the only copy in chat, a terminal scrollback
+  or a case subfolder. Write for someone who does not know electronics, in their language.
+  - Name the exact assembly variant and modules, the side/orientation the person is looking at,
+    then list each wire as **physical pin label on A → physical pin label on B**, with GPIO/net,
+    supply voltage and polarity where relevant. Explain common ground, separate motor power,
+    required resistors/capacitors and connections that must stay separate. Never rely on wire
+    colour alone or number a connector without defining its viewing direction.
+  - Derive every connection from the final schematic/netlist and the firmware's actual pin
+    definitions; for a handwired variant, spell out its differences from the PCB assembly.
+    When a module identity or pin label is unknown, mark GIẢ ĐỊNH and leave its connection
+    unresolved rather than assigning an invented pinout.
+  - Give a short assembly order: power disconnected, wire/check the supply and grounds, check
+    continuity/shorts and polarity, then the user's first power-on and expected observations.
+    Keep motors/loads disabled until their documented bring-up is complete. Explain any steps
+    requiring a meter plainly. This is documentation; never power, flash or run hardware yourself.
+  - Include a small connection diagram when it helps, route/strain-relief notes for moving parts,
+    and links to the relevant bring-up notes. Keep WIRING.md, README, pin definitions and the
+    current assembly consistent whenever firmware pins, modules, wiring or case routing change.
 - **Which toolchain.** The chip's usual one — pico-sdk (CMake) or Arduino/PlatformIO for an
   RP2040, ESP-IDF or Arduino for an ESP32, CircuitPython where `product.json` asks for it. One
   toolchain, the one a hobbyist with that chip already has; not a framework you invent.
@@ -617,7 +637,7 @@ say that anything was ordered: exporting a packet authorises nothing.
 
 Short, in plain language. What the board is, its size, how it is powered, what is on it, whether
 it is prototype-ready and, if not, what remains and who closes it; and where the firmware is
-(the Firmware tab, and how to flash it) or that it is not written yet. The board is already on
+(the Firmware tab, its wiring guide and how to flash it) or that it is not written yet. The board is already on
 their screen — describe what they can experience, not the netlist.
 
 

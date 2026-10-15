@@ -871,3 +871,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** no API, manufacturing/fit gate or firmware action changes. Existing motion-specific HTML paths remain supported.
 - **Mechanism:** overview must use the final assembled geometry, phone-friendly self-contained HTML compatible with the existing sandbox, shell/wiring inspection and controls for actual checked motion axes. Rebuild it after repairs and verify it through Case → Overview before finishing. Static cases do not invent motion; animation does not certify physical fit.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-15 — Firmware includes a discoverable wiring guide
+- **Change:** The firmware workflow requires `firmware/WIRING.md` in the same turn as firmware, linked from README and updated after pin/assembly changes. Catalog adds optional `artifact.firmware.wiringUrl`; the Firmware tab renders it prominently above README/source code.
+- **Why:** the person lost the wiring instructions, which were in a case subfolder behind a relative README link. Firmware should carry the assembly instructions as a stable deliverable.
+- **Backward compatible:** existing firmware/source/Flash behavior and build gates remain unchanged. Projects without WIRING.md retain their existing view. The guide URL remains discoverable even when the source listing is capped.
+- **Mechanism:** exact module/variant and viewing direction, physical pin-to-pin connections verified against firmware/netlist, voltage/polarity/grounds, separate motor power and passives, unpowered checks and first-power-on expectations. Unknown identities remain assumptions. Markdown optionally resolves relative links/images against its source asset while retaining react-markdown's URL sanitization; Firmware README and wiring guide use this base. A changed project/URL clears old guide content immediately. No hardware action is performed.
+- **Tracks affected:** agent workflow / tool card / server / client / docs.

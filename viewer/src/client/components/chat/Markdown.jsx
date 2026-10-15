@@ -1,4 +1,4 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/ui/utils";
 import ChatCodeBlock from "./ChatCodeBlock";
@@ -138,12 +138,21 @@ const COMPONENTS = {
 
 /**
  * Render markdown text for chat content (assistant replies + plan cards).
- * @param {{ source: string, className?: string }} props
+ * @param {{ source: string, className?: string, baseUrl?: string }} props
  */
-export default function Markdown({ source, className }) {
+export function markdownAssetUrl(value, baseUrl) {
+  const safe = defaultUrlTransform(value);
+  if (!safe || !baseUrl || safe.startsWith("#") || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(safe)) return safe;
+  try {
+    const target = new URL(safe, new URL(baseUrl, "http://markdown.local"));
+    return baseUrl.startsWith("/") ? `${target.pathname}${target.search}${target.hash}` : target.href;
+  } catch { return safe; }
+}
+
+export default function Markdown({ source, className, baseUrl = "" }) {
   return (
     <div data-slot="chat-markdown" className={cn("chat-prose text-sm text-foreground/90", className)}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS} urlTransform={value => markdownAssetUrl(value, baseUrl)}>
         {String(source || "")}
       </ReactMarkdown>
     </div>
