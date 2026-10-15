@@ -196,6 +196,8 @@ Do not substitute a chat-only answer or a case-folder link for this file. See AG
 ## The case (`kicadpy.case`)
 
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
+ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
 Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
 guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
 sequence as well as the final pose, then regenerate the overview from that same revision.

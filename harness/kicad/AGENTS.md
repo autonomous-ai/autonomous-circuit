@@ -535,6 +535,12 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
+- **Simple, rugged, serviceable mechanics are the default.** Use the fewest practical parts,
+  direct joints, stock hardware and accessible fasteners. Favor mounts tolerant of the stated
+  print/measurement uncertainty and assembly with ordinary tools. Do not invent cams, gear trains,
+  multi-link mechanisms or delicate custom catches when a simple bracket or direct coupling
+  meets the request. Added complexity must solve a named requirement that the simpler option
+  cannot meet; explain that necessity briefly and preserve the requested function.
 - **Design the assembly before detailing the solids.** Read
   `$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md` before designing or repairing a case.
   Its assembly, coupon and revision rules are required for static and moving cases. Plan the

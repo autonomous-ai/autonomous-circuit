@@ -8,6 +8,16 @@ universal design requirements.
 
 ## 1. Resolve hardware and choose a mechanism
 
+- **Default to simple, rugged and serviceable.** The person should be able to print, assemble,
+  understand and repair it with ordinary tools. Start with a direct coupling, open bracket or
+  simple pivot using stock hardware; choose the fewest practical parts and fastener types.
+  Design around the declared print and measurement uncertainty, not perfect dimensions or
+  repeated fine adjustment. Keep fasteners visible/reachable and replacement parts easy to print.
+- Do not invent cams, gear trains, stacked linkages, custom springs or delicate catches merely
+  to make the mechanism clever. Before adding one, name the required function, explain why the
+  simpler option cannot meet it, and account for the extra parts, fit sensitivity and assembly
+  work. If it adds no necessary function, remove it. Simplification must preserve the user's
+  requirements; low part count alone does not excuse unreliable or unsupported operation.
 - Start with supplied photos, owned parts and authoritative references. Record module envelope,
   connectors, shaft/horn interface, screw diameter, available length, head shape and nut/tool
   space. A screw of the right thread can still have a head that will not seat. Preserve usable

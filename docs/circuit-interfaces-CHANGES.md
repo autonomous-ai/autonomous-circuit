@@ -885,3 +885,9 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** workflow documentation only; no API, checker threshold, manufacturing verdict, firmware or automatic hardware action changes. No part count or clearance from that one case becomes a universal rule.
 - **Mechanism:** the main instructions and tool card link one skill-local reference covering owned hardware/control assumptions, simple mechanisms, staged assembly/service, mating latches, coupon separation, geometry-based shell reuse, stale nested manifest references and honest verification scope. Replaces the old universal clearance suggestion with per-interface fit assumptions and coupon validation.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-15 — Simple, rugged mechanics are the default
+- **Change:** Main case instructions, tool card and assembly reference explicitly prioritize few practical parts, direct joints, stock hardware, ordinary tools and serviceable mounts tolerant of declared print/measurement uncertainty. Added cams, gear trains, linkages, custom springs or delicate catches require a named function that the simpler option cannot meet.
+- **Why:** the person requested uncomplicated mechanics that are easy to print, assemble and repair. Preserve requested functions while avoiding unnecessary mechanisms and fine adjustment.
+- **Backward compatible:** workflow documentation only; no checker, runtime, manufacturing or hardware-action changes.
+- **Tracks affected:** agent workflow / tool card / docs.
