@@ -898,3 +898,17 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** workflow documentation only. Existing checker thresholds, readiness/PCB gates, model outputs and firmware/hardware behavior are unchanged.
 - **Mechanism:** main instructions and tool card point to detailed attachment, serviceability, print-orientation/strength assumptions, swept/sample clearance reporting and a user-performed unpowered dry-fit procedure. Physical slipping, breakage or rubbing reopens the relevant finding; CAD results are not relabeled as physical tests.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-16 — Moving case workflow validates the mechanism before covers
+- **Change:** KiCad case instructions establish structural layout, device mounting, fixed/moving groups, stock actuator interfaces and wire routes before cosmetic covers. Check the accessible subassembly first, attach shells, then repeat complete-assembly motion checks. Repairs provide a small mating test kit and preserve physically working printed parts.
+- **Why:** discussion of a simple two-axis reference pet highlighted that an accessible mechanism and real device mounts should drive the enclosure. Reducing STL count without preserving those connections had caused failed physical assembly.
+- **Backward compatible:** workflow documentation only; no runtime, model, firmware, checker thresholds, manufacturing/export gates or agent orchestration changes. Static/direct-shell mounts do not acquire an unnecessary separate frame.
+- **Mechanism:** the main instructions and tool card link a skill-local staged workflow. Reference images are limited to visible-layout evidence; dimensions, actuator feedback and full-travel claims need their own support. Physical dry-fit results remain separate from CAD, and inspect-only requests do not trigger changes to a run.
+- **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-16 — Standing flash authorization preserves the previous firmware first
+- **Change:** The agent workflow honors explicit project-scoped permission to flash completed firmware automatically, without repeated confirmation. Before each write it pins the prior firmware and a verified recovery artifact, then verifies the new write/boot, restores serial services and rolls back failures. The user-selected stable checkpoint remains immutable.
+- **Why:** the person requested automatic flashing after firmware work, with the previous version kept easy to restore. The former exception also instructed restoring the backup even after a successful update; successful authorized updates now remain installed.
+- **Backward compatible:** no authorization is inferred for other projects; later no-flash instructions override standing permission. Flash-button behavior, target checks, firmware readiness and manufacturing gates are unchanged. No automatic hardware service or actuator operation is added.
+- **Mechanism:** main instructions, tool card and a skill-local firmware-recovery reference cover a project FLASH-POLICY.md, exact source/config/binary hashes, device identity/readback, immutable recovery checkpoints, per-attempt receipts and failure restoration. Case instructions refer to that authorization policy instead of a conflicting unconditional no-flash rule. Viewer changes are comments only.
+- **Tracks affected:** agent workflow / tool card / docs.

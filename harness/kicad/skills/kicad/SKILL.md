@@ -193,9 +193,23 @@ passives, safe unpowered assembly checks and the user's first-power-on observati
 consistent after pin/assembly changes. Unknown modules remain GIẢ ĐỊNH with no invented pinout.
 Do not substitute a chat-only answer or a case-folder link for this file. See AGENTS.md, "Firmware".
 
+## Authorized flashing and a recoverable previous version
+
+If the user explicitly authorizes automatic flashing after builds, record project-scoped
+permission in `firmware/FLASH-POLICY.md` and follow
+[Firmware recovery](references/firmware-recovery.md). After a fresh build and relevant tests,
+pin the previous source/config/binaries and verified recovery artifact before writing the
+identified device; verify the new image/boot and restore serial services. Keep a successful
+image running, roll back a failed one and never move an old stable tag. Standing permission
+does not need repeated confirmation; a later no-flash request overrides it. Without permission,
+provide the binary/Flash recipe. Flashing does not authorize motors, printing or orders.
+
 ## The case (`kicadpy.case`)
 
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+For moving designs, define the structural mechanism/device mounts first, check that accessible
+subassembly, then attach shells and recheck motion. Prototype a changed joint with its actual
+mating parts; reference photos supply layout ideas, not measured dimensions or actuator feedback.
 Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
 ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
 Require a secure **device → mount/frame → shell** attachment chain; preserve working device
