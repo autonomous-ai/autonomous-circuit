@@ -891,3 +891,10 @@ first, in this template, before the doc itself is edited:
 - **Why:** the person requested uncomplicated mechanics that are easy to print, assemble and repair. Preserve requested functions while avoiding unnecessary mechanisms and fine adjustment.
 - **Backward compatible:** workflow documentation only; no checker, runtime, manufacturing or hardware-action changes.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-16 — Case acceptance includes attachments, fragile parts and rotation clearance
+- **Change:** KiCad instructions require an explicit device-to-mount/frame-to-shell attachment chain, independent verification of frame retention and shell closure, preservation of working device mounts, and repair of small features reported breaking. Every mechanical repair triggers checks throughout intended rotation travel, including intermediate/combined poses with installed hardware, closed shells and wires.
+- **Why:** physical assembly exposed a frame that did not attach properly to the case, missing TFT screw mounting, flexible servo supports and repeatedly broken small features. Fewer STL files and collision-free nominal geometry did not establish a usable assembly.
+- **Backward compatible:** workflow documentation only. Existing checker thresholds, readiness/PCB gates, model outputs and firmware/hardware behavior are unchanged.
+- **Mechanism:** main instructions and tool card point to detailed attachment, serviceability, print-orientation/strength assumptions, swept/sample clearance reporting and a user-performed unpowered dry-fit procedure. Physical slipping, breakage or rubbing reopens the relevant finding; CAD results are not relabeled as physical tests.
+- **Tracks affected:** agent workflow / tool card / docs.

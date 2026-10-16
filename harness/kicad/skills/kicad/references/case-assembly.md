@@ -35,6 +35,26 @@ universal design requirements.
 
 ## 2. Prove a person can assemble and service it
 
+- **Secure the entire attachment chain: device → mount/frame → shell.** In the assembly guide,
+  name each connected pair, its seat, restraint/fastener, installation tool and removal method.
+  Check that fixed parts cannot unintentionally slide, pull out or twist; identify the axes
+  deliberately left free at moving joints. A separate frame may be unnecessary when the shell
+  carries a device directly, but every device still needs a complete, explicit attachment.
+- Verify shell-to-frame retention separately from front-to-back shell closure. A smooth locating
+  peg is not a pullout lock. A shell sandwich can retain a frame only when its seating faces,
+  clearances and closure restraint are actually checked; do not assume the frame stays put
+  because the shell snaps shut. Show how parts are held while the person assembles/closes it.
+- Preserve the device mounts that already worked in a real print. Do not replace TFT screw
+  seats, edge clamps or rigid servo retention with unspecified ties/friction merely to lower
+  the STL count. Use a supported pocket and removable clamp/lid where appropriate; account for
+  device-body clearance, connectors and tool reach. Unknown dimensions remain assumptions, not
+  fabricated measurements. Ties/foam may supplement retention; do not claim untested grip.
+- **Eliminate reported fragile features.** Repeatedly broken small tabs, thin prongs, narrow
+  necks and long unsupported arms are repair findings. Prefer broad supported seats, short
+  load paths, braced roots and ordinary accessible fasteners. Evaluate material, print direction,
+  layer bonding and assembly deflection before relying on a feature; no universal minimum wall
+  or material swap proves strength. Validate the changed joint with a representative test print
+  before replacing the complete kit, and preserve usable printed parts.
 - Write the numbered assembly sequence before finalizing geometry. Give every physical part a
   stable ID matching the manifest, file names, print list and overview labels; place a small ID
   on printed parts where it will not affect a mating surface. Describe orientation from the
@@ -86,6 +106,22 @@ universal design requirements.
 
 ## 5. Verify the deliverable and report the remaining uncertainty
 
+- **Recheck rubbing/binding over the full intended motion range after every mechanical change.**
+  Include each axis in both directions, intermediate angles and combined-axis positions, with
+  the final devices, screw heads/nuts, horns, mounts, closed shells, connectors and wire bundle.
+  Check clearance and wire slack/pinch throughout travel. Neutral/end poses or an animation
+  alone are insufficient. Use swept geometry or refined sampling, state its coverage/resolution
+  and minimum measured clearance; do not present discrete samples as continuous proof.
+- Distinguish intentional bearing/stop contacts from unwanted collisions. Name intended mates
+  and their allowed motion; do not hide rubbing with blanket collision exclusions, omit parts,
+  silently reduce the requested travel or disable checks. Fix the geometry/attachment, rebuild,
+  and rerun the applicable checks from the final exported STEP/STL revision.
+- Include a plain-language unpowered dry-fit check for the person: secure devices/frame/shells,
+  gently move only back-drivable joints through their intended travel, and watch for unwanted
+  looseness, scraping, binding, pinched wires or stressed mounts. If an actuator cannot be
+  back-driven safely, specify a disconnected-drive check rather than forcing it. Do not run
+  motors or flash firmware yourself. Record the person's result separately from CAD/slicer
+  evidence; real breakage, slipping or rubbing reopens that finding even after a CAD pass.
 - Keep canonical STEP/STL assembled in the contract frame; apply print rotation only at export.
   Check the final printable surface, supported orientation and bed placement. For a requested
   slicer project, inspect the delivered project with the stated printer/material/profile and

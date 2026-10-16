@@ -541,6 +541,20 @@ board revision, not a moved footprint.
   multi-link mechanisms or delicate custom catches when a simple bracket or direct coupling
   meets the request. Added complexity must solve a named requirement that the simpler option
   cannot meet; explain that necessity briefly and preserve the requested function.
+- **Fix retention, device mounting and fragile features before calling a case complete.**
+  Show the complete attachment chain **device → mount/frame → shell**. Each fixed connection
+  needs a defined seat and a serviceable restraint against slip, pullout and unwanted rotation;
+  locating pegs or two closing shell halves alone do not establish a secure internal mount.
+  Keep intended joints free on their designed axes. Preserve working screw/clamp interfaces;
+  do not remove them just to reduce the number of STL files. Favor broad supported features
+  over tiny tabs, thin prongs and long unsupported arms; repair features the person reports
+  breaking, using their actual print as evidence. See the required case-assembly reference.
+- **Recheck all motion after every mechanical repair.** Check the complete intended rotation
+  range, both directions and combined axes, with devices, fasteners, closed shells and routed
+  wires installed. Include intermediate positions, not only neutral and end poses. Record
+  clearance, sweep/sample coverage and any intended stop contact; fix rubbing or binding and
+  rerun the checks. Provide an unpowered physical hand-sweep procedure for the person, without
+  forcing a joint or energizing motors. CAD clearance and actual smooth motion remain distinct.
 - **Design the assembly before detailing the solids.** Read
   `$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md` before designing or repairing a case.
   Its assembly, coupon and revision rules are required for static and moving cases. Plan the

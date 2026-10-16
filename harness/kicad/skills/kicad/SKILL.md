@@ -198,6 +198,11 @@ Do not substitute a chat-only answer or a case-folder link for this file. See AG
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
 Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
 ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
+Require a secure **device → mount/frame → shell** attachment chain; preserve working device
+mounts and replace reported fragile tabs/prongs with supported geometry. After every repair,
+recheck the full intended rotation range including intermediate/combined poses, closed shells,
+hardware and wires; give the person an unpowered hand-sweep check. CAD pass does not prove grip
+or physical motion. Detailed acceptance rules are in the required reference above.
 Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
 guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
 sequence as well as the final pose, then regenerate the overview from that same revision.
