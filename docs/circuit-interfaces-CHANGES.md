@@ -898,3 +898,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** workflow documentation only. Existing checker thresholds, readiness/PCB gates, model outputs and firmware/hardware behavior are unchanged.
 - **Mechanism:** main instructions and tool card point to detailed attachment, serviceability, print-orientation/strength assumptions, swept/sample clearance reporting and a user-performed unpowered dry-fit procedure. Physical slipping, breakage or rubbing reopens the relevant finding; CAD results are not relabeled as physical tests.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-16 — Moving case workflow validates the mechanism before covers
+- **Change:** KiCad case instructions establish structural layout, device mounting, fixed/moving groups, stock actuator interfaces and wire routes before cosmetic covers. Check the accessible subassembly first, attach shells, then repeat complete-assembly motion checks. Repairs provide a small mating test kit and preserve physically working printed parts.
+- **Why:** discussion of a simple two-axis reference pet highlighted that an accessible mechanism and real device mounts should drive the enclosure. Reducing STL count without preserving those connections had caused failed physical assembly.
+- **Backward compatible:** workflow documentation only; no runtime, model, firmware, checker thresholds, manufacturing/export gates or agent orchestration changes. Static/direct-shell mounts do not acquire an unnecessary separate frame.
+- **Mechanism:** the main instructions and tool card link a skill-local staged workflow. Reference images are limited to visible-layout evidence; dimensions, actuator feedback and full-travel claims need their own support. Physical dry-fit results remain separate from CAD, and inspect-only requests do not trigger changes to a run.
+- **Tracks affected:** agent workflow / tool card / docs.

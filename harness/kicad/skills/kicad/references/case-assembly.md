@@ -6,6 +6,38 @@ fasteners, difficult joint insertion and coupons mistaken for assembly parts. A 
 report did not prevent those failures. Do not turn that run's part counts or dimensions into
 universal design requirements.
 
+## Moving designs: mechanism first, shell second
+
+- Establish the structural layout and how devices are mounted before detailing cosmetic covers.
+  Identify the fixed base, each moving group, its axis/pivot, the actual actuator-to-horn-to-load
+  connection and its support. Prefer one actuator per requested axis and direct stock interfaces
+  when compatible with the owned hardware and required control. Added linkages need the existing
+  function-based justification; do not make a three-piece kit a target in itself.
+- Keep stationary electronics/connectors accessible and moving electronics on their own carrier
+  where the product calls for it. Route the real flexible harness between groups with slack and
+  restraint at both ends; check combined motion. Do not run a board, carrier plate or taut bundle
+  through a joint's travel. Preserve the native board contract; a reference image does not
+  authorize moving footprints, changing GPIOs or silently replacing a working firmware variant.
+- Work in this order: structural layout and device mounts → accessible subassembly insertion,
+  retention and motion checks → attach shells → repeat complete-assembly motion/wire checks.
+  A structural shell/base can serve as the mount; do not invent a separate frame for a static
+  product or one that mounts devices directly. The guide must show how to inspect the mechanism
+  before closing removable covers, then how those covers fasten to its structure.
+- For a repair, preserve the physically working baseline and test one changed subassembly first.
+  Supply a small test kit containing the real mating features, fasteners, device/horn seats and
+  relevant cable passage in the intended print orientation. A hole-only gauge cannot establish
+  assembly or rotation. Clearly identify test-only pieces and unchanged parts to reuse; do not
+  request a complete reprint for an untried joint. Record CAD checks separately from the person's
+  unpowered dry-fit result; an unavailable physical test stays pending without inventing a pass
+  or changing native fabrication/export gates.
+- Treat reference photos as evidence of visible arrangement and assembly access only. Separate
+  observations from assumptions about hidden bearings, fastening, dimensions, motor variant,
+  feedback or full travel. Verify parts from supplied labels/measurements and authoritative
+  references, applying the existing GIẢ ĐỊNH policy when unknown. A continuous-rotation servo
+  does not gain position feedback from a simple direct coupling or a timed command. Do not add
+  unrequested features from the image. If the person asks only to inspect/discuss and is sending
+  more references, record conclusions and wait for a design request before modifying their run.
+
 ## 1. Resolve hardware and choose a mechanism
 
 - **Default to simple, rugged and serviceable.** The person should be able to print, assemble,

@@ -196,6 +196,9 @@ Do not substitute a chat-only answer or a case-folder link for this file. See AG
 ## The case (`kicadpy.case`)
 
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+For moving designs, define the structural mechanism/device mounts first, check that accessible
+subassembly, then attach shells and recheck motion. Prototype a changed joint with its actual
+mating parts; reference photos supply layout ideas, not measured dimensions or actuator feedback.
 Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
 ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
 Require a secure **device → mount/frame → shell** attachment chain; preserve working device

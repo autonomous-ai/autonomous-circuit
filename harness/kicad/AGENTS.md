@@ -535,6 +535,14 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
+- **For moving designs, establish the mechanism and device mounts before wrapping the case.**
+  Define the fixed/moving groups, real axes, actuator/horn connections and wire route; check
+  an accessible structural subassembly first. Then attach the shells and recheck the complete
+  travel. Prefer direct stock-horn connections when the owned actuator can deliver the required
+  control. Keep electronics out of joint travel and preserve the board's existing contract.
+  Photos establish layout ideas, not dimensions, servo capability or proven fit. Deliver a
+  small mating subassembly to test a changed joint before replacing the whole printed kit;
+  physical results remain pending until supplied. See the case-assembly reference below.
 - **Simple, rugged, serviceable mechanics are the default.** Use the fewest practical parts,
   direct joints, stock hardware and accessible fasteners. Favor mounts tolerant of the stated
   print/measurement uncertainty and assembly with ordinary tools. Do not invent cams, gear trains,
