@@ -27,6 +27,10 @@ design/              THE SOURCE — main.kicad_pro, main.kicad_sch, main.kicad_p
 tools/               your own scripts (KiCad-Python authoring, helpers)
 firmware/            the code that runs on the board — written AFTER the board is
                      prototype-ready (below); README.md + sources, shown in the Firmware tab
+case/interfaces.json what the case must give the person (yours: confirm what the contract
+                     found, override, ignore, add) — not a design input, never makes the board stale
+case/build.py        the enclosure model (CadQuery, yours) -> case/out/ (STL + STEP + parts.json);
+                     case/reports/case-check.json is the tile's checker's verdict on it
 engineering/         evidence: power.md protection.md pinout.md thermal.md assembly.md
                      fabricator.md bringup.md — calculations, sources, what only a bench settles
 manufacturing.json   the review contract (packages/kicadpy/MANUFACTURING.md)
@@ -393,6 +397,26 @@ the review is closed, write the firmware in the same turn, without being asked a
   on hardware. The viewer renders that README on top of the tab and lists every source under it
   (`.c .h .cpp .ino .py .rs`, `platformio.ini`, `CMakeLists.txt`, `Makefile`); binaries, `build/`
   and `.pio/` are never shown, so do not point the reader at them.
+- **Write the wiring guide with the firmware, in the same turn.** Always create
+  `firmware/WIRING.md` and link it prominently from `firmware/README.md`; the Firmware tab
+  pins it above the build instructions. Do not leave the only copy in chat, a terminal scrollback
+  or a case subfolder. Write for someone who does not know electronics, in their language.
+  - Name the exact assembly variant and modules, the side/orientation the person is looking at,
+    then list each wire as **physical pin label on A → physical pin label on B**, with GPIO/net,
+    supply voltage and polarity where relevant. Explain common ground, separate motor power,
+    required resistors/capacitors and connections that must stay separate. Never rely on wire
+    colour alone or number a connector without defining its viewing direction.
+  - Derive every connection from the final schematic/netlist and the firmware's actual pin
+    definitions; for a handwired variant, spell out its differences from the PCB assembly.
+    When a module identity or pin label is unknown, mark GIẢ ĐỊNH and leave its connection
+    unresolved rather than assigning an invented pinout.
+  - Give a short assembly order: power disconnected, wire/check the supply and grounds, check
+    continuity/shorts and polarity, then the user's first power-on and expected observations.
+    Keep motors/loads disabled until their documented bring-up is complete. Explain any steps
+    requiring a meter plainly. This is documentation; never power, flash or run hardware yourself.
+  - Include a small connection diagram when it helps, route/strain-relief notes for moving parts,
+    and links to the relevant bring-up notes. Keep WIRING.md, README, pin definitions and the
+    current assembly consistent whenever firmware pins, modules, wiring or case routing change.
 - **Which toolchain.** The chip's usual one — pico-sdk (CMake) or Arduino/PlatformIO for an
   RP2040, ESP-IDF or Arduino for an ESP32, CircuitPython where `product.json` asks for it. One
   toolchain, the one a hobbyist with that chip already has; not a framework you invent.
@@ -447,6 +471,173 @@ the review is closed, write the firmware in the same turn, without being asked a
   "no firmware" skips it — and then `firmware/README.md` says so in one line, so the tab is not
   silently empty.
 
+### The case contract — `boards/<stem>.enclosure.json` and `case/interfaces.json`
+
+Every publish writes `boards/<stem>.enclosure.json` (`kicadpy.enclosure`, Copper's
+`enclosure.json` shape with `schema: 2`): the board in one frame — millimetres, origin at the
+outline centre, +x right, +y up viewed from the top, z = 0 on the top copper — its mounting holes,
+every part with its side, box and estimated height, the plug-in modules placed from their header
+pads, and the **interfaces**: what the person sees and touches, each with where it is, which way
+it faces (`accessFace`: top, bottom, an edge, or off-board) and the opening its kind needs.
+
+A case that only fits the board is the wrong case. The interface is the product: a screen gets a
+window over its **active area** (not the module outline), a button a plunger or membrane over its
+actuator, a light a window or a skin of 0.8 mm or less, a USB-C a corridor the size of the **plug**,
+a touch pad 2 mm or less of plastic and no metal, an antenna no screws or metal over it, an MX key
+a 14 x 14 mm plate cutout. Most of these sit on modules (`$KICAD_HARNESS_BLOCKS/../modules/<id>/
+module.json` holds their outline, active area, USB position and seat height) — on the pet the only
+port is the SuperMini's USB-C under the board.
+
+After the firmware is built, open the contract (`"$KICAD_HARNESS_PYTHON" -m kicadpy.enclosure .`
+prints it) and write `case/interfaces.json`:
+
+```json
+{"orientation": {"mount": "upright", "faceToUser": "top", "upEdge": "top"},
+ "interfaces": {"J2": {"confirm": true, "seatHeightMm": 5.08},
+                "J1#usb": {"confirm": true},
+                "J1#button": {"ignore": true},
+                "SW1": {"confirm": true, "note": "belly: plunger through the logo"},
+                "J6": {"offboard": true, "confirm": true},
+                "J7": {"ignore": true}},
+ "extra": [{"name": "lanyard slot", "kind": "cable", "centerMm": [0, 32]}]}
+```
+
+- Keys are refs, or `ref#kind` for one feature of a module (`J1#usb`, `J1#button`, `J1#antenna`
+  on a SuperMini): a plain `J1` applies to all of them, so ignoring `J1` would hide the port.
+- **Confirm** every interface the person uses; **override** a kind the generator got wrong;
+  **ignore** what stays inside (a spare header, BOOT/RESET when the back opens); **add** under
+  `extra` what it cannot see — a part on wires (`offboard: true` items: say where it lives in the
+  body), an edge sensor, a strap slot.
+- **Placement.** A single-header module is assumed to hang toward the board centre. When the
+  contract reports `enclosure_modules_overlap`, `enclosure_module_on_tall_part` or
+  `enclosure_module_outside_board`, it guessed wrong: set `bodyToward: "away"` for that ref, or
+  `offboard: true` when the module is on wires.
+- **Heights.** The class table is an assumption. A socket's height goes in `parts.json`
+  (`seatHeightMm` on that entry) or here (`seatHeightMm`); any part's in `heightMm`. The pet's
+  Samtec CES sockets are 5.08 mm, not the 8.5 mm default — the screen's face moves 3.4 mm.
+- **Orientation** says how the product stands: `flat` or `upright`, which board face looks at the
+  person, which board edge points up. The pet stands upright with the screen facing out; a deck
+  lies flat.
+- Every `enclosure_unclassified_connector` and `enclosure_interface_unconfirmed` finding is
+  closed by a line in this file. Module geometry marked as an assumption gets a bench check in
+  `engineering/bringup.md` (hold the module against a printed test-fit before printing the body).
+
+Rules the case designer will follow, so lay the board out for them: **one origin** (this frame,
+never a second one — a 9 mm offset once came from mixing two); a **generous cavity** beats exact
+numbers for modules nobody measured; parts printable **without supports** (open faces down, ports
+open to an edge); a minimum wall of 1.6 mm.
+
+### Case — after the contract, into `case/`
+
+The pane's fifth phase, **Case**, is a printable enclosure that fits this board and opens for
+every interface. It comes after the firmware is built and `case/interfaces.json` is written, in
+the same turn, without being asked again. You design it; the tile's checker decides whether it
+fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
+board revision, not a moved footprint.
+
+- **Simple, rugged, serviceable mechanics are the default.** Use the fewest practical parts,
+  direct joints, stock hardware and accessible fasteners. Favor mounts tolerant of the stated
+  print/measurement uncertainty and assembly with ordinary tools. Do not invent cams, gear trains,
+  multi-link mechanisms or delicate custom catches when a simple bracket or direct coupling
+  meets the request. Added complexity must solve a named requirement that the simpler option
+  cannot meet; explain that necessity briefly and preserve the requested function.
+- **Fix retention, device mounting and fragile features before calling a case complete.**
+  Show the complete attachment chain **device → mount/frame → shell**. Each fixed connection
+  needs a defined seat and a serviceable restraint against slip, pullout and unwanted rotation;
+  locating pegs or two closing shell halves alone do not establish a secure internal mount.
+  Keep intended joints free on their designed axes. Preserve working screw/clamp interfaces;
+  do not remove them just to reduce the number of STL files. Favor broad supported features
+  over tiny tabs, thin prongs and long unsupported arms; repair features the person reports
+  breaking, using their actual print as evidence. See the required case-assembly reference.
+- **Recheck all motion after every mechanical repair.** Check the complete intended rotation
+  range, both directions and combined axes, with devices, fasteners, closed shells and routed
+  wires installed. Include intermediate positions, not only neutral and end poses. Record
+  clearance, sweep/sample coverage and any intended stop contact; fix rubbing or binding and
+  rerun the checks. Provide an unpowered physical hand-sweep procedure for the person, without
+  forcing a joint or energizing motors. CAD clearance and actual smooth motion remain distinct.
+- **Design the assembly before detailing the solids.** Read
+  `$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md` before designing or repairing a case.
+  Its assembly, coupon and revision rules are required for static and moving cases. Plan the
+  insertion order, tool access, owned hardware and fit assumptions first; use the simplest
+  mechanism that preserves the requested function. Deliver a current, linked assembly/print
+  guide with numbered parts, tested insertion paths, a separate coupon procedure and an exact
+  reuse/reprint list. A collision-free final pose alone does not prove a person can assemble it.
+- **Start from the template.** `case/build.py` can begin as two lines and then grow:
+  ```python
+  from kicadpy.case_template import build_box
+  build_box('.')
+  ```
+  It writes a two-part box from the contract — `front` (walls and face plate, printed face down),
+  `back` (floor with a boss under every mounting hole), a `plunger_<ref>` per tact button and a
+  `coupon` (role `coupon`: the plate around the screen and the wall around the port, cut from the
+  shells — the few-minute print that proves the numbers before the whole body) —
+  with a window over each display's active area, a light window per LED, a 14 mm cutout per key,
+  a hole per knob, a grille per buzzer and a plug-sized corridor per USB-C. Reshape it for the
+  product (`kicadpy.case_template.shapes(contract)` returns the CadQuery solids to start from):
+  a character, rounded corners, a stand, a lanyard slot. Keep the frame: model **assembled, in
+  the contract's frame**, one origin, never a second one.
+- **Build and check** with the tile's CadQuery:
+  ```bash
+  "$KICAD_CASE_PYTHON" case/build.py               # -> case/out/*.stl, *.step, parts.json
+  "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # -> case/reports/case-check.json
+  ```
+  `case/out/parts.json` lists every part (`name`, `role`: shell, lid, plunger, membrane,
+  diffuser, bracket or other; `stl`, `step`, `printRotateDeg`, `supports`) and the `contractSha`
+  of the `enclosure.json` it was built from. Only a plunger or a membrane may sit over a button.
+  **Both files of a part are assembled, in the contract frame** — the STL too. Never export the
+  STL turned for the bed: `printRotateDeg` is how the slicer turns it, and the checker fails a STL
+  whose extent differs from its STEP (`case_mesh_frame_mismatch`). A flipped STL once passed a
+  check of its STEP and drew the board outside its own case in the Case tab (2026-10-12).
+- **Immediately after drawing/building the case in 3D, make its interactive overview in the
+  same turn.** Do this automatically, without waiting for another request. Write a reproducible
+  generator (for example `tools/render_case_overview.py`) and have `case/build.py` regenerate
+  `case/overview.html` after exporting the assembled STEP/STL. Set the `overview` field in
+  `case/out/parts.json` to `"../overview.html"`; an existing motion-specific file is
+  also valid when the manifest points to it (for example `"../motion/motion-view.html"`).
+  - Use the actual final assembly geometry, in its assembled frame, with component labels and
+    controls to change the viewing angle, open/hide the shells, and show the wire paths when
+    the design has them. Do not redraw a different illustrative model. References may appear
+    in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - For moving designs, add a control for each real axis (such as yaw/pitch), a stop/centre
+    control, and visible moving/stationary groups. Derive pivots, limits and poses from the
+    checked mechanism, keep motion within its checked range, and show wire routing through
+    the joints. Static designs get inspection controls; never invent a joint or motion.
+  - Make the HTML self-contained and usable on a phone: embed geometry, scripts and styles;
+    no CDN imports, external scripts or fetch calls. Case Overview runs inside a script-only
+    sandbox with network and same-origin access denied. Clearly label assumptions and
+    untested hardware; animation is a model demonstration, not a mechanical fit test.
+  - Rebuild the overview whenever the case changes, including the final repair, so it always
+    shows the same revision as the downloadable files. Open it through the viewer's
+    **Case → Overview** and verify its controls, moving groups and wire paths before finishing;
+    then rerun the applicable case/print checks. Do not stop at a static 3D render or an
+    unrelated HTML link.
+- **The checker is the tile's.** It reads your STEP files, never your code, and fails a case
+  that goes into the board, a part or a seated module (`case_collides`), covers an interface
+  (`case_interface_blocked`), puts more than the pad's limit of plastic over a touch pad
+  (`case_touch_wall`), ships an STL that is not its STEP (`case_mesh_frame_mismatch`), does not fit the bed (`case_part_too_big`; `printer.bedMm` in
+  `case/interfaces.json`, default 220 x 220 x 250) or was built from an older board
+  (`case_built_from_old_board`). Fix the model, rebuild, recheck, until it passes. A changed
+  board or a rebuilt part makes the report stale, and the phase goes back to active.
+- **If `$KICAD_CASE_PYTHON` exits 127**, CadQuery is not installed on this machine (setup could
+  not download it). Say so in one line with the command that fixes it
+  (`scripts/toolchain/install-cadquery.sh` in the tile checkout), leave the phase active, and still
+  write `case/interfaces.json`; never install CadQuery anywhere else.
+- **What a print teaches** (from cases that were printed and did not fit): print a **test-fit
+  coupon** first, cut from the final mating geometry. Give it a physical `TEST ONLY` label and
+  a plain-language test/pass/fail procedure; it is not an assembly part. Choose and document
+  clearance per interface, printer/material and measurement confidence; a single universal gap
+  does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
+  orientation/support needs, and put assumed module dimensions and coupon results in the
+  bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
+  from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
+  print orientation in words, and the checker's status and errors. When you reshape the case, keep
+  a part with role `coupon` cut from your final shells; the tab lists it first, as the thing to
+  print first.
+- **Report** the parts, the print orientation of each, the material (PLA unless the product
+  says otherwise) and what is assumed rather than measured. A passing check is a fit in the
+  model, not on the desk: never say the case fits until the person has printed it.
+
 ## Done means prototype-ready
 
 **A board is complete only when `fab.ready` is `true` in `boards/main.board.json`** — which is
@@ -461,7 +652,11 @@ closes it** — you in a later revision, the fab at quote time, or a bench test 
 **The turn is not over at prototype-ready.** The pane's phase strip has a fourth phase,
 **Firmware**, that stays active until `firmware/README.md` and a source exist, and the Stop hook
 asks once for them when the board is ready and `firmware/` is empty. `fab.ready` stays the
-board's gate; the firmware is the turn's last deliverable, not a caveat on the board.
+board's gate. After it comes the fifth, **Case**: active until a case built from the current
+board passes `kicadpy.case check` (the hook asks once). Neither gates `fab.ready`; they are the
+turn's last deliverables, not caveats on the board. The Case deliverable also includes the current
+interactive overview: build the 3D model → regenerate its overview → verify both and the applicable
+checks, all in the same turn.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or
@@ -471,5 +666,17 @@ say that anything was ordered: exporting a packet authorises nothing.
 
 Short, in plain language. What the board is, its size, how it is powered, what is on it, whether
 it is prototype-ready and, if not, what remains and who closes it; and where the firmware is
-(the Firmware tab, and how to flash it) or that it is not written yet. The board is already on
+(the Firmware tab, its wiring guide and how to flash it) or that it is not written yet. The board is already on
 their screen — describe what they can experience, not the netlist.
+
+
+### Exporting a handwired case without the carrier PCB
+When the person explicitly chooses a handwired assembly, do not change the native PCB
+contract or mark its Case phase passed. `case/out/parts.json` may declare
+`verification: {nativePCBCheckerApplies: false, report: "../reports/mechanical.json"}`.
+The scoped mechanical report must pass with current `partShas` for every STEP/STL,
+including references, and no collision/error findings. Run
+`"$KICAD_CASE_PYTHON" -m kicadpy.case check-print .` after publishing the case.
+This independently validates printable surfaces/bed fit and writes a hash-bound
+`case/reports/print-check.json` for Print all. It certifies export readiness only;
+prototype verdict, PCB fit, hardware tests and the person's print/Flash actions stay separate.

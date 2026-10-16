@@ -34,7 +34,10 @@ import BoardVerdict from "./BoardVerdict.jsx";
 import BomTable from "./BomTable.jsx";
 import FabPacketCard from "./FabPacketCard.jsx";
 import FirmwareTab from "./FirmwareTab.jsx";
-import OriginalPromptButton from "./OriginalPromptButton.jsx";
+import CaseTab from "./CaseTab.jsx";
+import PromptsTab from "./PromptsTab.jsx";
+import CaseOverviewTab from "./CaseOverviewTab.jsx";
+import { BOARD_GROUPS, BOARD_TABS as TABS, groupForTab } from "./boardNavigation.js";
 import FunctionTab from "./FunctionTab.jsx";
 import OverviewTab from "./OverviewTab.jsx";
 import PartsPanel from "./PartsPanel.jsx";
@@ -62,35 +65,11 @@ import {
   sanitizeProduct,
 } from "./boardData.js";
 
-const TABS = Object.freeze([
-  // Overview is first and default on purpose: someone who has never opened an
-  // EDA tool lands on Split otherwise and sees two drawings with no way in.
-  // An engineer is one click (or `0`) from the split view they want.
-  { id: "overview", label: "Overview" },
-  // Second, because "can I get it made?" and "does it do what I asked?" are
-  // the two questions a non-engineer has, in that order, and until now only
-  // the first one had an answer anywhere in this app.
-  { id: "function", label: "What it does", hint: "Each part, and what it is there for" },
-  { id: "split", label: "Side by side", hint: "The wiring diagram and the board, together" },
-  { id: "schematic", label: "Schematic", hint: "The wiring diagram — what connects to what" },
-  { id: "pcb", label: "PCB", hint: "The board itself, seen from above" },
-  { id: "3d", label: "3D", hint: "What the finished board will look like" },
-  // "BOM" and "Fab" are the words an engineer uses and the two words a
-  // first-timer is most likely to skip past without knowing they matter. The
-  // plain label is the tab; the trade term is in the tooltip for anyone who
-  // came here from Altium or KiCad looking for it.
-  { id: "bom", label: "Parts", hint: "Every part on the board, with what it costs (the BOM)" },
-  { id: "fab", label: "Files", hint: "The files a factory needs to build it (the fab packet)" },
-  // Last, because it is the last thing written: the agent writes firmware
-  // after the board checks out, so the pin map is read off finished copper.
-  { id: "firmware", label: "Firmware", hint: "The code that runs on the board, written once the board checks out" },
-]);
-
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
 // their own inspector, so the EDA panels along the bottom and the right would
 // be a second copy of the same numbers in the vocabulary the tab is avoiding.
-const PLAIN_TABS = new Set(["overview", "function", "firmware"]);
+const PLAIN_TABS = new Set(["overview", "function", "firmware", "case", "case-overview", "prompt-current", "prompt-original"]);
 
 /**
  * The board workspace — an Altium-shaped PCB tool with our chat on the side.
@@ -135,6 +114,9 @@ export default function BoardWorkspace({
   const [parts, setParts] = useState([]);
   const [product, setProduct] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const activeGroup = groupForTab(activeTab);
+  const groupTabs = useRef(Object.fromEntries(BOARD_GROUPS.map(group => [group.id,group.defaultTab])));
+  useEffect(() => { groupTabs.current[activeGroup] = activeTab; },[activeGroup,activeTab]);
   const [regionsVisible, setRegionsVisible] = useState(true);
 
   // --- editor state (all Altium analogues; see ALTIUM-NOTES.md)
@@ -240,6 +222,8 @@ export default function BoardWorkspace({
     );
     return String(first?.userText || "").trim();
   }, [chatHistory]);
+
+  const currentRequestText = useMemo(() => (Array.isArray(chatHistory) ? chatHistory : []).filter(turn => turn.role === "user").map(turn => String(turn.userText || "").trim()).filter(Boolean).join("\n\n---\n\nUpdate\n"),[chatHistory]);
 
   const selectedEntry = useMemo(
     () => boardEntries.find((entry) => entry.file === selectedFile) || null,
@@ -1259,28 +1243,15 @@ export default function BoardWorkspace({
           {selectedEntry ? (
             <>
               <div className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    data-slot="board-tab"
-                    data-tab={tab.id}
-                    title={tab.hint || undefined}
-                    aria-current={activeTab === tab.id ? "true" : undefined}
-                    className={cn(
-                      "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                      activeTab === tab.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {tab.label}
+                {BOARD_GROUPS.map(group => (
+                  <button key={group.id} type="button" data-slot="board-group" data-group={group.id}
+                    onClick={() => setActiveTab(groupTabs.current[group.id])}
+                    aria-current={activeGroup === group.id ? "true" : undefined}
+                    className={cn("shrink-0 rounded-md px-3 py-1 text-xs font-semibold",activeGroup === group.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                    {group.label}
                   </button>
                 ))}
                 <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
-                {/* What the board was made from, one click away — in a Harness pane the request is
-                    otherwise hundreds of turns up the agent's terminal. */}
-                <OriginalPromptButton projectId={currentProjectId || ""} fallbackText={requestText} />
-
                 <RevisionPager
                   className="ml-2"
                   revisions={revisionsApi.revisions}
@@ -1352,11 +1323,21 @@ export default function BoardWorkspace({
                 )}
               </div>
 
+              <nav aria-label={`${activeGroup} views`} className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
+                {TABS.filter(tab => tab.group === activeGroup).map(tab => (
+                  <button key={tab.id} type="button" data-slot="board-tab" data-tab={tab.id} onClick={() => setActiveTab(tab.id)}
+                    aria-current={activeTab === tab.id ? "true" : undefined}
+                    className={cn("shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",activeTab === tab.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+
               {/* The verdict lives above the panes and outside the tab switch:
                   "can I get this made?" does not stop mattering when you look
                   at the BOM. It is the only place in the workspace that
                   answers it in a sentence. */}
-              <BoardVerdict
+              {activeGroup === "electric" ? <BoardVerdict
                 sidecar={effectiveSidecar}
                 index={index}
                 groups={findingGroups}
@@ -1372,10 +1353,12 @@ export default function BoardWorkspace({
                 onRevealExport={(savedPath) => transport.export_reveal(savedPath)}
                 onOpenTab={setActiveTab}
                 onFix={handlePrefillNote}
-              />
+              /> : null}
 
               <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
+                  {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={requestText} fallbackCurrentText={currentRequestText} className="min-h-0 flex-1" /> : null}
+                  {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
                   {activeTab === "overview" ? (
                     <OverviewTab
                       sidecar={effectiveSidecar}
@@ -1445,6 +1428,9 @@ export default function BoardWorkspace({
                       onOpenTab={setActiveTab}
                       className="min-h-0 flex-1"
                     />
+                  ) : null}
+                  {activeTab === "case" ? (
+                    <CaseTab artifact={artifact} boardName={selectedStem} projectId={currentProjectId || ""} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
                   ) : null}
                   {activeTab === "firmware" ? (
                     <FirmwareTab

@@ -21,6 +21,7 @@
     ],
     "env": {
       "KICAD_HARNESS_PYTHON": "${dsh}/toolchain/python",
+      "KICAD_CASE_PYTHON": "${dsh}/toolchain/case-python",
       "KICAD_HARNESS_ROOT": "${dsh}/../..",
       "KICAD_HARNESS_BLOCKS": "${dsh}/../../packages/golden-blocks/blocks",
       "CIRCUIT_TOOLCHAIN": "${dsh}/../../toolchain",

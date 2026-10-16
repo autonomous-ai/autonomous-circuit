@@ -234,6 +234,28 @@ class ManifestTest(unittest.TestCase):
                        'KICAD_HARNESS_CMAKE', 'If the person asks you to flash anyway', 'read-flash'):
             self.assertIn(phrase, agents, phrase)
 
+    def test_every_tile_carries_cadquery_for_the_case_phase(self):
+        # The Case phase is done only when kicadpy.case check passed on a case built from the current
+        # board, so the tile vendors CadQuery (setup), reports it (doctor), names its Python
+        # (manifests) and tells the agent how to build and check (AGENTS.md, the skill card).
+        setup = (PKG / 'toolchain' / 'setup.sh').read_text(encoding='utf-8')
+        self.assertIn('scripts/toolchain/install-cadquery.sh', setup)
+        installer = ROOT / 'scripts' / 'toolchain' / 'install-cadquery.sh'
+        self.assertTrue(os.access(installer, os.X_OK))
+        self.assertIn('CQ_VERSION=2.7.0', installer.read_text(encoding='utf-8').replace('"', ''))
+        self.assertIn('toolchain/case/', (ROOT / '.gitignore').read_text(encoding='utf-8'))
+        self.assertIn('cadquery', (PKG / 'toolchain' / 'doctor.sh').read_text(encoding='utf-8'))
+        for tile_id, pkg in TILES.items():
+            self.assertEqual(_manifest(pkg)['agent']['env']['KICAD_CASE_PYTHON'], '${dsh}/toolchain/case-python', tile_id)
+            wrapper = pkg / 'toolchain' / 'case-python'
+            self.assertTrue(os.access(wrapper, os.X_OK), tile_id)
+            self.assertEqual(wrapper.resolve(), (PKG / 'toolchain' / 'case-python').resolve(), tile_id)
+        agents = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
+        for phrase in ('### Case', 'kicadpy.case_template import build_box', '"$KICAD_CASE_PYTHON" -m kicadpy.case check .',
+                       'Never edit the board for the case', 'test-fit', 'case/build.py'):
+            self.assertIn(phrase, agents, phrase)
+        self.assertIn('kicadpy.case check', (PKG / 'skills' / 'kicad' / 'SKILL.md').read_text(encoding='utf-8'))
+
     def test_skill_card_and_modules_carry_the_knowledge_the_agent_reads(self):
         card = (PKG / 'skills' / 'kicad' / 'SKILL.md').read_text(encoding='utf-8')
         for needle in ('kicadpy.author write spec.json design/', 'kicadpy.knowledge show', 'modules/<id>/BLOCK.md'):
@@ -284,7 +306,8 @@ class InitWorkspaceTest(unittest.TestCase):
             verdict = json.loads((ws / '.harness' / 'verdict.json').read_text(encoding='utf-8'))
             self.assertEqual(verdict['spec'], 1)
             self.assertIs(verdict['ready'], False)
-            self.assertEqual([p['state'] for p in verdict['phases']], ['pending', 'pending', 'pending', 'pending'])
+            self.assertEqual([p['id'] for p in verdict['phases']], ['build', 'checks', 'fab', 'firmware', 'case'])
+            self.assertEqual({p['state'] for p in verdict['phases']}, {'pending'})
 
     def test_init_writes_the_grok_stop_hook_only_for_the_grok_tile(self):
         for pkg, expect_hook in ((GROK, True), (PKG, False), (CLAUDE, False)):

@@ -24,6 +24,7 @@ const MAX_SESSIONS = 50;
 /** Text a person did not type: harness/engine scaffolding that rides in the user role. */
 const INJECTED = [
   /^# AGENTS\.md instructions/,
+  /^<hook_prompt\b/,
   /^<environment_context>/,
   /^<user_instructions>/,
   /^<permissions instructions>/,
@@ -233,8 +234,27 @@ function grokSessions(dir, env) {
  * Every agent session that ran in `dir`, oldest first, each with what the person typed in it.
  * `original` is the very first prompt — the request the board was made from.
  */
+/** An explicit maintained brief, or the original request plus chronological user updates. */
+function currentPrompt(dir, all, original) {
+  const updates = all.flatMap(session => session.prompts).sort((a,b) => String(a.at).localeCompare(String(b.at)));
+  let brief = null;
+  for (const member of ["prompts/current.md", "PROMPT.md"]) {
+    try {
+      const root = fs.realpathSync(dir), file = fs.realpathSync(path.join(root,member)), stat = fs.statSync(file);
+      if (!file.startsWith(root + path.sep) || !stat.isFile() || stat.size > 1024 * 1024) continue;
+      const text = fs.readFileSync(file,"utf8").trim();
+      if (text) {brief = {text, file:member, at:new Date(stat.mtimeMs).toISOString(), source:"file"}; break;}
+    } catch { /* no maintained brief */ }
+  }
+  const baseline = brief || (original ? {...original,source:"conversation"} : null);
+  if (!baseline) return null;
+  const later = brief ? updates.filter(p => p.at > brief.at) : updates.filter((p,index) => !(index === 0 && p.text === original.text));
+  const additions = later.map(p => `Update${p.at ? ` · ${p.at}` : ""}\n${p.text}`);
+  return {...baseline, at:later.at(-1)?.at || baseline.at, text:[baseline.text,...additions].join("\n\n---\n\n")};
+}
+
 export function readWorkspacePrompts({ dir, env = process.env } = {}) {
-  if (!dir) return { original: null, sessions: [] };
+  if (!dir) return { original: null, current: null, sessions: [] };
   const all = [...codexSessions(dir, env), ...claudeSessions(dir, env), ...grokSessions(dir, env)]
     .sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)));
   const first = all[0];
@@ -242,5 +262,5 @@ export function readWorkspacePrompts({ dir, env = process.env } = {}) {
   const original = first
     ? { engine: first.engine, sessionId: first.sessionId, at: first.prompts[0].at, text: first.prompts[0].text }
     : null;
-  return { original, sessions };
+  return { original, current: currentPrompt(dir, all, original), sessions };
 }

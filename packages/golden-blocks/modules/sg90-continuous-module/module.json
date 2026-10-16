@@ -1,0 +1,46 @@
+{
+ "schema": 1,
+ "id": "sg90-continuous-module",
+ "frame": "Module frame: origin at the outline centre; +x along the header row from pin 1 to the last pin (two-row modules: along the rows, pin 1 end at -x); +y from the header toward the module body (two-row modules: from the first-listed row to the second). Millimetres. 'front' is the face away from the carrier board.",
+ "kind": "actuator",
+ "mount": "cable",
+ "outlineMm": [
+  22.5,
+  12.1
+ ],
+ "bodyHeightMm": 23.4,
+ "seatHeightMm": 0.0,
+ "headers": [
+  {
+   "name": "GND V+ SIG (servo-header)",
+   "pins": 3,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "features": [
+  {
+   "kind": "cable",
+   "name": "servo lead (250 mm, JR plug)",
+   "centerMm": [
+    0.0,
+    0.0
+   ],
+   "sizeMm": [
+    4.0,
+    2.0
+   ],
+   "face": "edge-y",
+   "note": "the servo mounts in the body, not on the board; leave a cable path from the header"
+  }
+ ],
+ "sources": [
+  "BLOCK.md: 9 g, 22.5 x 12.1 x 23.4 mm, 250 mm lead"
+ ],
+ "assumptions": [
+  "the header on the board is a cable exit, not the servo body position"
+ ]
+}

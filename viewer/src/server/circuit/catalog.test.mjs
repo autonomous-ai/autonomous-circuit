@@ -240,3 +240,106 @@ test("firmware/flash.json surfaces as artifact.firmware.flashUrl — what enable
   assert.match(firmware.flashUrl, /^\/projects\/fw\/firmware\/flash\.json\?v=\d+-\d+$/);
   assert.ok(firmware.files.some((f) => f.file === "flash.json"), "the recipe is also a readable file in the tab");
 });
+
+test("case/ is grouped under the native board's artifact: parts from parts.json, the contract, and the check's status", async () => {
+  const crypto = await import("node:crypto");
+  const sha = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  const dir = tmpdir("circuit-cat-");
+  fs.mkdirSync(path.join(dir, "design"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "case", "out"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb)");
+  const contract = path.join(dir, "boards", "main.enclosure.json");
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2 }));
+  fs.writeFileSync(path.join(dir, "boards", "main.board.json"), JSON.stringify({ source: { engine: "kicad-native", file: "design/main.kicad_pcb" },
+    native: { inputRoot: ".", inputs: { "design/main.kicad_pcb": sha(path.join(dir, "design/main.kicad_pcb")) }, publication: "complete", previewDir: "boards/main_review/test" } }));
+
+  // A contract and no case yet: the tab can say the case comes next.
+  let enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "none");
+  assert.deepEqual(enclosure.parts, []);
+  assert.match(enclosure.contractUrl, /^\/projects\/cs\/boards\/main\.enclosure\.json\?v=\d+-\d+$/);
+
+  const out = path.join(dir, "case", "out");
+  for (const name of ["front.stl", "front.step", "coupon.stl"]) fs.writeFileSync(path.join(out, name), `solid ${name}`);
+  fs.writeFileSync(path.join(out, "parts.json"), JSON.stringify({
+    parts: [
+      { name: "front", role: "shell", stl: "front.stl", step: "front.step", printRotateDeg: [180, 0, 0], supports: false },
+      { name: "coupon", role: "coupon", stl: "coupon.stl", step: "coupon.step" },   // no STEP on disk
+      { name: "escape", role: "shell", stl: "../../boards/main.enclosure.json" },   // outside case/out: dropped
+      { name: "mesh-less", role: "lid", stl: "lid.stl" },                           // missing: dropped
+    ],
+  }));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "stale", "built, never checked");
+  assert.deepEqual(enclosure.parts.map((p) => [p.name, p.role, Boolean(p.stepUrl)]), [["front", "shell", true], ["coupon", "coupon", false]]);
+  assert.match(enclosure.parts[0].stlUrl, /^\/projects\/cs\/case\/out\/front\.stl\?v=\d+-\d+$/);
+  assert.deepEqual(enclosure.parts[0].printRotateDeg, [180, 0, 0]);
+  assert.equal(enclosure.parts[0].supports, false);
+
+  // A passing report bound to this board and these files.
+  fs.mkdirSync(path.join(dir, "case", "reports"), { recursive: true });
+  const report = path.join(dir, "case", "reports", "case-check.json");
+  const bound = { passed: true, meshValidation: "surface-v1", errors: [], contractSha: sha(contract),
+    partShas: { "front.stl": sha(path.join(out, "front.stl")), "parts.json": sha(path.join(out, "parts.json")) } };
+  fs.writeFileSync(report, JSON.stringify(bound));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.equal(enclosure.state, "passed");
+  assert.match(enclosure.reportUrl, /case-check\.json/);
+  fs.writeFileSync(report, JSON.stringify({ ...bound, meshValidation: undefined }));
+  const { caseStatus: readCaseStatus } = await import("./catalog.mjs");
+  assert.equal(readCaseStatus(dir, "main").state, "stale", "old extent-only checks cannot authorize Print all");
+  fs.writeFileSync(report, JSON.stringify(bound));
+
+  // A rebuilt part makes it stale; a failed check says how many errors.
+  fs.writeFileSync(path.join(out, "front.stl"), "solid moved");
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+
+  bound.partShas["front.stl"] = sha(path.join(out, "front.stl"));
+  fs.writeFileSync(report, JSON.stringify({ ...bound, passed: false, errors: [{ kind: "case_collides" }, { kind: "case_interface_blocked" }] }));
+  enclosure = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case;
+  assert.deepEqual([enclosure.state, enclosure.reason], ["failed", "2 case errors"]);
+  // A new board makes any report stale.
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2, moved: true }));
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries[0].artifact.case.state, "stale");
+
+  fs.writeFileSync(contract, JSON.stringify({ schema: 2 }));
+  fs.writeFileSync(path.join(dir, "design", "main.kicad_pcb"), "(kicad_pcb moved_display)");
+  const changed = scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.find(e => e.file === "design/main.kicad_pcb");
+  assert.equal(changed.nativeStale, true);
+  assert.equal(changed.artifact.case.state, "stale", "changed copper invalidates case status before the next publish");
+  fs.writeFileSync(path.join(dir, "design", "other.kicad_pcb"), "(kicad_pcb)");
+  fs.writeFileSync(path.join(dir, "boards", "other.enclosure.json"), JSON.stringify({ schema: 2, different: true }));
+  fs.writeFileSync(path.join(dir, "boards", "other.board.json"), JSON.stringify({ source: { engine: "kicad-native", file: "design/other.kicad_pcb" },
+    native: { inputRoot: ".", inputs: {}, publication: "complete" } }));
+  const { caseStatus } = await import("./catalog.mjs");
+  assert.equal(caseStatus(dir, "other").state, "stale", "a report for main cannot bless other");
+
+  // The meshes are never standalone entries.
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.filter((e) => e.file.startsWith("case/")).length, 0);
+});
+
+test('Case overview discovers the motion demo or an explicit confined manifest file', t => {
+  const dir=tmpdir('circuit-case-overview-');t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(dir,'design'));fs.mkdirSync(path.join(dir,'boards'));fs.mkdirSync(path.join(dir,'case/out'),{recursive:true});fs.mkdirSync(path.join(dir,'case/motion'));
+  fs.writeFileSync(path.join(dir,'design/main.kicad_pcb'),'(kicad_pcb)');fs.writeFileSync(path.join(dir,'boards/main.board.json'),JSON.stringify({source:{engine:'kicad-native',file:'design/main.kicad_pcb'}}));
+  const manifest=path.join(dir,'case/out/parts.json');fs.writeFileSync(manifest,JSON.stringify({parts:[]}));
+  fs.writeFileSync(path.join(dir,'case/motion/motion-view.html'),'<canvas></canvas>');
+  const read=()=>scanProjectCatalog({projectDir:dir,projectId:'p'}).entries.find(e=>e.file==='design/main.kicad_pcb').artifact.case;
+  assert.match(read().overviewUrl,/case\/motion\/motion-view\.html\?v=/);
+  fs.writeFileSync(path.join(dir,'case/custom.html'),'<p>Custom</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../custom.html'}));assert.match(read().overviewUrl,/case\/custom\.html/);
+  fs.writeFileSync(path.join(dir,'outside.html'),'<p>outside</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../../outside.html'}));assert.equal(read().overviewUrl,undefined);
+  fs.symlinkSync(path.join(dir,'outside.html'),path.join(dir,'case/link.html'));fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../link.html'}));assert.equal(read().overviewUrl,undefined);
+});
+
+test('firmware wiring guide stays discoverable beyond the source-list cap and changes its cache token after edits',t => {
+  const dir=tmpdir('circuit-wiring-');t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(dir,'design'));fs.mkdirSync(path.join(dir,'firmware'));
+  fs.writeFileSync(path.join(dir,'design/main.kicad_pcb'),'(kicad_pcb)');
+  const wiring=path.join(dir,'firmware/WIRING.md');fs.writeFileSync(wiring,'# Physical pins\nSCL → GPIO4');
+  for(let i=0;i<400;i++)fs.writeFileSync(path.join(dir,`firmware/A${i}.h`),'// source');
+  const read=()=>scanProjectCatalog({projectDir:dir,projectId:'p'}).entries.find(e=>e.sourceKind==='kicad-native').artifact.firmware;
+  const before=read();assert.equal(before.truncated,true);assert.match(before.wiringUrl,/firmware\/WIRING\.md\?v=/);
+  fs.appendFileSync(wiring,'\nGround → GND');assert.notEqual(read().wiringUrl,before.wiringUrl);
+  fs.unlinkSync(wiring);assert.equal(read().wiringUrl,undefined);
+});

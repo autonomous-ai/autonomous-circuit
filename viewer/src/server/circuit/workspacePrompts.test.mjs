@@ -29,6 +29,7 @@ test("codex: this workspace's sessions only; injected context and approval-revie
   codexLog(home, "06", "a", ws, [
     codexUser("2026-10-06T07:00:01Z", "# AGENTS.md instructions for /x\n<INSTRUCTIONS>…"),
     codexUser("2026-10-06T07:00:02Z", "<environment_context>…</environment_context>"),
+    codexUser("2026-10-06T07:00:03Z", "<hook_prompt>Injected advisor repair instructions</hook_prompt>"),
     codexUser("2026-10-06T07:21:00Z", "ĐỀ BÀI: DESK PET MINI\nlàm board đi"),
     { timestamp: "2026-10-06T07:22:00Z", type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "ok" }] } },
     codexUser("2026-10-06T08:00:00Z", '<image name=[Image #1] path="/tmp/a.png"></image> đây fen'),
@@ -90,7 +91,7 @@ test("engines mix oldest first; the original is the first ever even past the ses
   assert.equal(r.original.text, "first ever");
   assert.equal(r.sessions.length, 50, "the list is capped, the original is not lost to the cap");
 
-  assert.deepEqual(readWorkspacePrompts({ dir: tmp("wp-empty-"), env: { HOME: tmp("wp-home-") } }), { original: null, sessions: [] });
+  assert.deepEqual(readWorkspacePrompts({ dir: tmp("wp-empty-"), env: { HOME: tmp("wp-home-") } }), { original: null, current: null, sessions: [] });
 });
 
 test("isInjected / cleanPrompt", () => {
@@ -99,4 +100,28 @@ test("isInjected / cleanPrompt", () => {
   assert.equal(isInjected("làm board đi"), false);
   assert.equal(cleanPrompt("a [Image: source: /tmp/x.png] b"), "a  b");
   assert.equal(cleanPrompt("y".repeat(25000)).length, 20001);
+});
+
+test('current prompt preserves the original plus chronological follow-ups, without replacing it with the last short message', () => {
+  const home=tmp('wp-home-'),ws=tmp('wp-ws-');
+  codexLog(home,'08','a',ws,[codexUser('2026-10-08T01:00:00Z','Build the pet. No servos.'),codexUser('2026-10-08T02:00:00Z','Use two servos now.'),codexUser('2026-10-08T03:00:00Z','Can the head nod?')]);
+  const r=readWorkspacePrompts({dir:ws,env:{HOME:home}});
+  assert.equal(r.original.text,'Build the pet. No servos.');
+  assert.equal(r.current.source,'conversation');
+  assert.match(r.current.text,/Build the pet.*No servos[\s\S]*Use two servos now[\s\S]*Can the head nod/);
+  assert.equal(r.current.at,'2026-10-08T03:00:00Z');
+});
+
+test('a maintained current brief appends newer updates and refuses files outside the workspace', () => {
+  const home=tmp('wp-home-'),ws=tmp('wp-ws-');
+  codexLog(home,'08','a',ws,[codexUser('2026-10-08T01:00:00Z','Original static pet.'),codexUser('2026-10-08T03:00:00Z','Jumper projection is 38mm.')]);
+  fs.mkdirSync(path.join(ws,'prompts'));const file=path.join(ws,'prompts/current.md');
+  fs.writeFileSync(file,'Current brief: moving head, two servos, no carrier PCB.');const date=new Date('2026-10-08T02:00:00Z');fs.utimesSync(file,date,date);
+  const r=readWorkspacePrompts({dir:ws,env:{HOME:home}});
+  assert.equal(r.current.source,'file');assert.equal(r.current.file,'prompts/current.md');
+  assert.match(r.current.text,/moving head[\s\S]*Jumper projection is 38mm/);
+  assert.doesNotMatch(r.current.text,/Original static pet/);
+  assert.equal(r.original.text,'Original static pet.');
+  const outside=path.join(home,'secret.md');fs.writeFileSync(outside,'Must not read this');fs.unlinkSync(file);fs.symlinkSync(outside,file);
+  assert.equal(readWorkspacePrompts({dir:ws,env:{HOME:home}}).current.source,'conversation');
 });

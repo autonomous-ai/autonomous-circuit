@@ -1,0 +1,65 @@
+{
+ "schema": 1,
+ "id": "oled-0.96-i2c-module",
+ "frame": "Module frame: origin at the outline centre; +x along the header row from pin 1 to the last pin (two-row modules: along the rows, pin 1 end at -x); +y from the header toward the module body (two-row modules: from the first-listed row to the second). Millimetres. 'front' is the face away from the carrier board.",
+ "kind": "display",
+ "mount": "socket",
+ "outlineMm": [
+  27.3,
+  27.8
+ ],
+ "bodyHeightMm": 3.7,
+ "seatHeightMm": 8.5,
+ "headers": [
+  {
+   "name": "GND VCC SCL SDA (order varies by seller)",
+   "pins": 4,
+   "pitchMm": 2.54,
+   "centerMm": [
+    0.0,
+    -12.4
+   ]
+  }
+ ],
+ "features": [
+  {
+   "kind": "display",
+   "name": "active area 128x64",
+   "centerMm": [
+    0.0,
+    1.0
+   ],
+   "sizeMm": [
+    21.74,
+    10.86
+   ],
+   "face": "front",
+   "note": "window over the active area; the glass is wider than the lit area"
+  }
+ ],
+ "mountingHolesMm": [
+  [
+   -11.7,
+   -11.9
+  ],
+  [
+   11.7,
+   -11.9
+  ],
+  [
+   -11.7,
+   11.9
+  ],
+  [
+   11.7,
+   11.9
+  ]
+ ],
+ "holeDiameterMm": 2.0,
+ "sources": [
+  "BLOCK.md: 0.96\" 128x64 OLED on a 1x4 2.54 mm header"
+ ],
+ "assumptions": [
+  "outline, active area and holes are the common SSD1306 module, not measured"
+ ]
+}

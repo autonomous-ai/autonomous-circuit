@@ -1,0 +1,1090 @@
+{
+"source": "~/harnesses/claude-pet-product/design (KiCad 10 worker inspect, 2026-10-12)",
+"boardBoundsMm": [
+0.0,
+0.0,
+60.0,
+64.0
+],
+"boardBoundsSource": "outline",
+"thicknessMm": 1.6,
+"footprints": [
+{
+"reference": "H3",
+"value": "M2_NPTH",
+"footprint": "Hole_M2",
+"layer": "F.Cu",
+"at": [
+4.0,
+35.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+1.525,
+32.525,
+6.475,
+37.475
+],
+"courtyardMm": [
+1.502488,
+32.503745,
+6.494999,
+37.496254
+],
+"pads": [
+{
+"number": "",
+"at": [
+4.0,
+35.0
+],
+"drillMm": [
+2.2,
+2.2
+]
+}
+]
+},
+{
+"reference": "H4",
+"value": "M2_NPTH",
+"footprint": "Hole_M2",
+"layer": "F.Cu",
+"at": [
+56.0,
+60.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+53.525,
+57.525,
+58.475,
+62.475
+],
+"courtyardMm": [
+53.502488,
+57.503745,
+58.494999,
+62.496254
+],
+"pads": [
+{
+"number": "",
+"at": [
+56.0,
+60.0
+],
+"drillMm": [
+2.2,
+2.2
+]
+}
+]
+},
+{
+"reference": "H2",
+"value": "M2_NPTH",
+"footprint": "Hole_M2",
+"layer": "F.Cu",
+"at": [
+56.0,
+4.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+53.525,
+1.525,
+58.475,
+6.475
+],
+"courtyardMm": [
+53.502488,
+1.503745,
+58.494999,
+6.496254
+],
+"pads": [
+{
+"number": "",
+"at": [
+56.0,
+4.0
+],
+"drillMm": [
+2.2,
+2.2
+]
+}
+]
+},
+{
+"reference": "H1",
+"value": "M2_NPTH",
+"footprint": "Hole_M2",
+"layer": "F.Cu",
+"at": [
+4.0,
+4.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+1.525,
+1.525,
+6.475,
+6.475
+],
+"courtyardMm": [
+1.502488,
+1.503745,
+6.494999,
+6.496254
+],
+"pads": [
+{
+"number": "",
+"at": [
+4.0,
+4.0
+],
+"drillMm": [
+2.2,
+2.2
+]
+}
+]
+},
+{
+"reference": "C3",
+"value": "2.2uF",
+"footprint": "C0805",
+"layer": "F.Cu",
+"at": [
+25.0,
+11.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+23.275,
+9.995,
+26.725,
+12.005
+],
+"courtyardMm": [
+23.255,
+9.975,
+26.745,
+12.025
+],
+"pads": [
+{
+"number": "1",
+"at": [
+24.05,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+25.95,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "R2",
+"value": "10k",
+"footprint": "R0805",
+"layer": "F.Cu",
+"at": [
+30.0,
+11.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+28.295,
+10.025,
+31.705,
+11.975
+],
+"courtyardMm": [
+28.275,
+10.005,
+31.725,
+11.995
+],
+"pads": [
+{
+"number": "1",
+"at": [
+29.0875,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+30.9125,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP2",
+"value": "GND",
+"footprint": "TestPad",
+"layer": "F.Cu",
+"at": [
+54.0,
+47.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+52.475,
+45.475,
+55.525,
+48.525
+],
+"courtyardMm": [
+52.457562,
+45.452447,
+55.544998,
+48.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+54.0,
+47.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "J2",
+"value": "ST7789_GND_VCC_SCL_SDA_RST_DC_CS_BL",
+"footprint": "Socket_1x08",
+"layer": "F.Cu",
+"at": [
+21.11,
+6.5
+],
+"rotationDeg": 90.0,
+"dnp": false,
+"bboxMm": [
+19.315,
+4.705,
+40.685,
+8.295
+],
+"courtyardMm": [
+19.295,
+4.685,
+40.705,
+8.315
+],
+"pads": [
+{
+"number": "1",
+"at": [
+21.11,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+23.65,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+26.19,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+28.73,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+31.27,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "6",
+"at": [
+33.81,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "7",
+"at": [
+36.35,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "8",
+"at": [
+38.89,
+6.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "SW1",
+"value": "BELLY_PTS645SM43SMTR92LFS",
+"footprint": "BellySwitch",
+"layer": "F.Cu",
+"at": [
+30.0,
+55.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+24.925,
+51.575,
+35.075,
+58.425
+],
+"courtyardMm": [
+24.905,
+51.555,
+35.095,
+58.445
+],
+"pads": [
+{
+"number": "1",
+"at": [
+26.02,
+52.75
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "1",
+"at": [
+33.98,
+52.75
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+26.02,
+57.25
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+33.98,
+57.25
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP1",
+"value": "VBUS_OUT",
+"footprint": "TestPad",
+"layer": "F.Cu",
+"at": [
+54.0,
+42.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+52.475,
+40.475,
+55.525,
+43.525
+],
+"courtyardMm": [
+52.457562,
+40.452447,
+55.544998,
+43.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+54.0,
+42.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "U1",
+"value": "AP2112K-3.3TRG1",
+"footprint": "SOT23_5",
+"layer": "F.Cu",
+"at": [
+49.0,
+28.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+46.925,
+26.085,
+51.075,
+29.725
+],
+"courtyardMm": [
+46.905,
+26.255,
+51.095,
+29.745
+],
+"pads": [
+{
+"number": "1",
+"at": [
+47.8625,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+47.8625,
+28.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "3",
+"at": [
+47.8625,
+28.95
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "4",
+"at": [
+50.1375,
+28.95
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "5",
+"at": [
+50.1375,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP3",
+"value": "3V3_LCD",
+"footprint": "TestPad",
+"layer": "F.Cu",
+"at": [
+54.0,
+37.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+52.475,
+35.475,
+55.525,
+38.525
+],
+"courtyardMm": [
+52.457562,
+35.452447,
+55.544998,
+38.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+54.0,
+37.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "R1",
+"value": "10k",
+"footprint": "R0805",
+"layer": "F.Cu",
+"at": [
+34.0,
+47.5
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+32.295,
+46.525,
+35.705,
+48.475
+],
+"courtyardMm": [
+32.275,
+46.505,
+35.725,
+48.495
+],
+"pads": [
+{
+"number": "1",
+"at": [
+33.0875,
+47.5
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+34.9125,
+47.5
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "C2",
+"value": "2.2uF",
+"footprint": "C0805",
+"layer": "F.Cu",
+"at": [
+53.0,
+27.05
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+51.275,
+26.045,
+54.725,
+28.055
+],
+"courtyardMm": [
+51.255,
+26.025,
+54.745,
+28.075
+],
+"pads": [
+{
+"number": "1",
+"at": [
+52.05,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+53.95,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "R3",
+"value": "10k",
+"footprint": "R0805",
+"layer": "F.Cu",
+"at": [
+35.0,
+11.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+33.295,
+10.025,
+36.705,
+11.975
+],
+"courtyardMm": [
+33.275,
+10.005,
+36.725,
+11.995
+],
+"pads": [
+{
+"number": "1",
+"at": [
+34.0875,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+35.9125,
+11.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP4",
+"value": "3V3_C3",
+"footprint": "TestPad",
+"layer": "F.Cu",
+"at": [
+54.0,
+52.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+52.475,
+50.475,
+55.525,
+53.525
+],
+"courtyardMm": [
+52.457562,
+50.452447,
+55.544998,
+53.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+54.0,
+52.0
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "C1",
+"value": "2.2uF",
+"footprint": "C0805",
+"layer": "F.Cu",
+"at": [
+45.0,
+27.05
+],
+"rotationDeg": 180.0,
+"dnp": false,
+"bboxMm": [
+43.275,
+26.045,
+46.725,
+28.055
+],
+"courtyardMm": [
+43.255,
+26.025,
+46.745,
+28.075
+],
+"pads": [
+{
+"number": "1",
+"at": [
+45.95,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+44.05,
+27.05
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "J3",
+"value": "C3_PWR_ROW",
+"footprint": "Socket_1x08",
+"layer": "B.Cu",
+"at": [
+20.62,
+61.5
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+18.825,
+41.925,
+22.415,
+63.295
+],
+"courtyardMm": [
+18.805,
+41.905,
+22.435,
+63.315
+],
+"pads": [
+{
+"number": "1",
+"at": [
+20.62,
+61.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+20.62,
+58.96
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+20.62,
+56.42
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+20.62,
+53.88
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+20.62,
+51.34
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "6",
+"at": [
+20.62,
+48.8
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "7",
+"at": [
+20.62,
+46.26
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "8",
+"at": [
+20.62,
+43.72
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "J1",
+"value": "C3_IO_ROW",
+"footprint": "Socket_1x08",
+"layer": "B.Cu",
+"at": [
+5.38,
+61.5
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+3.585,
+41.925,
+7.175,
+63.295
+],
+"courtyardMm": [
+3.565,
+41.905,
+7.195,
+63.315
+],
+"pads": [
+{
+"number": "1",
+"at": [
+5.38,
+61.5
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+5.38,
+58.96
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+5.38,
+56.42
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+5.38,
+53.88
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+5.38,
+51.34
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "6",
+"at": [
+5.38,
+48.8
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "7",
+"at": [
+5.38,
+46.26
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "8",
+"at": [
+5.38,
+43.72
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+}
+]
+}

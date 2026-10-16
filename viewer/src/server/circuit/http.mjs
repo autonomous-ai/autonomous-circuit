@@ -22,7 +22,8 @@ import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
 import { readWorkspacePrompts } from "./workspacePrompts.mjs";
-import { createCatalogService, FIRMWARE_DIR, isFirmwareSource } from "./catalog.mjs";
+import { CASE_DIR, casePrintStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog } from "./catalog.mjs";
+import { caseFile, printAll3mf, safeName, saveExport } from "./caseExport.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
   createEditQueue,
@@ -60,13 +61,22 @@ const ASSET_CONTENT_TYPES = new Map([
   [".glb", "model/gltf-binary"],
 ]);
 
+const CASE_CONTENT_TYPES = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".stl", "model/stl"],
+  [".step", "model/step"],
+  [".stp", "model/step"],
+]);
+
 /**
  * The content type an asset under a project is served with, or null when it
  * is not one the app serves. Two families: the catalog's own kinds (above),
  * anywhere in the project; and the firmware tree's source files — `.c`, `.h`,
  * `Makefile`, `platformio.ini` — only under `firmware/`, as text, so the
  * Firmware tab can read them and nothing else in a workspace (`tools/`, a
- * vendored SDK) becomes a download by accident.
+ * vendored SDK) becomes a download by accident. A third, as narrow: the case's
+ * meshes and solids, only under `case/` (the Case tab draws the STL and offers
+ * both as downloads; a footprint's .step under design/ stays private).
  */
 export function assetContentType(rel, candidate) {
   const ext = path.extname(candidate).toLowerCase();
@@ -75,6 +85,7 @@ export function assetContentType(rel, candidate) {
   if (firmwareRel.startsWith(`${FIRMWARE_DIR}/`) && isFirmwareSource(candidate)) {
     return "text/plain; charset=utf-8";
   }
+  if (firmwareRel.startsWith(`${CASE_DIR}/`) && CASE_CONTENT_TYPES.has(ext)) return CASE_CONTENT_TYPES.get(ext);
   return null;
 }
 
@@ -750,6 +761,40 @@ export function createCircuitServices({
       fs.copyFileSync(resolved.assetPath, target);
       return { path: target, dir, filename: path.basename(target), bytes: fs.statSync(target).size };
     },
+    export_case: async ({ id, stem = "main", part, format = "stl" }) => {
+      const projectId = requireProject(id), root = projects.projectDir(projectId);
+      if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(stem) || !["stl", "step", "3mf"].includes(format)) throw ipcError("INVALID_ARGS", "Choose a case part and STL, STEP or 3MF", 400);
+      try {
+        const manifest = JSON.parse(fs.readFileSync(path.join(root, "case/out/parts.json"), "utf8"));
+        const folder = safeName(path.basename(root)), prefix = `${folder}${stem === "main" ? "" : `-${safeName(stem)}`}`;
+        let bytes, name;
+        if (format === "3mf") {
+          const board = scanProjectCatalog({ projectDir: root, projectId }).entries.find(e => e.file === `design/${stem}.kicad_pcb`);
+          const readiness = casePrintStatus(root, stem);
+          if (readiness.state !== "passed" || (readiness.scope === "pcb" && (!board || board.nativeStale))) throw ipcError("CASE_NOT_READY", readiness.reason || "Check the case before Print all", 409);
+          bytes = printAll3mf(root, manifest); name = `${prefix}-print-all.3mf`;
+        } else {
+          const member = manifest.parts?.find(p => p.name === part);
+          if (!member || typeof member[format] !== "string" || !new RegExp(format === "step" ? "\\.(step|stp)$" : "\\.stl$", "i").test(member[format])) throw ipcError("NOT_FOUND", "That case file is not available", 404);
+          bytes = fs.readFileSync(caseFile(root, member[format])); name = `${prefix}-${safeName(part)}.${format}`;
+        }
+        return { ...saveExport(exportDir(env), name, bytes), canOpenBambu: process.platform === "darwin" || Boolean(env.CIRCUIT_BAMBU_BIN) };
+      } catch (error) {
+        if (error.statusCode) throw error;
+        throw ipcError("CASE_EXPORT_FAILED", error.message, 400);
+      }
+    },
+    export_open_bambu: async ({ path: target }) => {
+      const dir = fs.realpathSync(exportDir(env));
+      let file;
+      try { file = fs.realpathSync(String(target || "")); } catch { throw ipcError("NOT_FOUND", "Export the 3MF first", 404); }
+      if (!file.startsWith(dir + path.sep) || !file.endsWith(".3mf") || !fs.statSync(file).isFile()) throw ipcError("INVALID_ARGS", "Only an exported 3MF can be opened", 400);
+      const bin = env.CIRCUIT_BAMBU_BIN || (process.platform === "darwin" ? "open" : "");
+      if (!bin) throw ipcError("BAMBU_NOT_FOUND", "Open the saved 3MF in Bambu Studio", 400);
+      const args = env.CIRCUIT_BAMBU_BIN ? [file] : ["-a", "BambuStudio", file];
+      await new Promise((resolve, reject) => execFile(bin, args, { timeout: 10000 }, error => error ? reject(ipcError("BAMBU_OPEN_FAILED", "Could not open Bambu Studio; open the saved 3MF manually", 500)) : resolve()));
+      return { path: file };
+    },
     // "Saved to /Users/me/Desktop/x.zip" as a link: the file manager opens on the file. Only a
     // file inside the export folder — the server never becomes a general "open anything".
     export_reveal: async ({ path: target }) => {
@@ -1382,6 +1427,15 @@ export function createCircuitServices({
     if (!contentType) {
       return null;
     }
+    if (contentType.startsWith("text/html")) {
+      try {
+        const root = fs.realpathSync(projectRoot), file = fs.realpathSync(candidate);
+        if (!file.startsWith(path.join(root, CASE_DIR) + path.sep)) throw ipcError("FORBIDDEN", "Case overview is outside case/", 403);
+      } catch (error) {
+        if (error.statusCode) throw error;
+        return null;
+      }
+    }
     return { assetPath: candidate, contentType };
   }
 
@@ -1421,6 +1475,11 @@ export function createCircuitServices({
         return;
       }
       res.setHeader("content-type", contentType);
+      if (contentType.startsWith("text/html")) {
+        // Inline canvas demos work; scripts cannot access our origin, APIs or network.
+        res.setHeader("content-security-policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; sandbox allow-scripts");
+        res.setHeader("x-content-type-options", "nosniff");
+      }
       res.setHeader("accept-ranges", "bytes");
       // URLs are cache-busted with ?v=<mtimeNs>-<size>, so long-cache is safe.
       res.setHeader("cache-control", requestUrl.searchParams.has("v")

@@ -836,3 +836,65 @@ first, in this template, before the doc itself is edited:
   exact findings must strictly decrease, with no new findings or changed coverage/ignored checks.
   No manufacturing gate changes; no circuitpy runtime re-vendor required.
 - **Tracks affected:** pipeline / skills / docs / Harness tile packaging.
+
+## 2026-10-13 — Case downloads and Print all in the Harness webview
+- **Change:** `export_case {id, stem, part?, format: stl|step|3mf}` saves Case files in `CIRCUIT_EXPORT_DIR` or Desktop, returning `{path, dir, filename, bytes, canOpenBambu}`. `export_open_bambu {path}` opens an exported 3MF in Bambu Studio on macOS. `CIRCUIT_BAMBU_BIN` is a local launcher override for tests/hosts. Existing `export_reveal` shows the saved file.
+- **Why:** the Harness webview follows `<a download>` as navigation and shows STL bytes instead of saving a file. The person requested Print all and an easy handoff to Bambu Studio.
+- **Backward compatible:** additive commands. Individual parts remain available as STL/STEP. Print all requires a current passing check for the selected board; old Case reports without `meshValidation: surface-v1` require a recheck because matching bounding boxes did not prove the printable STL matched the checked STEP.
+- **Mechanism:** local server exports only manifest members inside real `case/out/`, avoids overwrites, and writes standard 3MF Core/OPC ZIP containing separate named printable meshes rotated by `printRotateDeg`, lowered to the bed and spaced apart. `printable: false` parts and legacy `DO_NOT_PRINT` references are excluded from printing and assembly collision checks, while their file hashes remain in the report. It exports geometry, without printer/material profiles or toolpaths, and never starts printing. The Case tab shows the saved path and Finder/Bambu buttons. Catalog status is bound to the selected contract and source freshness. CadQuery's existing VTK dependency compares STL/STEP sampled surfaces in both directions at the existing 0.5 mm tolerance. No circuitpy runtime re-vendor required.
+- **Tracks affected:** pipeline / server / client / docs.
+
+## 2026-10-14 — Print all for independently checked handwired cases
+- **Change:** Case catalog adds `printStatus {state, reason, scope: pcb|handwired}`. PCB cases retain the existing board/source gates. A manifest declaring `verification.nativePCBCheckerApplies: false` and `verification.report` (relative to `case/out/`, confined to `case/`) uses a separate receipt generated with `$KICAD_CASE_PYTHON -m kicadpy.case check-print . [stem]` in `case/reports/print-check.json`.
+- **Why:** a handwired assembly has repositioned modules and no carrier PCB. Comparing it with the original PCB enclosure contract produces irrelevant collision/interface errors and prevents export despite its mechanical report passing.
+- **Backward compatible:** additive print readiness. The native Case phase, prototype verdict and PCB checks are unchanged; exporting a handwired package does not certify PCB fit or hardware operation.
+- **Mechanism:** `check-print` requires a passing scoped mechanical report with no collision/error findings and current hash coverage of every STEP/STL, including references. Shared CadQuery validation independently checks printable STL/STEP surfaces, frame and oriented bed fit. The receipt binds the selected stem, complete manifest, all part files, mechanical report bytes and print intent. Changes or missing evidence disable Print all in both UI and HTTP. The UI labels handwired validation explicitly and starts with the unused PCB overlay hidden. No agent scripts are imported/executed; no slicing, printing or firmware action occurs.
+- **Tracks affected:** pipeline / server / client / docs.
+
+## 2026-10-14 — Prompts, Electric and Case workspace sections
+- **Change:** The board workspace has three primary sections with contextual subviews. Prompts shows the original request and a current prompt containing chronological user updates. Electric retains all electrical drawings, parts, packet and firmware. Case contains the overview and 3D/download/Print all view.
+- **Why:** the single long tab row mixed the electrical design, evolving request and mechanical assembly. A run's motion overview already explains its moving parts and wiring more clearly than a static assembly.
+- **Backward compatible:** existing internal tab IDs/keyboard navigation remain supported; Electric Overview is still the initial view. `workspace_prompts` adds `current {text,at,source,file?}`. It prefers `prompts/current.md` or `PROMPT.md` within the workspace and appends newer user messages; otherwise it preserves the original request and follow-ups in time order, without interpreting questions as approved requirements.
+- **Mechanism:** Case catalog exposes cache-busted `overviewUrl` from manifest `overview` relative to `case/out/`, confined to real `case/`; fallback files are `case/overview.html` and `case/motion/motion-view.html`. Case HTML is served with a sandbox CSP allowing inline scripts/styles for self-contained demos, but denying same-origin privileges, network requests, forms and base URL changes. The iframe also uses `sandbox="allow-scripts"`. Native PCB manufacturing verdict is displayed in Electric; handwired print gates remain unchanged.
+- **Tracks affected:** server / client / docs.
+
+## 2026-10-14 — Print all includes larger clip/coupon assemblies
+- **Change:** Printable-object count uses the existing 128-entry manifest ceiling rather than a second 32-object export limit. Existing total STL byte and per-mesh triangle bounds remain enforced.
+- **Why:** the live handwired case gained snap closures and coupons, reaching 38 printable objects. The extra export-only limit rejected a valid checked assembly.
+- **Backward compatible:** previously supported packages retain the same geometry and format; no changes to mechanical or surface validation.
+- **Mechanism:** removes the redundant printable-object cap in `caseExport.mjs`; independent ZIP/XML regression covers 40 objects and refuses a 129-entry manifest.
+- **Tracks affected:** server / docs.
+
+## 2026-10-14 — Interactive Case overview is a required post-3D step
+- **Change:** The KiCad agent workflow and tool card require an interactive overview immediately after every case 3D build, in the same turn without another user request. The build calls its overview generator and declares the HTML path in the manifest.
+- **Why:** the person wants future runs to automatically produce the useful motion/inside/wiring overview as part of the 3D deliverable.
+- **Backward compatible:** no API, manufacturing/fit gate or firmware action changes. Existing motion-specific HTML paths remain supported.
+- **Mechanism:** overview must use the final assembled geometry, phone-friendly self-contained HTML compatible with the existing sandbox, shell/wiring inspection and controls for actual checked motion axes. Rebuild it after repairs and verify it through Case → Overview before finishing. Static cases do not invent motion; animation does not certify physical fit.
+- **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-15 — Firmware includes a discoverable wiring guide
+- **Change:** The firmware workflow requires `firmware/WIRING.md` in the same turn as firmware, linked from README and updated after pin/assembly changes. Catalog adds optional `artifact.firmware.wiringUrl`; the Firmware tab renders it prominently above README/source code.
+- **Why:** the person lost the wiring instructions, which were in a case subfolder behind a relative README link. Firmware should carry the assembly instructions as a stable deliverable.
+- **Backward compatible:** existing firmware/source/Flash behavior and build gates remain unchanged. Projects without WIRING.md retain their existing view. The guide URL remains discoverable even when the source listing is capped.
+- **Mechanism:** exact module/variant and viewing direction, physical pin-to-pin connections verified against firmware/netlist, voltage/polarity/grounds, separate motor power and passives, unpowered checks and first-power-on expectations. Unknown identities remain assumptions. Markdown optionally resolves relative links/images against its source asset while retaining react-markdown's URL sanitization; Firmware README and wiring guide use this base. A changed project/URL clears old guide content immediately. No hardware action is performed.
+- **Tracks affected:** agent workflow / tool card / server / client / docs.
+
+## 2026-10-15 — Case instructions include assembly and print lessons
+- **Change:** KiCad instructions require the packaged `kicad/references/case-assembly.md` before case design or repair. The handoff includes a numbered assembly sequence, insertion/tool access evidence, physically labeled test coupons, current variant links and an explicit reuse/reprint list.
+- **Why:** actual assembly of the pet case exposed tight assumed module mounts, blocked fasteners, difficult joint insertion and coupons mistaken for product parts despite passing final-pose CAD checks. The final direct-drive revision improves the checked insertion path, but physical fit remains untested.
+- **Backward compatible:** workflow documentation only; no API, checker threshold, manufacturing verdict, firmware or automatic hardware action changes. No part count or clearance from that one case becomes a universal rule.
+- **Mechanism:** the main instructions and tool card link one skill-local reference covering owned hardware/control assumptions, simple mechanisms, staged assembly/service, mating latches, coupon separation, geometry-based shell reuse, stale nested manifest references and honest verification scope. Replaces the old universal clearance suggestion with per-interface fit assumptions and coupon validation.
+- **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-15 — Simple, rugged mechanics are the default
+- **Change:** Main case instructions, tool card and assembly reference explicitly prioritize few practical parts, direct joints, stock hardware, ordinary tools and serviceable mounts tolerant of declared print/measurement uncertainty. Added cams, gear trains, linkages, custom springs or delicate catches require a named function that the simpler option cannot meet.
+- **Why:** the person requested uncomplicated mechanics that are easy to print, assemble and repair. Preserve requested functions while avoiding unnecessary mechanisms and fine adjustment.
+- **Backward compatible:** workflow documentation only; no checker, runtime, manufacturing or hardware-action changes.
+- **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-16 — Case acceptance includes attachments, fragile parts and rotation clearance
+- **Change:** KiCad instructions require an explicit device-to-mount/frame-to-shell attachment chain, independent verification of frame retention and shell closure, preservation of working device mounts, and repair of small features reported breaking. Every mechanical repair triggers checks throughout intended rotation travel, including intermediate/combined poses with installed hardware, closed shells and wires.
+- **Why:** physical assembly exposed a frame that did not attach properly to the case, missing TFT screw mounting, flexible servo supports and repeatedly broken small features. Fewer STL files and collision-free nominal geometry did not establish a usable assembly.
+- **Backward compatible:** workflow documentation only. Existing checker thresholds, readiness/PCB gates, model outputs and firmware/hardware behavior are unchanged.
+- **Mechanism:** main instructions and tool card point to detailed attachment, serviceability, print-orientation/strength assumptions, swept/sample clearance reporting and a user-performed unpowered dry-fit procedure. Physical slipping, breakage or rubbing reopens the relevant finding; CAD results are not relabeled as physical tests.
+- **Tracks affected:** agent workflow / tool card / docs.

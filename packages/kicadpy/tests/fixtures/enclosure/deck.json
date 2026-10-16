@@ -1,0 +1,1392 @@
+{
+"source": "~/harnesses/opus5.5---claude-pet/design (KiCad 10 worker inspect, 2026-10-12)",
+"boardBoundsMm": [
+100.0,
+100.0,
+176.0,
+170.0
+],
+"boardBoundsSource": "outline",
+"thicknessMm": 1.6,
+"footprints": [
+{
+"reference": "SW1",
+"value": "LAUNCH IO3",
+"footprint": "SW_Cherry_MX_1.00u_PCB",
+"layer": "F.Cu",
+"at": [
+121.04,
+134.42
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+111.44,
+132.44,
+125.56,
+146.56
+],
+"courtyardMm": [
+111.855,
+132.855,
+125.145,
+146.145
+],
+"pads": [
+{
+"number": "",
+"at": [
+113.42,
+139.5
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "",
+"at": [
+118.5,
+139.5
+],
+"drillMm": [
+4.0,
+4.0
+]
+},
+{
+"number": "",
+"at": [
+123.58,
+139.5
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "1",
+"at": [
+121.04,
+134.42
+],
+"drillMm": [
+1.5,
+1.5
+]
+},
+{
+"number": "2",
+"at": [
+114.69,
+136.96
+],
+"drillMm": [
+1.5,
+1.5
+]
+}
+]
+},
+{
+"reference": "TP4",
+"value": "OLED_SCL",
+"footprint": "TestPoint_THTPad_D2.0mm_Drill1.0mm",
+"layer": "F.Cu",
+"at": [
+146.5,
+113.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+144.975,
+111.475,
+148.025,
+114.525
+],
+"courtyardMm": [
+144.957562,
+111.452447,
+148.044998,
+114.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+146.5,
+113.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "J4",
+"value": "ENC A/B/SW/3V3/GND",
+"footprint": "PinHeader_1x05_P2.54mm_Vertical",
+"layer": "F.Cu",
+"at": [
+168.0,
+134.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+166.205,
+132.205,
+169.795,
+145.955
+],
+"courtyardMm": [
+166.185,
+132.185,
+169.815,
+145.975
+],
+"pads": [
+{
+"number": "1",
+"at": [
+168.0,
+134.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+168.0,
+136.54
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+168.0,
+139.08
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+168.0,
+141.62
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+168.0,
+144.16
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "C1",
+"value": "100n",
+"footprint": "C_0402_1005Metric",
+"layer": "F.Cu",
+"at": [
+160.0,
+109.55
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+159.065,
+109.065,
+160.935,
+110.035
+],
+"courtyardMm": [
+159.045,
+109.045,
+160.955,
+110.055
+],
+"pads": [
+{
+"number": "1",
+"at": [
+159.52,
+109.55
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+160.48,
+109.55
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "J3",
+"value": "OLED GND/VCC/SCL/SDA",
+"footprint": "PinHeader_1x04_P2.54mm_Vertical",
+"layer": "F.Cu",
+"at": [
+134.0,
+104.0
+],
+"rotationDeg": 90.0,
+"dnp": false,
+"bboxMm": [
+132.205,
+102.205,
+143.415,
+105.795
+],
+"courtyardMm": [
+132.185,
+102.185,
+143.435,
+105.815
+],
+"pads": [
+{
+"number": "1",
+"at": [
+134.0,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+136.54,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+139.08,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+141.62,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "R4",
+"value": "4.7k",
+"footprint": "R_0402_1005Metric",
+"layer": "F.Cu",
+"at": [
+140.6,
+108.4
+],
+"rotationDeg": 180.0,
+"dnp": false,
+"bboxMm": [
+139.645,
+107.905,
+141.555,
+108.895
+],
+"courtyardMm": [
+139.625,
+107.885,
+141.575,
+108.915
+],
+"pads": [
+{
+"number": "1",
+"at": [
+141.11,
+108.4
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+140.09,
+108.4
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "J1",
+"value": "C3 LEFT IO5..IO21",
+"footprint": "PinSocket_1x08_P2.54mm_Vertical",
+"layer": "F.Cu",
+"at": [
+110.38,
+104.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+108.585,
+102.205,
+112.175,
+123.575
+],
+"courtyardMm": [
+108.565,
+102.185,
+112.195,
+123.595
+],
+"pads": [
+{
+"number": "1",
+"at": [
+110.38,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+110.38,
+106.54
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+110.38,
+109.08
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+110.38,
+111.62
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+110.38,
+114.16
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "6",
+"at": [
+110.38,
+116.7
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "7",
+"at": [
+110.38,
+119.24
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "8",
+"at": [
+110.38,
+121.78
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "J5",
+"value": "LED 5V/GND/DIN",
+"footprint": "PinHeader_1x03_P2.54mm_Vertical",
+"layer": "F.Cu",
+"at": [
+152.0,
+104.0
+],
+"rotationDeg": 90.0,
+"dnp": false,
+"bboxMm": [
+150.205,
+102.205,
+158.875,
+105.795
+],
+"courtyardMm": [
+150.185,
+102.185,
+158.895,
+105.815
+],
+"pads": [
+{
+"number": "1",
+"at": [
+152.0,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+154.54,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+157.08,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "R1",
+"value": "220",
+"footprint": "R_0402_1005Metric",
+"layer": "F.Cu",
+"at": [
+160.2,
+111.45
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+159.245,
+110.955,
+161.155,
+111.945
+],
+"courtyardMm": [
+159.225,
+110.935,
+161.175,
+111.965
+],
+"pads": [
+{
+"number": "1",
+"at": [
+159.69,
+111.45
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+160.71,
+111.45
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "H2",
+"value": "M3",
+"footprint": "MountingHole_3.2mm_M3",
+"layer": "F.Cu",
+"at": [
+172.0,
+104.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+168.525,
+100.525,
+175.475,
+107.475
+],
+"courtyardMm": [
+168.50753,
+100.502474,
+175.494999,
+107.497526
+],
+"pads": [
+{
+"number": "",
+"at": [
+172.0,
+104.0
+],
+"drillMm": [
+3.2,
+3.2
+]
+}
+]
+},
+{
+"reference": "J2",
+"value": "C3 RIGHT 5V..IO0",
+"footprint": "PinSocket_1x08_P2.54mm_Vertical",
+"layer": "F.Cu",
+"at": [
+125.62,
+104.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+123.825,
+102.205,
+127.415,
+123.575
+],
+"courtyardMm": [
+123.805,
+102.185,
+127.435,
+123.595
+],
+"pads": [
+{
+"number": "1",
+"at": [
+125.62,
+104.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "2",
+"at": [
+125.62,
+106.54
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "3",
+"at": [
+125.62,
+109.08
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "4",
+"at": [
+125.62,
+111.62
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "5",
+"at": [
+125.62,
+114.16
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "6",
+"at": [
+125.62,
+116.7
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "7",
+"at": [
+125.62,
+119.24
+],
+"drillMm": [
+1.0,
+1.0
+]
+},
+{
+"number": "8",
+"at": [
+125.62,
+121.78
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "TP1",
+"value": "GND",
+"footprint": "TestPoint_THTPad_D2.0mm_Drill1.0mm",
+"layer": "F.Cu",
+"at": [
+134.5,
+113.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+132.975,
+111.475,
+136.025,
+114.525
+],
+"courtyardMm": [
+132.957562,
+111.452447,
+136.044998,
+114.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+134.5,
+113.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "H3",
+"value": "M3",
+"footprint": "MountingHole_3.2mm_M3",
+"layer": "F.Cu",
+"at": [
+104.0,
+166.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+100.525,
+162.525,
+107.475,
+169.475
+],
+"courtyardMm": [
+100.50753,
+162.502474,
+107.494999,
+169.497526
+],
+"pads": [
+{
+"number": "",
+"at": [
+104.0,
+166.0
+],
+"drillMm": [
+3.2,
+3.2
+]
+}
+]
+},
+{
+"reference": "H4",
+"value": "M3",
+"footprint": "MountingHole_3.2mm_M3",
+"layer": "F.Cu",
+"at": [
+172.0,
+166.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+168.525,
+162.525,
+175.475,
+169.475
+],
+"courtyardMm": [
+168.50753,
+162.502474,
+175.494999,
+169.497526
+],
+"pads": [
+{
+"number": "",
+"at": [
+172.0,
+166.0
+],
+"drillMm": [
+3.2,
+3.2
+]
+}
+]
+},
+{
+"reference": "H1",
+"value": "M3",
+"footprint": "MountingHole_3.2mm_M3",
+"layer": "F.Cu",
+"at": [
+104.0,
+104.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+100.525,
+100.525,
+107.475,
+107.475
+],
+"courtyardMm": [
+100.50753,
+100.502474,
+107.494999,
+107.497526
+],
+"pads": [
+{
+"number": "",
+"at": [
+104.0,
+104.0
+],
+"drillMm": [
+3.2,
+3.2
+]
+}
+]
+},
+{
+"reference": "SW3",
+"value": "CANCEL IO5",
+"footprint": "SW_Cherry_MX_1.00u_PCB",
+"layer": "F.Cu",
+"at": [
+121.04,
+153.47
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+111.44,
+151.49,
+125.56,
+165.61
+],
+"courtyardMm": [
+111.855,
+151.905,
+125.145,
+165.195
+],
+"pads": [
+{
+"number": "",
+"at": [
+113.42,
+158.55
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "",
+"at": [
+118.5,
+158.55
+],
+"drillMm": [
+4.0,
+4.0
+]
+},
+{
+"number": "",
+"at": [
+123.58,
+158.55
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "1",
+"at": [
+121.04,
+153.47
+],
+"drillMm": [
+1.5,
+1.5
+]
+},
+{
+"number": "2",
+"at": [
+114.69,
+156.01
+],
+"drillMm": [
+1.5,
+1.5
+]
+}
+]
+},
+{
+"reference": "U1",
+"value": "SN74AHCT1G125DBVR",
+"footprint": "SOT-23-5",
+"layer": "F.Cu",
+"at": [
+157.0,
+110.5
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+154.925,
+108.585,
+159.075,
+112.225
+],
+"courtyardMm": [
+154.905,
+108.755,
+159.095,
+112.245
+],
+"pads": [
+{
+"number": "1",
+"at": [
+155.8625,
+109.55
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+155.8625,
+110.5
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "3",
+"at": [
+155.8625,
+111.45
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "4",
+"at": [
+158.1375,
+111.45
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "5",
+"at": [
+158.1375,
+109.55
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP2",
+"value": "3V3",
+"footprint": "TestPoint_THTPad_D2.0mm_Drill1.0mm",
+"layer": "F.Cu",
+"at": [
+138.5,
+113.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+136.975,
+111.475,
+140.025,
+114.525
+],
+"courtyardMm": [
+136.957562,
+111.452447,
+140.044998,
+114.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+138.5,
+113.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+},
+{
+"reference": "R3",
+"value": "4.7k",
+"footprint": "R_0402_1005Metric",
+"layer": "F.Cu",
+"at": [
+135.6,
+108.4
+],
+"rotationDeg": 180.0,
+"dnp": false,
+"bboxMm": [
+134.645,
+107.905,
+136.555,
+108.895
+],
+"courtyardMm": [
+134.625,
+107.885,
+136.575,
+108.915
+],
+"pads": [
+{
+"number": "1",
+"at": [
+136.11,
+108.4
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+135.09,
+108.4
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "SW4",
+"value": "SHOW IO6",
+"footprint": "SW_Cherry_MX_1.00u_PCB",
+"layer": "F.Cu",
+"at": [
+140.09,
+153.47
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+130.49,
+151.49,
+144.61,
+165.61
+],
+"courtyardMm": [
+130.905,
+151.905,
+144.195,
+165.195
+],
+"pads": [
+{
+"number": "",
+"at": [
+132.47,
+158.55
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "",
+"at": [
+137.55,
+158.55
+],
+"drillMm": [
+4.0,
+4.0
+]
+},
+{
+"number": "",
+"at": [
+142.63,
+158.55
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "1",
+"at": [
+140.09,
+153.47
+],
+"drillMm": [
+1.5,
+1.5
+]
+},
+{
+"number": "2",
+"at": [
+133.74,
+156.01
+],
+"drillMm": [
+1.5,
+1.5
+]
+}
+]
+},
+{
+"reference": "SW2",
+"value": "ACCEPT IO4",
+"footprint": "SW_Cherry_MX_1.00u_PCB",
+"layer": "F.Cu",
+"at": [
+140.09,
+134.42
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+130.49,
+132.44,
+144.61,
+146.56
+],
+"courtyardMm": [
+130.905,
+132.855,
+144.195,
+146.145
+],
+"pads": [
+{
+"number": "",
+"at": [
+132.47,
+139.5
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "",
+"at": [
+137.55,
+139.5
+],
+"drillMm": [
+4.0,
+4.0
+]
+},
+{
+"number": "",
+"at": [
+142.63,
+139.5
+],
+"drillMm": [
+1.7,
+1.7
+]
+},
+{
+"number": "1",
+"at": [
+140.09,
+134.42
+],
+"drillMm": [
+1.5,
+1.5
+]
+},
+{
+"number": "2",
+"at": [
+133.74,
+136.96
+],
+"drillMm": [
+1.5,
+1.5
+]
+}
+]
+},
+{
+"reference": "R2",
+"value": "100k",
+"footprint": "R_0402_1005Metric",
+"layer": "F.Cu",
+"at": [
+153.0,
+111.4
+],
+"rotationDeg": 90.0,
+"dnp": false,
+"bboxMm": [
+152.505,
+110.445,
+153.495,
+112.355
+],
+"courtyardMm": [
+152.485,
+110.425,
+153.515,
+112.375
+],
+"pads": [
+{
+"number": "1",
+"at": [
+153.0,
+111.91
+],
+"drillMm": [
+0.0,
+0.0
+]
+},
+{
+"number": "2",
+"at": [
+153.0,
+110.89
+],
+"drillMm": [
+0.0,
+0.0
+]
+}
+]
+},
+{
+"reference": "TP3",
+"value": "OLED_SDA",
+"footprint": "TestPoint_THTPad_D2.0mm_Drill1.0mm",
+"layer": "F.Cu",
+"at": [
+142.5,
+113.0
+],
+"rotationDeg": 0.0,
+"dnp": false,
+"bboxMm": [
+140.975,
+111.475,
+144.025,
+114.525
+],
+"courtyardMm": [
+140.957562,
+111.452447,
+144.044998,
+114.547553
+],
+"pads": [
+{
+"number": "1",
+"at": [
+142.5,
+113.0
+],
+"drillMm": [
+1.0,
+1.0
+]
+}
+]
+}
+]
+}

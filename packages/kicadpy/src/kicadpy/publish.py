@@ -14,10 +14,21 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import sys
 import struct
 import tempfile
 from . import checks, toolchain, manufacture, harness, verify
 from .project import Project, manifest, revision, write_json, digest
+
+
+def write_enclosure(workspace, pcb):
+    """Regenerate the case contract (kicadpy.enclosure) beside the sidecar. Never fails a publish:
+    the board is the artifact of record; a missing contract only means the case waits."""
+    try:
+        from . import enclosure
+        enclosure.write(workspace, pcb)
+    except Exception as exc:  # noqa: BLE001 — reported, never raised
+        print(f'[kicadpy] enclosure contract not written: {exc}', file=sys.stderr)
 
 
 def publish(path, manufacturing=False):
@@ -142,6 +153,7 @@ def publish(path, manufacturing=False):
                     warning.setdefault('detail', warning.get('message', ''))
                 write_json(metadata, base)
                 harness.write_verdict(workspace)
+                write_enclosure(workspace, project.pcb)
                 return {'metadata': str(metadata), 'checksPassed': report['passed'], 'findings': len(report['findings']),
                         'manufacturingFindings': len(packet['findings']) if packet else None,
                         'prototypeReady': packet['prototypeReady'] if packet else None, 'fabricationReady': base['fab']['ready']}

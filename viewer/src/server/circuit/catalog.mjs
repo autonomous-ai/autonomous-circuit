@@ -12,6 +12,8 @@
 //   `firmware/` — the code the agent writes for the board once it checks out —
 //   is grouped the same way: hidden as entries, surfaced as
 //   `artifact.firmware = {readmeUrl?, flashUrl?, files: [{file, url, bytes}]}`.
+//   `case/` — the printable enclosure the agent models after the firmware — is
+//   grouped the same way as `artifact.case` (scanCase below).
 //
 // The service watches the activated project dirs (fs.watch recursive — no
 // chokidar dependency in this package), debounces 150ms, rescans, bumps the
@@ -155,11 +157,161 @@ function scanFirmware(rootDir, url) {
   }
   const firmware = { files: members, truncated: files.length > FIRMWARE_MAX_FILES };
   if (readmeUrl) firmware.readmeUrl = readmeUrl;
+  // Pin the assembly guide even when a vendored source tree exhausts the file-list cap.
+  const wiring = files.find(file => path.dirname(file) === firmwareDir && /^wiring\.md$/i.test(path.basename(file)));
+  if (wiring) firmware.wiringUrl = url(wiring);
   // The recipe the Flash button runs (firmwareFlash.mjs). Its presence is what
   // enables the button; the tab reads it for the confirm line.
   const recipe = path.join(firmwareDir, "flash.json");
   if (fs.existsSync(recipe)) firmware.flashUrl = url(recipe);
   return firmware;
+}
+
+export const CASE_DIR = "case";
+const CASE_OUT = path.join(CASE_DIR, "out");
+const CASE_REPORT = path.join(CASE_DIR, "reports", "case-check.json");
+const CASE_MAX_PARTS = 128;
+
+function sha256File(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** A path from parts.json, kept inside case/out/ — the manifest is the agent's, not trusted. */
+function caseMember(outDir, name) {
+  if (typeof name !== "string" || !name) return null;
+  const full = path.resolve(outDir, name);
+  if (!full.startsWith(outDir + path.sep) || !fs.existsSync(full)) return null;
+  return full;
+}
+
+/**
+ * Has the case been checked against the board it is built for? The same rule
+ * as kicadpy.case.status, read without CadQuery: none (no parts.json), stale
+ * (never checked, or the board, a part or the manifest changed since), failed,
+ * or passed.
+ */
+export function caseStatus(rootDir, stem) {
+  const outDir = path.join(rootDir, CASE_OUT);
+  if (!fs.existsSync(path.join(outDir, "parts.json"))) return { state: "none", reason: "no case yet" };
+  const report = readJson(path.join(rootDir, CASE_REPORT));
+  if (!report) return { state: "stale", reason: "the case has not been checked yet" };
+  if (report.meshValidation !== "surface-v1") return { state: "stale", reason: "recheck the case with printable-surface validation" };
+  let contract = null;
+  try {
+    contract = stem ? `${stem}.enclosure.json` : fs.readdirSync(path.join(rootDir, "boards")).filter((n) => n.endsWith(".enclosure.json")).sort()[0] || null;
+  } catch {
+    contract = null;
+  }
+  try {
+    if (!contract || report.contractSha !== sha256File(path.join(rootDir, "boards", contract))) {
+      return { state: "stale", reason: "the board changed since the case was checked" };
+    }
+    for (const [name, digest] of Object.entries(report.partShas || {})) {
+      const file = caseMember(outDir, name);
+      if (!file || sha256File(file) !== digest) return { state: "stale", reason: `case/out/${name} changed since the case was checked` };
+    }
+  } catch {
+    return { state: "stale", reason: "the case files could not be read" };
+  }
+  if (report.passed !== true) {
+    const n = Array.isArray(report.errors) ? report.errors.length : 0;
+    return { state: "failed", reason: n === 1 ? "1 case error" : `${n} case errors` };
+  }
+  return { state: "passed", reason: "the case fits the board and opens for every interface" };
+}
+
+/** Print readiness for a handwired assembly is independent of the native PCB verdict. */
+export function casePrintStatus(rootDir, stem = "main") {
+  const out = path.join(rootDir, CASE_OUT), manifest = readJson(path.join(out, "parts.json"));
+  if (manifest?.verification?.nativePCBCheckerApplies !== false) return { ...caseStatus(rootDir, stem), scope: "pcb" };
+  const stale = reason => ({ state: "stale", reason, scope: "handwired" });
+  try {
+    const root = fs.realpathSync(rootDir), caseDir = fs.realpathSync(path.join(root, "case"));
+    if (!caseDir.startsWith(root + path.sep)) return stale("case files are outside the project");
+    if (!fs.realpathSync(out).startsWith(caseDir + path.sep)) return stale("case output is outside case/");
+    const receiptFile = fs.realpathSync(path.join(caseDir, "reports/print-check.json"));
+    if (!receiptFile.startsWith(caseDir + path.sep)) return stale("print receipt is outside case/");
+    const report = readJson(receiptFile);
+    if (report?.meshValidation !== "surface-v1" || report.validationScope !== "handwired-print" || report.stem !== stem) return stale("check the handwired case before Print all");
+    const mechanicalPath = fs.realpathSync(path.resolve(out, manifest.verification.report));
+    if (!mechanicalPath.startsWith(caseDir + path.sep) || path.relative(root, mechanicalPath) !== report.verificationReport || sha256File(mechanicalPath) !== report.verificationSha) return stale("the handwired mechanical report changed");
+    const mechanical = readJson(mechanicalPath);
+    if (mechanical?.passed !== true || !mechanical.scope || Object.entries(mechanical).some(([key, value]) => (key === "errors" || /collisions$/i.test(key)) && (Array.isArray(value) ? value.length : value))) return { state: "failed", reason: "the handwired mechanical check has errors", scope: "handwired" };
+    const hashes = report.partShas || {}, intent = path.join(caseDir, "interfaces.json");
+    if ((fs.existsSync(intent) ? sha256File(intent) : null) !== report.intentSha) return stale("the print settings changed");
+    const members = new Set(["parts.json"]);
+    if (!Array.isArray(manifest.parts) || !manifest.parts.length || manifest.parts.length > CASE_MAX_PARTS) return stale("invalid case parts list");
+    for (const part of manifest.parts) for (const key of ["step", "stl"]) {
+      const file = caseMember(out, part[key]);
+      if (!file || !fs.realpathSync(file).startsWith(fs.realpathSync(out) + path.sep) || mechanical.partShas?.[part[key]] !== sha256File(file)) return stale("the handwired report omits a part or a part changed");
+      members.add(part[key]);
+    }
+    for (const member of members) {
+      const file = caseMember(out, member);
+      if (!file || hashes[member] !== sha256File(file)) return stale(`case/out/${member} changed since print validation`);
+    }
+    if (report.passed !== true || report.errors?.length) return { state: "failed", reason: "the printable meshes need fixing", scope: "handwired" };
+    return { state: "passed", reason: "Handwired mechanical report and printable surfaces checked. Print the test-fit coupon first; fit has not been tested on hardware.", scope: "handwired" };
+  } catch { return stale("the handwired print evidence could not be read"); }
+}
+
+/**
+ * The case, `<root>/case/`, as the Case tab reads it: every part parts.json
+ * lists with its STL and STEP, the board's contract (the frame the parts are
+ * modelled in, drawn under them), the checker's report and its status.
+ * `null` when there is neither a manifest nor a contract — nothing to show.
+ */
+function scanCase(rootDir, url, stem) {
+  const outDir = path.join(rootDir, CASE_OUT);
+  const contract = path.join(rootDir, "boards", `${stem}.enclosure.json`);
+  const manifest = readJson(path.join(outDir, "parts.json"));
+  const hasContract = fs.existsSync(contract);
+  if (!manifest && !hasContract) return null;
+  const result = { parts: [], ...caseStatus(rootDir, stem), printStatus: casePrintStatus(rootDir, stem) };
+  result.nativePCBCheckerApplies = manifest?.verification?.nativePCBCheckerApplies !== false;
+  if (!result.nativePCBCheckerApplies) result.printReportUrl = url(path.join(rootDir, "case/reports/print-check.json"));
+  if (hasContract) result.contractUrl = url(contract);
+  // Agent-authored overviews are HTML assets, rendered in an isolated frame.
+  const overviewMembers = manifest?.overview ? [manifest.overview] : ["../overview.html", "../motion/motion-view.html"];
+  for (const member of overviewMembers) {
+    if (typeof member !== "string") continue;
+    try {
+      const root = fs.realpathSync(rootDir), file = fs.realpathSync(path.resolve(outDir, member));
+      if (file.startsWith(path.join(root, CASE_DIR) + path.sep) && path.extname(file).toLowerCase() === ".html" && fs.statSync(file).isFile()) {
+        result.overviewUrl = url(file); break;
+      }
+    } catch { /* no overview or unsafe member */ }
+  }
+
+  const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
+  if (fs.existsSync(intent)) result.intentUrl = url(intent);
+  const report = path.join(rootDir, CASE_REPORT);
+  if (fs.existsSync(report)) result.reportUrl = url(report);
+  for (const part of (Array.isArray(manifest?.parts) ? manifest.parts : []).slice(0, CASE_MAX_PARTS)) {
+    const stl = caseMember(outDir, part?.stl);
+    if (!stl || path.extname(stl).toLowerCase() !== ".stl") continue;
+    const step = caseMember(outDir, part?.step);
+    const member = {
+      name: String(part.name || path.basename(stl, ".stl")),
+      role: String(part.role || "other"),
+      stlUrl: url(stl),
+      bytes: fs.statSync(stl).size,
+      printable: part.printable !== false && !/DO_NOT_PRINT/i.test(String(part.name || "")),
+    };
+    if (step && /\.(step|stp)$/i.test(step)) member.stepUrl = url(step);
+    if (Array.isArray(part.printRotateDeg)) member.printRotateDeg = part.printRotateDeg.slice(0, 3).map(Number);
+    if (typeof part.supports === "boolean") member.supports = part.supports;
+    result.parts.push(member);
+  }
+  return result;
 }
 
 /** Is this file a member of a generated `<stem>_review/` or `<stem>_fab/`
@@ -263,6 +415,13 @@ export function scanProjectCatalog({ projectDir, projectId }) {
       }
     } catch { entry.nativeStale = true; }
     if (firmware) entry.artifact.firmware = firmware;
+    const enclosure = scanCase(rootDir, url, stem);
+    if (enclosure && entry.nativeStale && enclosure.state !== "none") {
+      enclosure.state = "stale";
+      enclosure.reason = "the board sources changed; publish the board and recheck the case";
+      if (enclosure.printStatus.scope === "pcb") enclosure.printStatus = { state: "stale", reason: enclosure.reason, scope: "pcb" };
+    }
+    if (enclosure) entry.artifact.case = enclosure;
     entries.push(entry);
   }
 

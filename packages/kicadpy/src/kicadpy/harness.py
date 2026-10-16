@@ -33,8 +33,8 @@ VERDICT_PATH = Path('.harness') / 'verdict.json'
 BOARDS_DIR = 'boards'
 NATIVE_ENGINE = 'kicad-native'
 SEVERITIES = ('error', 'warning', 'info')
-PHASES = ('build', 'checks', 'fab', 'firmware')
-PHASE_NAMES = {'build': 'Build', 'checks': 'Checks', 'fab': 'Fab', 'firmware': 'Firmware'}
+PHASES = ('build', 'checks', 'fab', 'firmware', 'case')
+PHASE_NAMES = {'build': 'Build', 'checks': 'Checks', 'fab': 'Fab', 'firmware': 'Firmware', 'case': 'Case'}
 #: The pane header is one line; the spec caps it.
 SUMMARY_MAX = 200
 
@@ -85,7 +85,7 @@ def _phase(id_: str, state: str) -> dict[str, str]:
 
 
 def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firmware: bool = False,
-            built: bool | None = None) -> dict[str, object]:
+            built: bool | None = None, case: str = 'none') -> dict[str, object]:
     """The spec-1 verdict for a workspace, folded from its native sidecars.
 
     No sidecar yet: nothing is ready and every phase is pending (or the one the agent marked
@@ -97,6 +97,10 @@ def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firm
     the tree is written AND the recipe's binary exists, then done (`built=None` means the caller
     did not look, and written alone counts). It never touches `ready`: the summary names it so the
     pane can say the board is done and the code is not, or is written but was never built.
+
+    Case — `case` is `kicadpy.case.status` ('none', 'stale', 'failed', 'passed') — is pending
+    until the firmware is done, then active until a fresh case check passed ('failed' marks it
+    failed), then done. Like Firmware, it never touches `ready`.
     """
     if active is not None and active not in PHASES:
         raise ValueError(f'unknown phase {active!r}; one of {", ".join(PHASES)}')
@@ -130,14 +134,19 @@ def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firm
         checks, fab_state = 'done', 'done' if ready else 'active'
     firmware_done = firmware and (built is None or built)
     firmware_state = ('done' if firmware_done else 'active') if ready else 'pending'
-    phases = [_phase('build', 'done'), _phase('checks', checks), _phase('fab', fab_state), _phase('firmware', firmware_state)]
+    case_state = ({'passed': 'done', 'failed': 'failed'}.get(case, 'active')) if ready and firmware_done else 'pending'
+    phases = [_phase('build', 'done'), _phase('checks', checks), _phase('fab', fab_state), _phase('firmware', firmware_state),
+              _phase('case', case_state)]
     if active == 'build':
         # The agent is editing sources again: the board on disk is the previous revision.
         phases[0]['state'] = 'active'
 
     if ready:
-        if firmware_done:
+        if firmware_done and case == 'passed':
             summary = 'Prototype-ready — physical hardware untested'
+        elif firmware_done:
+            summary = {'failed': 'Prototype-ready — the case does not fit yet', 'stale': 'Prototype-ready — the case needs a recheck'}.get(
+                case, 'Prototype-ready — case not built yet')
         elif firmware:
             summary = 'Prototype-ready — firmware written, not built'
         else:
@@ -177,7 +186,9 @@ def write_verdict(workspace: Path | str, *, active: str | None = None) -> Path |
     bug and does raise.
     """
     workspace = Path(workspace)
-    payload = verdict(native_sidecars(workspace), active=active, firmware=firmware_written(workspace), built=firmware_built(workspace))
+    from .case import status as case_status
+    payload = verdict(native_sidecars(workspace), active=active, firmware=firmware_written(workspace), built=firmware_built(workspace),
+                      case=case_status(workspace)[0])
     try:
         target = workspace / VERDICT_PATH
         target.parent.mkdir(parents=True, exist_ok=True)

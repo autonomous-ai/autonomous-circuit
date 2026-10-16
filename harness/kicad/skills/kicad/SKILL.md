@@ -171,6 +171,63 @@ BOM, position file, project archive, `ORDER.md`, `manufacturing-report.json`), a
 floor DRC, the independent gerber read, part identities, assembly decisions and the seven
 engineering areas. The publisher never sets it any other way, and neither do you.
 
+## The case contract (`kicadpy.enclosure`)
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.enclosure .      # regenerate boards/<stem>.enclosure.json and print it
+```
+
+Written at every publish too. One frame (mm, origin at the outline centre, +x right, +y up from
+the top, z = 0 on the top copper). `interfaces[]`: kind, refs, module, side, centre, size, angle,
+`accessFace`, `zMm`, the opening `rule`, `status` (proposed / confirmed / overridden / ignored /
+declared). `modules[]`: plug-in modules placed from their header pads. `case/interfaces.json` is
+your intent (AGENTS.md, "The case contract"); it is read on every regeneration.
+
+## Firmware wiring guide — part of the firmware deliverable
+
+Write `firmware/WIRING.md` with the firmware, without waiting to be asked. Link it from
+`firmware/README.md`; the viewer displays it prominently. Use the current assembly variant,
+actual firmware GPIO definitions and final schematic/netlist. Show physical-label-to-label
+connections, viewing direction, voltage/polarity, grounds and separate motor supplies, needed
+passives, safe unpowered assembly checks and the user's first-power-on observations. Keep it
+consistent after pin/assembly changes. Unknown modules remain GIẢ ĐỊNH with no invented pinout.
+Do not substitute a chat-only answer or a case-folder link for this file. See AGENTS.md, "Firmware".
+
+## The case (`kicadpy.case`)
+
+Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
+ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
+Require a secure **device → mount/frame → shell** attachment chain; preserve working device
+mounts and replace reported fragile tabs/prongs with supported geometry. After every repair,
+recheck the full intended rotation range including intermediate/combined poses, closed shells,
+hardware and wires; give the person an unpowered hand-sweep check. CAD pass does not prove grip
+or physical motion. Detailed acceptance rules are in the required reference above.
+Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
+guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
+sequence as well as the final pose, then regenerate the overview from that same revision.
+
+```sh
+"$KICAD_CASE_PYTHON" case/build.py               # your model -> case/out/ (start: kicadpy.case_template.build_box('.'))
+"$KICAD_CASE_PYTHON" -m kicadpy.case check .     # the tile's checker -> case/reports/case-check.json
+"$KICAD_HARNESS_PYTHON" -m kicadpy.case status . # none / stale / failed / passed, no CadQuery needed
+```
+
+Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part_too_big`,
+`case_part_missing`, `case_built_from_old_board`. Fix the model, never the board (AGENTS.md, "Case").
+
+### Interactive overview — immediately after the 3D build
+
+Every case build also generates `case/overview.html`, automatically in the same turn. Use the
+actual assembled geometry, component labels, shell visibility and wire paths. For a moving
+case, include controls for its checked axes and a stop/centre control; for a static case, keep
+inspection controls without invented motion. Make it a self-contained phone-friendly HTML
+file (embedded geometry/scripts/styles; no network or CDN), set manifest `overview` relative
+to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. An existing
+`case/motion/motion-view.html` can be used with `overview: "../motion/motion-view.html"`.
+Call the overview generator from `case/build.py` so final model repairs regenerate it too.
+The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
+
 ## The verdict
 
 Written by the publisher at every sidecar write. Before your first publish, tell the pane where
@@ -180,7 +237,7 @@ you are:
 "$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build
 ```
 
-Phases are Build / Checks / Fab. Never edit `.harness/verdict.json` by hand.
+Phases are Build / Checks / Fab / Firmware / Case. Never edit `.harness/verdict.json` by hand.
 
 ## The review contract
 
