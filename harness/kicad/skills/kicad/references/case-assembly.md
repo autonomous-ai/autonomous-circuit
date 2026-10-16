@@ -152,7 +152,8 @@ universal design requirements.
   gently move only back-drivable joints through their intended travel, and watch for unwanted
   looseness, scraping, binding, pinched wires or stressed mounts. If an actuator cannot be
   back-driven safely, specify a disconnected-drive check rather than forcing it. Do not run
-  motors or flash firmware yourself. Record the person's result separately from CAD/slicer
+  motors as part of this dry fit. Firmware writes follow the user's project-scoped permission
+  and [recovery policy](firmware-recovery.md). Record the person's result separately from CAD/slicer
   evidence; real breakage, slipping or rubbing reopens that finding even after a CAD pass.
 - Keep canonical STEP/STL assembled in the contract frame; apply print rotation only at export.
   Check the final printable surface, supported orientation and bed placement. For a requested
@@ -168,5 +169,5 @@ universal design requirements.
 - If the person reports a tight fit, broken insertion or inaccessible screw, treat it as design
   evidence. Revisit the reference dimensions and sequence; favor a serviceable opening or a
   simpler joint and minimize replacement prints. Do not tell them to keep forcing, cutting or
-  gluing parts, especially moving joints. Keep firmware flashing and printing under the user's
-  control; never auto-flash, start a print or order hardware.
+  gluing parts, especially moving joints. Follow the authorized firmware recovery workflow;
+  automatic firmware writes do not authorize running motors, starting a print or ordering hardware.

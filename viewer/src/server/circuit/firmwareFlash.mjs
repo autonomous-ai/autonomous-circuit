@@ -4,8 +4,9 @@
 //
 //   1. Only a person flashes. Nothing here runs unless the button was clicked,
 //      and the click is two steps: `detect` shows exactly which USB device
-//      would be written, `flash` writes it and only it. The agent never flashes
-//      (harness/kicad/AGENTS.md) — a board that is plugged in may be running
+//      would be written, `flash` writes it and only it. An explicitly authorized
+//      agent CLI workflow follows the separate recovery policy in AGENTS.md.
+//      A board that is plugged in may be running
 //      something else entirely, and firmware for THIS board on THAT board is a
 //      brick.
 //   2. The USB identity has to match the recipe. `firmware/flash.json` names

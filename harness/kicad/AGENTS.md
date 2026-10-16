@@ -413,7 +413,8 @@ the review is closed, write the firmware in the same turn, without being asked a
   - Give a short assembly order: power disconnected, wire/check the supply and grounds, check
     continuity/shorts and polarity, then the user's first power-on and expected observations.
     Keep motors/loads disabled until their documented bring-up is complete. Explain any steps
-    requiring a meter plainly. This is documentation; never power, flash or run hardware yourself.
+    requiring a meter plainly. Documentation does not authorize powering loads or running motors;
+    firmware writes follow the user's flash authorization and recovery policy below.
   - Include a small connection diagram when it helps, route/strain-relief notes for moving parts,
     and links to the relevant bring-up notes. Keep WIRING.md, README, pin definitions and the
     current assembly consistent whenever firmware pins, modules, wiring or case routing change.
@@ -427,9 +428,10 @@ the review is closed, write the firmware in the same turn, without being asked a
   differs from what `product.json` asked for.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
-  status LED first, then each peripheral). You never flash it yourself: the person does, with
-  the Flash button on the pane (below). Until they tell you what the board did, it is untested —
-  say so.
+  status LED first, then each peripheral). The person can use the Flash button; when they have
+  expressly authorized automatic flashing for this project, follow the policy below without
+  asking again for each finished build. A verified write/USB reply does not prove all physical
+  behavior; report exactly what was observed and what remains untested.
 - **Written is not done; built is.** The Firmware phase turns done only when `flash.json` names a
   binary that exists and is newer than the sources (`kicadpy.firmware.built`): the UF2 for an
   RP2040, `<build>/<sketch>.ino.bin` for an ESP32. Build with what the tile carries — the pico-sdk
@@ -441,8 +443,9 @@ the review is closed, write the firmware in the same turn, without being asked a
   are welcome and are not a build. A run that wrote sources it could not compile, named a UF2
   that did not exist and was marked done (2026-09-30) is why this line exists. If the toolchain
   for the chip is truly absent, say exactly which command failed and leave the phase active.
-- **`firmware/flash.json` — the recipe the pane's Flash button runs.** You never flash; the
-  person does, from the Firmware tab, and the button only works when this file names the board:
+- **`firmware/flash.json` — the recipe the pane's Flash button runs.** The person can flash
+  from the Firmware tab. Authorized agent flashing must use the same project/target recipe;
+  the button only works when this file names the board:
   ```json
   {"family": "esp32", "tool": "arduino-cli", "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc",
    "sketch": "deck", "build": "../build/firmware-ssd1306", "usbVid": ["0x303a"], "baud": 115200}
@@ -455,13 +458,18 @@ the review is closed, write the firmware in the same turn, without being asked a
   button looks first and shows the exact port, then writes to that port only, then reads the
   serial console for a few seconds; the README's flash section should say the same thing in
   words for someone without the pane.
-- **If the person asks you to flash anyway** (they did, 2026-10-02): first read the whole flash
-  back and keep it (`esptool read-flash 0 <size> build/backup-<board>.bin`, then `verify-flash` so
-  the chip itself confirms the copy); stop every other program on that serial port before you
-  touch it — a desk daemon (`launchctl bootout …`) or a listener of your own — and expect the
-  Harness daemon's "cable" to open any `usbmodem` port for ~20 s after every reset, probing for an
-  Autonomous device, which swallows the board's first greeting; when you are done, write the backup
-  back and verify it. Three programs on one port looked like a dead board for an hour.
+- **If the person asks you to flash anyway, including standing authorization after builds:**
+  record that project-scoped permission in `firmware/FLASH-POLICY.md` and read
+  `$CIRCUIT_SKILLS_DIR/kicad/references/firmware-recovery.md`. Once the candidate builds and its
+  relevant tests/pin checks pass, automatically pin the previous firmware and complete the
+  authorized write/verification; do not ask the same permission again. A newer no-flash request
+  overrides standing permission. Without authorization, deliver the binary and Flash recipe.
+  Before every write, preserve immutable previous source/config/binary hashes and a verified
+  recovery artifact with an exact restore command. ESP32 readback uses `read-flash` for the
+  detected flash size and `verify-flash`; other families use their supported recovery method.
+  Identify the exact device, exclusively release/reacquire its serial port and restore the
+  prior bridge/listener state afterward. Keep the new image running after successful checks;
+  roll back and verify if it fails. Preserve earlier stable tags and local device backups.
 - **What it never does.** Gate the packet: unfinished firmware is a line in the README and in
   your report, not a blocker on `fab.ready`. Or rewrite the board: a pin that is wrong in copper
   is a later board revision, not a `#define` that hides it.
