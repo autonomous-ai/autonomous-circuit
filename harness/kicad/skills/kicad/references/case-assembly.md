@@ -113,10 +113,43 @@ universal design requirements.
 - Explain what it tests, which real part goes where, insertion direction, what a pass looks
   like, what to change after failure, and that it is set aside after the test. Say explicitly
   **do not assemble or glue this into the product**. A file name alone is insufficient.
-- Put coupons in a separately named test project/plate when delivering slicer projects. Identify
-  them separately in any generic Print all export, which may include all printable manifest
-  entries. Never claim that button automatically removes coupons. Exclude coupons from the
-  assembled model, assembly part count and product assembly steps.
+- Put coupons in a separately named TEST ONLY slicer project. The prepared production project
+  excludes them; the legacy generic Print all export may still include all printable manifest
+  entries. Exclude coupons from the assembled model, assembly count and product assembly steps.
+
+### Ready-arranged slicer projects
+
+- After **every build and final repair**, create/update a native slicer 3MF. Automatically orient
+  to the declared print intent, ground each object and arrange on the owner's actual bed-sized
+  plates; add plates on overflow. Include edge, brim and inter-part clearance, excluded bed areas
+  and any needed support clearance. Do not scale a part to make it fit or use a huge virtual bed.
+  Preserve the user's printer/nozzle/material/process choices. Use a named reference profile and
+  label GIẢ ĐỊNH if unknown; do not ask the owner technical setup questions.
+- Keep fixed/moving subassemblies identifiable, account for quantities with distinct manifest
+  instances, and deliver a separate TEST ONLY coupon project. Keep a repair/subset project for
+  already-printed parts when useful; the full production project must cover all current printable
+  non-coupon manifest instances, including identical copies. Do not silently omit items.
+- Use the slicer's native arrange/export path when available (for Bambu, an installed CLI may
+  arrange and export without sending a print). Reuse project-local generators and verify against
+  current STEP/STL and `printRotateDeg`. Check each plate for overlap, out-of-bed parts, floating
+  geometry and unexpected supports; inspect thumbnails when available. Retain real slicer
+  warnings and state CAD/slicer checks versus physical tests honestly.
+- Publish `case/out/parts.json` with `printProject: {"file": "../print/production.3mf",
+  "report": "../print/production-check.json"}`. Both paths resolve from `case/out/`, must remain
+  inside `case/`, and the project must be a native 3MF preserving plates and printer settings.
+  The independent project-local slicer verifier writes a report with `passed: true`, `file`
+  (workspace-relative path to that 3MF), `sha256` (final project bytes), `meshes` and `plates`.
+  Each mesh record has `name: "<manifest-part-name>.stl"`, `canonicalSTLSha256` (current assembly
+  STL bytes) and `printRotateDeg` (the manifest rotation, or `[0,0,0]` when absent). Each plate has
+  a unique positive integer `index` and `parts` listing those mesh names exactly once overall.
+  Retain settings, warnings, surface comparison and clearance evidence in the report too.
+  Hashes bind a real slicer verification; writing a passing JSON by hand is not verification.
+- Publish the binding only after the verifier passes, then rerun the normal case/print checker
+  because the manifest changed. Print all copies that checked 3MF **unchanged**, preserving its
+  plates/profile. An invalid or stale declared project is an error, never a quiet fallback to
+  the flat mesh export. Without `printProject`, legacy projects retain their generic export.
+  Check the actual saved/opened file, not just a similarly named file elsewhere. Link the full,
+  repair and TEST ONLY files in the current guide and report the plate counts. No physical print.
 
 ## 4. Publish one current revision and preserve printed parts
 

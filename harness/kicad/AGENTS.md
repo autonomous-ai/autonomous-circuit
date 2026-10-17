@@ -645,6 +645,15 @@ board revision, not a moved footprint.
   does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
   orientation/support needs, and put assumed module dimensions and coupon results in the
   bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **Finish the print plates in the same turn as every case build or repair.** Deliver a native
+  slicer 3MF with production parts oriented, grounded and arranged on real plates within the
+  owner's printer bed, with brim/edge/inter-part clearance. Overflow goes to another plate;
+  never leave a pile on one oversized virtual bed for the person to sort. Preserve known
+  printer/material settings, quantities and reusable printed parts; record unknowns as assumptions.
+  Keep TEST ONLY coupons in a separate project. Regenerate and verify after the last geometry
+  change, link the checked production project through manifest `printProject`, and test the
+  actual **Print all → Bambu Studio** file. See the self-contained assembly reference's
+  "Ready-arranged slicer projects" contract. Do not send anything to a printer.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep

@@ -2,9 +2,53 @@
 import fs from "node:fs";
 import path from "node:path";
 import { deflateRawSync } from "node:zlib";
+import { createHash } from "node:crypto";
 
 const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_TRIANGLES = 1_000_000;
+const printableParts = manifest => manifest.parts.filter(part => part.printable !== false && !/DO_NOT_PRINT/i.test(String(part.name || "")));
+const digest = bytes => createHash("sha256").update(bytes).digest("hex");
+
+// Preserve a slicer's real plates/settings, rather than flattening them into our generic mesh ZIP.
+// The report comes from the project's slicer verifier; compare its inputs on every export.
+export function preparedPrintProject(root, manifest) {
+  if (!manifest.printProject) return null;
+  const project = fs.realpathSync(root), caseDir = fs.realpathSync(path.join(project, "case"));
+  if (!caseDir.startsWith(project + path.sep)) throw new Error("Print project is outside case/");
+  const member = (name, extension) => {
+    if (typeof name !== "string" || !name || !name.toLowerCase().endsWith(extension)) throw new Error("Invalid print project member");
+    const file = fs.realpathSync(path.resolve(caseDir, "out", name));
+    if (!file.startsWith(caseDir + path.sep) || !fs.statSync(file).isFile()) throw new Error("Print project is outside case/");
+    if (fs.statSync(file).size > MAX_BYTES) throw new Error("Print project is too large");
+    return file;
+  };
+  const file = member(manifest.printProject.file, ".3mf"), report = JSON.parse(fs.readFileSync(member(manifest.printProject.report, ".json"), "utf8"));
+  const bytes = fs.readFileSync(file);
+  if (bytes.subarray(0, 4).toString("hex") !== "504b0304" || report.passed !== true || report.errors?.length ||
+      report.file !== path.relative(project, file) || report.sha256 !== digest(bytes)) throw new Error("Rebuild and verify the arranged print project");
+  if (!Array.isArray(manifest.parts) || !manifest.parts.length || manifest.parts.length > 128) throw new Error("Invalid case parts list");
+  const parts = printableParts(manifest).filter(part => part.role !== "coupon");
+  if (!parts.length || !Array.isArray(report.meshes) || report.meshes.length !== parts.length) throw new Error("Print project must cover every production part, without coupons");
+  const names = new Set();
+  for (const part of parts) {
+    const name = `${part.name}.stl`, mesh = report.meshes.find(mesh => mesh.name === name);
+    if (names.has(name) || !mesh || mesh.canonicalSTLSha256 !== digest(fs.readFileSync(caseFile(project, part.stl))) ||
+        JSON.stringify(mesh.printRotateDeg) !== JSON.stringify(part.printRotateDeg || [0, 0, 0])) throw new Error("Print project meshes or orientations changed; regenerate the plates");
+    names.add(name);
+  }
+  if (!Array.isArray(report.plates) || !report.plates.length || report.plates.length > 128) throw new Error("Print project has no checked plates");
+  const assigned = new Set(), indices = new Set();
+  for (const plate of report.plates) {
+    if (!Number.isInteger(plate.index) || plate.index < 1 || indices.has(plate.index) || !Array.isArray(plate.parts) || !plate.parts.length) throw new Error("Invalid print plate assignment");
+    indices.add(plate.index);
+    for (const name of plate.parts) {
+      if (!names.has(name) || assigned.has(name)) throw new Error("Print plates contain missing, duplicate or unexpected parts");
+      assigned.add(name);
+    }
+  }
+  if (assigned.size !== names.size) throw new Error("Print plates omit a production part");
+  return bytes;
+}
 export function caseFile(root, member) {
   const project = fs.realpathSync(root), out = fs.realpathSync(path.join(project, "case", "out"));
   if (!out.startsWith(path.join(project, "case") + path.sep)) throw new Error("Case output is outside the project");
@@ -95,7 +139,7 @@ function zip(files) {
 }
 export function printAll3mf(root, manifest) {
   if (!Array.isArray(manifest.parts) || !manifest.parts.length || manifest.parts.length > 128) throw new Error("Invalid case parts list");
-  const printable = manifest.parts.filter(part => part.printable !== false && !/DO_NOT_PRINT/i.test(String(part.name || "")));
+  const printable = printableParts(manifest);
   if (!printable.length) throw new Error("The case has no printable parts");
   let bytes = 0;
   const parts = printable.map(part => {
