@@ -85,7 +85,7 @@ test("a checked case: coupon first and hidden from the assembly, every part down
   }
 });
 
-test("Print all exports 3MF and opens the saved file in Bambu; stale cases cannot print", async () => {
+test("one Print all click exports 3MF and opens it in Bambu; stale cases cannot print", async () => {
   const calls = [];
   const restore = __setTransportForTesting({
     export_case: async (...args) => { calls.push(["save", ...args]); return { path: "/Desktop/pet.3mf", canOpenBambu: true }; },
@@ -95,13 +95,66 @@ test("Print all exports 3MF and opens the saved file in Bambu; stale cases canno
   try {
     click(ui.container.querySelector('[data-slot="case-print-all"]'));
     for (let i = 0; i < 4; i++) await flush();
-    assert.deepEqual(calls, [["save", "p", "main", "3mf", undefined]]);
+    assert.deepEqual(calls, [["save", "p", "main", "3mf", undefined], ["open", "/Desktop/pet.3mf"]]);
     assert.match(ui.container.querySelector('[data-slot="case-saved"]').textContent, /\/Desktop\/pet.3mf/);
-    click(ui.container.querySelector('[data-slot="case-open-bambu"]'));
-    for (let i = 0; i < 4; i++) await flush();
-    assert.deepEqual(calls[1], ["open", "/Desktop/pet.3mf"]);
     ui.set({ artifact: caseArtifact("stale") });
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
+  } finally { restore(); ui.unmount(); }
+});
+
+test("Bambu launch failure keeps the saved 3MF and can retry without exporting again", async () => {
+  const calls = [];
+  let fail = true;
+  const restore = __setTransportForTesting({
+    export_case: async () => { calls.push("save"); return { path: "/Desktop/pet.3mf", canOpenBambu: true }; },
+    export_open_bambu: async path => { calls.push(path); if (fail) throw new Error("Could not open Bambu Studio"); },
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    click(ui.container.querySelector('[data-slot="case-print-all"]'));
+    for (let i = 0; i < 4; i++) await flush();
+    assert.match(ui.container.querySelector('[role="alert"]').textContent, /Could not open Bambu Studio/);
+    assert.match(ui.container.querySelector('[data-slot="case-saved"]').textContent, /\/Desktop\/pet.3mf/);
+    fail = false;
+    click(ui.container.querySelector('[data-slot="case-open-bambu"]'));
+    for (let i = 0; i < 4; i++) await flush();
+    assert.deepEqual(calls, ["save", "/Desktop/pet.3mf", "/Desktop/pet.3mf"]);
+    assert.equal(ui.container.querySelector('[role="alert"]'), null);
+  } finally { restore(); ui.unmount(); }
+});
+
+test("Print all stays busy until Bambu opens", async () => {
+  let finishOpen;
+  const restore = __setTransportForTesting({
+    export_case: async () => ({ path: "/Desktop/pet.3mf", canOpenBambu: true }),
+    export_open_bambu: () => new Promise(resolve => { finishOpen = resolve; }),
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    click(ui.container.querySelector('[data-slot="case-print-all"]'));
+    await flush();
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
+    assert.equal(ui.container.querySelector('[data-slot="case-open-bambu"]').disabled, true);
+    finishOpen(); await flush();
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, false);
+  } finally { restore(); ui.unmount(); }
+});
+
+test("switching boards during export does not launch the old board's 3MF", async () => {
+  let finishSave;
+  const opened = [];
+  const restore = __setTransportForTesting({
+    export_case: () => new Promise(resolve => { finishSave = resolve; }),
+    export_open_bambu: async path => opened.push(path),
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    click(ui.container.querySelector('[data-slot="case-print-all"]'));
+    ui.set({ projectId: "other" });
+    finishSave({ path: "/Desktop/pet.3mf", canOpenBambu: true });
+    await flush();
+    assert.deepEqual(opened, []);
+    assert.equal(ui.container.querySelector('[data-slot="case-saved"]'), null);
   } finally { restore(); ui.unmount(); }
 });
 
@@ -134,6 +187,7 @@ test('a checked handwired assembly exports despite the irrelevant PCB report fai
     assert.equal(sceneProps.at(-1).showBoard,false);
     click(ui.container.querySelector('[data-slot="case-print-all"]')); await flush();
     assert.deepEqual(calls,[['p','main','3mf',undefined]]);
+    assert.equal(ui.container.querySelector('[role="alert"]'),null,"without Bambu support the 3MF is saved normally");
     ui.set({artifact:caseArtifact('failed',{nativePCBCheckerApplies:false,printStatus:{state:'stale',scope:'handwired',reason:'case changed'}})});
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled,true);
   } finally {ui.unmount();restore();}

@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { caseFile, readStl, orient, printAll3mf, saveExport } from "./caseExport.mjs";
+import { createHash } from "node:crypto";
+import { caseFile, preparedPrintProject, readStl, orient, printAll3mf, saveExport } from "./caseExport.mjs";
 
 const vertices = [[0, 0, 5], [1, 0, 5], [0, 2, 5], [0, 0, 8]];
 const faces = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]];
@@ -70,4 +71,71 @@ test('a case with more than 32 printable clips and coupons fits the existing bou
     execFileSync('python3',['-c','import zipfile,sys,xml.etree.ElementTree as E; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; r=E.fromstring(z.read("3D/3dmodel.model")); n={"m":"http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}; assert len(r.findall("m:resources/m:object",n))==40; assert len(r.findall("m:build/m:item",n))==40',file],{encoding:'utf8'});
     assert.throws(()=>printAll3mf(root,{parts:Array.from({length:129},()=>manifest.parts[0])}),/Invalid case parts list/);
   } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+function preparedFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "case-prepared-")), out = path.join(root, "case/out"), dir = path.join(root, "case/print");
+  fs.mkdirSync(out, { recursive: true }); fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(out, "part.stl"), tetraStl());
+  const manifest = { parts: [
+    { name: "left", stl: "part.stl", printRotateDeg: [180, 0, 0] },
+    { name: "right", stl: "part.stl" },
+    { name: "test", role: "coupon", stl: "part.stl" },
+    { name: "reference", printable: false, stl: "missing.stl" },
+  ], printProject: { file: "../print/production.3mf", report: "../print/check.json" } };
+  const bytes = printAll3mf(root, { parts: manifest.parts.slice(0, 2) });
+  fs.writeFileSync(path.join(dir, "production.3mf"), bytes);
+  const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+  const report = { passed: true, file: "case/print/production.3mf", sha256: sha(bytes),
+    meshes: manifest.parts.slice(0, 2).map(p => ({ name: `${p.name}.stl`, canonicalSTLSha256: sha(tetraStl()), printRotateDeg: p.printRotateDeg || [0, 0, 0] })),
+    plates: [{ index: 1, parts: ["left.stl"] }, { index: 2, parts: ["right.stl"] }],
+  };
+  const writeReport = () => fs.writeFileSync(path.join(dir, "check.json"), JSON.stringify(report));
+  writeReport();
+  return { root, out, dir, manifest, report, bytes, writeReport };
+}
+
+test("prepared slicer exports preserve the exact project bytes and exclude separate coupons/references", () => {
+  const f = preparedFixture();
+  try {
+    assert.deepEqual(preparedPrintProject(f.root, f.manifest), f.bytes);
+    assert.equal(preparedPrintProject(f.root, { parts: f.manifest.parts }), null);
+    // A changed native project must be reverified, not flattened into a fallback.
+    fs.appendFileSync(path.join(f.dir, "production.3mf"), "changed");
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /Rebuild and verify/);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("prepared plates reject stale meshes/orientations and missing or duplicate production instances", () => {
+  const f = preparedFixture();
+  try {
+    f.manifest.parts[0].printRotateDeg = [0, 0, 0];
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /orientations changed/);
+    f.manifest.parts[0].printRotateDeg = [180, 0, 0];
+    f.report.plates[1].parts = ["left.stl"]; f.writeReport();
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /duplicate/);
+    f.report.plates.pop(); f.writeReport();
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /omit/);
+    f.report.plates[0].parts.push("test.stl"); f.writeReport();
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /unexpected/);
+    fs.appendFileSync(path.join(f.out, "part.stl"), "changed");
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /meshes or orientations changed/);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("prepared project and report paths cannot escape case/ through traversal or symlinks", () => {
+  const f = preparedFixture();
+  try {
+    fs.writeFileSync(path.join(f.root, "private.3mf"), f.bytes);
+    fs.writeFileSync(path.join(f.root, "private.json"), JSON.stringify(f.report));
+    f.manifest.printProject.file = "../../private.3mf";
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /outside case/);
+    fs.symlinkSync(path.join(f.root, "private.3mf"), path.join(f.dir, "escape.3mf"));
+    f.manifest.printProject.file = "../print/escape.3mf";
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /outside case/);
+    f.manifest.printProject.file = "../print/production.3mf";
+    fs.symlinkSync(path.join(f.root, "private.json"), path.join(f.dir, "escape.json"));
+    f.manifest.printProject.report = "../print/escape.json";
+    assert.throws(() => preparedPrintProject(f.root, f.manifest), /outside case/);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
 });

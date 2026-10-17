@@ -996,6 +996,22 @@ test("Case exports save real STL/STEP/3MF files and only open exported 3MF in Ba
     fs.writeFileSync(path.join(root,'case/reports/print-check.json'),JSON.stringify(receipt));
     const wired = await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'});
     assert.equal(wired.status,200,JSON.stringify(wired.body));
+    // A bound native slicer project retains its bytes/plates, using the same readiness gate.
+    const native = fs.readFileSync(wired.body.path);
+    fs.mkdirSync(path.join(root,'case/print'));
+    fs.writeFileSync(path.join(root,'case/print/production.3mf'),native);
+    parts.printProject={file:'../print/production.3mf',report:'../print/check.json'};
+    fs.writeFileSync(path.join(root,'case/print/check.json'),JSON.stringify({passed:true,file:'case/print/production.3mf',sha256:sha(path.join(root,'case/print/production.3mf')),
+      meshes:[{name:'front.stl',canonicalSTLSha256:sha(path.join(out,'front.stl')),printRotateDeg:[180,0,0]}],plates:[{index:1,parts:['front.stl']}]}));
+    fs.writeFileSync(path.join(out,'parts.json'),JSON.stringify(parts));
+    assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,409,'changed manifest must be checked again');
+    receipt.partShas['parts.json']=sha(path.join(out,'parts.json'));
+    fs.writeFileSync(path.join(root,'case/reports/print-check.json'),JSON.stringify(receipt));
+    const arranged=await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'});
+    assert.equal(arranged.status,200,JSON.stringify(arranged.body));
+    assert.deepEqual(fs.readFileSync(arranged.body.path),native);
+    fs.appendFileSync(path.join(root,'case/print/production.3mf'),'changed');
+    assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,400,'stale prepared project must not fall back to flat export');
     assert.equal((await s.post('export_case',{id:'workspace',stem:'other',format:'3mf'})).status,409);
     fs.appendFileSync(path.join(out,'front.stl'),'changed');
     assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,409);

@@ -912,3 +912,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** no authorization is inferred for other projects; later no-flash instructions override standing permission. Flash-button behavior, target checks, firmware readiness and manufacturing gates are unchanged. No automatic hardware service or actuator operation is added.
 - **Mechanism:** main instructions, tool card and a skill-local firmware-recovery reference cover a project FLASH-POLICY.md, exact source/config/binary hashes, device identity/readback, immutable recovery checkpoints, per-attempt receipts and failure restoration. Case instructions refer to that authorization policy instead of a conflicting unconditional no-flash rule. Viewer changes are comments only.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-17 — Preserve prepared print plates in Print all
+- **Change:** optional `case/out/parts.json` field `printProject: {file, report}` selects a native slicer 3MF and its verifier receipt, with paths relative to case/out and confined to case/. The receipt binds project SHA256, current production STL hashes/rotations and exactly-once plate membership; coupons remain in a separate test project.
+- **Why:** the generic mesh exporter flattened the agent's already-arranged Bambu projects into one virtual build area, forcing the owner to arrange plates again (17 October).
+- **Backward compatible:** yes. Manifests without printProject retain the generic 3MF export. A declared stale/invalid project fails export instead of silently discarding plates. Existing case/print readiness checks still apply before either export.
+- **Mechanism:** server caseExport.preparedPrintProject validates the binding and copies the exact native 3MF bytes through export_case. Tile AGENTS/tool card/self-contained assembly reference require plate generation and verification after every build/final repair; bind only verified production projects and rerun the normal checker after manifest changes. No slicer or physical print is launched by this validation.
+- **Tracks affected:** server / skills / docs.

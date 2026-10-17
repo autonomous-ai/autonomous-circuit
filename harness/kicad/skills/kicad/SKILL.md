@@ -242,6 +242,17 @@ to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. A
 Call the overview generator from `case/build.py` so final model repairs regenerate it too.
 The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
 
+### Ready-arranged print plates — same turn, after every repair
+
+Export a native slicer 3MF with the current production parts already oriented and distributed
+across the owner's real bed-sized plates, with brim/edge/part clearance. Preserve the known
+printer/material profile; state assumptions for unknown settings. Keep coupons in a separate
+TEST ONLY project and explain reuse versus reprint. Run the slicer's layout/mesh checks after
+the final repair, publish manifest `printProject` and its fresh verifier report as specified in
+`references/case-assembly.md`, and check the actual Print all export preserves those plates.
+The generic mesh export does not preserve a slicer's plates. Do not leave the person to arrange
+a pile manually, and do not start a physical print.
+
 ## The verdict
 
 Written by the publisher at every sidecar write. Before your first publish, tell the pane where
