@@ -645,6 +645,10 @@ board revision, not a moved footprint.
   does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
   orientation/support needs, and put assumed module dimensions and coupon results in the
   bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **Before a long structural repair**, record the joint intent and a section/sketch: continuous
+  parts, fixed/free interfaces, printed versus owned stock hardware, nut seats and screw entry.
+  Reassess inherited mechanisms, check play/retention separately from collision-free rotation,
+  and prove nut insertion/removal. Follow the assembly reference; no routine approval gate.
 - **Finish the print plates in the same turn as every case build or repair.** Deliver a native
   slicer 3MF with production parts oriented, grounded and arranged on real plates within the
   owner's printer bed, with brim/edge/inter-part clearance. Overflow goes to another plate;

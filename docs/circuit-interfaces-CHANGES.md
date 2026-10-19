@@ -919,3 +919,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes. Manifests without printProject retain the generic 3MF export. A declared stale/invalid project fails export instead of silently discarding plates. Existing case/print readiness checks still apply before either export.
 - **Mechanism:** server caseExport.preparedPrintProject validates the binding and copies the exact native 3MF bytes through export_case. Tile AGENTS/tool card/self-contained assembly reference require plate generation and verification after every build/final repair; bind only verified production projects and rerun the normal checker after manifest changes. No slicer or physical print is launched by this validation.
 - **Tracks affected:** server / skills / docs.
+
+## 2026-10-19 — Structural repair intent, accessible nuts and play checks
+- **Change:** tile AGENTS/tool card and self-contained case-assembly reference require a short joint brief with section/sketch before a long structural repair; distinguish continuous printed members from stock fasteners, fixed/free interfaces and the load path. Review inherited parts after architecture changes, check captive-nut insertion/retention/removal, and assess play/support retention separately from collision-free rotation using a representative supported subassembly.
+- **Why:** printed pet feedback exposed loose wheel supports and buried nuts; a long repair used a steel threaded rod before the owner clarified a continuous printed axle. Existing generic simplicity/collision checks did not prevent those mistakes (19 October).
+- **Backward compatible:** yes; instruction-only, no API/report schema or physical-test gate changes. Routine choices remain autonomous, and physical rigidity stays pending until observed; no new mandatory user approval.
+- **Mechanism:** update the source tile instructions/reference; refresh linked tile and existing runtime instruction snapshot with backups. No model or firmware change is part of this instruction update.
+- **Tracks affected:** skills / docs.

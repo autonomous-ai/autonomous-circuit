@@ -242,6 +242,14 @@ to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. A
 Call the overview generator from `case/build.py` so final model repairs regenerate it too.
 The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
 
+### Structural repairs — establish the joint before a full build
+
+Follow `references/case-assembly.md`: record the requested joint with a section/sketch, actual
+load path, fixed/free interfaces and accessible nut/screw sequence before detailed CAD/slicing.
+Keep routine choices autonomous; do not silently substitute unowned stock for a requested
+printed member. Reassess inherited loose parts after an architecture change, and check unwanted
+play/retention separately from collision-free motion with a representative supported test kit.
+
 ### Ready-arranged print plates — same turn, after every repair
 
 Export a native slicer 3MF with the current production parts already oriented and distributed

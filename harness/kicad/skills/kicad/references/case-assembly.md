@@ -38,6 +38,24 @@ universal design requirements.
   unrequested features from the image. If the person asks only to inspect/discuss and is sending
   more references, record conclusions and wait for a design request before modifying their run.
 
+## Before a long structural repair: make the joint intent explicit
+
+- Before detailed CAD and a full slicer run for a changed structural joint, record a short
+  plain-language repair brief in the existing project plan/guide, with a section view or simple
+  sketch. Restate the person's requested shape and fastening: what is one continuous piece,
+  what passes through what, printed versus stock parts, where the nuts sit and from which side
+  screws enter. Mark visible evidence, owned hardware and assumptions separately. A phrase such
+  as "through axle" does not choose between a printed member and a purchased threaded rod.
+- Resolve routine choices autonomously within that stated intent; this is not a mandatory
+  approval checkpoint. Do not silently replace the requested structure with newly purchased
+  stock or a different fastening scheme. If the shape is uncertain, state the assumption and
+  develop the smallest representative joint first, rather than a complete kit around a guess.
+  Incorporate a later user correction into the brief before continuing; preserve compatible work.
+- Trace how forces reach the body/support through actual mating seats and restraints. Identify
+  which interfaces must remain fixed, which may rotate and how both ends are retained. Reuse
+  ordinary accessible hardware where appropriate, but do not treat a screw through an unsupported
+  printed sleeve, glue or a collision-free pose as evidence that the joint carries its load.
+
 ## 1. Resolve hardware and choose a mechanism
 
 - **Default to simple, rugged and serviceable.** The person should be able to print, assemble,
@@ -61,6 +79,11 @@ universal design requirements.
   and maintenance. Prefer fewer, accessible parts; justify added cams/linkages. Preserve the
   requested motion and control behavior when simplifying. Check actuator/control compatibility;
   a displayed CAD angle or a timed motor pulse does not establish actual angle feedback.
+- When changing architecture (for example tracks to wheels), review every inherited guide,
+  spacer, retaining ring and bracket against the new function. Preserve useful printed parts,
+  but do not keep a stack merely because it existed in the old design. State the purpose of
+  every retained loose piece and compare a simpler supported joint; do not delete a necessary
+  support or discard a working print solely to reduce the part count.
 - Declare power-off assembly, initial centering and any required sensing/limits in the guide and
   firmware. Do not silently add unowned hardware or claim control the installed actuator cannot
   provide. Follow the existing assumption policy and keep untested functions explicit.
@@ -99,6 +122,11 @@ universal design requirements.
   actual head/driver envelope. Account for fingers and wire placement where relevant; record
   access not modeled. A clear screw axis alone is not proof of tool access. If a later part
   blocks a screw, change the order and show that order explicitly, or redesign the joint.
+- A captive nut pocket needs an accessible insertion/removal path, anti-rotation faces and
+  retention while the screw starts, with adequate surrounding material. Check the actual nut,
+  screw engagement and assembly order; a nominal M3 hole or a clear driver axis is insufficient.
+  Do not bury a nut at the bottom of a narrow deep well. Prefer the owner's already successful
+  drop-in pocket pattern when applicable, with dimensions still subject to the fit assumption.
 - A snap needs its mating male/female features, lead-in, deflection space and a reachable release
   path. Test the mating pair in the intended material and print direction before relying on it.
   A cosmetic bump is not a validated latch; do not use glue as an undocumented repair.
@@ -171,6 +199,14 @@ universal design requirements.
 
 ## 5. Verify the deliverable and report the remaining uncertainty
 
+- Check unwanted play and retention separately from collision-free movement. For each repaired
+  joint, name possible axial/radial movement, twisting or lifting of the support, intended running
+  clearance and the faces/fasteners that restrain unwanted motion. Include fastener preload and
+  its effect on free rotation as assumptions to verify, not a claim of simulated strength.
+  The small unpowered test assembly must include the real support span, both end restraints and
+  mating frame/body seats; an isolated hole coupon cannot demonstrate whole-joint wobble or
+  rigidity. Provide a gentle plain-language play/binding check and keep physical results pending
+  until the person reports them. Do not prescribe powered tests or force/back-drive an actuator.
 - **Recheck rubbing/binding over the full intended motion range after every mechanical change.**
   Include each axis in both directions, intermediate angles and combined-axis positions, with
   the final devices, screw heads/nuts, horns, mounts, closed shells, connectors and wire bundle.
