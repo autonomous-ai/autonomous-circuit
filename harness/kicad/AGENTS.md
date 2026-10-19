@@ -645,6 +645,10 @@ board revision, not a moved footprint.
   does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
   orientation/support needs, and put assumed module dimensions and coupon results in the
   bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
+  change the failed feature with the smallest compatible local part/adapter using existing
+  holes. Minimize new print time/material before STL count; do not redesign a working body to
+  fit a new mechanism. Check against the printed baseline and lead with repair-only print plates.
 - **Before a long structural repair**, record the joint intent and a section/sketch: continuous
   parts, fixed/free interfaces, printed versus owned stock hardware, nut seats and screw entry.
   Reassess inherited mechanisms, check play/retention separately from collision-free rotation,

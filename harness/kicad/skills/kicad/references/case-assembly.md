@@ -6,6 +6,32 @@ fasteners, difficult joint insertion and coupons mistaken for assembly parts. A 
 report did not prevent those failures. Do not turn that run's part counts or dimensions into
 universal design requirements.
 
+## Repair mode: the already-printed assembly is the starting constraint
+
+- When the person asks to reuse their prints, optimize the repair for **minimum new print
+  time/material and disturbance of working parts**. Establish which revision is physically
+  printed from their chat/photos and project history; the latest CAD is not automatically that
+  revision. List the printed body, wheels, mounts and hardware to keep, and freeze their mating
+  geometry. State uncertain identification as an assumption rather than pretending it is known.
+- Change the failed feature and only the interfaces that must change with it. First evaluate
+  a local replacement, removable cap, sleeve, clamp or adapter using existing holes/fasteners.
+  An extra small functional part may save a long body reprint; minimizing STL count or making a
+  cleaner integrated design is secondary to reusing the person's successful physical parts.
+- Do not redesign the body/base or propagate changed holes, axes, seats and lids just to suit a
+  new repair mechanism. If no workable repair preserves an affected printed part, explain the
+  concrete incompatibility and smallest necessary replacement before presenting it as required.
+  Explicit "keep this body" instructions remain a constraint until the person changes them.
+  Do not assume permission to drill/cut working prints or rely on glue to make them compatible.
+- Build and check the repaired assembly **against the frozen printed geometry**, including
+  insertion, nut/tool access, retention/play and motion. A repair that passes only with a newly
+  redesigned body does not preserve the printed body. Compare the supposedly unchanged mating
+  shapes to the printed baseline, not just their file names or bounding boxes.
+- Lead the handoff with a small **print/add only these parts** list/project and a separate
+  **keep using these printed parts** list. Preserve useful test prints in the final assembly
+  and make subsequent repair plates disjoint so nothing is printed twice. Keep a full-kit
+  project clearly optional; never tell a repair user to print the complete kit by default.
+  Do not mislabel a repair subset as the full production project to bypass export coverage.
+
 ## Moving designs: mechanism first, shell second
 
 - Establish the structural layout and how devices are mounted before detailing cosmetic covers.
@@ -83,7 +109,8 @@ universal design requirements.
   spacer, retaining ring and bracket against the new function. Preserve useful printed parts,
   but do not keep a stack merely because it existed in the old design. State the purpose of
   every retained loose piece and compare a simpler supported joint; do not delete a necessary
-  support or discard a working print solely to reduce the part count.
+  support or discard a working print solely to reduce the part count. In repair mode, keep a
+  harmless already-printed piece when deleting it would force an otherwise unnecessary reprint.
 - Declare power-off assembly, initial centering and any required sensing/limits in the guide and
   firmware. Do not silently add unowned hardware or claim control the installed actuator cannot
   provide. Follow the existing assumption policy and keep untested functions explicit.

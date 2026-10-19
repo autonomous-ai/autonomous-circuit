@@ -244,6 +244,11 @@ The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "C
 
 ### Structural repairs — establish the joint before a full build
 
+When reuse is requested, the actual printed revision and its mating geometry are constraints.
+Fix the failed feature with the smallest compatible replacement/cap/adapter first; save body
+reprints even if the repair adds a small part. Validate against the printed baseline and lead
+with repair-only plates, keeping the full-kit export optional. See the reference's repair mode.
+
 Follow `references/case-assembly.md`: record the requested joint with a section/sketch, actual
 load path, fixed/free interfaces and accessible nut/screw sequence before detailed CAD/slicing.
 Keep routine choices autonomous; do not silently substitute unowned stock for a requested

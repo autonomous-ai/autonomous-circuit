@@ -926,3 +926,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; instruction-only, no API/report schema or physical-test gate changes. Routine choices remain autonomous, and physical rigidity stays pending until observed; no new mandatory user approval.
 - **Mechanism:** update the source tile instructions/reference; refresh linked tile and existing runtime instruction snapshot with backups. No model or firmware change is part of this instruction update.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-19 — Reuse-first repair of already-printed parts
+- **Change:** tile repair instructions prioritize minimum additional print time/material and preserve the actual printed revision/mating geometry. Evaluate small compatible replacements/caps/adapters using existing holes before redesigning bodies; check against the frozen printed baseline and lead with repair-only plates and explicit keep/reprint lists.
+- **Why:** the owner clarified that the lower body takes too long to print again and requested a longer round axle plus small cap fitting the existing hole. A clean new integrated structure was solving against a replacement body instead of the physical assembly already owned.
+- **Backward compatible:** yes; instruction-only, no export/readiness schema change. Full-kit 3MF remains available, with repair subsets kept separate and honestly labeled.
+- **Mechanism:** self-contained assembly reference plus AGENTS/tool-card pointers; refresh existing project runtime/current prompt without altering CAD or interrupting its active repair. Explicit keep-body constraints persist until the owner changes them; incompatible replacements need a concrete reason rather than silent scope expansion.
+- **Tracks affected:** skills / docs.
