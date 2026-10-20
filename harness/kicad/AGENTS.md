@@ -645,6 +645,23 @@ board revision, not a moved footprint.
   does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
   orientation/support needs, and put assumed module dimensions and coupon results in the
   bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
+  change the failed feature with the smallest compatible local part/adapter using existing
+  holes. Minimize new print time/material before STL count; do not redesign a working body to
+  fit a new mechanism. Check against the printed baseline and lead with repair-only print plates.
+- **Before a long structural repair**, record the joint intent and a section/sketch: continuous
+  parts, fixed/free interfaces, printed versus owned stock hardware, nut seats and screw entry.
+  Reassess inherited mechanisms, check play/retention separately from collision-free rotation,
+  and prove nut insertion/removal. Follow the assembly reference; no routine approval gate.
+- **Finish the print plates in the same turn as every case build or repair.** Deliver a native
+  slicer 3MF with production parts oriented, grounded and arranged on real plates within the
+  owner's printer bed, with brim/edge/inter-part clearance. Overflow goes to another plate;
+  never leave a pile on one oversized virtual bed for the person to sort. Preserve known
+  printer/material settings, quantities and reusable printed parts; record unknowns as assumptions.
+  Keep TEST ONLY coupons in a separate project. Regenerate and verify after the last geometry
+  change, link the checked production project through manifest `printProject`, and test the
+  actual **Print all → Bambu Studio** file. See the self-contained assembly reference's
+  "Ready-arranged slicer projects" contract. Do not send anything to a printer.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep

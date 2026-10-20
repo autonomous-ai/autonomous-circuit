@@ -912,3 +912,24 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** no authorization is inferred for other projects; later no-flash instructions override standing permission. Flash-button behavior, target checks, firmware readiness and manufacturing gates are unchanged. No automatic hardware service or actuator operation is added.
 - **Mechanism:** main instructions, tool card and a skill-local firmware-recovery reference cover a project FLASH-POLICY.md, exact source/config/binary hashes, device identity/readback, immutable recovery checkpoints, per-attempt receipts and failure restoration. Case instructions refer to that authorization policy instead of a conflicting unconditional no-flash rule. Viewer changes are comments only.
 - **Tracks affected:** agent workflow / tool card / docs.
+
+## 2026-10-17 — Preserve prepared print plates in Print all
+- **Change:** optional `case/out/parts.json` field `printProject: {file, report}` selects a native slicer 3MF and its verifier receipt, with paths relative to case/out and confined to case/. The receipt binds project SHA256, current production STL hashes/rotations and exactly-once plate membership; coupons remain in a separate test project.
+- **Why:** the generic mesh exporter flattened the agent's already-arranged Bambu projects into one virtual build area, forcing the owner to arrange plates again (17 October).
+- **Backward compatible:** yes. Manifests without printProject retain the generic 3MF export. A declared stale/invalid project fails export instead of silently discarding plates. Existing case/print readiness checks still apply before either export.
+- **Mechanism:** server caseExport.preparedPrintProject validates the binding and copies the exact native 3MF bytes through export_case. Tile AGENTS/tool card/self-contained assembly reference require plate generation and verification after every build/final repair; bind only verified production projects and rerun the normal checker after manifest changes. No slicer or physical print is launched by this validation.
+- **Tracks affected:** server / skills / docs.
+
+## 2026-10-19 — Structural repair intent, accessible nuts and play checks
+- **Change:** tile AGENTS/tool card and self-contained case-assembly reference require a short joint brief with section/sketch before a long structural repair; distinguish continuous printed members from stock fasteners, fixed/free interfaces and the load path. Review inherited parts after architecture changes, check captive-nut insertion/retention/removal, and assess play/support retention separately from collision-free rotation using a representative supported subassembly.
+- **Why:** printed pet feedback exposed loose wheel supports and buried nuts; a long repair used a steel threaded rod before the owner clarified a continuous printed axle. Existing generic simplicity/collision checks did not prevent those mistakes (19 October).
+- **Backward compatible:** yes; instruction-only, no API/report schema or physical-test gate changes. Routine choices remain autonomous, and physical rigidity stays pending until observed; no new mandatory user approval.
+- **Mechanism:** update the source tile instructions/reference; refresh linked tile and existing runtime instruction snapshot with backups. No model or firmware change is part of this instruction update.
+- **Tracks affected:** skills / docs.
+
+## 2026-10-19 — Reuse-first repair of already-printed parts
+- **Change:** tile repair instructions prioritize minimum additional print time/material and preserve the actual printed revision/mating geometry. Evaluate small compatible replacements/caps/adapters using existing holes before redesigning bodies; check against the frozen printed baseline and lead with repair-only plates and explicit keep/reprint lists.
+- **Why:** the owner clarified that the lower body takes too long to print again and requested a longer round axle plus small cap fitting the existing hole. A clean new integrated structure was solving against a replacement body instead of the physical assembly already owned.
+- **Backward compatible:** yes; instruction-only, no export/readiness schema change. Full-kit 3MF remains available, with repair subsets kept separate and honestly labeled.
+- **Mechanism:** self-contained assembly reference plus AGENTS/tool-card pointers; refresh existing project runtime/current prompt without altering CAD or interrupting its active repair. Explicit keep-body constraints persist until the owner changes them; incompatible replacements need a concrete reason rather than silent scope expansion.
+- **Tracks affected:** skills / docs.

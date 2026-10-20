@@ -91,13 +91,21 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   const save = async (format, part) => {
     const startedIn = context.current;
     setSaving(true); setExportError("");
-    try { const result = await transport.export_case(projectId, boardName, format, part); if (context.current === startedIn) setSaved({ ...result, format }); }
+    try {
+      const result = await transport.export_case(projectId, boardName, format, part);
+      if (context.current !== startedIn) return;
+      setSaved({ ...result, format });
+      if (format === "3mf" && result.canOpenBambu) await transport.export_open_bambu(result.path);
+    }
     catch (error) { if (context.current === startedIn) setExportError(error.message || String(error)); }
     finally { if (context.current === startedIn) setSaving(false); }
   };
   const openSaved = async (command) => {
-    try { await command(saved.path); setExportError(""); }
-    catch (error) { setExportError(error.message || String(error)); }
+    const startedIn = context.current;
+    setSaving(true); setExportError("");
+    try { await command(saved.path); }
+    catch (error) { if (context.current === startedIn) setExportError(error.message || String(error)); }
+    finally { if (context.current === startedIn) setSaving(false); }
   };
   const handwired = enclosure?.nativePCBCheckerApplies === false;
   const readiness = enclosure?.printStatus || enclosure;
@@ -154,14 +162,14 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
 
         <button type="button" data-slot="case-print-all" disabled={saving || !projectId || readiness?.state !== "passed"} onClick={() => save("3mf")}
           className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 text-sm font-medium disabled:opacity-40">
-          {saving ? "Saving…" : "Print all · 3MF"}
+          {saving ? "Preparing…" : "Print all · Bambu Studio"}
         </button>
-        <p className="text-[11px] leading-4 text-muted-foreground">Printable parts laid out separately; reference models excluded. Choose your printer in the slicer, then slice.</p>
+        <p className="text-[11px] leading-4 text-muted-foreground">Saves a 3MF and opens Bambu Studio when available. Printable parts laid out separately; reference models excluded. Choose your printer in the slicer, then slice.</p>
         {saved ? <div data-slot="case-saved" className="rounded-md border border-border/60 px-2 py-2 text-xs break-all">
           Saved: {saved.path}
           <div className="mt-1 flex flex-wrap gap-2">
-            <button type="button" onClick={() => openSaved(transport.export_reveal)} className="underline">Show in Finder</button>
-            {saved.format === "3mf" && saved.canOpenBambu ? <button type="button" data-slot="case-open-bambu" onClick={() => openSaved(transport.export_open_bambu)} className="underline">Open in Bambu Studio</button> : null}
+            <button type="button" disabled={saving} onClick={() => openSaved(transport.export_reveal)} className="underline disabled:opacity-40">Show in Finder</button>
+            {saved.format === "3mf" && saved.canOpenBambu ? <button type="button" disabled={saving} data-slot="case-open-bambu" onClick={() => openSaved(transport.export_open_bambu)} className="underline disabled:opacity-40">Open in Bambu Studio</button> : null}
           </div>
         </div> : null}
         {exportError ? <p role="alert" className="text-xs text-red-300">{exportError}</p> : null}

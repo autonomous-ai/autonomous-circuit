@@ -6,6 +6,32 @@ fasteners, difficult joint insertion and coupons mistaken for assembly parts. A 
 report did not prevent those failures. Do not turn that run's part counts or dimensions into
 universal design requirements.
 
+## Repair mode: the already-printed assembly is the starting constraint
+
+- When the person asks to reuse their prints, optimize the repair for **minimum new print
+  time/material and disturbance of working parts**. Establish which revision is physically
+  printed from their chat/photos and project history; the latest CAD is not automatically that
+  revision. List the printed body, wheels, mounts and hardware to keep, and freeze their mating
+  geometry. State uncertain identification as an assumption rather than pretending it is known.
+- Change the failed feature and only the interfaces that must change with it. First evaluate
+  a local replacement, removable cap, sleeve, clamp or adapter using existing holes/fasteners.
+  An extra small functional part may save a long body reprint; minimizing STL count or making a
+  cleaner integrated design is secondary to reusing the person's successful physical parts.
+- Do not redesign the body/base or propagate changed holes, axes, seats and lids just to suit a
+  new repair mechanism. If no workable repair preserves an affected printed part, explain the
+  concrete incompatibility and smallest necessary replacement before presenting it as required.
+  Explicit "keep this body" instructions remain a constraint until the person changes them.
+  Do not assume permission to drill/cut working prints or rely on glue to make them compatible.
+- Build and check the repaired assembly **against the frozen printed geometry**, including
+  insertion, nut/tool access, retention/play and motion. A repair that passes only with a newly
+  redesigned body does not preserve the printed body. Compare the supposedly unchanged mating
+  shapes to the printed baseline, not just their file names or bounding boxes.
+- Lead the handoff with a small **print/add only these parts** list/project and a separate
+  **keep using these printed parts** list. Preserve useful test prints in the final assembly
+  and make subsequent repair plates disjoint so nothing is printed twice. Keep a full-kit
+  project clearly optional; never tell a repair user to print the complete kit by default.
+  Do not mislabel a repair subset as the full production project to bypass export coverage.
+
 ## Moving designs: mechanism first, shell second
 
 - Establish the structural layout and how devices are mounted before detailing cosmetic covers.
@@ -38,6 +64,24 @@ universal design requirements.
   unrequested features from the image. If the person asks only to inspect/discuss and is sending
   more references, record conclusions and wait for a design request before modifying their run.
 
+## Before a long structural repair: make the joint intent explicit
+
+- Before detailed CAD and a full slicer run for a changed structural joint, record a short
+  plain-language repair brief in the existing project plan/guide, with a section view or simple
+  sketch. Restate the person's requested shape and fastening: what is one continuous piece,
+  what passes through what, printed versus stock parts, where the nuts sit and from which side
+  screws enter. Mark visible evidence, owned hardware and assumptions separately. A phrase such
+  as "through axle" does not choose between a printed member and a purchased threaded rod.
+- Resolve routine choices autonomously within that stated intent; this is not a mandatory
+  approval checkpoint. Do not silently replace the requested structure with newly purchased
+  stock or a different fastening scheme. If the shape is uncertain, state the assumption and
+  develop the smallest representative joint first, rather than a complete kit around a guess.
+  Incorporate a later user correction into the brief before continuing; preserve compatible work.
+- Trace how forces reach the body/support through actual mating seats and restraints. Identify
+  which interfaces must remain fixed, which may rotate and how both ends are retained. Reuse
+  ordinary accessible hardware where appropriate, but do not treat a screw through an unsupported
+  printed sleeve, glue or a collision-free pose as evidence that the joint carries its load.
+
 ## 1. Resolve hardware and choose a mechanism
 
 - **Default to simple, rugged and serviceable.** The person should be able to print, assemble,
@@ -61,6 +105,12 @@ universal design requirements.
   and maintenance. Prefer fewer, accessible parts; justify added cams/linkages. Preserve the
   requested motion and control behavior when simplifying. Check actuator/control compatibility;
   a displayed CAD angle or a timed motor pulse does not establish actual angle feedback.
+- When changing architecture (for example tracks to wheels), review every inherited guide,
+  spacer, retaining ring and bracket against the new function. Preserve useful printed parts,
+  but do not keep a stack merely because it existed in the old design. State the purpose of
+  every retained loose piece and compare a simpler supported joint; do not delete a necessary
+  support or discard a working print solely to reduce the part count. In repair mode, keep a
+  harmless already-printed piece when deleting it would force an otherwise unnecessary reprint.
 - Declare power-off assembly, initial centering and any required sensing/limits in the guide and
   firmware. Do not silently add unowned hardware or claim control the installed actuator cannot
   provide. Follow the existing assumption policy and keep untested functions explicit.
@@ -99,6 +149,11 @@ universal design requirements.
   actual head/driver envelope. Account for fingers and wire placement where relevant; record
   access not modeled. A clear screw axis alone is not proof of tool access. If a later part
   blocks a screw, change the order and show that order explicitly, or redesign the joint.
+- A captive nut pocket needs an accessible insertion/removal path, anti-rotation faces and
+  retention while the screw starts, with adequate surrounding material. Check the actual nut,
+  screw engagement and assembly order; a nominal M3 hole or a clear driver axis is insufficient.
+  Do not bury a nut at the bottom of a narrow deep well. Prefer the owner's already successful
+  drop-in pocket pattern when applicable, with dimensions still subject to the fit assumption.
 - A snap needs its mating male/female features, lead-in, deflection space and a reachable release
   path. Test the mating pair in the intended material and print direction before relying on it.
   A cosmetic bump is not a validated latch; do not use glue as an undocumented repair.
@@ -113,10 +168,43 @@ universal design requirements.
 - Explain what it tests, which real part goes where, insertion direction, what a pass looks
   like, what to change after failure, and that it is set aside after the test. Say explicitly
   **do not assemble or glue this into the product**. A file name alone is insufficient.
-- Put coupons in a separately named test project/plate when delivering slicer projects. Identify
-  them separately in any generic Print all export, which may include all printable manifest
-  entries. Never claim that button automatically removes coupons. Exclude coupons from the
-  assembled model, assembly part count and product assembly steps.
+- Put coupons in a separately named TEST ONLY slicer project. The prepared production project
+  excludes them; the legacy generic Print all export may still include all printable manifest
+  entries. Exclude coupons from the assembled model, assembly count and product assembly steps.
+
+### Ready-arranged slicer projects
+
+- After **every build and final repair**, create/update a native slicer 3MF. Automatically orient
+  to the declared print intent, ground each object and arrange on the owner's actual bed-sized
+  plates; add plates on overflow. Include edge, brim and inter-part clearance, excluded bed areas
+  and any needed support clearance. Do not scale a part to make it fit or use a huge virtual bed.
+  Preserve the user's printer/nozzle/material/process choices. Use a named reference profile and
+  label GIẢ ĐỊNH if unknown; do not ask the owner technical setup questions.
+- Keep fixed/moving subassemblies identifiable, account for quantities with distinct manifest
+  instances, and deliver a separate TEST ONLY coupon project. Keep a repair/subset project for
+  already-printed parts when useful; the full production project must cover all current printable
+  non-coupon manifest instances, including identical copies. Do not silently omit items.
+- Use the slicer's native arrange/export path when available (for Bambu, an installed CLI may
+  arrange and export without sending a print). Reuse project-local generators and verify against
+  current STEP/STL and `printRotateDeg`. Check each plate for overlap, out-of-bed parts, floating
+  geometry and unexpected supports; inspect thumbnails when available. Retain real slicer
+  warnings and state CAD/slicer checks versus physical tests honestly.
+- Publish `case/out/parts.json` with `printProject: {"file": "../print/production.3mf",
+  "report": "../print/production-check.json"}`. Both paths resolve from `case/out/`, must remain
+  inside `case/`, and the project must be a native 3MF preserving plates and printer settings.
+  The independent project-local slicer verifier writes a report with `passed: true`, `file`
+  (workspace-relative path to that 3MF), `sha256` (final project bytes), `meshes` and `plates`.
+  Each mesh record has `name: "<manifest-part-name>.stl"`, `canonicalSTLSha256` (current assembly
+  STL bytes) and `printRotateDeg` (the manifest rotation, or `[0,0,0]` when absent). Each plate has
+  a unique positive integer `index` and `parts` listing those mesh names exactly once overall.
+  Retain settings, warnings, surface comparison and clearance evidence in the report too.
+  Hashes bind a real slicer verification; writing a passing JSON by hand is not verification.
+- Publish the binding only after the verifier passes, then rerun the normal case/print checker
+  because the manifest changed. Print all copies that checked 3MF **unchanged**, preserving its
+  plates/profile. An invalid or stale declared project is an error, never a quiet fallback to
+  the flat mesh export. Without `printProject`, legacy projects retain their generic export.
+  Check the actual saved/opened file, not just a similarly named file elsewhere. Link the full,
+  repair and TEST ONLY files in the current guide and report the plate counts. No physical print.
 
 ## 4. Publish one current revision and preserve printed parts
 
@@ -138,6 +226,14 @@ universal design requirements.
 
 ## 5. Verify the deliverable and report the remaining uncertainty
 
+- Check unwanted play and retention separately from collision-free movement. For each repaired
+  joint, name possible axial/radial movement, twisting or lifting of the support, intended running
+  clearance and the faces/fasteners that restrain unwanted motion. Include fastener preload and
+  its effect on free rotation as assumptions to verify, not a claim of simulated strength.
+  The small unpowered test assembly must include the real support span, both end restraints and
+  mating frame/body seats; an isolated hole coupon cannot demonstrate whole-joint wobble or
+  rigidity. Provide a gentle plain-language play/binding check and keep physical results pending
+  until the person reports them. Do not prescribe powered tests or force/back-drive an actuator.
 - **Recheck rubbing/binding over the full intended motion range after every mechanical change.**
   Include each axis in both directions, intermediate angles and combined-axis positions, with
   the final devices, screw heads/nuts, horns, mounts, closed shells, connectors and wire bundle.
