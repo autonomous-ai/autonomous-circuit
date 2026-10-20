@@ -244,7 +244,9 @@ The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "C
 
 ### Structural repairs — establish the joint before a full build
 
-When reuse is requested, the actual printed revision and its mating geometry are constraints.
+Preserve existing working designs/parts by default unless the person changes the requirement;
+a repair request does not authorize a wholesale redesign. Prefer compatible local add-ons.
+The actual printed revision and its mating geometry are constraints.
 Fix the failed feature with the smallest compatible replacement/cap/adapter first; save body
 reprints even if the repair adds a small part. Validate against the printed baseline and lead
 with repair-only plates, keeping the full-kit export optional. See the reference's repair mode.

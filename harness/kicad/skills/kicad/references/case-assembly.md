@@ -8,7 +8,12 @@ universal design requirements.
 
 ## Repair mode: the already-printed assembly is the starting constraint
 
-- When the person asks to reuse their prints, optimize the repair for **minimum new print
+- **Preserve the established design by default.** Unless the person changes the requirement,
+  keep working parts, printed assemblies and their interfaces; a bug report is not permission
+  to discard the whole mechanism or redesign the robot. Prefer a compatible local repair or
+  functional add-on. If that cannot solve the defect, explain the incompatibility and smallest
+  necessary replacement; do not expand beyond an explicit keep-part constraint on your own.
+- Optimize the repair for **minimum new print
   time/material and disturbance of working parts**. Establish which revision is physically
   printed from their chat/photos and project history; the latest CAD is not automatically that
   revision. List the printed body, wheels, mounts and hardware to keep, and freeze their mating
@@ -157,6 +162,10 @@ universal design requirements.
 - A snap needs its mating male/female features, lead-in, deflection space and a reachable release
   path. Test the mating pair in the intended material and print direction before relying on it.
   A cosmetic bump is not a validated latch; do not use glue as an undocumented repair.
+- Prefer fewer fasteners and sturdy serviceable keyed/latching joints where suitable. Support
+  the male feature instead of making a long fragile hook; give the female opening a lead-in and
+  verified insertion clearance while retaining a real locking/locating face. Easy insertion
+  must still resist unwanted play/pullout. Keep screws where structure or service requires them.
 - Route real wire bundles and connectors during the sequence, including strain relief and the
   checked motion envelope. Keep the current assembly guide linked to `firmware/WIRING.md`.
 
@@ -226,6 +235,17 @@ universal design requirements.
 
 ## 5. Verify the deliverable and report the remaining uncertainty
 
+- Check the **assembled dimension stack**, not only individual nominal fits: body/rail spacing,
+  wheel widths, sleeves, spacers, seats, screw heads and nuts in their final seated positions.
+  Account for the declared tolerance range and show intended axial/radial running gaps. An
+  unexplained multi-millimetre end gap, tightening that binds the wheel, or a need for coarse
+  sanding/forced assembly is a repair finding; do not make field compensation the pass condition.
+  Validate a proposed simpler passive-wheel mechanism on a representative small assembly before
+  expanding the repair. Repeatedly stacking tiny compensating pieces is not simplification.
+- Preserve the functional contact geometry of shafts/bearings/seats when choosing print-friendly
+  shapes. Explain orientation in terms of that part's function, support and expected loads;
+  slicer success alone does not establish strength, wear or smoothness. Verify the final printed
+  joint with the stated fit/play/motion procedure; tape on a broken joint is temporary, not a pass.
 - Check unwanted play and retention separately from collision-free movement. For each repaired
   joint, name possible axial/radial movement, twisting or lifting of the support, intended running
   clearance and the faces/fasteners that restrain unwanted motion. Include fastener preload and
@@ -240,6 +260,9 @@ universal design requirements.
   Check clearance and wire slack/pinch throughout travel. Neutral/end poses or an animation
   alone are insufficient. Use swept geometry or refined sampling, state its coverage/resolution
   and minimum measured clearance; do not present discrete samples as continuous proof.
+- Include every added lid rib, boss, latch and decorative ridge in that motion check, using
+  the actual installed revisions (including a retained older head). A fixed lid feature still
+  must clear the moving head/neck throughout travel; do not add an unrequested motion stop.
 - Distinguish intentional bearing/stop contacts from unwanted collisions. Name intended mates
   and their allowed motion; do not hide rubbing with blanket collision exclusions, omit parts,
   silently reduce the requested travel or disable checks. Fix the geometry/attachment, rebuild,
