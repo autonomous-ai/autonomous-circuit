@@ -645,6 +645,9 @@ board revision, not a moved footprint.
   does not prove fit. Use open or adjustable retention for unmeasured modules, verify the print
   orientation/support needs, and put assumed module dimensions and coupon results in the
   bring-up notes. Do not promise a press fit from nominal reference dimensions.
+- **Preserve the established design by default.** A defect report does not authorize throwing
+  away working parts or starting a new design. Prefer compatible repair/add-on parts; wider
+  replacement must respect the person's unchanged requirements and explicit keep-part limits.
 - **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
   change the failed feature with the smallest compatible local part/adapter using existing
   holes. Minimize new print time/material before STL count; do not redesign a working body to

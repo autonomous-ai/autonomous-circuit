@@ -933,3 +933,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; instruction-only, no export/readiness schema change. Full-kit 3MF remains available, with repair subsets kept separate and honestly labeled.
 - **Mechanism:** self-contained assembly reference plus AGENTS/tool-card pointers; refresh existing project runtime/current prompt without altering CAD or interrupting its active repair. Explicit keep-body constraints persist until the owner changes them; incompatible replacements need a concrete reason rather than silent scope expansion.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-20 — Preserve existing designs and close physical assembly findings
+- **Change:** preservation/local repair is the default even without a repeated reuse request. Tile instructions require assembled dimension-stack checks, functional contact/print-orientation reasoning, robust serviceable mating features, and full-motion clearance of every lid rib/boss against actual installed revisions. Physical need for coarse sanding, forced assembly or tape remains an open defect.
+- **Why:** owner reports six print iterations: robot runs, but passive wheel motion is uneven, a complex wheel stack leaves about5mm to compensate, an older head joint breaks, too many screws are needed, and a lid ridge prevents nodding. Owner explicitly requests compatible repair parts rather than discarding existing work.
+- **Backward compatible:** yes; instruction-only, no runtime API/report gate or geometry changes. Necessary structural/service screws remain allowed; no arbitrary universal gap, latch size or strength claim.
+- **Mechanism:** update AGENTS/tool card/self-contained case-assembly reference; refresh existing runtime instructions and send a scoped learning prompt without restarting current firmware/layout work or automatically redesigning mechanics.
+- **Tracks affected:** skills / docs.
