@@ -17,6 +17,23 @@ env:
   CIRCUIT_PARTS_ENGINE: "off"
 
 jobs:
+  kicad-parallel-pilot:
+    name: KiCad pilot (offline)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Fakes exercise orchestration; no model login, CAD install, network or hardware.
+      - name: Run isolated pilot tests
+        env:
+          PYTHONPATH: packages/kicadpy/src:packages/circuitpy/src
+        run: python -m unittest discover -s packages/kicadpy/tests -p test_parallel.py -q
+
   circuitpy:
     name: pipeline
     runs-on: ubuntu-22.04

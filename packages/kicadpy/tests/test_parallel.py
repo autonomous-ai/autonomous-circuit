@@ -134,6 +134,17 @@ class PilotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must not exist'):
             self.init()
 
+    def test_alternate_instructions_do_not_select_another_runtime(self):
+        import shutil
+        source = self.base / 'custom/cards'
+        shutil.copytree(CARD, source)
+        target = self.base / 'custom-pilot'
+        state = pilot.initialize(target, self.prompt, instructions=source)
+        self.assertEqual(Path(state['toolchainRoot']), ROOT)
+        self.assertEqual(state['pipelineSha256'], pilot.pipeline_sha(ROOT))
+        (source / 'AGENTS.md').write_text('changed original after snapshot')
+        self.assertEqual(pilot.status(target)['status'], 'initialized')
+
     def test_three_workers_overlap_and_finishers_read_integrated_board(self):
         self.plan()
         self.fake.barrier = threading.Barrier(3)
@@ -455,7 +466,7 @@ workspace = pathlib.Path(args[args.index('-C') + 1])
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
 if os.environ.get('PILOT_STUB_HANG'):
-    code = "import pathlib,time;time.sleep(1);pathlib.Path('orphan-marker').write_text('orphan')"
+    code = "import pathlib,time;time.sleep(3);pathlib.Path('orphan-marker').write_text('orphan')"
     subprocess.Popen([sys.executable, '-c', code], cwd=workspace)
     time.sleep(20)
 pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
@@ -494,13 +505,14 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
 
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
-        self.state['timeoutSeconds'] = .3
+        # Allow interpreter startup under host load; the child marker is delayed past this bound.
+        self.state['timeoutSeconds'] = 2
         with patch.dict(os.environ, {'PILOT_STUB_HANG': '1'}):
             receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
                                   'scoped task', RESULT_SCHEMA, False)
         self.assertIsNotNone(receipt['error'])
         self.assertEqual(receipt['usage']['input_tokens'], 100)
-        time.sleep(1.1)
+        time.sleep(3.1)
         self.assertFalse((self.workspace / 'orphan-marker').exists())
         self.assertTrue((self.root / receipt['logDirectory'] / 'receipt.json').is_file())
 

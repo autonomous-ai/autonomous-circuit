@@ -41,6 +41,9 @@ def pipeline_sha(root):
     for relative in ('packages/kicadpy/src', 'packages/circuitpy/src', 'harness/kicad/toolchain'):
         paths.extend(p for p in (root / relative).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')
+    paths.extend((root / 'packages/kicadpy').glob('*.md'))
+    paths.extend((root / 'packages/golden-blocks').rglob('BLOCK.md'))
+    paths.extend((root / 'packages/golden-blocks/modules').rglob('module.json'))
     for relative in ('viewer/src/server/circuit/caseExport.mjs', 'harness/kicad/harness.json'):
         path = root / relative
         if path.is_file():
@@ -121,6 +124,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     if not prompt.strip() or len(prompt) > 100000:
         raise ValueError('Expected a bounded nonempty product prompt')
     source = Path(instructions or Path(os.environ.get('KICAD_HARNESS_ROOT', Path(__file__).resolve().parents[4])) / 'harness/kicad').resolve()
+    # Alternate instruction snapshots must not silently select another checker's Python/runtime.
+    tool_root = Path(__file__).resolve().parents[4]
     texts = {'AGENTS.md': (source / 'AGENTS.md').read_text(),
              'skills/kicad/SKILL.md': (source / 'skills/kicad/SKILL.md').read_text()}
     for p in sorted((source / 'skills/kicad/references').glob('*.md')):
@@ -179,8 +184,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
              'planAttempts': 0, 'rounds': [],
              'instructionsSha256': digest(texts), 'promptSha256': digest(prompt),
-             'pipelineSha256': pipeline_sha(source.parents[1]),
-             'toolchainRoot': str(source.parents[1]), 'hardwareTested': False}
+             'pipelineSha256': pipeline_sha(tool_root),
+             'toolchainRoot': str(tool_root), 'hardwareTested': False}
     write(control / 'state.json', state)
     return state
 
