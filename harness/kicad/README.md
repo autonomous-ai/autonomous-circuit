@@ -99,3 +99,11 @@ against the files: 10.1 µF across USB VBUS (C1 10 µF + C7 0.1 µF) is over USB
 builder had raised its own `railLimitsUF.VBUS` to 11 to pass; the LDO's 10 µF output cap meets the
 LD1117 minimum only at nominal, not after its ±20 % tolerance. Each call's seconds and tokens are
 in its log.
+
+### Opt-in parallel team pilot
+
+An explicitly requested isolated experiment can use `python -m kicadpy.parallel` through this
+tile's Python wrapper. It does not change normal tile/Stop behavior. See the self-contained
+[operator guide](skills/kicad/references/parallel-pilot.md) for Astra planning/review, Sol
+worktrees, native gates, revision, receipts and comparison controls. No real pilot is started
+merely by installing this code.

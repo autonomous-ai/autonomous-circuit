@@ -312,3 +312,10 @@ with identical tools, coverage and ignored checks. A new or changed finding is r
 the total count falls. Scope, source freshness, check hashes and undo remain enforced. This is
 progress, not completion: `fabricationReady` remains false; publish the manufacturing packet
 and finish the remaining repairs before claiming `fab.ready=true`.
+
+## Explicitly requested team experiments
+
+For a new isolated Astra-lead / Sol-board+firmware+frame pilot, read
+[references/parallel-pilot.md](references/parallel-pilot.md). Use only when the owner requests
+that experiment; normal builds and active runs keep the existing pipeline. The CLI has
+explicit execution flags, frozen interface contracts, scoped worktrees and native checks.

@@ -947,3 +947,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; instruction-only, no new report/API/automatic physical-test gate. Existing printed structures stay protected by repair mode; a simple structural base may serve as the frame without redundant components. Actual unperformed physical tests remain pending.
 - **Mechanism:** replace/refine the existing mechanism-first wording in AGENTS, tool card and self-contained assembly reference rather than adding a competing workflow; refresh linked live tile/current runtime with guarded backups.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-21 — Opt-in contract-first Astra / Sol pilot
+- **Change:** add an isolated experimental `kicadpy.parallel` CLI. A read-only Astra lead seals a versioned interface contract; board, firmware and functional-frame Sol workers use owned paths in separate worktrees. Actual native board publication and structural review precede firmware reconciliation and case covers; final native/firmware/case/Print-all binding checks and lead review precede a candidate result.
+- **Why:** owner requested implementation of the deferred parallel-pipeline backlog in a separate PR after merging the frame-first instructions. The existing pet and default single-agent path remain in use while a measurable experiment becomes possible.
+- **Backward compatible:** yes; no default tile/model/hook/viewer/API/verdict schema change. No automatic pilot, firmware flash, print, order or live-run migration. Physical validation remains pending.
+- **Mechanism:** frozen prompt/instructions/checker hashes, revision-bound receipts, import ownership checks, bounded explicit execution/revision, partial-usage/error logs and parallel/sequential/single-builder controls. Existing native gates remain authoritative. Cost fields are unknown rather than inferred from subscription token usage; no speed/quality benchmark is claimed from offline tests.
+- **Tracks affected:** Python experimental orchestration / KiCad tool card / docs.
