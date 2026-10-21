@@ -207,8 +207,14 @@ provide the binary/Flash recipe. Flashing does not authorize motors, printing or
 ## The case (`kicadpy.case`)
 
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
-For moving designs, define the structural mechanism/device mounts first, check that accessible
-subassembly, then attach shells and recheck motion. Prototype a changed joint with its actual
+Use this build order: **frame → mounted devices, fasteners and joints → structural checks →
+case covers → complete-assembly checks**. For a new robot/moving device, the uncovered frame
+must hold and locate the devices/joints. Place real envelopes, fixing/nut seats, tool access and
+wires first; check that accessible subassembly before designing removable covers that attach
+to it. Keep the exposed mechanism/assembly order visible in the guide and overview. Covers must
+clear its full motion, including every rib/latch/screw; fix a cover interference locally before
+changing proven mounts. Existing printed structures remain the baseline in repair mode; a simple
+structural base may serve as the frame. Prototype a changed joint with its actual
 mating parts; reference photos supply layout ideas, not measured dimensions or actuator feedback.
 Default to simple, rugged, serviceable mechanics: few parts, direct joints, stock hardware and
 ordinary tools. Add mechanical complexity only for a named requirement a simpler design cannot meet.
