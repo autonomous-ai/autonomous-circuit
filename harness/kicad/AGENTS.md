@@ -247,6 +247,12 @@ board until harness-18 — switch its rail); a module input with an internal pul
 BLK) lights when the board merely stops driving it. Write the reasoning into `engineering/power.md`
 next to the measurement, and never "the firmware will handle it".
 
+Include the **actual module circuit**, not just the bare IC: onboard pull-ups/pull-downs can
+defeat an external default-off resistor. Check loaded voltages against guaranteed input
+thresholds and tolerances. Follow shared controls through buffers: an RC-slowed power-switch
+gate is not automatically a valid digital enable. Check input transition-time limits and
+power sequencing against the selected datasheets; record required bench checks.
+
 **A thermal claim is a copper measurement.** `kicadpy.verify thermal design/main.kicad_pro U2 2`
 reports the filled copper under the LDO tab per layer and the vias on it. 0 mm² means the
 "heatsink pour" in thermal.md does not exist (harness-14 and -17 both wrote one that did not).
@@ -426,6 +432,11 @@ the review is closed, write the firmware in the same turn, without being asked a
   sidecar), never from the plan or from memory: a plan's table may have moved during layout.
   Put the table in the README with the net name beside each pin, and say so where a pin
   differs from what `product.json` asked for.
+- **A stop condition dominates every start path.** Where the design has a stop/inhibit input,
+  holding it keeps outputs disabled despite repeated HTTP/serial/UI commands or a command in
+  progress. Release does not rearm automatically: require the documented fresh command. Test
+  the production handlers and enable path, including a stop arriving during a command; label
+  mocked host tests separately from hardware tests.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
   status LED first, then each peripheral). The person can use the Flash button; when they have
@@ -563,6 +574,9 @@ board revision, not a moved footprint.
   multi-link mechanisms or delicate custom catches when a simple bracket or direct coupling
   meets the request. Added complexity must solve a named requirement that the simpler option
   cannot meet; explain that necessity briefly and preserve the requested function.
+  Before finalizing a full kit, count printed pieces, installed fasteners/types and repeated
+  assembly operations; list spares separately. Review repeated clamps/spacers for simpler
+  supported options. Do not impose a universal count or discard working prints to lower it.
 - **Fix retention, device mounting and fragile features before calling a case complete.**
   Show the complete attachment chain **device → mount/frame → shell**. Each fixed connection
   needs a defined seat and a serviceable restraint against slip, pullout and unwanted rotation;
@@ -584,6 +598,9 @@ board revision, not a moved footprint.
   mechanism that preserves the requested function. Deliver a current, linked assembly/print
   guide with numbered parts, tested insertion paths, a separate coupon procedure and an exact
   reuse/reprint list. A collision-free final pose alone does not prove a person can assemble it.
+  Every fastener position, including retained assemblies, needs a matching guide/overview ID,
+  thread × length (or honest factory/unknown label), head/tool, nut/washer and insertion arrow.
+  Show the screw and mating parts at that assembly step; a total BOM is insufficient.
 - **Start from the template.** `case/build.py` can begin as two lines and then grow:
   ```python
   from kicadpy.case_template import build_box
@@ -654,6 +671,11 @@ board revision, not a moved footprint.
 - **Preserve the established design by default.** A defect report does not authorize throwing
   away working parts or starting a new design. Prefer compatible repair/add-on parts; wider
   replacement must respect the person's unchanged requirements and explicit keep-part limits.
+- **Remember what the person has printed.** Read/update `case/PRINTED-INVENTORY.md` before
+  repairs and plate exports. Persist their confirmations and identifiable photo evidence with
+  part/revision, quantity, source/date and fit/breakage status; do not leave this knowledge in
+  chat alone. A generated/sliced/opened file is not a print. Mark uncertain photo matches as
+  uncertain, never as an invented exact revision. Follow the reference's inventory rules.
 - **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
   change the failed feature with the smallest compatible local part/adapter using existing
   holes. Minimize new print time/material before STL count; do not redesign a working body to
@@ -671,6 +693,10 @@ board revision, not a moved footprint.
   change, link the checked production project through manifest `printProject`, and test the
   actual **Print all → Bambu Studio** file. See the self-contained assembly reference's
   "Ready-arranged slicer projects" contract. Do not send anything to a printer.
+  Partition plates into clearly named **ALREADY PRINTED — REFERENCE** and **NEW / UPDATED**;
+  never mix them on one plate. Lead repair handoff with a new/update-only project and the exact
+  remaining quantities from the printed inventory. Keep full-production coverage intact and
+  optional; obsolete printed revisions stay in separate historical reference projects.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep
@@ -699,6 +725,14 @@ board passes `kicadpy.case check` (the hook asks once). Neither gates `fab.ready
 turn's last deliverables, not caveats on the board. The Case deliverable also includes the current
 interactive overview: build the 3D model → regenerate its overview → verify both and the applicable
 checks, all in the same turn.
+
+**Report the requested product scope, not just the gate.** Track the brief's required outputs
+and latest accepted changes: electrical board, carrier only versus a requested robot structure,
+firmware functions, assembly guide and print handoff. A PCB tray does not complete requested
+frame/limbs/covers; do not add those to a board-only request. State functions implemented,
+disabled by unresolved pin/module identity, or not requested. Do not invent a GPIO map or gait
+to claim completion. Scoped pilot workers report their assigned stage only. Existing
+`fab.ready`, case and physical-test meanings remain unchanged.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or

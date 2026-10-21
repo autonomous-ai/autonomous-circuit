@@ -226,6 +226,13 @@ or physical motion. Detailed acceptance rules are in the required reference abov
 Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
 guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
 sequence as well as the final pose, then regenerate the overview from that same revision.
+Read/update `case/PRINTED-INVENTORY.md` from the person's print confirmations and identifiable
+photos; retain part/revision, quantity, evidence and uncertainty across turns. Separate
+ALREADY PRINTED reference plates from NEW/UPDATED plates; lead repairs with a new-only project,
+while keeping optional full-production coverage valid. Every screw position needs a matching
+ID, size/length or factory label, nut/tool and visual insertion direction in guide/overview.
+Count parts/installed fasteners before finalizing; keep one current decision after corrections
+and reconcile actuator/wiring changes. Follow the reference for details, not an extra approval step.
 
 ```sh
 "$KICAD_CASE_PYTHON" case/build.py               # your model -> case/out/ (start: kicadpy.case_template.build_box('.'))

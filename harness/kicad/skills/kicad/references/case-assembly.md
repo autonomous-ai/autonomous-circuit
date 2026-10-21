@@ -37,6 +37,35 @@ universal design requirements.
   project clearly optional; never tell a repair user to print the complete kit by default.
   Do not mislabel a repair subset as the full production project to bypass export coverage.
 
+### Persistent inventory of the person's actual prints
+
+- Read `case/PRINTED-INVENTORY.md` before each repair, redesign or plate export; create it from
+  available project/chat/photo evidence when absent. Keep this project-local file across turns,
+  context resets and assembly variants. Update it when the person says they printed, reused,
+  broke, discarded or modified something, or supplies a photo that identifies an existing print.
+  Do not make them repeat information already available. No extra approval checkpoint is added.
+- For each physical part/instance record stable ID, quantity, likely assembly/revision and mesh
+  hash when actually known, material if known, fit/breakage/modification status, evidence source
+  (dated message or image path) and identification confidence. Preserve earlier evidence instead
+  of overwriting the physical history with the latest CAD. A photo may establish a visible
+  printed part; it does not identify hidden parts, exact dimensions or an indistinguishable STL
+  revision. Record those as uncertain. Never invent measurements or an exact photo-to-mesh match.
+- Exporting, slicing, downloading or opening a 3MF does not establish that it was printed. A
+  successful CAD/slicer check does not establish fit, strength, traction or a successful physical
+  assembly. Keep **printed**, **fits/works**, **failed/modified**, and **identity unknown** distinct.
+  Preserve reported sanding/tape/breakage as open findings until there is evidence of a repair.
+- Compare current requirements with the actual inventory before adding anything to a print
+  queue. A renamed part, rigid placement change or new assembly label alone is not a reprint.
+  Use the geometry comparison below to establish compatibility; unchanged file names alone do
+  not establish it either. Record replacements with the old→new revision and concrete reason.
+  For partial quantities, only the shortage goes to the new/update project. A printed part with
+  fit still pending stays recorded as printed; do not silently count it as missing and print it
+  again. For uncertain identities, state the unresolved assumption and smallest representative
+  test; do not declare the part absent or schedule a whole replacement kit as a certainty.
+- On handoff, reconcile current required instances = compatible printed instances + new/update
+  instances, with pending/obsolete/test-only items identified separately. Keep usable real
+  production parts from test kits in the inventory; decorative coupons remain TEST ONLY.
+
 ## Build order: frame → mounted devices and joints → covers
 
 - **Design the functional frame first.** For a new robot/moving device, establish the load-bearing
@@ -100,6 +129,10 @@ universal design requirements.
   stock or a different fastening scheme. If the shape is uncertain, state the assumption and
   develop the smallest representative joint first, rather than a complete kit around a guess.
   Incorporate a later user correction into the brief before continuing; preserve compatible work.
+- Distinguish **reuse this actual printed part**, **preserve its mating interface**, and
+  **keep its appearance while changing geometry**. Identify "the old tread/rail" against the
+  named/photo baseline before exporting another kit. Keeping a shape does not mean an old print
+  still fits: state any required replacement and the exact changed interface/dimension.
 - Trace how forces reach the body/support through actual mating seats and restraints. Identify
   which interfaces must remain fixed, which may rotate and how both ends are retained. Reuse
   ordinary accessible hardware where appropriate, but do not treat a screw through an unsupported
@@ -117,6 +150,11 @@ universal design requirements.
   simpler option cannot meet it, and account for the extra parts, fit sensitivity and assembly
   work. If it adds no necessary function, remove it. Simplification must preserve the user's
   requirements; low part count alone does not excuse unreliable or unsupported operation.
+- Before finalizing a full kit, total the printed instances, fastener types/installed quantities,
+  repeated clamps and assembly operations. Separate installed hardware from spares. Review the
+  most repeated mounts for a simpler supported connection, rather than merely calling the kit
+  "simple". Do not impose an arbitrary screw limit, substitute weak latches or discard usable
+  prints to meet a number; necessary structural/service fasteners remain allowed.
 - Start with supplied photos, owned parts and authoritative references. Record module envelope,
   connectors, shaft/horn interface, screw diameter, available length, head shape and nut/tool
   space. A screw of the right thread can still have a head that will not seat. Preserve usable
@@ -137,6 +175,11 @@ universal design requirements.
 - Declare power-off assembly, initial centering and any required sensing/limits in the guide and
   firmware. Do not silently add unowned hardware or claim control the installed actuator cannot
   provide. Follow the existing assumption policy and keep untested functions explicit.
+- When actuator count/type, drive arrangement or module location changes, reconcile the
+  mechanical plan with channel/GPIO mapping, supply/wire budget, neutral/centering and limits.
+  Link each named joint/wheel to the current firmware/WIRING variant; record missing calibration
+  or unimplemented behavior honestly. A new CAD assembly does not establish compatibility with
+  live hardware or authorize flashing, motor tests or replacing a known working configuration.
 
 ## 2. Prove a person can assemble and service it
 
@@ -164,6 +207,17 @@ universal design requirements.
   stable ID matching the manifest, file names, print list and overview labels; place a small ID
   on printed parts where it will not affect a mating surface. Describe orientation from the
   person's view, with a per-step camera, highlighted part and insertion arrow.
+- **Deliver an instance-level fastener map.** Every screw position gets a stable ID matched to
+  the assembly guide, overview and hardware list, including screws in retained head/device
+  assemblies. Show thread/diameter × length, head/driver, nut/washer, entry side and mating part
+  IDs at the relevant step. Draw/show the actual screw and insertion arrow; a global BOM or an
+  unlabeled cylinder is not an assembly instruction. Identical positions may share a clear view
+  but retain distinct IDs/quantities. Derive the list from current hardware instances and check
+  that every instance is covered, without counting spare screws as installed positions.
+- Check stack thickness, engagement, tip protrusion and tool/nut access for that exact screw.
+  Distinguish a servo's factory centre/spline screw from screws clamping a horn to printed parts;
+  never relabel an unknown factory screw as M3. Label unknown dimensions/factory hardware
+  honestly and retain its known original; do not fabricate thread/length to fill the map.
 - Check the path from outside into the assembled position, against everything already installed
   at that step. Check removal/service too. State the sampled path and its coverage; samples do
   not prove unchecked motion between them. Do not teleport parts into closed forks or assume
@@ -211,6 +265,17 @@ universal design requirements.
   instances, and deliver a separate TEST ONLY coupon project. Keep a repair/subset project for
   already-printed parts when useful; the full production project must cover all current printable
   non-coupon manifest instances, including identical copies. Do not silently omit items.
+- Use the printed inventory to separate **ALREADY PRINTED — REFERENCE / DO NOT REPRINT** plates
+  from **NEW / UPDATED — PRINT THESE** plates. Never mix the two groups on a plate; add plates
+  within each group on overflow. Label each project/plate with current variant/revision and list
+  its part IDs/quantities in the guide. Supply a new/update-only project as the primary repair
+  handoff, plus a reference project when needed. In an optional full-production project, keep
+  compatible already-printed current instances on their own reference plates and new instances
+  on separate plates, preserving exactly-once coverage of the current manifest. Retired geometry
+  belongs in a separate historical reference project, not as an extra production instance.
+  TEST ONLY remains separate. Do not falsify `printProject` or mark real parts unprintable merely
+  to turn the full-production export into a repair subset. Update plate assignments whenever
+  inventory, required quantity or geometry changes; do not mark a print completed without evidence.
 - Use the slicer's native arrange/export path when available (for Bambu, an installed CLI may
   arrange and export without sending a print). Reuse project-local generators and verify against
   current STEP/STL and `printRotateDeg`. Check each plate for overlap, out-of-bed parts, floating
@@ -243,6 +308,11 @@ universal design requirements.
   merely to describe a handwired variant. Firmware, wiring, guide and parts must name compatible
   variants. No stale nested manifest references: closure/coupon/mate names must resolve to
   current parts, even if the viewer does not use those fields.
+- Maintain one current decision/assembly description. When the person changes tread, rail,
+  spacing or mechanism, replace the superseded active instructions and reconcile plan, guide,
+  overview and print projects before handoff. Move/link old decisions under explicit history;
+  do not leave both "no outer rail" and "fit the outer rail" in the active path. Preserve printed
+  baselines and useful links; a later paragraph must not silently contradict an earlier current one.
 - List **reuse**, **print again**, **new hardware** and **test only**, with quantity and reason.
   Compare the last printed revision to the new part geometry. A rigid placement change alone
   does not require a reprint. Establish reuse by geometry comparison with a stated tolerance,
