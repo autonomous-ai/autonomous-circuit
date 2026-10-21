@@ -37,10 +37,19 @@ universal design requirements.
   project clearly optional; never tell a repair user to print the complete kit by default.
   Do not mislabel a repair subset as the full production project to bypass export coverage.
 
-## Moving designs: mechanism first, shell second
+## Build order: frame → mounted devices and joints → covers
 
-- Establish the structural layout and how devices are mounted before detailing cosmetic covers.
-  Identify the fixed base, each moving group, its axis/pivot, the actual actuator-to-horn-to-load
+- **Design the functional frame first.** For a new robot/moving device, establish the load-bearing
+  base and moving frames before the outer case. The uncovered frame must locate and retain the
+  devices and joints; cosmetic covers must not be the missing support that makes a loose frame
+  or device stay in place. A simple structural base may itself serve as the frame; do not add
+  redundant parts to a static device or rebuild a working printed base to follow this sequence.
+- Place the actual device/module envelopes on that frame: board, screen, actuators/horns and
+  owned peripherals. Define their seats, fixing points, fastener/nut capture, insertion/removal
+  order and tool access while the structure is exposed. Route connectors and real wire bundles
+  with service access and moving slack. Keep the native board placement/contract unchanged;
+  record unmeasured hardware as assumptions under the existing policy.
+- Identify the fixed base, each moving group, its axis/pivot, the actual actuator-to-horn-to-load
   connection and its support. Prefer one actuator per requested axis and direct stock interfaces
   when compatible with the owned hardware and required control. Added linkages need the existing
   function-based justification; do not make a three-piece kit a target in itself.
@@ -49,11 +58,20 @@ universal design requirements.
   restraint at both ends; check combined motion. Do not run a board, carrier plate or taut bundle
   through a joint's travel. Preserve the native board contract; a reference image does not
   authorize moving footprints, changing GPIOs or silently replacing a working firmware variant.
-- Work in this order: structural layout and device mounts → accessible subassembly insertion,
-  retention and motion checks → attach shells → repeat complete-assembly motion/wire checks.
-  A structural shell/base can serve as the mount; do not invent a separate frame for a static
-  product or one that mounts devices directly. The guide must show how to inspect the mechanism
-  before closing removable covers, then how those covers fasten to its structure.
+- Complete the frame/device/fastener/joint subassembly in CAD first. Check insertion and service,
+  retention/play, the dimension stack, tool reach and full motion/wire clearance with the covers
+  removed. Make that exposed assembly visible in the guide/overview. Supply representative frame
+  fit tests when needed; keep physical results pending if unavailable, without inventing a new
+  automatic gate or blocking the CAD workflow on an unperformed bench test.
+- Only after those structural CAD checks pass, design the case **as covers attached to that
+  frame**, using defined locating surfaces and sturdy removable screw/latch connections. Keep
+  ports, moving envelopes and service access clear. Do not relocate proven mounts/joints merely
+  to fit a decorative shape, or add a ridge/boss that becomes an accidental motion stop.
+- Attach the covers in the model and repeat the full assembly/motion/wire/tool checks, including
+  every rib, latch and screw. If a new cover interferes with the checked mechanism, repair the
+  cover/attachment locally before considering changes to the working frame. Show the assembly
+  sequence as frame → devices and fasteners/joints → covers, with a way to remove covers and
+  inspect/service the functional subassembly.
 - For a repair, preserve the physically working baseline and test one changed subassembly first.
   Supply a small test kit containing the real mating features, fasteners, device/horn seats and
   relevant cable passage in the intended print orientation. A hole-only gauge cannot establish

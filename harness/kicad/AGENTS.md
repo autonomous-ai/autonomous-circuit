@@ -543,10 +543,16 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
-- **For moving designs, establish the mechanism and device mounts before wrapping the case.**
-  Define the fixed/moving groups, real axes, actuator/horn connections and wire route; check
-  an accessible structural subassembly first. Then attach the shells and recheck the complete
-  travel. Prefer direct stock-horn connections when the owned actuator can deliver the required
+- **Frame first → devices, fasteners and joints → checked mechanism → case covers.** For a new
+  robot/moving device, the exposed structural frame must locate and hold its devices/joints
+  without relying on decorative covers. Place real devices, fixing seats, screw/nut access and
+  wires on the frame; check insertion, retention, play and motion first. Then attach removable
+  covers to defined frame mounts and recheck full travel with all ribs, hardware and wires.
+  Repair an interfering cover before changing proven mounts. Keep the exposed subassembly and
+  this assembly order visible in the guide/overview. Preserve existing printed structures in
+  repairs; a simple structural base may serve as the frame without adding redundant parts.
+  Define the fixed/moving groups, real axes and actuator/horn connections.
+  Prefer direct stock-horn connections when the owned actuator can deliver the required
   control. Keep electronics out of joint travel and preserve the board's existing contract.
   Photos establish layout ideas, not dimensions, servo capability or proven fit. Deliver a
   small mating subassembly to test a changed joint before replacing the whole printed kit;

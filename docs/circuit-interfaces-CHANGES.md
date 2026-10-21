@@ -940,3 +940,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; instruction-only, no runtime API/report gate or geometry changes. Necessary structural/service screws remain allowed; no arbitrary universal gap, latch size or strength claim.
 - **Mechanism:** update AGENTS/tool card/self-contained case-assembly reference; refresh existing runtime instructions and send a scoped learning prompt without restarting current firmware/layout work or automatically redesigning mechanics.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-21 — Frame, mounted devices and joints first; case covers last
+- **Change:** KiCad design order is explicit: functional frame → real devices/fasteners/joints/wires → exposed structural CAD checks → removable case covers attached to frame → complete assembly/motion checks. Guide/overview must show the exposed frame and assembly sequence. Interfering cover ribs/bosses are repaired locally before changing proven mounts.
+- **Why:** owner relayed the Robocon workflow of designing the frame, mounting equipment and completing fasteners/joints before wrapping it in a case; prior physical prints exposed weak supports and a cover ridge blocking neck travel.
+- **Backward compatible:** yes; instruction-only, no new report/API/automatic physical-test gate. Existing printed structures stay protected by repair mode; a simple structural base may serve as the frame without redundant components. Actual unperformed physical tests remain pending.
+- **Mechanism:** replace/refine the existing mechanism-first wording in AGENTS, tool card and self-contained assembly reference rather than adding a competing workflow; refresh linked live tile/current runtime with guarded backups.
+- **Tracks affected:** skills / docs.
