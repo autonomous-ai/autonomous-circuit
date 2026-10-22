@@ -982,3 +982,11 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; the existing viewer already prioritizes this optional file and appends later user updates. No reader or artifact format changes.
 - **Mechanism:** instruction changes in `harness/kicad/AGENTS.md` and its self-contained tool card. Consolidate read corrections rather than touching timestamps to hide unread messages; distinguish CAD checks from physical validation. Lead ownership preserves scoped parallel-worker contracts. No skill runtime re-vendor required.
 - **Tracks affected:** skills / docs.
+
+
+## 2026-10-22 — one common assembly overview navigation
+- **Change:** KiCad instructions standardize overview navigation as `Đủ bộ`, then `Bước 1…N`, with a step-scoped `Vít/tán bước này` card and optional closed `Chi tiết` controls. Stage/step/hardware modes become one assembly workflow across projects.
+- **Why:** User screenshots showed independent view, assembly and screw selectors requiring repeated coordination; dog and pet used different formats.
+- **Backward compatible:** yes; this changes agent UI-generation instructions, not manifests or existing downloaded artifacts. Existing overviews need regeneration to adopt it.
+- **Mechanism:** update AGENTS, tool card and self-contained assembly reference; one canonical guide/step list binds real instance IDs/quantities, focus/reset, camera independence and phone verification. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.

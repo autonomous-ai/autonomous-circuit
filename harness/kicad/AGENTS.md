@@ -658,6 +658,20 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - **Use the same simple assembly format for every project.** One primary selector contains
+    **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
+    navigation using that same state. Merge assembly-stage and assembly-step menus; do not add
+    an independent fastener-group workflow. Each selected step automatically shows its parts,
+    real 3D hardware and a compact **Vít/tán bước này** card: IDs, size/factory label, quantity,
+    matching nuts, insertion direction and a short assembly action. Include a clear no-fastener
+    message when applicable. Selecting an ID within the card focuses it without resetting the
+    step or revealing a second unrelated step list. Đủ bộ restores the seated complete assembly
+    and the total hardware summary. Keep camera shortcuts secondary; put optional individual
+    hardware, exploded/cutaway and motion controls under a closed **Chi tiết** disclosure.
+    Preserve their functionality without making them mandatory to follow the assembly.
+    Reuse the same labels, control order and layout across dog, pet and future projects; only
+    geometry, step contents and hardware data differ. Follow the assembly reference for the
+    canonical step data and phone/control verification.
   - **Put the fasteners in the 3D assembly.** Show bought screws with head and shank, plus their
     nuts/washers where used, from the same hardware definitions as CAD checks and the guide.
     Add a separate **Vít/tán** visibility control, on by default, independent of electronics.

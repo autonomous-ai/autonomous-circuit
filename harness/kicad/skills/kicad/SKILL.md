@@ -272,6 +272,15 @@ to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. A
 Call the overview generator from `case/build.py` so final model repairs regenerate it too.
 The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
 
+Use one consistent overview layout across projects: a single **Đủ bộ / Bước 1…N** selector
+with previous/next navigation. Each step automatically scopes the 3D view and a **Vít/tán bước
+này** card (IDs, size/factory label, count, nuts, entry direction and action); selecting a screw
+keeps the current step. Đủ bộ shows the complete seated product and total hardware summary.
+Do not maintain separate assembly-stage, step and fastener-group workflows. Keep camera
+shortcuts secondary and optional detailed selection/explosion/motion under **Chi tiết**, closed
+initially. Preserve real hardware visibility and checked motion; never simplify away evidence.
+The assembly reference defines common behavior and verification for this format.
+
 ### Structural repairs — establish the joint before a full build
 
 Preserve existing working designs/parts by default unless the person changes the requirement;

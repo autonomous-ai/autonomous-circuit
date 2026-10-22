@@ -228,6 +228,39 @@ universal design requirements.
   never relabel an unknown factory screw as M3. Label unknown dimensions/factory hardware
   honestly and retain its known original; do not fabricate thread/length to fill the map.
 
+### One assembly navigation format for every project
+
+- Use the same labels, order and layout for existing dog/pet and future overviews. The primary
+  selector starts with **Đủ bộ**, followed by **Bước 1 — <việc ráp>** through **Bước N — <việc
+  ráp>** in actual assembly order; previous/next buttons use the same selected state. Do not
+  expose separate stage, assembly-step and fastener-group workflows that the person must align.
+- Drive this navigation from one canonical ordered step list shared with the current assembly
+  guide: each step references its actual part instances, hardware IDs, view/visibility and short
+  action. Avoid a second independently numbered screw tutorial. A step may contain multiple
+  hardware types/groups; show them all with their own quantities. Do not claim all screws in a
+  reusable hardware family are installed at that step if only some instances are used there.
+- Each step automatically shows the relevant 3D parts and screws/nuts and one **Vít/tán bước
+  này** card: ID/location, size/length or original factory-screw label, count, matching nuts,
+  entry direction and a brief action/tool note. Retained hardware and wiring-only/no-screw steps
+  remain explicit. This card and the 3D view update together; no extra fastener-mode selection is
+  required. Clicking an ID focuses that instance while retaining the selected assembly step.
+- **Đủ bộ** restores the complete seated assembly and a concise total hardware summary; it is
+  the same navigation's starting view, not a duplicate final assembly step. Camera shortcuts
+  stay secondary. Put optional per-instance selectors, screw explosion/cutaways and motion-axis
+  controls under a clearly labeled **Chi tiết** disclosure, initially closed. An ID click may
+  open its local detail. Keep **Vít/tán** visible by default. Leaving a step or returning to Đủ
+  bộ resets illustrative offsets and focus; changing the camera must not change the step.
+- Keep common shell/control markup in a reusable generator/template and vary the step data,
+  geometry and confirmed hardware by project. Within the shipped skill, it must be self-contained;
+  project generators must not import code from another workspace or depend on a live repo checkout.
+  Simplifying the UI does not authorize CAD changes, omitted hardware, merged mechanical actions
+  with incompatible assembly order, or expanding firmware/hardware permissions.
+- Verify the first view, Đủ bộ → each step → previous/next → Đủ bộ, mixed hardware and no-screw
+  steps, per-ID focus, optional detail open/close and reset at phone width. Compare guide/step
+  order, instance quantities and 3D IDs against the checked final assembly. Preserve independent
+  hardware visibility and real checked motion without a second mandatory menu. Record actual
+  visual checks separately from source checks when a permitted viewer is unavailable.
+
 ### Fasteners belong in the 3D overview
 
 - Include the actual bought-hardware instances in the assembled overview, with a recognizable
