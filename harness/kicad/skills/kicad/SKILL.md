@@ -9,6 +9,12 @@ Every command runs through the host Python Harness gave you: `"$KICAD_HARNESS_PY
 `kicadpy` and `circuitpy` on its path and `CIRCUIT_TOOLCHAIN` set. Each tool prints exactly one
 JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last line of stdout.
 
+## Keep the project prompt private
+
+Save the first user request in `prompts/original.md` and maintain a concise effective brief in
+`prompts/current.md` as the project changes. Include only this project's requirements and links
+to its own visual references. The viewer reads these files, not agent logs or unrelated chats.
+
 ## Discover KiCad first
 
 When the tile ships its own KiCad (the store package does), Harness sets `$KICADPY_CLI`,

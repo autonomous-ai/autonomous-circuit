@@ -175,6 +175,16 @@ price of two, and say the price.
 
 Restate the plan when you resume a conversation, so the person can see what is being built.
 
+### Keep project prompts separate from private chat
+
+At the start of a project, save the initial user request verbatim in `prompts/original.md`.
+Maintain `prompts/current.md` as a concise effective brief after substantive corrections or
+handoffs. Consolidate decisions and link project-owned image references; do not paste an entire
+conversation or retain superseded choices as competing requirements. The viewer reads only these
+explicit files inside this project. It does not inspect agent session logs or append later chat
+messages, and shows an empty prompt view until a file is saved. Keep private discussions and
+session history outside the project brief.
+
 ### Build — implement the plan
 
 Tell the pane you started: `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build`. Then, in the

@@ -178,7 +178,9 @@ export default function BoardWorkspace({
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const openProject = useProjectsStore((state) => state.open);
   const turnInProgress = useChatStore((state) => state.turnInProgress);
+  const chatProjectId = useChatStore((state) => state.currentProjectId);
   const chatHistory = useChatStore((state) => state.history);
+  const promptChatMatchesProject = !viewerOnly && Boolean(currentProjectId) && chatProjectId === currentProjectId;
   const buildStatus = useBuildStatus(currentProjectId || "", turnInProgress);
   const buildHistory = useBuildHistory(currentProjectId || "", turnInProgress);
 
@@ -1357,7 +1359,7 @@ export default function BoardWorkspace({
 
               <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
-                  {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={requestText} fallbackCurrentText={currentRequestText} className="min-h-0 flex-1" /> : null}
+                  {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={promptChatMatchesProject ? requestText : ""} fallbackCurrentText={promptChatMatchesProject ? currentRequestText : ""} className="min-h-0 flex-1" /> : null}
                   {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
                   {activeTab === "overview" ? (
                     <OverviewTab
