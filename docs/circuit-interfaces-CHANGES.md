@@ -998,3 +998,10 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; optional documentation/asset retention only, no artifact or checker schema change. Existing visual briefs need reconciliation.
 - **Mechanism:** instruction updates in `harness/kicad/AGENTS.md`, self-contained tool card and pilot reference. Agents verify links and mark unavailable originals missing rather than inventing content. No skill runtime re-vendor required.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-22 — Project-owned prompts only in the viewer
+- **Change:** `workspace_prompts` reads only `prompts/original.md` and `prompts/current.md` inside the selected project, with legacy `PROMPT.md` and one unambiguous dated `prompts/history/*-original.md` supported. It returns no agent-session transcript.
+- **Why:** matching Codex/Claude/Grok sessions by working directory exposed private discussions when a new robot run shared the old board's workspace. A current brief still had later chat appended, and the original-prompt button offered the whole transcript.
+- **Backward compatible:** projects without saved prompt files now show an empty Prompt view until the agent writes them. Existing project files remain readable; the response retains an empty `sessions` field for older clients.
+- **Mechanism:** the server confines reads to real project-local files and rejects symlinks outside the project. The viewer-only client does not fall back to app chat state; the historical transcript control is removed. KiCad instructions require explicit original and current prompt files. No engine log is read or sent by this command.
+- **Tracks affected:** server / client / skills / docs.

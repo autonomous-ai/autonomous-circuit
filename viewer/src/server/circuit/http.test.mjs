@@ -920,7 +920,7 @@ test("revealCommand picks the platform's file manager and honours the override",
   assert.deepEqual(revealCommand("/a/b.zip", { CIRCUIT_REVEAL_BIN: "/x/fake" }, "darwin"), { bin: "/x/fake", args: ["/a/b.zip"] });
 });
 
-test("workspace_prompts: the original request comes back over HTTP from the engine's logs", async () => {
+test("workspace_prompts: only project-owned prompt files come back over HTTP", async () => {
   const home = tmpdir("circuit-wp-home-");
   const s = await bootServerWith((env) => ({ ...env, HOME: home, CODEX_HOME: path.join(home, ".codex"), CLAUDE_CONFIG_DIR: path.join(home, ".claude") }));
   try {
@@ -930,12 +930,20 @@ test("workspace_prompts: the original request comes back over HTTP from the engi
     fs.mkdirSync(sdir, { recursive: true });
     fs.writeFileSync(path.join(sdir, "rollout-a.jsonl"), [
       { timestamp: "2026-10-08T01:00:00Z", type: "session_meta", payload: { id: "a", timestamp: "2026-10-08T01:00:00Z", cwd: dir } },
-      { timestamp: "2026-10-08T01:00:05Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "làm desk pet đi" }] } },
+      { timestamp: "2026-10-08T01:00:05Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "PRIVATE CHAT SENTINEL" }] } },
     ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+    const empty = await s.post("workspace_prompts", { id: project.id });
+    assert.equal(empty.status, 200, JSON.stringify(empty.body));
+    assert.deepEqual(empty.body, { original: null, current: null, sessions: [] });
+    fs.mkdirSync(path.join(dir, "prompts"));
+    fs.writeFileSync(path.join(dir, "prompts", "original.md"), "làm desk pet đi");
+    fs.writeFileSync(path.join(dir, "prompts", "current.md"), "Desk pet: two servos");
     const r = await s.post("workspace_prompts", { id: project.id });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.original.text, "làm desk pet đi");
-    assert.equal(r.body.sessions.length, 1);
+    assert.equal(r.body.current.text, "Desk pet: two servos");
+    assert.deepEqual(r.body.sessions, []);
+    assert.doesNotMatch(JSON.stringify(r.body), /PRIVATE CHAT SENTINEL/);
     const missing = await s.post("workspace_prompts", { id: "nope" });
     assert.equal(missing.status, 404);
   } finally {

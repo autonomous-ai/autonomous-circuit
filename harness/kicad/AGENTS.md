@@ -175,13 +175,15 @@ price of two, and say the price.
 
 Restate the plan when you resume a conversation, so the person can see what is being built.
 
-### Keep one current brief as the conversation evolves
+### Keep one project brief without exposing private chat
 
+At the start of a project, save its initial user request verbatim in `prompts/original.md`.
 Maintain `prompts/current.md` as a concise effective brief after a substantive user correction
-or a meaningful handoff. The viewer reads this file before falling back to the original request
-plus chronological updates. Consolidate already-read decisions into the brief; do not copy the
-whole conversation or keep superseded choices as competing instructions. Preserve the original
-prompt and session history separately. Keep three things distinct: current requirements and
+or a meaningful handoff. The viewer reads only explicit prompt files inside this project; it
+never scans agent logs or appends later chat. Without a saved file, its prompt view stays empty.
+Consolidate already-read decisions into the brief; do not copy the whole conversation or keep
+superseded choices as competing instructions. Keep private discussions and session history
+separate from the brief. Keep three things distinct: current requirements and
 confirmed owned hardware; actual completed work with links to its sources/checks; and remaining
 work/assumptions. Date the status snapshot and refresh it against current artifacts before claiming
 completion. CAD/export/compile success is not physical print, fit, firmware or motion validation.
@@ -189,8 +191,9 @@ completion. CAD/export/compile success is not physical print, fit, firmware or m
 Use links to the current wiring, assembly and inventory documents for detail. An interrupted run
 must say what remains open, even when an older report passed. Do not broaden scope or restart a
 working design merely because its brief was compacted. New unread user messages still apply and
-must be incorporated; never discard them by merely touching the file's timestamp. In a scoped
-parallel pilot, the lead/orchestrator owns this shared brief: workers report their changes through
+must be incorporated into the brief; never discard them by merely touching the file's timestamp
+or assuming the viewer will recover the chat. In a scoped parallel pilot, the lead/orchestrator
+owns this shared brief: workers report their changes through
 their assigned handoffs and must not edit frozen contracts or another worker's paths.
 
 **Keep visual references with the brief.** Before replacing a long conversation with
