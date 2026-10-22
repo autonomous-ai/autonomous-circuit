@@ -31,11 +31,12 @@ universal design requirements.
   insertion, nut/tool access, retention/play and motion. A repair that passes only with a newly
   redesigned body does not preserve the printed body. Compare the supposedly unchanged mating
   shapes to the printed baseline, not just their file names or bounding boxes.
-- Lead the handoff with a small **print/add only these parts** list/project and a separate
-  **keep using these printed parts** list. Preserve useful test prints in the final assembly
-  and make subsequent repair plates disjoint so nothing is printed twice. Keep a full-kit
-  project clearly optional; never tell a repair user to print the complete kit by default.
-  Do not mislabel a repair subset as the full production project to bypass export coverage.
+- Lead repair instructions with the **new/updated plates to select** and a separate **keep
+  using these printed parts** list. Print all still opens one complete project containing both
+  groups on separate named plates; opening a complete kit is not an instruction to print every
+  plate again. Preserve useful real production test prints and assign them to already-printed
+  plates, so nothing is printed twice. A separately requested repair subset is an extra export,
+  never a replacement or mislabeled subset for the complete Print all project.
 
 ### Persistent inventory of the person's actual prints
 
@@ -58,7 +59,8 @@ universal design requirements.
   queue. A renamed part, rigid placement change or new assembly label alone is not a reprint.
   Use the geometry comparison below to establish compatibility; unchanged file names alone do
   not establish it either. Record replacements with the old→new revision and concrete reason.
-  For partial quantities, only the shortage goes to the new/update project. A printed part with
+  For partial quantities, only the shortage goes to the new/update plates; the compatible
+  already-printed quantity stays on its own plates in the same complete 3MF. A printed part with
   fit still pending stays recorded as printed; do not silently count it as missing and print it
   again. For uncertain identities, state the unresolved assumption and smallest representative
   test; do not declare the part absent or schedule a whole replacement kit as a certainty.
@@ -262,20 +264,27 @@ universal design requirements.
   Preserve the user's printer/nozzle/material/process choices. Use a named reference profile and
   label GIẢ ĐỊNH if unknown; do not ask the owner technical setup questions.
 - Keep fixed/moving subassemblies identifiable, account for quantities with distinct manifest
-  instances, and deliver a separate TEST ONLY coupon project. Keep a repair/subset project for
-  already-printed parts when useful; the full production project must cover all current printable
-  non-coupon manifest instances, including identical copies. Do not silently omit items.
-- Use the printed inventory to separate **ALREADY PRINTED — REFERENCE / DO NOT REPRINT** plates
-  from **NEW / UPDATED — PRINT THESE** plates. Never mix the two groups on a plate; add plates
-  within each group on overflow. Label each project/plate with current variant/revision and list
-  its part IDs/quantities in the guide. Supply a new/update-only project as the primary repair
-  handoff, plus a reference project when needed. In an optional full-production project, keep
-  compatible already-printed current instances on their own reference plates and new instances
-  on separate plates, preserving exactly-once coverage of the current manifest. Retired geometry
-  belongs in a separate historical reference project, not as an extra production instance.
-  TEST ONLY remains separate. Do not falsify `printProject` or mark real parts unprintable merely
-  to turn the full-production export into a repair subset. Update plate assignments whenever
-  inventory, required quantity or geometry changes; do not mark a print completed without evidence.
+  instances, and deliver a separate TEST ONLY coupon project. **Print all must remain one complete
+  native 3MF**, containing every current printable non-coupon production instance, including
+  already-printed parts and identical copies. Do not silently omit items. A separate repair
+  subset may be exported when requested, but never replaces the complete Print all binding.
+  Reconcile the manifest against the assembled production-part list, including retained head,
+  body and other reused prints; do not leave them out of that list merely because they already
+  exist physically. Bought hardware/electronics reference models remain nonprintable as before.
+- Use the printed inventory to partition plates **within that same complete project** into
+  **ĐÃ IN — GIỮ LẠI** (already printed) and **MỚI/SỬA — CẦN IN** (new/updated). Never mix the groups
+  on a plate; add numbered plates within each group on overflow. Give plates actual native names
+  visible in Bambu, including current variant/revision; a project filename or guide label alone
+  is insufficient. Open/reinspect the saved 3MF and verify names, grouping and exactly-once total
+  current-manifest coverage. List plate names and part IDs/quantities in the guide, telling the
+  person which new plates to select without asking them to reprint the old plates.
+  Printed status changes plate assignment, **never object inclusion**: do not drop printed
+  instances, delete their meshes or mark them unprintable. For example, four required identical
+  instances with two already printed still means four objects in one file: two on already-printed
+  plates and two on new plates. Retired geometry belongs in a separate historical reference
+  project, not as an extra current-production instance; TEST ONLY remains separate. Preserve the
+  existing `printProject` full-coverage validator. Update assignments when inventory, quantity or
+  geometry changes, and never mark a print completed without evidence.
 - Use the slicer's native arrange/export path when available (for Bambu, an installed CLI may
   arrange and export without sending a print). Reuse project-local generators and verify against
   current STEP/STL and `printRotateDeg`. Check each plate for overlap, out-of-bed parts, floating

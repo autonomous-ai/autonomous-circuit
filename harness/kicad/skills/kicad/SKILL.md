@@ -228,8 +228,10 @@ guide, separate labeled coupon instructions and a reuse/reprint list. Validate t
 sequence as well as the final pose, then regenerate the overview from that same revision.
 Read/update `case/PRINTED-INVENTORY.md` from the person's print confirmations and identifiable
 photos; retain part/revision, quantity, evidence and uncertainty across turns. Separate
-ALREADY PRINTED reference plates from NEW/UPDATED plates; lead repairs with a new-only project,
-while keeping optional full-production coverage valid. Every screw position needs a matching
+ALREADY PRINTED plates from NEW/UPDATED plates **inside one complete Print all 3MF**, keeping
+every current production part. Give the native plates visible names in Bambu; printed status
+changes their plate, never removes their objects. Separate subsets are extras only if requested.
+Every screw position needs a matching
 ID, size/length or factory label, nut/tool and visual insertion direction in guide/overview.
 Count parts/installed fasteners before finalizing; keep one current decision after corrections
 and reconcile actuator/wiring changes. Follow the reference for details, not an extra approval step.
@@ -261,8 +263,9 @@ Preserve existing working designs/parts by default unless the person changes the
 a repair request does not authorize a wholesale redesign. Prefer compatible local add-ons.
 The actual printed revision and its mating geometry are constraints.
 Fix the failed feature with the smallest compatible replacement/cap/adapter first; save body
-reprints even if the repair adds a small part. Validate against the printed baseline and lead
-with repair-only plates, keeping the full-kit export optional. See the reference's repair mode.
+reprints even if the repair adds a small part. Validate against the printed baseline and point
+to the new/updated plates inside the complete Print all 3MF; already-printed parts remain on
+separate named plates in that same file. See the reference's repair mode.
 
 Follow `references/case-assembly.md`: record the requested joint with a section/sketch, actual
 load path, fixed/free interfaces and accessible nut/screw sequence before detailed CAD/slicing.

@@ -679,7 +679,8 @@ board revision, not a moved footprint.
 - **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
   change the failed feature with the smallest compatible local part/adapter using existing
   holes. Minimize new print time/material before STL count; do not redesign a working body to
-  fit a new mechanism. Check against the printed baseline and lead with repair-only print plates.
+  fit a new mechanism. Check against the printed baseline and identify the new/updated plates
+  to select inside the complete Print all project, retaining already-printed parts on other plates.
 - **Before a long structural repair**, record the joint intent and a section/sketch: continuous
   parts, fixed/free interfaces, printed versus owned stock hardware, nut seats and screw entry.
   Reassess inherited mechanisms, check play/retention separately from collision-free rotation,
@@ -693,10 +694,12 @@ board revision, not a moved footprint.
   change, link the checked production project through manifest `printProject`, and test the
   actual **Print all → Bambu Studio** file. See the self-contained assembly reference's
   "Ready-arranged slicer projects" contract. Do not send anything to a printer.
-  Partition plates into clearly named **ALREADY PRINTED — REFERENCE** and **NEW / UPDATED**;
-  never mix them on one plate. Lead repair handoff with a new/update-only project and the exact
-  remaining quantities from the printed inventory. Keep full-production coverage intact and
-  optional; obsolete printed revisions stay in separate historical reference projects.
+  **Print all is one complete 3MF**, retaining every current production part, including those
+  already printed. Within that same file, separate plates named **ĐÃ IN — GIỮ LẠI** and
+  **MỚI/SỬA — CẦN IN**; add numbered plates within each group on overflow, never mix groups.
+  Verify these names in the saved project opened in Bambu. Printed inventory controls plate
+  assignment and quantities, never omission from Print all. The person selects the new plates
+  to print; a separate subset, if requested, is extra and never replaces this complete file.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep
