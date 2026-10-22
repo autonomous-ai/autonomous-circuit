@@ -974,3 +974,11 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** instruction-only; no viewer/runtime API, gate, print export or physical-action authorization change. Bought hardware remains nonprintable while retained production parts remain in the complete Print all3MF. Simplified hardware geometry is enough; no decorative threaded CAD requirement or mandatory wholesale redesign.
 - **Mechanism:** AGENTS/tool-card pointers and self-contained assembly-reference rules cover geometry, visibility, selection, motion/explosion/reset and owned-hardware inputs. Source review is not a fresh visual pass when an approved viewer is unavailable. Existing project overviews/geometry are not edited by this instruction update.
 - **Tracks affected:** KiCad AGENTS / self-contained tool card and assembly reference / docs.
+
+
+## 2026-10-22 — consolidate evolving requests into the maintained current prompt
+- **Change:** KiCad instructions require the workspace owner to maintain `prompts/current.md` with effective requirements, confirmed stock, dated actual progress and remaining work/assumptions; keep original prompts and session history separately.
+- **Why:** Robot Dog A1 updates mixed superseded hardware choices with pending mechanical work, making the current request appear to be an unfinished original design rather than a repair of R4D.
+- **Backward compatible:** yes; the existing viewer already prioritizes this optional file and appends later user updates. No reader or artifact format changes.
+- **Mechanism:** instruction changes in `harness/kicad/AGENTS.md` and its self-contained tool card. Consolidate read corrections rather than touching timestamps to hide unread messages; distinguish CAD checks from physical validation. Lead ownership preserves scoped parallel-worker contracts. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.

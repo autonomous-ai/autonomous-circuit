@@ -9,6 +9,16 @@ Every command runs through the host Python Harness gave you: `"$KICAD_HARNESS_PY
 `kicadpy` and `circuitpy` on its path and `CIRCUIT_TOOLCHAIN` set. Each tool prints exactly one
 JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last line of stdout.
 
+## Keep the current request readable
+
+The workspace owner maintains `prompts/current.md`: the effective user requirements and owned
+hardware, a dated evidence-backed status, and the next work/assumptions, with links to detailed
+guides. Consolidate substantive corrections rather than appending chat transcripts or retaining
+obsolete decisions. Preserve the original/history; incorporate all read updates without hiding
+unread ones through a timestamp-only refresh. A compacted brief does not authorize a redesign or
+turn CAD/compile success into physical validation. Scoped pilot workers report to the lead and
+respect the frozen contract and file ownership instead of editing this shared brief themselves.
+
 ## Discover KiCad first
 
 When the tile ships its own KiCad (the store package does), Harness sets `$KICADPY_CLI`,
