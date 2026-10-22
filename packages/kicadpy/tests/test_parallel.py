@@ -123,7 +123,9 @@ class PilotTests(unittest.TestCase):
         return state
 
     def run_round(self, **kwargs):
-        return pilot.run(self.root, execute=True, runner=self.fake, checker=kwargs.get('checker', checker))
+        return pilot.run(self.root, execute=True, runner=self.fake,
+                         checker=kwargs.get('checker', checker),
+                         on_checkpoint=kwargs.get('on_checkpoint'))
 
     def test_no_model_call_without_explicit_execution(self):
         self.assertEqual(pilot.status(self.root)['status'], 'initialized')
@@ -169,6 +171,74 @@ class PilotTests(unittest.TestCase):
         self.assertTrue(totals['usageComplete'])
         self.assertIsNone(totals['actualBilledUsd'])
         self.assertIsNone(totals['estimatedCostUsd'])
+
+    def test_checkpoints_see_committed_native_artifacts_before_lead_reviews(self):
+        self.plan()
+        seen = []
+
+        def checked(workspace, complete):
+            result = checker(workspace, complete)
+            put(workspace, 'boards/checkpoint.txt', 'final native' if complete else 'board native')
+            return result
+
+        def checkpoint(workspace, state, stage):
+            receipt = json.loads((self.root / f".pilot/rounds/{state['revision']}/{stage}-check.json").read_text())
+            seen.append({
+                'stage': stage,
+                'workspace': workspace,
+                'marker': (workspace / 'boards/checkpoint.txt').read_text(),
+                'receipt': receipt,
+                'commit': pilot.git(workspace, 'log', '-1', '--format=%s'),
+                'dirty': pilot.git(workspace, 'status', '--porcelain'),
+                'status': state['status'],
+                'reviewed': [name for name, _, _ in self.fake.visits if name.endswith('-review')],
+                'verdictExists': (workspace / '.harness/verdict.json').exists(),
+            })
+
+        state = self.run_round(checker=checked, on_checkpoint=checkpoint)
+        self.assertEqual(state['status'], 'candidate_ready', state['findings'])
+        self.assertEqual([event['stage'] for event in seen], ['board', 'final'])
+        self.assertEqual([event['marker'] for event in seen], ['board native', 'final native'])
+        self.assertEqual([event['commit'] for event in seen],
+                         ['Record native board publication', 'Record final native checks'])
+        self.assertEqual([event['reviewed'] for event in seen], [[], ['structure-review']])
+        for event in seen:
+            self.assertEqual(event['workspace'], self.root / 'workspace')
+            self.assertTrue(event['receipt']['passed'])
+            self.assertEqual(event['dirty'], '')
+            self.assertEqual(event['status'], 'running')
+            self.assertFalse(event['verdictExists'])  # pilot never invents a native verdict
+
+    def test_failed_native_checkpoint_preserves_unready_verdict_and_blocks_final(self):
+        self.plan()
+        seen = []
+
+        def failed(workspace, complete):
+            result = checker(workspace, complete)
+            pilot.write(workspace / '.harness/verdict.json', {'ready': False, 'summary': 'DRC failed'})
+            return {**result, 'passed': False, 'findings': ['real DRC error']}
+
+        def checkpoint(workspace, state, stage):
+            seen.append((stage, json.loads((workspace / '.harness/verdict.json').read_text()),
+                         json.loads((self.root / f'.pilot/rounds/{state["revision"]}/{stage}-check.json').read_text())))
+
+        state = self.run_round(checker=failed, on_checkpoint=checkpoint)
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual([stage for stage, _, _ in seen], ['board'])
+        self.assertFalse(seen[0][1]['ready'])
+        self.assertFalse(seen[0][2]['passed'])
+        self.assertNotIn('case-final', [name for name, _, _ in self.fake.visits])
+
+    def test_checkpoint_error_fails_closed_before_lead_review(self):
+        self.plan()
+
+        def broken(workspace, state, stage):
+            raise RuntimeError('bridge copy failed')
+
+        state = self.run_round(on_checkpoint=broken)
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertIn('bridge copy failed', state['findings'][0])
+        self.assertNotIn('structure-review', [name for name, _, _ in self.fake.visits])
 
     def test_sequential_and_single_builder_controls_reuse_identical_plan(self):
         parallel = self.plan()

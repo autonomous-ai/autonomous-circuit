@@ -45,6 +45,21 @@ test("only explicit files in the selected project are returned, without later ch
   assert.equal(readWorkspacePrompts({ dir: other }).current.text, "PRIVATE OTHER PROJECT");
 });
 
+test("team bridge history stays separate from the viewer's project brief", () => {
+  const ws = tmp("wp-team-");
+  write(ws, ".circuit/team-auto", "");
+  write(ws, "prompts/original.md", "Build the first sensor board");
+  write(ws, "prompts/current.md", "Sensor board with revised case");
+  write(ws, "prompts/history/first.md", "Build the first sensor board");
+  write(ws, "prompts/history/second.md", "PRIVATE FOLLOW-UP DETAIL");
+
+  const result = readWorkspacePrompts({ dir: ws });
+  assert.equal(result.original.text, "Build the first sensor board");
+  assert.equal(result.current.text, "Sensor board with revised case");
+  assert.deepEqual(result.sessions, []);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE FOLLOW-UP DETAIL/);
+});
+
 test("legacy PROMPT.md and a single dated original are explicit project-owned sources", () => {
   const legacy = tmp("wp-legacy-");
   write(legacy, "PROMPT.md", "Original and current legacy prompt");

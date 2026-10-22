@@ -598,7 +598,7 @@ def review(root, state, stage, checks, runner):
     return r
 
 
-def run(directory, *, execute=False, runner=codex, checker=native_check):
+def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None):
     if not execute:
         raise ValueError('Paid/model execution requires explicit --execute')
     root, state = load(directory)
@@ -619,6 +619,8 @@ def run(directory, *, execute=False, runner=codex, checker=native_check):
                 raise ValueError('Native board check wrote outside board-owned artifacts')
             commit(workspace, names, 'Record native board publication')
             write(root / f".pilot/rounds/{state['revision']}/board-check.json", checks)
+            if on_checkpoint is not None:
+                on_checkpoint(workspace, state, 'board')
             review(root, state, 'structure-review', checks, runner)
             if not checks.get('passed'):
                 raise ValueError('Native board check failed: ' + str(checks.get('findings')))
@@ -633,6 +635,8 @@ def run(directory, *, execute=False, runner=codex, checker=native_check):
                 raise ValueError('Native final check wrote outside owned artifacts')
             commit(workspace, names, 'Record final native checks')
             write(root / f".pilot/rounds/{state['revision']}/final-check.json", checks)
+            if on_checkpoint is not None:
+                on_checkpoint(workspace, state, 'final')
             review(root, state, 'final-review', checks, runner)
             if not checks.get('passed'):
                 raise ValueError('Native final check failed: ' + str(checks.get('findings')))

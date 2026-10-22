@@ -1,10 +1,16 @@
-# Opt-in Astra / Sol team pilot
+# Astra / Sol team pilot
 
-This is an experimental CLI for a **new isolated run**, explicitly requested by the owner.
-Normal KiCad tiles, viewer creation and Stop hooks continue using the existing single-agent
-pipeline. Do not start a team for ordinary builds, adopt an active pet workspace, or infer
-permission to run a benchmark merely from this reference. This pilot never orders, prints,
-flashes or operates hardware. A previous project's flash permission is not inherited.
+This is the lower-level experimental CLI for a **new isolated run**. A new Codex KiCad project
+in Harness has `.circuit/team-auto`: its entry agent automatically calls
+`kicadpy.parallel_tile start <workspace> --prompt <brief> --execute` after the person sends a
+board-build prompt, and the bridge makes checked output visible in that project's viewer.
+Questions and plan-only requests do not start a pilot. Existing KiCad projects without the
+marker, and the Claude and Grok sibling tiles, keep their single-agent workflow. The commands
+below are for operators who explicitly want an isolated pilot or comparison; reading this
+reference alone authorizes no model call or benchmark. A standalone pilot never adopts an
+active pet workspace. The bridge may seed a new follow-up pilot from accepted prior work.
+Neither path orders, prints, flashes or operates hardware. A previous project's flash
+permission is not inherited.
 
 ## Start and inspect
 
@@ -140,7 +146,7 @@ this isolates concurrency rather than changing handoffs. `solo` uses one Sol bui
 initial board→firmware→frame stage, then one Sol for reconciliation/covers after the same
 native/lead checkpoint. It is a **contract-conditioned single-builder control**, not the old
 self-planning single-Sol tile or a persistent chat. Lead still plans and reviews. Neither
-control changes the default tile. Reusing a plan records its source and excludes the original
+control is launched by the normal Harness bridge. Reusing a plan records its source and excludes the original
 planning call from that control's own usage; report shared planning cost explicitly, not as
 free planning. A control with a different input hash or seed commit is rejected.
 

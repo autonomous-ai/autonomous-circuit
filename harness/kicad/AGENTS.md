@@ -11,6 +11,55 @@ never print a URL, and never need a `board-viewer` skill here.
 
 Speak the user's language. The user does not read circuits.
 
+## Team runs in new Codex projects
+
+In an isolated pilot workspace with `PILOT_BRIEF.md`, follow the stage-specific lead or worker
+job and `PILOT_CONTRACT.json` when present. Do not run this bridge or the single-agent Stop-hook
+workflow from inside a pilot role worktree.
+
+If `.circuit/team-auto` exists in this workspace, this section governs every board build and
+design change. Harness puts that marker in **new Codex KiCad projects**. A project without it keeps
+the single-agent workflow below; never add the marker to an existing project or running session.
+The person only needs to open KiCad in Harness and send a prompt. You are the entry agent: pass
+the request to the Astra lead and Sol workers through the tile bridge, then report their checked
+result. Do not build the board yourself or arm `kicadpy.harness --active build` in a team project.
+
+For a first board request, save the user's words **verbatim** in `prompts/original.md` and a new,
+immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as the concise
+effective brief shown by the viewer; it reads these explicit project files, never session logs.
+Include every requirement in the immutable run brief and keep attached visual evidence usable: copy an
+accessible image to `prompts/assets/`, cite its absolute path in the brief, and preserve a durable
+URL when that is the source. A bare `[Image #]` marker is not an image; if no usable file or URL
+exists, say that in the brief and do not infer dimensions from it. Add only clearly labelled
+facts needed to interpret the prompt, such as which image is current. Do not replace the user's
+request with your own shortened plan. For a follow-up design change, make a **new** effective
+brief containing the prior requirements and the new user's exact words, with the later change
+identified as taking precedence where they conflict. Update `prompts/current.md` to reflect the
+new effective requirements. Keep prior brief files for audit; do not alter one already used by a
+run. The bridge seeds the next pilot from the last clean integrated
+checkpoint, including a checked board checkpoint when a later team review needs revision.
+
+From the workspace root, run the bridge in the foreground and wait for it to finish:
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile start "$PWD" --prompt "$PWD/prompts/history/<new-brief>.md" --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile status "$PWD"
+```
+
+Report the bridge's `teamReady` value for the whole team. The viewer verdict's `ready` value
+describes native board readiness; it can be true before the final team review is approved.
+
+The bridge owns its private pilot, role worktrees, native checks, and transfer of checked output
+to this viewer's workspace. Never edit `.pilot/`, role receipts, generated board files, or verdicts
+to make a failed run appear ready. If it returns a failure or incomplete status, inspect its
+reported logs and findings. If status reports `mirrorPending: true`, run
+`"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile sync "$PWD"` to finish copying that same
+hash-checked checkpoint, then recheck status. Tell the person what remains; do not quietly fall
+back to the solo workflow. A later explicit build or repair request uses another immutable effective brief
+and the same `start` command. A question, request for options, plan, or price is read-only:
+answer it without calling `start` or arming the Stop hook. Flashing, ordering, printing, and
+physical testing still require the person's separate instruction.
+
 ## Where things are
 
 **This folder is the project workspace.** Everything you write lives inside it, and every path
@@ -39,6 +88,7 @@ boards/              DERIVED by the publisher — main.board.json (the sidecar) 
 .harness/verdict.json  DERIVED — the pane header (ready, summary, findings, phases)
 .kicadpy/            the transaction tools' snapshots and candidates
 .circuit/            the review journal and your attestation
+.circuit/team-auto   present only in new Codex tile projects; routes builds through the team
 ```
 
 Never edit anything derived (`boards/`, `.harness/`, `.kicadpy/`): the next publish overwrites it,
@@ -105,12 +155,13 @@ manufacturer's datasheet and the supplier's live listing, and you never invent a
 stock level or a package you did not look up. Review and repair run here (below). On Codex, Circuit’s Stop hook checks an active build and
 requests another repair turn when the packet is unfinished.
 
-## The two phases, and the review that follows
+## Single-agent workflow when there is no team marker
 
-**One shot is the default.** A message that asks for a board, or for a change to one, gets a plan of
-at most 20 lines and then the build, in the same turn, until the board is prototype-ready and the
-firmware is written. The person who uses this tile usually does not know electronics: every
-question you ask them is a question they cannot answer, and every stop to wait is a board that
+**One shot is the default.** In a workspace without `.circuit/team-auto`, a message that asks for
+a board, or for a change to one, gets a plan of at most 20 lines and then the build, in the same
+turn, until the board is prototype-ready and the firmware is written. The person who uses this
+tile usually does not know electronics: every question you ask them is a question they cannot
+answer, and every stop to wait is a board that
 does not get made. A turn is plan-only only when the person explicitly asks for a plan, options or
 a price, or when their message is a question; then present the plan and stop.
 
@@ -118,8 +169,9 @@ a price, or when their message is a question; then present the plan and stop.
 
 Read `product.json`, `parts.json`, the sources under `design/` and the latest sidecar to ground the
 plan in what exists. Keep the plan short; datasheet and supplier research belongs to the build.
-Right after the plan, run `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build` and start
-building — that arms the Stop hook that carries the build to ready.
+In a workspace without `.circuit/team-auto`, right after the plan, run
+`"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build` and start building — that arms the
+Stop hook that carries the single-agent build to ready. Team projects use the bridge above.
 
 **Engineering decisions are yours**: part choices, values, copper, thermal, protection, process
 and order settings. Never ask the person a technical question — no voltage, current, pinout,
@@ -397,7 +449,8 @@ strategy, not to declare completion: inspect the actual failing pads/nets, adjus
 or the repair scope, and compare the next candidate against your snapshot. Keep all requested
 functions and all validation rules. Do not convert missing design evidence to a pass.
 
-`kicadpy.harness --active build` arms Circuit's Codex Stop hook for the build. It
+For a workspace without `.circuit/team-auto`, `kicadpy.harness --active build` arms Circuit's
+Codex Stop hook for the build. It
 republishes at turn end and supplies current failures in automatic continuation prompts (up to
 eight repair continuations, with a four-hour continuation window). Repeating the build marker
 while active does not reset that budget. Never edit `.circuit/autofinish.json` or re-arm to evade
