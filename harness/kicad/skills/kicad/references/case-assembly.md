@@ -161,6 +161,13 @@ universal design requirements.
   connectors, shaft/horn interface, screw diameter, available length, head shape and nut/tool
   space. A screw of the right thread can still have a head that will not seat. Preserve usable
   factory horns, screws and mounts when that reduces assembly work.
+- Persist confirmed fastener sizes/head types/tools in the existing project hardware list or
+  inventory, with the user's statement/photo and uncertainties. Reuse that information on later
+  turns; distinguish owned, reused factory hardware and new purchases. Before export, reconcile
+  every selected screw with that list. A familiar nominal length is not evidence the person has
+  it. Prefer a small compatible seat/boss/clamp repair using confirmed hardware over another
+  purchase, cutting screws or redesigning working parts; recheck engagement, tip and motion.
+  If a different size remains necessary, state why and list it as new hardware, never as owned.
 - For unknown clones, mark the reference and dimensions **GIẢ ĐỊNH**. Use open/adjustable mounts
   and a small fit coupon instead of a tight nominal pocket. Proceed on the reference; do not
   ask a nontechnical person to identify an engineering detail they cannot know.
@@ -220,6 +227,40 @@ universal design requirements.
   Distinguish a servo's factory centre/spline screw from screws clamping a horn to printed parts;
   never relabel an unknown factory screw as M3. Label unknown dimensions/factory hardware
   honestly and retain its known original; do not fabricate thread/length to fill the map.
+
+### Fasteners belong in the 3D overview
+
+- Include the actual bought-hardware instances in the assembled overview, with a recognizable
+  head and shank, nut and washer where used. Simplified low-poly geometry is enough; decorative
+  helical threads are unnecessary. Use the same definitions, dimensions, seats and coordinates
+  as the mechanical checks and hardware map, not an independently positioned illustration.
+- Provide a clearly named **Vít/tán** visibility toggle, enabled by default and separate from
+  electronics. Opening a frame or hiding devices must not accidentally hide the screws needed
+  to understand that assembly. Normal shell occlusion is handled by opening, transparency or
+  cutaway controls, not by pretending a hidden screw is on the visible surface.
+- Let the person select a group or individual hardware ID to focus/zoom and highlight its 3D
+  screw, size/head/length or factory label, matching nut/washer and mating parts. Show the entry
+  side and insertion arrow at that exact joint. Dim unrelated parts and avoid overlapping labels
+  on a phone; keep a route back to the seated full assembly.
+- Supply a local exploded/cutaway view for nested joints: show how shaft, horn, driven part and
+  clamp/retainer actually mate, and distinguish fixed from rotating parts. Explain which face
+  seats against which and which screw fixes each connection. A whole-robot explosion, 2D screw
+  icon, colored hole or arrow alone does not resolve a confusing local stack.
+- Apply the same transform chain to the joint's hardware, labels and arrows as to its moving
+  parts. Explode along the real insertion axis; reset returns to the checked seated position.
+  Label exploded offsets as assembly illustration, not a physical motion or changed geometry.
+- Bought screws/nuts/washers are nonprintable reference objects; keep them out of printable
+  meshes/Print all. This does not authorize omitting retained production prints from the complete
+  3MF. Coverage must account separately for printed parts, bought hardware and test-only pieces.
+- After regeneration, verify the saved overview's default hardware visibility, independent
+  toggle, group/individual selection, local stack, exploded reset and moving-group alignment.
+  Compare rendered hardware IDs/counts with the actual instance map, including factory screws
+  and retained assemblies. Record final overview/source hashes and the controls really tested.
+  If an approved viewer is unavailable, state the unverified visual checks; source inspection
+  or a previous revision's report is not a fresh visual pass. No physical print/fit claim follows.
+
+### Insertion and service access
+
 - Check the path from outside into the assembled position, against everything already installed
   at that step. Check removal/service too. State the sampled path and its coverage; samples do
   not prove unchecked motion between them. Do not teleport parts into closed forks or assume

@@ -577,6 +577,9 @@ board revision, not a moved footprint.
   Before finalizing a full kit, count printed pieces, installed fasteners/types and repeated
   assembly operations; list spares separately. Review repeated clamps/spacers for simpler
   supported options. Do not impose a universal count or discard working prints to lower it.
+  Carry forward the person's confirmed screw lengths/head types and tools as design inputs.
+  Reconcile the hardware map with that inventory before export; do not silently require an
+  unowned standard length or suggest cutting screws before considering a small compatible fix.
 - **Fix retention, device mounting and fragile features before calling a case complete.**
   Show the complete attachment chain **device → mount/frame → shell**. Each fixed connection
   needs a defined seat and a serviceable restraint against slip, pullout and unwanted rotation;
@@ -637,6 +640,14 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - **Put the fasteners in the 3D assembly.** Show bought screws with head and shank, plus their
+    nuts/washers where used, from the same hardware definitions as CAD checks and the guide.
+    Add a separate **Vít/tán** visibility control, on by default, independent of electronics.
+    Selecting a group/ID focuses its actual 3D screw, size/factory label, mating parts and entry
+    arrow. Offer a local exploded/cutaway view that explains the assembly stack and fixed versus
+    rotating parts; a 2D icon or arrow alone is insufficient. Keep these bought-hardware
+    references out of printable meshes, without omitting already-printed production parts.
+    Follow the assembly reference for motion transforms, access and overview verification.
   - For moving designs, add a control for each real axis (such as yaw/pitch), a stop/centre
     control, and visible moving/stationary groups. Derive pivots, limits and poses from the
     checked mechanism, keep motion within its checked range, and show wire routing through

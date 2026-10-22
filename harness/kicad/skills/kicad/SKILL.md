@@ -248,7 +248,12 @@ Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part
 ### Interactive overview — immediately after the 3D build
 
 Every case build also generates `case/overview.html`, automatically in the same turn. Use the
-actual assembled geometry, component labels, shell visibility and wire paths. For a moving
+actual assembled geometry, component labels, shell visibility and wire paths. Include bought
+screws/nuts/washers as recognizable 3D hardware with a separate
+default-on **Vít/tán** toggle. Selection must focus the real screw and its size/insertion path;
+local exploded/cutaway views explain nested joints and fixed/rotating parts. Derive hardware
+from the checked instance map and confirmed owned sizes, and keep it out of printable output.
+Verify the final controls and hardware coverage per the assembly reference. For a moving
 case, include controls for its checked axes and a stop/centre control; for a static case, keep
 inspection controls without invented motion. Make it a self-contained phone-friendly HTML
 file (embedded geometry/scripts/styles; no network or CDN), set manifest `overview` relative
