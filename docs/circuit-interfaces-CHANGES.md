@@ -990,3 +990,11 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; this changes agent UI-generation instructions, not manifests or existing downloaded artifacts. Existing overviews need regeneration to adopt it.
 - **Mechanism:** update AGENTS, tool card and self-contained assembly reference; one canonical guide/step list binds real instance IDs/quantities, focus/reset, camera independence and phone verification. No skill runtime re-vendor required.
 - **Tracks affected:** skills / docs.
+
+
+## 2026-10-22 — retain image provenance when maintaining a compact prompt
+- **Change:** KiCad brief instructions require durable project-owned copies and a `references/IMAGES.md` provenance index for user photos/drawings/screenshots and product links, with current/superseded status; `prompts/current.md` links relevant visuals. The pilot operator guide requires stable absolute references in supplied briefs because `init` only copies text.
+- **Why:** Dog/pet maintained prompts and the new spider brief compressed visual requirements to phrases like “the photo” without usable paths; some old clipboard paths disappeared even though their message history survived.
+- **Backward compatible:** yes; optional documentation/asset retention only, no artifact or checker schema change. Existing visual briefs need reconciliation.
+- **Mechanism:** instruction updates in `harness/kicad/AGENTS.md`, self-contained tool card and pilot reference. Agents verify links and mark unavailable originals missing rather than inventing content. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.

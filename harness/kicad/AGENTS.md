@@ -193,6 +193,19 @@ must be incorporated; never discard them by merely touching the file's timestamp
 parallel pilot, the lead/orchestrator owns this shared brief: workers report their changes through
 their assigned handoffs and must not edit frozen contracts or another worker's paths.
 
+**Keep visual references with the brief.** Before replacing a long conversation with
+`prompts/current.md`, inventory user-supplied photos, screenshots, drawings and product links
+from the original request and later corrections. Save accessible local image bytes under
+`references/user-images/` (or a stable, project-owned equivalent); write
+`references/IMAGES.md` with the original source path/URL, date or message context, what the
+person said each image was for, and whether that request is current or superseded. Link the
+relevant images or this index from the current brief. A bare `[Image #1]`, temporary clipboard
+path, generic "the photo", or unverified assertion about what an image depicts is not a usable
+handoff. Keep historical references in the index but do not let an older visual silently
+override the latest text. Check every local link resolves before handoff; if original bytes are
+unavailable, preserve the original source and mark the image missing. Never invent its content,
+dimensions, exact module identity or a photo-based proof of fit.
+
 ### Build — implement the plan
 
 Tell the pane you started: `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build`. Then, in the

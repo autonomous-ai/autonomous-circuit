@@ -29,6 +29,11 @@ never changes the seed. Create the pilot outside the seed. Flash policies, hooks
 `.circuit`, `.harness`, `.kicadpy` and git configuration are not copied. Existing printed-part constraints
 belong in the brief and seeded case documents; preserve proven parts and generate local repair
 parts/plates when that is the brief. A seed is a source baseline, not physical-test evidence.
+If the prompt references images, use stable absolute file paths or durable URLs in the supplied
+brief; `init` copies prompt text but does not copy adjacent image files. Keep an image index with
+source, purpose and current/superseded status. Verify each referenced file still exists before
+`plan`; a bare `[Image #]` marker or temporary clipboard path does not give the lead visual
+evidence. If an image is missing, say so in the brief and avoid guessing measurements from it.
 
 Defaults: lead `gpt-6-astra` at medium effort, workers `gpt-6.1-sol` at high effort. Set
 `--lead-model`, `--worker-model` and `--timeout` at init when needed; there is no silent model

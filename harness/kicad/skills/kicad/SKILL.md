@@ -18,6 +18,11 @@ obsolete decisions. Preserve the original/history; incorporate all read updates 
 unread ones through a timestamp-only refresh. A compacted brief does not authorize a redesign or
 turn CAD/compile success into physical validation. Scoped pilot workers report to the lead and
 respect the frozen contract and file ownership instead of editing this shared brief themselves.
+Before compacting, preserve user-supplied photos/drawings/screenshots and product links in a
+project-owned `references/user-images/` directory with `references/IMAGES.md` recording source,
+user context and current versus superseded status. Link relevant references from the brief and
+verify paths. Do not leave temporary clipboard paths or bare `[Image #]` placeholders as the
+only reference. If bytes are gone, label the source missing rather than guess what it showed.
 
 ## Discover KiCad first
 
