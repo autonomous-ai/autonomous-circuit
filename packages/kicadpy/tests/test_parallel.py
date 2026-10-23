@@ -525,20 +525,30 @@ class AdapterTests(unittest.TestCase):
 import json, os, pathlib, subprocess, sys, time
 args = sys.argv[1:]
 workspace = pathlib.Path(args[args.index('-C') + 1])
-(workspace / 'invocation.json').write_text(json.dumps({
-    'args': args, 'prompt': sys.stdin.read(),
-    'advisor': os.environ.get('KICAD_ADVISOR'),
-    'hostWorkspace': os.environ.get('HARNESS_WORKSPACE'),
-    'thread': os.environ.get('CODEX_THREAD_ID'),
-    'blocks': os.environ.get('KICAD_HARNESS_BLOCKS'),
-    'cmake': os.environ.get('KICAD_HARNESS_CMAKE'),
-}))
+prompt = sys.stdin.read()
+if not os.environ.get('PILOT_STUB_SKIP_INVOCATION'):
+    (workspace / 'invocation.json').write_text(json.dumps({
+        'args': args, 'prompt': prompt,
+        'advisor': os.environ.get('KICAD_ADVISOR'),
+        'hostWorkspace': os.environ.get('HARNESS_WORKSPACE'),
+        'thread': os.environ.get('CODEX_THREAD_ID'),
+        'blocks': os.environ.get('KICAD_HARNESS_BLOCKS'),
+        'cmake': os.environ.get('KICAD_HARNESS_CMAKE'),
+    }))
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
 if os.environ.get('PILOT_STUB_HANG'):
     code = "import pathlib,time;time.sleep(3);pathlib.Path('orphan-marker').write_text('orphan')"
     subprocess.Popen([sys.executable, '-c', code], cwd=workspace)
     time.sleep(20)
+if os.environ.get('PILOT_STUB_CAPACITY'):
+    message = 'Selected model is at capacity. Please try a different model.'
+    print(json.dumps({'type':'error','message':message}), flush=True)
+    print(json.dumps({'type':'turn.failed','error':{'message':message}}), flush=True)
+    sys.exit(1)
+if os.environ.get('PILOT_STUB_PLAIN_CAPACITY'):
+    print('Selected model is at capacity. Please try a different model.', file=sys.stderr)
+    sys.exit(1)
 pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
     'contractSha256':'hash','stage':'worker','summary':'done','blockers':[]}))
 ''')
@@ -548,6 +558,13 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
                                           'KICAD_ADVISOR': 'codex:real-model'})
         self.env.start()
         self.addCleanup(self.env.stop)
+
+    def worker_worktree(self):
+        worker = self.root / 'workers/test-board'
+        worker.parent.mkdir(exist_ok=True)
+        pilot.git(self.workspace, 'worktree', 'add', '--detach', str(worker),
+                  pilot.git(self.workspace, 'rev-parse', 'HEAD'))
+        return worker
 
     def test_real_subprocess_adapter_pins_flags_and_isolates_host_context(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
@@ -581,10 +598,199 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
             receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
                                   'scoped task', RESULT_SCHEMA, False)
         self.assertIsNotNone(receipt['error'])
+        self.assertEqual(receipt['failureKind'], 'timeout')
         self.assertEqual(receipt['usage']['input_tokens'], 100)
         time.sleep(3.1)
         self.assertFalse((self.workspace / 'orphan-marker').exists())
         self.assertTrue((self.root / receipt['logDirectory'] / 'receipt.json').is_file())
+
+    def test_structured_capacity_failure_is_classified_and_attempt_logs_are_distinct(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        with patch.dict(os.environ, {'PILOT_STUB_CAPACITY': '1'}):
+            first = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                'scoped task', RESULT_SCHEMA, False)
+            second = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                 'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(first['failureKind'], 'model_capacity')
+        self.assertEqual(second['failureKind'], 'model_capacity')
+        self.assertNotEqual(first['logDirectory'], second['logDirectory'])
+        for receipt in (first, second):
+            directory = self.root / receipt['logDirectory']
+            self.assertEqual(receipt['usage']['input_tokens'], 100)
+            self.assertEqual(json.loads((directory / 'receipt.json').read_text())['failureKind'],
+                             'model_capacity')
+            self.assertIn('turn.failed', (directory / 'events.jsonl').read_text())
+
+    def test_plain_capacity_text_does_not_trigger_retry_classification(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.assertFalse(pilot.capacity_event(json.dumps({
+            'type': 'item.completed', 'item': {'text': 'Selected model is at capacity'}})))
+        self.assertFalse(pilot.capacity_event('Selected model is at capacity'))
+        with patch.dict(os.environ, {'PILOT_STUB_PLAIN_CAPACITY': '1'}):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['failureKind'])
+        self.assertIsNotNone(receipt['error'])
+
+    def test_retry_decisions_are_written_to_each_attempt_receipt(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        with patch.dict(os.environ, {'PILOT_STUB_CAPACITY': '1', 'PILOT_STUB_SKIP_INVOCATION': '1'}), \
+             patch.object(pilot.time, 'sleep'):
+            receipt = pilot.call(self.root, self.state, 'worker', self.workspace,
+                                 'scoped task', RESULT_SCHEMA, False, pilot.codex)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertEqual(len(self.state['jobs']), 3)
+        self.assertEqual([job.get('retryScheduled', False) for job in self.state['jobs']],
+                         [True, True, False])
+        for job in self.state['jobs']:
+            recorded = json.loads((self.root / job['logDirectory'] / 'receipt.json').read_text())
+            self.assertEqual(recorded, job)
+
+    def test_interrupted_cli_receipt_is_never_classified_as_capacity(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+
+        class InterruptedProcess:
+            pid = 424242
+            returncode = None
+            calls = 0
+
+            def communicate(self, *args, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    raise KeyboardInterrupt
+                return '', ''
+
+        with patch.object(pilot.subprocess, 'Popen', return_value=InterruptedProcess()), \
+             patch.object(pilot.os, 'killpg'):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(receipt['failureKind'], 'interrupted')
+        self.assertIsNotNone(receipt['error'])
+
+    def test_capacity_retry_is_bounded_and_interruptible_with_all_usage_retained(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        calls = []
+
+        def capacity(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(prompt)
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': {'input_tokens': 10, 'cached_input_tokens': 0, 'output_tokens': 1},
+                    'result': None, 'error': 'Codex exited 1', 'failureKind': 'model_capacity'}
+
+        with patch.object(pilot.time, 'sleep') as sleep:
+            receipt = pilot.call(self.root, self.state, 'worker', self.workspace,
+                                 'scoped task', RESULT_SCHEMA, False, capacity)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([j['attempt'] for j in self.state['jobs']], [1, 2, 3])
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 30)
+        self.assertIn('same sealed stage', calls[1])
+        self.state['jobs'].clear()
+        calls.clear()
+        with patch.object(pilot.time, 'sleep', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                pilot.call(self.root, self.state, 'worker', self.workspace,
+                           'scoped task', RESULT_SCHEMA, False, capacity)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(self.state['jobs']), 1)
+        self.assertEqual(self.state['jobs'][0]['retrySuppressed'],
+                         'Operator interrupted before retry')
+
+    def test_partial_timeout_continues_once_with_shorter_per_attempt_limit(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 1800
+        worker = self.worker_worktree()
+        calls = []
+
+        def timeout_then_finish(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append((state['timeoutSeconds'], prompt))
+            if len(calls) == 1:
+                put(workspace, 'design/partial.kicad_pro', 'owned draft')
+                return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                        'usage': {'input_tokens': 10, 'cached_input_tokens': 0, 'output_tokens': 1},
+                        'result': None, 'error': 'Command timed out after 1800 seconds',
+                        'failureKind': 'timeout'}
+            self.assertEqual((workspace / 'design/partial.kicad_pro').read_text(), 'owned draft')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': {'input_tokens': 12, 'cached_input_tokens': 0, 'output_tokens': 2},
+                    'result': {'done': True}, 'error': None}
+
+        receipt = pilot.call(self.root, self.state, 'board', worker,
+                             'scoped task', RESULT_SCHEMA, False, timeout_then_finish)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual([limit for limit, _ in calls], [1800, 600])
+        self.assertIn('time limit was reached after partial work', calls[1][1])
+        self.assertEqual(self.state['timeoutSeconds'], 1800)
+        self.assertEqual(self.state['jobs'][0]['error'], 'Command timed out after 1800 seconds')
+        self.assertEqual(self.state['jobs'][0]['retryReason'], 'timeout')
+        self.assertEqual(self.state['jobs'][1]['attemptTimeoutSeconds'], 600)
+        self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 22)
+
+    def test_no_progress_timeout_is_terminal_and_combined_retries_are_capped(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        calls = []
+
+        def no_progress(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        first = pilot.call(self.root, self.state, 'board', worker,
+                           'scoped task', RESULT_SCHEMA, False, no_progress)
+        self.assertEqual(first['failureKind'], 'timeout')
+        self.assertEqual(first['retrySuppressed'], 'Timed-out worker made no owned file progress')
+        self.assertEqual(calls, [1800])
+        self.state['jobs'].clear()
+        calls.clear()
+
+        def mixed(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            if len(calls) == 3:
+                put(workspace, 'design/partial.kicad_pro', 'owned draft')
+                kind, error = 'timeout', 'Command timed out after 1800 seconds'
+            else:
+                kind, error = 'model_capacity', 'Codex exited 1'
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': error, 'failureKind': kind}
+
+        with patch.object(pilot.time, 'sleep') as sleep:
+            last = pilot.call(self.root, self.state, 'board', worker,
+                              'scoped task', RESULT_SCHEMA, False, mixed)
+        self.assertEqual(last['failureKind'], 'model_capacity')
+        self.assertEqual(calls, [1800, 1800, 1800, 600])
+        self.assertEqual(len(self.state['jobs']), 4)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_capacity_retries_share_one_stage_wall_budget(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        self.state['timeoutSeconds'] = 1800
+        clock = [0.0]
+        limits = []
+
+        def capacity(root, state, stage, model, workspace, prompt, schema, readonly):
+            limits.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Codex exited 1',
+                    'failureKind': 'model_capacity'}
+
+        def backoff(seconds):
+            clock[0] += seconds
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]), \
+             patch.object(pilot.time, 'sleep', side_effect=backoff):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, capacity)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')
+        self.assertEqual(len(limits), 2)
+        self.assertEqual(limits[0], 1800)
+        self.assertEqual(limits[1], 595)
+        self.assertEqual(clock[0], 2400)
 
 
 if __name__ == '__main__':

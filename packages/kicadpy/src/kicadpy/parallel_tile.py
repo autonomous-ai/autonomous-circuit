@@ -457,7 +457,10 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                                      error='Team run interrupted during planning', teamReady=False)
                         return state
                     if planned['status'] != 'planned':
+                        terminal_stage = {'model_unavailable': 'model-unavailable',
+                                          'execution_limit': 'execution-limit'}
                         state.update(status=planned['status'],
+                                     stage=terminal_stage.get(planned['status'], state['stage']),
                                      error='; '.join(planned.get('findings', [])), teamReady=False)
                         return state
                     state['roundsAttempted'] = attempt + 1
@@ -482,9 +485,14 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                         state.update(status='interrupted', stage='interrupted',
                                      error='Team run interrupted during build', teamReady=False)
                         return state
-                    state.update(status=finished['status'], stage='complete',
+                    state.update(status=finished['status'],
+                                 stage='model-unavailable' if finished['status'] == 'model_unavailable'
+                                 else 'execution-limit' if finished['status'] == 'execution_limit'
+                                 else 'complete',
                                  error='; '.join(finished.get('findings', [])),
                                  teamReady=finished['status'] == 'candidate_ready')
+                    if finished['status'] in ('model_unavailable', 'execution_limit'):
+                        return state  # capacity or time limits cannot be repaired by replanning
                     if finished['status'] == 'candidate_ready' or mirror_errors or attempt + 1 == max_rounds:
                         return state
                     if finished['status'] != 'needs_revision':

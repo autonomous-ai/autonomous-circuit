@@ -32,6 +32,39 @@ MAX_FILE = 128 * 1024 * 1024
 MAX_TOTAL = 1024 * 1024 * 1024
 ACTIVE = {}
 ACTIVE_LOCK = threading.Lock()
+CAPACITY_RETRY_DELAYS = (5, 15)
+MAX_STAGE_ATTEMPTS = 4
+TIMEOUT_CONTINUATION_SECONDS = 600
+
+
+def _stage_clock():
+    return time.monotonic()
+
+
+class ModelCapacityExhausted(ValueError):
+    """A bounded model-capacity retry failed; changing the design contract cannot fix it."""
+
+
+class JobInterrupted(ValueError):
+    """The model process was interrupted and must not be treated as a design defect."""
+
+
+class ExecutionLimitExhausted(ValueError):
+    """A bounded job timed out; a new design contract cannot fix the execution limit."""
+
+
+def job_error(receipt):
+    """Surface structured failure classification without changing the raw job receipt."""
+    error = receipt['error']
+    kind = receipt.get('failureKind')
+    suppressed = receipt.get('retrySuppressed')
+    if isinstance(suppressed, str) and suppressed:
+        error += f'; retry suppressed: {suppressed}'
+    if kind in ('model_capacity', 'timeout', 'interrupted'):
+        attempts = receipt.get('attempt')
+        suffix = f' after {attempts} attempt(s)' if isinstance(attempts, int) and attempts > 0 else ''
+        return f'{kind}{suffix}: {error}'
+    return error
 
 
 def pipeline_sha(root):
@@ -253,10 +286,108 @@ def usage_of(text):
     return totals
 
 
+def capacity_event(text):
+    """Recognize an actual Codex failure event, never text echoed from a prompt/tool."""
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get('type') not in ('error', 'turn.failed'):
+            continue
+        error = event.get('error')
+        message = event.get('message') if event['type'] == 'error' else (
+            error.get('message') if isinstance(error, dict) else None)
+        if isinstance(message, str) and 'selected model is at capacity' in message.casefold():
+            return True
+    return False
+
+
+def _job_directory(root, state, stage):
+    """Keep a separate receipt and event stream for every same-stage CLI attempt."""
+    parent = Path(root) / '.pilot/jobs'
+    name = f"a{state['planAttempts']:03}-r{state['revision']:03}-{stage}"
+    for attempt in range(1, 101):
+        job = parent / (name if attempt == 1 else f'{name}-retry{attempt:02}')
+        try:
+            job.mkdir(parents=True, exist_ok=False)
+            return job
+        except FileExistsError:
+            continue
+    raise ValueError('Too many existing job attempts for one stage')
+
+
+def _retry_files(workspace):
+    """Cheap change detection before a retry; final worker import still hashes bytes."""
+    files, total = {}, 0
+    for directory, dirs, names in os.walk(workspace):
+        for name in dirs + names:
+            if name != '.git' and (Path(directory) / name).is_symlink():
+                raise ValueError('Retry workspace contains a symlink')
+        dirs[:] = [name for name in dirs if name not in SKIP]
+        for name in names:
+            if name == '.git':
+                continue
+            path = Path(directory) / name
+            stat = path.stat()
+            if not path.is_file():
+                raise ValueError('Retry workspace contains a non-file output')
+            total += stat.st_size
+            if stat.st_size > MAX_FILE or total > MAX_TOTAL or len(files) >= 10000:
+                raise ValueError('Retry workspace exceeds snapshot bounds')
+            files[path.relative_to(workspace).as_posix()] = (
+                stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+                bool(stat.st_mode & 0o111))
+    return files
+
+
+def _retry_git_metadata(root, workspace):
+    """Detect worktree/index and shared integration Git mutations before resuming."""
+    integration = Path(root) / 'workspace'
+    metadata = [git(workspace, 'rev-parse', 'HEAD'), git(integration, 'rev-parse', 'HEAD'),
+                git(workspace, 'ls-files', '--stage'), git(integration, 'ls-files', '--stage'),
+                git(integration, 'status', '--porcelain')]
+    pointer = Path(workspace) / '.git'
+    if pointer.is_symlink():
+        raise ValueError('Worktree Git pointer is a symlink')
+    metadata.append(pointer.read_bytes() if pointer.is_file() else None)
+    # Git may refresh stat data in its index after legitimate owned file writes.
+    # ls-files --stage above checks staged contents without rejecting that refresh.
+    paths = [integration / '.git' / name for name in
+             ('config', 'info/exclude', 'info/attributes', 'HEAD')]
+    metadata.extend(hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+                    for path in paths)
+    return tuple(metadata)
+
+
+def _retry_safety(root, workspace, stage, readonly, initial_files, initial_git):
+    if _retry_git_metadata(root, workspace) != initial_git:
+        return False, 'Git metadata or HEAD changed during a failed model attempt', False
+    current = _retry_files(workspace)
+    edits = changed(initial_files, current)
+    if readonly and edits:
+        return False, 'Read-only stage changed workspace files', False
+    role = stage.split('-', 1)[0]
+    if edits and (role not in ROLES and role != 'solo' or any(not owns(role, name) for name in edits)):
+        return False, 'Failed worker changed files outside its owned paths', False
+    return True, None, bool(edits)
+
+
+def _persist_attempt_receipt(root, receipt):
+    """Keep the controller's retry decision in the same audited job receipt."""
+    log_directory = receipt.get('logDirectory')
+    if not isinstance(log_directory, str):
+        return
+    jobs = (Path(root) / '.pilot/jobs').resolve()
+    file = (Path(root) / log_directory / 'receipt.json').resolve()
+    if not file.is_relative_to(jobs) or not file.is_file():
+        raise ValueError('Invalid job receipt path')
+    write(file, receipt)
+
+
 def codex(root, state, stage, model, workspace, prompt, schema, readonly):
     """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
-    job = Path(root) / '.pilot/jobs' / f"a{state['planAttempts']:03}-r{state['revision']:03}-{stage}"
-    job.mkdir(parents=True, exist_ok=False)
+    job = _job_directory(root, state, stage)
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
     output = job / 'answer.json'
@@ -284,6 +415,7 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
     stdout, stderr, result, error = '', '', None, None
     process = None
     io_complete = False
+    interrupted = timed_out = False
     try:
         process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
@@ -297,6 +429,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
         validate(result, schema)
     except (OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         error = str(exc) or type(exc).__name__
+        interrupted = isinstance(exc, KeyboardInterrupt)
+        timed_out = isinstance(exc, subprocess.TimeoutExpired)
     finally:
         if process is not None:
             # Include children left running after the CLI exited.
@@ -320,6 +454,9 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
         (job / 'stderr.log').write_text(stderr)
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
                'usage': usage_of(stdout), 'result': result, 'error': error,
+               'failureKind': ('interrupted' if interrupted else 'timeout' if timed_out else
+                               'model_capacity' if error and process is not None and
+                               process.returncode not in (None, 0) and capacity_event(stdout) else None),
                'logDirectory': str(job.relative_to(root))}
     write(job / 'receipt.json', receipt)
     return receipt
@@ -327,16 +464,99 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
 
 def call(root, state, stage, workspace, prompt, schema, readonly, runner):
     model = state['leadModel'] if readonly else state['workerModel']
-    began = time.time()
-    try:
-        receipt = runner(root, state, stage, model, workspace, prompt, schema, readonly)
-    except Exception as exc:  # preserve a failed client receipt; no silent missing-usage job
-        receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
-                   'usage': None, 'result': None, 'error': f'{type(exc).__name__}: {exc}'}
-    # List append is serialized here; writes to state.json stay on the controller thread.
-    with ACTIVE_LOCK:
-        state['jobs'].append(receipt)
-    return receipt
+    deadline = _stage_clock() + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
+    initial_files = _retry_files(workspace)
+    initial_git = _retry_git_metadata(root, workspace)
+    capacity_retries = timeout_retries = 0
+    short_timeout = False
+    continuation = None
+    previous_receipt = None
+    for attempt in range(1, MAX_STAGE_ATTEMPTS + 1):
+        remaining = deadline - _stage_clock()
+        if remaining <= 0:
+            if previous_receipt is not None:
+                previous_receipt.pop('retryScheduled', None)
+                previous_receipt['retrySuppressed'] = 'Stage execution budget exhausted'
+                _persist_attempt_receipt(root, previous_receipt)
+                return previous_receipt
+            expired = {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': 0,
+                       'usage': None, 'result': None, 'error': 'Stage execution budget exhausted',
+                       'failureKind': 'timeout', 'attempt': attempt,
+                       'attemptTimeoutSeconds': 0}
+            with ACTIVE_LOCK:
+                state['jobs'].append(expired)
+            return expired
+        began = time.time()
+        retry_prompt = prompt
+        if continuation and not readonly:
+            retry_prompt += ('\n\nThe previous attempt stopped because ' + continuation + '. '
+                             'This is the same sealed stage and isolated worktree. Inspect any existing '
+                             'role-owned files, continue the unfinished work, and return the required '
+                             'stage result. Preserve completed work; do not change shared inputs.')
+        attempt_limit = min((TIMEOUT_CONTINUATION_SECONDS if short_timeout else
+                             state['timeoutSeconds']), remaining)
+        attempt_state = {**state, 'timeoutSeconds': attempt_limit}
+        try:
+            receipt = runner(root, attempt_state, stage, model, workspace,
+                             retry_prompt, schema, readonly)
+        except Exception as exc:  # preserve a failed client receipt; no silent missing-usage job
+            receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
+                       'usage': None, 'result': None, 'error': f'{type(exc).__name__}: {exc}'}
+        receipt = dict(receipt)
+        receipt['attempt'] = attempt
+        receipt['attemptTimeoutSeconds'] = attempt_state['timeoutSeconds']
+        # Record usage before any retry checks so interruption cannot discard a paid attempt.
+        with ACTIVE_LOCK:
+            state['jobs'].append(receipt)
+        previous_receipt = receipt
+        kind = receipt.get('failureKind') if receipt.get('error') else None
+        may_retry_capacity = (kind == 'model_capacity' and
+                              capacity_retries < len(CAPACITY_RETRY_DELAYS) and
+                              attempt < MAX_STAGE_ATTEMPTS)
+        may_retry_timeout = (kind == 'timeout' and not readonly and timeout_retries < 1 and
+                             attempt < MAX_STAGE_ATTEMPTS)
+        if may_retry_capacity or may_retry_timeout:
+            try:
+                safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
+                                                      initial_files, initial_git)
+            except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                safe, reason, partial = False, f'{type(exc).__name__}: {exc}', False
+            if may_retry_timeout and safe and not partial:
+                reason = 'Timed-out worker made no owned file progress'
+            if safe and (may_retry_capacity or partial):
+                delay = (CAPACITY_RETRY_DELAYS[capacity_retries]
+                         if may_retry_capacity else 0)
+                if deadline - _stage_clock() <= delay:
+                    receipt['retrySuppressed'] = 'Stage execution budget exhausted'
+                else:
+                    receipt['retryScheduled'] = True
+                    receipt['retryDelaySeconds'] = delay
+                    receipt['continuedPartialWork'] = partial
+                    if may_retry_capacity:
+                        capacity_retries += 1
+                        continuation = 'the model was temporarily at capacity'
+                    else:
+                        timeout_retries += 1
+                        short_timeout = True
+                        continuation = 'its execution time limit was reached after partial work'
+                    receipt['retryReason'] = kind
+            else:
+                receipt['retrySuppressed'] = reason
+                if not safe:
+                    receipt['failureKind'] = ('unsafe_capacity_retry' if may_retry_capacity
+                                              else 'unsafe_timeout_retry')
+        _persist_attempt_receipt(root, receipt)
+        if not receipt.get('retryScheduled'):
+            return receipt
+        if receipt['retryDelaySeconds']:
+            try:
+                time.sleep(receipt['retryDelaySeconds'])
+            except KeyboardInterrupt:
+                receipt.pop('retryScheduled', None)
+                receipt['retrySuppressed'] = 'Operator interrupted before retry'
+                _persist_attempt_receipt(root, receipt)
+                raise
+    raise AssertionError('Stage retry bound was exceeded')
 
 
 def seal(root, state, interfaces):
@@ -393,11 +613,23 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
             else:
                 job = call(root, state, 'plan', workspace, prompt, CONTRACT_SCHEMA, True, runner)
                 if job['error']:
-                    raise ValueError(job['error'])
+                    if job.get('failureKind') == 'interrupted':
+                        raise JobInterrupted(job_error(job))
+                    if job.get('failureKind') == 'timeout':
+                        raise ExecutionLimitExhausted(job_error(job))
+                    if job.get('failureKind') == 'model_capacity':
+                        raise ModelCapacityExhausted(job_error(job))
+                    raise ValueError(job_error(job))
                 interfaces = job['result']
             if snapshot(workspace) != before:
                 raise ValueError('Read-only planner changed workspace')
             seal(root, state, interfaces)
+        except (KeyboardInterrupt, JobInterrupted) as exc:
+            state['status'], state['findings'] = 'interrupted', [str(exc) or 'Operator interrupted planning']
+        except ExecutionLimitExhausted as exc:
+            state['status'], state['findings'] = 'execution_limit', [str(exc)]
+        except ModelCapacityExhausted as exc:
+            state['status'], state['findings'] = 'model_unavailable', [str(exc)]
         except Exception as exc:  # a malformed result must not leave a runnable/approved plan
             # Keep the previously sealed revision readable; log directories identify every attempt.
             state['status'], state['findings'] = 'planning_failed', [str(exc)]
@@ -471,11 +703,17 @@ def dispatch(root, state, stages, runner):
             except KeyboardInterrupt:
                 cancel_jobs(root)
                 raise
-    imports, failures = [], []
+    imports, failures, capacity_failures, timeout_failures, interrupted_failures = [], [], [], [], []
     for role, stage, dest, pointer, receipt in results:
         try:
             if receipt['error']:
-                raise ValueError(receipt['error'])
+                if receipt.get('failureKind') == 'interrupted':
+                    interrupted_failures.append(stage)
+                if receipt.get('failureKind') == 'timeout':
+                    timeout_failures.append(stage)
+                if receipt.get('failureKind') == 'model_capacity':
+                    capacity_failures.append(stage)
+                raise ValueError(job_error(receipt))
             validate(receipt['result'], RESULT_SCHEMA)
             result = receipt['result']
             if result['contractSha256'] != state['contractSha256'] or result['stage'] != stage:
@@ -494,6 +732,12 @@ def dispatch(root, state, stages, runner):
         except (OSError, ValueError) as exc:
             failures.append(f'{stage}: {exc}')
     if failures:
+        if interrupted_failures:
+            raise JobInterrupted('\n'.join(failures))
+        if capacity_failures:
+            raise ModelCapacityExhausted('\n'.join(failures))
+        if timeout_failures:
+            raise ExecutionLimitExhausted('\n'.join(failures))
         raise ValueError('\n'.join(failures))
     load(root)  # reject changed frozen inputs before importing any worker output
     if snapshot(workspace) != baseline or git(workspace, 'rev-parse', 'HEAD') != base:
@@ -582,7 +826,13 @@ def review(root, state, stage, checks, runner):
               f'Return contractSha256={state["contractSha256"]}.\nNATIVE CHECKS:\n' + json.dumps(checks))
     job = call(root, state, stage, workspace, prompt, REVIEW_SCHEMA, True, runner)
     if job['error']:
-        raise ValueError(job['error'])
+        if job.get('failureKind') == 'interrupted':
+            raise JobInterrupted(job_error(job))
+        if job.get('failureKind') == 'timeout':
+            raise ExecutionLimitExhausted(job_error(job))
+        if job.get('failureKind') == 'model_capacity':
+            raise ModelCapacityExhausted(job_error(job))
+        raise ValueError(job_error(job))
     validate(job['result'], REVIEW_SCHEMA)
     r = job['result']
     if snapshot(workspace) != before or r['contractSha256'] != state['contractSha256']:
@@ -643,6 +893,12 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
             load(root)  # reject edits to frozen input snapshots and sealed contract
             state['artifactManifest'] = snapshot(workspace)
             state['status'], state['findings'] = 'candidate_ready', []
+        except JobInterrupted as exc:
+            state['status'], state['findings'] = 'interrupted', [str(exc)]
+        except ExecutionLimitExhausted as exc:
+            state['status'], state['findings'] = 'execution_limit', [str(exc)]
+        except ModelCapacityExhausted as exc:
+            state['status'], state['findings'] = 'model_unavailable', [str(exc)]
         except Exception as exc:  # fail closed and persist diagnostics even for a checker/client defect
             state['status'], state['findings'] = 'needs_revision', [f'{type(exc).__name__}: {exc}']
         except KeyboardInterrupt:
@@ -720,7 +976,8 @@ def main(argv=None):
             result = status(args.directory)
             if args.command == 'metrics':
                 result = metrics(result)
-        failed = result.get('status') in ('needs_revision', 'interrupted', 'planning_failed', 'stale')
+        failed = result.get('status') in ('needs_revision', 'interrupted', 'planning_failed',
+                                          'model_unavailable', 'execution_limit', 'stale')
         print(json.dumps({'ok': not failed, **result}))
         return 2 if failed else 0
     except (OSError, ValueError, subprocess.SubprocessError) as exc:

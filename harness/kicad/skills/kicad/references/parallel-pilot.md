@@ -110,6 +110,24 @@ Read `.pilot/state.json`, `.pilot/jobs/*/receipt.json`, `events.jsonl`, `stderr.
 worktrees for diagnosis; they are never silently promoted. An invalid planning attempt retains
 usage and the previous readable contract; planning attempts have distinct log directories.
 
+Within one dispatch, a structured model-capacity failure may retry only the affected job,
+within a fixed attempt limit. The retry keeps the same sealed contract and may continue
+role-owned partial files in that worker's isolated worktree. It refuses changed shared Git
+metadata, a moved HEAD or any unowned file change. Each attempt keeps its own receipt and
+usage; completed sibling workers are called once and their outputs are integrated only after
+every stage passes schema, contract, ownership and hash checks. Exhausted capacity reports
+`model_unavailable` and stops the bridge before a new contract revision. A true design
+revision uses fresh worktrees because its contract hash has changed; old worker results are
+never silently reused.
+
+A worker timeout may make one bounded continuation in its own worktree when it left only
+role-owned partial work. A timeout without progress, or one that exhausts that continuation,
+reports `execution_limit` and also stops before a new contract revision. Receipts retain each
+attempt and its configured time limit. All same-stage retries share a controller deadline of
+the original per-job timeout plus 600 seconds, including capacity backoff; process cleanup and
+receipt I/O can add a little wall time. Interrupted work reports `interrupted`. These execution
+outcomes do not count as engineering approval and do not import a partly completed dispatch.
+
 ```bash
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-team --revise --execute
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel run /tmp/sensor-team --execute
