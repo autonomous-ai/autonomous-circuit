@@ -1,12 +1,14 @@
 """Offline Harness team bridge tests: no model calls, native CAD, or hardware."""
+import contextlib
 import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from kicadpy import parallel, parallel_tile
 
@@ -165,6 +167,114 @@ class TeamBridgeTests(unittest.TestCase):
             self.workspace, brief or self.first_brief, execute=True,
             runner=runner or FakeRunner(self.workspace), checker=checker or FakeChecker(),
             max_rounds=max_rounds)
+
+    def test_macos_idle_sleep_assertion_is_parent_bound_and_released_on_error(self):
+        process = Mock()
+        process.poll.return_value = None
+        process.wait.side_effect = [subprocess.TimeoutExpired('caffeinate', 5), 0]
+        with patch.object(parallel_tile.sys, 'platform', 'darwin'), \
+                patch.object(parallel_tile.subprocess, 'Popen', return_value=process) as launch:
+            with self.assertRaisesRegex(RuntimeError, 'worker failed'):
+                with parallel_tile._prevent_idle_sleep():
+                    raise RuntimeError('worker failed')
+        launch.assert_called_once_with(
+            ['/usr/bin/caffeinate', '-i', '-w', str(os.getpid())],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        process.terminate.assert_called_once_with()
+        process.kill.assert_called_once_with()
+        self.assertEqual(process.wait.call_count, 2)
+
+    def test_macos_idle_sleep_assertion_releases_on_interrupt(self):
+        process = Mock()
+        process.poll.return_value = None
+        with patch.object(parallel_tile.sys, 'platform', 'darwin'), \
+                patch.object(parallel_tile.subprocess, 'Popen', return_value=process):
+            with self.assertRaises(KeyboardInterrupt):
+                with parallel_tile._prevent_idle_sleep():
+                    raise KeyboardInterrupt
+        process.terminate.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=5)
+
+    def test_macos_idle_sleep_cleanup_tolerates_process_exit_races(self):
+        process = Mock()
+        process.poll.return_value = None
+        process.terminate.side_effect = ProcessLookupError
+        process.wait.side_effect = [subprocess.TimeoutExpired('caffeinate', 5), 0]
+        process.kill.side_effect = ProcessLookupError
+        with patch.object(parallel_tile.sys, 'platform', 'darwin'), \
+                patch.object(parallel_tile.subprocess, 'Popen', return_value=process):
+            with parallel_tile._prevent_idle_sleep():
+                pass
+        process.terminate.assert_called_once_with()
+        process.kill.assert_called_once_with()
+        self.assertEqual(process.wait.call_count, 2)
+
+    def test_macos_idle_sleep_cleanup_reaps_already_exited_process(self):
+        process = Mock()
+        process.poll.side_effect = [None, 0]
+        with patch.object(parallel_tile.sys, 'platform', 'darwin'), \
+                patch.object(parallel_tile.subprocess, 'Popen', return_value=process):
+            with parallel_tile._prevent_idle_sleep():
+                pass
+        process.terminate.assert_not_called()
+        process.wait.assert_called_once_with(timeout=5)
+
+    def test_idle_sleep_assertion_is_noop_outside_macos(self):
+        with patch.object(parallel_tile.sys, 'platform', 'linux'), \
+                patch.object(parallel_tile.subprocess, 'Popen',
+                             side_effect=AssertionError('unexpected caffeinate')):
+            with parallel_tile._prevent_idle_sleep():
+                pass
+
+    def test_macos_idle_sleep_assertion_reports_launch_failure(self):
+        with patch.object(parallel_tile.sys, 'platform', 'darwin'), \
+                patch.object(parallel_tile.subprocess, 'Popen',
+                             side_effect=OSError('command unavailable')):
+            with self.assertRaisesRegex(RuntimeError, 'Unable to start macOS idle-sleep assertion'):
+                with parallel_tile._prevent_idle_sleep():
+                    pass
+
+    def test_team_assertion_covers_model_calls_and_releases_on_return(self):
+        awake = []
+        runner = FakeRunner(self.workspace)
+
+        @contextlib.contextmanager
+        def assertion():
+            awake.append(True)
+            try:
+                yield
+            finally:
+                awake.pop()
+
+        def guarded_runner(*args):
+            self.assertTrue(awake)
+            return runner(*args)
+
+        with patch.object(parallel_tile, '_prevent_idle_sleep', side_effect=assertion):
+            state = self.run_team(runner=guarded_runner)
+        self.assertEqual(state['status'], 'candidate_ready', state.get('error'))
+        self.assertTrue(runner.visits)
+        self.assertEqual(awake, [])
+
+    def test_team_assertion_releases_when_initialization_fails(self):
+        awake = []
+
+        @contextlib.contextmanager
+        def assertion():
+            awake.append(True)
+            try:
+                yield
+            finally:
+                awake.pop()
+
+        with patch.object(parallel_tile, '_prevent_idle_sleep', side_effect=assertion), \
+                patch.object(parallel, 'initialize', side_effect=RuntimeError('setup failed')):
+            state = self.run_team()
+        self.assertEqual(state['status'], 'failed')
+        self.assertIn('setup failed', state['error'])
+        self.assertEqual(awake, [])
 
     def staged_pilot(self):
         """Create a clean pilot source so checkpoint replay can be tested alone."""

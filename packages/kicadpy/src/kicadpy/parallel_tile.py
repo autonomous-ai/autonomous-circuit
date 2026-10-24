@@ -17,6 +17,8 @@ import re
 import shutil
 import signal
 import stat
+import subprocess
+import sys
 import tempfile
 import time
 
@@ -426,6 +428,40 @@ def _cancel_on_signal(pilot_root):
             signal.signal(number, handler)
 
 
+@contextlib.contextmanager
+def _prevent_idle_sleep():
+    """Keep a foreground macOS team run awake, with the parent PID as a fail-safe."""
+    if sys.platform != 'darwin':
+        yield
+        return
+    try:
+        process = subprocess.Popen(
+            ['/usr/bin/caffeinate', '-i', '-w', str(os.getpid())],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        raise RuntimeError(f'Unable to start macOS idle-sleep assertion: {exc}') from exc
+    try:
+        if process.poll() is not None:
+            raise RuntimeError('Unable to hold macOS idle-sleep assertion')
+        yield
+    finally:
+        if process.poll() is None:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass  # caffeinate exited between poll and terminate
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass  # caffeinate exited between wait and kill
+            process.wait(timeout=5)
+
+
 def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, max_rounds=2):
     """Run one complete prompt in an isolated team and expose its checked artifacts."""
     if not execute:
@@ -488,7 +524,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                      roundsAttempted=0, teamReady=False)
         _save_state(workspace, state)
         try:
-            with _cancel_on_signal(pilot_root) as cancelled:
+            with _cancel_on_signal(pilot_root) as cancelled, _prevent_idle_sleep():
                 parallel.initialize(pilot_root, frozen_prompt, seed=seed)
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)

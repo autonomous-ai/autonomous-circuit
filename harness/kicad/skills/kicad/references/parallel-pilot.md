@@ -12,6 +12,12 @@ active pet workspace. The bridge may seed a new follow-up pilot from accepted pr
 Neither path orders, prints, flashes or operates hardware. A previous project's flash
 permission is not inherited.
 
+On macOS, an executing Harness bridge run holds a scoped `caffeinate -i` assertion from team
+initialization through completion. It releases the assertion on normal return, error or
+interrupt; `-w` also ties it to the bridge process if that process is killed. This prevents
+idle sleep while the team runs, but a closed laptop lid or thermal protection can still sleep
+the machine. Standalone `kicadpy.parallel` commands do not use this bridge assertion.
+
 ## Start and inspect
 
 Run from a source checkout with the existing KiCad / firmware / CadQuery toolchain installed,
