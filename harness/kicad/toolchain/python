@@ -9,7 +9,8 @@
 # This is the HOST Python. KiCad's bundled Python (pcbnew) is a different runtime — kicadpy finds
 # it itself (`kicadpy.toolchain.executable('python')`); never import pcbnew here.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+script_dir="$(cd -P "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$script_dir/../../.." && pwd)"
 py=""
 for cand in "${CIRCUIT_PYTHON:-}" python3.13 python3.12 python3.11 python3.10 python3; do
   [ -n "$cand" ] || continue

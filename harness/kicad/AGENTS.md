@@ -11,6 +11,55 @@ never print a URL, and never need a `board-viewer` skill here.
 
 Speak the user's language. The user does not read circuits.
 
+## Team runs in new Codex projects
+
+In an isolated pilot workspace with `PILOT_BRIEF.md`, follow the stage-specific lead or worker
+job and `PILOT_CONTRACT.json` when present. Do not run this bridge or the single-agent Stop-hook
+workflow from inside a pilot role worktree.
+
+If `.circuit/team-auto` exists in this workspace, this section governs every board build and
+design change. Harness puts that marker in **new Codex KiCad projects**. A project without it keeps
+the single-agent workflow below; never add the marker to an existing project or running session.
+The person only needs to open KiCad in Harness and send a prompt. You are the entry agent: pass
+the request to the Astra lead and Sol workers through the tile bridge, then report their checked
+result. Do not build the board yourself or arm `kicadpy.harness --active build` in a team project.
+
+For a first board request, save the user's words **verbatim** in `prompts/original.md` and a new,
+immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as the concise
+effective brief shown by the viewer; it reads these explicit project files, never session logs.
+Include every requirement in the immutable run brief and keep attached visual evidence usable: copy an
+accessible image to `prompts/assets/`, cite its absolute path in the brief, and preserve a durable
+URL when that is the source. A bare `[Image #]` marker is not an image; if no usable file or URL
+exists, say that in the brief and do not infer dimensions from it. Add only clearly labelled
+facts needed to interpret the prompt, such as which image is current. Do not replace the user's
+request with your own shortened plan. For a follow-up design change, make a **new** effective
+brief containing the prior requirements and the new user's exact words, with the later change
+identified as taking precedence where they conflict. Update `prompts/current.md` to reflect the
+new effective requirements. Keep prior brief files for audit; do not alter one already used by a
+run. The bridge seeds the next pilot from the last clean integrated
+checkpoint, including a checked board checkpoint when a later team review needs revision.
+
+From the workspace root, run the bridge in the foreground and wait for it to finish:
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile start "$PWD" --prompt "$PWD/prompts/history/<new-brief>.md" --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile status "$PWD"
+```
+
+Report the bridge's `teamReady` value for the whole team. The viewer verdict's `ready` value
+describes native board readiness; it can be true before the final team review is approved.
+
+The bridge owns its private pilot, role worktrees, native checks, and transfer of checked output
+to this viewer's workspace. Never edit `.pilot/`, role receipts, generated board files, or verdicts
+to make a failed run appear ready. If it returns a failure or incomplete status, inspect its
+reported logs and findings. If status reports `mirrorPending: true`, run
+`"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile sync "$PWD"` to finish copying that same
+hash-checked checkpoint, then recheck status. Tell the person what remains; do not quietly fall
+back to the solo workflow. A later explicit build or repair request uses another immutable effective brief
+and the same `start` command. A question, request for options, plan, or price is read-only:
+answer it without calling `start` or arming the Stop hook. Flashing, ordering, printing, and
+physical testing still require the person's separate instruction.
+
 ## Where things are
 
 **This folder is the project workspace.** Everything you write lives inside it, and every path
@@ -39,6 +88,7 @@ boards/              DERIVED by the publisher — main.board.json (the sidecar) 
 .harness/verdict.json  DERIVED — the pane header (ready, summary, findings, phases)
 .kicadpy/            the transaction tools' snapshots and candidates
 .circuit/            the review journal and your attestation
+.circuit/team-auto   present only in new Codex tile projects; routes builds through the team
 ```
 
 Never edit anything derived (`boards/`, `.harness/`, `.kicadpy/`): the next publish overwrites it,
@@ -105,12 +155,13 @@ manufacturer's datasheet and the supplier's live listing, and you never invent a
 stock level or a package you did not look up. Review and repair run here (below). On Codex, Circuit’s Stop hook checks an active build and
 requests another repair turn when the packet is unfinished.
 
-## The two phases, and the review that follows
+## Single-agent workflow when there is no team marker
 
-**One shot is the default.** A message that asks for a board, or for a change to one, gets a plan of
-at most 20 lines and then the build, in the same turn, until the board is prototype-ready and the
-firmware is written. The person who uses this tile usually does not know electronics: every
-question you ask them is a question they cannot answer, and every stop to wait is a board that
+**One shot is the default.** In a workspace without `.circuit/team-auto`, a message that asks for
+a board, or for a change to one, gets a plan of at most 20 lines and then the build, in the same
+turn, until the board is prototype-ready and the firmware is written. The person who uses this
+tile usually does not know electronics: every question you ask them is a question they cannot
+answer, and every stop to wait is a board that
 does not get made. A turn is plan-only only when the person explicitly asks for a plan, options or
 a price, or when their message is a question; then present the plan and stop.
 
@@ -118,8 +169,9 @@ a price, or when their message is a question; then present the plan and stop.
 
 Read `product.json`, `parts.json`, the sources under `design/` and the latest sidecar to ground the
 plan in what exists. Keep the plan short; datasheet and supplier research belongs to the build.
-Right after the plan, run `"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build` and start
-building — that arms the Stop hook that carries the build to ready.
+In a workspace without `.circuit/team-auto`, right after the plan, run
+`"$KICAD_HARNESS_PYTHON" -m kicadpy.harness --active build` and start building — that arms the
+Stop hook that carries the single-agent build to ready. Team projects use the bridge above.
 
 **Engineering decisions are yours**: part choices, values, copper, thermal, protection, process
 and order settings. Never ask the person a technical question — no voltage, current, pinout,
@@ -174,6 +226,40 @@ is a board the router will not finish. Plan one populated side unless the user a
 price of two, and say the price.
 
 Restate the plan when you resume a conversation, so the person can see what is being built.
+
+### Keep one project brief without exposing private chat
+
+At the start of a project, save its initial user request verbatim in `prompts/original.md`.
+Maintain `prompts/current.md` as a concise effective brief after a substantive user correction
+or a meaningful handoff. The viewer reads only explicit prompt files inside this project; it
+never scans agent logs or appends later chat. Without a saved file, its prompt view stays empty.
+Consolidate already-read decisions into the brief; do not copy the whole conversation or keep
+superseded choices as competing instructions. Keep private discussions and session history
+separate from the brief. Keep three things distinct: current requirements and
+confirmed owned hardware; actual completed work with links to its sources/checks; and remaining
+work/assumptions. Date the status snapshot and refresh it against current artifacts before claiming
+completion. CAD/export/compile success is not physical print, fit, firmware or motion validation.
+
+Use links to the current wiring, assembly and inventory documents for detail. An interrupted run
+must say what remains open, even when an older report passed. Do not broaden scope or restart a
+working design merely because its brief was compacted. New unread user messages still apply and
+must be incorporated into the brief; never discard them by merely touching the file's timestamp
+or assuming the viewer will recover the chat. In a scoped parallel pilot, the lead/orchestrator
+owns this shared brief: workers report their changes through
+their assigned handoffs and must not edit frozen contracts or another worker's paths.
+
+**Keep visual references with the brief.** Before replacing a long conversation with
+`prompts/current.md`, inventory user-supplied photos, screenshots, drawings and product links
+from the original request and later corrections. Save accessible local image bytes under
+`references/user-images/` (or a stable, project-owned equivalent); write
+`references/IMAGES.md` with the original source path/URL, date or message context, what the
+person said each image was for, and whether that request is current or superseded. Link the
+relevant images or this index from the current brief. A bare `[Image #1]`, temporary clipboard
+path, generic "the photo", or unverified assertion about what an image depicts is not a usable
+handoff. Keep historical references in the index but do not let an older visual silently
+override the latest text. Check every local link resolves before handoff; if original bytes are
+unavailable, preserve the original source and mark the image missing. Never invent its content,
+dimensions, exact module identity or a photo-based proof of fit.
 
 ### Build — implement the plan
 
@@ -246,6 +332,12 @@ WS2812 keeps its last colour through a warm reset and a low DIN does not turn it
 board until harness-18 — switch its rail); a module input with an internal pull-up (the ST7789
 BLK) lights when the board merely stops driving it. Write the reasoning into `engineering/power.md`
 next to the measurement, and never "the firmware will handle it".
+
+Include the **actual module circuit**, not just the bare IC: onboard pull-ups/pull-downs can
+defeat an external default-off resistor. Check loaded voltages against guaranteed input
+thresholds and tolerances. Follow shared controls through buffers: an RC-slowed power-switch
+gate is not automatically a valid digital enable. Check input transition-time limits and
+power sequencing against the selected datasheets; record required bench checks.
 
 **A thermal claim is a copper measurement.** `kicadpy.verify thermal design/main.kicad_pro U2 2`
 reports the filled copper under the LDO tab per layer and the vias on it. 0 mm² means the
@@ -357,7 +449,8 @@ strategy, not to declare completion: inspect the actual failing pads/nets, adjus
 or the repair scope, and compare the next candidate against your snapshot. Keep all requested
 functions and all validation rules. Do not convert missing design evidence to a pass.
 
-`kicadpy.harness --active build` arms Circuit's Codex Stop hook for the build. It
+For a workspace without `.circuit/team-auto`, `kicadpy.harness --active build` arms Circuit's
+Codex Stop hook for the build. It
 republishes at turn end and supplies current failures in automatic continuation prompts (up to
 eight repair continuations, with a four-hour continuation window). Repeating the build marker
 while active does not reset that budget. Never edit `.circuit/autofinish.json` or re-arm to evade
@@ -426,6 +519,11 @@ the review is closed, write the firmware in the same turn, without being asked a
   sidecar), never from the plan or from memory: a plan's table may have moved during layout.
   Put the table in the README with the net name beside each pin, and say so where a pin
   differs from what `product.json` asked for.
+- **A stop condition dominates every start path.** Where the design has a stop/inhibit input,
+  holding it keeps outputs disabled despite repeated HTTP/serial/UI commands or a command in
+  progress. Release does not rearm automatically: require the documented fresh command. Test
+  the production handlers and enable path, including a stop arriving during a command; label
+  mocked host tests separately from hardware tests.
 - **What it must do.** The function `product.json` describes, end to end — every input read,
   every output driven — and the bring-up order under `engineering/bringup.md` (a blink on the
   status LED first, then each peripheral). The person can use the Flash button; when they have
@@ -563,6 +661,12 @@ board revision, not a moved footprint.
   multi-link mechanisms or delicate custom catches when a simple bracket or direct coupling
   meets the request. Added complexity must solve a named requirement that the simpler option
   cannot meet; explain that necessity briefly and preserve the requested function.
+  Before finalizing a full kit, count printed pieces, installed fasteners/types and repeated
+  assembly operations; list spares separately. Review repeated clamps/spacers for simpler
+  supported options. Do not impose a universal count or discard working prints to lower it.
+  Carry forward the person's confirmed screw lengths/head types and tools as design inputs.
+  Reconcile the hardware map with that inventory before export; do not silently require an
+  unowned standard length or suggest cutting screws before considering a small compatible fix.
 - **Fix retention, device mounting and fragile features before calling a case complete.**
   Show the complete attachment chain **device → mount/frame → shell**. Each fixed connection
   needs a defined seat and a serviceable restraint against slip, pullout and unwanted rotation;
@@ -584,6 +688,9 @@ board revision, not a moved footprint.
   mechanism that preserves the requested function. Deliver a current, linked assembly/print
   guide with numbered parts, tested insertion paths, a separate coupon procedure and an exact
   reuse/reprint list. A collision-free final pose alone does not prove a person can assemble it.
+  Every fastener position, including retained assemblies, needs a matching guide/overview ID,
+  thread × length (or honest factory/unknown label), head/tool, nut/washer and insertion arrow.
+  Show the screw and mating parts at that assembly step; a total BOM is insufficient.
 - **Start from the template.** `case/build.py` can begin as two lines and then grow:
   ```python
   from kicadpy.case_template import build_box
@@ -620,6 +727,28 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - **Use the same simple assembly format for every project.** One primary selector contains
+    **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
+    navigation using that same state. Merge assembly-stage and assembly-step menus; do not add
+    an independent fastener-group workflow. Each selected step automatically shows its parts,
+    real 3D hardware and a compact **Vít/tán bước này** card: IDs, size/factory label, quantity,
+    matching nuts, insertion direction and a short assembly action. Include a clear no-fastener
+    message when applicable. Selecting an ID within the card focuses it without resetting the
+    step or revealing a second unrelated step list. Đủ bộ restores the seated complete assembly
+    and the total hardware summary. Keep camera shortcuts secondary; put optional individual
+    hardware, exploded/cutaway and motion controls under a closed **Chi tiết** disclosure.
+    Preserve their functionality without making them mandatory to follow the assembly.
+    Reuse the same labels, control order and layout across dog, pet and future projects; only
+    geometry, step contents and hardware data differ. Follow the assembly reference for the
+    canonical step data and phone/control verification.
+  - **Put the fasteners in the 3D assembly.** Show bought screws with head and shank, plus their
+    nuts/washers where used, from the same hardware definitions as CAD checks and the guide.
+    Add a separate **Vít/tán** visibility control, on by default, independent of electronics.
+    Selecting a group/ID focuses its actual 3D screw, size/factory label, mating parts and entry
+    arrow. Offer a local exploded/cutaway view that explains the assembly stack and fixed versus
+    rotating parts; a 2D icon or arrow alone is insufficient. Keep these bought-hardware
+    references out of printable meshes, without omitting already-printed production parts.
+    Follow the assembly reference for motion transforms, access and overview verification.
   - For moving designs, add a control for each real axis (such as yaw/pitch), a stop/centre
     control, and visible moving/stationary groups. Derive pivots, limits and poses from the
     checked mechanism, keep motion within its checked range, and show wire routing through
@@ -654,10 +783,16 @@ board revision, not a moved footprint.
 - **Preserve the established design by default.** A defect report does not authorize throwing
   away working parts or starting a new design. Prefer compatible repair/add-on parts; wider
   replacement must respect the person's unchanged requirements and explicit keep-part limits.
+- **Remember what the person has printed.** Read/update `case/PRINTED-INVENTORY.md` before
+  repairs and plate exports. Persist their confirmations and identifiable photo evidence with
+  part/revision, quantity, source/date and fit/breakage status; do not leave this knowledge in
+  chat alone. A generated/sliced/opened file is not a print. Mark uncertain photo matches as
+  uncertain, never as an invented exact revision. Follow the reference's inventory rules.
 - **Repair around the parts already printed.** Freeze their actual revision and mating geometry;
   change the failed feature with the smallest compatible local part/adapter using existing
   holes. Minimize new print time/material before STL count; do not redesign a working body to
-  fit a new mechanism. Check against the printed baseline and lead with repair-only print plates.
+  fit a new mechanism. Check against the printed baseline and identify the new/updated plates
+  to select inside the complete Print all project, retaining already-printed parts on other plates.
 - **Before a long structural repair**, record the joint intent and a section/sketch: continuous
   parts, fixed/free interfaces, printed versus owned stock hardware, nut seats and screw entry.
   Reassess inherited mechanisms, check play/retention separately from collision-free rotation,
@@ -671,6 +806,12 @@ board revision, not a moved footprint.
   change, link the checked production project through manifest `printProject`, and test the
   actual **Print all → Bambu Studio** file. See the self-contained assembly reference's
   "Ready-arranged slicer projects" contract. Do not send anything to a printer.
+  **Print all is one complete 3MF**, retaining every current production part, including those
+  already printed. Within that same file, separate plates named **ĐÃ IN — GIỮ LẠI** and
+  **MỚI/SỬA — CẦN IN**; add numbered plates within each group on overflow, never mix groups.
+  Verify these names in the saved project opened in Bambu. Printed inventory controls plate
+  assignment and quantities, never omission from Print all. The person selects the new plates
+  to print; a separate subset, if requested, is extra and never replaces this complete file.
 - **The Case tab** shows what you wrote: every part in `parts.json` drawn around the board (drawn
   from the contract, so a part in the wrong frame is visibly off), STL and STEP downloads, the
   print orientation in words, and the checker's status and errors. When you reshape the case, keep
@@ -699,6 +840,14 @@ board passes `kicadpy.case check` (the hook asks once). Neither gates `fab.ready
 turn's last deliverables, not caveats on the board. The Case deliverable also includes the current
 interactive overview: build the 3D model → regenerate its overview → verify both and the applicable
 checks, all in the same turn.
+
+**Report the requested product scope, not just the gate.** Track the brief's required outputs
+and latest accepted changes: electrical board, carrier only versus a requested robot structure,
+firmware functions, assembly guide and print handoff. A PCB tray does not complete requested
+frame/limbs/covers; do not add those to a board-only request. State functions implemented,
+disabled by unresolved pin/module identity, or not requested. Do not invent a GPIO map or gait
+to claim completion. Scoped pilot workers report their assigned stage only. Existing
+`fab.ready`, case and physical-test meanings remain unchanged.
 
 Prototype-ready is a design fact. Physical hardware remains untested until someone measures it;
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or

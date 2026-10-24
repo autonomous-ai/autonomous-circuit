@@ -3,43 +3,34 @@ import { Check, Copy, Loader2, MessageSquareText } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { transport } from "@/lib/transport.ts";
 
-const ENGINE_LABEL = { codex: "Codex", claude: "Claude Code", grok: "Grok" };
-
-function when(at) {
-  const d = new Date(at);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 /**
  * "Prompt" beside the board name: what the person asked for, one click away.
  *
- * In a Harness pane the conversation is in the agent's terminal, and after a long run the
- * original request is hundreds of turns up the scrollback. The server reads it back from the
- * engine's own session logs for this workspace (`workspace_prompts`). In the app proper the
- * chat history already has it, passed in as `fallbackText`, used when the logs have nothing.
+ * The server reads only a project-owned original prompt file. In the app proper, the selected
+ * project's chat history may provide `fallbackText` when no such file exists.
  *
  * @param {{ projectId: string, fallbackText?: string, className?: string }} props
  */
 export default function OriginalPromptButton({ projectId, fallbackText = "", className }) {
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState({ phase: "idle", data: null, error: "" });
-  const [showAll, setShowAll] = useState(false);
+  const [state, setState] = useState({ projectId: "", phase: "idle", data: null, error: "" });
   const [copied, setCopied] = useState(false);
   const [anchor, setAnchor] = useState({ top: 0, left: 0 });
   const rootRef = useRef(null);
   const buttonRef = useRef(null);
+  const previousProjectId = useRef(projectId);
 
   const load = useCallback(async () => {
     if (!projectId) {
-      setState({ phase: "ready", data: { original: null, sessions: [] }, error: "" });
+      setState({ projectId, phase: "ready", data: { original: null, sessions: [] }, error: "" });
       return;
     }
-    setState((s) => ({ ...s, phase: "loading" }));
+    setState({ projectId, phase: "loading", data: null, error: "" });
     try {
       const data = await transport.workspace_prompts(projectId);
-      setState({ phase: "ready", data, error: "" });
+      setState({ projectId, phase: "ready", data, error: "" });
     } catch (err) {
-      setState({ phase: "error", data: null, error: err?.message || String(err) });
+      setState({ projectId, phase: "error", data: null, error: err?.message || String(err) });
     }
   }, [projectId]);
 
@@ -49,7 +40,7 @@ export default function OriginalPromptButton({ projectId, fallbackText = "", cla
     const r = buttonRef.current?.getBoundingClientRect?.();
     if (r) setAnchor({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, (window.innerWidth || 1024) - 584)) });
     setOpen((was) => {
-      if (!was) load();   // re-read every time it opens: the agent may have been given more since
+      if (!was) load();   // re-read every time it opens: the project file may have changed
       return !was;
     });
   }, [load]);
@@ -70,10 +61,16 @@ export default function OriginalPromptButton({ projectId, fallbackText = "", cla
     };
   }, [open]);
 
-  const original = state.data?.original
-    || (fallbackText ? { engine: "", at: "", text: fallbackText } : null);
-  const sessions = state.data?.sessions || [];
-  const total = sessions.reduce((n, s) => n + s.prompts.length, 0);
+  useEffect(() => {
+    if (previousProjectId.current !== projectId) {
+      previousProjectId.current = projectId;
+      setOpen(false);
+    }
+  }, [projectId]);
+
+  const original = state.projectId === projectId
+    ? state.data?.original || (fallbackText ? { text: fallbackText } : null)
+    : null;
 
   const copy = useCallback(async () => {
     if (!original?.text) return;
@@ -112,12 +109,7 @@ export default function OriginalPromptButton({ projectId, fallbackText = "", cla
         >
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">Original prompt</span>
-            {original?.engine ? (
-              <span className="text-muted-foreground">
-                {ENGINE_LABEL[original.engine] || original.engine}
-                {original.at ? ` · ${when(original.at)}` : ""}
-              </span>
-            ) : null}
+            {original?.file ? <span className="text-muted-foreground">{original.file}</span> : null}
             {state.phase === "loading" ? <Loader2 className="size-3 animate-spin text-muted-foreground" aria-hidden /> : null}
             {original?.text ? (
               <button
@@ -143,36 +135,10 @@ export default function OriginalPromptButton({ projectId, fallbackText = "", cla
             </pre>
           ) : state.phase === "ready" ? (
             <p data-slot="original-prompt-empty" className="text-muted-foreground">
-              No prompt found for this workspace yet. It appears once the agent has been given one.
+              No original prompt saved for this project yet.
             </p>
           ) : null}
 
-          {total > 1 ? (
-            <div className="flex min-h-0 flex-col gap-1">
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                data-slot="original-prompt-all-toggle"
-                className="self-start text-muted-foreground hover:text-foreground"
-              >
-                {showAll ? "Hide" : "Show"} everything you typed here ({total} messages, {sessions.length} {sessions.length === 1 ? "session" : "sessions"})
-              </button>
-              {showAll ? (
-                <ol data-slot="original-prompt-all" className="scrollbar-thin flex max-h-64 flex-col gap-1.5 overflow-auto">
-                  {sessions.flatMap((s) =>
-                    s.prompts.map((p, i) => (
-                      <li key={`${s.sessionId}-${i}`} className="rounded border border-border/60 p-1.5">
-                        <div className="text-[10px] text-muted-foreground">
-                          {ENGINE_LABEL[s.engine] || s.engine} · {when(p.at)}
-                        </div>
-                        <div className="whitespace-pre-wrap break-words">{p.text.length > 600 ? `${p.text.slice(0, 600)}…` : p.text}</div>
-                      </li>
-                    )),
-                  )}
-                </ol>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>

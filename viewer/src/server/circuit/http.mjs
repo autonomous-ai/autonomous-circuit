@@ -1277,11 +1277,11 @@ export function createCircuitServices({
     ...(flashSerial ? { serial: flashSerial } : {}),
     env,
   });
-  // The person's original request, read from the engine's session logs for this workspace
-  // (workspacePrompts.mjs). Read-only; the header's Prompt button shows it.
+  // Only explicit prompt files inside this project may be shown. Agent session logs can hold
+  // unrelated private conversations even when their working directory matches this project.
   commands.workspace_prompts = async ({ id }) => {
     const projectId = requireProject(id);
-    return readWorkspacePrompts({ dir: projects.projectDir(projectId), env });
+    return readWorkspacePrompts({ dir: projects.projectDir(projectId) });
   };
   commands.firmware_detect = async ({ id }) => {
     const projectId = requireProject(id);

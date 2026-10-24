@@ -947,3 +947,61 @@ first, in this template, before the doc itself is edited:
 - **Backward compatible:** yes; instruction-only, no new report/API/automatic physical-test gate. Existing printed structures stay protected by repair mode; a simple structural base may serve as the frame without redundant components. Actual unperformed physical tests remain pending.
 - **Mechanism:** replace/refine the existing mechanism-first wording in AGENTS, tool card and self-contained assembly reference rather than adding a competing workflow; refresh linked live tile/current runtime with guarded backups.
 - **Tracks affected:** skills / docs.
+
+## 2026-10-21 — Opt-in contract-first Astra / Sol pilot
+- **Change:** add an isolated experimental `kicadpy.parallel` CLI. A read-only Astra lead seals a versioned interface contract; board, firmware and functional-frame Sol workers use owned paths in separate worktrees. Actual native board publication and structural review precede firmware reconciliation and case covers; final native/firmware/case/Print-all binding checks and lead review precede a candidate result.
+- **Why:** owner requested implementation of the deferred parallel-pipeline backlog in a separate PR after merging the frame-first instructions. The existing pet and default single-agent path remain in use while a measurable experiment becomes possible.
+- **Backward compatible:** yes; no default tile/model/hook/viewer/API/verdict schema change. No automatic pilot, firmware flash, print, order or live-run migration. Physical validation remains pending.
+- **Mechanism:** frozen prompt/instructions/checker hashes, revision-bound receipts, import ownership checks, bounded explicit execution/revision, partial-usage/error logs and parallel/sequential/single-builder controls. Existing native gates remain authoritative. Cost fields are unknown rather than inferred from subscription token usage; no speed/quality benchmark is claimed from offline tests.
+- **Tracks affected:** Python experimental orchestration / KiCad tool card / docs.
+
+## 2026-10-21 — Print-aware repair inventory and complete assembly handoff
+- **Change:** KiCad instructions require a persistent project-local `case/PRINTED-INVENTORY.md`, updated from user confirmations and identifiable photos with revision/quantity/evidence/confidence and fit/breakage status. New/update-only repair projects lead the handoff; already-printed reference plates and new/updated plates stay separate, including within optional full-production projects. Retired geometry and TEST ONLY stay separate; current full-manifest coverage is preserved.
+- **Why:** reviewing dog and pet conversations exposed a PCB-carrier/full-robot scope mismatch, substantial fastener counts, repeated clarification of old tread/rail intent, and the owner having to request screw dimensions/visuals at every assembly position. The owner explicitly asked to include these lessons and remembered print/plate separation in PR57.
+- **Backward compatible:** instruction-only; no export/verdict/checker schema, threshold, default tile, flash/print/order authorization or existing-run geometry change. A 3MF export/open is not a print, and a photo does not prove hidden hardware or an exact unidentifiable mesh revision. No new automatic physical-test gate.
+- **Mechanism:** one current decision/guide, instance-level fastener IDs/sizes/directions including retained assemblies, actual-versus-spare hardware budgets, actuator/wiring handoff, product-scope completion statements, module-input bias/slew review and stop-interlock production-handler tests. Existing preservation, reference-hardware and physical-evidence rules remain in force. This convention adds no inventory parser or automatic plate classifier; agents maintain the evidence and native projects under existing validators.
+- **Tracks affected:** KiCad AGENTS / self-contained tool card and assembly reference / docs.
+
+## 2026-10-22 — Print all keeps every part in one named multi-plate 3MF
+- **Change:** clarify the print-inventory instructions: Print all always supplies one complete native 3MF with every current production instance, including already-printed parts. Inventory partitions objects into separate, visibly named ĐÃ IN / MỚI–SỬA plates inside that same file; saved Bambu plate names and total coverage must be checked.
+- **Why:** owner corrected the previous interpretation: they want all parts arranged and plates named by printed status, not already-printed objects dropped from a new-only export. This supersedes the21October wording making new-only projects the primary handoff and the complete file optional.
+- **Backward compatible:** instruction-only; existing full-manifest coverage, TEST ONLY handling and export/gate schemas remain unchanged. Separate requested subsets are extras, never the Print all replacement; no physical print is started.
+- **Tracks affected:** KiCad AGENTS / self-contained tool card and assembly reference / docs.
+
+## 2026-10-22 — Overview includes selectable 3D fasteners and local joint assembly
+- **Change:** require bought screw/nut/washer reference geometry in the assembled overview, an independent default-on Vít/tán toggle, group/instance focus with ID/size/insertion direction, and local exploded/cutaway views explaining nested joints and fixed/rotating parts. Derive geometry/annotations from the checked hardware map, move them with the actual joint, and verify final coverage/controls honestly. Persist confirmed available fastener sizes/head types/tools and reconcile the selection before export.
+- **Why:** owner requested screws in the overview after reviewing dog/pet. Source inspection found pet's38 hardware instances/selection UI and dog's grouped screw meshes/annotations; dog's hardware visibility shares the electronics switch. Recent pet chat also shows confusion over horn/wheel/retainer order and a local repair for an unowned screw length. More labels alone do not explain the actual assembly stack.
+- **Backward compatible:** instruction-only; no viewer/runtime API, gate, print export or physical-action authorization change. Bought hardware remains nonprintable while retained production parts remain in the complete Print all3MF. Simplified hardware geometry is enough; no decorative threaded CAD requirement or mandatory wholesale redesign.
+- **Mechanism:** AGENTS/tool-card pointers and self-contained assembly-reference rules cover geometry, visibility, selection, motion/explosion/reset and owned-hardware inputs. Source review is not a fresh visual pass when an approved viewer is unavailable. Existing project overviews/geometry are not edited by this instruction update.
+- **Tracks affected:** KiCad AGENTS / self-contained tool card and assembly reference / docs.
+
+
+## 2026-10-22 — consolidate evolving requests into the maintained current prompt
+- **Change:** KiCad instructions require the workspace owner to maintain `prompts/current.md` with effective requirements, confirmed stock, dated actual progress and remaining work/assumptions; keep original prompts and session history separately.
+- **Why:** Robot Dog A1 updates mixed superseded hardware choices with pending mechanical work, making the current request appear to be an unfinished original design rather than a repair of R4D.
+- **Backward compatible:** yes; the existing viewer already prioritizes this optional file and appends later user updates. No reader or artifact format changes.
+- **Mechanism:** instruction changes in `harness/kicad/AGENTS.md` and its self-contained tool card. Consolidate read corrections rather than touching timestamps to hide unread messages; distinguish CAD checks from physical validation. Lead ownership preserves scoped parallel-worker contracts. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.
+
+
+## 2026-10-22 — one common assembly overview navigation
+- **Change:** KiCad instructions standardize overview navigation as `Đủ bộ`, then `Bước 1…N`, with a step-scoped `Vít/tán bước này` card and optional closed `Chi tiết` controls. Stage/step/hardware modes become one assembly workflow across projects.
+- **Why:** User screenshots showed independent view, assembly and screw selectors requiring repeated coordination; dog and pet used different formats.
+- **Backward compatible:** yes; this changes agent UI-generation instructions, not manifests or existing downloaded artifacts. Existing overviews need regeneration to adopt it.
+- **Mechanism:** update AGENTS, tool card and self-contained assembly reference; one canonical guide/step list binds real instance IDs/quantities, focus/reset, camera independence and phone verification. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.
+
+
+## 2026-10-22 — retain image provenance when maintaining a compact prompt
+- **Change:** KiCad brief instructions require durable project-owned copies and a `references/IMAGES.md` provenance index for user photos/drawings/screenshots and product links, with current/superseded status; `prompts/current.md` links relevant visuals. The pilot operator guide requires stable absolute references in supplied briefs because `init` only copies text.
+- **Why:** Dog/pet maintained prompts and the new spider brief compressed visual requirements to phrases like “the photo” without usable paths; some old clipboard paths disappeared even though their message history survived.
+- **Backward compatible:** yes; optional documentation/asset retention only, no artifact or checker schema change. Existing visual briefs need reconciliation.
+- **Mechanism:** instruction updates in `harness/kicad/AGENTS.md`, self-contained tool card and pilot reference. Agents verify links and mark unavailable originals missing rather than inventing content. No skill runtime re-vendor required.
+- **Tracks affected:** skills / docs.
+
+## 2026-10-22 — Project-owned prompts only in the viewer
+- **Change:** `workspace_prompts` reads only `prompts/original.md` and `prompts/current.md` inside the selected project, with legacy `PROMPT.md` and one unambiguous dated `prompts/history/*-original.md` supported. It returns no agent-session transcript.
+- **Why:** matching Codex/Claude/Grok sessions by working directory exposed private discussions when a new robot run shared the old board's workspace. A current brief still had later chat appended, and the original-prompt button offered the whole transcript.
+- **Backward compatible:** projects without saved prompt files now show an empty Prompt view until the agent writes them. Existing project files remain readable; the response retains an empty `sessions` field for older clients.
+- **Mechanism:** the server confines reads to real project-local files and rejects symlinks outside the project. The viewer-only client does not fall back to app chat state; the historical transcript control is removed. KiCad instructions require explicit original and current prompt files. No engine log is read or sent by this command.
+- **Tracks affected:** server / client / skills / docs.

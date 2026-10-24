@@ -4,18 +4,19 @@ import { cn } from '@/ui/utils';
 import { transport } from '@/lib/transport.ts';
 
 export default function PromptsTab({projectId, original = false, fallbackText = '', fallbackCurrentText = '', className}) {
-  const [state,setState] = useState({loading:true,data:null,error:''});
+  const [state,setState] = useState({projectId:'',loading:true,data:null,error:''});
   const [revision,setRevision] = useState(0);
   const [copyState,setCopyState] = useState('');
   useEffect(() => {
     let cancelled=false;
-    setState({loading:true,data:null,error:''}); setCopyState('');
-    if (!projectId) {setState({loading:false,data:null,error:''}); return undefined;}
-    transport.workspace_prompts(projectId).then(data => {if(!cancelled) setState({loading:false,data,error:''});})
-      .catch(error => {if(!cancelled) setState({loading:false,data:null,error:error.message || String(error)});});
+    setState({projectId,loading:true,data:null,error:''}); setCopyState('');
+    if (!projectId) {setState({projectId,loading:false,data:null,error:''}); return undefined;}
+    transport.workspace_prompts(projectId).then(data => {if(!cancelled) setState({projectId,loading:false,data,error:''});})
+      .catch(error => {if(!cancelled) setState({projectId,loading:false,data:null,error:error.message || String(error)});});
     return () => {cancelled=true;};
   },[projectId,revision]);
-  const prompt = original ? state.data?.original : state.data?.current;
+  const active = state.projectId === projectId;
+  const prompt = original ? (active && state.data?.original) : (active && state.data?.current);
   const text = prompt?.text || (original ? fallbackText : fallbackCurrentText || fallbackText);
   const copy = async () => {
     try {await navigator.clipboard.writeText(text);setCopyState('Copied');}
@@ -26,10 +27,10 @@ export default function PromptsTab({projectId, original = false, fallbackText = 
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-semibold">{original ? 'Original prompt' : 'Current prompt'}</h2>
         <button type="button" onClick={() => setRevision(value => value+1)} aria-label="Refresh prompts" className="ml-auto rounded p-1 text-muted-foreground"><RefreshCw className="size-4" /></button>
-        <button type="button" onClick={copy} disabled={!text || state.loading} className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs"><Copy className="size-3" /> Copy</button>
+        <button type="button" onClick={copy} disabled={!text || !active || state.loading} className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs"><Copy className="size-3" /> Copy</button>
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">{original ? 'The first request you gave for this project.' : prompt?.source === 'file' ? `Current brief from ${prompt.file}, followed by newer user messages.` : 'The original request followed by user updates in time order. These are your words; questions and follow-ups are preserved.'}</p>
-      {state.loading ? <p className="text-sm text-muted-foreground">Loading prompts…</p> : state.error ? <p role="alert" className="text-sm text-red-300">{state.error}</p> : text ? <pre data-slot="prompt-text" className="whitespace-pre-wrap break-words rounded-xl border border-border/60 bg-card/30 p-4 font-sans text-sm leading-6">{text}</pre> : <p className="text-sm text-muted-foreground">No prompt found for this project.</p>}
+      <p className="text-xs leading-5 text-muted-foreground">{original ? 'The original request saved for this project.' : prompt?.source === 'file' ? `Current brief from ${prompt.file}.` : 'Current request for this project.'}</p>
+      {!active || state.loading ? <p className="text-sm text-muted-foreground">Loading prompts…</p> : state.error ? <p role="alert" className="text-sm text-red-300">{state.error}</p> : text ? <pre data-slot="prompt-text" className="whitespace-pre-wrap break-words rounded-xl border border-border/60 bg-card/30 p-4 font-sans text-sm leading-6">{text}</pre> : <p className="text-sm text-muted-foreground">No prompt found for this project.</p>}
       {copyState ? <p role="status" className="text-xs text-muted-foreground">{copyState}</p> : null}
     </div>
   </section>;

@@ -233,21 +233,18 @@ export interface PrereqCheck {
   kicadCli?: { found: boolean; version?: string };
 }
 
-/** `workspace_prompts`: what the person typed into the agent sessions of this workspace. */
-export interface WorkspacePrompt {
+/** `workspace_prompts`: prompt files deliberately saved inside this project. */
+export interface WorkspacePromptFile {
   at: string;
   text: string;
-}
-export interface WorkspacePromptSession {
-  engine: "codex" | "claude" | "grok";
-  sessionId: string;
-  startedAt: string;
-  prompts: WorkspacePrompt[];
+  source: "file";
+  file: string;
 }
 export interface WorkspacePrompts {
-  current?: { text: string; at: string; source: "file" | "conversation"; file?: string } | null;
-  original: { engine: string; sessionId: string; at: string; text: string } | null;
-  sessions: WorkspacePromptSession[];
+  current: WorkspacePromptFile | null;
+  original: WorkspacePromptFile | null;
+  /** Compatibility with older clients; conversation history is never returned. */
+  sessions: [];
 }
 
 /** `firmware_detect`: what the Flash button would write to, before anything is written. */
