@@ -55,8 +55,10 @@ class Fake:
             self.active += 1
             self.peak = max(self.peak, self.active)
         try:
-            if self.barrier and stage in ('board', 'firmware', 'case'):
-                self.barrier.wait(timeout=5)  # all three must start before any can finish
+            if stage in ('firmware', 'case'):
+                assert (workspace / 'boards/published.json').read_text() == 'actual board'
+                if self.barrier:
+                    self.barrier.wait(timeout=5)  # both consumers share the checked board base
             if stage == 'plan':
                 result = contract()
             elif readonly:
@@ -147,13 +149,17 @@ class PilotTests(unittest.TestCase):
         (source / 'AGENTS.md').write_text('changed original after snapshot')
         self.assertEqual(pilot.status(target)['status'], 'initialized')
 
-    def test_three_workers_overlap_and_finishers_read_integrated_board(self):
+    def test_board_passes_native_gate_before_two_workers_overlap(self):
         self.plan()
-        self.fake.barrier = threading.Barrier(3)
+        self.fake.barrier = threading.Barrier(2)
         state = self.run_round()
         self.assertEqual(state['status'], 'candidate_ready', state['findings'])
-        self.assertEqual(self.fake.peak, 3)
+        self.assertEqual(self.fake.peak, 2)
         stages = [s for s, _, _ in self.fake.visits]
+        self.assertLess(stages.index('board'), stages.index('firmware'))
+        self.assertLess(stages.index('board'), stages.index('case'))
+        self.assertLess(stages.index('case'), stages.index('structure-review'))
+        self.assertLess(stages.index('firmware'), stages.index('structure-review'))
         self.assertLess(stages.index('structure-review'), stages.index('case-final'))
         self.assertEqual(stages[-1], 'final-review')
         self.assertEqual(pilot.status(self.root)['status'], 'candidate_ready')
@@ -227,6 +233,9 @@ class PilotTests(unittest.TestCase):
         self.assertEqual([stage for stage, _, _ in seen], ['board'])
         self.assertFalse(seen[0][1]['ready'])
         self.assertFalse(seen[0][2]['passed'])
+        self.assertNotIn('firmware', [name for name, _, _ in self.fake.visits])
+        self.assertNotIn('case', [name for name, _, _ in self.fake.visits])
+        self.assertNotIn('structure-review', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('case-final', [name for name, _, _ in self.fake.visits])
 
     def test_checkpoint_error_fails_closed_before_lead_review(self):
@@ -266,7 +275,7 @@ class PilotTests(unittest.TestCase):
         self.assertIn('inputs differ', result['findings'][0])
         self.assertEqual(result['revision'], 0)
 
-    def test_cross_role_edit_prevents_every_import(self):
+    def test_cross_role_edit_prevents_both_consumer_imports(self):
         self.plan()
         def defect(stage, workspace, result):
             if stage == 'case':
@@ -275,7 +284,9 @@ class PilotTests(unittest.TestCase):
         result = self.run_round()
         self.assertEqual(result['status'], 'needs_revision')
         self.assertIn('unowned', result['findings'][0])
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
         self.assertEqual(len(result['jobs']), 4)  # all costs retained despite rejecting imports
 
     def test_stale_worker_or_blocker_prevents_import(self):
@@ -287,7 +298,9 @@ class PilotTests(unittest.TestCase):
         self.fake.defect = defect
         result = self.run_round()
         self.assertEqual(result['status'], 'needs_revision')
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
 
     def test_native_failure_cannot_be_overridden_by_lead(self):
         self.plan()
@@ -358,18 +371,29 @@ class PilotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'contract is stale'):
             pilot.status(self.root)
 
-    def test_worker_cannot_commit_or_import_symlinks(self):
+    def test_board_worker_cannot_commit_before_native_gate(self):
         self.plan()
         def defect(stage, workspace, result):
             if stage == 'board':
                 pilot.commit(workspace, ['design/main.kicad_pro'], 'unexpected worker commit')
+        self.fake.defect = defect
+        failed = self.run_round()
+        self.assertEqual(failed['status'], 'needs_revision')
+        self.assertIn('moved HEAD', failed['findings'][0])
+        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertNotIn('firmware', [stage for stage, _, _ in self.fake.visits])
+
+    def test_case_worker_cannot_import_symlink_or_firmware_sibling(self):
+        self.plan()
+        def defect(stage, workspace, result):
             if stage == 'case':
                 (workspace / 'case/link').symlink_to(self.prompt)
         self.fake.defect = defect
         failed = self.run_round()
         self.assertEqual(failed['status'], 'needs_revision')
-        self.assertIn('moved HEAD', failed['findings'][0])
         self.assertIn('symlinks', failed['findings'][0])
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
 
     def test_unexpected_checker_exception_fails_closed(self):
         self.plan()
@@ -421,7 +445,8 @@ class PilotTests(unittest.TestCase):
         state = self.run_round()
         self.assertEqual(state['status'], 'needs_revision')
         self.assertIn('shared Git metadata', state['findings'][0])
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
 
     def test_single_writer_lock(self):
         with pilot.locked(self.root):

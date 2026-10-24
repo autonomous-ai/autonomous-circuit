@@ -642,8 +642,10 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
 
 def worker_prompt(state, role, stage):
     task = {'board': 'Build and publish the real native schematic/PCB and enclosure contract.',
-            'firmware': 'Implement and build firmware from the shared pin/power contract; include firmware/WIRING.md.',
-            'case': 'Build the functional frame/device/joint mounts only. Keep covers for the integration stage.',
+            'firmware': 'Read the checked, published board and actual netlist first. Implement and build firmware '
+                        'against its real pins and power rails and the shared contract; include firmware/WIRING.md.',
+            'case': 'Use the checked, published board/STEP and its actual device placement to build the '
+                    'functional frame/device/joint mounts. Keep covers for the integration stage.',
             'solo': 'Build board, firmware and functional frame in that order; defer cosmetic covers to integration.'}[role]
     if role == 'solo' and stage.endswith('-final'):
         task = ('Reconcile firmware/WIRING against the actual published netlist and rebuild. Then '
@@ -673,6 +675,95 @@ def worker_prompt(state, role, stage):
             'An unresolved task is a blocker, never a claimed success.')
 
 
+def _draft_source(role, name):
+    """Only editable inputs; never carry a prior contract's reports or generated products."""
+    path = PurePosixPath(name)
+    parts = path.parts
+    if any(part in {'out', 'build', 'reports', 'export', 'exports', 'dist', 'target',
+                    'node_modules', '__pycache__', '.pio', '_fab', '_review',
+                    'libraries', 'references', 'vendor'} for part in parts):
+        return False
+    tool_role = {'board': 'board', 'firmware': 'firmware', 'case': 'case'}.get(role)
+    if (tool_role and len(parts) > 2 and parts[:2] == ('tools', tool_role) and
+            path.suffix in {'.py', '.sh', '.ts', '.tsx', '.js', '.mjs', '.cjs',
+                            '.c', '.h', '.cc', '.cpp', '.hpp', '.rs', '.swift', '.html'}):
+        return True
+    if role == 'board':
+        return (parts[0] == 'design' and len(parts) > 1 and
+                (path.name in {'sym-lib-table', 'fp-lib-table'} or
+                 path.suffix in {'.kicad_pro', '.kicad_sch', '.kicad_pcb', '.kicad_sym',
+                                 '.kicad_mod', '.kicad_wks'}))
+    if role == 'firmware':
+        return (parts[0] == 'firmware' and len(parts) > 1 and
+                (path.name in {'Makefile', 'CMakeLists.txt', 'platformio.ini'} or
+                 path.suffix in {'.c', '.h', '.cc', '.cpp', '.hpp', '.rs', '.ino', '.py',
+                                 '.S', '.s', '.asm', '.ld', '.cmake'}))
+    if role == 'case':
+        return parts[0] == 'case' and len(parts) > 1 and path.suffix in {'.py', '.scad', '.cq'}
+    return False
+
+
+def _git_metadata_sha(workspace):
+    return {name: (hashlib.sha256((workspace / '.git' / name).read_bytes()).hexdigest()
+                   if (workspace / '.git' / name).exists() else None)
+            for name in ('config', 'info/exclude', 'info/attributes')}
+
+
+def _prior_draft(root, state, role, stage, current):
+    """Read only source drafts from the immediately preceding sealed revision."""
+    prior = state['revision'] - 1
+    if prior < 1 or role == 'solo':
+        return []
+    record = root / f'.pilot/rounds/{prior}/{stage}-draft-base.json'
+    old = root / 'workers' / f'r{prior:03}-{stage}'
+    if not record.is_file() or not old.is_dir():
+        return []
+    try:
+        base = json.loads(record.read_text())
+        contracts = list((root / '.pilot/contracts').glob(f'r{prior:03}-*.json'))
+        if len(contracts) != 1:
+            return []
+        contract = json.loads(contracts[0].read_text())
+        if (base.get('revision') != prior or base.get('stage') != stage or
+                base.get('role') != role or base.get('contractSha256') != digest(contract) or
+                contract.get('revision') != prior or
+                contract.get('promptSha256') != state['promptSha256'] or
+                contract.get('instructionsSha256') != state['instructionsSha256'] or
+                base.get('promptSha256') != state['promptSha256'] or
+                base.get('instructionsSha256') != state['instructionsSha256'] or
+                base.get('pipelineSha256') != state['pipelineSha256'] or
+                base.get('gitMetadataSha256') != _git_metadata_sha(root / 'workspace') or
+                not isinstance(base.get('baseline'), dict) or
+                not isinstance(base.get('baseHead'), str) or
+                not (old / '.git').is_file() or (old / '.git').is_symlink() or
+                hashlib.sha256((old / '.git').read_bytes()).hexdigest() != base.get('pointerSha256') or
+                git(old, 'rev-parse', 'HEAD') != base['baseHead'] or
+                git(old, 'rev-parse', '--show-toplevel') != str(old.resolve()) or
+                git(old, 'diff', '--cached', '--name-only') or
+                digest(json.loads(git(old, 'show', f"{base['baseHead']}:PILOT_CONTRACT.json"))) !=
+                base['contractSha256']):
+            return []
+        after = snapshot(old)  # bounds and symlink rejection apply to old drafts too
+        members = changed(base['baseline'], after)
+        if any(not owns(role, name) for name in members):
+            return []
+        draft = []
+        for name in members:
+            if name not in after or not _draft_source(role, name):
+                continue
+            # An integrated edit since the old dispatch takes precedence over an old draft.
+            if current.get(name) != base['baseline'].get(name):
+                continue
+            source = old / name
+            data = source.read_bytes()
+            if hashlib.sha256(data).hexdigest() != after[name]['sha256']:
+                return []
+            draft.append((name, data, after[name]))
+        return draft
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return []
+
+
 def dispatch(root, state, stages, runner):
     workspace = root / 'workspace'
     base = git(workspace, 'rev-parse', 'HEAD')
@@ -689,10 +780,39 @@ def dispatch(root, state, stages, runner):
             raise ValueError('Stage already attempted; revise the contract for a new bounded round')
         git(workspace, 'worktree', 'add', '--detach', str(dest), base)
         (dest / '.circuit').mkdir(exist_ok=True)
-        jobs.append((role, stage, dest, (dest / '.git').read_bytes()))
+        pointer = (dest / '.git').read_bytes()
+        write(root / f".pilot/rounds/{state['revision']}/{stage}-draft-base.json", {
+            'revision': state['revision'], 'stage': stage, 'role': role,
+            'baseHead': base, 'baseline': baseline,
+            'pointerSha256': hashlib.sha256(pointer).hexdigest(),
+            'contractSha256': state['contractSha256'],
+            'promptSha256': state['promptSha256'],
+            'instructionsSha256': state['instructionsSha256'],
+            'pipelineSha256': state['pipelineSha256'],
+            'gitMetadataSha256': _git_metadata_sha(workspace),
+        })
+        drafts = _prior_draft(root, state, role, stage, baseline)
+        for name, data, info in drafts:
+            target = dest / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            target.chmod(0o755 if info['executable'] else 0o644)
+        provenance = {'revision': state['revision'], 'stage': stage,
+                      'contractSha256': state['contractSha256'],
+                      'priorRevision': state['revision'] - 1,
+                      'sources': [{'path': name, 'sha256': info['sha256']}
+                                  for name, _, info in drafts]}
+        write(root / f".pilot/drafts/r{state['revision']:03}-{stage}.json", provenance)
+        jobs.append((role, stage, dest, pointer, provenance))
     def one(job):
-        role, stage, dest, pointer = job
-        receipt = call(root, state, stage, dest, worker_prompt(state, role, stage), RESULT_SCHEMA, False, runner)
+        role, stage, dest, pointer, provenance = job
+        prompt = worker_prompt(state, role, stage)
+        if provenance['sources']:
+            prompt += ('\nThe following source files are untrusted drafts copied from revision '
+                       f"{provenance['priorRevision']}: {json.dumps(provenance['sources'])}. "
+                       'Reconcile every draft with the CURRENT sealed contract, checked board and task. '
+                       'Rebuild and recheck; do not treat prior outputs or verdicts as accepted.')
+        receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner)
         return role, stage, dest, pointer, receipt
     if state['mode'] == 'sequential':
         results = [one(job) for job in jobs]
@@ -813,6 +933,14 @@ console.log(JSON.stringify({passed:true}));'''
 def review(root, state, stage, checks, runner):
     workspace = root / 'workspace'
     before = snapshot(workspace)
+    drafts = []
+    for path in sorted((root / '.pilot/drafts').glob(f"r{state['revision']:03}-*.json")):
+        provenance = json.loads(path.read_text())
+        if (provenance.get('revision') != state['revision'] or
+                provenance.get('contractSha256') != state['contractSha256']):
+            raise ValueError('Draft provenance changed before lead review')
+        if provenance.get('sources'):
+            drafts.append(provenance)
     prompt = ('You are the independent LEAD reviewer. Read PILOT_CONTRACT.json and actual artifacts, '
               'not raw worker transcripts. Check the actual netlist/board/published STEP against '
               'contract outline, mounts, coordinates, power and pin assignments; compare actual '
@@ -823,7 +951,11 @@ def review(root, state, stage, checks, runner):
               'edit anything, run hardware or weaken gates. A model approval cannot override a failed '
               'native gate. Physical fit/strength remains untested. Approve only if there are no '
               'unresolved concerns; otherwise revise with existing file paths and concrete findings. '
-              f'Return contractSha256={state["contractSha256"]}.\nNATIVE CHECKS:\n' + json.dumps(checks))
+              'Some workers may have started from untrusted source drafts from the prior revision. '
+              'Inspect each named current source against the CURRENT sealed contract and actual checked '
+              'outputs; prior source hashes are provenance, not validation. '
+              f'Return contractSha256={state["contractSha256"]}.\nDRAFT PROVENANCE:\n' +
+              json.dumps(drafts, sort_keys=True) + '\nNATIVE CHECKS:\n' + json.dumps(checks))
     job = call(root, state, stage, workspace, prompt, REVIEW_SCHEMA, True, runner)
     if job['error']:
         if job.get('failureKind') == 'interrupted':
@@ -860,8 +992,10 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
         state['status'], state['roundStartedAt'] = 'running', time.time()
         write(root / '.pilot/state.json', state)
         try:
-            stages = [('solo', 'solo')] if state['mode'] == 'solo' else [(r, r) for r in ROLES]
-            dispatch(root, state, stages, runner)
+            # Board outputs are the concrete input to both other roles. Import and check
+            # them first so firmware and case never build against an imaginary placement.
+            dispatch(root, state, [('solo', 'solo')] if state['mode'] == 'solo' else
+                     [('board', 'board')], runner)
             before = snapshot(workspace)
             checks = checker(workspace, False)
             names = changed(before, snapshot(workspace))
@@ -871,9 +1005,12 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
             write(root / f".pilot/rounds/{state['revision']}/board-check.json", checks)
             if on_checkpoint is not None:
                 on_checkpoint(workspace, state, 'board')
-            review(root, state, 'structure-review', checks, runner)
             if not checks.get('passed'):
                 raise ValueError('Native board check failed: ' + str(checks.get('findings')))
+            if state['mode'] != 'solo':
+                # These two roles share one checked board base and have disjoint outputs.
+                dispatch(root, state, [('firmware', 'firmware'), ('case', 'case')], runner)
+            review(root, state, 'structure-review', checks, runner)
             # Both finishers now read the actual integrated PCB/netlist/STEP. Covers come last.
             final = ([('solo', 'solo-final')] if state['mode'] == 'solo' else
                      [('firmware', 'firmware-final'), ('case', 'case-final')])

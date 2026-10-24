@@ -104,8 +104,10 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(runner.calls['firmware'], 1)
         self.assertEqual(runner.calls['board'], 1)
         self.assertEqual(runner.calls['case'], 1)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/design/foreign.kicad_pro').exists())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('firmware', result['findings'][0])
         self.assertIn('retry suppressed', result['findings'][0])
 
@@ -114,7 +116,7 @@ class RetryIntegrityTests(unittest.TestCase):
         result = self.run_with(runner)
         self.assertEqual(result['status'], 'needs_revision')
         self.assertEqual(runner.calls['firmware'], 1)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertIn('retry suppressed', result['findings'][0])
 
     def test_shared_git_edit_on_capacity_cannot_be_carried_into_retry(self):
@@ -122,7 +124,7 @@ class RetryIntegrityTests(unittest.TestCase):
         result = self.run_with(runner)
         self.assertEqual(result['status'], 'needs_revision')
         self.assertEqual(runner.calls['firmware'], 1)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertIn('Git metadata', result['findings'][0])
 
     def test_retried_worker_still_needs_current_contract(self):
@@ -130,7 +132,7 @@ class RetryIntegrityTests(unittest.TestCase):
         result = self.run_with(runner)
         self.assertEqual(result['status'], 'needs_revision')
         self.assertEqual(runner.calls['firmware'], 2)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
         self.assertIn('another contract', result['findings'][0])
 
@@ -151,7 +153,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertIn('joint mount cannot fit', result['findings'][0])
         self.assertEqual(runner.calls['firmware'], 3)
         self.assertEqual(runner.calls['case'], 1)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
 
     def test_exhausted_receipt_with_generic_exit_reports_capacity_and_attempts(self):
         runner = CapacityRunner(always_capacity=True, opaque_error=True)
@@ -181,7 +183,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(result['status'], 'execution_limit')
         self.assertIn('timeout after 1 attempt(s)', result['findings'][0])
         self.assertIn('joint mount cannot fit', result['findings'][0])
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
 
     def test_timeout_continues_owned_partial_worker_with_shorter_bound(self):
         class TimedOutOnce(fixture.Fake):
@@ -241,8 +243,9 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(runner.calls['firmware'], 2)
         self.assertEqual(runner.calls['board'], 1)
         self.assertEqual(runner.calls['case'], 1)
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/partial.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('timeout after 2 attempt(s)', result['findings'][0])
 
     def test_interrupted_plan_and_worker_are_not_design_revisions(self):
@@ -268,7 +271,7 @@ class RetryIntegrityTests(unittest.TestCase):
         interrupted_worker = parallel.run(self.root, execute=True, runner=Interrupted('firmware'),
                                           checker=fixture.checker)
         self.assertEqual(interrupted_worker['status'], 'interrupted')
-        self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
 
 
 class TeamCapacityTests(unittest.TestCase):
@@ -309,8 +312,8 @@ class TeamCapacityTests(unittest.TestCase):
         self.assertEqual(state['roundsAttempted'], 1)
         self.assertEqual(runner.visits.count('plan'), 1)
         self.assertEqual(runner.visits.count('board'), 3)
-        self.assertEqual(runner.visits.count('firmware'), 1)
-        self.assertEqual(runner.visits.count('case'), 1)
+        self.assertEqual(runner.visits.count('firmware'), 0)
+        self.assertEqual(runner.visits.count('case'), 0)
         self.assertFalse((workspace / 'design/main.kicad_pro').exists())
         pilot = parallel.status(workspace / '.circuit/team-runs/r001')
         self.assertEqual(pilot['revision'], 1)

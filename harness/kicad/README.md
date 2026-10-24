@@ -64,8 +64,9 @@ run brief, viewer-owned `prompts/original.md` and `prompts/current.md`, and refe
 in `prompts/`, then runs
 `kicadpy.parallel_tile start <workspace> --prompt <brief> --execute`. The bridge starts the
 contract-first Astra/Sol pilot, seeds follow-up changes from the last clean integrated checkpoint,
-and brings
-checked output back to the same folder the viewer watches. The user does not run a pilot CLI.
+and brings checked output back to the same folder the viewer watches. It builds and checks the
+board first, then runs firmware and case workers together against the published board. The user
+does not run a pilot CLI.
 Questions and requests for options, plans or prices remain read-only. A failed pilot is reported
 with its findings; the agent does not silently switch to a single-agent build.
 

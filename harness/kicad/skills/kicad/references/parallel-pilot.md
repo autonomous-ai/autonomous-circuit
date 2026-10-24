@@ -44,8 +44,9 @@ evidence. If an image is missing, say so in the brief and avoid guessing measure
 Defaults: lead `gpt-6-astra` at medium effort, workers `gpt-6.1-sol` at high effort. Set
 `--lead-model`, `--worker-model` and `--timeout` at init when needed; there is no silent model
 fallback. The per-job timeout defaults to 1800 seconds, bounded to 10–14400 at initialization.
-The limit is per call, not a total token/dollar budget. There are at most three concurrent
-worker calls and one bounded integration round per `run`; no automatic repair loop.
+The limit is per call, not a total token/dollar budget. The board worker runs first;
+firmware and case can then overlap, so there are at most two concurrent worker calls
+and one bounded integration round per `run`; no automatic repair loop.
 
 ## Contract and stages
 
@@ -63,16 +64,20 @@ Snapshots of AGENTS/tool card/references are under `.pilot/instructions`. Pipeli
 source and tile environment-manifest hashes are recorded and checked again; use a pinned checkout throughout a pilot.
 
 1. Astra plans read-only; host seals the contract.
-2. Three Sol workers start from one Git revision in separate detached worktrees: board,
-   firmware, and functional frame with actual device mounts/fasteners/joints/wire routes.
-   Covers wait. Shared interfaces are frozen; uncertainty becomes a blocker.
-3. Host validates **all** workers' contract/stage receipts, blockers, ownership and unchanged
-   HEAD before importing any output. Then it republishes the actual native board with the
-   existing manufacturing checker. Astra reviews the integrated structure and actual files.
-4. After a passing board check and structural approval, firmware and case finishers start
-   from the integrated board/netlist/STEP. Firmware reconciles its real pins and `WIRING.md`;
-   case adds removable covers and rechecks full motion with hardware/wires, guide/interactive
-   overview and production/TEST slicer projects. Static cases use an appropriately simple base.
+2. A Sol board worker builds in a detached worktree. Host validates its contract/stage receipt,
+   blockers, ownership and unchanged HEAD, imports the output, then republishes the actual
+   native board with the existing manufacturing checker. A failed board gate stops the round
+   before firmware or case starts.
+3. After a passing board check, Sol firmware and functional-frame workers start from that
+   committed board/netlist/STEP in separate worktrees. They may overlap, but the host validates
+   both receipts, blockers, ownership and unchanged HEAD before importing either output.
+   The frame includes actual device mounts, fasteners, joints and wire routes. Covers wait;
+   shared interfaces are frozen and uncertainty becomes a blocker. Astra then reviews the
+   integrated structure and actual files.
+4. After structural approval, firmware and case finishers start from the integrated work.
+   Firmware reconciles its real pins and `WIRING.md`; case adds removable covers and rechecks
+   full motion with hardware/wires, guide/interactive overview and production/TEST slicer
+   projects. Static cases use an appropriately simple base.
 5. Host republishes the native board, requires written/current built firmware and WIRING,
    fresh passing case status, case README, and Print all's existing prepared-3MF binding
    validator. Astra reviews actual artifacts against the contract. Failure from either side
@@ -118,7 +123,10 @@ usage; completed sibling workers are called once and their outputs are integrate
 every stage passes schema, contract, ownership and hash checks. Exhausted capacity reports
 `model_unavailable` and stops the bridge before a new contract revision. A true design
 revision uses fresh worktrees because its contract hash has changed; old worker results are
-never silently reused.
+never silently reused. The next revision may copy only source drafts from the immediately
+preceding same-role worktree after checking its contract, ownership, Git state and file hashes.
+The worker and lead must reconcile those drafts against the new contract; reports, build output
+and prior approvals are excluded. `.pilot/drafts/` records copied source paths and hashes.
 
 A worker timeout may make one bounded continuation in its own worktree when it left only
 role-owned partial work. A timeout without progress, or one that exhausts that continuation,

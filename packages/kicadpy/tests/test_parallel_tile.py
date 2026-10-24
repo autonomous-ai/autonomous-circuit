@@ -79,9 +79,11 @@ class FakeRunner:
                 put(workspace, 'design/main.kicad_pro',
                     f'native source {self.label} revision {state["revision"]}')
             if stage == 'firmware':
+                assert (workspace / 'boards/native.txt').read_text().startswith('checked board')
                 put(workspace, 'firmware/main.c', 'sensor firmware')
                 put(workspace, 'firmware/WIRING.md', 'I2C wiring')
             if stage == 'case':
+                assert (workspace / 'boards/native.txt').read_text().startswith('checked board')
                 put(workspace, 'case/frame.txt', 'device frame')
             if stage in ('firmware-final', 'case-final'):
                 assert (workspace / 'boards/native.txt').read_text().startswith('checked board')
@@ -218,7 +220,9 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(state['roundsAttempted'], 2)
         self.assertEqual(checker.calls, [(1, 'board'), (2, 'board')])
         self.assertFalse(json.loads((self.workspace / '.harness/verdict.json').read_text())['ready'])
-        self.assertEqual([item['verdict']['ready'] for item in runner.visible_at_reviews], [False, False])
+        self.assertEqual(runner.visible_at_reviews, [])
+        self.assertNotIn('firmware', runner.visits)
+        self.assertNotIn('case', runner.visits)
         self.assertFalse((self.workspace / 'case/cover.txt').exists())
         self.assertIn('Native board check failed', state['error'])
 
@@ -230,7 +234,7 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(state['roundsAttempted'], 2)
         self.assertEqual(checker.calls, [(1, 'board'), (2, 'board'), (2, 'final')])
         self.assertEqual([item['verdict']['ready'] for item in runner.visible_at_reviews],
-                         [False, True, True])
+                         [True, True])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 2')
 
     def test_rejected_final_review_keeps_native_verdict_and_reports_team_unready(self):
@@ -260,7 +264,7 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertTrue(failed_once)
         self.assertEqual(state['status'], 'needs_revision')
         self.assertTrue(parallel_tile.status(self.workspace)['mirrorPending'])
-        self.assertTrue((self.workspace / 'case/frame.txt').is_file())
+        self.assertFalse((self.workspace / 'case/frame.txt').exists())
         self.assertFalse((self.workspace / 'design/main.kicad_pro').exists())
         self.assertFalse(json.loads((self.workspace / '.harness/verdict.json').read_text())['ready'])
 
