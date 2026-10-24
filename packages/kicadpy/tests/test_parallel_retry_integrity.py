@@ -3,6 +3,7 @@ from collections import Counter
 from pathlib import Path
 import shutil
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -97,7 +98,38 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(runner.calls['board'], 1)
         self.assertEqual(runner.calls['case'], 1)
 
-    def test_unowned_failed_worktree_is_not_retried_or_partially_imported(self):
+    def test_retry_accepts_controller_import_of_completed_sibling(self):
+        class DelayedCapacity(fixture.Fake):
+            def __init__(self, root):
+                super().__init__()
+                self.root = root
+                self.calls = Counter()
+                self.case_imported = threading.Event()
+
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                self.calls[stage] += 1
+                if stage == 'firmware' and self.calls[stage] == 1:
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        if (self.root / 'workspace/case/frame.txt').is_file():
+                            self.case_imported.set()
+                            break
+                        time.sleep(.02)
+                    return {'stage': stage, 'model': model, 'startedAt': time.time(),
+                            'seconds': .1, 'usage': None, 'result': None,
+                            'error': 'Selected model is at capacity', 'failureKind': 'model_capacity'}
+                return super().__call__(root, state, stage, model, workspace, prompt,
+                                        schema, readonly)
+
+        runner = DelayedCapacity(self.root)
+        with patch.object(parallel, 'CAPACITY_RETRY_DELAYS', (0, 0)):
+            result = self.run_with(runner)
+        self.assertTrue(runner.case_imported.is_set())
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.calls['firmware'], 2)
+        self.assertEqual(runner.calls['case'], 1)
+
+    def test_unowned_failed_worktree_is_not_retried_but_safe_sibling_is_imported(self):
         runner = CapacityRunner(contaminate_unowned=True)
         result = self.run_with(runner)
         self.assertEqual(result['status'], 'needs_revision')
@@ -107,7 +139,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/design/foreign.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
-        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
+        self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('firmware', result['findings'][0])
         self.assertIn('retry suppressed', result['findings'][0])
 
@@ -134,6 +166,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(runner.calls['firmware'], 2)
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('another contract', result['findings'][0])
 
     def test_capacity_plus_real_blocker_stops_before_replanning(self):
@@ -221,7 +254,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual((self.root / 'workspace/firmware/partial.c').read_text(),
                          'completed second pass')
 
-    def test_second_timeout_stops_without_importing_sibling_outputs(self):
+    def test_second_timeout_stops_but_imports_completed_sibling(self):
         class TimedOutTwice(fixture.Fake):
             def __init__(self):
                 super().__init__()
@@ -245,7 +278,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(runner.calls['case'], 1)
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/partial.c').exists())
-        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
+        self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('timeout after 2 attempt(s)', result['findings'][0])
 
     def test_interrupted_plan_and_worker_are_not_design_revisions(self):

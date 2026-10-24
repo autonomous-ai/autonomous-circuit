@@ -29,6 +29,10 @@ RUN_NAME = re.compile(r'r[0-9]{3,}$')
 VERDICT = '.harness/verdict.json'
 MAX_FILE = parallel.MAX_FILE
 MAX_TOTAL = parallel.MAX_TOTAL
+CHECKPOINT_STAGES = frozenset(('board', 'board-approved', 'firmware', 'case',
+                               'firmware-final', 'case-final', 'final'))
+SHA256 = re.compile(r'[0-9a-f]{64}')
+GIT_HEAD = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
 
 
 def _sha(path):
@@ -58,6 +62,18 @@ def _safe_target(root, name, *, verdict=False):
         if target.is_symlink():
             raise ValueError(f'Symlink in workspace artifact path: {name}')
     return target
+
+
+def _git_metadata_digest(source):
+    """Fingerprint the pilot's shared Git control files, not just tracked worktree files."""
+    gitdir = source / '.git'
+    if gitdir.is_symlink() or not gitdir.is_dir():
+        raise ValueError('Integrated pilot Git directory changed')
+    for name in ('config', 'info/exclude', 'info/attributes'):
+        file = gitdir / name
+        if file.is_symlink() or (file.exists() and not file.is_file()):
+            raise ValueError('Integrated pilot Git metadata changed')
+    return parallel.digest(parallel._git_metadata_sha(source))
 
 
 def _file_info(path, *, maximum=MAX_FILE):
@@ -157,6 +173,11 @@ def _read_state(workspace):
         value = state.get(key)
         if value is not None and (not isinstance(value, str) or not RUN_NAME.fullmatch(value)):
             raise ValueError('Invalid team run identifier')
+    for key, pattern in (('sourceHead', GIT_HEAD),
+                         ('sourceGitMetadataSha256', SHA256)):
+        value = state.get(key)
+        if value is not None and (not isinstance(value, str) or not pattern.fullmatch(value)):
+            raise ValueError('Invalid team source checkpoint')
     return state
 
 
@@ -251,8 +272,13 @@ def _read_journal(workspace):
     journal = json.loads(file.read_text())
     if journal.get('schema') != 1 or not RUN_NAME.fullmatch(str(journal.get('run', ''))):
         raise ValueError('Invalid team mirror journal')
-    if journal.get('stage') not in ('board', 'final') or not isinstance(journal.get('revision'), int):
+    if journal.get('stage') not in CHECKPOINT_STAGES or not isinstance(journal.get('revision'), int):
         raise ValueError('Invalid team mirror checkpoint')
+    if not GIT_HEAD.fullmatch(str(journal.get('sourceHead', ''))):
+        raise ValueError('Invalid team mirror source commit')
+    metadata = journal.get('sourceGitMetadataSha256')
+    if metadata is not None and not SHA256.fullmatch(str(metadata)):
+        raise ValueError('Invalid team mirror Git metadata')
     for field in ('previous', 'desired'):
         if not isinstance(journal.get(field), dict):
             raise ValueError('Invalid team mirror manifest')
@@ -289,15 +315,23 @@ def _apply_journal(workspace, state, journal):
     if state.get('activeRun') != journal['run']:
         raise ValueError('Mirror journal belongs to another team run')
     desired, previous = journal['desired'], journal['previous']
-    if state['files'] == desired:
+    source = _control_path(workspace, 'team-runs', journal['run'], 'workspace')
+    if not source.is_dir() or parallel.git(source, 'rev-parse', 'HEAD') != journal['sourceHead']:
+        raise ValueError('Integrated pilot revision changed since checkpoint')
+    if (journal.get('sourceGitMetadataSha256') is not None and
+            _git_metadata_digest(source) != journal['sourceGitMetadataSha256']):
+        raise ValueError('Integrated pilot Git metadata changed since checkpoint')
+    # The lead's approval can be a metadata-only checkpoint: the board bytes
+    # stay identical while the reviewed stage advances. A prior replay may
+    # also have saved the state just before unlinking this journal.
+    if (state['files'] == desired and state.get('lastCheckpointStage') == journal['stage']
+            and state.get('revision') == journal['revision']):
+        _visible_unchanged(workspace, state)
         _journal_file(workspace).unlink()
         return state
     if state['files'] != previous:
         raise ValueError('Bridge manifest changed since mirror began')
     pilot_root = _control_path(workspace, 'team-runs', journal['run'])
-    source = _control_path(workspace, 'team-runs', journal['run'], 'workspace')
-    if not source.is_dir() or parallel.git(source, 'rev-parse', 'HEAD') != journal['sourceHead']:
-        raise ValueError('Integrated pilot revision changed since checkpoint')
     if parallel.git(source, 'status', '--porcelain'):
         raise ValueError('Integrated pilot has uncommitted changes')
     if _pilot_artifacts(source) != desired:
@@ -341,6 +375,8 @@ def _apply_journal(workspace, state, journal):
                  stage=journal['stage'], revision=journal['revision'],
                  lastCheckpointStage=journal['stage'],
                  contractSha256=journal.get('contractSha256'), files=desired,
+                 sourceHead=journal['sourceHead'],
+                 sourceGitMetadataSha256=journal.get('sourceGitMetadataSha256'),
                  nativeBoardReady=bool(json.loads((source / VERDICT).read_text())['ready']),
                  teamReady=False)
     _save_state(workspace, state)
@@ -349,7 +385,7 @@ def _apply_journal(workspace, state, journal):
 
 
 def _mirror(workspace, pilot_root, pilot_workspace, state, pilot_state, stage):
-    if stage not in ('board', 'final'):
+    if stage not in CHECKPOINT_STAGES:
         raise ValueError('Unknown team checkpoint')
     if _read_journal(workspace) is not None:
         raise ValueError('Previous mirror checkpoint must be synced first')
@@ -357,9 +393,14 @@ def _mirror(workspace, pilot_root, pilot_workspace, state, pilot_state, stage):
     artifacts = _pilot_artifacts(pilot_workspace)
     if parallel.git(pilot_workspace, 'status', '--porcelain'):
         raise ValueError('Native checkpoint is not a clean integrated Git revision')
+    metadata = _git_metadata_digest(pilot_workspace)
+    if (pilot_state.get('gitMetadataSha256') is not None and
+            metadata != pilot_state['gitMetadataSha256']):
+        raise ValueError('Pilot shared Git metadata changed before checkpoint')
     journal = {'schema': 1, 'run': pilot_root.name, 'stage': stage,
                'revision': pilot_state['revision'], 'contractSha256': pilot_state.get('contractSha256'),
                'sourceHead': parallel.git(pilot_workspace, 'rev-parse', 'HEAD'),
+               'sourceGitMetadataSha256': metadata,
                'previous': state['files'], 'desired': artifacts}
     parallel.write(_journal_file(workspace), journal)
     _apply_journal(workspace, state, journal)
@@ -423,6 +464,12 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
             seed = _control_path(workspace, 'team-runs', state['lastMirroredRun'], 'workspace')
             if not seed.is_dir() or parallel.git(seed, 'status', '--porcelain'):
                 raise ValueError('Prior integrated pilot is not a clean Git seed')
+            if (state.get('sourceHead') is not None and
+                    parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead']):
+                raise ValueError('Prior integrated pilot commit changed since checkpoint')
+            if (state.get('sourceGitMetadataSha256') is not None and
+                    _git_metadata_digest(seed) != state['sourceGitMetadataSha256']):
+                raise ValueError('Prior integrated pilot Git metadata changed since checkpoint')
         inputs = _control_path(workspace, 'team-inputs')
         inputs.mkdir(exist_ok=True)
         frozen_prompt = inputs / f'{run_id}.txt'

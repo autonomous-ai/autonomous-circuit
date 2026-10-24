@@ -116,12 +116,13 @@ class DraftReuseTests(unittest.TestCase):
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
         self.assertTrue(all(value is None for value in self.runner.second_board_inputs.values()))
 
-    def test_changed_shared_git_metadata_suppresses_all_draft_reuse(self):
+    def test_changed_shared_git_metadata_blocks_revision_and_draft_reuse(self):
         config = self.root / 'workspace/.git/config'
         config.write_text(config.read_text() + '\n[pilot]\n altered = true\n')
-        result = self.revise_and_run()
-        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
-        self.assertTrue(all(value is None for value in self.runner.second_board_inputs.values()))
+        with self.assertRaisesRegex(ValueError, 'shared Git metadata changed'):
+            self.revise_and_run()
+        self.assertIsNone(self.runner.second_board_inputs)
+        self.assertFalse((self.root / 'workers/r002-board').exists())
 
     def test_source_changed_between_snapshot_and_copy_is_rejected(self):
         planned = pilot.plan(self.root, execute=True, revise=True, runner=self.runner)

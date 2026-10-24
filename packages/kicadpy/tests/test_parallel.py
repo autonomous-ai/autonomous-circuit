@@ -156,8 +156,9 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(state['status'], 'candidate_ready', state['findings'])
         self.assertEqual(self.fake.peak, 2)
         stages = [s for s, _, _ in self.fake.visits]
-        self.assertLess(stages.index('board'), stages.index('firmware'))
-        self.assertLess(stages.index('board'), stages.index('case'))
+        self.assertLess(stages.index('board'), stages.index('board-review'))
+        self.assertLess(stages.index('board-review'), stages.index('firmware'))
+        self.assertLess(stages.index('board-review'), stages.index('case'))
         self.assertLess(stages.index('case'), stages.index('structure-review'))
         self.assertLess(stages.index('firmware'), stages.index('structure-review'))
         self.assertLess(stages.index('structure-review'), stages.index('case-final'))
@@ -173,6 +174,9 @@ class PilotTests(unittest.TestCase):
         self.assertTrue((workspace / '.kicadpy/host-cache').is_dir())
         self.assertTrue(all(m == (pilot.LEAD if ro else pilot.WORKER) for _, m, ro in self.fake.visits))
         totals = pilot.metrics(state)
+        self.assertEqual([j['stage'] for j in totals['leadJobs']],
+                         ['plan', 'board-review', 'structure-review', 'final-review'])
+        self.assertNotIn('board-review', [j['stage'] for j in totals['workerJobs']])
         self.assertEqual(totals['reportedUsage']['fresh_input_tokens'], len(state['jobs']) * 40)
         self.assertTrue(totals['usageComplete'])
         self.assertIsNone(totals['actualBilledUsd'])
@@ -188,7 +192,10 @@ class PilotTests(unittest.TestCase):
             return result
 
         def checkpoint(workspace, state, stage):
-            receipt = json.loads((self.root / f".pilot/rounds/{state['revision']}/{stage}-check.json").read_text())
+            if stage not in ('board', 'board-approved', 'final'):
+                return
+            native_stage = 'board' if stage == 'board-approved' else stage
+            receipt = json.loads((self.root / f".pilot/rounds/{state['revision']}/{native_stage}-check.json").read_text())
             seen.append({
                 'stage': stage,
                 'workspace': workspace,
@@ -198,16 +205,22 @@ class PilotTests(unittest.TestCase):
                 'dirty': pilot.git(workspace, 'status', '--porcelain'),
                 'status': state['status'],
                 'reviewed': [name for name, _, _ in self.fake.visits if name.endswith('-review')],
+                'boardReviewSaved': (self.root / f".pilot/rounds/{state['revision']}/board-review.json").is_file(),
                 'verdictExists': (workspace / '.harness/verdict.json').exists(),
             })
 
         state = self.run_round(checker=checked, on_checkpoint=checkpoint)
         self.assertEqual(state['status'], 'candidate_ready', state['findings'])
-        self.assertEqual([event['stage'] for event in seen], ['board', 'final'])
-        self.assertEqual([event['marker'] for event in seen], ['board native', 'final native'])
+        self.assertEqual([event['stage'] for event in seen],
+                         ['board', 'board-approved', 'final'])
+        self.assertEqual([event['marker'] for event in seen],
+                         ['board native', 'board native', 'final native'])
         self.assertEqual([event['commit'] for event in seen],
-                         ['Record native board publication', 'Record final native checks'])
-        self.assertEqual([event['reviewed'] for event in seen], [[], ['structure-review']])
+                         ['Record native board publication', 'Record native board publication',
+                          'Record final native checks'])
+        self.assertEqual([event['reviewed'] for event in seen],
+                         [[], ['board-review'], ['board-review', 'structure-review']])
+        self.assertEqual([event['boardReviewSaved'] for event in seen], [False, True, True])
         for event in seen:
             self.assertEqual(event['workspace'], self.root / 'workspace')
             self.assertTrue(event['receipt']['passed'])
@@ -235,6 +248,7 @@ class PilotTests(unittest.TestCase):
         self.assertFalse(seen[0][2]['passed'])
         self.assertNotIn('firmware', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('case', [name for name, _, _ in self.fake.visits])
+        self.assertNotIn('board-review', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('structure-review', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('case-final', [name for name, _, _ in self.fake.visits])
 
@@ -247,7 +261,25 @@ class PilotTests(unittest.TestCase):
         state = self.run_round(on_checkpoint=broken)
         self.assertEqual(state['status'], 'needs_revision')
         self.assertIn('bridge copy failed', state['findings'][0])
-        self.assertNotIn('structure-review', [name for name, _, _ in self.fake.visits])
+        self.assertNotIn('board-review', [name for name, _, _ in self.fake.visits])
+
+    def test_lead_rejects_checked_board_before_consumers_start(self):
+        self.plan()
+        self.fake.lead_decision = 'revise'
+        checkpoints = []
+        state = self.run_round(on_checkpoint=lambda workspace, state, stage:
+                               checkpoints.append(stage))
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertIn('Mount mismatch', state['findings'][0])
+        self.assertEqual(checkpoints, ['board'])
+        stages = [stage for stage, _, _ in self.fake.visits]
+        self.assertEqual(stages, ['plan', 'board', 'board-review'])
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').is_file())
+        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
+        self.assertFalse((self.root / '.pilot/rounds/1/board-review.json').exists())
+        self.assertEqual([job['stage'] for job in pilot.metrics(state)['leadJobs']],
+                         ['plan', 'board-review'])
 
     def test_sequential_and_single_builder_controls_reuse_identical_plan(self):
         parallel = self.plan()
@@ -275,7 +307,7 @@ class PilotTests(unittest.TestCase):
         self.assertIn('inputs differ', result['findings'][0])
         self.assertEqual(result['revision'], 0)
 
-    def test_cross_role_edit_prevents_both_consumer_imports(self):
+    def test_cross_role_edit_rejects_only_unsafe_role(self):
         self.plan()
         def defect(stage, workspace, result):
             if stage == 'case':
@@ -285,9 +317,9 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(result['status'], 'needs_revision')
         self.assertIn('unowned', result['findings'][0])
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
-        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertTrue((self.root / 'workspace/firmware/main.c').exists())
         self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
-        self.assertEqual(len(result['jobs']), 4)  # all costs retained despite rejecting imports
+        self.assertEqual(len(result['jobs']), 5)  # all costs retained despite rejecting one role
 
     def test_stale_worker_or_blocker_prevents_import(self):
         self.plan()
@@ -300,7 +332,38 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(result['status'], 'needs_revision')
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
-        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
+        self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
+
+    def test_completed_firmware_is_checkpointed_while_case_is_still_running(self):
+        self.plan()
+        case_started = threading.Event()
+        release_case = threading.Event()
+        seen = []
+
+        def defect(stage, workspace, result):
+            if stage == 'case':
+                case_started.set()
+                if not release_case.wait(timeout=5):
+                    raise TimeoutError('Case test did not receive the firmware checkpoint')
+
+        def checkpoint(workspace, state, stage):
+            seen.append(stage)
+            if stage == 'firmware':
+                self.assertTrue(case_started.wait(timeout=2))
+                self.assertTrue((workspace / 'firmware/main.c').is_file())
+                self.assertFalse((workspace / 'case/frame.txt').exists())
+                self.assertEqual(pilot.git(workspace, 'status', '--porcelain'), '')
+                release_case.set()
+
+        self.fake.defect = defect
+        try:
+            result = self.run_round(on_checkpoint=checkpoint)
+        finally:
+            release_case.set()
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertLess(seen.index('firmware'), seen.index('case'))
+        self.assertLess(seen.index('board-approved'), seen.index('firmware'))
+        self.assertEqual(seen[-1], 'final')
 
     def test_native_failure_cannot_be_overridden_by_lead(self):
         self.plan()
@@ -331,7 +394,8 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(revised['revision'], 2)
         self.assertNotEqual(revised['contractSha256'], old['contractSha256'])
         self.assertTrue((self.root / old['contractFile']).is_file())
-        self.assertTrue((self.root / 'workspace/case/frame.txt').is_file())
+        self.assertTrue((self.root / 'workspace/design/main.kicad_pro').is_file())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
         passed = self.run_round()
         self.assertEqual(passed['status'], 'candidate_ready', passed['findings'])
         self.assertEqual(pilot.metrics(passed)['repairRounds'], 1)
@@ -393,7 +457,7 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(failed['status'], 'needs_revision')
         self.assertIn('symlinks', failed['findings'][0])
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
-        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertTrue((self.root / 'workspace/firmware/main.c').exists())
 
     def test_unexpected_checker_exception_fails_closed(self):
         self.plan()
@@ -408,6 +472,14 @@ class PilotTests(unittest.TestCase):
         with patch.object(pilot, 'pipeline_sha', return_value='different source'):
             with self.assertRaisesRegex(ValueError, 'Pipeline/checker source changed'):
                 pilot.status(self.root)
+
+    def test_changed_shared_git_metadata_cannot_enter_a_revised_round(self):
+        self.plan()
+        config = self.root / 'workspace/.git/config'
+        config.write_text(config.read_text() + '\n[pilot]\n altered = true\n')
+        with self.assertRaisesRegex(ValueError, 'shared Git metadata changed'):
+            pilot.plan(self.root, execute=True, revise=True, runner=self.fake)
+        self.assertFalse((self.root / 'workers/r002-board').exists())
 
     def test_print_binding_uses_existing_validator_and_rejects_stale_project(self):
         import hashlib
@@ -435,7 +507,7 @@ class PilotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing native arranged'):
             pilot.check_plates(workspace)
 
-    def test_worker_shared_git_change_is_rejected_before_import(self):
+    def test_worker_shared_git_change_rejects_round(self):
         self.plan()
         def defect(stage, workspace, result):
             if stage == 'case':
@@ -446,7 +518,7 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(state['status'], 'needs_revision')
         self.assertIn('shared Git metadata', state['findings'][0])
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
-        self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
+        self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
 
     def test_single_writer_lock(self):
         with pilot.locked(self.root):

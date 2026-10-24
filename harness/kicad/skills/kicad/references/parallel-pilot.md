@@ -66,14 +66,15 @@ source and tile environment-manifest hashes are recorded and checked again; use 
 1. Astra plans read-only; host seals the contract.
 2. A Sol board worker builds in a detached worktree. Host validates its contract/stage receipt,
    blockers, ownership and unchanged HEAD, imports the output, then republishes the actual
-   native board with the existing manufacturing checker. A failed board gate stops the round
-   before firmware or case starts.
-3. After a passing board check, Sol firmware and functional-frame workers start from that
-   committed board/netlist/STEP in separate worktrees. They may overlap, but the host validates
-   both receipts, blockers, ownership and unchanged HEAD before importing either output.
-   The frame includes actual device mounts, fasteners, joints and wire routes. Covers wait;
-   shared interfaces are frozen and uncertainty becomes a blocker. Astra then reviews the
-   integrated structure and actual files.
+   native board with the existing manufacturing checker. The bridge shows this checked board
+   and its real native verdict, including a failed verdict. After a passing native check, Astra
+   reviews the actual board and interfaces. Firmware and case wait for this lead approval.
+3. Sol firmware and functional-frame workers start from the same approved, committed
+   board/netlist/STEP in separate worktrees. They may overlap. Host validates and imports each
+   completed role independently, then shows that role's artifacts in the viewer; a sibling's
+   blocker does not erase accepted work. The frame includes actual device mounts, fasteners,
+   joints and wire routes. Covers wait; shared interfaces are frozen and uncertainty becomes a
+   blocker. Astra then reviews the integrated structure and actual files.
 4. After structural approval, firmware and case finishers start from the integrated work.
    Firmware reconciles its real pins and `WIRING.md`; case adds removable covers and rechecks
    full motion with hardware/wires, guide/interactive overview and production/TEST slicer
@@ -90,6 +91,11 @@ the project-local slicer verifier still supplies arrangement/clearance evidence.
 print is launched by this orchestration. Physical fit, strength and motion remain untested.
 `candidate_ready` describes this experimental workflow, not permission to order or flash.
 Existing native verdict artifacts retain their existing meaning; no verdict is fabricated.
+The bridge records `lastCheckpointStage` as board, board-approved, each completed role, or
+final. Its `teamReady` stays false during these checkpoints and becomes true only after the
+final native gate and lead review both pass. A native board verdict of `ready: true` describes
+that board check; it does not mean the full team build is ready. A failed or rejected role's
+private worktree is not shown as an accepted viewer artifact.
 
 Ownership is enforced at import, not an OS security boundary:
 
@@ -119,8 +125,8 @@ Within one dispatch, a structured model-capacity failure may retry only the affe
 within a fixed attempt limit. The retry keeps the same sealed contract and may continue
 role-owned partial files in that worker's isolated worktree. It refuses changed shared Git
 metadata, a moved HEAD or any unowned file change. Each attempt keeps its own receipt and
-usage; completed sibling workers are called once and their outputs are integrated only after
-every stage passes schema, contract, ownership and hash checks. Exhausted capacity reports
+usage; completed sibling workers are called once. A role's output is integrated only after
+that role passes schema, contract, ownership and hash checks. Exhausted capacity reports
 `model_unavailable` and stops the bridge before a new contract revision. A true design
 revision uses fresh worktrees because its contract hash has changed; old worker results are
 never silently reused. The next revision may copy only source drafts from the immediately
@@ -134,7 +140,8 @@ reports `execution_limit` and also stops before a new contract revision. Receipt
 attempt and its configured time limit. All same-stage retries share a controller deadline of
 the original per-job timeout plus 600 seconds, including capacity backoff; process cleanup and
 receipt I/O can add a little wall time. Interrupted work reports `interrupted`. These execution
-outcomes do not count as engineering approval and do not import a partly completed dispatch.
+outcomes do not count as engineering approval. Independently validated and imported sibling
+outputs stay visible; the failed role's private output is not promoted.
 
 ```bash
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-team --revise --execute

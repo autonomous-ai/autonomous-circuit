@@ -6,7 +6,7 @@ Role ownership is an import check, not an OS security boundary. Real jobs requir
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import contextlib
 import fcntl
 import hashlib
@@ -218,6 +218,7 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
              'planAttempts': 0, 'rounds': [],
              'instructionsSha256': digest(texts), 'promptSha256': digest(prompt),
              'pipelineSha256': pipeline_sha(tool_root),
+             'gitMetadataSha256': digest(_git_metadata_sha(workspace)),
              'toolchainRoot': str(tool_root), 'hardwareTested': False}
     write(control / 'state.json', state)
     return state
@@ -237,6 +238,9 @@ def load(root):
         raise ValueError('Workspace brief changed')
     if pipeline_sha(state['toolchainRoot']) != state['pipelineSha256']:
         raise ValueError('Pipeline/checker source changed; use a pinned checkout for this pilot')
+    if (state.get('gitMetadataSha256') is not None and
+            digest(_git_metadata_sha(root / 'workspace')) != state['gitMetadataSha256']):
+        raise ValueError('Pilot shared Git metadata changed outside the controller')
     if state.get('contractFile'):
         contract_path = (root / state['contractFile']).resolve()
         if not contract_path.is_relative_to(root / '.pilot/contracts'):
@@ -341,27 +345,39 @@ def _retry_files(workspace):
     return files
 
 
-def _retry_git_metadata(root, workspace):
-    """Detect worktree/index and shared integration Git mutations before resuming."""
+def _integration_git_state(root):
     integration = Path(root) / 'workspace'
-    metadata = [git(workspace, 'rev-parse', 'HEAD'), git(integration, 'rev-parse', 'HEAD'),
-                git(workspace, 'ls-files', '--stage'), git(integration, 'ls-files', '--stage'),
-                git(integration, 'status', '--porcelain')]
+    head = integration / '.git/HEAD'
+    return (git(integration, 'rev-parse', 'HEAD'),
+            git(integration, 'ls-files', '--stage'),
+            git(integration, 'status', '--porcelain'),
+            hashlib.sha256(head.read_bytes()).hexdigest() if head.is_file() else None)
+
+
+def _retry_git_metadata(root, workspace):
+    """Detect worker/index and shared Git mutations before resuming."""
+    integration = Path(root) / 'workspace'
     pointer = Path(workspace) / '.git'
     if pointer.is_symlink():
         raise ValueError('Worktree Git pointer is a symlink')
-    metadata.append(pointer.read_bytes() if pointer.is_file() else None)
     # Git may refresh stat data in its index after legitimate owned file writes.
-    # ls-files --stage above checks staged contents without rejecting that refresh.
-    paths = [integration / '.git' / name for name in
-             ('config', 'info/exclude', 'info/attributes', 'HEAD')]
-    metadata.extend(hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-                    for path in paths)
-    return tuple(metadata)
+    # ls-files --stage checks staged contents without rejecting that refresh.
+    paths = [integration / '.git' / name for name in ('config', 'info/exclude', 'info/attributes')]
+    shared = tuple(hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+                   for path in paths)
+    return {'worker': (git(workspace, 'rev-parse', 'HEAD'),
+                       git(workspace, 'ls-files', '--stage'),
+                       pointer.read_bytes() if pointer.is_file() else None),
+            'integration': _integration_git_state(root), 'shared': shared}
 
 
-def _retry_safety(root, workspace, stage, readonly, initial_files, initial_git):
-    if _retry_git_metadata(root, workspace) != initial_git:
+def _retry_safety(root, workspace, stage, readonly, initial_files, initial_git,
+                  authorized_integration=None):
+    current_git = _retry_git_metadata(root, workspace)
+    allowed = authorized_integration or (initial_git['integration'],)
+    if (current_git['worker'] != initial_git['worker'] or
+            current_git['shared'] != initial_git['shared'] or
+            current_git['integration'] not in allowed):
         return False, 'Git metadata or HEAD changed during a failed model attempt', False
     current = _retry_files(workspace)
     edits = changed(initial_files, current)
@@ -462,11 +478,16 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
     return receipt
 
 
-def call(root, state, stage, workspace, prompt, schema, readonly, runner):
+def call(root, state, stage, workspace, prompt, schema, readonly, runner,
+         authorized_integration=None, integration_lock=None):
     model = state['leadModel'] if readonly else state['workerModel']
     deadline = _stage_clock() + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
     initial_files = _retry_files(workspace)
-    initial_git = _retry_git_metadata(root, workspace)
+    if integration_lock is None:
+        initial_git = _retry_git_metadata(root, workspace)
+    else:
+        with integration_lock:
+            initial_git = _retry_git_metadata(root, workspace)
     capacity_retries = timeout_retries = 0
     short_timeout = False
     continuation = None
@@ -517,8 +538,15 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner):
                              attempt < MAX_STAGE_ATTEMPTS)
         if may_retry_capacity or may_retry_timeout:
             try:
-                safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
-                                                      initial_files, initial_git)
+                if integration_lock is None:
+                    safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
+                                                          initial_files, initial_git,
+                                                          authorized_integration)
+                else:
+                    with integration_lock:
+                        safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
+                                                              initial_files, initial_git,
+                                                              authorized_integration)
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 safe, reason, partial = False, f'{type(exc).__name__}: {exc}', False
             if may_retry_timeout and safe and not partial:
@@ -704,9 +732,16 @@ def _draft_source(role, name):
 
 
 def _git_metadata_sha(workspace):
-    return {name: (hashlib.sha256((workspace / '.git' / name).read_bytes()).hexdigest()
-                   if (workspace / '.git' / name).exists() else None)
-            for name in ('config', 'info/exclude', 'info/attributes')}
+    gitdir = workspace / '.git'
+    if gitdir.is_symlink():
+        raise ValueError('Integration Git directory is a symlink')
+    result = {}
+    for name in ('config', 'info/exclude', 'info/attributes'):
+        path = gitdir / name
+        if path.is_symlink():
+            raise ValueError('Shared Git metadata is a symlink')
+        result[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+    return result
 
 
 def _prior_draft(root, state, role, stage, current):
@@ -764,7 +799,7 @@ def _prior_draft(root, state, role, stage, current):
         return []
 
 
-def dispatch(root, state, stages, runner):
+def dispatch(root, state, stages, runner, on_import=None):
     workspace = root / 'workspace'
     base = git(workspace, 'rev-parse', 'HEAD')
     baseline = snapshot(workspace)
@@ -804,6 +839,9 @@ def dispatch(root, state, stages, runner):
                                   for name, _, info in drafts]}
         write(root / f".pilot/drafts/r{state['revision']:03}-{stage}.json", provenance)
         jobs.append((role, stage, dest, pointer, provenance))
+    integration_lock = threading.Lock()
+    authorized_integration = [_integration_git_state(root)]
+
     def one(job):
         role, stage, dest, pointer, provenance = job
         prompt = worker_prompt(state, role, stage)
@@ -812,19 +850,47 @@ def dispatch(root, state, stages, runner):
                        f"{provenance['priorRevision']}: {json.dumps(provenance['sources'])}. "
                        'Reconcile every draft with the CURRENT sealed contract, checked board and task. '
                        'Rebuild and recheck; do not treat prior outputs or verdicts as accepted.')
-        receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner)
+        receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner,
+                       authorized_integration=authorized_integration,
+                       integration_lock=integration_lock)
         return role, stage, dest, pointer, receipt
-    if state['mode'] == 'sequential':
-        results = [one(job) for job in jobs]
-    else:
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            try:
-                results = list(pool.map(one, jobs))
-            except KeyboardInterrupt:
-                cancel_jobs(root)
-                raise
-    imports, failures, capacity_failures, timeout_failures, interrupted_failures = [], [], [], [], []
-    for role, stage, dest, pointer, receipt in results:
+    failures, capacity_failures, timeout_failures, interrupted_failures = [], [], [], []
+    expected, expected_head = baseline, base
+
+    def integrate_valid(stage, dest, names, after):
+        nonlocal expected, expected_head
+        # Serialize a host commit with sibling retry checks. A retry may accept
+        # only an integration Git state the controller recorded after importing
+        # a valid role; arbitrary worker changes remain unsafe.
+        with integration_lock:
+            load(root)  # reject changed frozen inputs before importing any worker output
+            if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
+                raise ValueError('Integration workspace changed while workers ran')
+            if metadata() != git_before or git(workspace, 'diff', '--cached', '--name-only'):
+                raise ValueError('Worker changed shared Git metadata or the integration index')
+            payloads = {}
+            for name in names:
+                data = (dest / name).read_bytes() if name in after else None
+                if data is not None and hashlib.sha256(data).hexdigest() != after[name]['sha256']:
+                    raise ValueError('Worker output changed after validation')
+                payloads[name] = (data, (dest / name).stat().st_mtime_ns if data is not None else None)
+            for name in names:
+                target = workspace / name
+                if name in after:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    data, mtime = payloads[name]
+                    target.write_bytes(data)
+                    target.chmod(0o755 if after[name]['executable'] else 0o644)
+                    # Firmware freshness uses source/binary mtimes; importing retains build order.
+                    os.utime(target, ns=(mtime, mtime))
+                else:
+                    target.unlink()
+            commit(workspace, names, 'Integrate ' + stage)
+            expected, expected_head = snapshot(workspace), git(workspace, 'rev-parse', 'HEAD')
+            authorized_integration.append(_integration_git_state(root))
+
+    def accept(result):
+        role, stage, dest, pointer, receipt = result
         try:
             if receipt['error']:
                 if receipt.get('failureKind') == 'interrupted':
@@ -848,9 +914,34 @@ def dispatch(root, state, stages, runner):
             names = changed(baseline, after)
             if any(not owns(role, n) for n in names):
                 raise ValueError('Worker changed a contract/shared/unowned file')
-            imports.append((dest, names, after))
         except (OSError, ValueError) as exc:
             failures.append(f'{stage}: {exc}')
+            return
+        # Import each completed, valid role immediately. Siblings still work from the
+        # same checked base; disjoint ownership makes their later imports independent.
+        integrate_valid(stage, dest, names, after)
+        if on_import is not None:
+            on_import(workspace, state, stage)
+            if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
+                raise ValueError('Checkpoint changed the integrated workspace')
+
+    if state['mode'] == 'sequential' or len(jobs) == 1:
+        for job in jobs:
+            accept(one(job))
+    else:
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            futures = [pool.submit(one, job) for job in jobs]
+            try:
+                for future in as_completed(futures):
+                    accept(future.result())
+            except BaseException:
+                cancel_jobs(root)
+                raise
+    load(root)
+    if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
+        raise ValueError('Integration workspace changed while workers ran')
+    if metadata() != git_before or git(workspace, 'diff', '--cached', '--name-only'):
+        raise ValueError('Worker changed shared Git metadata or the integration index')
     if failures:
         if interrupted_failures:
             raise JobInterrupted('\n'.join(failures))
@@ -859,34 +950,6 @@ def dispatch(root, state, stages, runner):
         if timeout_failures:
             raise ExecutionLimitExhausted('\n'.join(failures))
         raise ValueError('\n'.join(failures))
-    load(root)  # reject changed frozen inputs before importing any worker output
-    if snapshot(workspace) != baseline or git(workspace, 'rev-parse', 'HEAD') != base:
-        raise ValueError('Integration workspace changed while workers ran')
-    if metadata() != git_before or git(workspace, 'diff', '--cached', '--name-only'):
-        raise ValueError('Worker changed shared Git metadata or the integration index')
-    # Capture and verify bytes before importing any role. Ownership sets are disjoint.
-    payloads = {}
-    for dest, members, after in imports:
-        for name in members:
-            data = (dest / name).read_bytes() if name in after else None
-            if data is not None and hashlib.sha256(data).hexdigest() != after[name]['sha256']:
-                raise ValueError('Worker output changed after validation')
-            payloads[name] = (data, (dest / name).stat().st_mtime_ns if data is not None else None)
-    names = []
-    for dest, members, after in imports:
-        for name in members:
-            target = workspace / name
-            if name in after:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                data, mtime = payloads[name]
-                target.write_bytes(data)
-                target.chmod(0o755 if after[name]['executable'] else 0o644)
-                # Firmware freshness uses source/binary mtimes; importing must retain build order.
-                os.utime(target, ns=(mtime, mtime))
-            else:
-                target.unlink()
-            names.append(name)
-    commit(workspace, sorted(set(names)), 'Integrate ' + ', '.join(s for _, s in stages))
 
 
 def native_check(workspace, complete):
@@ -941,19 +1004,29 @@ def review(root, state, stage, checks, runner):
             raise ValueError('Draft provenance changed before lead review')
         if provenance.get('sources'):
             drafts.append(provenance)
+    focus = {
+        'board-review': ('This is the board handoff gate. Inspect the actual native schematic, '
+                         'netlist, PCB, published board/STEP, and native check results against the '
+                         'sealed contract: outline, mounting coordinates, device placement, power '
+                         'and protection, pins, connectors, and the mechanical interface. Find '
+                         'missing or ambiguous details that firmware or case would have to guess. '
+                         'Approve only when those workers can build against the checked board. '
+                         'Do not require firmware or case artifacts that have not been dispatched.'),
+        'structure-review': ('Compare firmware definitions and WIRING with the actual netlist. '
+                             'Verify the exposed device/frame/joint insertion, retention, tool '
+                             'access and travel before covers against the published board/STEP.'),
+        'final-review': ('Check the complete case, overview, arranged 3MF and reports against the '
+                         'final board/STEP, fasteners and wires. Reconcile firmware behavior, '
+                         'definitions and WIRING with the actual netlist and power rails.'),
+    }[stage]
     prompt = ('You are the independent LEAD reviewer. Read PILOT_CONTRACT.json and actual artifacts, '
-              'not raw worker transcripts. Check the actual netlist/board/published STEP against '
-              'contract outline, mounts, coordinates, power and pin assignments; compare actual '
-              'firmware definitions and WIRING with that netlist. For structure-review verify exposed '
-              'device/frame/joint insertion, retention, tool access and travel before covers. For '
-              'final-review check the complete case, overview, arranged 3MF and reports against final '
-              'board/STEP, fasteners and wires. Report file-cited engineering defects only. Do not '
-              'edit anything, run hardware or weaken gates. A model approval cannot override a failed '
-              'native gate. Physical fit/strength remains untested. Approve only if there are no '
-              'unresolved concerns; otherwise revise with existing file paths and concrete findings. '
-              'Some workers may have started from untrusted source drafts from the prior revision. '
-              'Inspect each named current source against the CURRENT sealed contract and actual checked '
-              'outputs; prior source hashes are provenance, not validation. '
+              'not raw worker transcripts. ' + focus + ' Report file-cited engineering defects only. '
+              'Do not edit anything, run hardware or weaken gates. A model approval cannot override '
+              'a failed native gate. Physical fit/strength remains untested. Approve only if there '
+              'are no unresolved concerns; otherwise revise with existing file paths and concrete '
+              'findings. Some workers may have started from untrusted source drafts from the prior '
+              'revision. Inspect each named current source against the CURRENT sealed contract and '
+              'actual checked outputs; prior source hashes are provenance, not validation. '
               f'Return contractSha256={state["contractSha256"]}.\nDRAFT PROVENANCE:\n' +
               json.dumps(drafts, sort_keys=True) + '\nNATIVE CHECKS:\n' + json.dumps(checks))
     job = call(root, state, stage, workspace, prompt, REVIEW_SCHEMA, True, runner)
@@ -1007,14 +1080,20 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
                 on_checkpoint(workspace, state, 'board')
             if not checks.get('passed'):
                 raise ValueError('Native board check failed: ' + str(checks.get('findings')))
+            board_review = review(root, state, 'board-review', checks, runner)
+            write(root / f".pilot/rounds/{state['revision']}/board-review.json", board_review)
+            if on_checkpoint is not None:
+                on_checkpoint(workspace, state, 'board-approved')
             if state['mode'] != 'solo':
                 # These two roles share one checked board base and have disjoint outputs.
-                dispatch(root, state, [('firmware', 'firmware'), ('case', 'case')], runner)
+                dispatch(root, state, [('firmware', 'firmware'), ('case', 'case')], runner,
+                         on_import=on_checkpoint)
             review(root, state, 'structure-review', checks, runner)
             # Both finishers now read the actual integrated PCB/netlist/STEP. Covers come last.
             final = ([('solo', 'solo-final')] if state['mode'] == 'solo' else
                      [('firmware', 'firmware-final'), ('case', 'case-final')])
-            dispatch(root, state, final, runner)
+            dispatch(root, state, final, runner,
+                     on_import=on_checkpoint if state['mode'] != 'solo' else None)
             before = snapshot(workspace)
             checks = checker(workspace, True)
             names = changed(before, snapshot(workspace))
@@ -1066,8 +1145,10 @@ def metrics(state):
             'planReusedFrom': state.get('planReusedFrom'),
             'agentSeconds': sum(j['seconds'] for j in jobs), 'reportedUsage': totals,
             'usageComplete': bool(jobs) and all(j.get('usage') is not None for j in jobs),
-            'leadJobs': [j for j in jobs if j['stage'] in ('plan', 'structure-review', 'final-review')],
-            'workerJobs': [j for j in jobs if j['stage'] not in ('plan', 'structure-review', 'final-review')],
+            'leadJobs': [j for j in jobs if j['stage'] in ('plan', 'board-review', 'structure-review',
+                                                        'final-review')],
+            'workerJobs': [j for j in jobs if j['stage'] not in ('plan', 'board-review',
+                                                                'structure-review', 'final-review')],
             'advisorCalls': 0, 'approvalCalls': 0, 'actualBilledUsd': None, 'estimatedCostUsd': None,
             'hardwareTested': False, 'status': state['status']}
 

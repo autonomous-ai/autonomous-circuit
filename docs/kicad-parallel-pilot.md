@@ -5,9 +5,10 @@ change tile defaults, the viewer, Stop hooks or active pet runs.
 
 The complete self-contained operator guide is shipped with the KiCad skill:
 [parallel-pilot.md](../harness/kicad/skills/kicad/references/parallel-pilot.md).
-It covers initialization, Astra planning/review, the board worker followed by a native gate,
-then two isolated Sol workers for firmware and frame, frame-before-cover integration, bounded
-revision, failure receipts and comparable controls.
+It covers initialization, Astra planning and board review, the board worker followed by a native
+gate, then two isolated Sol workers for firmware and frame whose validated imports appear in the
+viewer as each completes, frame-before-cover integration, bounded revision, failure receipts and
+comparable controls.
 
 Offline validation (no models, hardware, network or native CAD):
 

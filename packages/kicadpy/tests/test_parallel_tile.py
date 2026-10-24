@@ -69,10 +69,12 @@ class FakeRunner:
                 'verdict': json.loads((self.visible / '.harness/verdict.json').read_text()),
             })
             rejected = stage == self.reject_stage
+            finding_path = ('design/main.kicad_pro' if stage == 'board-review'
+                            else 'case/cover.txt')
             result = {'contractSha256': state['contractSha256'],
                       'decision': 'revise' if rejected else 'approve',
-                      'summary': 'Case cover requires revision' if rejected else 'Reviewed checked files',
-                      'findings': [{'path': 'case/cover.txt', 'message': 'Cover blocks interface'}]
+                      'summary': 'Review requires revision' if rejected else 'Reviewed checked files',
+                      'findings': [{'path': finding_path, 'message': 'Review found a blocker'}]
                       if rejected else []}
         else:
             if stage == 'board':
@@ -97,6 +99,30 @@ class FakeRunner:
         return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .1,
                 'usage': {'input_tokens': 10, 'cached_input_tokens': 0, 'output_tokens': 2,
                           'reasoning_output_tokens': 1}, 'result': result, 'error': None}
+
+
+class BlockOneRoleRunner(FakeRunner):
+    """The blocked worker waits until its sibling appears in the live view."""
+
+    def __init__(self, visible, blocked_role, sibling_artifact):
+        super().__init__(visible)
+        self.blocked_role = blocked_role
+        self.sibling_artifact = sibling_artifact
+        self.saw_sibling_before_return = False
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        if stage == self.blocked_role:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if (self.visible / self.sibling_artifact).is_file():
+                    self.saw_sibling_before_return = True
+                    break
+                time.sleep(.02)
+        receipt = super().__call__(root, state, stage, model, workspace, prompt,
+                                   schema, readonly)
+        if stage == self.blocked_role:
+            receipt['result']['blockers'] = [f'{stage} needs design revision']
+        return receipt
 
 
 class FakeChecker:
@@ -140,6 +166,115 @@ class TeamBridgeTests(unittest.TestCase):
             runner=runner or FakeRunner(self.workspace), checker=checker or FakeChecker(),
             max_rounds=max_rounds)
 
+    def staged_pilot(self):
+        """Create a clean pilot source so checkpoint replay can be tested alone."""
+        pilot_root = self.workspace / '.circuit/team-runs/r001'
+        parallel.initialize(pilot_root, self.first_brief)
+        source = pilot_root / 'workspace'
+        put(source, 'design/main.kicad_pro', 'checked board source')
+        put(source, 'boards/native.txt', 'checked board publication')
+        parallel.write(source / '.harness/verdict.json',
+                       {'spec': 1, 'ready': True, 'summary': 'Native board ready'})
+        parallel.commit(source, ['design/main.kicad_pro', 'boards/native.txt'],
+                        'Record checked board')
+        state = parallel_tile._read_state(self.workspace)
+        state.update(activeRun='r001', status='running',
+                     initialVerdictSha256=parallel_tile._sha(
+                         self.workspace / '.harness/verdict.json'))
+        parallel_tile._save_state(self.workspace, state)
+        pilot_state = {'revision': 1, 'contractSha256': 'contract-one'}
+        return pilot_root, source, state, pilot_state
+
+    def test_progressive_checkpoints_publish_each_completed_role_and_board_approval(self):
+        root, source, state, pilot_state = self.staged_pilot()
+        mirror = lambda stage: parallel_tile._mirror(self.workspace, root, source, state,
+                                                      pilot_state, stage)
+        mirror('board')
+        self.assertEqual(state['lastCheckpointStage'], 'board')
+        self.assertTrue(state['nativeBoardReady'])
+        self.assertFalse(state['teamReady'])
+        self.assertFalse((self.workspace / 'firmware/main.c').exists())
+        mirror('board-approved')  # Same files, but lead approval must advance progress.
+        self.assertEqual(state['lastCheckpointStage'], 'board-approved')
+        self.assertEqual(parallel_tile.status(self.workspace)['lastCheckpointStage'], 'board-approved')
+        put(source, 'firmware/main.c', 'compiled-source draft')
+        parallel.commit(source, ['firmware/main.c'], 'Integrate firmware')
+        mirror('firmware')
+        self.assertEqual((self.workspace / 'firmware/main.c').read_text(), 'compiled-source draft')
+        self.assertFalse((self.workspace / 'case/frame.txt').exists())
+        put(source, 'case/frame.txt', 'native frame')
+        parallel.commit(source, ['case/frame.txt'], 'Integrate case')
+        mirror('case')
+        self.assertEqual((self.workspace / 'case/frame.txt').read_text(), 'native frame')
+        self.assertEqual(state['lastCheckpointStage'], 'case')
+        self.assertFalse(state['teamReady'])
+
+    def test_role_checkpoint_replays_after_interrupted_copy(self):
+        root, source, state, pilot_state = self.staged_pilot()
+        parallel_tile._mirror(self.workspace, root, source, state, pilot_state, 'board')
+        parallel_tile._mirror(self.workspace, root, source, state, pilot_state,
+                              'board-approved')
+        put(source, 'firmware/main.c', 'reviewable firmware')
+        parallel.commit(source, ['firmware/main.c'], 'Integrate firmware')
+        real_replace = os.replace
+        failed_once = False
+
+        def interrupt_copy(source_path, target):
+            nonlocal failed_once
+            if not failed_once and Path(target) == self.workspace / 'firmware/main.c':
+                failed_once = True
+                raise OSError('injected role-copy interruption')
+            return real_replace(source_path, target)
+
+        with patch.object(parallel_tile.os, 'replace', side_effect=interrupt_copy):
+            with self.assertRaisesRegex(OSError, 'role-copy interruption'):
+                parallel_tile._mirror(self.workspace, root, source, state, pilot_state,
+                                      'firmware')
+        self.assertTrue(failed_once)
+        self.assertTrue(parallel_tile.status(self.workspace)['mirrorPending'])
+        self.assertEqual(state['lastCheckpointStage'], 'board-approved')
+        self.assertFalse((self.workspace / 'firmware/main.c').exists())
+        synced = parallel_tile.sync(self.workspace)
+        self.assertEqual(synced['lastCheckpointStage'], 'firmware')
+        self.assertEqual((self.workspace / 'firmware/main.c').read_text(), 'reviewable firmware')
+        self.assertFalse(synced['teamReady'])
+        self.assertFalse(parallel_tile.status(self.workspace)['mirrorPending'])
+
+    def test_checkpoint_refuses_git_metadata_drift_from_pilot_baseline(self):
+        root, source, state, pilot_state = self.staged_pilot()
+        pilot_state['gitMetadataSha256'] = parallel_tile._git_metadata_digest(source)
+        with (source / '.git/config').open('a') as stream:
+            stream.write('\n[harmless]\nvalue = changed by sibling\n')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        with self.assertRaisesRegex(ValueError, 'Git metadata changed before checkpoint'):
+            parallel_tile._mirror(self.workspace, root, source, state, pilot_state, 'board')
+        self.assertFalse(parallel_tile.status(self.workspace)['mirrorPending'])
+        self.assertFalse((self.workspace / 'design/main.kicad_pro').exists())
+
+    def test_pending_role_checkpoint_refuses_replay_after_git_config_changes(self):
+        root, source, state, pilot_state = self.staged_pilot()
+        parallel_tile._mirror(self.workspace, root, source, state, pilot_state, 'board')
+        put(source, 'firmware/main.c', 'checkpointed firmware')
+        parallel.commit(source, ['firmware/main.c'], 'Integrate firmware')
+        real_replace = os.replace
+
+        def interrupt_copy(source_path, target):
+            if Path(target) == self.workspace / 'firmware/main.c':
+                raise OSError('injected interruption')
+            return real_replace(source_path, target)
+
+        with patch.object(parallel_tile.os, 'replace', side_effect=interrupt_copy):
+            with self.assertRaisesRegex(OSError, 'injected interruption'):
+                parallel_tile._mirror(self.workspace, root, source, state, pilot_state,
+                                      'firmware')
+        with (source / '.git/config').open('a') as stream:
+            stream.write('\n[harmless]\nvalue = changed after journal\n')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        with self.assertRaisesRegex(ValueError, 'Git metadata changed since checkpoint'):
+            parallel_tile.sync(self.workspace)
+        self.assertTrue(parallel_tile.status(self.workspace)['mirrorPending'])
+        self.assertFalse((self.workspace / 'firmware/main.c').exists())
+
     def test_first_prompt_mirrors_checked_artifacts_and_native_verdict_into_viewer_workspace(self):
         runner = FakeRunner(self.workspace)
         checker = FakeChecker()
@@ -160,9 +295,10 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(json.loads((self.workspace / '.harness/verdict.json').read_text()),
                          {'spec': 1, 'ready': True, 'summary': 'Native ready'})
         self.assertEqual([item['stage'] for item in runner.visible_at_reviews],
-                         ['structure-review', 'final-review'])
+                         ['board-review', 'structure-review', 'final-review'])
         self.assertEqual(runner.visible_at_reviews[0]['publication'], 'checked board revision 1')
-        self.assertEqual(runner.visible_at_reviews[1]['publication'], 'checked final revision 1')
+        self.assertEqual(runner.visible_at_reviews[1]['publication'], 'checked board revision 1')
+        self.assertEqual(runner.visible_at_reviews[2]['publication'], 'checked final revision 1')
         self.assertEqual(runner.plan_inputs[0]['brief'], self.first_brief.read_text())
         self.assertFalse((self.workspace / '.git').exists())
         self.assertEqual((self.workspace / 'project.json').read_bytes(), project_metadata)
@@ -189,6 +325,50 @@ class TeamBridgeTests(unittest.TestCase):
         next_state = parallel.status(self.workspace / '.circuit/team-runs/r002')
         self.assertEqual(next_state['seedCommit'], parallel.git(prior_pilot, 'rev-parse', 'HEAD'))
         self.assertEqual(self.first_brief.read_text(), 'Build the reference USB sensor with a case.')
+
+    def test_followup_refuses_checkpointed_pilot_with_mutated_git_config(self):
+        first = self.run_team()
+        self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
+        source = self.workspace / '.circuit/team-runs/r001/workspace'
+        self.assertEqual(first['sourceHead'], parallel.git(source, 'rev-parse', 'HEAD'))
+        self.assertEqual(first['sourceGitMetadataSha256'],
+                         parallel_tile._git_metadata_digest(source))
+        with (source / '.git/config').open('a') as stream:
+            stream.write('\n[harmless]\nvalue = changed after checkpoint\n')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        runner = FakeRunner(self.workspace)
+        with self.assertRaisesRegex(ValueError, 'Git metadata changed since checkpoint'):
+            self.run_team(followup, runner=runner)
+        self.assertEqual(runner.visits, [])
+        self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
+
+    def test_followup_refuses_checkpointed_pilot_with_new_clean_head(self):
+        first = self.run_team()
+        self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
+        source = self.workspace / '.circuit/team-runs/r001/workspace'
+        put(source, 'README.md', 'Changed without a new viewer checkpoint')
+        parallel.commit(source, ['README.md'], 'Uncheckpointed change')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            self.run_team(followup)
+        self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
+
+    def test_followup_refuses_partial_checkpoint_if_sibling_changes_git_config(self):
+        runner = BlockOneRoleRunner(self.workspace, 'case', 'firmware/main.c')
+        first = self.run_team(runner=runner, max_rounds=1)
+        self.assertEqual(first['status'], 'needs_revision')
+        self.assertEqual(first['lastCheckpointStage'], 'firmware')
+        self.assertTrue((self.workspace / 'firmware/main.c').is_file())
+        source = self.workspace / '.circuit/team-runs/r001/workspace'
+        with (source / '.git/config').open('a') as stream:
+            stream.write('\n[harmless]\nvalue = changed after partial checkpoint\n')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Continue the design.')
+        with self.assertRaisesRegex(ValueError, 'Git metadata changed since checkpoint'):
+            self.run_team(followup)
+        self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
 
     def test_external_edit_refuses_followup_without_clobbering_user_file(self):
         self.assertEqual(self.run_team()['status'], 'candidate_ready')
@@ -234,15 +414,49 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(state['roundsAttempted'], 2)
         self.assertEqual(checker.calls, [(1, 'board'), (2, 'board'), (2, 'final')])
         self.assertEqual([item['verdict']['ready'] for item in runner.visible_at_reviews],
-                         [True, True])
+                         [True, True, True])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 2')
+
+    def test_rejected_board_review_stops_dependent_workers_but_keeps_checked_board_visible(self):
+        runner = FakeRunner(self.workspace, reject_stage='board-review')
+        state = self.run_team(runner=runner, max_rounds=1)
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual(state['lastCheckpointStage'], 'board')
+        self.assertFalse(state['teamReady'])
+        self.assertEqual((self.workspace / 'boards/native.txt').read_text(),
+                         'checked board revision 1')
+        self.assertEqual([entry['stage'] for entry in runner.visible_at_reviews],
+                         ['board-review'])
+        self.assertNotIn('firmware', runner.visits)
+        self.assertNotIn('case', runner.visits)
+        self.assertFalse((self.workspace / 'firmware/main.c').exists())
+
+    def test_firmware_is_visible_while_case_is_still_running_then_case_rejects(self):
+        runner = BlockOneRoleRunner(self.workspace, 'case', 'firmware/main.c')
+        state = self.run_team(runner=runner, max_rounds=1)
+        self.assertTrue(runner.saw_sibling_before_return)
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual(state['lastCheckpointStage'], 'firmware')
+        self.assertFalse(state['teamReady'])
+        self.assertEqual((self.workspace / 'firmware/main.c').read_text(), 'sensor firmware')
+        self.assertFalse((self.workspace / 'case/frame.txt').exists())
+
+    def test_case_is_visible_while_firmware_is_still_running_then_firmware_rejects(self):
+        runner = BlockOneRoleRunner(self.workspace, 'firmware', 'case/frame.txt')
+        state = self.run_team(runner=runner, max_rounds=1)
+        self.assertTrue(runner.saw_sibling_before_return)
+        self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual(state['lastCheckpointStage'], 'case')
+        self.assertFalse(state['teamReady'])
+        self.assertEqual((self.workspace / 'case/frame.txt').read_text(), 'device frame')
+        self.assertFalse((self.workspace / 'firmware/main.c').exists())
 
     def test_rejected_final_review_keeps_native_verdict_and_reports_team_unready(self):
         runner = FakeRunner(self.workspace, reject_stage='final-review')
         state = self.run_team(runner=runner, max_rounds=1)
         self.assertEqual(state['status'], 'needs_revision')
         self.assertFalse(state['teamReady'])
-        self.assertIn('Cover blocks interface', state['error'])
+        self.assertIn('Review found a blocker', state['error'])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 1')
         self.assertTrue((self.workspace / 'case/cover.txt').is_file())
         # Board readiness comes only from the native checker; team readiness also needs lead approval.
