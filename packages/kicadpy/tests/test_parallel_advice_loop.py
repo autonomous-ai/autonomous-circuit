@@ -20,8 +20,10 @@ except ImportError:
 
 class BoardAdviceRunner(fixture.Fake):
     def __init__(self, *, first_blocker=False, always_blocked=False,
-                 decision='repair', unsafe_edit=False, repair_native=False):
+                 decision='repair', unsafe_edit=False, repair_native=False,
+                 changed_fields=('powerRails',)):
         super().__init__()
+        self.changed_fields = list(changed_fields)
         self.first_blocker = first_blocker
         self.always_blocked = always_blocked
         self.decision = decision
@@ -46,7 +48,7 @@ class BoardAdviceRunner(fixture.Fake):
                     if self.decision == 'repair' else 'The power interface must change.',
                     'actions': [{'path': 'design/main.kicad_pro',
                                  'message': 'Continue the board from the existing source.'}],
-                    'changedFields': ['powerRails'] if self.decision == 'interface_change' else [],
+                    'changedFields': self.changed_fields if self.decision == 'interface_change' else [],
                 },
             }
         receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
@@ -158,6 +160,24 @@ class BoardAdviceIntegrationTests(unittest.TestCase):
         self.assertEqual(len(runner.board_worktrees), 1)
         self.assertEqual(len(runner.advice_worktrees), 1)
         self.assertFalse((self.root / 'workspace/design/main.kicad_pro').exists())
+
+    def test_interface_change_accepts_lead_paths_to_nested_contract_fields(self):
+        # Real r002 lead advice cited these paths; the round must reach replan, not crash.
+        runner = BoardAdviceRunner(first_blocker=True, decision='interface_change',
+                                   changed_fields=('interfaces.pins[8].pin',
+                                                   'interfaces.firmwareBehavior[1]', 'pins'))
+        result = self.run_with(runner)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertTrue(result.get('replanRequired'))
+        self.assertEqual(result['requestedChangedFields'], ['firmwareBehavior', 'pins'])
+
+    def test_interface_change_still_rejects_unknown_contract_fields(self):
+        runner = BoardAdviceRunner(first_blocker=True, decision='interface_change',
+                                   changed_fields=('interfaces.batteryColor',))
+        result = self.run_with(runner)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertFalse(result.get('replanRequired'))
+        self.assertIn('named shared interface fields', result['findings'][0])
 
     def test_replan_must_actually_change_the_cited_contract_field(self):
         runner = BoardAdviceRunner(first_blocker=True, decision='interface_change')

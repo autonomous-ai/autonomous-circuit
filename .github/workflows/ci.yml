@@ -32,7 +32,7 @@ jobs:
       - name: Run isolated pilot tests
         env:
           PYTHONPATH: packages/kicadpy/src:packages/circuitpy/src
-        run: python -m unittest discover -s packages/kicadpy/tests -p test_parallel.py -q
+        run: python -m unittest discover -s packages/kicadpy/tests -p "test_parallel*.py" -q
 
   circuitpy:
     name: pipeline

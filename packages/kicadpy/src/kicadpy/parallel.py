@@ -21,7 +21,7 @@ import threading
 import time
 
 from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
-                                OWNED, digest, encoded, owns, validate, validate_contract)
+                                DEVIATIONS, OWNED, digest, encoded, owns, validate, validate_contract)
 
 LEAD = 'gpt-6-astra'
 WORKER = 'gpt-6.1-sol'
@@ -707,6 +707,12 @@ def adopt_contract(directory, original_directory):
         return state
 
 
+def _shared_field_root(field):
+    if field.startswith('interfaces.'):
+        field = field[len('interfaces.'):]
+    return field.split('.', 1)[0].split('[', 1)[0]
+
+
 def _contract_field(interfaces, field):
     value = interfaces
     for key in field.split('.'):
@@ -737,7 +743,12 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
             'Give disjoint board, firmware and full case tasks that can start concurrently '
             'from this interface contract. Define enough geometry, pins and power for '
             'firmware and case to work without a board handoff. All teams later reconcile '
-            'with the actual native board during integration. '
+            'with the actual native board during integration. This contract is sealed once '
+            'and never replanned, so fix only what crosses teams: MCU/header/connector pins '
+            'firmware or wiring uses, rails, outline, mounts and module envelopes. Leave '
+            'pins internal to one board circuit (regulator, protection, MOSFET, IC pads) '
+            'and numeric targets you chose yourself to the owning team; describe them in '
+            'assumptions as targets, not sealed limits. '
             if state['mode'] == 'teams' else
             'Give disjoint board, firmware and case/frame tasks. Frame and device mounts first; '
             'outer covers follow integration. '
@@ -822,8 +833,13 @@ def worker_prompt(state, role, stage):
             'Your independent tester will inspect your actual files and may return concrete findings. '
             'Continue in the same worktree until the role task is complete or the bounded execution '
             'budget expires. Publish useful drafts early. A local pass is not final product readiness; '
-            'the integration check reconciles all teams. If blocked, explain the exact unresolved '
-            'issue and preserve partial files. ' + task +
+            'the integration check reconciles all teams. If a sealed detail inside your own domain '
+            'is wrong or infeasible (a datasheet contradicts an internal pin, an agent-chosen '
+            'size or limit cannot be met), choose the closest verified V0 option, record contract '
+            f'text, change, evidence and cross-team impact in {DEVIATIONS[role]}, and continue. '
+            'Keep cross-team pins, rails, outline and mounts unless no option exists. Report a '
+            'blocker only for what needs the user (money, owned hardware, safety); preserve '
+            'partial files. ' + task +
             f'\nReturn stage={stage}, contractSha256={state["contractSha256"]}, concise summary and blockers.'
         )
     task = {'board': ('Build and publish the real native schematic/PCB and enclosure contract. '
@@ -1077,13 +1093,14 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         if not path.is_file() and not missing_final_artifact:
             raise ValueError('Lead advice must cite an existing worker file')
     if advice['decision'] == 'interface_change':
-        fields = SHARED_INTERFACE_FIELDS
-        if not advice['changedFields'] or any(field.split('.', 1)[0] not in fields
-                                              for field in advice['changedFields']):
+        # Leads cite paths such as "interfaces.pins[8].pin"; replan by top-level field.
+        fields = list(dict.fromkeys(_shared_field_root(field) for field in advice['changedFields']))
+        if not fields or any(field not in SHARED_INTERFACE_FIELDS for field in fields):
             raise ValueError('Contract revision needs named shared interface fields')
         interfaces = json.loads((root / state['contractFile']).read_text())['interfaces']
-        for field in advice['changedFields']:
+        for field in fields:
             _contract_field(interfaces, field)
+        advice['changedFields'] = fields
     elif advice['changedFields']:
         raise ValueError('Repair/external advice cannot change contract fields')
     load(root)
@@ -1110,6 +1127,8 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         'engineering evidence and return file-cited defects. For a missing expected output, '
         'cite its intended path inside this role. Approve only when this team task is done '
         'against the current instructions. The integration gate will reconcile other teams. '
+        f'A deviation recorded in {DEVIATIONS[role]} with evidence and no unrecorded '
+        'cross-team impact is not a defect; check that the files follow it. '
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
         + notes_for_role(root, role)
@@ -1675,7 +1694,10 @@ def team_integration_test(root, state, checks, runner):
         'and ordered release notes. Do not edit anything. Check pin and power compatibility, '
         'mechanical interfaces, firmware build/wiring, printable case and native checks. '
         'A native failure cannot be overruled by a model approval. For each defect cite a '
-        'specific role-owned file or the intended missing path. Cite PILOT_CONTRACT.json only '
+        'specific role-owned file or the intended missing path. Recorded team deviations '
+        f'({", ".join(DEVIATIONS[role] for role in ROLES)}) supersede a sealed detail when all '
+        'affected teams follow them; cite the lagging team, not the contract. '
+        'Cite PILOT_CONTRACT.json only '
         'when the original interface cannot be satisfied without a new user instruction. '
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'

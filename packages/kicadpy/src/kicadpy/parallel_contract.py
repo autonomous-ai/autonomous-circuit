@@ -10,6 +10,9 @@ OWNED = {
     'firmware': ('firmware/', 'tools/firmware/', 'build/firmware/'),
     'case': ('case/', 'tools/case/', 'build/case/'),
 }
+# Where a team records a sealed detail it had to change inside its own domain.
+DEVIATIONS = {'board': 'engineering/DEVIATIONS.md', 'firmware': 'firmware/DEVIATIONS.md',
+              'case': 'case/DEVIATIONS.md'}
 
 
 def obj(properties):

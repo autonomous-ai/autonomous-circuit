@@ -107,6 +107,21 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(stages.count('plan'), 1)
         self.assertEqual(stages.count('integration-test'), 1)
 
+    def test_teams_record_owned_deviations_instead_of_stalling_on_sealed_details(self):
+        # crab-robot-v6: the lead sealed LM74800 EP to GND and an invented switch cavity;
+        # builders must fix such details in their domain rather than wait for a replan.
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        result = parallel.run(self.root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        prompts = {stage: prompt for stage, _model, _readonly, prompt in self.runner.visits}
+        self.assertIn('only what crosses teams', prompts['plan'])
+        for role in ('board', 'firmware', 'case'):
+            for stage in (role, role + '-test'):
+                self.assertIn(parallel.DEVIATIONS[role], prompts[stage])
+            self.assertTrue(parallel.owns(role, parallel.DEVIATIONS[role]))
+        self.assertIn('choose the closest verified V0 option', prompts['board'])
+        self.assertIn('engineering/DEVIATIONS.md', prompts['integration-test'])
+
     def test_checked_board_checkpoint_is_visible_while_case_is_still_working(self):
         parallel.plan(self.root, execute=True, runner=self.runner)
         self.runner.pause_stage = 'case'

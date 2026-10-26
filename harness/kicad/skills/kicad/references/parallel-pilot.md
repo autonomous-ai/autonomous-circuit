@@ -103,6 +103,11 @@ notes only for the contract fields it names. Every other requirement remains in 
    builds against the contracted geometry. Both must later reconcile with actual board files.
    A tester inspects its team's real output and findings; a rejection sends work back to the
    same builder for a bounded repair attempt, without making the lead replan.
+   The lead seals only cross-team pins, rails, outline, mounts and envelopes. When a sealed
+   detail inside one domain proves wrong or infeasible (for example a datasheet contradicts
+   an internal IC pin, or an agent-chosen size cannot be met), the builder picks the closest
+   verified V0 option, records it in `engineering/`, `firmware/` or `case/DEVIATIONS.md` and
+   continues. Testers accept recorded deviations; only user-dependent issues remain blockers.
 3. The bridge copies bounded drafts to a distinct viewer preview area as work advances. Each
    preview is marked unverified. Valid role output is imported only after schema, contract,
    ownership, Git state, tester and relevant native checks; the bridge then mirrors checked
