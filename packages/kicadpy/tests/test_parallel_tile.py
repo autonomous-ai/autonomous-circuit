@@ -527,6 +527,29 @@ class TeamBridgeTests(unittest.TestCase):
                          [True, True, True])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 2')
 
+    def test_revision_clears_previous_error_while_new_round_is_running(self):
+        checker = FakeChecker(fail_board_revisions=(1,))
+        saved = []
+        prior_findings = []
+        original_save = parallel_tile._save_state
+
+        def record_save(workspace, state):
+            saved.append(dict(state))
+            if state['stage'] == 'revising':
+                pilot = workspace / '.circuit/team-runs' / state['activeRun'] / '.pilot/state.json'
+                prior_findings.extend(json.loads(pilot.read_text())['findings'])
+            return original_save(workspace, state)
+
+        with patch.object(parallel_tile, '_save_state', side_effect=record_save):
+            result = self.run_team(checker=checker, max_rounds=2)
+
+        self.assertEqual(result['status'], 'candidate_ready')
+        self.assertTrue(any('Native board check failed' in item for item in prior_findings))
+        for stage in ('revising', 'planning-2', 'building-2'):
+            current = next(item for item in saved if item['stage'] == stage)
+            self.assertEqual(current['status'], 'running')
+            self.assertIsNone(current['error'], stage)
+
     def test_rejected_board_review_stops_dependent_workers_but_keeps_checked_board_visible(self):
         runner = FakeRunner(self.workspace, reject_stage='board-review')
         state = self.run_team(runner=runner, max_rounds=1)

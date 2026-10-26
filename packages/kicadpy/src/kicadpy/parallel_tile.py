@@ -529,7 +529,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(max_rounds):
-                    state['stage'] = f'planning-{attempt + 1}'
+                    state.update(status='running', stage=f'planning-{attempt + 1}', error=None)
                     _save_state(workspace, state)
                     options = {'execute': True, 'revise': attempt > 0}
                     if runner is not None:
@@ -546,8 +546,8 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                                      stage=terminal_stage.get(planned['status'], state['stage']),
                                      error='; '.join(planned.get('findings', [])), teamReady=False)
                         return state
-                    state['roundsAttempted'] = attempt + 1
-                    state['stage'] = f'building-{attempt + 1}'
+                    state.update(roundsAttempted=attempt + 1,
+                                 stage=f'building-{attempt + 1}', error=None)
                     _save_state(workspace, state)
                     mirror_errors = []
 
@@ -580,8 +580,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                         return state
                     if finished['status'] != 'needs_revision':
                         return state
-                    state['status'] = 'running'
-                    state['stage'] = 'revising'
+                    state.update(status='running', stage='revising', error=None)
                     _save_state(workspace, state)
                 return state
         except KeyboardInterrupt:
