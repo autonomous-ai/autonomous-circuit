@@ -999,6 +999,27 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(limits[1], 595)
         self.assertEqual(clock[0], 2400)
 
+    def test_board_capacity_retries_keep_original_wall_budget(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        clock, limits = [0.0], []
+
+        def capacity(root, state, stage, model, workspace, prompt, schema, readonly):
+            limits.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Codex exited 1',
+                    'failureKind': 'model_capacity'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]), \
+             patch.object(pilot.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, capacity)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')
+        self.assertEqual(limits, [1800, 595])
+        self.assertEqual(clock[0], 2400)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -488,7 +488,9 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                     state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
     max_attempts = (1 + len(CAPACITY_RETRY_DELAYS) + BOARD_MAX_TIMEOUT_CONTINUATIONS
                     if board_stage else MAX_STAGE_ATTEMPTS)
-    deadline = _stage_clock() + stage_budget
+    began_at = _stage_clock()
+    deadline = began_at + stage_budget
+    capacity_deadline = began_at + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
     initial_files = _retry_files(workspace)
     # Stat changes guard ownership/Git retry safety; only changed bytes count as
     # fresh board progress, so a tool repeatedly touching the same file cannot
@@ -502,10 +504,12 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             initial_git = _retry_git_metadata(root, workspace)
     capacity_retries = timeout_retries = 0
     short_timeout = False
+    capacity_continuation = False
     continuation = None
     previous_receipt = None
     for attempt in range(1, max_attempts + 1):
-        remaining = deadline - _stage_clock()
+        remaining = (min(deadline, capacity_deadline) if capacity_continuation else
+                     deadline) - _stage_clock()
         if remaining <= 0:
             if previous_receipt is not None:
                 previous_receipt.pop('retryScheduled', None)
@@ -581,7 +585,8 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             if safe and (may_retry_capacity or fresh_progress):
                 delay = (CAPACITY_RETRY_DELAYS[capacity_retries]
                          if may_retry_capacity else 0)
-                if deadline - _stage_clock() <= delay:
+                retry_deadline = capacity_deadline if may_retry_capacity else deadline
+                if retry_deadline - _stage_clock() <= delay:
                     receipt['retrySuppressed'] = 'Stage execution budget exhausted'
                 else:
                     receipt['retryScheduled'] = True
@@ -591,10 +596,12 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                         previous_board_content = current_board_content
                     if may_retry_capacity:
                         capacity_retries += 1
+                        capacity_continuation = True
                         continuation = 'the model was temporarily at capacity'
                     else:
                         timeout_retries += 1
                         short_timeout = True
+                        capacity_continuation = False
                         continuation = 'its execution time limit was reached after partial work'
                     receipt['retryReason'] = kind
             else:
