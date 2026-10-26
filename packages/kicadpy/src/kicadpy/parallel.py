@@ -35,6 +35,8 @@ ACTIVE_LOCK = threading.Lock()
 CAPACITY_RETRY_DELAYS = (5, 15)
 MAX_STAGE_ATTEMPTS = 4
 TIMEOUT_CONTINUATION_SECONDS = 600
+BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
+BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
 
 
 def _stage_clock():
@@ -481,8 +483,18 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
          authorized_integration=None, integration_lock=None):
     model = state['leadModel'] if readonly else state['workerModel']
-    deadline = _stage_clock() + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
+    board_stage = stage == 'board' and not readonly
+    stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if board_stage else
+                    state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
+    max_attempts = (1 + len(CAPACITY_RETRY_DELAYS) + BOARD_MAX_TIMEOUT_CONTINUATIONS
+                    if board_stage else MAX_STAGE_ATTEMPTS)
+    deadline = _stage_clock() + stage_budget
     initial_files = _retry_files(workspace)
+    # Stat changes guard ownership/Git retry safety; only changed bytes count as
+    # fresh board progress, so a tool repeatedly touching the same file cannot
+    # purchase another long continuation.
+    previous_board_content = ({name: info['sha256'] for name, info in snapshot(workspace).items()}
+                              if board_stage else None)
     if integration_lock is None:
         initial_git = _retry_git_metadata(root, workspace)
     else:
@@ -492,7 +504,7 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
     short_timeout = False
     continuation = None
     previous_receipt = None
-    for attempt in range(1, MAX_STAGE_ATTEMPTS + 1):
+    for attempt in range(1, max_attempts + 1):
         remaining = deadline - _stage_clock()
         if remaining <= 0:
             if previous_receipt is not None:
@@ -514,7 +526,8 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                              'This is the same sealed stage and isolated worktree. Inspect any existing '
                              'role-owned files, continue the unfinished work, and return the required '
                              'stage result. Preserve completed work; do not change shared inputs.')
-        attempt_limit = min((TIMEOUT_CONTINUATION_SECONDS if short_timeout else
+        attempt_limit = min(((state['timeoutSeconds'] if board_stage else
+                              TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
                              state['timeoutSeconds']), remaining)
         attempt_state = {**state, 'timeoutSeconds': attempt_limit}
         try:
@@ -533,25 +546,39 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
         kind = receipt.get('failureKind') if receipt.get('error') else None
         may_retry_capacity = (kind == 'model_capacity' and
                               capacity_retries < len(CAPACITY_RETRY_DELAYS) and
-                              attempt < MAX_STAGE_ATTEMPTS)
-        may_retry_timeout = (kind == 'timeout' and not readonly and timeout_retries < 1 and
-                             attempt < MAX_STAGE_ATTEMPTS)
+                              attempt < max_attempts)
+        may_retry_timeout = (kind == 'timeout' and not readonly and
+                             timeout_retries < (BOARD_MAX_TIMEOUT_CONTINUATIONS if board_stage else 1) and
+                             attempt < max_attempts)
+        if board_stage and kind == 'timeout' and not may_retry_timeout:
+            receipt['retrySuppressed'] = ('Board continuation attempt limit exhausted'
+                                          if timeout_retries >= BOARD_MAX_TIMEOUT_CONTINUATIONS else
+                                          'Stage attempt limit exhausted')
         if may_retry_capacity or may_retry_timeout:
+            current_board_content = None
             try:
                 if integration_lock is None:
-                    safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
-                                                          initial_files, initial_git,
-                                                          authorized_integration)
+                    safe, reason, partial = _retry_safety(
+                        root, workspace, stage, readonly, initial_files, initial_git,
+                        authorized_integration)
                 else:
                     with integration_lock:
-                        safe, reason, partial = _retry_safety(root, workspace, stage, readonly,
-                                                              initial_files, initial_git,
-                                                              authorized_integration)
+                        safe, reason, partial = _retry_safety(
+                            root, workspace, stage, readonly, initial_files, initial_git,
+                            authorized_integration)
+                if board_stage and safe:
+                    current_board_content = {name: info['sha256']
+                                             for name, info in snapshot(workspace).items()}
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 safe, reason, partial = False, f'{type(exc).__name__}: {exc}', False
-            if may_retry_timeout and safe and not partial:
+            fresh_progress = (any(
+                previous_board_content.get(name) != current_board_content.get(name)
+                for name in previous_board_content.keys() | current_board_content.keys()
+                if owns('board', name))
+                if board_stage and safe and current_board_content is not None else partial)
+            if may_retry_timeout and safe and not fresh_progress:
                 reason = 'Timed-out worker made no owned file progress'
-            if safe and (may_retry_capacity or partial):
+            if safe and (may_retry_capacity or fresh_progress):
                 delay = (CAPACITY_RETRY_DELAYS[capacity_retries]
                          if may_retry_capacity else 0)
                 if deadline - _stage_clock() <= delay:
@@ -559,7 +586,9 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                 else:
                     receipt['retryScheduled'] = True
                     receipt['retryDelaySeconds'] = delay
-                    receipt['continuedPartialWork'] = partial
+                    receipt['continuedPartialWork'] = fresh_progress
+                    if board_stage:
+                        previous_board_content = current_board_content
                     if may_retry_capacity:
                         capacity_retries += 1
                         continuation = 'the model was temporarily at capacity'
@@ -669,7 +698,10 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
 
 
 def worker_prompt(state, role, stage):
-    task = {'board': 'Build and publish the real native schematic/PCB and enclosure contract.',
+    task = {'board': ('Build and publish the real native schematic/PCB and enclosure contract. '
+                      'If a contract-level hardware or interface blocker cannot be resolved with '
+                      'verified components and pins, return it promptly in blockers instead of '
+                      'polishing a board that cannot pass native and lead gates.'),
             'firmware': 'Read the checked, published board and actual netlist first. Implement and build firmware '
                         'against its real pins and power rails and the shared contract; include firmware/WIRING.md.',
             'case': 'Use the checked, published board/STEP and its actual device placement to build the '

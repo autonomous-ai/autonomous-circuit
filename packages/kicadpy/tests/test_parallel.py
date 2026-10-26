@@ -803,17 +803,17 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         def timeout_then_finish(root, state, stage, model, workspace, prompt, schema, readonly):
             calls.append((state['timeoutSeconds'], prompt))
             if len(calls) == 1:
-                put(workspace, 'design/partial.kicad_pro', 'owned draft')
+                put(workspace, 'firmware/partial.c', 'owned draft')
                 return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
                         'usage': {'input_tokens': 10, 'cached_input_tokens': 0, 'output_tokens': 1},
                         'result': None, 'error': 'Command timed out after 1800 seconds',
                         'failureKind': 'timeout'}
-            self.assertEqual((workspace / 'design/partial.kicad_pro').read_text(), 'owned draft')
+            self.assertEqual((workspace / 'firmware/partial.c').read_text(), 'owned draft')
             return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
                     'usage': {'input_tokens': 12, 'cached_input_tokens': 0, 'output_tokens': 2},
                     'result': {'done': True}, 'error': None}
 
-        receipt = pilot.call(self.root, self.state, 'board', worker,
+        receipt = pilot.call(self.root, self.state, 'firmware', worker,
                              'scoped task', RESULT_SCHEMA, False, timeout_then_finish)
         self.assertIsNone(receipt['error'])
         self.assertEqual([limit for limit, _ in calls], [1800, 600])
@@ -823,6 +823,116 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(self.state['jobs'][0]['retryReason'], 'timeout')
         self.assertEqual(self.state['jobs'][1]['attemptTimeoutSeconds'], 600)
         self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 22)
+
+    def test_board_timeout_continues_on_fresh_owned_progress(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        clock, limits = [0.0], []
+
+        def progressing(root, state, stage, model, workspace, prompt, schema, readonly):
+            limits.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            put(workspace, f'design/pass-{len(limits)}.kicad_pro', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': {'input_tokens': 10, 'cached_input_tokens': 0, 'output_tokens': 1},
+                    'result': {'done': True} if len(limits) == 4 else None,
+                    'error': None if len(limits) == 4 else 'Command timed out',
+                    'failureKind': None if len(limits) == 4 else 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, progressing)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual(limits, [1800, 1800, 1800, 1800])
+        self.assertEqual([job['attempt'] for job in self.state['jobs']], [1, 2, 3, 4])
+        self.assertTrue(all(job['continuedPartialWork'] for job in self.state['jobs'][:3]))
+        self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 40)
+
+    def test_board_timeout_stops_when_next_attempt_makes_no_new_progress(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        clock, limits = [0.0], []
+
+        def stalls(root, state, stage, model, workspace, prompt, schema, readonly):
+            limits.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            if len(limits) == 1:
+                put(workspace, 'design/partial.kicad_pro', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, stalls)
+        self.assertEqual(limits, [1800, 1800])
+        self.assertEqual(receipt['failureKind'], 'timeout')
+        self.assertEqual(receipt['retrySuppressed'],
+                         'Timed-out worker made no owned file progress')
+
+    def test_board_timeout_does_not_count_same_bytes_with_new_mtime(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        clock, calls = [0.0], []
+
+        def rewrites_same_file(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            path = put(workspace, 'design/partial.kicad_pro', 'unchanged bytes')
+            os.utime(path, ns=(len(calls) * 1_000_000_000,) * 2)
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, rewrites_same_file)
+        self.assertEqual(calls, [1800, 1800])
+        self.assertEqual(receipt['retrySuppressed'],
+                         'Timed-out worker made no owned file progress')
+
+    def test_board_continuation_obeys_three_hour_wall_budget(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        clock, limits = [0.0], []
+
+        def keeps_progressing(root, state, stage, model, workspace, prompt, schema, readonly):
+            limits.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            put(workspace, f'design/pass-{len(limits)}.kicad_pro', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, keeps_progressing)
+        self.assertEqual(limits, [1800] * 6)
+        self.assertEqual(clock[0], pilot.BOARD_STAGE_WALL_SECONDS)
+        self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')
+        self.assertEqual(len(self.state['jobs']), 6)
+
+    def test_board_continuation_attempt_cap_is_explicit(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        self.state['timeoutSeconds'] = 10
+        clock, calls = [0.0], []
+
+        def keeps_progressing(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            put(workspace, f'design/pass-{len(calls)}.kicad_pro', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'board', worker,
+                                 'scoped task', RESULT_SCHEMA, False, keeps_progressing)
+        self.assertEqual(calls, [10] * (1 + pilot.BOARD_MAX_TIMEOUT_CONTINUATIONS))
+        self.assertEqual(receipt['retrySuppressed'],
+                         'Board continuation attempt limit exhausted')
+        self.assertEqual(len(self.state['jobs']), len(calls))
 
     def test_no_progress_timeout_is_terminal_and_combined_retries_are_capped(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
@@ -835,7 +945,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
                     'usage': None, 'result': None, 'error': 'Command timed out',
                     'failureKind': 'timeout'}
 
-        first = pilot.call(self.root, self.state, 'board', worker,
+        first = pilot.call(self.root, self.state, 'firmware', worker,
                            'scoped task', RESULT_SCHEMA, False, no_progress)
         self.assertEqual(first['failureKind'], 'timeout')
         self.assertEqual(first['retrySuppressed'], 'Timed-out worker made no owned file progress')
@@ -846,7 +956,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         def mixed(root, state, stage, model, workspace, prompt, schema, readonly):
             calls.append(state['timeoutSeconds'])
             if len(calls) == 3:
-                put(workspace, 'design/partial.kicad_pro', 'owned draft')
+                put(workspace, 'firmware/partial.c', 'owned draft')
                 kind, error = 'timeout', 'Command timed out after 1800 seconds'
             else:
                 kind, error = 'model_capacity', 'Codex exited 1'
@@ -854,7 +964,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
                     'usage': None, 'result': None, 'error': error, 'failureKind': kind}
 
         with patch.object(pilot.time, 'sleep') as sleep:
-            last = pilot.call(self.root, self.state, 'board', worker,
+            last = pilot.call(self.root, self.state, 'firmware', worker,
                               'scoped task', RESULT_SCHEMA, False, mixed)
         self.assertEqual(last['failureKind'], 'model_capacity')
         self.assertEqual(calls, [1800, 1800, 1800, 600])
@@ -880,7 +990,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
 
         with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]), \
              patch.object(pilot.time, 'sleep', side_effect=backoff):
-            receipt = pilot.call(self.root, self.state, 'board', worker,
+            receipt = pilot.call(self.root, self.state, 'firmware', worker,
                                  'scoped task', RESULT_SCHEMA, False, capacity)
         self.assertEqual(receipt['failureKind'], 'model_capacity')
         self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')

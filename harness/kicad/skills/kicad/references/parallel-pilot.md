@@ -140,14 +140,18 @@ preceding same-role worktree after checking its contract, ownership, Git state a
 The worker and lead must reconcile those drafts against the new contract; reports, build output
 and prior approvals are excluded. `.pilot/drafts/` records copied source paths and hashes.
 
-A worker timeout may make one bounded continuation in its own worktree when it left only
-role-owned partial work. A timeout without progress, or one that exhausts that continuation,
-reports `execution_limit` and also stops before a new contract revision. Receipts retain each
-attempt and its configured time limit. All same-stage retries share a controller deadline of
-the original per-job timeout plus 600 seconds, including capacity backoff; process cleanup and
-receipt I/O can add a little wall time. Interrupted work reports `interrupted`. These execution
-outcomes do not count as engineering approval. Independently validated and imported sibling
-outputs stay visible; the failed role's private output is not promoted.
+A worker timeout may continue in its own worktree only when it left role-owned partial work.
+The board stage can make up to six continuations, each bounded by the configured per-job timeout,
+only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
+files does not count. Its controller wall deadline is
+three hours (or a longer explicitly configured initial per-job timeout), including capacity
+backoff. Other worker stages retain one 600-second continuation and the original per-job timeout
+plus 600-second controller deadline. A timeout without fresh progress or one that exhausts its
+attempt or wall limit reports `execution_limit` and stops before a new contract revision. Receipts
+retain every attempt, configured time limit and reported usage; process cleanup and receipt I/O
+can add a little wall time. Interrupted work reports `interrupted`. These execution outcomes do
+not count as engineering approval. Independently validated and imported sibling outputs stay
+visible; the failed role's private output is not promoted.
 
 ```bash
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-team --revise --execute
