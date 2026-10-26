@@ -393,8 +393,26 @@ def _retry_git_metadata(root, workspace):
             'integration': _integration_git_state(root), 'shared': shared}
 
 
+SLICER_RECEIPT = 'result.json'
+SLICER_RECEIPT_KEYS = {'error_string', 'return_code'}
+
+
+def _drop_slicer_receipt(workspace, baseline):
+    """Bambu/Orca CLI writes result.json into its cwd; it is a tool receipt, not work."""
+    receipt = Path(workspace) / SLICER_RECEIPT
+    if SLICER_RECEIPT in baseline or receipt.is_symlink() or not receipt.is_file():
+        return
+    try:
+        data = json.loads(receipt.read_text())
+    except (OSError, ValueError):
+        return
+    if isinstance(data, dict) and SLICER_RECEIPT_KEYS <= data.keys():
+        receipt.unlink()
+
+
 def _retry_safety(root, workspace, stage, readonly, initial_files, initial_git,
                   authorized_integration=None):
+    _drop_slicer_receipt(workspace, initial_files)
     current_git = _retry_git_metadata(root, workspace)
     allowed = authorized_integration or (initial_git['integration'],)
     if (current_git['worker'] != initial_git['worker'] or
@@ -1007,6 +1025,7 @@ def _carried_run_draft(root, state, role, stage, current):
                     digest(json.loads(git(old, 'show', f"{base['baseHead']}:PILOT_CONTRACT.json"))) !=
                     state['contractSha256']):
                 continue
+            _drop_slicer_receipt(old, base['baseline'])
             after = snapshot(old)
             edits = changed(base['baseline'], after)
             if any(not owns(role, name) for name in edits):

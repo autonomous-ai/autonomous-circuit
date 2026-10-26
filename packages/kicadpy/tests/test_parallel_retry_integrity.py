@@ -21,8 +21,10 @@ except ImportError:  # unittest discover imports the test directory as top-level
 class CapacityRunner:
     def __init__(self, *, partial_owned=False, contaminate_unowned=False,
                  mutate_contract=False, mutate_git=False,
-                 bad_second_result=False, always_capacity=False, opaque_error=False):
+                 bad_second_result=False, always_capacity=False, opaque_error=False,
+                 stray_root=None):
         self.normal = fixture.Fake()
+        self.stray_root = stray_root
         self.calls = Counter()
         self.partial_owned = partial_owned
         self.contaminate_unowned = contaminate_unowned
@@ -40,6 +42,8 @@ class CapacityRunner:
                 fixture.put(workspace, 'firmware/partial.c', 'unfinished first attempt')
             if self.contaminate_unowned:
                 fixture.put(workspace, 'design/foreign.kicad_pro', 'outside firmware ownership')
+            if self.stray_root:
+                fixture.put(workspace, 'result.json', self.stray_root)
             if self.mutate_contract:
                 fixture.put(workspace, 'PILOT_CONTRACT.json', '{}')
             if self.mutate_git:
@@ -141,6 +145,21 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
         self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
         self.assertIn('firmware', result['findings'][0])
+        self.assertIn('retry suppressed', result['findings'][0])
+
+    def test_slicer_receipt_in_failed_worktree_does_not_block_retry(self):
+        receipt = '{"error_string": "Success.", "return_code": 0, "plate_index": 0}'
+        runner = CapacityRunner(stray_root=receipt)
+        result = self.run_with(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.calls['firmware'], 2)
+        self.assertFalse((self.root / 'workspace/result.json').exists())
+
+    def test_other_root_result_json_still_blocks_retry(self):
+        runner = CapacityRunner(stray_root='{"pins": "not a slicer receipt"}')
+        result = self.run_with(runner)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertEqual(runner.calls['firmware'], 1)
         self.assertIn('retry suppressed', result['findings'][0])
 
     def test_contract_edit_on_capacity_cannot_be_carried_into_retry(self):
