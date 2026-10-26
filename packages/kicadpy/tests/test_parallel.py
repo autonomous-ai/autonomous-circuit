@@ -640,6 +640,7 @@ if not os.environ.get('PILOT_STUB_SKIP_INVOCATION'):
         'thread': os.environ.get('CODEX_THREAD_ID'),
         'blocks': os.environ.get('KICAD_HARNESS_BLOCKS'),
         'cmake': os.environ.get('KICAD_HARNESS_CMAKE'),
+        'pioCore': os.environ.get('PLATFORMIO_CORE_DIR'),
     }))
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
@@ -690,6 +691,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertIsNone(invocation['thread'])
         self.assertEqual(Path(invocation['blocks']), ROOT / 'packages/golden-blocks/blocks')
         self.assertEqual(Path(invocation['cmake']), ROOT / 'toolchain/pico/tools/bin/cmake')
+        self.assertEqual(Path(invocation['pioCore']), pilot.FIRMWARE_CACHE / 'platformio')
+        self.assertNotIn(str(self.root), invocation['pioCore'])
         lead = pilot.codex(self.root, self.state, 'review', pilot.LEAD, self.workspace,
                            'read only', RESULT_SCHEMA, True)
         self.assertIsNone(lead['error'])
@@ -942,6 +945,48 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(receipt['retrySuppressed'],
                          'Board continuation attempt limit exhausted')
         self.assertEqual(len(self.state['jobs']), len(calls))
+
+    def test_case_gets_long_continuations_for_owned_progress(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        self.state['timeoutSeconds'] = 10
+        clock, calls = [0.0], []
+
+        def keeps_progressing(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            clock[0] += state['timeoutSeconds']
+            put(workspace, f'case/pass-{len(calls)}.py', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        with patch.object(pilot, '_stage_clock', side_effect=lambda: clock[0]):
+            receipt = pilot.call(self.root, self.state, 'case', worker,
+                                 'scoped task', RESULT_SCHEMA, False, keeps_progressing)
+        self.assertEqual(calls, [10] * (1 + pilot.BOARD_MAX_TIMEOUT_CONTINUATIONS))
+        self.assertEqual(receipt['retrySuppressed'], 'Case continuation attempt limit exhausted')
+
+    def test_firmware_still_gets_one_short_continuation(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        worker = self.worker_worktree()
+        calls = []
+
+        def keeps_progressing(root, state, stage, model, workspace, prompt, schema, readonly):
+            calls.append(state['timeoutSeconds'])
+            put(workspace, f'firmware/pass-{len(calls)}.c', 'owned progress')
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'result': None, 'error': 'Command timed out',
+                    'failureKind': 'timeout'}
+
+        pilot.call(self.root, self.state, 'firmware', worker,
+                   'scoped task', RESULT_SCHEMA, False, keeps_progressing)
+        self.assertEqual(calls, [1800, pilot.TIMEOUT_CONTINUATION_SECONDS])
+
+    def test_firmware_prompts_point_at_shared_toolchain_cache(self):
+        for mode in ('teams', 'parallel'):
+            state = {**self.state, 'mode': mode, 'contractSha256': 'hash'}
+            self.assertIn('PLATFORMIO_CORE_DIR', pilot.worker_prompt(state, 'firmware', 'firmware'))
+            self.assertNotIn('PLATFORMIO_CORE_DIR', pilot.worker_prompt(state, 'case', 'case'))
 
     def test_no_progress_timeout_is_terminal_and_combined_retries_are_capped(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA

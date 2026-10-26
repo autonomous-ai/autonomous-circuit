@@ -10,6 +10,9 @@ from unittest.mock import patch
 
 from kicadpy import parallel, parallel_tile
 
+# Unit runs must not depend on the developer machine's free disk.
+os.environ.setdefault('CIRCUIT_TEAM_MIN_FREE_GB', '0')
+
 try:
     from . import test_parallel as fixture
     from . import test_parallel_tile as bridge_fixture

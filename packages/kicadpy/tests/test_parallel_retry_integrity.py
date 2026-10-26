@@ -1,4 +1,5 @@
 """Capacity retries must keep sibling work and the integration boundary intact."""
+import os
 from collections import Counter
 from pathlib import Path
 import shutil
@@ -9,6 +10,9 @@ import unittest
 from unittest.mock import patch
 
 from kicadpy import parallel, parallel_tile
+
+# Unit runs must not depend on the developer machine's free disk.
+os.environ.setdefault('CIRCUIT_TEAM_MIN_FREE_GB', '0')
 
 try:
     from . import test_parallel as fixture

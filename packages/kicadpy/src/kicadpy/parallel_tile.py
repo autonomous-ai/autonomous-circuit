@@ -37,6 +37,8 @@ MAX_TOTAL = parallel.MAX_TOTAL
 CHECKPOINT_STAGES = frozenset(('board', 'board-approved', 'firmware', 'case',
                                'firmware-final', 'case-final', 'final'))
 PREVIEW_NAME = 'team-preview.json'
+# A full team run uses several GB (worktrees, exports, firmware builds); ENOSPC stalled crab-v7.
+MIN_FREE_GB = 8
 PREVIEW_ROLES = frozenset(('board', 'firmware', 'case'))
 PREVIEW_STATUSES = frozenset(('queued', 'draft', 'checking', 'passed',
                               'needs_revision', 'blocked'))
@@ -705,6 +707,11 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
     prompt = prompt_file.read_text()
     if not prompt.strip() or len(prompt) > 100000:
         raise ValueError('Expected a bounded nonempty product prompt')
+    need = float(os.environ.get('CIRCUIT_TEAM_MIN_FREE_GB', MIN_FREE_GB))
+    free = shutil.disk_usage(workspace).free / 1024 ** 3
+    if free < need:
+        raise ValueError(f'Not enough free disk for a team run: {free:.1f} GB free, '
+                         f'need {need:g} GB; free space and retry')
     with _locked(workspace):
         state = _read_state(workspace)
         prior_run = state.get('activeRun')

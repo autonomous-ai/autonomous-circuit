@@ -37,6 +37,13 @@ MAX_STAGE_ATTEMPTS = 4
 TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
+LONG_STAGES = ('board', 'case')
+# One machine-wide firmware toolchain cache; per-worktree PlatformIO/SDK installs filled the disk.
+FIRMWARE_CACHE = Path(os.environ.get('CIRCUIT_FIRMWARE_CACHE',
+                                     Path.home() / '.cache/autonomous-circuit/firmware'))
+FIRMWARE_CACHE_NOTE = (' Reuse the shared toolchain cache: keep the provided PLATFORMIO_CORE_DIR, '
+                       'ARDUINO_DIRECTORIES_DATA and PIP_CACHE_DIR; do not install PlatformIO cores, '
+                       'SDKs or toolchains inside the worktree.')
 MAX_ADVICE_ROUNDS = 2
 MAX_TEAM_REPAIR_ROUNDS = 3
 MAX_TEAM_INTEGRATION_ROUNDS = 2
@@ -466,7 +473,11 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                KICAD_HARNESS_PYTHON=str(tool_root / 'harness/kicad/toolchain/python'),
                KICAD_CASE_PYTHON=str(tool_root / 'harness/kicad/toolchain/case-python'),
                HARNESS_SKILLS_DIR=str(Path(root) / '.pilot/instructions/skills'),
-               CIRCUIT_SKILLS_DIR=str(Path(root) / '.pilot/instructions/skills'))
+               CIRCUIT_SKILLS_DIR=str(Path(root) / '.pilot/instructions/skills'),
+               CIRCUIT_FIRMWARE_CACHE=str(FIRMWARE_CACHE),
+               PLATFORMIO_CORE_DIR=str(FIRMWARE_CACHE / 'platformio'),
+               ARDUINO_DIRECTORIES_DATA=str(FIRMWARE_CACHE / 'arduino'),
+               PIP_CACHE_DIR=str(FIRMWARE_CACHE / 'pip'))
     began = time.time()
     stdout, stderr, result, error = '', '', None, None
     process = None
@@ -522,20 +533,21 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
          authorized_integration=None, integration_lock=None, stage_deadline=None,
          on_timeout=None):
     model = state['leadModel'] if readonly else state['workerModel']
-    board_stage = stage == 'board' and not readonly
-    stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if board_stage else
+    # Board and case both iterate on heavy geometry/checks; give them long continuations.
+    long_stage = stage in LONG_STAGES and not readonly
+    stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if long_stage else
                     state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
     max_attempts = (1 + len(CAPACITY_RETRY_DELAYS) + BOARD_MAX_TIMEOUT_CONTINUATIONS
-                    if board_stage else MAX_STAGE_ATTEMPTS)
+                    if long_stage else MAX_STAGE_ATTEMPTS)
     began_at = _stage_clock()
     deadline = min(began_at + stage_budget, stage_deadline) if stage_deadline else began_at + stage_budget
     capacity_deadline = began_at + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
     initial_files = _retry_files(workspace)
     # Stat changes guard ownership/Git retry safety; only changed bytes count as
-    # fresh board progress, so a tool repeatedly touching the same file cannot
+    # fresh owned progress, so a tool repeatedly touching the same file cannot
     # purchase another long continuation.
-    previous_board_content = ({name: info['sha256'] for name, info in snapshot(workspace).items()}
-                              if board_stage else None)
+    previous_owned_content = ({name: info['sha256'] for name, info in snapshot(workspace).items()}
+                              if long_stage else None)
     if integration_lock is None:
         initial_git = _retry_git_metadata(root, workspace)
     else:
@@ -573,7 +585,7 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             if timeout_guidance is not None:
                 retry_prompt += ('\nLEAD ADVICE ON THE PARTIAL WORK:\n' +
                                  json.dumps(timeout_guidance, sort_keys=True))
-        attempt_limit = min(((state['timeoutSeconds'] if board_stage else
+        attempt_limit = min(((state['timeoutSeconds'] if long_stage else
                               TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
                              state['timeoutSeconds']), remaining)
         attempt_state = {**state, 'timeoutSeconds': attempt_limit}
@@ -595,14 +607,14 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                               capacity_retries < len(CAPACITY_RETRY_DELAYS) and
                               attempt < max_attempts)
         may_retry_timeout = (kind == 'timeout' and not readonly and
-                             timeout_retries < (BOARD_MAX_TIMEOUT_CONTINUATIONS if board_stage else 1) and
+                             timeout_retries < (BOARD_MAX_TIMEOUT_CONTINUATIONS if long_stage else 1) and
                              attempt < max_attempts)
-        if board_stage and kind == 'timeout' and not may_retry_timeout:
-            receipt['retrySuppressed'] = ('Board continuation attempt limit exhausted'
+        if long_stage and kind == 'timeout' and not may_retry_timeout:
+            receipt['retrySuppressed'] = (f'{stage.capitalize()} continuation attempt limit exhausted'
                                           if timeout_retries >= BOARD_MAX_TIMEOUT_CONTINUATIONS else
                                           'Stage attempt limit exhausted')
         if may_retry_capacity or may_retry_timeout:
-            current_board_content = None
+            current_owned_content = None
             try:
                 if integration_lock is None:
                     safe, reason, partial = _retry_safety(
@@ -613,16 +625,16 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                         safe, reason, partial = _retry_safety(
                             root, workspace, stage, readonly, initial_files, initial_git,
                             authorized_integration)
-                if board_stage and safe:
-                    current_board_content = {name: info['sha256']
+                if long_stage and safe:
+                    current_owned_content = {name: info['sha256']
                                              for name, info in snapshot(workspace).items()}
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 safe, reason, partial = False, f'{type(exc).__name__}: {exc}', False
             fresh_progress = (any(
-                previous_board_content.get(name) != current_board_content.get(name)
-                for name in previous_board_content.keys() | current_board_content.keys()
-                if owns('board', name))
-                if board_stage and safe and current_board_content is not None else partial)
+                previous_owned_content.get(name) != current_owned_content.get(name)
+                for name in previous_owned_content.keys() | current_owned_content.keys()
+                if owns(stage, name))
+                if long_stage and safe and current_owned_content is not None else partial)
             if may_retry_timeout and safe and not fresh_progress:
                 reason = 'Timed-out worker made no owned file progress'
             if safe and (may_retry_capacity or fresh_progress):
@@ -635,8 +647,8 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                     receipt['retryScheduled'] = True
                     receipt['retryDelaySeconds'] = delay
                     receipt['continuedPartialWork'] = fresh_progress
-                    if board_stage:
-                        previous_board_content = current_board_content
+                    if long_stage:
+                        previous_owned_content = current_owned_content
                     if may_retry_capacity:
                         capacity_retries += 1
                         capacity_continuation = True
@@ -836,7 +848,7 @@ def worker_prompt(state, role, stage):
             'board': 'Build and publish the native schematic, PCB, real netlist and board geometry.',
             'firmware': ('Build the complete firmware and firmware/WIRING.md from the initial interface '
                          'contract now. Check actual board outputs whenever available; report and repair '
-                         'any mismatch during integration.'),
+                         'any mismatch during integration.' + FIRMWARE_CACHE_NOTE),
             'case': ('Build the functional case, mounts, covers, exports and checks from the initial '
                      'interface contract now. Check actual board geometry whenever available; report '
                      'and repair any mismatch during integration.'),
@@ -865,7 +877,8 @@ def worker_prompt(state, role, stage):
                       'verified components and pins, return it promptly in blockers instead of '
                       'polishing a board that cannot pass native and lead gates.'),
             'firmware': 'Read the checked, published board and actual netlist first. Implement and build firmware '
-                        'against its real pins and power rails and the shared contract; include firmware/WIRING.md.',
+                        'against its real pins and power rails and the shared contract; include firmware/WIRING.md.'
+                        + FIRMWARE_CACHE_NOTE,
             'case': 'Use the checked, published board/STEP and its actual device placement to build the '
                     'functional frame/device/joint mounts. Keep covers for the integration stage.',
             'solo': 'Build board, firmware and functional frame in that order; defer cosmetic covers to integration.'}[role]

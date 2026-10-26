@@ -12,6 +12,9 @@ from unittest.mock import Mock, patch
 
 from kicadpy import parallel, parallel_tile
 
+# Unit runs must not depend on the developer machine's free disk.
+os.environ.setdefault('CIRCUIT_TEAM_MIN_FREE_GB', '0')
+
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -195,6 +198,16 @@ class TeamBridgeTests(unittest.TestCase):
             self.workspace, brief or self.first_brief, execute=True,
             runner=runner or FakeRunner(self.workspace), checker=checker or FakeChecker(),
             max_rounds=max_rounds)
+
+    def test_low_disk_refuses_before_creating_a_run(self):
+        runner = FakeRunner(self.workspace)
+        low = shutil._ntuple_diskusage(100 * 1024 ** 3, 99 * 1024 ** 3, 1024 ** 3)
+        with patch.object(parallel_tile.shutil, 'disk_usage', return_value=low), \
+                patch.dict(os.environ, {'CIRCUIT_TEAM_MIN_FREE_GB': '8'}):
+            with self.assertRaisesRegex(ValueError, 'Not enough free disk'):
+                self.run_team(runner=runner)
+        self.assertFalse((self.workspace / '.circuit/team-runs').exists())
+        self.assertFalse((self.workspace / '.circuit/team-bridge.json').exists())
 
     def test_macos_idle_sleep_assertion_is_parent_bound_and_released_on_error(self):
         process = Mock()

@@ -1,4 +1,5 @@
 """The new team pipeline runs independently without recreating its contract."""
+import os
 import json
 from pathlib import Path
 import shutil
@@ -9,6 +10,9 @@ import unittest
 
 from kicadpy import parallel, parallel_tile
 from test_parallel import CARD, contract, put
+
+# Unit runs must not depend on the developer machine's free disk.
+os.environ.setdefault('CIRCUIT_TEAM_MIN_FREE_GB', '0')
 
 
 class TeamRunner:

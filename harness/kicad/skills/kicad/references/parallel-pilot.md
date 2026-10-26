@@ -251,3 +251,9 @@ tests establish orchestration behavior only; a real pilot is required before per
 engineering-quality claims.
 
 Codex CLI flags and JSON usage follow [OpenAI's non-interactive documentation](https://learn.chatgpt.com/docs/non-interactive-mode).
+
+Runtime guards: a team run refuses to start below 8 GB free disk (`CIRCUIT_TEAM_MIN_FREE_GB`).
+Firmware workers share one toolchain cache (`CIRCUIT_FIRMWARE_CACHE`, default
+`~/.cache/autonomous-circuit/firmware`) through `PLATFORMIO_CORE_DIR`, `ARDUINO_DIRECTORIES_DATA`
+and `PIP_CACHE_DIR`; never install cores or SDKs inside a worktree. Board and case both get long
+timeout continuations while they keep making owned file progress.
