@@ -53,6 +53,7 @@ export function isFirmwareSource(name) {
 }
 
 const DEBOUNCE_MS = 150;
+const FALLBACK_SCAN_MS = 2000;
 
 /** `?v=` cache-bust token for a file: `<mtime_nanos>-<size>`. */
 export function versionToken(filePath) {
@@ -192,6 +193,20 @@ function caseMember(outDir, name) {
   return full;
 }
 
+/** Resolve an agent-authored overview only when it is an HTML file inside case/. */
+function caseOverviewFile(rootDir, member) {
+  if (typeof member !== "string" || !member.trim()) return null;
+  try {
+    const root = fs.realpathSync(rootDir);
+    const file = fs.realpathSync(path.resolve(rootDir, CASE_OUT, member));
+    if (file.startsWith(path.join(root, CASE_DIR) + path.sep) &&
+        path.extname(file).toLowerCase() === ".html" && fs.statSync(file).isFile()) {
+      return file;
+    }
+  } catch { /* missing or unsafe overview */ }
+  return null;
+}
+
 /**
  * Has the case been checked against the board it is built for? The same rule
  * as kicadpy.case.status, read without CadQuery: none (no parts.json), stale
@@ -282,13 +297,8 @@ function scanCase(rootDir, url, stem) {
   // Agent-authored overviews are HTML assets, rendered in an isolated frame.
   const overviewMembers = manifest?.overview ? [manifest.overview] : ["../overview.html", "../motion/motion-view.html"];
   for (const member of overviewMembers) {
-    if (typeof member !== "string") continue;
-    try {
-      const root = fs.realpathSync(rootDir), file = fs.realpathSync(path.resolve(outDir, member));
-      if (file.startsWith(path.join(root, CASE_DIR) + path.sep) && path.extname(file).toLowerCase() === ".html" && fs.statSync(file).isFile()) {
-        result.overviewUrl = url(file); break;
-      }
-    } catch { /* no overview or unsafe member */ }
+    const file = caseOverviewFile(rootDir, member);
+    if (file) { result.overviewUrl = url(file); break; }
   }
 
   const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
@@ -346,6 +356,12 @@ export function scanProjectCatalog({ projectDir, projectId }) {
 
   const entries = [];
   const url = (abs) => mediaUrl(projectId, relPath(rootDir, abs), abs);
+  // A project may publish a reference overview before any native board exists.
+  // Only an explicit manifest member is exposed at project level; the board's
+  // optional fallback overview remains board-scoped in scanCase().
+  const projectOverview = caseOverviewFile(
+    rootDir, readJson(path.join(rootDir, CASE_OUT, "parts.json"))?.overview,
+  );
   // One firmware tree per workspace; every board entry carries it, because
   // the tab that shows it hangs off whichever board is selected.
   const firmware = scanFirmware(rootDir, url);
@@ -497,7 +513,11 @@ export function scanProjectCatalog({ projectDir, projectId }) {
   // Plain code-unit ordering (not locale-aware) so the order is stable across
   // machines and "boards/main.tsx" sorts before "boards/main_review/…".
   entries.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
-  return { entries, rootPath: rootDir };
+  return {
+    entries,
+    rootPath: rootDir,
+    ...(projectOverview ? { projectOverviewUrl: url(projectOverview) } : {}),
+  };
 }
 
 /**
@@ -505,11 +525,13 @@ export function scanProjectCatalog({ projectDir, projectId }) {
  * dirs. `onCatalogChanged(revision)` fires (debounced 150ms) whenever a
  * watched project's files change; `revision` increments monotonically.
  */
-export function createCatalogService({ projectDir, onCatalogChanged = () => {} } = {}) {
+export function createCatalogService({ projectDir, onCatalogChanged = () => {},
+                                       watch = fs.watch, fallbackScanMs = FALLBACK_SCAN_MS } = {}) {
   let revision = 0;
   const cache = new Map(); // projectId -> catalog
   const watchers = new Map(); // projectId -> fs.FSWatcher
   const timers = new Map(); // projectId -> debounce timer
+  const fallbackTimers = new Map(); // projectId -> polling timer when fs.watch is unavailable
   let closed = false;
 
   function scan(projectId) {
@@ -519,8 +541,35 @@ export function createCatalogService({ projectDir, onCatalogChanged = () => {} }
   }
 
   function read(projectId) {
-    const catalog = cache.get(projectId) || scan(projectId);
+    // A failed watcher cannot invalidate its cache. Read afresh so a manual
+    // catalog request still sees files written after the watcher failed.
+    const catalog = fallbackTimers.has(projectId)
+      ? scanIfChanged(projectId)
+      : cache.get(projectId) || scan(projectId);
     return { ...catalog, revision };
+  }
+
+  function scanIfChanged(projectId) {
+    const previous = cache.get(projectId);
+    const current = scan(projectId);
+    if (previous && JSON.stringify(current) !== JSON.stringify(previous)) {
+      revision += 1;
+      onCatalogChanged(revision);
+    }
+    return current;
+  }
+
+  function startFallback(projectId) {
+    if (closed || fallbackTimers.has(projectId)) return;
+    // The first scan establishes a baseline if activate() preceded read().
+    if (!cache.has(projectId)) {
+      try { scan(projectId); } catch { /* a later read or poll may recover */ }
+    }
+    const timer = setInterval(() => {
+      try { scanIfChanged(projectId); } catch { /* keep retrying while active */ }
+    }, fallbackScanMs);
+    timer.unref?.();
+    fallbackTimers.set(projectId, timer);
   }
 
   function refresh(projectId) {
@@ -550,24 +599,27 @@ export function createCatalogService({ projectDir, onCatalogChanged = () => {} }
 
   /** Start watching a project dir (idempotent). */
   function activate(projectId) {
-    if (closed || watchers.has(projectId)) {
+    if (closed || watchers.has(projectId) || fallbackTimers.has(projectId)) {
       return;
     }
     let watcher;
     try {
-      watcher = fs.watch(projectDir(projectId), { recursive: true }, () => {
+      watcher = watch(projectDir(projectId), { recursive: true }, () => {
         scheduleRefresh(projectId);
       });
     } catch {
-      return; // dir vanished (deleted project) — nothing to watch
+      startFallback(projectId);
+      return;
     }
     watcher.on("error", () => {
+      if (watchers.get(projectId) !== watcher) return;
       watchers.delete(projectId);
       try {
         watcher.close();
       } catch {
         // already closed
       }
+      startFallback(projectId);
     });
     watchers.set(projectId, watcher);
   }
@@ -586,6 +638,10 @@ export function createCatalogService({ projectDir, onCatalogChanged = () => {} }
       clearTimeout(timers.get(projectId));
       timers.delete(projectId);
     }
+    if (fallbackTimers.has(projectId)) {
+      clearInterval(fallbackTimers.get(projectId));
+      fallbackTimers.delete(projectId);
+    }
     cache.delete(projectId);
   }
 
@@ -598,6 +654,10 @@ export function createCatalogService({ projectDir, onCatalogChanged = () => {} }
       clearTimeout(timer);
     }
     timers.clear();
+    for (const timer of fallbackTimers.values()) {
+      clearInterval(timer);
+    }
+    fallbackTimers.clear();
   }
 
   return {

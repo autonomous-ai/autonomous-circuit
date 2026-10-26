@@ -83,6 +83,8 @@ export interface Catalog {
   entries: CatalogEntry[];
   rootPath: string;
   revision: number;
+  /** Project-level case overview when no checked native board is available. */
+  projectOverviewUrl?: string;
 }
 
 export interface GenerationQueueItem {

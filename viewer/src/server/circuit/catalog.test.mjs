@@ -169,6 +169,64 @@ test("catalog service: fs.watch → 150ms debounce → catalog_changed", async (
   service.close();
 });
 
+test("catalog service rescans on read and keeps publishing changes after watch EMFILE", async t => {
+  const dir = tmpdir("circuit-watch-fallback-");
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "case/out"), { recursive: true });
+  const revisions = [];
+  const service = createCatalogService({
+    projectDir: () => dir,
+    onCatalogChanged: revision => revisions.push(revision),
+    watch: () => { throw Object.assign(new Error("watch limit"), { code: "EMFILE" }); },
+    fallbackScanMs: 20,
+  });
+  t.after(() => service.close());
+  service.activate("p");
+  assert.equal(service.read("p").projectOverviewUrl, undefined);
+
+  const overview = path.join(dir, "case/overview.html");
+  fs.writeFileSync(overview, "<main>Draft</main>");
+  fs.writeFileSync(path.join(dir, "case/out/parts.json"), JSON.stringify({ overview: "../overview.html", parts: [] }));
+  const first = service.read("p");
+  assert.match(first.projectOverviewUrl, /\/case\/overview\.html\?v=/);
+  assert.equal(first.revision, 1, "a read detects files written after the watcher failed");
+
+  fs.appendFileSync(overview, "\nupdated");
+  const deadline = Date.now() + 2000;
+  while (revisions.length < 2 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.deepEqual(revisions, [1, 2], "fallback polling emits catalog_changed for later writes");
+  assert.notEqual(service.read("p").projectOverviewUrl, first.projectOverviewUrl);
+
+  service.deactivate("p");
+  fs.appendFileSync(overview, "\nmore");
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.deepEqual(revisions, [1, 2], "deactivation stops fallback polling");
+});
+
+test("catalog service starts fallback after an asynchronous watcher error", async t => {
+  const dir = tmpdir("circuit-watch-error-");
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let onError;
+  let closed = false;
+  const service = createCatalogService({
+    projectDir: () => dir,
+    watch: () => ({
+      on: (event, callback) => { if (event === "error") onError = callback; },
+      close: () => { closed = true; },
+    }),
+    fallbackScanMs: 20,
+  });
+  t.after(() => service.close());
+  service.activate("p");
+  assert.equal(typeof onError, "function");
+  onError(Object.assign(new Error("watch limit"), { code: "EMFILE" }));
+  assert.equal(closed, true);
+  fs.writeFileSync(path.join(dir, "draft.png"), "image");
+  assert.ok(service.read("p").entries.some(entry => entry.file === "draft.png"));
+});
+
 test("firmware/ is grouped under every board entry's artifact, as text sources only, and hidden as entries", () => {
   const dir = tmpdir("circuit-cat-");
   fs.mkdirSync(path.join(dir, "boards"), { recursive: true });
@@ -330,6 +388,33 @@ test('Case overview discovers the motion demo or an explicit confined manifest f
   fs.writeFileSync(path.join(dir,'case/custom.html'),'<p>Custom</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../custom.html'}));assert.match(read().overviewUrl,/case\/custom\.html/);
   fs.writeFileSync(path.join(dir,'outside.html'),'<p>outside</p>');fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../../outside.html'}));assert.equal(read().overviewUrl,undefined);
   fs.symlinkSync(path.join(dir,'outside.html'),path.join(dir,'case/link.html'));fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../link.html'}));assert.equal(read().overviewUrl,undefined);
+});
+
+test('project overview is available before a board only from an explicit confined HTML manifest member', t => {
+  const dir = tmpdir('circuit-project-overview-');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, 'case/out'), { recursive: true });
+  const overview = path.join(dir, 'case/overview.html');
+  fs.writeFileSync(overview, '<main>Reference layout</main>');
+  const manifest = path.join(dir, 'case/out/parts.json');
+  const read = () => scanProjectCatalog({ projectDir: dir, projectId: 'p' });
+
+  assert.equal(read().projectOverviewUrl, undefined, 'a loose HTML file is not a published overview');
+  fs.writeFileSync(manifest, JSON.stringify({ parts: [], overview: '../overview.html' }));
+  const published = read();
+  assert.deepEqual(published.entries, [], 'an overview must not fabricate a board entry');
+  assert.match(published.projectOverviewUrl, /^\/projects\/p\/case\/overview\.html\?v=\d+-\d+$/);
+  fs.appendFileSync(overview, '\nchanged');
+  assert.notEqual(read().projectOverviewUrl, published.projectOverviewUrl, 'the URL follows changed overview bytes');
+
+  fs.writeFileSync(path.join(dir, 'outside.html'), '<main>outside</main>');
+  fs.writeFileSync(manifest, JSON.stringify({ parts: [], overview: '../../outside.html' }));
+  assert.equal(read().projectOverviewUrl, undefined, 'traversal outside case/ is refused');
+  fs.symlinkSync(path.join(dir, 'outside.html'), path.join(dir, 'case/link.html'));
+  fs.writeFileSync(manifest, JSON.stringify({ parts: [], overview: '../link.html' }));
+  assert.equal(read().projectOverviewUrl, undefined, 'a symlink outside case/ is refused');
+  fs.writeFileSync(manifest, JSON.stringify({ parts: [], overview: '../overview.txt' }));
+  assert.equal(read().projectOverviewUrl, undefined, 'non-HTML members are refused');
 });
 
 test('firmware wiring guide stays discoverable beyond the source-list cap and changes its cache token after edits',t => {
