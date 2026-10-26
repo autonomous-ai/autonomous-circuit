@@ -39,6 +39,12 @@ CONTRACT_SCHEMA = obj({
 RESULT_SCHEMA = obj({'contractSha256': STRING, 'stage': STRING, 'summary': STRING, 'blockers': array(STRING)})
 REVIEW_SCHEMA = obj({'contractSha256': STRING, 'decision': {'type': 'string', 'enum': ['approve', 'revise']},
                      'summary': STRING, 'findings': array(obj({'path': STRING, 'message': STRING}))})
+ADVICE_SCHEMA = obj({'contractSha256': STRING,
+                     'stage': STRING,
+                     'decision': {'type': 'string', 'enum': ['repair', 'interface_change', 'external_blocker']},
+                     'summary': STRING,
+                     'actions': array(obj({'path': STRING, 'message': STRING})),
+                     'changedFields': array(STRING)})
 
 
 def encoded(value):

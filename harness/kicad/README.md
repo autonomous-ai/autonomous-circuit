@@ -68,6 +68,16 @@ and brings checked output back to the same folder the viewer watches. It builds 
 board first, gets lead approval on the actual board, then runs firmware and case workers together
 against it. The viewer receives the checked board and each independently completed role as it
 finishes. The bridge marks the whole team ready only after the final native check and lead review.
+When a worker reports a blocker or the private board check fails, the lead reads that worker's
+files and gives bounded, file-cited advice. The worker repairs the same worktree under the same
+sealed contract. A rejected board review likewise sends board work back through native checks
+and lead review on the same contract. A progressing board worker that hits its first time limit
+gets lead advice before its bounded continuation; its worktree and contract stay the same.
+Structure/final review findings return to the cited firmware or case worker. A failed final
+native check first gets file-cited lead advice, including an exact missing artifact path.
+Only an explicit lead finding that a shared contract field
+must change permits an automatic contract revision; the new plan must change that cited field.
+Unresolved external facts and exhausted repair attempts leave the team unready with findings.
 The user does not run a pilot CLI.
 Questions and requests for options, plans or prices remain read-only. A failed pilot is reported
 with its findings; the agent does not silently switch to a single-agent build.

@@ -521,7 +521,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
         frozen_prompt.write_text(prompt)
         state.update(nextRun=number + 1, activeRun=run_id, status='running',
                      stage='initializing', error=None, maxRounds=max_rounds,
-                     roundsAttempted=0, teamReady=False)
+                     roundsAttempted=0, replanRequired=False, teamReady=False)
         _save_state(workspace, state)
         try:
             with _cancel_on_signal(pilot_root) as cancelled, _prevent_idle_sleep():
@@ -573,14 +573,16 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                                  else 'execution-limit' if finished['status'] == 'execution_limit'
                                  else 'complete',
                                  error='; '.join(finished.get('findings', [])),
+                                 replanRequired=finished.get('replanRequired') is True,
                                  teamReady=finished['status'] == 'candidate_ready')
                     if finished['status'] in ('model_unavailable', 'execution_limit'):
                         return state  # capacity or time limits cannot be repaired by replanning
                     if finished['status'] == 'candidate_ready' or mirror_errors or attempt + 1 == max_rounds:
                         return state
-                    if finished['status'] != 'needs_revision':
+                    if finished['status'] != 'needs_revision' or finished.get('replanRequired') is not True:
                         return state
-                    state.update(status='running', stage='revising', error=None)
+                    state.update(status='running', stage='revising', error=None,
+                                 replanRequired=False)
                     _save_state(workspace, state)
                 return state
         except KeyboardInterrupt:

@@ -61,6 +61,15 @@ class Fake:
                     self.barrier.wait(timeout=5)  # both consumers share the checked board base
             if stage == 'plan':
                 result = contract()
+            elif stage.endswith('-advice'):
+                cited = ('firmware/WIRING.md' if stage == 'final-advice' else
+                         'design/main.kicad_pro' if (workspace / 'design/main.kicad_pro').is_file()
+                         else 'PILOT_CONTRACT.json')
+                result = {'contractSha256': state['contractSha256'],
+                          'stage': stage.removesuffix('-advice'), 'decision': 'repair',
+                          'summary': 'Repair the implementation under the sealed contract',
+                          'actions': [{'path': cited, 'message': 'Correct the reported failure'}],
+                          'changedFields': []}
             elif readonly:
                 result = {'contractSha256': state['contractSha256'], 'decision': self.lead_decision,
                           'summary': 'Reviewed actual files', 'findings': []}
@@ -243,9 +252,8 @@ class PilotTests(unittest.TestCase):
 
         state = self.run_round(checker=failed, on_checkpoint=checkpoint)
         self.assertEqual(state['status'], 'needs_revision')
-        self.assertEqual([stage for stage, _, _ in seen], ['board'])
-        self.assertFalse(seen[0][1]['ready'])
-        self.assertFalse(seen[0][2]['passed'])
+        self.assertEqual(seen, [])  # private failed board never enters the viewer checkpoint
+        self.assertFalse((self.root / 'workspace/.harness/verdict.json').exists())
         self.assertNotIn('firmware', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('case', [name for name, _, _ in self.fake.visits])
         self.assertNotIn('board-review', [name for name, _, _ in self.fake.visits])
@@ -271,15 +279,16 @@ class PilotTests(unittest.TestCase):
                                checkpoints.append(stage))
         self.assertEqual(state['status'], 'needs_revision')
         self.assertIn('Mount mismatch', state['findings'][0])
-        self.assertEqual(checkpoints, ['board'])
+        self.assertEqual(checkpoints, ['board'] * (1 + pilot.MAX_ADVICE_ROUNDS))
         stages = [stage for stage, _, _ in self.fake.visits]
-        self.assertEqual(stages, ['plan', 'board', 'board-review'])
+        self.assertEqual(stages, ['plan'] + ['board', 'board-review'] *
+                         (1 + pilot.MAX_ADVICE_ROUNDS))
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').is_file())
         self.assertFalse((self.root / 'workspace/firmware/main.c').exists())
         self.assertFalse((self.root / 'workspace/case/frame.txt').exists())
         self.assertFalse((self.root / '.pilot/rounds/1/board-review.json').exists())
         self.assertEqual([job['stage'] for job in pilot.metrics(state)['leadJobs']],
-                         ['plan', 'board-review'])
+                         ['plan'] + ['board-review'] * (1 + pilot.MAX_ADVICE_ROUNDS))
 
     def test_sequential_and_single_builder_controls_reuse_identical_plan(self):
         parallel = self.plan()

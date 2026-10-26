@@ -185,7 +185,7 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertIn('Selected model is at capacity', result['findings'][0])
         self.assertIn('joint mount cannot fit', result['findings'][0])
         self.assertEqual(runner.calls['firmware'], 3)
-        self.assertEqual(runner.calls['case'], 1)
+        self.assertEqual(runner.calls['case'], 1 + parallel.MAX_ADVICE_ROUNDS)
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
 
     def test_exhausted_receipt_with_generic_exit_reports_capacity_and_attempts(self):

@@ -63,6 +63,17 @@ class FakeRunner:
                 'brief': (workspace / 'PILOT_BRIEF.md').read_text(),
             })
             result = contract()
+        elif stage.endswith('-advice'):
+            role = stage.removesuffix('-advice')
+            action_path = {'board': 'design/main.kicad_pro',
+                           'firmware': 'firmware/main.c',
+                           'case': 'case/frame.txt',
+                           'firmware-final': 'firmware/WIRING.md',
+                           'case-final': 'case/cover.txt'}.get(role, 'PILOT_CONTRACT.json')
+            result = {'contractSha256': state['contractSha256'], 'stage': role,
+                      'decision': 'repair', 'summary': 'Repair the current implementation',
+                      'actions': [{'path': action_path, 'message': 'Fix the reported finding'}],
+                      'changedFields': []}
         elif readonly:
             self.visible_at_reviews.append({
                 'stage': stage,
@@ -90,7 +101,7 @@ class FakeRunner:
                 assert (workspace / 'boards/native.txt').read_text().startswith('checked board')
                 put(workspace, 'case/frame.txt', 'device frame')
             if stage in ('firmware-final', 'case-final'):
-                assert (workspace / 'boards/native.txt').read_text().startswith('checked board')
+                assert (workspace / 'boards/native.txt').read_text().startswith('checked ')
                 if stage == 'firmware-final':
                     put(workspace, 'firmware/WIRING.md', 'wiring reconciled to native board')
                 else:
@@ -124,6 +135,23 @@ class BlockOneRoleRunner(FakeRunner):
                                    schema, readonly)
         if stage == self.blocked_role:
             receipt['result']['blockers'] = [f'{stage} needs design revision']
+        return receipt
+
+
+class BoardInterfaceChangeRunner(FakeRunner):
+    """The lead cites a real shared interface field before requesting a new contract."""
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        receipt = super().__call__(root, state, stage, model, workspace, prompt,
+                                   schema, readonly)
+        if stage == 'board-advice' and state['revision'] == 1:
+            receipt['result'].update(
+                decision='interface_change',
+                summary='Board outline must expand to route the required nets',
+                changedFields=['board.outlineMm'],
+            )
+        elif stage == 'plan' and state['revision'] == 1:
+            receipt['result']['board']['outlineMm'][0][0] = -25
         return receipt
 
 
@@ -397,7 +425,7 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(state['status'], 'candidate_ready', state.get('error'))
         self.assertEqual(state['lastMirroredRun'], 'r001')
         self.assertEqual(state['roundsAttempted'], 1)
-        self.assertEqual(checker.calls, [(1, 'board'), (1, 'final')])
+        self.assertEqual(checker.calls, [(1, 'board'), (1, 'board'), (1, 'final')])
         self.assertEqual((self.workspace / 'design/main.kicad_pro').read_text(),
                          'native source first revision 1')
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 1')
@@ -507,28 +535,39 @@ class TeamBridgeTests(unittest.TestCase):
         checker = FakeChecker(fail_board_revisions=(1, 2))
         state = self.run_team(runner=runner, checker=checker, max_rounds=2)
         self.assertEqual(state['status'], 'needs_revision')
-        self.assertEqual(state['roundsAttempted'], 2)
-        self.assertEqual(checker.calls, [(1, 'board'), (2, 'board')])
+        self.assertEqual(state['roundsAttempted'], 1)
+        self.assertFalse(state['replanRequired'])
+        self.assertEqual(runner.visits.count('plan'), 1)
+        self.assertTrue(checker.calls)
+        self.assertTrue(all(call == (1, 'board') for call in checker.calls))
         self.assertFalse(json.loads((self.workspace / '.harness/verdict.json').read_text())['ready'])
         self.assertEqual(runner.visible_at_reviews, [])
         self.assertNotIn('firmware', runner.visits)
         self.assertNotIn('case', runner.visits)
         self.assertFalse((self.workspace / 'case/cover.txt').exists())
-        self.assertIn('Native board check failed', state['error'])
+        self.assertIn('Native board check failed after', state['error'])
 
-    def test_one_failed_round_can_revise_and_publish_final_native_result(self):
-        runner = FakeRunner(self.workspace)
+    def test_lead_cited_interface_change_revises_and_publishes_final_native_result(self):
+        runner = BoardInterfaceChangeRunner(self.workspace)
         checker = FakeChecker(fail_board_revisions=(1,))
         state = self.run_team(runner=runner, checker=checker, max_rounds=2)
         self.assertEqual(state['status'], 'candidate_ready', state.get('error'))
         self.assertEqual(state['roundsAttempted'], 2)
-        self.assertEqual(checker.calls, [(1, 'board'), (2, 'board'), (2, 'final')])
+        self.assertEqual(runner.visits.count('plan'), 2)
+        self.assertIn('board-advice', runner.visits)
+        pilot = self.workspace / '.circuit/team-runs/r001/workspace'
+        revised = json.loads((pilot / 'PILOT_CONTRACT.json').read_text())
+        self.assertEqual(revised['interfaces']['board']['outlineMm'][0][0], -25)
+        self.assertIn((2, 'board'), checker.calls)
+        self.assertEqual(checker.calls[-1], (2, 'final'))
+        self.assertTrue(all(phase == 'board' for _, phase in checker.calls[:-1]))
         self.assertEqual([item['verdict']['ready'] for item in runner.visible_at_reviews],
                          [True, True, True])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked final revision 2')
 
     def test_revision_clears_previous_error_while_new_round_is_running(self):
         checker = FakeChecker(fail_board_revisions=(1,))
+        runner = BoardInterfaceChangeRunner(self.workspace)
         saved = []
         prior_findings = []
         original_save = parallel_tile._save_state
@@ -541,10 +580,11 @@ class TeamBridgeTests(unittest.TestCase):
             return original_save(workspace, state)
 
         with patch.object(parallel_tile, '_save_state', side_effect=record_save):
-            result = self.run_team(checker=checker, max_rounds=2)
+            result = self.run_team(runner=runner, checker=checker, max_rounds=2)
 
         self.assertEqual(result['status'], 'candidate_ready')
-        self.assertTrue(any('Native board check failed' in item for item in prior_findings))
+        self.assertTrue(any('Board outline must expand' in item
+                            for item in prior_findings))
         for stage in ('revising', 'planning-2', 'building-2'):
             current = next(item for item in saved if item['stage'] == stage)
             self.assertEqual(current['status'], 'running')
@@ -552,23 +592,30 @@ class TeamBridgeTests(unittest.TestCase):
 
     def test_rejected_board_review_stops_dependent_workers_but_keeps_checked_board_visible(self):
         runner = FakeRunner(self.workspace, reject_stage='board-review')
-        state = self.run_team(runner=runner, max_rounds=1)
+        state = self.run_team(runner=runner, max_rounds=2)
         self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual(state['roundsAttempted'], 1)
+        self.assertFalse(state['replanRequired'])
+        self.assertEqual(runner.visits.count('plan'), 1)
         self.assertEqual(state['lastCheckpointStage'], 'board')
         self.assertFalse(state['teamReady'])
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(),
                          'checked board revision 1')
         self.assertEqual([entry['stage'] for entry in runner.visible_at_reviews],
-                         ['board-review'])
+                         ['board-review'] * 3)
+        self.assertEqual(runner.visits.count('board'), 3)
         self.assertNotIn('firmware', runner.visits)
         self.assertNotIn('case', runner.visits)
         self.assertFalse((self.workspace / 'firmware/main.c').exists())
 
     def test_firmware_is_visible_while_case_is_still_running_then_case_rejects(self):
         runner = BlockOneRoleRunner(self.workspace, 'case', 'firmware/main.c')
-        state = self.run_team(runner=runner, max_rounds=1)
+        state = self.run_team(runner=runner, max_rounds=2)
         self.assertTrue(runner.saw_sibling_before_return)
         self.assertEqual(state['status'], 'needs_revision')
+        self.assertEqual(state['roundsAttempted'], 1)
+        self.assertFalse(state['replanRequired'])
+        self.assertEqual(runner.visits.count('plan'), 1)
         self.assertEqual(state['lastCheckpointStage'], 'firmware')
         self.assertFalse(state['teamReady'])
         self.assertEqual((self.workspace / 'firmware/main.c').read_text(), 'sensor firmware')
@@ -607,7 +654,7 @@ class TeamBridgeTests(unittest.TestCase):
             return real_replace(source, target)
 
         with patch.object(parallel_tile.os, 'replace', side_effect=interrupt_copy):
-            state = self.run_team(checker=FakeChecker(fail_board_revisions=(1,)))
+            state = self.run_team(checker=FakeChecker())
         self.assertTrue(failed_once)
         self.assertEqual(state['status'], 'needs_revision')
         self.assertTrue(parallel_tile.status(self.workspace)['mirrorPending'])
@@ -621,7 +668,7 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual((self.workspace / 'design/main.kicad_pro').read_text(),
                          'native source first revision 1')
         self.assertEqual((self.workspace / 'boards/native.txt').read_text(), 'checked board revision 1')
-        self.assertFalse(json.loads((self.workspace / '.harness/verdict.json').read_text())['ready'])
+        self.assertTrue(json.loads((self.workspace / '.harness/verdict.json').read_text())['ready'])
         self.assertEqual(synced['lastMirroredRun'], 'r001')
 
 

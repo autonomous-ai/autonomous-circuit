@@ -20,7 +20,7 @@ import tarfile
 import threading
 import time
 
-from .parallel_contract import (CONTRACT_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
+from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
                                 OWNED, digest, encoded, owns, validate, validate_contract)
 
 LEAD = 'gpt-6-astra'
@@ -37,6 +37,12 @@ MAX_STAGE_ATTEMPTS = 4
 TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
+MAX_ADVICE_ROUNDS = 2
+TIMEOUT_ADVICE_SECONDS = 5 * 60
+SHARED_INTERFACE_FIELDS = frozenset({
+    'coordinateFrame', 'board', 'powerRails', 'pins', 'modules',
+    'mechanicalEnvelopeMm', 'firmwareBehavior', 'assumptions',
+})
 
 
 def _stage_clock():
@@ -53,6 +59,18 @@ class JobInterrupted(ValueError):
 
 class ExecutionLimitExhausted(ValueError):
     """A bounded job timed out; a new design contract cannot fix the execution limit."""
+
+
+class ContractRevisionRequired(ValueError):
+    """The lead identified an actual shared interface change."""
+
+    def __init__(self, message, fields=()):
+        super().__init__(message)
+        self.fields = tuple(fields)
+
+
+class ExternalBlocker(ValueError):
+    """The lead identified an unresolved external requirement or dependency."""
 
 
 def job_error(receipt):
@@ -329,7 +347,7 @@ def _retry_files(workspace):
     for directory, dirs, names in os.walk(workspace):
         for name in dirs + names:
             if name != '.git' and (Path(directory) / name).is_symlink():
-                raise ValueError('Retry workspace contains a symlink')
+                raise ValueError('Pilot snapshots do not support symlinks')
         dirs[:] = [name for name in dirs if name not in SKIP]
         for name in names:
             if name == '.git':
@@ -481,7 +499,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
 
 
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
-         authorized_integration=None, integration_lock=None):
+         authorized_integration=None, integration_lock=None, stage_deadline=None,
+         on_timeout=None):
     model = state['leadModel'] if readonly else state['workerModel']
     board_stage = stage == 'board' and not readonly
     stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if board_stage else
@@ -489,7 +508,7 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
     max_attempts = (1 + len(CAPACITY_RETRY_DELAYS) + BOARD_MAX_TIMEOUT_CONTINUATIONS
                     if board_stage else MAX_STAGE_ATTEMPTS)
     began_at = _stage_clock()
-    deadline = began_at + stage_budget
+    deadline = min(began_at + stage_budget, stage_deadline) if stage_deadline else began_at + stage_budget
     capacity_deadline = began_at + state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS
     initial_files = _retry_files(workspace)
     # Stat changes guard ownership/Git retry safety; only changed bytes count as
@@ -506,6 +525,7 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
     short_timeout = False
     capacity_continuation = False
     continuation = None
+    timeout_guidance = None
     previous_receipt = None
     for attempt in range(1, max_attempts + 1):
         remaining = (min(deadline, capacity_deadline) if capacity_continuation else
@@ -530,6 +550,9 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
                              'This is the same sealed stage and isolated worktree. Inspect any existing '
                              'role-owned files, continue the unfinished work, and return the required '
                              'stage result. Preserve completed work; do not change shared inputs.')
+            if timeout_guidance is not None:
+                retry_prompt += ('\nLEAD ADVICE ON THE PARTIAL WORK:\n' +
+                                 json.dumps(timeout_guidance, sort_keys=True))
         attempt_limit = min(((state['timeoutSeconds'] if board_stage else
                               TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
                              state['timeoutSeconds']), remaining)
@@ -612,6 +635,16 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
         _persist_attempt_receipt(root, receipt)
         if not receipt.get('retryScheduled'):
             return receipt
+        if kind == 'timeout' and on_timeout is not None:
+            try:
+                new_guidance = on_timeout(receipt)
+                if new_guidance is not None:
+                    timeout_guidance = new_guidance
+            except BaseException as exc:
+                receipt.pop('retryScheduled', None)
+                receipt['retrySuppressed'] = 'Lead timeout advice stopped continuation: ' + str(exc)
+                _persist_attempt_receipt(root, receipt)
+                raise
         if receipt['retryDelaySeconds']:
             try:
                 time.sleep(receipt['retryDelaySeconds'])
@@ -633,8 +666,19 @@ def seal(root, state, interfaces):
     write(root / filename, contract)
     write(root / 'workspace/PILOT_CONTRACT.json', contract)
     commit(root / 'workspace', ['PILOT_CONTRACT.json'], f'Seal contract revision {revision}')
-    state.update(revision=revision, contractSha256=sha, contractFile=filename, status='planned', findings=[])
+    state.update(revision=revision, contractSha256=sha, contractFile=filename,
+                 status='planned', findings=[], replanRequired=False)
     state.pop('artifactManifest', None)
+    state.pop('requestedChangedFields', None)
+
+
+def _contract_field(interfaces, field):
+    value = interfaces
+    for key in field.split('.'):
+        if not isinstance(value, dict) or key not in value:
+            raise ValueError('Unknown shared contract field: ' + field)
+        value = value[key]
+    return value
 
 
 def plan(directory, *, execute=False, revise=False, contract_from=None, runner=codex):
@@ -660,7 +704,8 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
                   'dimensions and uncertain hardware in assumptions. Give disjoint board, firmware '
                   'and case/frame tasks. Frame and device mounts first; outer covers follow integration. '
                   'Never weaken native electrical/manufacturing checks. If revising, resolve prior '
-                  'findings and preserve compatible work.\n\nPRODUCT:\n' +
+                  'findings and preserve compatible work.\n\nFIELDS REQUIRING CHANGE:\n' +
+                  json.dumps(state.get('requestedChangedFields', [])) + '\n\nPRODUCT:\n' +
                   (root / '.pilot/prompt.txt').read_text() + '\n\nPRIOR FINDINGS:\n' +
                   json.dumps(state.get('findings', [])))
         before = snapshot(workspace)
@@ -687,6 +732,13 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
                 interfaces = job['result']
             if snapshot(workspace) != before:
                 raise ValueError('Read-only planner changed workspace')
+            if revise and state.get('replanRequired'):
+                old = json.loads((root / state['contractFile']).read_text())['interfaces']
+                fields = state.get('requestedChangedFields', [])
+                if not fields or interfaces == old or not all(
+                        _contract_field(old, field) != _contract_field(interfaces, field)
+                        for field in fields):
+                    raise ValueError('Lead replan did not change a cited shared contract field')
             seal(root, state, interfaces)
         except (KeyboardInterrupt, JobInterrupted) as exc:
             state['status'], state['findings'] = 'interrupted', [str(exc) or 'Operator interrupted planning']
@@ -731,7 +783,8 @@ def worker_prompt(state, role, stage):
             'KiCad tool card/references under HARNESS_SKILLS_DIR. The sealed contract has precedence '
             'for interfaces. Never edit it. Never commit/push, delegate to another model, change gates, '
             'flash, access serial/hardware, order or print. Use the specified local toolchains; '
-            'KICAD_ADVISOR is off. Do not modify the toolchain/shared knowledge or run knowledge learn. '
+            'The solo KICAD_ADVISOR Stop hook is off; the team controller may send lead advice '
+            'inside this same sealed stage. Do not modify the toolchain/shared knowledge or run knowledge learn. '
             'Normal native scratch stores (.kicadpy/.circuit/.harness) are allowed but never imported. '
             'All changes, scripts and persistent build outputs must be inside '
             f'these owned paths: {json.dumps(allowed)}. Other domains are read-only; do not write a '
@@ -838,7 +891,87 @@ def _prior_draft(root, state, role, stage, current):
         return []
 
 
-def dispatch(root, state, stages, runner, on_import=None):
+def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None,
+           authorized_integration=None, integration_lock=None):
+    """Ask the lead for bounded, read-only guidance on one worker's real files."""
+    before = snapshot(worktree)
+    before_files = _retry_files(worktree)
+    if integration_lock is None:
+        git_before = _retry_git_metadata(root, worktree)
+    else:
+        with integration_lock:
+            git_before = _retry_git_metadata(root, worktree)
+    prompt = (
+        'You are the LEAD acting as an advisor for a scoped worker. Read the CURRENT sealed '
+        'PILOT_CONTRACT.json and the actual files in this worktree. Do not edit files, run '
+        'hardware, weaken native gates, or silently change the contract. Diagnose the specific '
+        'blocker or native failure below. Choose repair when the worker can meet the SAME '
+        'contract; give concrete file-cited actions and let that worker continue. Choose '
+        'interface_change only when a named field of the shared contract must actually change; '
+        'list those fields in changedFields. Choose external_blocker when required external '
+        'facts or parts cannot currently be verified. For decisions other than interface_change, '
+        'changedFields must be empty. Each action must cite an existing file in this worktree; '
+        'for a failed final native check it may instead name the exact missing artifact inside '
+        'the responsible worker-owned path. PILOT_CONTRACT.json is available when no '
+        'implementation file exists yet. The worker '
+        'still must pass native checks and lead review. '
+        f'Return contractSha256={state["contractSha256"]}, stage={stage}.\n'
+        'PROBLEM:\n' + json.dumps(problem, sort_keys=True))
+    receipt = call(root, state, stage + '-advice', worktree, prompt, ADVICE_SCHEMA, True,
+                   runner, authorized_integration=authorized_integration,
+                   integration_lock=integration_lock, stage_deadline=stage_deadline)
+    if receipt['error']:
+        if receipt.get('failureKind') == 'interrupted':
+            raise JobInterrupted(job_error(receipt))
+        if receipt.get('failureKind') == 'timeout':
+            raise ExecutionLimitExhausted(job_error(receipt))
+        if receipt.get('failureKind') == 'model_capacity':
+            raise ModelCapacityExhausted(job_error(receipt))
+        raise ValueError(job_error(receipt))
+    validate(receipt['result'], ADVICE_SCHEMA)
+    advice = receipt['result']
+    if advice['contractSha256'] != state['contractSha256'] or advice['stage'] != stage:
+        raise ValueError('Lead advice answered for another contract/stage')
+    if snapshot(worktree) != before:
+        raise ValueError('Read-only lead advice changed worker files')
+    if integration_lock is None:
+        safe, reason, _ = _retry_safety(root, worktree, stage, True, before_files,
+                                        git_before, authorized_integration)
+    else:
+        with integration_lock:
+            safe, reason, _ = _retry_safety(root, worktree, stage, True, before_files,
+                                            git_before, authorized_integration)
+    if not safe:
+        raise ValueError('Read-only lead advice changed Git metadata: ' + str(reason))
+    if not advice['actions']:
+        raise ValueError('Lead advice needs at least one file-cited action')
+    for action in advice['actions']:
+        relative = PurePosixPath(action['path'])
+        path = (worktree / action['path']).resolve()
+        if (relative.is_absolute() or '..' in relative.parts or
+                not path.is_relative_to(worktree.resolve())):
+            raise ValueError('Lead advice action path escapes worktree')
+        missing_final_artifact = (problem.get('kind') == 'native_final_check' and
+                                  not path.exists() and
+                                  sum(owns(role, action['path']) for role in ROLES) == 1)
+        if not path.is_file() and not missing_final_artifact:
+            raise ValueError('Lead advice must cite an existing worker file')
+    if advice['decision'] == 'interface_change':
+        fields = SHARED_INTERFACE_FIELDS
+        if not advice['changedFields'] or any(field.split('.', 1)[0] not in fields
+                                              for field in advice['changedFields']):
+            raise ValueError('Contract revision needs named shared interface fields')
+        interfaces = json.loads((root / state['contractFile']).read_text())['interfaces']
+        for field in advice['changedFields']:
+            _contract_field(interfaces, field)
+    elif advice['changedFields']:
+        raise ValueError('Repair/external advice cannot change contract fields')
+    load(root)
+    return advice
+
+
+def dispatch(root, state, stages, runner, on_import=None, checker=None,
+             stage_deadline=None, worktree_tag=None, guidance=None, protected_roles=()):
     workspace = root / 'workspace'
     base = git(workspace, 'rev-parse', 'HEAD')
     baseline = snapshot(workspace)
@@ -848,14 +981,18 @@ def dispatch(root, state, stages, runner, on_import=None):
     git_before = metadata()
     jobs = []
     for role, stage in stages:
-        dest = root / 'workers' / f"r{state['revision']:03}-{stage}"
+        if worktree_tag is not None and (not worktree_tag.replace('-', '').isalnum()
+                                         or len(worktree_tag) > 64):
+            raise ValueError('Invalid repair worktree tag')
+        worktree_name = stage + (f'-{worktree_tag}' if worktree_tag else '')
+        dest = root / 'workers' / f"r{state['revision']:03}-{worktree_name}"
         dest.parent.mkdir(exist_ok=True)
         if dest.exists():
             raise ValueError('Stage already attempted; revise the contract for a new bounded round')
         git(workspace, 'worktree', 'add', '--detach', str(dest), base)
         (dest / '.circuit').mkdir(exist_ok=True)
         pointer = (dest / '.git').read_bytes()
-        write(root / f".pilot/rounds/{state['revision']}/{stage}-draft-base.json", {
+        write(root / f".pilot/rounds/{state['revision']}/{worktree_name}-draft-base.json", {
             'revision': state['revision'], 'stage': stage, 'role': role,
             'baseHead': base, 'baseline': baseline,
             'pointerSha256': hashlib.sha256(pointer).hexdigest(),
@@ -866,8 +1003,8 @@ def dispatch(root, state, stages, runner, on_import=None):
             'gitMetadataSha256': _git_metadata_sha(workspace),
         })
         drafts = _prior_draft(root, state, role, stage, baseline)
-        for name, data, info in drafts:
-            target = dest / name
+        for draft_name, data, info in drafts:
+            target = dest / draft_name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             target.chmod(0o755 if info['executable'] else 0o644)
@@ -876,7 +1013,7 @@ def dispatch(root, state, stages, runner, on_import=None):
                       'priorRevision': state['revision'] - 1,
                       'sources': [{'path': name, 'sha256': info['sha256']}
                                   for name, _, info in drafts]}
-        write(root / f".pilot/drafts/r{state['revision']:03}-{stage}.json", provenance)
+        write(root / f".pilot/drafts/r{state['revision']:03}-{worktree_name}.json", provenance)
         jobs.append((role, stage, dest, pointer, provenance))
     integration_lock = threading.Lock()
     authorized_integration = [_integration_git_state(root)]
@@ -884,16 +1021,125 @@ def dispatch(root, state, stages, runner, on_import=None):
     def one(job):
         role, stage, dest, pointer, provenance = job
         prompt = worker_prompt(state, role, stage)
+        if guidance is not None:
+            prompt += ('\n\nLEAD REVIEW FINDINGS FOR SAME SEALED CONTRACT:\n' +
+                       json.dumps(guidance, sort_keys=True) + '\nRepair the cited files in this '
+                       'new worktree from the latest integrated checkpoint. Preserve the shared '
+                       'interface and run native checks before reporting completion.')
         if provenance['sources']:
             prompt += ('\nThe following source files are untrusted drafts copied from revision '
                        f"{provenance['priorRevision']}: {json.dumps(provenance['sources'])}. "
                        'Reconcile every draft with the CURRENT sealed contract, checked board and task. '
                        'Rebuild and recheck; do not treat prior outputs or verdicts as accepted.')
-        receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner,
-                       authorized_integration=authorized_integration,
-                       integration_lock=integration_lock)
-        return role, stage, dest, pointer, receipt
+        budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS)
+                  if stage == 'board' else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
+        deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
+        advice_rounds = 0
+        timeout_advised = False
+
+        def coach_timeout(receipt):
+            nonlocal timeout_advised
+            if timeout_advised:
+                return None
+            advice = advise(root, state, stage, dest,
+                            {'kind': 'progressing_timeout',
+                             'attempt': receipt['attempt'],
+                             'seconds': receipt['seconds'],
+                             'retryReason': receipt.get('retryReason')},
+                            runner, stage_deadline=min(deadline,
+                                                       _stage_clock() + TIMEOUT_ADVICE_SECONDS),
+                            authorized_integration=authorized_integration,
+                            integration_lock=integration_lock)
+            timeout_advised = True
+            with ACTIVE_LOCK:
+                state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+            if advice['decision'] == 'interface_change':
+                raise ContractRevisionRequired(advice['summary'] + ': ' +
+                                               ', '.join(advice['changedFields']),
+                                               advice['changedFields'])
+            if advice['decision'] == 'external_blocker':
+                raise ExternalBlocker(advice['summary'])
+            return advice
+
+        try:
+            while True:
+                with integration_lock:
+                    initial_files = _retry_files(dest)
+                    initial_git = _retry_git_metadata(root, dest)
+                receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner,
+                               authorized_integration=authorized_integration,
+                               integration_lock=integration_lock, stage_deadline=deadline,
+                               on_timeout=coach_timeout if stage == 'board' else None)
+                if receipt['error']:
+                    return role, stage, dest, pointer, receipt, None, None
+                validate(receipt['result'], RESULT_SCHEMA)
+                result = receipt['result']
+                if result['contractSha256'] != state['contractSha256'] or result['stage'] != stage:
+                    raise ValueError('Worker answered for another contract/stage')
+                if (dest / '.git').read_bytes() != pointer:
+                    raise ValueError('Worker changed its Git worktree pointer')
+                if git(dest, 'rev-parse', 'HEAD') != base:
+                    raise ValueError('Worker committed or moved HEAD')
+                with integration_lock:
+                    safe, reason, _ = _retry_safety(root, dest, stage, False, initial_files,
+                                                    initial_git, authorized_integration)
+                if not safe:
+                    raise ValueError('Unsafe or unowned worker output: ' + str(reason))
+                after_worker = snapshot(dest)
+                if any(not owns(role, name) for name in changed(baseline, after_worker)):
+                    raise ValueError('Worker changed a contract/shared/unowned file')
+                if any(owns(protected, name) for protected in protected_roles
+                       for name in changed(baseline, after_worker)):
+                    raise ValueError('Late repair changed a protected board artifact')
+                problem = None
+                checks = None
+                if result['blockers']:
+                    problem = {'kind': 'worker_blockers', 'blockers': result['blockers']}
+                elif checker is not None and role in ('board', 'solo'):
+                    before_check = after_worker
+                    with integration_lock:
+                        check_files = _retry_files(dest)
+                        check_git = _retry_git_metadata(root, dest)
+                    checks = checker(dest, False)
+                    after_check = snapshot(dest)
+                    if any(not owns(role, name) for name in changed(before_check, after_check)):
+                        raise ValueError('Native board check wrote outside board-owned artifacts')
+                    with integration_lock:
+                        safe, reason, _ = _retry_safety(root, dest, stage, False, check_files,
+                                                        check_git, authorized_integration)
+                    if not safe:
+                        raise ValueError('Native board check changed Git metadata: ' + str(reason))
+                    if not checks.get('passed'):
+                        problem = {'kind': 'native_board_check', 'checks': checks}
+                if problem is None:
+                    return role, stage, dest, pointer, receipt, checks, None
+                if advice_rounds >= MAX_ADVICE_ROUNDS:
+                    label = ('Native board check failed' if problem['kind'] == 'native_board_check'
+                             else 'Worker blocker remained')
+                    raise ValueError(f'{label} after {MAX_ADVICE_ROUNDS} lead advice rounds: ' +
+                                     json.dumps(problem, sort_keys=True))
+                advice = advise(root, state, stage, dest, problem, runner,
+                                stage_deadline=deadline,
+                                authorized_integration=authorized_integration,
+                                integration_lock=integration_lock)
+                advice_rounds += 1
+                with ACTIVE_LOCK:
+                    state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+                if advice['decision'] == 'interface_change':
+                    raise ContractRevisionRequired(advice['summary'] + ': ' +
+                                                   ', '.join(advice['changedFields']),
+                                                   advice['changedFields'])
+                if advice['decision'] == 'external_blocker':
+                    raise ExternalBlocker(advice['summary'])
+                prompt = (worker_prompt(state, role, stage) + '\n\nLEAD ADVICE FOR SAME SEALED CONTRACT:\n' +
+                          json.dumps(advice, sort_keys=True) + '\nPREVIOUS PROBLEM:\n' +
+                          json.dumps(problem, sort_keys=True) + '\nContinue in this SAME worktree. '
+                          'Fix the cited issues, run the relevant native checks and report any remaining blocker. '
+                          'Do not change the sealed contract.')
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            return role, stage, dest, pointer, None, None, exc
     failures, capacity_failures, timeout_failures, interrupted_failures = [], [], [], []
+    revision_failures, revision_fields, external_failures = [], [], []
     expected, expected_head = baseline, base
 
     def integrate_valid(stage, dest, names, after):
@@ -928,8 +1174,28 @@ def dispatch(root, state, stages, runner, on_import=None):
             expected, expected_head = snapshot(workspace), git(workspace, 'rev-parse', 'HEAD')
             authorized_integration.append(_integration_git_state(root))
 
+    stage_checks = {}
+
     def accept(result):
-        role, stage, dest, pointer, receipt = result
+        role, stage, dest, pointer, receipt, checks, worker_error = result
+        if worker_error is not None:
+            if isinstance(worker_error, ContractRevisionRequired):
+                revision_failures.append(f'{stage}: {worker_error}')
+                revision_fields.extend(worker_error.fields)
+            elif isinstance(worker_error, ExternalBlocker):
+                external_failures.append(f'{stage}: {worker_error}')
+            elif isinstance(worker_error, JobInterrupted):
+                interrupted_failures.append(stage)
+                failures.append(f'{stage}: {worker_error}')
+            elif isinstance(worker_error, ModelCapacityExhausted):
+                capacity_failures.append(stage)
+                failures.append(f'{stage}: {worker_error}')
+            elif isinstance(worker_error, ExecutionLimitExhausted):
+                timeout_failures.append(stage)
+                failures.append(f'{stage}: {worker_error}')
+            else:
+                failures.append(f'{stage}: {worker_error}')
+            return
         try:
             if receipt['error']:
                 if receipt.get('failureKind') == 'interrupted':
@@ -953,12 +1219,16 @@ def dispatch(root, state, stages, runner, on_import=None):
             names = changed(baseline, after)
             if any(not owns(role, n) for n in names):
                 raise ValueError('Worker changed a contract/shared/unowned file')
+            if any(owns(protected, n) for protected in protected_roles for n in names):
+                raise ValueError('Late repair changed a protected board artifact')
         except (OSError, ValueError) as exc:
             failures.append(f'{stage}: {exc}')
             return
         # Import each completed, valid role immediately. Siblings still work from the
         # same checked base; disjoint ownership makes their later imports independent.
         integrate_valid(stage, dest, names, after)
+        if checks is not None:
+            stage_checks[stage] = checks
         if on_import is not None:
             on_import(workspace, state, stage)
             if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
@@ -989,6 +1259,11 @@ def dispatch(root, state, stages, runner, on_import=None):
         if timeout_failures:
             raise ExecutionLimitExhausted('\n'.join(failures))
         raise ValueError('\n'.join(failures))
+    if revision_failures:
+        raise ContractRevisionRequired('\n'.join(revision_failures), sorted(set(revision_fields)))
+    if external_failures:
+        raise ExternalBlocker('\n'.join(external_failures))
+    return stage_checks
 
 
 def native_check(workspace, complete):
@@ -1032,9 +1307,11 @@ console.log(JSON.stringify({passed:true}));'''
         raise ValueError(process.stderr[-1600:] or 'Print project binding failed')
 
 
-def review(root, state, stage, checks, runner):
+def review(root, state, stage, checks, runner, *, allow_revise=False, stage_deadline=None):
     workspace = root / 'workspace'
     before = snapshot(workspace)
+    before_files = _retry_files(workspace)
+    git_before = _retry_git_metadata(root, workspace)
     drafts = []
     for path in sorted((root / '.pilot/drafts').glob(f"r{state['revision']:03}-*.json")):
         provenance = json.loads(path.read_text())
@@ -1049,6 +1326,8 @@ def review(root, state, stage, checks, runner):
                          'sealed contract: outline, mounting coordinates, device placement, power '
                          'and protection, pins, connectors, and the mechanical interface. Find '
                          'missing or ambiguous details that firmware or case would have to guess. '
+                         'If the sealed interface itself must change, cite PILOT_CONTRACT.json '
+                         'so the controller can request a separate interface decision. '
                          'Approve only when those workers can build against the checked board. '
                          'Do not require firmware or case artifacts that have not been dispatched.'),
         'structure-review': ('Compare firmware definitions and WIRING with the actual netlist. '
@@ -1068,7 +1347,8 @@ def review(root, state, stage, checks, runner):
               'actual checked outputs; prior source hashes are provenance, not validation. '
               f'Return contractSha256={state["contractSha256"]}.\nDRAFT PROVENANCE:\n' +
               json.dumps(drafts, sort_keys=True) + '\nNATIVE CHECKS:\n' + json.dumps(checks))
-    job = call(root, state, stage, workspace, prompt, REVIEW_SCHEMA, True, runner)
+    job = call(root, state, stage, workspace, prompt, REVIEW_SCHEMA, True, runner,
+               stage_deadline=stage_deadline)
     if job['error']:
         if job.get('failureKind') == 'interrupted':
             raise JobInterrupted(job_error(job))
@@ -1081,15 +1361,39 @@ def review(root, state, stage, checks, runner):
     r = job['result']
     if snapshot(workspace) != before or r['contractSha256'] != state['contractSha256']:
         raise ValueError('Review changed artifacts or used another contract')
+    safe, reason, _ = _retry_safety(root, workspace, stage, True, before_files, git_before)
+    if not safe:
+        raise ValueError('Read-only review changed Git metadata: ' + str(reason))
     for finding in r['findings']:
         p = (workspace / finding['path']).resolve()
         if not p.is_relative_to(workspace.resolve()) or not p.is_file():
             raise ValueError('Review finding must cite an existing workspace file')
     if r['decision'] == 'approve' and r['findings']:
         raise ValueError('Approval with unresolved findings is invalid')
-    if r['decision'] != 'approve':
+    if r['decision'] == 'revise' and not r['findings']:
+        raise ValueError('Review revision needs file-cited findings')
+    if r['decision'] != 'approve' and not allow_revise:
         raise ValueError(r['summary'] + ': ' + json.dumps(r['findings']))
     return r
+
+
+def repair_stages(state, cited, *, final):
+    """Route file-cited late findings only to unambiguous downstream owners."""
+    roles = set()
+    for finding in cited:
+        owners = [role for role in ROLES if owns(role, finding['path'])]
+        if len(owners) != 1:
+            raise ValueError('Lead repair finding has no unambiguous worker owner: ' + finding['path'])
+        if owners[0] == 'board':
+            raise ValueError('Late board finding requires a new checked board and dependent rebuild: ' +
+                             finding['path'])
+        roles.add(owners[0])
+    if not roles:
+        raise ValueError('Lead repair needs file-cited worker actions')
+    if state['mode'] == 'solo':
+        return [('solo', 'solo-final' if final else 'solo')]
+    return [(role, role + '-final' if final else role) for role in ('firmware', 'case')
+            if role in roles]
 
 
 def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None):
@@ -1102,24 +1406,96 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
             raise ValueError('Plan first; a failed/completed round needs plan --revise before retry')
         workspace = root / 'workspace'
         state['status'], state['roundStartedAt'] = 'running', time.time()
+        state['replanRequired'] = False
         write(root / '.pilot/state.json', state)
         try:
+            def publish_checked_board():
+                # Private preflight already passed. Re-publish on the integration
+                # branch so the viewer gets the checker's ignored native verdict.
+                before = snapshot(workspace)
+                board_head = git(workspace, 'rev-parse', 'HEAD')
+                verdict = checker(workspace, False)
+                names = changed(before, snapshot(workspace))
+                if any(not owns(board_stage, name) for name in names):
+                    raise ValueError('Integrated native board check wrote outside board-owned artifacts')
+                load(root)
+                if git(workspace, 'rev-parse', 'HEAD') != board_head:
+                    raise ValueError('Integrated native board check moved HEAD')
+                if git(workspace, 'diff', '--cached', '--name-only'):
+                    raise ValueError('Integrated native board check staged Git changes')
+                commit(workspace, names, 'Record native board publication')
+                if git(workspace, 'rev-parse', 'HEAD') == board_head:
+                    git(workspace, '-c', 'user.name=KiCad Pilot', '-c', 'user.email=pilot@localhost',
+                        'commit', '--allow-empty', '-qm', 'Record native board publication')
+                write(root / f".pilot/rounds/{state['revision']}/board-check.json", verdict)
+                if on_checkpoint is not None:
+                    on_checkpoint(workspace, state, 'board')
+                if not verdict.get('passed'):
+                    raise ValueError('Native board check failed after private preflight: ' +
+                                     str(verdict.get('findings')))
+                return verdict
+
+            def publish_final_checks():
+                before = snapshot(workspace)
+                final_head = git(workspace, 'rev-parse', 'HEAD')
+                verdict = checker(workspace, True)
+                names = changed(before, snapshot(workspace))
+                if any(not owns('solo', name) for name in names):
+                    raise ValueError('Native final check wrote outside owned artifacts')
+                load(root)
+                if git(workspace, 'rev-parse', 'HEAD') != final_head:
+                    raise ValueError('Native final check moved HEAD')
+                if git(workspace, 'diff', '--cached', '--name-only'):
+                    raise ValueError('Native final check staged Git changes')
+                commit(workspace, names, 'Record final native checks')
+                write(root / f".pilot/rounds/{state['revision']}/final-check.json", verdict)
+                if on_checkpoint is not None:
+                    on_checkpoint(workspace, state, 'final')
+                return verdict
+
             # Board outputs are the concrete input to both other roles. Import and check
             # them first so firmware and case never build against an imaginary placement.
-            dispatch(root, state, [('solo', 'solo')] if state['mode'] == 'solo' else
-                     [('board', 'board')], runner)
-            before = snapshot(workspace)
-            checks = checker(workspace, False)
-            names = changed(before, snapshot(workspace))
-            if any(not owns('board', n) for n in names):
-                raise ValueError('Native board check wrote outside board-owned artifacts')
-            commit(workspace, names, 'Record native board publication')
-            write(root / f".pilot/rounds/{state['revision']}/board-check.json", checks)
-            if on_checkpoint is not None:
-                on_checkpoint(workspace, state, 'board')
-            if not checks.get('passed'):
-                raise ValueError('Native board check failed: ' + str(checks.get('findings')))
-            board_review = review(root, state, 'board-review', checks, runner)
+            board_stage = 'solo' if state['mode'] == 'solo' else 'board'
+            board_checks = dispatch(root, state, [(board_stage, board_stage)], runner,
+                                    checker=checker)
+            if not board_checks[board_stage].get('passed'):
+                raise ValueError('Private native board check did not pass')
+            checks = publish_checked_board()
+            board_review = review(root, state, 'board-review', checks, runner,
+                                  allow_revise=True)
+            review_deadline = None
+            for repair_round in range(1, MAX_ADVICE_ROUNDS + 1):
+                if board_review['decision'] == 'approve':
+                    break
+                if review_deadline is None:
+                    review_deadline = (_stage_clock() + state['timeoutSeconds'] +
+                                       TIMEOUT_CONTINUATION_SECONDS)
+                guidance = board_review
+                if any(item['path'] == 'PILOT_CONTRACT.json' for item in board_review['findings']):
+                    advice = advise(root, state, board_stage, workspace,
+                                    {'kind': 'lead_board_review', 'review': board_review},
+                                    runner, stage_deadline=review_deadline)
+                    with ACTIVE_LOCK:
+                        state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+                    if advice['decision'] == 'interface_change':
+                        raise ContractRevisionRequired(advice['summary'] + ': ' +
+                                                       ', '.join(advice['changedFields']),
+                                                       advice['changedFields'])
+                    if advice['decision'] == 'external_blocker':
+                        raise ExternalBlocker(advice['summary'])
+                    guidance = {'review': board_review, 'advice': advice}
+                repaired = dispatch(root, state, [(board_stage, board_stage)], runner,
+                                    checker=checker, stage_deadline=review_deadline,
+                                    worktree_tag=f'review-repair-{repair_round}',
+                                    guidance=guidance)
+                if not repaired[board_stage].get('passed'):
+                    raise ValueError('Private board repair check did not pass')
+                checks = publish_checked_board()
+                board_review = review(root, state, 'board-review', checks, runner,
+                                      allow_revise=True, stage_deadline=review_deadline)
+            if board_review['decision'] != 'approve':
+                raise ValueError('Lead board review still rejected after bounded repairs: ' +
+                                 json.dumps(board_review['findings']))
             write(root / f".pilot/rounds/{state['revision']}/board-review.json", board_review)
             if on_checkpoint is not None:
                 on_checkpoint(workspace, state, 'board-approved')
@@ -1127,24 +1503,72 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
                 # These two roles share one checked board base and have disjoint outputs.
                 dispatch(root, state, [('firmware', 'firmware'), ('case', 'case')], runner,
                          on_import=on_checkpoint)
-            review(root, state, 'structure-review', checks, runner)
+            structure_review = review(root, state, 'structure-review', checks, runner,
+                                      allow_revise=True)
+            structure_deadline = None
+            for repair_round in range(1, MAX_ADVICE_ROUNDS + 1):
+                if structure_review['decision'] == 'approve':
+                    break
+                if structure_deadline is None:
+                    structure_deadline = (_stage_clock() + state['timeoutSeconds'] +
+                                          TIMEOUT_CONTINUATION_SECONDS)
+                roles = repair_stages(state, structure_review['findings'], final=False)
+                dispatch(root, state, roles, runner, on_import=on_checkpoint,
+                         stage_deadline=structure_deadline,
+                         worktree_tag=f'structure-repair-{repair_round}',
+                         guidance=structure_review, protected_roles=('board',))
+                structure_review = review(root, state, 'structure-review', checks, runner,
+                                          allow_revise=True, stage_deadline=structure_deadline)
+            if structure_review['decision'] != 'approve':
+                raise ValueError('Lead structure review still rejected after bounded repairs: ' +
+                                 json.dumps(structure_review['findings']))
             # Both finishers now read the actual integrated PCB/netlist/STEP. Covers come last.
             final = ([('solo', 'solo-final')] if state['mode'] == 'solo' else
                      [('firmware', 'firmware-final'), ('case', 'case-final')])
             dispatch(root, state, final, runner,
                      on_import=on_checkpoint if state['mode'] != 'solo' else None)
-            before = snapshot(workspace)
-            checks = checker(workspace, True)
-            names = changed(before, snapshot(workspace))
-            if any(not owns('solo', n) for n in names):
-                raise ValueError('Native final check wrote outside owned artifacts')
-            commit(workspace, names, 'Record final native checks')
-            write(root / f".pilot/rounds/{state['revision']}/final-check.json", checks)
-            if on_checkpoint is not None:
-                on_checkpoint(workspace, state, 'final')
-            review(root, state, 'final-review', checks, runner)
+            checks = publish_final_checks()
+            final_review = review(root, state, 'final-review', checks, runner,
+                                  allow_revise=True)
+            final_deadline = None
+            for repair_round in range(1, MAX_ADVICE_ROUNDS + 1):
+                if checks.get('passed') and final_review['decision'] == 'approve':
+                    break
+                if final_deadline is None:
+                    final_deadline = (_stage_clock() + state['timeoutSeconds'] +
+                                      TIMEOUT_CONTINUATION_SECONDS)
+                if not checks.get('passed'):
+                    advice = advise(root, state, 'final', workspace,
+                                    {'kind': 'native_final_check', 'checks': checks,
+                                     'review': final_review}, runner,
+                                    stage_deadline=final_deadline)
+                    with ACTIVE_LOCK:
+                        state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+                    if advice['decision'] == 'interface_change':
+                        raise ContractRevisionRequired(advice['summary'] + ': ' +
+                                                       ', '.join(advice['changedFields']),
+                                                       advice['changedFields'])
+                    if advice['decision'] == 'external_blocker':
+                        raise ExternalBlocker(advice['summary'])
+                    guidance = advice
+                    roles = repair_stages(state, advice['actions'], final=True)
+                else:
+                    guidance = final_review
+                    roles = repair_stages(state, final_review['findings'], final=True)
+                dispatch(root, state, roles, runner,
+                         on_import=on_checkpoint if state['mode'] != 'solo' else None,
+                         stage_deadline=final_deadline,
+                         worktree_tag=f'final-repair-{repair_round}', guidance=guidance,
+                         protected_roles=('board',))
+                checks = publish_final_checks()
+                final_review = review(root, state, 'final-review', checks, runner,
+                                      allow_revise=True, stage_deadline=final_deadline)
             if not checks.get('passed'):
-                raise ValueError('Native final check failed: ' + str(checks.get('findings')))
+                raise ValueError('Native final check failed after bounded repairs: ' +
+                                 str(checks.get('findings')))
+            if final_review['decision'] != 'approve':
+                raise ValueError('Lead final review still rejected after bounded repairs: ' +
+                                 json.dumps(final_review['findings']))
             load(root)  # reject edits to frozen input snapshots and sealed contract
             state['artifactManifest'] = snapshot(workspace)
             state['status'], state['findings'] = 'candidate_ready', []
@@ -1154,6 +1578,12 @@ def run(directory, *, execute=False, runner=codex, checker=native_check, on_chec
             state['status'], state['findings'] = 'execution_limit', [str(exc)]
         except ModelCapacityExhausted as exc:
             state['status'], state['findings'] = 'model_unavailable', [str(exc)]
+        except ContractRevisionRequired as exc:
+            state['status'], state['findings'] = 'needs_revision', [str(exc)]
+            state['replanRequired'] = True
+            state['requestedChangedFields'] = list(exc.fields)
+        except ExternalBlocker as exc:
+            state['status'], state['findings'] = 'needs_revision', [str(exc)]
         except Exception as exc:  # fail closed and persist diagnostics even for a checker/client defect
             state['status'], state['findings'] = 'needs_revision', [f'{type(exc).__name__}: {exc}']
         except KeyboardInterrupt:
@@ -1178,6 +1608,7 @@ def metrics(state):
             'promptSha256': state['promptSha256'], 'instructionsSha256': state['instructionsSha256'],
             'pipelineSha256': state['pipelineSha256'],
             'seedCommit': state['seedCommit'], 'repairRounds': max(0, state['revision'] - 1),
+            'advisorCalls': state.get('advisorCalls', 0),
             'wallSeconds': state.get('planningSeconds', 0) + sum(r['seconds'] for r in state['rounds']),
             'elapsedSinceInitSeconds': state.get('roundFinishedAt', time.time()) - state['createdAt'],
             'rounds': state['rounds'], 'planAttempts': state['planAttempts'],
@@ -1185,10 +1616,11 @@ def metrics(state):
             'agentSeconds': sum(j['seconds'] for j in jobs), 'reportedUsage': totals,
             'usageComplete': bool(jobs) and all(j.get('usage') is not None for j in jobs),
             'leadJobs': [j for j in jobs if j['stage'] in ('plan', 'board-review', 'structure-review',
-                                                        'final-review')],
+                                                        'final-review') or j['stage'].endswith('-advice')],
             'workerJobs': [j for j in jobs if j['stage'] not in ('plan', 'board-review',
-                                                                'structure-review', 'final-review')],
-            'advisorCalls': 0, 'approvalCalls': 0, 'actualBilledUsd': None, 'estimatedCostUsd': None,
+                                                                'structure-review', 'final-review') and
+                           not j['stage'].endswith('-advice')],
+            'approvalCalls': 0, 'actualBilledUsd': None, 'estimatedCostUsd': None,
             'hardwareTested': False, 'status': state['status']}
 
 
