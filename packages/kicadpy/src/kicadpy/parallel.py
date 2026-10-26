@@ -38,6 +38,8 @@ TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
 MAX_ADVICE_ROUNDS = 2
+MAX_TEAM_REPAIR_ROUNDS = 3
+MAX_TEAM_INTEGRATION_ROUNDS = 2
 TIMEOUT_ADVICE_SECONDS = 5 * 60
 SHARED_INTERFACE_FIELDS = frozenset({
     'coordinateFrame', 'board', 'powerRails', 'pins', 'modules',
@@ -171,7 +173,7 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     root = Path(directory).resolve()
     if root.exists():
         raise ValueError('Pilot directory must not exist; never initialize in a live run')
-    if mode not in ('parallel', 'sequential', 'solo') or not 10 <= timeout <= 14400:
+    if mode not in ('parallel', 'sequential', 'solo', 'teams') or not 10 <= timeout <= 14400:
         raise ValueError('Invalid mode or timeout')
     prompt = Path(prompt_file).read_text()
     if not prompt.strip() or len(prompt) > 100000:
@@ -672,6 +674,39 @@ def seal(root, state, interfaces):
     state.pop('requestedChangedFields', None)
 
 
+def adopt_contract(directory, original_directory):
+    """Carry the exact first contract into a follow-up run without replanning it."""
+    root, state = load(directory)
+    with locked(root):
+        root, state = load(root)
+        if state['status'] != 'initialized' or state['revision'] != 0:
+            raise ValueError('Contract adoption needs a fresh pilot')
+        source = Path(original_directory).resolve()
+        original_state = json.loads((source / '.pilot/state.json').read_text())
+        name = original_state.get('contractFile')
+        if (original_state.get('revision') != 1 or not isinstance(name, str) or
+                not (source / name).resolve().is_relative_to(source / '.pilot/contracts')):
+            raise ValueError('Original pilot has no revision-one contract')
+        contract = json.loads((source / name).read_text())
+        sha = digest(contract)
+        if (sha != original_state.get('contractSha256') or contract.get('revision') != 1 or
+                contract.get('promptSha256') != state['promptSha256'] or
+                digest((source / '.pilot/prompt.txt').read_text()) != state['promptSha256'] or
+                json.loads((source / 'workspace/PILOT_CONTRACT.json').read_text()) != contract):
+            raise ValueError('Original contract or frozen prompt changed')
+        validate_contract(contract['interfaces'])
+        destination = f'.pilot/contracts/r001-{sha}.json'
+        write(root / destination, contract)
+        write(root / 'workspace/PILOT_CONTRACT.json', contract)
+        commit(root / 'workspace', ['PILOT_CONTRACT.json'], 'Carry original sealed contract')
+        state.update(revision=1, contractSha256=sha, contractFile=destination,
+                     contractOrigin=str(source), status='planned', findings=[],
+                     replanRequired=False)
+        write(root / '.pilot/state.json', state)
+        write(root / '.pilot/metrics.json', metrics(state))
+        return state
+
+
 def _contract_field(interfaces, field):
     value = interfaces
     for key in field.split('.'):
@@ -687,6 +722,8 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
     root, state = load(directory)
     with locked(root):
         root, state = load(root)
+        if state['mode'] == 'teams' and revise:
+            raise ValueError('The team base contract is immutable; route changes through a lead release note')
         if state['status'] not in ('initialized', 'planning_failed') and not revise:
             raise ValueError('A contract already exists; use plan --revise to invalidate all worker outputs')
         if state['status'] == 'running':
@@ -696,13 +733,21 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
             raise ValueError('Integration workspace changed outside the pilot; resolve it before planning')
         state['planAttempts'] += 1
         began = time.time()
+        task_order = (
+            'Give disjoint board, firmware and full case tasks that can start concurrently '
+            'from this interface contract. Define enough geometry, pins and power for '
+            'firmware and case to work without a board handoff. All teams later reconcile '
+            'with the actual native board during integration. '
+            if state['mode'] == 'teams' else
+            'Give disjoint board, firmware and case/frame tasks. Frame and device mounts first; '
+            'outer covers follow integration. '
+        )
         prompt = ('You are the LEAD planning an isolated native KiCad experiment. Read AGENTS.md and '
                   'the supplied product brief. Do not modify files or run hardware. Publish a complete '
                   'shared contract matching the schema: mm coordinate frame, exact board outline and '
                   'mounts, power rails, device pins/nets, actual module positions/envelopes, mechanical '
                   'envelope and firmware behavior. Use owned/reference components; mark unmeasured '
-                  'dimensions and uncertain hardware in assumptions. Give disjoint board, firmware '
-                  'and case/frame tasks. Frame and device mounts first; outer covers follow integration. '
+                  'dimensions and uncertain hardware in assumptions. ' + task_order +
                   'Never weaken native electrical/manufacturing checks. If revising, resolve prior '
                   'findings and preserve compatible work.\n\nFIELDS REQUIRING CHANGE:\n' +
                   json.dumps(state.get('requestedChangedFields', [])) + '\n\nPRODUCT:\n' +
@@ -757,6 +802,30 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=c
 
 
 def worker_prompt(state, role, stage):
+    if state['mode'] == 'teams':
+        task = {
+            'board': 'Build and publish the native schematic, PCB, real netlist and board geometry.',
+            'firmware': ('Build the complete firmware and firmware/WIRING.md from the initial interface '
+                         'contract now. Check actual board outputs whenever available; report and repair '
+                         'any mismatch during integration.'),
+            'case': ('Build the functional case, mounts, covers, exports and checks from the initial '
+                     'interface contract now. Check actual board geometry whenever available; report '
+                     'and repair any mismatch during integration.'),
+        }[role]
+        return (
+            'You are the BUILDER for the ' + role + ' team. Read AGENTS.md, PILOT_BRIEF.md, '
+            'PILOT_CONTRACT.json and the KiCad tool card. The initial contract was sealed once; '
+            'later lead release notes supplied below amend it in order and the newest applicable '
+            'note wins for a changed field. Never edit the contract or release notes. Work only '
+            f'inside {json.dumps(OWNED[role])}; other domains are read-only. Do not commit, push, '
+            'delegate, order, print, flash, access hardware, alter gates or run the solo Stop loop. '
+            'Your independent tester will inspect your actual files and may return concrete findings. '
+            'Continue in the same worktree until the role task is complete or the bounded execution '
+            'budget expires. Publish useful drafts early. A local pass is not final product readiness; '
+            'the integration check reconciles all teams. If blocked, explain the exact unresolved '
+            'issue and preserve partial files. ' + task +
+            f'\nReturn stage={stage}, contractSha256={state["contractSha256"]}, concise summary and blockers.'
+        )
     task = {'board': ('Build and publish the real native schematic/PCB and enclosure contract. '
                       'If a contract-level hardware or interface blocker cannot be resolved with '
                       'verified components and pins, return it promptly in blockers instead of '
@@ -891,6 +960,57 @@ def _prior_draft(root, state, role, stage, current):
         return []
 
 
+def _carried_run_draft(root, state, role, stage, current):
+    """Resume only owned source from the immediately preceding team run."""
+    run = state.get('draftOriginRun')
+    if (state.get('mode') != 'teams' or not isinstance(run, str) or
+            not run.startswith('r') or not run[1:].isdigit() or run == root.name):
+        return []
+    source = root.parent / run
+    if source.parent != root.parent or not source.is_dir() or source.is_symlink():
+        return []
+    try:
+        previous = json.loads((source / '.pilot/state.json').read_text())
+        if previous.get('contractSha256') != state['contractSha256'] or previous.get('revision') != 1:
+            return []
+        records = sorted((source / '.pilot/rounds/1').glob(f'{stage}*-draft-base.json'),
+                         key=lambda path: path.stat().st_mtime_ns, reverse=True)
+        for record in records:
+            base = json.loads(record.read_text())
+            label = record.name.removesuffix('-draft-base.json')
+            old = source / 'workers' / f'r001-{label}'
+            if (base.get('revision') != 1 or base.get('stage') != stage or
+                    base.get('role') != role or
+                    base.get('contractSha256') != state['contractSha256'] or
+                    not old.is_dir() or old.is_symlink() or not (old / '.git').is_file() or
+                    (old / '.git').is_symlink() or
+                    hashlib.sha256((old / '.git').read_bytes()).hexdigest() !=
+                    base.get('pointerSha256') or
+                    git(old, 'rev-parse', 'HEAD') != base.get('baseHead') or
+                    git(old, 'diff', '--cached', '--name-only') or
+                    digest(json.loads(git(old, 'show', f"{base['baseHead']}:PILOT_CONTRACT.json"))) !=
+                    state['contractSha256']):
+                continue
+            after = snapshot(old)
+            edits = changed(base['baseline'], after)
+            if any(not owns(role, name) for name in edits):
+                continue
+            draft = []
+            for name in edits:
+                if (name not in after or not _draft_source(role, name) or
+                        current.get(name) != base['baseline'].get(name)):
+                    continue
+                data = (old / name).read_bytes()
+                if hashlib.sha256(data).hexdigest() != after[name]['sha256']:
+                    return []
+                draft.append((name, data, after[name]))
+            if draft:
+                return draft
+        return []
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return []
+
+
 def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None,
            authorized_integration=None, integration_lock=None):
     """Ask the lead for bounded, read-only guidance on one worker's real files."""
@@ -970,8 +1090,74 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
     return advice
 
 
+def team_test(root, state, role, stage, worktree, checks, runner, *,
+              stage_deadline=None, authorized_integration=None, integration_lock=None):
+    """Give each builder an independent, read-only tester in its own team."""
+    from .parallel_addendum import notes_for_role
+
+    before = snapshot(worktree)
+    before_files = _retry_files(worktree)
+    if integration_lock is None:
+        git_before = _retry_git_metadata(root, worktree)
+    else:
+        with integration_lock:
+            git_before = _retry_git_metadata(root, worktree)
+    prompt = (
+        f'You are the independent TESTER for the {role} team. Read the actual role files, '
+        'the original contract and the applicable numbered release notes. Newer release '
+        'notes supersede the base only for their named fields. Do not edit files, approve '
+        'missing outputs, claim physical tests or weaken native gates. Inspect concrete '
+        'engineering evidence and return file-cited defects. For a missing expected output, '
+        'cite its intended path inside this role. Approve only when this team task is done '
+        'against the current instructions. The integration gate will reconcile other teams. '
+        f'Return contractSha256={state["contractSha256"]}.\n'
+        f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
+        + notes_for_role(root, role)
+    )
+    # `call` selects the lead model for read-only jobs; the team's tester uses
+    # the worker model and the same shared jobs list, independent of lead gates.
+    tester_state = {**state, 'leadModel': state['workerModel']}
+    receipt = call(root, tester_state, stage + '-test', worktree, prompt,
+                   REVIEW_SCHEMA, True, runner,
+                   authorized_integration=authorized_integration,
+                   integration_lock=integration_lock,
+                   stage_deadline=stage_deadline)
+    if receipt['error']:
+        if receipt.get('failureKind') == 'interrupted':
+            raise JobInterrupted(job_error(receipt))
+        if receipt.get('failureKind') == 'timeout':
+            raise ExecutionLimitExhausted(job_error(receipt))
+        if receipt.get('failureKind') == 'model_capacity':
+            raise ModelCapacityExhausted(job_error(receipt))
+        raise ValueError(job_error(receipt))
+    result = receipt['result']
+    validate(result, REVIEW_SCHEMA)
+    if result['contractSha256'] != state['contractSha256'] or snapshot(worktree) != before:
+        raise ValueError('Team tester changed files or reviewed another contract')
+    if integration_lock is None:
+        safe, reason, _ = _retry_safety(root, worktree, stage + '-test', True,
+                                        before_files, git_before, authorized_integration)
+    else:
+        with integration_lock:
+            safe, reason, _ = _retry_safety(root, worktree, stage + '-test', True,
+                                            before_files, git_before, authorized_integration)
+    if not safe:
+        raise ValueError('Team tester changed Git metadata: ' + str(reason))
+    if result['decision'] == 'approve' and result['findings']:
+        raise ValueError('Team tester approved unresolved findings')
+    if result['decision'] == 'revise' and not result['findings']:
+        raise ValueError('Team tester rejected without file-cited findings')
+    for finding in result['findings']:
+        path = PurePosixPath(finding['path'])
+        if (path.is_absolute() or '..' in path.parts or not owns(role, str(path)) or
+                (worktree / path).is_symlink()):
+            raise ValueError('Team tester finding must cite its team-owned path')
+    return result
+
+
 def dispatch(root, state, stages, runner, on_import=None, checker=None,
-             stage_deadline=None, worktree_tag=None, guidance=None, protected_roles=()):
+             stage_deadline=None, worktree_tag=None, guidance=None, protected_roles=(),
+             on_progress=None):
     workspace = root / 'workspace'
     base = git(workspace, 'rev-parse', 'HEAD')
     baseline = snapshot(workspace)
@@ -1003,6 +1189,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             'gitMetadataSha256': _git_metadata_sha(workspace),
         })
         drafts = _prior_draft(root, state, role, stage, baseline)
+        if not drafts:
+            drafts = _carried_run_draft(root, state, role, stage, baseline)
         for draft_name, data, info in drafts:
             target = dest / draft_name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -1011,6 +1199,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         provenance = {'revision': state['revision'], 'stage': stage,
                       'contractSha256': state['contractSha256'],
                       'priorRevision': state['revision'] - 1,
+                      'originRun': state.get('draftOriginRun') if drafts else None,
                       'sources': [{'path': name, 'sha256': info['sha256']}
                                   for name, _, info in drafts]}
         write(root / f".pilot/drafts/r{state['revision']:03}-{worktree_name}.json", provenance)
@@ -1021,21 +1210,41 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
     def one(job):
         role, stage, dest, pointer, provenance = job
         prompt = worker_prompt(state, role, stage)
+        if state['mode'] == 'teams':
+            from .parallel_addendum import notes_for_role
+            prompt += '\n\n' + notes_for_role(root, role)
         if guidance is not None:
             prompt += ('\n\nLEAD REVIEW FINDINGS FOR SAME SEALED CONTRACT:\n' +
                        json.dumps(guidance, sort_keys=True) + '\nRepair the cited files in this '
                        'new worktree from the latest integrated checkpoint. Preserve the shared '
                        'interface and run native checks before reporting completion.')
         if provenance['sources']:
-            prompt += ('\nThe following source files are untrusted drafts copied from revision '
-                       f"{provenance['priorRevision']}: {json.dumps(provenance['sources'])}. "
-                       'Reconcile every draft with the CURRENT sealed contract, checked board and task. '
+            origin = (f"previous team run {provenance['originRun']}" if provenance['originRun'] else
+                      f"revision {provenance['priorRevision']}")
+            contract_instruction = (
+                'the original sealed contract, applicable release notes, actual board when available, '
+                'and current task' if state['mode'] == 'teams' else
+                'the CURRENT sealed contract and actual integration files')
+            prompt += ('\nThe following source files are untrusted drafts copied from ' + origin +
+                       f": {json.dumps(provenance['sources'])}. "
+                       f'Reconcile every draft with {contract_instruction}. '
                        'Rebuild and recheck; do not treat prior outputs or verdicts as accepted.')
         budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS)
                   if stage == 'board' else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
         deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
         advice_rounds = 0
         timeout_advised = False
+
+        def publish(status, findings=()):
+            if on_progress is not None and state['mode'] == 'teams':
+                # Preview publication is informational. Unsafe or incomplete
+                # copies are rejected in the bridge, never imported as output.
+                try:
+                    normalized = [str(item.get('message', item) if isinstance(item, dict)
+                                      else item)[:500] for item in findings][:20]
+                    on_progress(role, stage, dest, status, normalized)
+                except (OSError, ValueError):
+                    pass
 
         def coach_timeout(receipt):
             nonlocal timeout_advised
@@ -1062,15 +1271,31 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             return advice
 
         try:
+            publish('queued')
             while True:
                 with integration_lock:
                     initial_files = _retry_files(dest)
                     initial_git = _retry_git_metadata(root, dest)
-                receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner,
-                               authorized_integration=authorized_integration,
-                               integration_lock=integration_lock, stage_deadline=deadline,
-                               on_timeout=coach_timeout if stage == 'board' else None)
+                poll_done = threading.Event()
+                watcher = None
+                if state['mode'] == 'teams' and on_progress is not None:
+                    def watch():
+                        while not poll_done.wait(10):
+                            publish('draft')
+                    watcher = threading.Thread(target=watch, daemon=True)
+                    watcher.start()
+                try:
+                    receipt = call(root, state, stage, dest, prompt, RESULT_SCHEMA, False, runner,
+                                   authorized_integration=authorized_integration,
+                                   integration_lock=integration_lock, stage_deadline=deadline,
+                                   on_timeout=coach_timeout if stage == 'board' and
+                                   state['mode'] != 'teams' else None)
+                finally:
+                    poll_done.set()
+                    if watcher is not None:
+                        watcher.join(timeout=1)
                 if receipt['error']:
+                    publish('blocked', [job_error(receipt)])
                     return role, stage, dest, pointer, receipt, None, None
                 validate(receipt['result'], RESULT_SCHEMA)
                 result = receipt['result']
@@ -1091,11 +1316,13 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                 if any(owns(protected, name) for protected in protected_roles
                        for name in changed(baseline, after_worker)):
                     raise ValueError('Late repair changed a protected board artifact')
+                publish('draft', result['blockers'])
                 problem = None
                 checks = None
                 if result['blockers']:
                     problem = {'kind': 'worker_blockers', 'blockers': result['blockers']}
                 elif checker is not None and role in ('board', 'solo'):
+                    publish('checking')
                     before_check = after_worker
                     with integration_lock:
                         check_files = _retry_files(dest)
@@ -1111,6 +1338,30 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                         raise ValueError('Native board check changed Git metadata: ' + str(reason))
                     if not checks.get('passed'):
                         problem = {'kind': 'native_board_check', 'checks': checks}
+                if state['mode'] == 'teams':
+                    publish('checking', problem.get('blockers', ()) if problem else ())
+                    test = team_test(root, state, role, stage, dest, checks or problem or {}, runner,
+                                     authorized_integration=authorized_integration,
+                                     integration_lock=integration_lock)
+                    if test['decision'] == 'revise' and problem is None:
+                        problem = {'kind': 'team_tester', 'review': test}
+                    if problem is None:
+                        publish('passed')
+                        return role, stage, dest, pointer, receipt, checks, None
+                    if advice_rounds >= MAX_TEAM_REPAIR_ROUNDS:
+                        publish('needs_revision', [str(problem)])
+                        raise ValueError('Team task remains open after bounded continuation: ' +
+                                         json.dumps(problem, sort_keys=True))
+                    advice_rounds += 1
+                    publish('needs_revision', test['findings'] if test['findings'] else
+                            [str(problem)])
+                    prompt = (worker_prompt(state, role, stage) + '\n\n' +
+                              notes_for_role(root, role) + '\n\nINDEPENDENT TESTER FINDINGS:\n' +
+                              json.dumps(test, sort_keys=True) + '\nPREVIOUS PROBLEM:\n' +
+                              json.dumps(problem, sort_keys=True) +
+                              '\nContinue in this same worktree. Repair actual files and rerun '
+                              'native checks. Preserve the original contract and release notes.')
+                    continue
                 if problem is None:
                     return role, stage, dest, pointer, receipt, checks, None
                 if advice_rounds >= MAX_ADVICE_ROUNDS:
@@ -1177,6 +1428,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
     stage_checks = {}
 
     def accept(result):
+        nonlocal expected, expected_head
         role, stage, dest, pointer, receipt, checks, worker_error = result
         if worker_error is not None:
             if isinstance(worker_error, ContractRevisionRequired):
@@ -1230,9 +1482,21 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         if checks is not None:
             stage_checks[stage] = checks
         if on_import is not None:
-            on_import(workspace, state, stage)
-            if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
-                raise ValueError('Checkpoint changed the integrated workspace')
+            if state['mode'] == 'teams' and role == 'board':
+                with integration_lock:
+                    on_import(workspace, state, stage)
+                    after_callback = snapshot(workspace)
+                    callback_head = git(workspace, 'rev-parse', 'HEAD')
+                    if any(not owns('board', name) for name in changed(expected, after_callback)):
+                        raise ValueError('Board checkpoint changed another team artifact')
+                    if metadata() != git_before or git(workspace, 'diff', '--cached', '--name-only'):
+                        raise ValueError('Board checkpoint changed shared Git metadata or index')
+                    expected, expected_head = after_callback, callback_head
+                    authorized_integration.append(_integration_git_state(root))
+            else:
+                on_import(workspace, state, stage)
+                if snapshot(workspace) != expected or git(workspace, 'rev-parse', 'HEAD') != expected_head:
+                    raise ValueError('Checkpoint changed the integrated workspace')
 
     if state['mode'] == 'sequential' or len(jobs) == 1:
         for job in jobs:
@@ -1396,10 +1660,202 @@ def repair_stages(state, cited, *, final):
             if role in roles]
 
 
-def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None):
+def team_integration_test(root, state, checks, runner):
+    """Read-only cross-team tester; the lead is free to handle user changes."""
+    from .parallel_addendum import notes_for_role
+
+    workspace = root / 'workspace'
+    before = snapshot(workspace)
+    before_files = _retry_files(workspace)
+    git_before = _retry_git_metadata(root, workspace)
+    notes = '\n\n'.join(notes_for_role(root, role) for role in ROLES)
+    prompt = (
+        'You are the independent INTEGRATION TESTER for the board, firmware and case teams. '
+        'Read their actual integrated files, native board/netlist/geometry, original contract '
+        'and ordered release notes. Do not edit anything. Check pin and power compatibility, '
+        'mechanical interfaces, firmware build/wiring, printable case and native checks. '
+        'A native failure cannot be overruled by a model approval. For each defect cite a '
+        'specific role-owned file or the intended missing path. Cite PILOT_CONTRACT.json only '
+        'when the original interface cannot be satisfied without a new user instruction. '
+        f'Return contractSha256={state["contractSha256"]}.\n'
+        f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
+    )
+    tester_state = {**state, 'leadModel': state['workerModel']}
+    receipt = call(root, tester_state, 'integration-test', workspace, prompt,
+                   REVIEW_SCHEMA, True, runner)
+    if receipt['error']:
+        if receipt.get('failureKind') == 'interrupted':
+            raise JobInterrupted(job_error(receipt))
+        if receipt.get('failureKind') == 'timeout':
+            raise ExecutionLimitExhausted(job_error(receipt))
+        if receipt.get('failureKind') == 'model_capacity':
+            raise ModelCapacityExhausted(job_error(receipt))
+        raise ValueError(job_error(receipt))
+    result = receipt['result']
+    validate(result, REVIEW_SCHEMA)
+    if result['contractSha256'] != state['contractSha256'] or snapshot(workspace) != before:
+        raise ValueError('Integration tester changed files or reviewed another contract')
+    safe, reason, _ = _retry_safety(root, workspace, 'integration-test', True,
+                                    before_files, git_before)
+    if not safe:
+        raise ValueError('Integration tester changed Git metadata: ' + str(reason))
+    if result['decision'] == 'approve' and result['findings']:
+        raise ValueError('Integration tester approved unresolved findings')
+    if result['decision'] == 'revise' and not result['findings']:
+        raise ValueError('Integration tester rejected without cited findings')
+    for finding in result['findings']:
+        path = PurePosixPath(finding['path'])
+        if (path.is_absolute() or '..' in path.parts or
+                (not owns('solo', str(path)) and str(path) != 'PILOT_CONTRACT.json') or
+                (workspace / path).is_symlink()):
+            raise ValueError('Integration finding needs a team-owned path')
+    return result
+
+
+def native_failure_roles(checks):
+    """Route known native gate findings without replaying unrelated teams."""
+    roles = set()
+    for finding in checks.get('findings', []):
+        message = str(finding).casefold()
+        if 'firmware' in message or 'wiring' in message:
+            roles.add('firmware')
+        elif 'case' in message or 'print project' in message or 'slicer' in message:
+            roles.add('case')
+        else:
+            roles.add('board')
+    return roles
+
+
+def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=None,
+              on_progress=None):
+    """Run independent builder/tester teams, then reconcile their interfaces."""
+    from .parallel_addendum import _addendum_lock, load_addenda
+
+    root, state = load(directory)
+    with locked(root):
+        root, state = load(root)
+        if state['status'] != 'planned' or state['mode'] != 'teams':
+            raise ValueError('A sealed team contract must be planned before run')
+        workspace = root / 'workspace'
+        assigned = state.get('assignedRoles', list(ROLES))
+        if not isinstance(assigned, list) or not assigned or any(role not in ROLES for role in assigned):
+            raise ValueError('Invalid lead team assignment')
+        tip = load_addenda(root, state['contractSha256'])['tipSha256']
+        state['status'], state['roundStartedAt'] = 'running', time.time()
+        state['releaseNoteTipSha256'] = tip
+        state['replanRequired'] = False
+        write(root / '.pilot/state.json', state)
+
+        def publish_native(complete):
+            before = snapshot(workspace)
+            head = git(workspace, 'rev-parse', 'HEAD')
+            verdict = checker(workspace, complete)
+            names = changed(before, snapshot(workspace))
+            allowed = 'solo' if complete else 'board'
+            if any(not owns(allowed, name) for name in names):
+                raise ValueError('Native checker wrote outside owned artifacts')
+            load(root)
+            if git(workspace, 'rev-parse', 'HEAD') != head or git(workspace, 'diff', '--cached', '--name-only'):
+                raise ValueError('Native checker changed integrated Git metadata')
+            commit(workspace, names, 'Record team native checks' if complete else
+                   'Publish checked team board')
+            stage = 'final' if complete else 'board'
+            write(root / f".pilot/rounds/{state['revision']}/{stage}-check.json", verdict)
+            if on_checkpoint is not None:
+                on_checkpoint(workspace, state, stage)
+            return verdict
+
+        try:
+            stages = [(role, role) for role in ROLES if role in assigned]
+            board_checks = None
+            if 'board' not in assigned:
+                board_checks = publish_native(False)
+                if not board_checks.get('passed'):
+                    raise ValueError('Seeded board failed native check: ' +
+                                     json.dumps(board_checks.get('findings', [])))
+
+            def accepted(_source, _current, stage):
+                nonlocal board_checks
+                if stage == 'board':
+                    board_checks = publish_native(False)
+                    if not board_checks.get('passed'):
+                        raise ValueError('Integrated board native check failed: ' +
+                                         json.dumps(board_checks.get('findings', [])))
+                elif board_checks is not None and on_checkpoint is not None:
+                    on_checkpoint(workspace, state, stage)
+
+            dispatch(root, state, stages, runner, checker=checker,
+                     on_progress=on_progress, on_import=accepted)
+            if board_checks is None:
+                raise ValueError('Board team produced no checked native handoff')
+            checks = publish_native(True)
+            integration = team_integration_test(root, state, checks, runner)
+            for repair_round in range(1, MAX_TEAM_INTEGRATION_ROUNDS + 1):
+                if checks.get('passed') and integration['decision'] == 'approve':
+                    break
+                findings = integration['findings']
+                if any(item['path'] == 'PILOT_CONTRACT.json' for item in findings):
+                    raise ValueError('The teams found an unresolved base interface conflict: ' +
+                                     json.dumps(findings, sort_keys=True))
+                roles = {role for item in findings for role in ROLES
+                         if owns(role, item['path'])}
+                if not checks.get('passed'):
+                    roles.update(native_failure_roles(checks))
+                    if not roles:
+                        roles = set(ROLES)
+                if not roles:
+                    raise ValueError('Integration tester did not identify a repair owner')
+                dispatch(root, state, [(role, role) for role in ROLES if role in roles],
+                         runner, checker=checker, on_progress=on_progress,
+                         worktree_tag=f'integration-{repair_round}',
+                         guidance={'native': checks, 'integration': integration})
+                if 'board' in roles:
+                    board_checks = publish_native(False)
+                    if not board_checks.get('passed'):
+                        raise ValueError('Repaired board failed integrated native check: ' +
+                                         json.dumps(board_checks.get('findings', [])))
+                checks = publish_native(True)
+                integration = team_integration_test(root, state, checks, runner)
+            if not checks.get('passed') or integration['decision'] != 'approve':
+                raise ValueError('Cross-team integration remains open after bounded repairs: ' +
+                                 json.dumps({'native': checks, 'review': integration}, sort_keys=True))
+            with _addendum_lock(root):
+                if load_addenda(root, state['contractSha256'])['tipSha256'] != tip:
+                    raise ValueError('A newer lead release note arrived during this run; resume affected teams')
+                load(root)
+                state['artifactManifest'] = snapshot(workspace)
+                state['status'], state['findings'] = 'candidate_ready', []
+                # Publish terminal state while the lead's append lock is held.
+                # A concurrent note either arrives first and invalidates this
+                # run, or sees candidate_ready and is sent to the next run.
+                write(root / '.pilot/state.json', state)
+        except JobInterrupted as exc:
+            state['status'], state['findings'] = 'interrupted', [str(exc)]
+        except ExecutionLimitExhausted as exc:
+            state['status'], state['findings'] = 'execution_limit', [str(exc)]
+        except ModelCapacityExhausted as exc:
+            state['status'], state['findings'] = 'model_unavailable', [str(exc)]
+        except Exception as exc:
+            state['status'], state['findings'] = 'needs_revision', [f'{type(exc).__name__}: {exc}']
+        except KeyboardInterrupt:
+            state['status'], state['findings'] = 'interrupted', ['Operator interrupted the teams']
+        finally:
+            state['roundFinishedAt'] = time.time()
+            state['rounds'].append({'revision': state['revision'], 'status': state['status'],
+                                    'seconds': state['roundFinishedAt'] - state['roundStartedAt']})
+            write(root / '.pilot/state.json', state)
+            write(root / '.pilot/metrics.json', metrics(state))
+        return state
+
+
+def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None,
+        on_progress=None):
     if not execute:
         raise ValueError('Paid/model execution requires explicit --execute')
     root, state = load(directory)
+    if state['mode'] == 'teams':
+        return run_teams(root, runner=runner, checker=checker,
+                         on_checkpoint=on_checkpoint, on_progress=on_progress)
     with locked(root):
         root, state = load(root)
         if state['status'] != 'planned':
@@ -1639,7 +2095,7 @@ def main(argv=None):
     init.add_argument('--prompt', required=True)
     init.add_argument('--instructions', help='Installed harness/kicad directory')
     init.add_argument('--seed', help='Optional clean Git workspace; archived, never modified')
-    init.add_argument('--mode', choices=['parallel', 'sequential', 'solo'], default='parallel')
+    init.add_argument('--mode', choices=['parallel', 'sequential', 'solo', 'teams'], default='parallel')
     init.add_argument('--lead-model', default=LEAD)
     init.add_argument('--worker-model', default=WORKER)
     init.add_argument('--timeout', type=int, default=1800)

@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -47,6 +48,38 @@ function seedProject(dir) {
   fs.writeFileSync(path.join(dir, "boards", "main_fab", "ORDER.md"), "# order");
   fs.writeFileSync(path.join(dir, "boards", "main_fab", "board.glb"), "glb");
 }
+
+test("team preview stays separate from accepted catalog entries and rejects changed media", () => {
+  const dir = tmpdir("circuit-team-preview-");
+  const mediaPath = ".circuit/team-previews/current/board/boards/main_review/_pcb.svg";
+  const media = path.join(dir, mediaPath);
+  fs.mkdirSync(path.dirname(media), { recursive: true });
+  fs.writeFileSync(media, "<svg/>");
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "running", stage: "building", teamReady: false }));
+  const preview = { schema: 1, run: "r001", teams: {
+    board: { status: "draft", stage: "board", verified: false, files: ["design/main.kicad_pcb"],
+      media: [{ file: "boards/main_review/_pcb.svg", path: mediaPath,
+        bytes: 6, sha256: crypto.createHash("sha256").update("<svg/>").digest("hex") }], findings: [] },
+    firmware: { status: "queued", stage: null, verified: false, files: [], media: [], findings: [] },
+    case: { status: "queued", stage: null, verified: false, files: [], media: [], findings: [] },
+  } };
+  fs.writeFileSync(path.join(dir, ".circuit/team-preview.json"), JSON.stringify(preview));
+  const first = scanProjectCatalog({ projectDir: dir, projectId: "p1" });
+  assert.deepEqual(first.entries, []);
+  assert.equal(first.teamPreview.teams.board.verified, false);
+  assert.match(first.teamPreview.teams.board.media[0].url, /team-previews\/current\/board\/boards\/main_review\/_pcb\.svg/);
+  fs.writeFileSync(media, "<svg changed/>");
+  assert.deepEqual(scanProjectCatalog({ projectDir: dir, projectId: "p1" }).teamPreview.teams.board.media, []);
+  const uppercasePath = ".circuit/team-previews/current/board/boards/main_review/_PCB.PNG";
+  fs.writeFileSync(path.join(dir, uppercasePath), "png");
+  preview.teams.board.media = [{ file: "boards/main_review/_PCB.PNG", path: uppercasePath,
+    bytes: 3, sha256: crypto.createHash("sha256").update("png").digest("hex") }];
+  fs.writeFileSync(path.join(dir, ".circuit/team-preview.json"), JSON.stringify(preview));
+  assert.match(scanProjectCatalog({ projectDir: dir, projectId: "p1" }).teamPreview.teams.board.media[0].url,
+    /_PCB\.PNG/);
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "candidate_ready", teamReady: true }));
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "p1" }).teamPreview, undefined);
+});
 
 test("scanProjectCatalog applies the §2 visibility and grouping rules", () => {
   const dir = tmpdir("circuit-cat-");

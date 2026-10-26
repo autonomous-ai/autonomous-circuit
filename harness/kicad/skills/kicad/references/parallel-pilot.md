@@ -1,11 +1,32 @@
 # Astra / Sol team pilot
 
 This is the lower-level experimental CLI for a **new isolated run**. A new Codex KiCad project
-in Harness has `.circuit/team-auto`: its entry agent automatically calls
-`kicadpy.parallel_tile start <workspace> --prompt <brief> --execute` after the person sends a
-board-build prompt, and the bridge makes checked output visible in that project's viewer.
-Questions and plan-only requests do not start a pilot. Existing KiCad projects without the
-marker, and the Claude and Grok sibling tiles, keep their single-agent workflow. The commands
+in Harness has `.circuit/team-auto`: its entry agent passes each build request to the lead with
+`kicadpy.parallel_tile start <workspace> --prompt <message-file> --execute`. The CLI selects
+`teams` mode for the bridge. The first build message creates the one sealed contract; every later
+build or change message is delivered verbatim to the lead as an append-only supplemental release
+note. The lead routes that note to the responsible teams. The bridge makes worker progress and checked
+output visible in that project's viewer.
+Questions and plan-only requests use the bridge's read-only `ask` command, which sends the
+question to the lead without creating a contract, release note, or build. It works before the
+first contract and after. Save the exact question in an immutable UTF-8 history file, then run:
+
+```bash
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile ask /absolute/project \
+  --prompt /absolute/project/prompts/history/exact-question.md --execute
+```
+
+Changes to the product use `start` and become lead-routed release notes after the first build.
+If a build is still active, send the new exact-message file through `parallel_tile note`.
+Copy newly attached images and reference files into the visible project's `prompts/assets/`
+before either command. The lead receives bounded, hash-checked copies alongside the verbatim
+new message; the message itself is not rewritten to invent an attachment path.
+The lead records the release note while workers continue. After that run ends, use
+`parallel_tile resume <workspace> --execute` to dispatch the new note without writing it
+again. `resume` also continues an incomplete bounded run under the same contract when no
+new user message exists.
+Existing KiCad projects without the marker, and the Claude and Grok sibling tiles, keep their
+single-agent workflow. The commands
 below are for operators who explicitly want an isolated pilot or comparison; reading this
 reference alone authorizes no model call or benchmark. A standalone pilot never adopts an
 active pet workspace. The bridge may seed a new follow-up pilot from accepted prior work.
@@ -27,7 +48,7 @@ no separate API key or Python dependency is added. The existing CLI login is use
 
 ```bash
 export KICAD_HARNESS_PYTHON="$PWD/harness/kicad/toolchain/python"
-"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel init /tmp/sensor-team --prompt /absolute/brief.txt
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel init /tmp/sensor-team --prompt /absolute/brief.txt --mode teams
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel status /tmp/sensor-team
 # The next two commands make real model calls. Init/status/metrics do not.
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-team --execute
@@ -47,12 +68,12 @@ source, purpose and current/superseded status. Verify each referenced file still
 `plan`; a bare `[Image #]` marker or temporary clipboard path does not give the lead visual
 evidence. If an image is missing, say so in the brief and avoid guessing measurements from it.
 
-Defaults: lead `gpt-6-astra` at medium effort, workers `gpt-6.1-sol` at high effort. Set
+Defaults: lead `gpt-6-astra` at medium effort, workers and testers `gpt-6.1-sol` at high effort. Set
 `--lead-model`, `--worker-model` and `--timeout` at init when needed; there is no silent model
 fallback. The per-job timeout defaults to 1800 seconds, bounded to 10–14400 at initialization.
-The limit is per call, not a total token/dollar budget. The board worker runs first;
-firmware and case can then overlap, so there are at most two concurrent worker calls
-and one bounded integration round per `run`; no automatic repair loop.
+The limit is per call, not a total token/dollar budget. Standalone `parallel init` defaults to
+the older `parallel` comparison mode; use `--mode teams` to exercise the bridge's independent
+team flow manually. Do not read the old `parallel` mode as the new tile behavior.
 
 ## Contract and stages
 
@@ -67,28 +88,31 @@ not a proof of electrical safety or mechanical fit.
 The host seals `PILOT_CONTRACT.json` with a revision, prompt/instruction hashes and canonical
 SHA256. Frozen original prompt lives at `.pilot/prompt.txt`, mirrored as `PILOT_BRIEF.md`.
 Snapshots of AGENTS/tool card/references are under `.pilot/instructions`. Pipeline/checker
-source and tile environment-manifest hashes are recorded and checked again; use a pinned checkout throughout a pilot.
+source and tile environment-manifest hashes are recorded and checked again; use a pinned checkout
+throughout a pilot. In a team project, later messages reuse the exact sealed first contract.
+The bridge records the lead's routing as hash-chained release notes under `.pilot/addenda/`;
+the base contract is never rewritten or replanned. A later note supersedes the base and earlier
+notes only for the contract fields it names. Every other requirement remains in force.
 
-1. Astra plans read-only; host seals the contract.
-2. A Sol board worker builds in a detached worktree. Host validates its contract/stage receipt,
-   blockers, ownership and unchanged HEAD, imports the output, then republishes the actual
-   native board with the existing manufacturing checker. The bridge shows this checked board
-   and its real native verdict, including a failed verdict. After a passing native check, Astra
-   reviews the actual board and interfaces. Firmware and case wait for this lead approval.
-3. Sol firmware and functional-frame workers start from the same approved, committed
-   board/netlist/STEP in separate worktrees. They may overlap. Host validates and imports each
-   completed role independently, then shows that role's artifacts in the viewer; a sibling's
-   blocker does not erase accepted work. The frame includes actual device mounts, fasteners,
-   joints and wire routes. Covers wait; shared interfaces are frozen and uncertainty becomes a
-   blocker. Astra then reviews the integrated structure and actual files.
-4. After structural approval, firmware and case finishers start from the integrated work.
-   Firmware reconciles its real pins and `WIRING.md`; case adds removable covers and rechecks
-   full motion with hardware/wires, guide/interactive overview and production/TEST slicer
-   projects. Static cases use an appropriately simple base.
-5. Host republishes the native board, requires written/current built firmware and WIRING,
-   fresh passing case status, case README, and Print all's existing prepared-3MF binding
-   validator. Astra reviews actual artifacts against the contract. Failure from either side
-   prevents `candidate_ready`; an approval cannot override a failed native checker.
+1. On the first request, Astra plans read-only and the host seals the base contract once. On
+   each later request, Astra reads that base and all earlier notes, then writes a supplemental
+   note and selects the affected teams. The user always speaks to the lead through the bridge.
+2. Board, firmware, and case each have a Sol builder and a separate Sol tester. The selected
+   teams start from the same contract without waiting for another team's output or a lead gate.
+   The firmware team implements the defined behavior against provisional pins; the case team
+   builds against the contracted geometry. Both must later reconcile with actual board files.
+   A tester inspects its team's real output and findings; a rejection sends work back to the
+   same builder for a bounded repair attempt, without making the lead replan.
+3. The bridge copies bounded drafts to a distinct viewer preview area as work advances. Each
+   preview is marked unverified. Valid role output is imported only after schema, contract,
+   ownership, Git state, tester and relevant native checks; the bridge then mirrors checked
+   checkpoints to the main viewer. A sibling's blocker does not erase already accepted work.
+4. The host republishes the integrated native board and performs final checks for written and
+   current built firmware, wiring, case status and guide, and the prepared print-project binding.
+   An independent integration tester inspects the real combined artifacts and identifies the
+   responsible team for any interface mismatch. Bounded repair rounds return findings to those
+   teams. `candidate_ready` and the bridge's `teamReady` require both the native checks and
+   integration test to pass. A model approval cannot override a failed native checker.
 
 The board-to-firmware pin comparison and broader mechanism/overview assessment are **model
 review**, not a new deterministic equivalence/physics checker. Print project's hash, canonical
@@ -97,11 +121,11 @@ the project-local slicer verifier still supplies arrangement/clearance evidence.
 print is launched by this orchestration. Physical fit, strength and motion remain untested.
 `candidate_ready` describes this experimental workflow, not permission to order or flash.
 Existing native verdict artifacts retain their existing meaning; no verdict is fabricated.
-The bridge records `lastCheckpointStage` as board, board-approved, each completed role, or
-final. Its `teamReady` stays false during these checkpoints and becomes true only after the
-final native gate and lead review both pass. A native board verdict of `ready: true` describes
-that board check; it does not mean the full team build is ready. A failed or rejected role's
-private worktree is not shown as an accepted viewer artifact.
+The bridge records checked checkpoints as completed roles, board, or final. Its `teamReady`
+stays false during these checkpoints and becomes true only after the final native gate and
+integration test both pass. A native board verdict of `ready: true` describes that board check;
+it does not mean the full team build is ready. Failed or rejected role output may appear only
+as an explicitly unverified progress preview, never as an accepted viewer artifact.
 
 Ownership is enforced at import, not an OS security boundary:
 
@@ -120,51 +144,64 @@ why this mode is required. Import ownership is a workflow guard, not host isolat
 `--execute` starts native-capable workers with that same access; review this before launching. Pinned firmware/block tool paths are loaded from the tile manifest. Host Harness context and thread ID are removed, hooks
 are not configured, and the nested advisor is disabled.
 
-## Failures and bounded revision
+## Failures, repairs, and follow-up requests
 
 Read `.pilot/state.json`, `.pilot/jobs/*/receipt.json`, `events.jsonl`, `stderr.log`, and
 `.pilot/rounds/<revision>/{board-check,final-check}.json`. Failed worker outputs remain in their
-worktrees for diagnosis; they are never silently promoted. An invalid planning attempt retains
-usage and the previous readable contract; planning attempts have distinct log directories.
+worktrees for diagnosis and may appear only as unverified viewer previews. An invalid first
+planning attempt retains usage and the previous readable contract.
+
+In `teams` mode, builder/tester work is bounded to three rework rounds per role and integration
+repair to two rounds. A tester or final native check can reject output; `teamReady` stays false
+and the bridge reports findings. This does not trigger a new base contract. For a later build,
+repair, or change request, save **only the new user's words** in a new immutable file and pass it
+to the lead:
+
+```bash
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile start /absolute/project \
+  --prompt /absolute/project/prompts/history/next-user-message.md --execute
+```
+
+The bridge starts a fresh private pilot with the exact original sealed contract, carries its
+verified release-note chain, records the lead's new note, and assigns the teams it names. It
+seeds from the preceding clean pilot checkpoint. The next run may also copy source-only drafts
+from an unfinished role into that role's private worktree after ownership and hash checks; those
+drafts remain unverified until its tester and native gates pass. The teams preserve compatible work and
+reconcile interfaces against the latest notes and actual files. Do not edit
+`PILOT_CONTRACT.json`, rewrite an earlier message, or call `plan --revise` for a new user request.
 
 Within one dispatch, a structured model-capacity failure may retry only the affected job,
 within a fixed attempt limit. The retry keeps the same sealed contract and may continue
 role-owned partial files in that worker's isolated worktree. It refuses changed shared Git
 metadata, a moved HEAD or any unowned file change. Each attempt keeps its own receipt and
-usage; completed sibling workers are called once. A role's output is integrated only after
-that role passes schema, contract, ownership and hash checks. Exhausted capacity reports
-`model_unavailable` and stops the bridge before a new contract revision. A true design
-revision uses fresh worktrees because its contract hash has changed; old worker results are
-never silently reused. The next revision may copy only source drafts from the immediately
-preceding same-role worktree after checking its contract, ownership, Git state and file hashes.
-The worker and lead must reconcile those drafts against the new contract; reports, build output
-and prior approvals are excluded. `.pilot/drafts/` records copied source paths and hashes.
+usage; completed sibling workers are called once. Exhausted capacity reports
+`model_unavailable`, without contract replanning.
 
 A worker timeout may continue in its own worktree only when it left role-owned partial work.
 The board stage can make up to six continuations, each bounded by the configured per-job timeout,
 only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
-files does not count. Its controller wall deadline is
-three hours (or a longer explicitly configured initial per-job timeout), including capacity
-backoff. Other worker stages retain one 600-second continuation and the original per-job timeout
-plus 600-second controller deadline. A timeout without fresh progress or one that exhausts its
-attempt or wall limit reports `execution_limit` and stops before a new contract revision. Receipts
-retain every attempt, configured time limit and reported usage; process cleanup and receipt I/O
-can add a little wall time. Interrupted work reports `interrupted`. These execution outcomes do
-not count as engineering approval. Independently validated and imported sibling outputs stay
-visible; the failed role's private output is not promoted.
+files does not count. Its controller wall deadline is three hours (or a longer explicitly
+configured initial per-job timeout), including capacity backoff. Other worker stages retain one
+600-second continuation and the original per-job timeout plus 600-second controller deadline.
+A timeout without fresh progress or one that exhausts its attempt or wall limit reports
+`execution_limit`. Receipts retain every attempt, configured time limit and reported usage;
+process cleanup and receipt I/O can add a little wall time. Interrupted work reports
+`interrupted`. These outcomes do not count as engineering approval. Independently validated
+and imported sibling outputs stay visible.
+
+The older standalone `parallel`, `sequential`, and `solo` modes retain explicit contract
+revision for comparisons. For those modes only:
 
 ```bash
-"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-team --revise --execute
-"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel run /tmp/sensor-team --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel plan /tmp/sensor-legacy --revise --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel run /tmp/sensor-legacy --execute
 ```
 
-Revision includes prior findings and preserves accepted compatible artifacts. It changes the
-contract hash, uses fresh worktrees for **every** worker, and reruns reconciliation/checks and
-both reviews. Old receipts/contracts remain for audit and cost accounting. A failed/completed
-round cannot just be rerun against its old outputs. Fixes needing brief/instruction changes
-start a new pilot with explicit updated inputs; do not edit frozen snapshots. An external
-change to candidate artifacts makes `status` report stale. A file lock prevents two controller
-commands from operating on the same pilot at once.
+That legacy revision includes prior findings and preserves accepted compatible artifacts. It
+changes the contract hash, uses fresh worktrees, and reruns its stage checks. Old receipts and
+contracts remain for audit. It is not the team tile's follow-up path. An external change to
+candidate artifacts makes `status` report stale. A file lock prevents two controller commands
+from operating on the same pilot at once.
 
 Ctrl-C stops the current foreground call or kills the active worker process groups, retains
 available receipts and marks the round failed/interrupted. Timeouts also kill process groups

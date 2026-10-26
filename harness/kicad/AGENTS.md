@@ -20,34 +20,67 @@ workflow from inside a pilot role worktree.
 If `.circuit/team-auto` exists in this workspace, this section governs every board build and
 design change. Harness puts that marker in **new Codex KiCad projects**. A project without it keeps
 the single-agent workflow below; never add the marker to an existing project or running session.
-The person only needs to open KiCad in Harness and send a prompt. You are the entry agent: pass
-the request to the Astra lead and Sol workers through the tile bridge, then report their checked
-result. Do not build the board yourself or arm `kicadpy.harness --active build` in a team project.
+The person only needs to open KiCad in Harness and send a prompt. You are the entry agent and
+their single communication path to the Astra lead. Pass the person's exact request through the
+tile bridge; the lead assigns work to the electrical board, firmware, and case teams. Each team
+has a builder and an independent tester and may work at the same time. The lead does not make
+firmware or case wait for board completion or a lead board review. Do not build the board
+yourself, assign work directly to a worker, or arm `kicadpy.harness --active build` in a team project.
 
-For a first board request, save the user's words **verbatim** in `prompts/original.md` and a new,
-immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as the concise
-effective brief shown by the viewer; it reads these explicit project files, never session logs.
-Include every requirement in the immutable run brief and keep attached visual evidence usable: copy an
-accessible image to `prompts/assets/`, cite its absolute path in the brief, and preserve a durable
-URL when that is the source. A bare `[Image #]` marker is not an image; if no usable file or URL
-exists, say that in the brief and do not infer dimensions from it. Add only clearly labelled
-facts needed to interpret the prompt, such as which image is current. Do not replace the user's
-request with your own shortened plan. For a follow-up design change, make a **new** effective
-brief containing the prior requirements and the new user's exact words, with the later change
-identified as taking precedence where they conflict. Update `prompts/current.md` to reflect the
-new effective requirements. Keep prior brief files for audit; do not alter one already used by a
-run. The bridge seeds the next pilot from the last clean integrated
-checkpoint, including a checked board checkpoint when a later team review needs revision.
+For the first build request, save the user's words **verbatim** in `prompts/original.md` and a new,
+immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as a concise viewer
+summary of current requirements; the viewer reads explicit project files, never session logs.
+The first request is the only input from which the lead creates and seals the base contract.
+Keep attached visual evidence usable: copy an accessible image to `prompts/assets/`, cite its
+absolute path in the first request file, and preserve a durable URL when that is the source. A
+bare `[Image #]` marker is not an image; if no usable file or URL exists, say so and do not infer
+dimensions from it. Add only clearly labelled facts needed to interpret the prompt, such as
+which image is current. Do not replace the user's words with a shortened plan.
+
+For every later build or change request, save **only that new user message, verbatim**, in a new
+immutable UTF-8 file under `prompts/history/`; do not combine it with old requirements or ask
+the lead to plan another base contract. Pass that file to the same `start` command below. The
+bridge reuses the exact first sealed contract and gives the new message plus earlier release notes
+to the lead. The lead writes an append-only supplemental release note, names which contract
+fields it changes, and routes it to the responsible board, firmware, and/or case team. Later
+notes take precedence for the fields they name; unrelated original requirements remain. Update
+`prompts/current.md` to show the effective requirements for the viewer, but never use that
+summary as the follow-up input. Copy any newly attached image or reference into `prompts/assets/`
+before calling `start` or `note`; the bridge gives the lead a hash-checked copy beside the exact
+message. Keep the message file verbatim, including any image marker or original path. If an
+attachment is unavailable, tell the person that its contents could not be read rather than
+guessing from the marker. Preserve all history files for audit. The bridge seeds a new
+pilot from the last clean integrated checkpoint and carries the same sealed contract and notes.
+If a run is still active, use `note` for that exact new message instead of starting another
+run. The lead can append its release note without taking the worker-run lock. Wait for the
+active run to end, then use `resume` to route any note that arrived during it; never submit the
+same message again as a second release note. A bounded incomplete run can also be resumed with
+the same contract and notes, without inventing a new user requirement.
 
 From the workspace root, run the bridge in the foreground and wait for it to finish:
 
 ```sh
-"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile start "$PWD" --prompt "$PWD/prompts/history/<new-brief>.md" --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile start "$PWD" --prompt "$PWD/prompts/history/<exact-user-message>.md" --execute
 "$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile status "$PWD"
 ```
 
-Report the bridge's `teamReady` value for the whole team. The viewer verdict's `ready` value
-describes native board readiness; it can be true before the final team review is approved.
+For a change received while the bridge reports `running`, or to continue an incomplete run:
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile note "$PWD" --prompt "$PWD/prompts/history/<exact-new-message>.md" --execute
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile resume "$PWD" --execute
+```
+
+Call `note` only for a new message while a run is active. Call `resume` after that run has stopped;
+for an incomplete run with no new message, call `resume` alone. Check `status` while waiting.
+If `note` says the run already finalized, send that same message once through `start` after
+`status` stops reporting `running`; the lead has not recorded it yet.
+
+The bridge publishes labelled, unverified team previews as workers make progress. Checked
+artifacts enter the main viewer only after host checks; a preview is never proof that the board,
+firmware, or case is ready. Report the bridge's `teamReady` value for the whole team. The viewer
+verdict's `ready` value describes native board readiness; it can be true before cross-team
+integration passes.
 
 The bridge owns its private pilot, role worktrees, native checks, and transfer of checked output
 to this viewer's workspace. Never edit `.pilot/`, role receipts, generated board files, or verdicts
@@ -55,9 +88,17 @@ to make a failed run appear ready. If it returns a failure or incomplete status,
 reported logs and findings. If status reports `mirrorPending: true`, run
 `"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile sync "$PWD"` to finish copying that same
 hash-checked checkpoint, then recheck status. Tell the person what remains; do not quietly fall
-back to the solo workflow. A later explicit build or repair request uses another immutable effective brief
-and the same `start` command. A question, request for options, plan, or price is read-only:
-answer it without calling `start` or arming the Stop hook. Flashing, ordering, printing, and
+back to the solo workflow. A later explicit build or repair request uses a new immutable file
+containing that request alone and the same `start` command. For a question, request for options,
+plan, or price, save the exact new words in an immutable history file and consult the lead
+read-only, even before a first contract exists:
+
+```sh
+"$KICAD_HARNESS_PYTHON" -m kicadpy.parallel_tile ask "$PWD" --prompt "$PWD/prompts/history/<exact-question>.md" --execute
+```
+
+Report the lead's answer. `ask` neither builds nor creates a contract or release note. Do not
+call `start` or arm the Stop hook for a read-only question. Flashing, ordering, printing, and
 physical testing still require the person's separate instruction.
 
 ## Where things are
@@ -74,8 +115,10 @@ design/              THE SOURCE — main.kicad_pro, main.kicad_sch, main.kicad_p
                      .kicad_sym / .pretty libraries, fp-lib-table, sym-lib-table, the rules.
                      ${KIPRJMOD} is this directory.
 tools/               your own scripts (KiCad-Python authoring, helpers)
-firmware/            the code that runs on the board — written AFTER the board is
-                     prototype-ready (below); README.md + sources, shown in the Firmware tab
+firmware/            the code that runs on the board — in team projects it starts from the
+                     contract and later reconciles with real board pins; in the solo workflow
+                     it is written after the board is prototype-ready. README.md + sources,
+                     shown in the Firmware tab
 case/interfaces.json what the case must give the person (yours: confirm what the contract
                      found, override, ignore, add) — not a design input, never makes the board stale
 case/build.py        the enclosure model (CadQuery, yours) -> case/out/ (STL + STEP + parts.json);

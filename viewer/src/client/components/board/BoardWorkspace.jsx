@@ -52,6 +52,7 @@ import { DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placem
 import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
+import TeamProgress from "./TeamProgress.jsx";
 import ProjectOverviewPreview, { safeProjectOverviewUrl } from "./ProjectOverviewPreview.jsx";
 import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
@@ -89,6 +90,7 @@ export default function BoardWorkspace({
   manifestRevision = 0,
   boardEntries = [],
   projectOverviewUrl = "",
+  teamPreview = null,
   partsEntry = null,
   artifactActivity = {},
   catalogHydrated = false,
@@ -1216,6 +1218,7 @@ export default function BoardWorkspace({
           KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : selectedEntry.nativeManufacturingVerified ? "Prototype packet verified; physical hardware is untested." : "Prototype manufacturing review is incomplete; see the reported findings."}
         </p>
       ) : null}
+      {selectedEntry && teamPreview ? <TeamProgress preview={teamPreview} compact /> : null}
       {catalogError ? (
         <p
           data-slot="board-catalog-error"
@@ -1532,6 +1535,8 @@ export default function BoardWorkspace({
                 )}
               </div>
             </>
+          ) : teamPreview ? (
+            <TeamProgress preview={teamPreview} />
           ) : unverifiedOverviewUrl ? (
             <ProjectOverviewPreview url={unverifiedOverviewUrl} className="min-h-0 flex-1" />
           ) : (

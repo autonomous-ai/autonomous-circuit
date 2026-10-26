@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -663,6 +664,48 @@ test("viewer-only: `.harness/` is invisible to the catalog, and a write there st
     s.services.catalog.refresh("workspace");
     const catalog = await s.post("catalog_read");
     assert.deepEqual(catalog.body.entries.map((e) => e.file), ["NOTES.md"]);
+  } finally {
+    s.close();
+  }
+});
+
+test("viewer-only: only hash-listed worker preview images are served from .circuit", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  const rel = ".circuit/team-previews/current/board/boards/main_review/_pcb.svg";
+  try {
+    fs.mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+    fs.writeFileSync(path.join(ws, rel), "<svg/>");
+    fs.writeFileSync(path.join(ws, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "running", teamReady: false }));
+    fs.writeFileSync(path.join(ws, ".circuit/team-preview.json"), JSON.stringify({ schema: 1, run: "r001", teams: {
+      board: { status: "draft", stage: "board", verified: false, files: [], findings: [], media: [{
+        file: "boards/main_review/_pcb.svg", path: rel, bytes: 6,
+        sha256: crypto.createHash("sha256").update("<svg/>").digest("hex"),
+      }] },
+      firmware: { status: "queued", stage: null, verified: false, files: [], findings: [], media: [] },
+      case: { status: "queued", stage: null, verified: false, files: [], findings: [], media: [] },
+    } }));
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.equal(catalog.body.teamPreview.teams.board.media.length, 1);
+    const image = await fetch(`${s.base}/projects/workspace/${rel}`);
+    assert.equal(image.status, 200);
+    assert.match(image.headers.get("content-security-policy") || "", /sandbox/);
+    assert.equal((await fetch(`${s.base}/projects/workspace/.circuit/team-bridge.json`)).status, 403);
+    const privateState = path.join(ws, ".circuit/team-runs/r001/.pilot/state.json");
+    fs.mkdirSync(path.dirname(privateState), { recursive: true });
+    fs.writeFileSync(privateState, JSON.stringify({ secret: "private pilot receipt" }));
+    // Encoded slashes survive URL parsing. Decoding them only after the access
+    // check used to turn this apparent public path into a private .circuit file.
+    const encodedTraversal = await fetch(
+      `${s.base}/projects/workspace/foo%2F..%2F.circuit/team-runs/r001/.pilot/state.json`,
+    );
+    assert.equal(encodedTraversal.status, 403);
+    fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+    fs.symlinkSync(privateState, path.join(ws, "boards/private-state.json"));
+    assert.equal((await fetch(`${s.base}/projects/workspace/boards/private-state.json`)).status, 403);
+    fs.writeFileSync(path.join(ws, rel), "tampered");
+    assert.equal((await fetch(`${s.base}/projects/workspace/${rel}`)).status, 403);
   } finally {
     s.close();
   }

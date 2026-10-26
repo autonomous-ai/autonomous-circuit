@@ -22,7 +22,7 @@ import { createSettingsStore, settingsFilePath } from "./settings.mjs";
 import { newBoard as harnessNewBoard } from "./harnessHost.mjs";
 import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlash.mjs";
 import { readWorkspacePrompts } from "./workspacePrompts.mjs";
-import { CASE_DIR, casePrintStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog } from "./catalog.mjs";
+import { CASE_DIR, casePrintStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog, scanTeamPreview } from "./catalog.mjs";
 import { caseFile, preparedPrintProject, printAll3mf, safeName, saveExport } from "./caseExport.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
@@ -1411,6 +1411,11 @@ export function createCircuitServices({
     }
     const projectId = decodeURIComponent(match[1]);
     const rel = decodeURIComponent(match[2]);
+    // Decode before checking segments: an encoded slash can otherwise turn
+    // `foo%2F..%2F.circuit/...` into a private control path only after resolve.
+    if (rel.split(/[\\/]/).some(segment => !segment || segment === "." || segment === "..")) {
+      throw ipcError("FORBIDDEN", "Invalid asset path", 403);
+    }
     let projectRoot;
     try {
       projectRoot = projects.projectDir(projectId);
@@ -1422,6 +1427,31 @@ export function createCircuitServices({
       const error = new Error("Forbidden");
       error.statusCode = 403;
       throw error;
+    }
+    const relative = path.relative(projectRoot, candidate).split(path.sep).join("/");
+    const privatePilotAsset = relative.startsWith(".circuit/");
+    // Public aliases must not expose private control files (or anything outside
+    // the project) through a symlink. Reject each link before serving bytes.
+    let component = projectRoot;
+    for (const segment of relative.split("/")) {
+      component = path.join(component, segment);
+      try {
+        if (fs.lstatSync(component).isSymbolicLink()) {
+          throw ipcError("FORBIDDEN", "Asset path contains a symlink", 403);
+        }
+      } catch (error) {
+        if (error?.statusCode) throw error;
+        if (error?.code === "ENOENT") break; // The normal 404 path handles absent files.
+        throw error;
+      }
+    }
+    if (privatePilotAsset) {
+      // Pilot worktrees and receipts stay private. Serve only the copied,
+      // hash-checked image bytes that the unverified progress card lists.
+      const preview = scanTeamPreview(fs.realpathSync(projectRoot), projectId);
+      const allowed = preview && Object.values(preview.teams).some(team =>
+        team.media.some(item => new URL(item.url, "http://localhost").pathname === pathname));
+      if (!allowed) throw ipcError("FORBIDDEN", "Pilot control files are private", 403);
     }
     const contentType = assetContentType(path.relative(projectRoot, candidate), candidate);
     if (!contentType) {
@@ -1436,7 +1466,7 @@ export function createCircuitServices({
         return null;
       }
     }
-    return { assetPath: candidate, contentType };
+    return { assetPath: candidate, contentType, privatePilotAsset };
   }
 
   function assetMiddleware(req, res, next) {
@@ -1463,7 +1493,7 @@ export function createCircuitServices({
       next();
       return;
     }
-    const { assetPath, contentType } = asset;
+    const { assetPath, contentType, privatePilotAsset } = asset;
     fs.stat(assetPath, (error, stats) => {
       if (res.destroyed) {
         return;
@@ -1475,6 +1505,12 @@ export function createCircuitServices({
         return;
       }
       res.setHeader("content-type", contentType);
+      if (privatePilotAsset) {
+        // An untrusted worker SVG must remain inert even if its URL is opened
+        // directly as a document instead of embedded as an image.
+        res.setHeader("content-security-policy", "default-src 'none'; sandbox");
+        res.setHeader("x-content-type-options", "nosniff");
+      }
       if (contentType.startsWith("text/html")) {
         // Inline canvas demos work; scripts cannot access our origin, APIs or network.
         res.setHeader("content-security-policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; sandbox allow-scripts");

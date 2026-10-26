@@ -1,7 +1,9 @@
 """Run the isolated KiCad team behind a normal Harness prompt and viewer workspace.
 
-The pilot remains the source of truth in ``.circuit/team-runs``. Only checked,
+The pilot remains the source of truth in ``.circuit/team-runs``. Checked,
 integrated artifacts are copied into the workspace watched by the Harness viewer.
+Worker previews live separately under ``.circuit/team-previews`` and never
+change accepted artifacts or the native verdict.
 This module never starts a model without an explicit ``--execute``.
 """
 from __future__ import annotations
@@ -20,10 +22,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 from . import parallel
-from .parallel_contract import OWNED, owns
+from .parallel_contract import OWNED, STRING, obj, owns, validate
 
 
 STATE_NAME = 'team-bridge.json'
@@ -33,8 +36,25 @@ MAX_FILE = parallel.MAX_FILE
 MAX_TOTAL = parallel.MAX_TOTAL
 CHECKPOINT_STAGES = frozenset(('board', 'board-approved', 'firmware', 'case',
                                'firmware-final', 'case-final', 'final'))
+PREVIEW_NAME = 'team-preview.json'
+PREVIEW_ROLES = frozenset(('board', 'firmware', 'case'))
+PREVIEW_STATUSES = frozenset(('queued', 'draft', 'checking', 'passed',
+                              'needs_revision', 'blocked'))
+PREVIEW_MEDIA_SUFFIXES = frozenset(('.svg', '.png'))
+PREVIEW_MAX_FILES = 8
+PREVIEW_MAX_FILE = 4 * 1024 * 1024
+PREVIEW_MAX_TOTAL = 16 * 1024 * 1024
 SHA256 = re.compile(r'[0-9a-f]{64}')
 GIT_HEAD = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
+QUESTION_SUFFIXES = frozenset(('.json', '.md', '.txt', '.kicad_sch', '.kicad_pcb',
+                               '.kicad_pro', '.c', '.h', '.cpp', '.ino', '.py',
+                               '.scad', '.cq', '.svg', '.png', '.jpg', '.jpeg',
+                               '.webp', '.pdf'))
+QUESTION_MAX_FILE = 2 * 1024 * 1024
+QUESTION_MAX_TOTAL = 24 * 1024 * 1024
+QUESTION_MAX_FILES = 128
+_PREVIEW_CACHE = {}
+_PREVIEW_CACHE_LOCK = threading.Lock()
 
 
 def _sha(path):
@@ -109,9 +129,10 @@ def _tree_files(root, directory):
             yield file
 
 
-def _owned_snapshot(root):
+def _owned_snapshot(root, role=None):
     result, total = {}, 0
-    prefixes = {prefix for role in OWNED.values() for prefix in role}
+    prefixes = (set(OWNED[role]) if role in OWNED else
+                {prefix for group in OWNED.values() for prefix in group})
     for prefix in sorted(prefixes):
         if prefix.endswith('/'):
             files = _tree_files(root, prefix[:-1])
@@ -126,6 +147,50 @@ def _owned_snapshot(root):
             if total > MAX_TOTAL or len(result) >= 10000:
                 raise ValueError('Visible artifacts exceed pilot bounds')
             result[name] = info
+    return result
+
+
+def _preview_snapshot(root, role):
+    """Hash only files whose filesystem identity changed since the last preview.
+
+    A worker can update its own draft many times during a long tool call. The
+    periodic watcher still walks names and stats every file, but avoids hashing
+    a whole board or case tree every ten seconds when nothing changed.
+    """
+    key = (str(root.resolve(strict=True)), role)
+    with _PREVIEW_CACHE_LOCK:
+        previous = _PREVIEW_CACHE.get(key, {})
+    result, cached, total = {}, {}, 0
+    for prefix in sorted(OWNED[role]):
+        if prefix.endswith('/'):
+            files = _tree_files(root, prefix[:-1])
+        else:
+            file = _safe_target(root, prefix)
+            files = (file,) if file.exists() else ()
+        for file in files:
+            name = file.relative_to(root).as_posix()
+            _relative(name)
+            mode = file.stat()
+            if not stat.S_ISREG(mode.st_mode) or mode.st_size > MAX_FILE:
+                raise ValueError(f'Invalid or oversized preview artifact: {file}')
+            total += mode.st_size
+            if total > MAX_TOTAL or len(result) >= 10000:
+                raise ValueError('Preview artifacts exceed pilot bounds')
+            signature = (mode.st_dev, mode.st_ino, mode.st_size,
+                         mode.st_mtime_ns, mode.st_ctime_ns)
+            old = previous.get(name)
+            if old is not None and old[0] == signature:
+                info = old[1]
+            else:
+                info = _file_info(file)
+                after = file.stat()
+                if signature != (after.st_dev, after.st_ino, after.st_size,
+                                 after.st_mtime_ns, after.st_ctime_ns):
+                    raise ValueError(f'Preview artifact changed while hashing: {name}')
+            result[name] = info
+            cached[name] = (signature, info)
+    with _PREVIEW_CACHE_LOCK:
+        _PREVIEW_CACHE[key] = cached
     return result
 
 
@@ -171,7 +236,7 @@ def _read_state(workspace):
         _relative(name, verdict=True)
         if not isinstance(info, dict) or not re.fullmatch('[0-9a-f]{64}', str(info.get('sha256', ''))):
             raise ValueError('Invalid team bridge manifest')
-    for key in ('lastMirroredRun', 'activeRun'):
+    for key in ('lastMirroredRun', 'activeRun', 'contractRun'):
         value = state.get(key)
         if value is not None and (not isinstance(value, str) or not RUN_NAME.fullmatch(value)):
             raise ValueError('Invalid team run identifier')
@@ -186,6 +251,163 @@ def _read_state(workspace):
 def _save_state(workspace, state):
     state['updatedAt'] = time.time()
     parallel.write(_state_file(workspace), state)
+
+
+def _preview_file(workspace):
+    return _control_path(workspace, PREVIEW_NAME)
+
+
+def _write_preview(workspace, data):
+    destination = _preview_file(workspace)
+    fd, temporary_name = tempfile.mkstemp(prefix='.team-preview-', dir=destination.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(data, stream, sort_keys=True, separators=(',', ':'))
+            stream.write('\n')
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _new_preview(run_id):
+    return {'schema': 1, 'run': run_id, 'runStatus': 'running',
+            'updatedAt': time.time(),
+            'teams': {role: {'stage': None, 'status': 'queued', 'verified': False,
+                             'files': [], 'media': [], 'findings': []}
+                      for role in sorted(PREVIEW_ROLES)}}
+
+
+def _read_preview(workspace, run_id):
+    file = _preview_file(workspace)
+    if file.is_symlink():
+        raise ValueError('Team preview manifest is a symlink')
+    if not file.exists():
+        return _new_preview(run_id)
+    data = json.loads(file.read_text())
+    if data.get('schema') != 1 or data.get('run') != run_id or not isinstance(data.get('teams'), dict):
+        return _new_preview(run_id)
+    return data
+
+
+def _preview_progress(workspace, pilot_root, role, stage, source_path, status, findings):
+    """Publish bounded worker evidence as an explicitly unverified viewer preview.
+
+    This is separate from the hash-bound accepted checkpoint mirror. Worker
+    files never enter the project artifact tree or native verdict through here.
+    """
+    if role not in PREVIEW_ROLES or status not in PREVIEW_STATUSES:
+        raise ValueError('Invalid preview role or status')
+    if not isinstance(stage, str) or not stage or len(stage) > 80:
+        raise ValueError('Invalid preview stage')
+    if not isinstance(findings, list) or len(findings) > 20:
+        raise ValueError('Invalid preview findings')
+    if any(not isinstance(item, str) or len(item) > 500 for item in findings):
+        raise ValueError('Invalid preview finding')
+    source = Path(source_path)
+    if source.is_symlink() or not source.is_dir():
+        raise ValueError('Preview source must be a real directory')
+    root = pilot_root.resolve(strict=True)
+    resolved = source.resolve(strict=True)
+    if not resolved.is_relative_to(root) or resolved == root:
+        raise ValueError('Preview source is outside the active pilot')
+    current = root
+    for part in resolved.relative_to(root).parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError('Symlink in preview source path')
+    # Report filenames for this role's current work, not seed files in the
+    # integrated baseline. Copy images so their bytes stay stable as a worker
+    # continues editing its private worktree.
+    candidate = _preview_snapshot(resolved, role)
+    baseline = _preview_snapshot(root / 'workspace', role)
+    changed = sorted(name for name, info in candidate.items()
+                     if owns(role, name) and baseline.get(name, {}).get('sha256') != info['sha256'])
+    media = []
+    total = 0
+    for name in changed:
+        info = candidate[name]
+        if Path(name).suffix.lower() not in PREVIEW_MEDIA_SUFFIXES or info['bytes'] > PREVIEW_MAX_FILE:
+            continue
+        if len(media) >= PREVIEW_MAX_FILES:
+            break
+        if total + info['bytes'] > PREVIEW_MAX_TOTAL:
+            continue
+        source_file = _safe_target(resolved, name)
+        target_name = f'.circuit/team-previews/current/{role}/{name}'
+        target = workspace / target_name
+        current = workspace
+        parts = PurePosixPath(target_name).parts
+        for part in parts[:-1]:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError('Symlink in preview destination path')
+            if current.exists() and not current.is_dir():
+                raise ValueError('Non-directory preview destination path')
+            current.mkdir(exist_ok=True)
+        if target.is_symlink():
+            raise ValueError('Symlink in preview destination path')
+        fd, temporary_name = tempfile.mkstemp(prefix='.team-preview-', dir=target.parent)
+        os.close(fd)
+        temporary = Path(temporary_name)
+        try:
+            shutil.copyfile(source_file, temporary)
+            if _file_info(temporary, maximum=PREVIEW_MAX_FILE)['sha256'] != info['sha256']:
+                raise ValueError('Worker preview changed while copying')
+            os.replace(temporary, target)
+            target.chmod(0o644)
+        finally:
+            temporary.unlink(missing_ok=True)
+        media.append({'file': name, 'path': target_name,
+                      'sha256': info['sha256'], 'bytes': info['bytes']})
+        total += info['bytes']
+    data = _read_preview(workspace, pilot_root.name)
+    previous = data['teams'].get(role, {})
+    retain_previous = status in ('checking', 'passed')
+    data['teams'][role] = {'stage': stage, 'status': status, 'verified': False,
+                           'files': changed[:60] or (previous.get('files', []) if retain_previous else []),
+                           'media': media or (previous.get('media', []) if retain_previous else []),
+                           'findings': findings, 'updatedAt': time.time()}
+    data['updatedAt'] = time.time()
+    _write_preview(workspace, data)
+    _prune_preview_media(workspace, role, data['teams'][role]['media'])
+    return data
+
+
+def _prune_preview_media(workspace, role, retained):
+    """Discard images omitted by the current manifest without following links."""
+    base = _control_path(workspace, 'team-previews', 'current', role)
+    if not base.exists():
+        return
+    if not base.is_dir():
+        raise ValueError('Preview media directory is not a directory')
+    keep = {item['path'] for item in retained}
+    for current, dirs, files in os.walk(base, topdown=False, followlinks=False):
+        for name in files:
+            file = Path(current) / name
+            if file.is_symlink():
+                raise ValueError('Symlink in preview media tree')
+            relative = file.relative_to(workspace).as_posix()
+            if relative not in keep:
+                file.unlink()
+        for name in dirs:
+            directory = Path(current) / name
+            if directory.is_symlink():
+                raise ValueError('Symlink in preview media tree')
+            if not any(directory.iterdir()):
+                directory.rmdir()
+
+
+def _clear_preview_media(workspace):
+    base = _control_path(workspace, 'team-previews', 'current')
+    if not base.exists():
+        return
+    if not base.is_dir():
+        raise ValueError('Preview media directory is not a directory')
+    for current, dirs, files in os.walk(base, followlinks=False):
+        if any((Path(current) / name).is_symlink() for name in dirs + files):
+            raise ValueError('Symlink in preview media tree')
+    shutil.rmtree(base)
 
 
 @contextlib.contextmanager
@@ -413,6 +635,13 @@ def _cancel_on_signal(pilot_root):
     old = {}
     cancelled = {'signal': None}
 
+    if threading.current_thread() is not threading.main_thread():
+        # Embedded callers may run the bridge on a worker thread. Python only
+        # permits signal handlers on the main thread; job cancellation remains
+        # available through the controller's explicit cancel path.
+        yield cancelled
+        return
+
     def interrupt(number, _frame):
         cancelled['signal'] = number
         parallel.cancel_jobs(pilot_root)
@@ -462,7 +691,8 @@ def _prevent_idle_sleep():
             process.wait(timeout=5)
 
 
-def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, max_rounds=2):
+def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
+          max_rounds=2, teams=False, resume_notes=False):
     """Run one complete prompt in an isolated team and expose its checked artifacts."""
     if not execute:
         raise ValueError('Team model execution requires explicit --execute')
@@ -477,6 +707,10 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
         raise ValueError('Expected a bounded nonempty product prompt')
     with _locked(workspace):
         state = _read_state(workspace)
+        prior_run = state.get('activeRun')
+        contract_run = state.get('contractRun') if teams else None
+        if resume_notes and not contract_run:
+            raise ValueError('Resume needs the original sealed team contract')
         pending = _read_journal(workspace)
         if pending is not None:
             _apply_journal(workspace, state, pending)
@@ -496,14 +730,15 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
         if pilot_root.exists():
             raise ValueError('Team run directory already exists')
         seed = None
-        if state.get('lastMirroredRun'):
-            seed = _control_path(workspace, 'team-runs', state['lastMirroredRun'], 'workspace')
+        seed_run = prior_run if teams and contract_run else state.get('lastMirroredRun')
+        if seed_run:
+            seed = _control_path(workspace, 'team-runs', seed_run, 'workspace')
             if not seed.is_dir() or parallel.git(seed, 'status', '--porcelain'):
                 raise ValueError('Prior integrated pilot is not a clean Git seed')
-            if (state.get('sourceHead') is not None and
+            if (seed_run == state.get('lastMirroredRun') and state.get('sourceHead') is not None and
                     parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead']):
                 raise ValueError('Prior integrated pilot commit changed since checkpoint')
-            if (state.get('sourceGitMetadataSha256') is not None and
+            if (seed_run == state.get('lastMirroredRun') and state.get('sourceGitMetadataSha256') is not None and
                     _git_metadata_digest(seed) != state['sourceGitMetadataSha256']):
                 raise ValueError('Prior integrated pilot Git metadata changed since checkpoint')
         inputs = _control_path(workspace, 'team-inputs')
@@ -511,30 +746,75 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
         frozen_prompt = inputs / f'{run_id}.txt'
         if frozen_prompt.exists():
             raise ValueError('Team input already exists')
-        if assets:
+        if assets and not contract_run:
             mappings = [f'{workspace / name} -> {name}' for name in sorted(assets)]
             prompt += ('\n\nPROJECT REFERENCE ASSETS: These files are copied into this pilot '
                        'workspace. Use the pilot-local path on the right in place of an original '
                        'absolute attachment path:\n' + '\n'.join(mappings) + '\n')
         if len(prompt) > 100000:
             raise ValueError('Prompt and asset index exceed pilot prompt limit')
-        frozen_prompt.write_text(prompt)
+        if contract_run:
+            original = _control_path(workspace, 'team-runs', contract_run)
+            frozen_prompt.write_bytes((original / '.pilot/prompt.txt').read_bytes())
+        else:
+            frozen_prompt.write_text(prompt)
+        _clear_preview_media(workspace)
+        with _PREVIEW_CACHE_LOCK:
+            _PREVIEW_CACHE.clear()
         state.update(nextRun=number + 1, activeRun=run_id, status='running',
                      stage='initializing', error=None, maxRounds=max_rounds,
                      roundsAttempted=0, replanRequired=False, teamReady=False)
         _save_state(workspace, state)
+        _write_preview(workspace, _new_preview(run_id))
         try:
             with _cancel_on_signal(pilot_root) as cancelled, _prevent_idle_sleep():
-                parallel.initialize(pilot_root, frozen_prompt, seed=seed)
+                parallel.initialize(pilot_root, frozen_prompt, seed=seed,
+                                    mode='teams' if teams else 'parallel')
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
-                for attempt in range(max_rounds):
+                for attempt in range(1 if teams else max_rounds):
                     state.update(status='running', stage=f'planning-{attempt + 1}', error=None)
                     _save_state(workspace, state)
-                    options = {'execute': True, 'revise': attempt > 0}
-                    if runner is not None:
-                        options['runner'] = runner
-                    planned = parallel.plan(pilot_root, **options)
+                    if teams and contract_run:
+                        from .parallel_addendum import (carry_addenda, load_addenda,
+                                                        record_addendum)
+                        original = _control_path(workspace, 'team-runs', contract_run)
+                        planned = parallel.adopt_contract(pilot_root, original)
+                        if prior_run:
+                            planned['draftOriginRun'] = prior_run
+                            carry_addenda(_control_path(workspace, 'team-runs', prior_run),
+                                           pilot_root)
+                        if resume_notes:
+                            previous = json.loads((_control_path(workspace, 'team-runs', prior_run) /
+                                                   '.pilot/state.json').read_text())
+                            chain = load_addenda(pilot_root)
+                            prior_tip = previous.get('releaseNoteTipSha256', planned['contractSha256'])
+                            unseen = []
+                            seen = prior_tip == planned['contractSha256']
+                            for entry in chain['entries']:
+                                if seen:
+                                    unseen.append(entry)
+                                if entry['sha256'] == prior_tip:
+                                    seen = True
+                            if not seen:
+                                raise ValueError('Prior release note tip is absent from carried chain')
+                            roles = {role for entry in unseen for role in entry['routes']}
+                            planned['assignedRoles'] = [role for role in parallel.ROLES
+                                                        if role in (roles or set(previous.get(
+                                                            'assignedRoles', parallel.ROLES)))]
+                        else:
+                            addendum = record_addendum(pilot_root, prompt_file, runner=runner,
+                                                       source_assets=workspace)
+                            planned['assignedRoles'] = addendum['routes']
+                        parallel.write(pilot_root / '.pilot/state.json', planned)
+                    else:
+                        options = {'execute': True, 'revise': attempt > 0}
+                        if runner is not None:
+                            options['runner'] = runner
+                        planned = parallel.plan(pilot_root, **options)
+                        if teams and planned['status'] == 'planned':
+                            state['contractRun'] = run_id
+                            _save_state(workspace, state)
                     if cancelled['signal'] is not None:
                         state.update(status='interrupted', stage='interrupted',
                                      error='Team run interrupted during planning', teamReady=False)
@@ -558,7 +838,23 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
                             mirror_errors.append(str(exc))
                             raise
 
-                    options = {'execute': True, 'on_checkpoint': checkpoint}
+                    preview_lock = threading.Lock()
+
+                    def progress(role, stage, source_path, status, findings):
+                        with preview_lock:
+                            try:
+                                _preview_progress(workspace, pilot_root, role, stage,
+                                                  source_path, status, findings)
+                            except (OSError, ValueError) as exc:
+                                # A viewer preview is best effort. It must not
+                                # change the build verdict or stop a worker.
+                                data = _read_preview(workspace, run_id)
+                                data['previewError'] = f'{type(exc).__name__}: {exc}'[:500]
+                                data['updatedAt'] = time.time()
+                                _write_preview(workspace, data)
+
+                    options = {'execute': True, 'on_checkpoint': checkpoint,
+                               'on_progress': progress}
                     if runner is not None:
                         options['runner'] = runner
                     if checker is not None:
@@ -597,6 +893,10 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None, m
             return state
         finally:
             _save_state(workspace, state)
+            preview = _read_preview(workspace, run_id)
+            preview['runStatus'] = state['status']
+            preview['updatedAt'] = time.time()
+            _write_preview(workspace, preview)
 
 
 def status(workspace):
@@ -610,6 +910,273 @@ def status(workspace):
         if receipt.is_file() and not receipt.is_symlink():
             state = {**state, 'pilot': json.loads(receipt.read_text())}
     return state
+
+
+def _question_evidence(workspace, view, pilot=None, pilot_state=None, _attempt=0):
+    """Give the lead a bounded, read-only snapshot of real project evidence."""
+    source = pilot / 'workspace' if pilot is not None and (pilot / 'workspace').is_dir() else workspace
+    if source.is_symlink() or not source.is_dir():
+        raise ValueError('Question source workspace is not a real directory')
+    committed = source != workspace and (source / '.git').exists()
+    head_before = parallel.git(source, 'rev-parse', 'HEAD') if committed else None
+    dirty_before = bool(parallel.git(source, 'status', '--porcelain')) if committed else False
+    prefixes = {prefix for group in OWNED.values() for prefix in group}
+    candidates = []
+    for prefix in sorted(prefixes | {'prompts/assets/', 'references/'}):
+        if prefix.endswith('/'):
+            files = _tree_files(source, prefix[:-1])
+        else:
+            file = _safe_target(source, prefix)
+            files = (file,) if file.exists() else ()
+        for file in files:
+            candidates.append((file.relative_to(source).as_posix(), file))
+            if len(candidates) > 10000:
+                raise ValueError('Question evidence has too many project files')
+    if source != workspace:
+        for directory in ('prompts/assets', 'references'):
+            for file in _tree_files(workspace, directory):
+                candidates.append(('current-attachments/' +
+                                   file.relative_to(workspace).as_posix(), file))
+                if len(candidates) > 10000:
+                    raise ValueError('Question evidence has too many project files')
+    if pilot is not None and isinstance(pilot_state, dict) and pilot_state.get('contractSha256'):
+        from .parallel_addendum import _asset_directory, load_addenda
+        chain = load_addenda(pilot, pilot_state['contractSha256'])
+        for entry in chain['entries']:
+            for relative in entry.get('assets', {}):
+                file = _asset_directory(pilot, entry['sequence'], entry['sha256']) / relative
+                candidates.append((f"sealed-note-assets/n{entry['sequence']:04}/{relative}", file))
+                if len(candidates) > 10000:
+                    raise ValueError('Question evidence has too many project files')
+    priority = ('design/', 'firmware/', 'case/', 'engineering/', 'sealed-note-assets/',
+                'current-attachments/', 'references/', 'prompts/assets/', 'boards/',
+                'tools/', 'build/')
+    def evidence_order(item):
+        name = item[0]
+        group = next((index for index, prefix in enumerate(priority)
+                      if name.startswith(prefix)), len(priority))
+        note = -int(name.split('/')[1][1:]) if name.startswith('sealed-note-assets/') else 0
+        return group, note, name
+    names = sorted(dict(candidates).items(),
+                   key=evidence_order)
+    manifest = {'source': 'active-pilot' if source != workspace else 'visible-workspace',
+                'files': [], 'omitted': 0, 'racing': [],
+                'limits': {'maxFiles': QUESTION_MAX_FILES,
+                           'maxFileBytes': QUESTION_MAX_FILE,
+                           'maxTotalBytes': QUESTION_MAX_TOTAL}}
+    total = 0
+    for name, file in names:
+        try:
+            if file.is_symlink() or not file.is_file() or file.stat().st_nlink != 1:
+                raise ValueError(f'Invalid question evidence file: {name}')
+            size = file.stat().st_size
+        except FileNotFoundError:
+            manifest['racing'].append(name)
+            continue
+        if (Path(name).suffix.lower() not in QUESTION_SUFFIXES or
+                size > QUESTION_MAX_FILE or total + size > QUESTION_MAX_TOTAL or
+                len(manifest['files']) >= QUESTION_MAX_FILES):
+            manifest['omitted'] += 1
+            continue
+        destination = view / 'PROJECT_ARTIFACTS' / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            before = file.stat()
+            shutil.copyfile(file, destination)
+            after = file.stat()
+            if ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
+                 before.st_ctime_ns) !=
+                    (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
+                     after.st_ctime_ns) or _sha(file) != _sha(destination)):
+                raise ValueError('Changed during snapshot')
+        except (OSError, ValueError):
+            destination.unlink(missing_ok=True)
+            manifest['racing'].append(name)
+            continue
+        manifest['files'].append({'path': name, 'bytes': size, 'sha256': _sha(destination)})
+        total += size
+    verdict = _safe_target(source, VERDICT, verdict=True)
+    if verdict.exists():
+        try:
+            info = _file_info(verdict, maximum=QUESTION_MAX_FILE)
+            data = json.loads(verdict.read_text())
+            if _sha(verdict) != info['sha256']:
+                raise ValueError('Native verdict changed while reading')
+            parallel.write(view / 'NATIVE_VERDICT.json', data)
+        except (OSError, ValueError, json.JSONDecodeError):
+            manifest['racing'].append(VERDICT)
+    if pilot is not None:
+        checks = []
+        rounds = pilot / '.pilot/rounds'
+        if rounds.is_symlink():
+            raise ValueError('Pilot round checks path is a symlink')
+        if rounds.is_dir():
+            files = sorted(rounds.glob('*/*-check.json'))[-16:]
+            for file in files:
+                if file.is_symlink() or file.parent.is_symlink():
+                    raise ValueError('Invalid native check evidence')
+                try:
+                    if file.stat().st_size > QUESTION_MAX_FILE:
+                        raise ValueError('Oversized native check evidence')
+                    checks.append({'path': file.relative_to(pilot).as_posix(),
+                                   'result': json.loads(file.read_text())})
+                except (FileNotFoundError, json.JSONDecodeError):
+                    manifest['racing'].append(file.relative_to(pilot).as_posix())
+        parallel.write(view / 'NATIVE_CHECKS.json', checks)
+        if isinstance(pilot_state, dict):
+            jobs = pilot_state.get('jobs', [])
+            if isinstance(jobs, list):
+                recent = []
+                for job in jobs[-20:]:
+                    if not isinstance(job, dict):
+                        continue
+                    recent.append({key: job.get(key) for key in
+                                   ('stage', 'model', 'seconds', 'error', 'failureKind')})
+                parallel.write(view / 'RECENT_JOBS.json', recent)
+    head_after = parallel.git(source, 'rev-parse', 'HEAD') if committed else None
+    dirty_after = bool(parallel.git(source, 'status', '--porcelain')) if committed else False
+    unstable = head_before != head_after or dirty_before or dirty_after
+    if unstable and _attempt == 0:
+        shutil.rmtree(view / 'PROJECT_ARTIFACTS', ignore_errors=True)
+        for name in ('PROJECT_EVIDENCE.json', 'NATIVE_VERDICT.json',
+                     'NATIVE_CHECKS.json', 'RECENT_JOBS.json'):
+            (view / name).unlink(missing_ok=True)
+        return _question_evidence(workspace, view, pilot, pilot_state, _attempt=1)
+    if unstable:
+        shutil.rmtree(view / 'PROJECT_ARTIFACTS', ignore_errors=True)
+        (view / 'NATIVE_VERDICT.json').unlink(missing_ok=True)
+        (view / 'NATIVE_CHECKS.json').unlink(missing_ok=True)
+        (view / 'RECENT_JOBS.json').unlink(missing_ok=True)
+        manifest['files'] = []
+        manifest['unstableSource'] = True
+    else:
+        manifest['sourceHead'] = head_after
+    parallel.write(view / 'PROJECT_EVIDENCE.json', manifest)
+
+
+def ask(workspace, prompt_file, *, execute=False, runner=None):
+    """Route a read-only project question to the lead, even before planning."""
+    if not execute:
+        raise ValueError('Lead model execution requires explicit --execute')
+    workspace = Path(workspace).resolve(strict=True)
+    prompt_file = Path(prompt_file)
+    if not workspace.is_dir() or not prompt_file.is_absolute() or not prompt_file.is_file():
+        raise ValueError('Expected an existing workspace and an absolute question file')
+    question = prompt_file.read_text()
+    if not question.strip() or len(question) > 100000:
+        raise ValueError('Expected a bounded nonempty question')
+    bridge = _read_state(workspace)
+    questions = _control_path(workspace, 'team-questions')
+    questions.mkdir(parents=True, exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix='lead-', dir=questions))
+    control = root / '.pilot'
+    control.mkdir()
+    (control / 'question.txt').write_text(question)
+    tool_root = Path(__file__).resolve().parents[4]
+    skills = tool_root / 'harness/kicad/skills'
+    shutil.copytree(skills, control / 'instructions/skills')
+    view = root / 'view'
+    view.mkdir()
+    (view / 'AGENTS.md').write_text((tool_root / 'harness/kicad/AGENTS.md').read_text())
+    for name in ('product.json', 'project.json'):
+        file = workspace / name
+        if file.is_file() and not file.is_symlink() and file.stat().st_size <= 1_000_000:
+            shutil.copy2(file, view / name)
+    context = {'bridge': {key: bridge.get(key) for key in
+                          ('status', 'stage', 'activeRun', 'contractRun', 'teamReady',
+                           'error', 'lastCheckpointStage')}}
+    run_id = bridge.get('activeRun')
+    pilot = None
+    pilot_state = None
+    if run_id:
+        pilot = _control_path(workspace, 'team-runs', run_id)
+        state_file = pilot / '.pilot/state.json'
+        if state_file.is_file() and not state_file.is_symlink():
+            pilot_state = json.loads(state_file.read_text())
+            context['pilot'] = {key: pilot_state.get(key) for key in
+                                ('status', 'findings', 'revision', 'contractSha256',
+                                 'assignedRoles', 'releaseNoteTipSha256')}
+            if pilot_state.get('contractFile'):
+                from .parallel_addendum import load_addenda
+                contract_path = (pilot / pilot_state['contractFile']).resolve()
+                if not contract_path.is_relative_to(pilot / '.pilot/contracts'):
+                    raise ValueError('Invalid active contract path')
+                contract = json.loads(contract_path.read_text())
+                if parallel.digest(contract) != pilot_state['contractSha256']:
+                    raise ValueError('Active contract changed')
+                parallel.write(view / 'PILOT_CONTRACT.json', contract)
+                (view / 'PILOT_BRIEF.md').write_text((pilot / '.pilot/prompt.txt').read_text())
+                notes = load_addenda(pilot, pilot_state['contractSha256'])
+                parallel.write(view / 'PILOT_RELEASE_NOTES.json', notes)
+                context['releaseNoteTipSha256'] = notes['tipSha256']
+    _question_evidence(workspace, view, pilot, pilot_state)
+    parallel.write(view / 'TEAM_STATUS.json', context)
+    before = parallel.snapshot(view)
+    runtime = {'leadModel': parallel.LEAD, 'workerModel': parallel.WORKER,
+               'toolchainRoot': str(tool_root), 'planAttempts': 0, 'revision': 0,
+               'timeoutSeconds': 1800, 'jobs': []}
+    schema = obj({'answer': STRING})
+    request = ('You are the LEAD and the sole user-facing interface for this KiCad project. '
+               'Answer the user question from TEAM_STATUS.json, PROJECT_EVIDENCE.json, '
+               'PROJECT_ARTIFACTS, NATIVE_CHECKS.json, NATIVE_VERDICT.json when present, '
+               'the original contract, release notes, and original user brief. Inspect the '
+               'actual relevant files before answering. Be direct and state uncertainty '
+               'when evidence is missing. '
+               'This is read-only: do not edit files, create a contract or release note, '
+               'delegate, start workers, or claim a physical test.\n\nUSER QUESTION:\n' + question)
+    runner = runner or parallel.codex
+    for attempt, delay in enumerate((0, *parallel.CAPACITY_RETRY_DELAYS), 1):
+        if delay:
+            time.sleep(delay)
+        receipt = runner(root, runtime, 'ask', runtime['leadModel'], view,
+                         request, schema, True)
+        if parallel.snapshot(view) != before:
+            raise ValueError('Read-only lead changed its question context')
+        if not receipt.get('error'):
+            result = receipt.get('result')
+            validate(result, schema)
+            return {'ok': True, 'answer': result['answer'], 'run': run_id,
+                    'contractSha256': context.get('pilot', {}).get('contractSha256')}
+        if receipt.get('failureKind') != 'model_capacity':
+            raise ValueError(parallel.job_error(receipt))
+    raise parallel.ModelCapacityExhausted(parallel.job_error(receipt))
+
+
+def note(workspace, prompt_file, *, execute=False, runner=None):
+    """Let the lead record a new user change while a team run is active."""
+    if not execute:
+        raise ValueError('Lead model execution requires explicit --execute')
+    workspace = Path(workspace).resolve(strict=True)
+    prompt_file = Path(prompt_file)
+    if not prompt_file.is_absolute() or not prompt_file.is_file():
+        raise ValueError('Expected an absolute user message file')
+    bridge = _read_state(workspace)
+    if bridge.get('status') != 'running':
+        raise ValueError('Use note only during an active run; use start for a later change')
+    run_id = bridge.get('activeRun')
+    if not run_id or not bridge.get('contractRun'):
+        raise ValueError('No original sealed team contract; use start for the first build')
+    from .parallel_addendum import record_addendum
+    pilot = _control_path(workspace, 'team-runs', run_id)
+    entry = record_addendum(pilot, prompt_file, runner=runner,
+                            source_assets=workspace)
+    return {'ok': True, 'run': run_id, 'noteSha256': entry['sha256'],
+            'sequence': entry['sequence'], 'routes': entry['routes'],
+            'queuedForResume': bridge.get('status') == 'running'}
+
+
+def resume(workspace, *, execute=False, runner=None, checker=None):
+    """Continue a bounded team run with its same contract and queued notes."""
+    workspace = Path(workspace).resolve(strict=True)
+    bridge = _read_state(workspace)
+    contract_run = bridge.get('contractRun')
+    if not contract_run:
+        raise ValueError('No original sealed team contract to resume')
+    if bridge.get('status') == 'candidate_ready':
+        raise ValueError('The team is already ready; use start for a new user change')
+    original = _control_path(workspace, 'team-runs', contract_run, '.pilot', 'prompt.txt')
+    return start(workspace, original, execute=execute, runner=runner,
+                 checker=checker, teams=True, resume_notes=True)
 
 
 def sync(workspace):
@@ -633,18 +1200,35 @@ def main(argv=None):
     start_cmd.add_argument('--max-rounds', type=int, choices=(1, 2, 3), default=2)
     status_cmd = commands.add_parser('status')
     status_cmd.add_argument('workspace')
+    ask_cmd = commands.add_parser('ask')
+    ask_cmd.add_argument('workspace')
+    ask_cmd.add_argument('--prompt', required=True)
+    ask_cmd.add_argument('--execute', action='store_true')
+    note_cmd = commands.add_parser('note')
+    note_cmd.add_argument('workspace')
+    note_cmd.add_argument('--prompt', required=True)
+    note_cmd.add_argument('--execute', action='store_true')
+    resume_cmd = commands.add_parser('resume')
+    resume_cmd.add_argument('workspace')
+    resume_cmd.add_argument('--execute', action='store_true')
     sync_cmd = commands.add_parser('sync')
     sync_cmd.add_argument('workspace')
     args = parser.parse_args(argv)
     try:
         if args.command == 'start':
             result = start(args.workspace, args.prompt, execute=args.execute,
-                           max_rounds=args.max_rounds)
+                           max_rounds=args.max_rounds, teams=True)
         elif args.command == 'sync':
             result = sync(args.workspace)
+        elif args.command == 'ask':
+            result = ask(args.workspace, args.prompt, execute=args.execute)
+        elif args.command == 'note':
+            result = note(args.workspace, args.prompt, execute=args.execute)
+        elif args.command == 'resume':
+            result = resume(args.workspace, execute=args.execute)
         else:
             result = status(args.workspace)
-        ok = (args.command == 'sync' or
+        ok = (args.command in ('sync', 'ask', 'note') or
               result['status'] in ('candidate_ready', 'initialized', 'planned', 'idle'))
         print(json.dumps({'ok': ok, **result}, sort_keys=True))
         return 0 if ok else 2

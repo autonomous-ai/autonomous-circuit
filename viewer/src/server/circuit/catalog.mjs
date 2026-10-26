@@ -44,6 +44,9 @@ const FIRMWARE_SKIP_DIRS = new Set([
   "target", "dist", "out", "__pycache__", ".venv", "venv", ".cache", ".git", ".idea", ".vscode",
 ]);
 const FIRMWARE_MAX_FILES = 200;
+const TEAM_ROLES = ["board", "firmware", "case"];
+const TEAM_STATUSES = new Set(["queued", "draft", "checking", "passed", "needs_revision", "blocked"]);
+const TEAM_PREVIEW_MAX_FILE = 4 * 1024 * 1024;
 
 /** Is this basename one the firmware tree surfaces (text a person reads)? */
 export function isFirmwareSource(name) {
@@ -102,6 +105,53 @@ function walkFiles(rootDir) {
 
 function relPath(rootDir, filePath) {
   return path.relative(rootDir, filePath).split(path.sep).join("/");
+}
+
+/** Unverified team work is catalog metadata, never an accepted board entry. */
+export function scanTeamPreview(rootDir, projectId) {
+  let bridge, preview;
+  try {
+    const bridgeFile = path.join(rootDir, ".circuit/team-bridge.json");
+    const previewFile = path.join(rootDir, ".circuit/team-preview.json");
+    if (!fs.lstatSync(bridgeFile).isFile() || !fs.lstatSync(previewFile).isFile()) return null;
+    bridge = JSON.parse(fs.readFileSync(bridgeFile, "utf8"));
+    preview = JSON.parse(fs.readFileSync(previewFile, "utf8"));
+  } catch { return null; }
+  if (preview?.schema !== 1 || !/^r[0-9]{3,}$/.test(preview.run || "") ||
+      bridge?.activeRun !== preview.run || bridge?.teamReady === true ||
+      !preview.teams || typeof preview.teams !== "object") return null;
+  const teams = {};
+  for (const role of TEAM_ROLES) {
+    const source = preview.teams[role];
+    if (!source || source.verified !== false || !TEAM_STATUSES.has(source.status)) return null;
+    const files = Array.isArray(source.files) ? source.files.filter(file =>
+      typeof file === "string" && file.length <= 240 && !file.startsWith("/") &&
+      !file.split("/").some(part => !part || part === "." || part === "..")
+    ).slice(0, 60) : [];
+    const media = [];
+    for (const item of Array.isArray(source.media) ? source.media.slice(0, 8) : []) {
+      const name = item?.path;
+      if (typeof name !== "string" || !name.startsWith(`.circuit/team-previews/current/${role}/`) ||
+          !/\.(svg|png)$/i.test(name) || !/^[0-9a-f]{64}$/.test(item.sha256 || "") ||
+          !Number.isSafeInteger(item.bytes) || item.bytes < 0 || item.bytes > TEAM_PREVIEW_MAX_FILE) continue;
+      const candidate = path.resolve(rootDir, name);
+      const prefix = path.join(rootDir, ".circuit", "team-previews", "current", role) + path.sep;
+      if (!candidate.startsWith(prefix)) continue;
+      try {
+        if (!fs.lstatSync(candidate).isFile() || !fs.realpathSync(candidate).startsWith(prefix)) continue;
+        const bytes = fs.readFileSync(candidate);
+        if (bytes.length !== item.bytes || crypto.createHash("sha256").update(bytes).digest("hex") !== item.sha256) continue;
+      } catch { continue; }
+      media.push({ file: String(item.file || "").slice(0, 240),
+                   url: mediaUrl(projectId, name, candidate) });
+    }
+    teams[role] = { status: source.status, stage: String(source.stage || "").slice(0, 80),
+                    verified: false, findings: Array.isArray(source.findings)
+                      ? source.findings.filter(item => typeof item === "string").slice(0, 5).map(item => item.slice(0, 500)) : [],
+                    files, media };
+  }
+  return { run: preview.run, runStatus: String(bridge.status || preview.runStatus || "running").slice(0, 50),
+           runStage: String(bridge.stage || "").slice(0, 80), verified: false, teams };
 }
 
 /**
@@ -365,6 +415,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
   // One firmware tree per workspace; every board entry carries it, because
   // the tab that shows it hangs off whichever board is selected.
   const firmware = scanFirmware(rootDir, url);
+  const teamPreview = scanTeamPreview(rootDir, projectId);
 
   // Native board source with a versioned, checked SVG bundle. Never offer
   // v1 Circuit JSON or a TSX edit path for a native board.
@@ -517,6 +568,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
     entries,
     rootPath: rootDir,
     ...(projectOverview ? { projectOverviewUrl: url(projectOverview) } : {}),
+    ...(teamPreview ? { teamPreview } : {}),
   };
 }
 

@@ -347,6 +347,45 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(state['lastCheckpointStage'], 'case')
         self.assertFalse(state['teamReady'])
 
+    def test_worker_preview_is_separate_unverified_and_bounded(self):
+        root, source, state, _ = self.staged_pilot()
+        draft = root / 'roles/board-draft'
+        put(draft, 'design/main.kicad_pro', 'unreviewed native source')
+        put(draft, 'boards/main_review/_pcb.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>')
+        (draft / 'boards/main_review/too-large.png').write_bytes(
+            b'x' * (parallel_tile.PREVIEW_MAX_FILE + 1))
+        before_verdict = (self.workspace / '.harness/verdict.json').read_bytes()
+        preview = parallel_tile._preview_progress(
+            self.workspace, root, 'board', 'board', draft, 'draft', ['Routing is in progress'])
+        self.assertFalse(preview['teams']['board']['verified'])
+        self.assertEqual(preview['teams']['board']['status'], 'draft')
+        self.assertIn('design/main.kicad_pro', preview['teams']['board']['files'])
+        image = preview['teams']['board']['media'][0]
+        self.assertEqual(len(preview['teams']['board']['media']), 1)
+        self.assertEqual((self.workspace / image['path']).read_text(),
+                         '<svg xmlns="http://www.w3.org/2000/svg"/>')
+        self.assertEqual((self.workspace / '.harness/verdict.json').read_bytes(), before_verdict)
+        self.assertFalse((self.workspace / 'design/main.kicad_pro').exists())
+        self.assertFalse(parallel_tile._read_state(self.workspace)['teamReady'])
+        (draft / 'boards/main_review/_pcb.svg').unlink()
+        refreshed = parallel_tile._preview_progress(
+            self.workspace, root, 'board', 'board', draft, 'draft', [])
+        self.assertEqual(refreshed['teams']['board']['media'], [])
+        self.assertFalse((self.workspace / image['path']).exists())
+        with self.assertRaisesRegex(ValueError, 'outside the active pilot'):
+            parallel_tile._preview_progress(self.workspace, root, 'board', 'board',
+                                            self.workspace, 'draft', [])
+
+    def test_worker_preview_rejects_symlink_destination(self):
+        root, _, _, _ = self.staged_pilot()
+        draft = root / 'roles/board-draft'
+        put(draft, 'boards/main_review/_pcb.svg', '<svg/>')
+        destination = self.workspace / '.circuit/team-previews'
+        destination.symlink_to(self.base / 'outside', target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'Symlink in preview destination'):
+            parallel_tile._preview_progress(self.workspace, root, 'board', 'board',
+                                            draft, 'draft', [])
+
     def test_role_checkpoint_replays_after_interrupted_copy(self):
         root, source, state, pilot_state = self.staged_pilot()
         parallel_tile._mirror(self.workspace, root, source, state, pilot_state, 'board')

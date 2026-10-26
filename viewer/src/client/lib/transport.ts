@@ -85,6 +85,21 @@ export interface Catalog {
   revision: number;
   /** Project-level case overview when no checked native board is available. */
   projectOverviewUrl?: string;
+  /** Private worker snapshots, explicitly unverified and separate from board entries. */
+  teamPreview?: {
+    run: string;
+    runStatus: string;
+    runStage: string;
+    verified: false;
+    teams: Record<"board" | "firmware" | "case", {
+      status: string;
+      stage: string;
+      verified: false;
+      findings: string[];
+      files: string[];
+      media: { file: string; url: string }[];
+    }>;
+  };
 }
 
 export interface GenerationQueueItem {
