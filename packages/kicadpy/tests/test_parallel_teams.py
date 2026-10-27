@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from kicadpy import parallel, parallel_tile
 from test_parallel import CARD, contract, put
@@ -79,6 +80,38 @@ def checker(workspace, complete):
     return {'passed': passed, 'findings': [] if passed else ['Missing team output']}
 
 
+class SlowFirmwareRunner(TeamRunner):
+    """crab-robot-v9: firmware used its build clock, then the tester asked for a repair."""
+
+    def __init__(self, clock):
+        super().__init__()
+        self.wait_for_three = False
+        self.clock = clock
+        self.firmware_limits = []
+        self.tested = 0
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        if stage == 'firmware':
+            self.firmware_limits.append(state['timeoutSeconds'])
+            if len(self.firmware_limits) == 1:
+                self.clock[0] += state['timeoutSeconds']
+                put(workspace, 'firmware/main.c', 'first draft')
+                return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                        'usage': None, 'result': None, 'error': 'Job timed out',
+                        'failureKind': 'timeout'}
+            self.clock[0] += 300
+        if stage == 'firmware-test':
+            self.tested += 1
+            if self.tested == 1:
+                return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                        'usage': None, 'error': None,
+                        'result': {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                   'summary': 'Reconnect tests missing',
+                                   'findings': [{'path': 'firmware/main.c',
+                                                 'message': 'No reconnect test'}]}}
+        return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
 class TeamFlowTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -110,6 +143,15 @@ class TeamFlowTests(unittest.TestCase):
         self.assertNotIn('final-review', stages)
         self.assertEqual(stages.count('plan'), 1)
         self.assertEqual(stages.count('integration-test'), 1)
+
+    def test_tester_requested_repair_gets_a_fresh_clock(self):
+        clock = [0.0]
+        runner = SlowFirmwareRunner(clock)
+        parallel.plan(self.root, execute=True, runner=runner)
+        with patch.object(parallel, '_stage_clock', side_effect=lambda: clock[0]):
+            result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.firmware_limits, [1800, parallel.TIMEOUT_CONTINUATION_SECONDS, 1800])
 
     def test_teams_record_owned_deviations_instead_of_stalling_on_sealed_details(self):
         # crab-robot-v6: the lead sealed LM74800 EP to GND and an invented switch cavity;

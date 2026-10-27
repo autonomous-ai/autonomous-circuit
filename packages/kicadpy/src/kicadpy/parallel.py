@@ -1416,6 +1416,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                         raise ValueError('Team task remains open after bounded continuation: ' +
                                          json.dumps(problem, sort_keys=True))
                     advice_rounds += 1
+                    # A tester-requested repair is new work; do not bill it to the build clock.
+                    deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
+                                else _stage_clock() + budget)
                     publish('needs_revision', test['findings'] if test['findings'] else
                             [str(problem)])
                     prompt = (worker_prompt(state, role, stage) + '\n\n' +
