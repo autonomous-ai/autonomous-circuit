@@ -37,3 +37,19 @@ test("accepted or malformed preview is not rendered", () => {
     ui.unmount();
   }
 });
+
+test("a team whose private check passed is highlighted green, others stay neutral", () => {
+  const passed = { ...preview, teams: { ...preview.teams, firmware: { ...preview.teams.firmware, status: "passed" } } };
+  const ui = mount(TeamProgress, { preview: passed });
+  try {
+    const firmware = ui.container.querySelector('[data-slot="team-progress-firmware"]');
+    const board = ui.container.querySelector('[data-slot="team-progress-board"]');
+    assert.equal(firmware.dataset.status, "passed");
+    assert.match(firmware.className, /emerald/);
+    assert.match(firmware.textContent, /✓ Private check passed/);
+    assert.doesNotMatch(board.className, /emerald/);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});

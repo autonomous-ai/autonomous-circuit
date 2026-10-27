@@ -25,11 +25,12 @@ export default function TeamProgress({ preview, compact = false, className = "" 
           const team = preview.teams?.[role] || {};
           const media = Array.isArray(team.media) ? team.media : [];
           const files = Array.isArray(team.files) ? team.files : [];
+          const passed = team.status === "passed";
           return (
-            <article key={role} data-slot={`team-progress-${role}`} className="min-w-0 rounded-md border border-border/70 bg-background/60 p-3">
+            <article key={role} data-slot={`team-progress-${role}`} data-status={team.status || "queued"} className={cn("min-w-0 rounded-md border p-3", passed ? "border-emerald-500/50 bg-emerald-500/10" : "border-border/70 bg-background/60")}>
               <div className="flex items-baseline gap-2">
                 <strong className="text-xs">{LABELS[role]}</strong>
-                <span className="ml-auto text-[11px] text-muted-foreground">{STATUS[team.status] || "Waiting"}</span>
+                <span className={cn("ml-auto text-[11px]", passed ? "font-medium text-emerald-500" : "text-muted-foreground")}>{passed ? "✓ " : ""}{STATUS[team.status] || "Waiting"}</span>
               </div>
               {team.stage ? <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{team.stage}</p> : null}
               {!compact && media.length ? (
