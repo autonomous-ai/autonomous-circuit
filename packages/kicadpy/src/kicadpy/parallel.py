@@ -1293,7 +1293,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                        f'Reconcile every draft with {contract_instruction}. '
                        'Rebuild and recheck; do not treat prior outputs or verdicts as accepted.')
         budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS)
-                  if stage == 'board' else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
+                  if stage in LONG_STAGES else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
         deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
         advice_rounds = 0
         timeout_advised = False

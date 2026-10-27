@@ -277,6 +277,33 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual((self.root / 'workspace/firmware/partial.c').read_text(),
                          'completed second pass')
 
+    def test_case_dispatch_keeps_long_continuations_past_the_short_bound(self):
+        clock = [0.0]
+
+        class CaseTimesOutTwice(fixture.Fake):
+            def __init__(self):
+                super().__init__()
+                self.calls = Counter()
+
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                self.calls[stage] += 1
+                if stage == 'case' and self.calls[stage] <= 2:
+                    clock[0] += state['timeoutSeconds']
+                    fixture.put(workspace, 'case/partial.py', f'draft {self.calls[stage]}')
+                    return {'stage': stage, 'model': model, 'startedAt': time.time(),
+                            'seconds': .1, 'usage': None, 'result': None,
+                            'error': 'Job timed out after 1800 seconds', 'failureKind': 'timeout'}
+                return super().__call__(root, state, stage, model, workspace,
+                                        prompt, schema, readonly)
+
+        runner = CaseTimesOutTwice()
+        with patch.object(parallel, '_stage_clock', side_effect=lambda: clock[0]):
+            result = self.run_with(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.calls['case'], 3)
+        case_jobs = [job for job in result['jobs'] if job['stage'] == 'case']
+        self.assertEqual([job['attemptTimeoutSeconds'] for job in case_jobs], [1800, 1800, 1800])
+
     def test_second_timeout_stops_but_imports_completed_sibling(self):
         class TimedOutTwice(fixture.Fake):
             def __init__(self):
