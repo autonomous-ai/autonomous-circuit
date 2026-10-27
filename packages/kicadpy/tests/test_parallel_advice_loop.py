@@ -200,6 +200,12 @@ class BoardAdviceIntegrationTests(unittest.TestCase):
         self.assertEqual(result['revision'], 1)
         self.assertEqual(len(runner.board_worktrees), 1)
 
+    def test_lead_cannot_waive_outside_a_stuck_tester_dispute(self):
+        runner = BoardAdviceRunner(first_blocker=True, decision='waive')
+        result = self.run_with(runner)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertIn('waive only a stuck tester finding', json.dumps(result['findings']))
+
     def test_task_label_change_is_not_an_interface_revision(self):
         class TaskOnlyAdvice(BoardAdviceRunner):
             def __call__(self, *args):

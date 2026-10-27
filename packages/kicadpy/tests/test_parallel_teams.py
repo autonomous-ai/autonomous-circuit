@@ -112,6 +112,48 @@ class SlowFirmwareRunner(TeamRunner):
         return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
 
 
+class DisputeRunner(TeamRunner):
+    """Firmware builder and tester disagree about firmware/main.c."""
+
+    def __init__(self, ruling, builder_obeys=True):
+        super().__init__()
+        self.wait_for_three = False
+        self.ruling = ruling
+        self.builder_obeys = builder_obeys
+        self.firmware_prompts = []
+        self.advice_problems = []
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        if stage == 'firmware':
+            self.firmware_prompts.append(prompt)
+            if len(self.firmware_prompts) > 1:
+                if self.builder_obeys and 'LEAD RULING' in prompt:
+                    put(workspace, 'firmware/main.c', 'fixed')
+                return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                        'usage': None, 'error': None,
+                        'result': {'contractSha256': state['contractSha256'], 'stage': stage,
+                                   'summary': 'Kept my design', 'blockers': []}}
+        if stage == 'firmware-advice':
+            self.advice_problems.append(prompt)
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'error': None,
+                    'result': {'contractSha256': state['contractSha256'], 'stage': 'firmware',
+                               'decision': self.ruling, 'summary': 'Lead ruling',
+                               'actions': [{'path': 'firmware/main.c',
+                                            'message': 'Debounce test is out of V0 scope'}],
+                               'changedFields': []}}
+        if stage == 'firmware-test':
+            fixed = (Path(workspace) / 'firmware/main.c').read_text() == 'fixed'
+            return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+                    'usage': None, 'error': None,
+                    'result': {'contractSha256': state['contractSha256'],
+                               'decision': 'approve' if fixed else 'revise',
+                               'summary': 'Checked firmware',
+                               'findings': [] if fixed else [{'path': 'firmware/main.c',
+                                                              'message': 'Add a debounce test'}]}}
+        return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
 class TeamFlowTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -152,6 +194,36 @@ class TeamFlowTests(unittest.TestCase):
             result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
         self.assertEqual(runner.firmware_limits, [1800, parallel.TIMEOUT_CONTINUATION_SECONDS, 1800])
+
+    def test_stuck_builder_and_tester_get_one_lead_ruling_then_continue(self):
+        runner = DisputeRunner('repair')
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(len(runner.advice_problems), 1)
+        self.assertIn('team_dispute', runner.advice_problems[0])
+        self.assertEqual(len(runner.firmware_prompts), 3)
+        self.assertNotIn('LEAD RULING', runner.firmware_prompts[1])
+        self.assertIn('LEAD RULING', runner.firmware_prompts[2])
+
+    def test_lead_waiver_closes_a_dispute_and_reaches_integration(self):
+        runner = DisputeRunner('waive', builder_obeys=False)
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        waivers = json.loads((self.root / '.pilot/waivers/firmware.json').read_text())
+        self.assertEqual([item['path'] for item in waivers], ['firmware/main.c'])
+        prompts = {stage: prompt for stage, _model, _readonly, prompt in runner.visits}
+        self.assertIn('LEAD WAIVERS', prompts['integration-test'])
+
+    def test_still_stuck_after_the_lead_ruling_stops_instead_of_looping(self):
+        runner = DisputeRunner('repair', builder_obeys=False)
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertIn('stuck after lead arbitration', json.dumps(result['findings']))
+        self.assertEqual(len(runner.advice_problems), 1)
+        self.assertLess(len(runner.firmware_prompts), parallel.MAX_TEAM_REPAIR_ROUNDS)
 
     def test_teams_record_owned_deviations_instead_of_stalling_on_sealed_details(self):
         # crab-robot-v6: the lead sealed LM74800 EP to GND and an invented switch cavity;

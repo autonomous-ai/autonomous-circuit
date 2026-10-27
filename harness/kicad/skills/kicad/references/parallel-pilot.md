@@ -259,3 +259,11 @@ and `PIP_CACHE_DIR`; never install cores or SDKs inside a worktree. Board and ca
 timeout continuations while they keep making owned file progress.
 Snapshots skip symlinks under `build/` (tool scratch such as headless Chrome profiles) and still
 reject symlinks anywhere else; worktree snapshot bounds are 2 GB / 20000 files.
+
+Team loop: each builder repairs until its tester approves, with a fresh stage clock per repair
+round (ceilings: 8 rounds, 6 h per role). When the tester cites the same file again and the
+builder left it byte-identical, the lead is called once as arbiter (read-only): repair with a
+concrete fix, waive the tester finding (recorded in `.pilot/waivers/<stage>.json`, never for
+native, safety or polarity defects, shown to later testers and the integration tester),
+interface_change or external_blocker. Still stuck on the same file after that ruling stops the
+team with `needs_revision` instead of looping.

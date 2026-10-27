@@ -47,7 +47,9 @@ FIRMWARE_CACHE_NOTE = (' Reuse the shared toolchain cache: keep the provided PLA
                        'ARDUINO_DIRECTORIES_DATA and PIP_CACHE_DIR; do not install PlatformIO cores, '
                        'SDKs or toolchains inside the worktree.')
 MAX_ADVICE_ROUNDS = 2
-MAX_TEAM_REPAIR_ROUNDS = 3
+# Teams loop until the tester approves; stagnation goes to the lead once, these are ceilings.
+MAX_TEAM_REPAIR_ROUNDS = 8
+TEAM_ROLE_WALL_SECONDS = 6 * 60 * 60
 MAX_TEAM_INTEGRATION_ROUNDS = 2
 TIMEOUT_ADVICE_SECONDS = 5 * 60
 SHARED_INTERFACE_FIELDS = frozenset({
@@ -1089,7 +1091,10 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         'contract; give concrete file-cited actions and let that worker continue. Choose '
         'interface_change only when a named field of the shared contract must actually change; '
         'list those fields in changedFields. Choose external_blocker when required external '
-        'facts or parts cannot currently be verified. For decisions other than interface_change, '
+        'facts or parts cannot currently be verified. Only for a team_dispute (builder and '
+        'tester stuck on the same files) you may choose waive when the tester\'s finding is '
+        'unreasonable for this contract; cite each waived file as an action with the reason. '
+        'Never waive a native, safety or polarity defect. For decisions other than interface_change, '
         'changedFields must be empty. Each action must cite an existing file in this worktree; '
         'for a failed final native check it may instead name the exact missing artifact inside '
         'the responsible worker-owned path. PILOT_CONTRACT.json is available when no '
@@ -1136,6 +1141,8 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
                                   sum(owns(role, action['path']) for role in ROLES) == 1)
         if not path.is_file() and not missing_final_artifact:
             raise ValueError('Lead advice must cite an existing worker file')
+    if advice['decision'] == 'waive' and problem.get('kind') != 'team_dispute':
+        raise ValueError('Lead may waive only a stuck tester finding')
     if advice['decision'] == 'interface_change':
         # Leads cite paths such as "interfaces.pins[8].pin"; replan by top-level field.
         fields = list(dict.fromkeys(_shared_field_root(field) for field in advice['changedFields']))
@@ -1151,8 +1158,40 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
     return advice
 
 
+def _waivers_text(waivers):
+    if not waivers:
+        return ''
+    return ('\nLEAD WAIVERS (the lead ruled these findings unreasonable; do not raise them '
+            'again unless the cited file regressed):\n' + json.dumps(waivers, sort_keys=True))
+
+
+def load_waivers(root):
+    waivers = []
+    for file in sorted((Path(root) / '.pilot/waivers').glob('*.json')):
+        waivers.extend(json.loads(file.read_text()))
+    return waivers
+
+
+def _file_sha(worktree, name):
+    path = Path(worktree) / name
+    if path.is_symlink() or not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _apply_waivers(worktree, review, waivers):
+    """Drop tester findings the lead waived while the cited file is still unchanged."""
+    waived = {(item['path'], item['sha256']) for item in waivers}
+    findings = [item for item in review['findings']
+                if (item['path'], _file_sha(worktree, item['path'])) not in waived]
+    if review['decision'] != 'revise' or len(findings) == len(review['findings']):
+        return review
+    return {**review, 'findings': findings, 'decision': 'revise' if findings else 'approve'}
+
+
 def team_test(root, state, role, stage, worktree, checks, runner, *,
-              stage_deadline=None, authorized_integration=None, integration_lock=None):
+              stage_deadline=None, authorized_integration=None, integration_lock=None,
+              waivers=()):
     """Give each builder an independent, read-only tester in its own team."""
     from .parallel_addendum import notes_for_role
 
@@ -1175,7 +1214,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         'cross-team impact is not a defect; check that the files follow it. '
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
-        + notes_for_role(root, role)
+        + notes_for_role(root, role) + _waivers_text(list(waivers))
     )
     # `call` selects the lead model for read-only jobs; the team's tester uses
     # the worker model and the same shared jobs list, independent of lead gates.
@@ -1297,6 +1336,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
         advice_rounds = 0
         timeout_advised = False
+        team_started = _stage_clock()
+        waivers = [item for item in load_waivers(root) if item.get('stage') == stage]
+        last_cited, arbitrated, history = {}, set(), []
 
         def publish(status, findings=()):
             if on_progress is not None and state['mode'] == 'teams':
@@ -1405,16 +1447,63 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     publish('checking', problem.get('blockers', ()) if problem else ())
                     test = team_test(root, state, role, stage, dest, checks or problem or {}, runner,
                                      authorized_integration=authorized_integration,
-                                     integration_lock=integration_lock)
+                                     integration_lock=integration_lock, waivers=waivers)
+                    test = _apply_waivers(dest, test, waivers)
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}
                     if problem is None:
                         publish('passed')
                         return role, stage, dest, pointer, receipt, checks, None
-                    if advice_rounds >= MAX_TEAM_REPAIR_ROUNDS:
+                    if (advice_rounds >= MAX_TEAM_REPAIR_ROUNDS or
+                            _stage_clock() - team_started > TEAM_ROLE_WALL_SECONDS):
                         publish('needs_revision', [str(problem)])
                         raise ValueError('Team task remains open after bounded continuation: ' +
                                          json.dumps(problem, sort_keys=True))
+                    arbitration = None
+                    if problem['kind'] == 'team_tester':
+                        # Stuck = the tester cites the same file again and the builder left it
+                        # byte-identical. Messages are reworded every round, so paths decide.
+                        cited = {item['path']: _file_sha(dest, item['path'])
+                                 for item in test['findings']}
+                        stuck = sorted(path for path, sha in cited.items()
+                                       if path in last_cited and last_cited[path] == sha)
+                        last_cited = cited
+                        if stuck:
+                            if any(path in arbitrated for path in stuck):
+                                publish('needs_revision', [f'Still stuck after lead ruling: {stuck}'])
+                                raise ValueError('Team remains stuck after lead arbitration on ' +
+                                                 ', '.join(stuck) + ': ' +
+                                                 json.dumps(test, sort_keys=True))
+                            arbitrated.update(stuck)
+                            arbitration = advise(
+                                root, state, stage, dest,
+                                {'kind': 'team_dispute', 'stuck': stuck, 'review': test,
+                                 'history': history[-3:]},
+                                runner, stage_deadline=_stage_clock() + TIMEOUT_ADVICE_SECONDS,
+                                authorized_integration=authorized_integration,
+                                integration_lock=integration_lock)
+                            with ACTIVE_LOCK:
+                                state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+                            if arbitration['decision'] == 'interface_change':
+                                raise ContractRevisionRequired(
+                                    arbitration['summary'] + ': ' +
+                                    ', '.join(arbitration['changedFields']),
+                                    arbitration['changedFields'])
+                            if arbitration['decision'] == 'external_blocker':
+                                raise ExternalBlocker(arbitration['summary'])
+                            if arbitration['decision'] == 'waive':
+                                waivers.extend({'stage': stage, 'path': action['path'],
+                                                'sha256': _file_sha(dest, action['path']),
+                                                'reason': action['message']}
+                                               for action in arbitration['actions'])
+                                write(root / '.pilot/waivers' / f'{stage}.json', waivers)
+                                test = _apply_waivers(dest, test, waivers)
+                                if test['decision'] == 'approve':
+                                    publish('passed')
+                                    return role, stage, dest, pointer, receipt, checks, None
+                                problem = {'kind': 'team_tester', 'review': test}
+                        history.append({'round': advice_rounds + 1, 'summary': test['summary'],
+                                        'paths': sorted(cited)})
                     advice_rounds += 1
                     # A tester-requested repair is new work; do not bill it to the build clock.
                     deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
@@ -1425,6 +1514,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                               notes_for_role(root, role) + '\n\nINDEPENDENT TESTER FINDINGS:\n' +
                               json.dumps(test, sort_keys=True) + '\nPREVIOUS PROBLEM:\n' +
                               json.dumps(problem, sort_keys=True) +
+                              ('\nLEAD RULING ON THE STUCK FINDINGS (follow it):\n' +
+                               json.dumps(arbitration, sort_keys=True) if arbitration else '') +
                               '\nContinue in this same worktree. Repair actual files and rerun '
                               'native checks. Preserve the original contract and release notes.')
                     continue
@@ -1748,6 +1839,7 @@ def team_integration_test(root, state, checks, runner):
         'when the original interface cannot be satisfied without a new user instruction. '
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
+        + _waivers_text(load_waivers(root))
     )
     tester_state = {**state, 'leadModel': state['workerModel']}
     receipt = call(root, tester_state, 'integration-test', workspace, prompt,

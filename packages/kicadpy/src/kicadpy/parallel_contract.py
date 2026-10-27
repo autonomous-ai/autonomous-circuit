@@ -44,7 +44,8 @@ REVIEW_SCHEMA = obj({'contractSha256': STRING, 'decision': {'type': 'string', 'e
                      'summary': STRING, 'findings': array(obj({'path': STRING, 'message': STRING}))})
 ADVICE_SCHEMA = obj({'contractSha256': STRING,
                      'stage': STRING,
-                     'decision': {'type': 'string', 'enum': ['repair', 'interface_change', 'external_blocker']},
+                     'decision': {'type': 'string',
+                                  'enum': ['repair', 'interface_change', 'external_blocker', 'waive']},
                      'summary': STRING,
                      'actions': array(obj({'path': STRING, 'message': STRING})),
                      'changedFields': array(STRING)})
