@@ -468,6 +468,32 @@ class PilotTests(unittest.TestCase):
         self.assertTrue((self.root / 'workspace/design/main.kicad_pro').exists())
         self.assertTrue((self.root / 'workspace/firmware/main.c').exists())
 
+    def test_case_worker_build_scratch_links_are_skipped_not_imported(self):
+        self.plan()
+        def defect(stage, workspace, result):
+            if stage == 'case':
+                profile = workspace / 'build/case/chrome-profile'
+                profile.mkdir(parents=True)
+                (profile / 'SingletonLock').symlink_to('host-1234')
+        self.fake.defect = defect
+        state = self.run_round()
+        self.assertEqual(state['status'], 'candidate_ready', state['findings'])
+        self.assertFalse((self.root / 'workspace/build/case/chrome-profile/SingletonLock').is_symlink())
+        self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
+
+    def test_snapshot_skips_build_links_but_rejects_source_links(self):
+        workspace = self.base / 'links'
+        put(workspace, 'case/frame.txt', 'frame')
+        (workspace / 'build').mkdir()
+        (workspace / 'build/lock').symlink_to('nowhere')
+        self.assertEqual(set(pilot.snapshot(workspace)), {'case/frame.txt'})
+        self.assertEqual(set(pilot._retry_files(workspace)), {'case/frame.txt'})
+        (workspace / 'case/link').symlink_to(workspace / 'case/frame.txt')
+        with self.assertRaisesRegex(ValueError, 'symlinks'):
+            pilot.snapshot(workspace)
+        with self.assertRaisesRegex(ValueError, 'symlinks'):
+            pilot._retry_files(workspace)
+
     def test_unexpected_checker_exception_fails_closed(self):
         self.plan()
         def broken(workspace, complete):

@@ -257,3 +257,5 @@ Firmware workers share one toolchain cache (`CIRCUIT_FIRMWARE_CACHE`, default
 `~/.cache/autonomous-circuit/firmware`) through `PLATFORMIO_CORE_DIR`, `ARDUINO_DIRECTORIES_DATA`
 and `PIP_CACHE_DIR`; never install cores or SDKs inside a worktree. Board and case both get long
 timeout continuations while they keep making owned file progress.
+Snapshots skip symlinks under `build/` (tool scratch such as headless Chrome profiles) and still
+reject symlinks anywhere else; worktree snapshot bounds are 2 GB / 20000 files.

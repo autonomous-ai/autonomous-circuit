@@ -29,7 +29,9 @@ WORKER = 'gpt-6.1-sol'
 WORKER_SANDBOX = 'danger-full-access'
 SKIP = {'.git', '.circuit', '.harness', '.kicadpy', '__pycache__', 'node_modules'}
 MAX_FILE = 128 * 1024 * 1024
-MAX_TOTAL = 1024 * 1024 * 1024
+# Board review snapshots and slicer/check outputs pushed real case worktrees past 1 GB.
+MAX_TOTAL = 2 * 1024 * 1024 * 1024
+MAX_FILES = 20000
 ACTIVE = {}
 ACTIVE_LOCK = threading.Lock()
 CAPACITY_RETRY_DELAYS = (5, 15)
@@ -136,13 +138,25 @@ def git(cwd, *args):
                                     *args], cwd=cwd, stderr=subprocess.PIPE).decode().strip()
 
 
+def _drop_scratch_links(workspace, directory, dirs, files):
+    """Tools (headless Chrome profiles) leave symlinks in build/ scratch; skip those, reject the rest."""
+    kept = ([], [])
+    for bucket, names in zip(kept, (dirs, files)):
+        for name in names:
+            path = Path(directory) / name
+            if name != '.git' and path.is_symlink():
+                if path.relative_to(workspace).parts[0] != 'build':
+                    raise ValueError('Pilot snapshots do not support symlinks')
+                continue
+            bucket.append(name)
+    return kept
+
+
 def snapshot(workspace):
     """Hash real outputs, rejecting links and limiting accidental build-directory explosions."""
     result, total = {}, 0
     for directory, dirs, files in os.walk(workspace):
-        for name in dirs + files:
-            if name != '.git' and (Path(directory) / name).is_symlink():
-                raise ValueError('Pilot snapshots do not support symlinks')
+        dirs[:], files[:] = _drop_scratch_links(workspace, directory, dirs, files)
         dirs[:] = [d for d in dirs if d not in SKIP]
         for name in sorted(files):
             if name == '.git':
@@ -150,7 +164,7 @@ def snapshot(workspace):
             file = Path(directory) / name
             size = file.stat().st_size
             total += size
-            if size > MAX_FILE or total > MAX_TOTAL or len(result) >= 10000:
+            if size > MAX_FILE or total > MAX_TOTAL or len(result) >= MAX_FILES:
                 raise ValueError('Pilot output exceeds snapshot bounds')
             result[file.relative_to(workspace).as_posix()] = {
                 'sha256': hashlib.sha256(file.read_bytes()).hexdigest(),
@@ -209,7 +223,7 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
                     raise ValueError('Unsafe seed member')
                 if member.isfile() and (owns('solo', str(name)) or str(name) in ('README.md', 'project.json')):
                     total += member.size
-                    if member.size > MAX_FILE or total > MAX_TOTAL or len(seed_files) >= 10000:
+                    if member.size > MAX_FILE or total > MAX_TOTAL or len(seed_files) >= MAX_FILES:
                         raise ValueError('Seed file too large')
                     seed_files[str(name)] = (tar.extractfile(member).read(), member.mode)
     root.mkdir(parents=True)
@@ -354,9 +368,7 @@ def _retry_files(workspace):
     """Cheap change detection before a retry; final worker import still hashes bytes."""
     files, total = {}, 0
     for directory, dirs, names in os.walk(workspace):
-        for name in dirs + names:
-            if name != '.git' and (Path(directory) / name).is_symlink():
-                raise ValueError('Pilot snapshots do not support symlinks')
+        dirs[:], names[:] = _drop_scratch_links(workspace, directory, dirs, names)
         dirs[:] = [name for name in dirs if name not in SKIP]
         for name in names:
             if name == '.git':
@@ -366,7 +378,7 @@ def _retry_files(workspace):
             if not path.is_file():
                 raise ValueError('Retry workspace contains a non-file output')
             total += stat.st_size
-            if stat.st_size > MAX_FILE or total > MAX_TOTAL or len(files) >= 10000:
+            if stat.st_size > MAX_FILE or total > MAX_TOTAL or len(files) >= MAX_FILES:
                 raise ValueError('Retry workspace exceeds snapshot bounds')
             files[path.relative_to(workspace).as_posix()] = (
                 stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
