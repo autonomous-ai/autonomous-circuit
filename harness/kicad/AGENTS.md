@@ -852,6 +852,8 @@ board revision, not a moved footprint.
   **Print all is one complete 3MF**, retaining every current production part, including those
   already printed. Within that same file, separate plates named **ĐÃ IN — GIỮ LẠI** and
   **MỚI/SỬA — CẦN IN**; add numbered plates within each group on overflow, never mix groups.
+  Inside each group: one filament/colour per plate; large parts with large and small with small;
+  each part's long side along printer X (rotate about Z only), never along Y unless it cannot fit.
   Verify these names in the saved project opened in Bambu. Printed inventory controls plate
   assignment and quantities, never omission from Print all. The person selects the new plates
   to print; a separate subset, if requested, is extra and never replaces this complete file.
