@@ -126,6 +126,45 @@ test("print plates group their exact parts while coupon and reference models sta
   }
 });
 
+test("show only isolates one print plate and show all restores the assembly", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  try {
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    assert.ok(plate2);
+    click(plate2.querySelector('[data-slot="case-plate-focus"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: false,
+      back: true,
+      coupon: false,
+      board_reference: false,
+    });
+    click(ui.container.querySelector('[data-slot="case-show-all"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: true,
+      back: true,
+      coupon: false,
+      board_reference: true,
+    });
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
 test("without verified plates the case keeps its flat parts list", () => {
   const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [] }), Scene: StubScene });
   try {
