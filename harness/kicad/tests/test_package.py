@@ -181,7 +181,12 @@ class ManifestTest(unittest.TestCase):
         # agent stop and wait is gone; the reference-part rule is in.
         text = (PKG / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertIn('**One shot is the default.**', text)
-        self.assertIn('kicadpy.harness --active build` and start', text)
+        self.assertIn('kicadpy.harness --active build` and start building', text)
+        self.assertIn('If `.circuit/team-auto` exists', text)
+        self.assertIn('kicadpy.parallel_tile start "$PWD" --prompt', text)
+        self.assertIn('`prompts/original.md`', text)
+        self.assertIn('`prompts/current.md`', text)
+        self.assertIn('Do not build the board yourself or arm', text)
         self.assertIn('### Parts the person owns but cannot name', text)
         self.assertIn('GIẢ ĐỊNH', text)
         self.assertIn('never a reason to stop, and never a reason to ask', text)
@@ -286,6 +291,18 @@ class PythonWrapperTest(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(Path(out.stdout.strip()), ROOT / 'toolchain')
 
+    def test_wrapper_resolves_linked_dsh_to_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            link = Path(tmp) / 'dsh/autonomous/kicad'
+            link.parent.mkdir(parents=True)
+            link.symlink_to(PKG, target_is_directory=True)
+            env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'CIRCUIT_TOOLCHAIN')}
+            out = subprocess.run([str(link / 'toolchain/python'), '-c',
+                                  'import pathlib, kicadpy; print(pathlib.Path(kicadpy.__file__).resolve())'],
+                                 env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(Path(out.stdout.strip()), ROOT / 'packages/kicadpy/src/kicadpy/__init__.py')
+
 
 class InitWorkspaceTest(unittest.TestCase):
 
@@ -303,6 +320,7 @@ class InitWorkspaceTest(unittest.TestCase):
             meta = json.loads((ws / 'project.json').read_text(encoding='utf-8'))
             self.assertEqual(meta['engine'], 'kicad-native')
             self.assertGreater(meta['created_at'], 0)
+            self.assertTrue((ws / '.circuit' / 'team-auto').is_file())
             verdict = json.loads((ws / '.harness' / 'verdict.json').read_text(encoding='utf-8'))
             self.assertEqual(verdict['spec'], 1)
             self.assertIs(verdict['ready'], False)
@@ -320,6 +338,7 @@ class InitWorkspaceTest(unittest.TestCase):
                 self.assertEqual(out.returncode, 0, out.stderr)
                 hook = ws / '.grok' / 'hooks' / 'kicad.json'
                 self.assertEqual(hook.is_file(), expect_hook, pkg.name)
+                self.assertEqual((ws / '.circuit' / 'team-auto').is_file(), pkg == PKG, pkg.name)
                 # Grok finds project hooks only at a git root (2026-09-23): the grok workspace is one.
                 self.assertEqual((ws / '.git').is_dir(), expect_hook, pkg.name)
                 if expect_hook:
@@ -343,6 +362,7 @@ class InitWorkspaceTest(unittest.TestCase):
             meta = json.loads((ws / 'project.json').read_text(encoding='utf-8'))
             self.assertEqual(meta['created_at'], 5)
             self.assertEqual(meta['engine'], 'kicad-native')
+            self.assertTrue((ws / '.circuit' / 'team-auto').is_file())
 
 
 if __name__ == '__main__':

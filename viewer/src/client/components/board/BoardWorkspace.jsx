@@ -52,6 +52,8 @@ import { DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placem
 import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
+import TeamProgress from "./TeamProgress.jsx";
+import ProjectOverviewPreview, { safeProjectOverviewUrl } from "./ProjectOverviewPreview.jsx";
 import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
@@ -87,6 +89,8 @@ const PLAIN_TABS = new Set(["overview", "function", "firmware", "case", "case-ov
 export default function BoardWorkspace({
   manifestRevision = 0,
   boardEntries = [],
+  projectOverviewUrl = "",
+  teamPreview = null,
   partsEntry = null,
   artifactActivity = {},
   catalogHydrated = false,
@@ -176,9 +180,15 @@ export default function BoardWorkspace({
   // --- the navigator's world: every project, not just the open one.
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
+  const nativeProject = projects.some(project => project.id === currentProjectId && project.engine === "kicad-native");
+  const unverifiedOverviewUrl = nativeProject && boardEntries.length === 0 && currentProjectId
+    ? safeProjectOverviewUrl(projectOverviewUrl, currentProjectId)
+    : "";
   const openProject = useProjectsStore((state) => state.open);
   const turnInProgress = useChatStore((state) => state.turnInProgress);
+  const chatProjectId = useChatStore((state) => state.currentProjectId);
   const chatHistory = useChatStore((state) => state.history);
+  const promptChatMatchesProject = !viewerOnly && Boolean(currentProjectId) && chatProjectId === currentProjectId;
   const buildStatus = useBuildStatus(currentProjectId || "", turnInProgress);
   const buildHistory = useBuildHistory(currentProjectId || "", turnInProgress);
 
@@ -1175,7 +1185,7 @@ export default function BoardWorkspace({
     <div data-slot="board-workspace" className="flex h-full w-full flex-col bg-background">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/60 px-2.5">
         <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous Circuit</span>
-        {projects.some(project => project.id === currentProjectId && project.engine === "kicad-native") ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
+        {nativeProject ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
         <ProjectMenu />
         {catalogRefreshing ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Refreshing catalog" />
@@ -1208,6 +1218,7 @@ export default function BoardWorkspace({
           KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : selectedEntry.nativeManufacturingVerified ? "Prototype packet verified; physical hardware is untested." : "Prototype manufacturing review is incomplete; see the reported findings."}
         </p>
       ) : null}
+      {selectedEntry && teamPreview ? <TeamProgress preview={teamPreview} compact /> : null}
       {catalogError ? (
         <p
           data-slot="board-catalog-error"
@@ -1357,7 +1368,7 @@ export default function BoardWorkspace({
 
               <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
-                  {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={requestText} fallbackCurrentText={currentRequestText} className="min-h-0 flex-1" /> : null}
+                  {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={promptChatMatchesProject ? requestText : ""} fallbackCurrentText={promptChatMatchesProject ? currentRequestText : ""} className="min-h-0 flex-1" /> : null}
                   {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
                   {activeTab === "overview" ? (
                     <OverviewTab
@@ -1524,11 +1535,15 @@ export default function BoardWorkspace({
                 )}
               </div>
             </>
+          ) : teamPreview ? (
+            <TeamProgress preview={teamPreview} />
+          ) : unverifiedOverviewUrl ? (
+            <ProjectOverviewPreview url={unverifiedOverviewUrl} className="min-h-0 flex-1" />
           ) : (
             !stagePending ? (
               <StartHere
                 viewerOnly={viewerOnly}
-              native={projects.some(project => project.id === currentProjectId && project.engine === "kicad-native")}
+              native={nativeProject}
               status={buildStatus}
               building={building || turnInProgress}
               buildLine={buildLine}

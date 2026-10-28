@@ -9,6 +9,23 @@ Every command runs through the host Python Harness gave you: `"$KICAD_HARNESS_PY
 `kicadpy` and `circuitpy` on its path and `CIRCUIT_TOOLCHAIN` set. Each tool prints exactly one
 JSON line, `{ok: true, result}` or `{ok: false, error, kind}`; parse the last line of stdout.
 
+## Keep project prompts separate from private chat
+
+Save the first project request in `prompts/original.md`. The workspace owner maintains
+`prompts/current.md`: the effective user requirements and owned hardware, a dated evidence-backed
+status, and the next work/assumptions, with links to detailed guides. The viewer reads only these
+project-owned prompt files, not agent logs or unrelated chats; absent files leave the Prompt view
+empty. Consolidate substantive corrections rather than appending chat transcripts or retaining
+obsolete decisions. Keep private session history separate; incorporate all read updates without
+hiding unread ones through a timestamp-only refresh. A compacted brief does not authorize a
+redesign or turn CAD/compile success into physical validation. Scoped pilot workers report to the lead and
+respect the frozen contract and file ownership instead of editing this shared brief themselves.
+Before compacting, preserve user-supplied photos/drawings/screenshots and product links in a
+project-owned `references/user-images/` directory with `references/IMAGES.md` recording source,
+user context and current versus superseded status. Link relevant references from the brief and
+verify paths. Do not leave temporary clipboard paths or bare `[Image #]` placeholders as the
+only reference. If bytes are gone, label the source missing rather than guess what it showed.
+
 ## Discover KiCad first
 
 When the tile ships its own KiCad (the store package does), Harness sets `$KICADPY_CLI`,
@@ -226,6 +243,15 @@ or physical motion. Detailed acceptance rules are in the required reference abov
 Plan how each part gets in and how its fasteners are reached; keep a current numbered assembly
 guide, separate labeled coupon instructions and a reuse/reprint list. Validate the assembly
 sequence as well as the final pose, then regenerate the overview from that same revision.
+Read/update `case/PRINTED-INVENTORY.md` from the person's print confirmations and identifiable
+photos; retain part/revision, quantity, evidence and uncertainty across turns. Separate
+ALREADY PRINTED plates from NEW/UPDATED plates **inside one complete Print all 3MF**, keeping
+every current production part. Give the native plates visible names in Bambu; printed status
+changes their plate, never removes their objects. Separate subsets are extras only if requested.
+Every screw position needs a matching
+ID, size/length or factory label, nut/tool and visual insertion direction in guide/overview.
+Count parts/installed fasteners before finalizing; keep one current decision after corrections
+and reconcile actuator/wiring changes. Follow the reference for details, not an extra approval step.
 
 ```sh
 "$KICAD_CASE_PYTHON" case/build.py               # your model -> case/out/ (start: kicadpy.case_template.build_box('.'))
@@ -239,7 +265,12 @@ Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part
 ### Interactive overview — immediately after the 3D build
 
 Every case build also generates `case/overview.html`, automatically in the same turn. Use the
-actual assembled geometry, component labels, shell visibility and wire paths. For a moving
+actual assembled geometry, component labels, shell visibility and wire paths. Include bought
+screws/nuts/washers as recognizable 3D hardware with a separate
+default-on **Vít/tán** toggle. Selection must focus the real screw and its size/insertion path;
+local exploded/cutaway views explain nested joints and fixed/rotating parts. Derive hardware
+from the checked instance map and confirmed owned sizes, and keep it out of printable output.
+Verify the final controls and hardware coverage per the assembly reference. For a moving
 case, include controls for its checked axes and a stop/centre control; for a static case, keep
 inspection controls without invented motion. Make it a self-contained phone-friendly HTML
 file (embedded geometry/scripts/styles; no network or CDN), set manifest `overview` relative
@@ -248,14 +279,24 @@ to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. A
 Call the overview generator from `case/build.py` so final model repairs regenerate it too.
 The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
 
+Use one consistent overview layout across projects: a single **Đủ bộ / Bước 1…N** selector
+with previous/next navigation. Each step automatically scopes the 3D view and a **Vít/tán bước
+này** card (IDs, size/factory label, count, nuts, entry direction and action); selecting a screw
+keeps the current step. Đủ bộ shows the complete seated product and total hardware summary.
+Do not maintain separate assembly-stage, step and fastener-group workflows. Keep camera
+shortcuts secondary and optional detailed selection/explosion/motion under **Chi tiết**, closed
+initially. Preserve real hardware visibility and checked motion; never simplify away evidence.
+The assembly reference defines common behavior and verification for this format.
+
 ### Structural repairs — establish the joint before a full build
 
 Preserve existing working designs/parts by default unless the person changes the requirement;
 a repair request does not authorize a wholesale redesign. Prefer compatible local add-ons.
 The actual printed revision and its mating geometry are constraints.
 Fix the failed feature with the smallest compatible replacement/cap/adapter first; save body
-reprints even if the repair adds a small part. Validate against the printed baseline and lead
-with repair-only plates, keeping the full-kit export optional. See the reference's repair mode.
+reprints even if the repair adds a small part. Validate against the printed baseline and point
+to the new/updated plates inside the complete Print all 3MF; already-printed parts remain on
+separate named plates in that same file. See the reference's repair mode.
 
 Follow `references/case-assembly.md`: record the requested joint with a section/sketch, actual
 load path, fixed/free interfaces and accessible nut/screw sequence before detailed CAD/slicing.
@@ -312,3 +353,10 @@ with identical tools, coverage and ignored checks. A new or changed finding is r
 the total count falls. Scope, source freshness, check hashes and undo remain enforced. This is
 progress, not completion: `fabricationReady` remains false; publish the manufacturing packet
 and finish the remaining repairs before claiming `fab.ready=true`.
+
+## Explicitly requested team experiments
+
+For a new isolated Astra-lead / Sol-board+firmware+frame pilot, read
+[references/parallel-pilot.md](references/parallel-pilot.md). Use only when the owner requests
+that experiment; normal builds and active runs keep the existing pipeline. The CLI has
+explicit execution flags, frozen interface contracts, scoped worktrees and native checks.

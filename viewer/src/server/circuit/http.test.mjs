@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -668,6 +669,48 @@ test("viewer-only: `.harness/` is invisible to the catalog, and a write there st
   }
 });
 
+test("viewer-only: only hash-listed worker preview images are served from .circuit", async () => {
+  const s = await bootWorkspaceServer();
+  const ws = s.env.CIRCUIT_WORKSPACE;
+  const rel = ".circuit/team-previews/current/board/boards/main_review/_pcb.svg";
+  try {
+    fs.mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+    fs.writeFileSync(path.join(ws, rel), "<svg/>");
+    fs.writeFileSync(path.join(ws, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "running", teamReady: false }));
+    fs.writeFileSync(path.join(ws, ".circuit/team-preview.json"), JSON.stringify({ schema: 1, run: "r001", teams: {
+      board: { status: "draft", stage: "board", verified: false, files: [], findings: [], media: [{
+        file: "boards/main_review/_pcb.svg", path: rel, bytes: 6,
+        sha256: crypto.createHash("sha256").update("<svg/>").digest("hex"),
+      }] },
+      firmware: { status: "queued", stage: null, verified: false, files: [], findings: [], media: [] },
+      case: { status: "queued", stage: null, verified: false, files: [], findings: [], media: [] },
+    } }));
+    s.services.catalog.refresh("workspace");
+    const catalog = await s.post("catalog_read");
+    assert.equal(catalog.body.teamPreview.teams.board.media.length, 1);
+    const image = await fetch(`${s.base}/projects/workspace/${rel}`);
+    assert.equal(image.status, 200);
+    assert.match(image.headers.get("content-security-policy") || "", /sandbox/);
+    assert.equal((await fetch(`${s.base}/projects/workspace/.circuit/team-bridge.json`)).status, 403);
+    const privateState = path.join(ws, ".circuit/team-runs/r001/.pilot/state.json");
+    fs.mkdirSync(path.dirname(privateState), { recursive: true });
+    fs.writeFileSync(privateState, JSON.stringify({ secret: "private pilot receipt" }));
+    // Encoded slashes survive URL parsing. Decoding them only after the access
+    // check used to turn this apparent public path into a private .circuit file.
+    const encodedTraversal = await fetch(
+      `${s.base}/projects/workspace/foo%2F..%2F.circuit/team-runs/r001/.pilot/state.json`,
+    );
+    assert.equal(encodedTraversal.status, 403);
+    fs.mkdirSync(path.join(ws, "boards"), { recursive: true });
+    fs.symlinkSync(privateState, path.join(ws, "boards/private-state.json"));
+    assert.equal((await fetch(`${s.base}/projects/workspace/boards/private-state.json`)).status, 403);
+    fs.writeFileSync(path.join(ws, rel), "tampered");
+    assert.equal((await fetch(`${s.base}/projects/workspace/${rel}`)).status, 403);
+  } finally {
+    s.close();
+  }
+});
+
 test("viewer-only: harness_new_board asks the daemon for a sibling harness; the command does not exist elsewhere", async () => {
   // A fake daemon: answers machine_select with `connected`, agent_create with a created agent.
   const frames = [];
@@ -920,7 +963,7 @@ test("revealCommand picks the platform's file manager and honours the override",
   assert.deepEqual(revealCommand("/a/b.zip", { CIRCUIT_REVEAL_BIN: "/x/fake" }, "darwin"), { bin: "/x/fake", args: ["/a/b.zip"] });
 });
 
-test("workspace_prompts: the original request comes back over HTTP from the engine's logs", async () => {
+test("workspace_prompts: only project-owned prompt files come back over HTTP", async () => {
   const home = tmpdir("circuit-wp-home-");
   const s = await bootServerWith((env) => ({ ...env, HOME: home, CODEX_HOME: path.join(home, ".codex"), CLAUDE_CONFIG_DIR: path.join(home, ".claude") }));
   try {
@@ -930,12 +973,20 @@ test("workspace_prompts: the original request comes back over HTTP from the engi
     fs.mkdirSync(sdir, { recursive: true });
     fs.writeFileSync(path.join(sdir, "rollout-a.jsonl"), [
       { timestamp: "2026-10-08T01:00:00Z", type: "session_meta", payload: { id: "a", timestamp: "2026-10-08T01:00:00Z", cwd: dir } },
-      { timestamp: "2026-10-08T01:00:05Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "làm desk pet đi" }] } },
+      { timestamp: "2026-10-08T01:00:05Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "PRIVATE CHAT SENTINEL" }] } },
     ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+    const empty = await s.post("workspace_prompts", { id: project.id });
+    assert.equal(empty.status, 200, JSON.stringify(empty.body));
+    assert.deepEqual(empty.body, { original: null, current: null, sessions: [] });
+    fs.mkdirSync(path.join(dir, "prompts"));
+    fs.writeFileSync(path.join(dir, "prompts", "original.md"), "làm desk pet đi");
+    fs.writeFileSync(path.join(dir, "prompts", "current.md"), "Desk pet: two servos");
     const r = await s.post("workspace_prompts", { id: project.id });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.original.text, "làm desk pet đi");
-    assert.equal(r.body.sessions.length, 1);
+    assert.equal(r.body.current.text, "Desk pet: two servos");
+    assert.deepEqual(r.body.sessions, []);
+    assert.doesNotMatch(JSON.stringify(r.body), /PRIVATE CHAT SENTINEL/);
     const missing = await s.post("workspace_prompts", { id: "nope" });
     assert.equal(missing.status, 404);
   } finally {

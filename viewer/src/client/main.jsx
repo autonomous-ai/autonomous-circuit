@@ -316,6 +316,8 @@ function AppRoot() {
             <BoardWorkspace
               manifestRevision={revision}
               boardEntries={boardEntries}
+              projectOverviewUrl={catalog?.projectOverviewUrl || ""}
+              teamPreview={catalog?.teamPreview || null}
               partsEntry={partsEntry}
               artifactActivity={artifactActivity}
               catalogHydrated={catalogHydrated}

@@ -5,6 +5,8 @@
 # The template brought project.json (engine: kicad-native — the marker) and product.json. This lays
 # out the folders the native workflow writes into, stamps the project's clock, and seeds the first
 # verdict so the pane header has a state before the first prompt (Build / Checks / Fab / Firmware / Case, all pending).
+# Fresh Codex projects get a team marker. The first board prompt is still supplied by the person
+# in Harness; the Codex entry agent dispatches it through kicadpy.parallel_tile.
 set -euo pipefail
 mkdir -p .harness design tools engineering boards .circuit
 dsh_dir="${HARNESS_DSH_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
@@ -16,6 +18,9 @@ python="$dsh_dir/toolchain/python"
 # turn end and keeps the agent on an approved build; a user interrupt (`StopCancelled` on Grok,
 # `Interrupt` on Codex) cancels the run. Claude gets none: its tile never had the hook.
 engine="$(sed -n 's/^[[:space:]]*"engine":[[:space:]]*"\([a-z]*\)".*/\1/p' "$dsh_dir/harness.json" 2>/dev/null | head -1)"
+if [ "$engine" = "codex" ] && [ ! -e .circuit/team-auto ]; then
+  : > .circuit/team-auto
+fi
 if [ "$engine" = "grok" ]; then
   # Grok resolves project hooks (and `.grok/` config) at its project ROOT, which is the enclosing
   # git repository — a plain folder has none, and `grok inspect` lists no project hook for it
