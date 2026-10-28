@@ -11,7 +11,7 @@ const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
 // Preserve a slicer's real plates/settings, rather than flattening them into our generic mesh ZIP.
 // The report comes from the project's slicer verifier; compare its inputs on every export.
-export function preparedPrintProject(root, manifest) {
+export function checkedPrintProject(root, manifest) {
   if (!manifest.printProject) return null;
   const project = fs.realpathSync(root), caseDir = fs.realpathSync(path.join(project, "case"));
   if (!caseDir.startsWith(project + path.sep)) throw new Error("Print project is outside case/");
@@ -47,7 +47,20 @@ export function preparedPrintProject(root, manifest) {
     }
   }
   if (assigned.size !== names.size) throw new Error("Print plates omit a production part");
-  return bytes;
+  return { bytes, file: report.file, plates: report.plates.map(plate => ({
+    index: plate.index,
+    name: typeof plate.name === "string" ? plate.name : null,
+    parts: plate.parts.map(name => name.slice(0, -4)),
+  })) };
+}
+
+export function preparedPrintProject(root, manifest) {
+  return checkedPrintProject(root, manifest)?.bytes || null;
+}
+
+/** Plate membership from the same checked native 3MF used by Print all. */
+export function preparedPrintPlates(root, manifest) {
+  return checkedPrintProject(root, manifest)?.plates || null;
 }
 export function caseFile(root, member) {
   const project = fs.realpathSync(root), out = fs.realpathSync(path.join(project, "case", "out"));

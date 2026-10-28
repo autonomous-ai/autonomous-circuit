@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
+import { printAll3mf } from "./caseExport.mjs";
 import { createCatalogService, scanProjectCatalog } from "./catalog.mjs";
 
 function tmpdir(prefix) {
@@ -408,6 +409,66 @@ test("case/ is grouped under the native board's artifact: parts from parts.json,
 
   // The meshes are never standalone entries.
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "cs" }).entries.filter((e) => e.file.startsWith("case/")).length, 0);
+});
+
+test("catalog shows checked native print plates and drops stale plate assignments", t => {
+  const dir = tmpdir("circuit-case-plates-");
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const folder of ["design", "boards", "case/out", "case/reports", "case/print"]) {
+    fs.mkdirSync(path.join(dir, folder), { recursive: true });
+  }
+  const sha = value => crypto.createHash("sha256").update(value).digest("hex");
+  const pcb = path.join(dir, "design/main.kicad_pcb"), contract = path.join(dir, "boards/main.enclosure.json");
+  fs.writeFileSync(pcb, "(kicad_pcb)");
+  fs.writeFileSync(contract, "{}");
+  fs.writeFileSync(path.join(dir, "boards/main.board.json"), JSON.stringify({
+    source: { engine: "kicad-native", file: "design/main.kicad_pcb" },
+    native: { inputRoot: ".", inputs: { "design/main.kicad_pcb": sha(fs.readFileSync(pcb)) }, publication: "complete", previewDir: "boards/main_review/test" },
+  }));
+  const stl = "solid triangle\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid triangle";
+  const parts = [
+    { name: "base", role: "shell", stl: "base.stl" },
+    { name: "lid", role: "lid", stl: "lid.stl" },
+    { name: "coupon", role: "coupon", stl: "coupon.stl" },
+  ];
+  for (const part of parts) fs.writeFileSync(path.join(dir, "case/out", part.stl), stl);
+  const manifest = { parts, printProject: { file: "../print/production.3mf", report: "../print/check.json" } };
+  const manifestFile = path.join(dir, "case/out/parts.json");
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+  const projectFile = path.join(dir, "case/print/production.3mf");
+  fs.writeFileSync(projectFile, printAll3mf(dir, { parts: parts.slice(0, 2) }));
+  const reportFile = path.join(dir, "case/print/check.json");
+  const report = { passed: true, file: "case/print/production.3mf", sha256: sha(fs.readFileSync(projectFile)),
+    meshes: parts.slice(0, 2).map(part => ({ name: `${part.name}.stl`, canonicalSTLSha256: sha(stl), printRotateDeg: [0, 0, 0] })),
+    plates: [
+      { index: 1, name: "Body", parts: ["base.stl"] },
+      { index: 2, name: "Cover", parts: ["lid.stl"] },
+    ] };
+  fs.writeFileSync(reportFile, JSON.stringify(report));
+  fs.writeFileSync(path.join(dir, "case/reports/case-check.json"), JSON.stringify({
+    passed: true, meshValidation: "surface-v1", errors: [], contractSha: sha(fs.readFileSync(contract)),
+    partShas: Object.fromEntries(["parts.json", ...parts.map(part => part.stl)].map(name =>
+      [name, sha(fs.readFileSync(path.join(dir, "case/out", name)))])),
+  }));
+  const read = () => scanProjectCatalog({ projectDir: dir, projectId: "plate" }).entries[0];
+  const expected = [
+    { index: 1, name: "Body", parts: ["base"] },
+    { index: 2, name: "Cover", parts: ["lid"] },
+  ];
+  assert.deepEqual(read().artifact.case.plates, expected);
+  assert.deepEqual(read().artifact.case.parts.map(part => part.name), ["base", "lid", "coupon"]);
+  report.sha256 = "0".repeat(64);
+  fs.writeFileSync(reportFile, JSON.stringify(report));
+  assert.deepEqual(read().artifact.case.plates, [], "unverified 3MF cannot claim plate membership");
+  report.sha256 = sha(fs.readFileSync(projectFile));
+  fs.writeFileSync(reportFile, JSON.stringify(report));
+  fs.appendFileSync(path.join(dir, "case/out/base.stl"), "changed");
+  assert.deepEqual(read().artifact.case.plates, [], "changed mesh invalidates case check and plates");
+  fs.writeFileSync(path.join(dir, "case/out/base.stl"), stl);
+  fs.writeFileSync(pcb, "(kicad_pcb changed)");
+  const changed = read();
+  assert.equal(changed.nativeStale, true);
+  assert.deepEqual(changed.artifact.case.plates, [], "changed PCB cannot claim checked plates");
 });
 
 test('Case overview discovers the motion demo or an explicit confined manifest file', t => {

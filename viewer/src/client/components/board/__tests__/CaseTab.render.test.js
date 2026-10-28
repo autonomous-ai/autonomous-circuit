@@ -96,12 +96,14 @@ test("printer observations stay distinct from user-confirmed printed parts", asy
       account: { state: "connected", reason: null },
     }),
   });
-  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [{ index: 1, name: "MỚI/SỬA — CẦN IN", parts: ["front"] }] }), projectId: "p", Scene: StubScene });
   try {
     await flush();
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Awaiting your part confirmation/);
     assert.match(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, /No confirmed print/);
-    assert.doesNotMatch(ui.container.querySelector('[data-slot="print-plate"]').textContent, /confirmed printed/);
+    const plateStatus = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"] [data-slot="print-plate"]').textContent;
+    assert.match(plateStatus, /Needs print/);
+    assert.doesNotMatch(plateStatus, /Confirmed printed/i);
   } finally { ui.unmount(); restore(); }
 });
 
@@ -137,6 +139,100 @@ test("a stale case still shows an ongoing unlinked printer job", async () => {
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Not linked to this case/);
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
   } finally { ui.unmount(); restore(); }
+});
+
+test("print plates group their exact parts while coupon and reference models stay separate", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  const names = (element) => [...element.querySelectorAll('[data-slot="case-part"]')].map((row) => row.dataset.part);
+  try {
+    const plate1 = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"]');
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    const other = ui.container.querySelector('[data-slot="case-other-parts"]');
+    assert.ok(plate1);
+    assert.ok(plate2);
+    assert.ok(other);
+    assert.match(plate1.textContent, /Plate 1.*Base and front links/s);
+    assert.match(plate2.textContent, /Plate 2.*Lid and rear links/s);
+    assert.deepEqual(names(plate1), ["front"]);
+    assert.deepEqual(names(plate2), ["back"]);
+    assert.deepEqual(names(other), ["coupon", "board_reference"]);
+    assert.deepEqual(names(ui.container), ["front", "back", "coupon", "board_reference"], "each model appears in exactly one group");
+
+    click(plate1.querySelector('[data-slot="case-part-toggle"]'));
+    assert.equal(sceneProps.at(-1).visible.front, false);
+    assert.equal(sceneProps.at(-1).visible.back, true);
+    assert.equal(sceneProps.at(-1).visible.coupon, false);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
+test("show only isolates one print plate and show all restores the assembly", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  try {
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    assert.ok(plate2);
+    click(plate2.querySelector('[data-slot="case-plate-focus"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: false,
+      back: true,
+      coupon: false,
+      board_reference: false,
+    });
+    click(ui.container.querySelector('[data-slot="case-show-all"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: true,
+      back: true,
+      coupon: false,
+      board_reference: true,
+    });
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
+test("without verified plates the case keeps its flat parts list", () => {
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [] }), Scene: StubScene });
+  try {
+    assert.equal(ui.container.querySelector('[data-slot="case-plate"]'), null);
+    assert.deepEqual(
+      [...ui.container.querySelectorAll('[aria-label="Case parts"] [data-slot="case-part"]')].map((row) => row.dataset.part),
+      ["coupon", "back", "front"],
+    );
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
 });
 
 test("one Print all click exports 3MF and opens it in Bambu; stale cases cannot print", async () => {

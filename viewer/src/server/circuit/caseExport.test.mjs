@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { caseFile, preparedPrintProject, readStl, orient, printAll3mf, saveExport } from "./caseExport.mjs";
+import { caseFile, preparedPrintPlates, preparedPrintProject, readStl, orient, printAll3mf, saveExport } from "./caseExport.mjs";
 
 const vertices = [[0, 0, 5], [1, 0, 5], [0, 2, 5], [0, 0, 8]];
 const faces = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]];
@@ -99,10 +99,16 @@ test("prepared slicer exports preserve the exact project bytes and exclude separ
   const f = preparedFixture();
   try {
     assert.deepEqual(preparedPrintProject(f.root, f.manifest), f.bytes);
+    f.report.plates[0].name = "Shells"; f.writeReport();
+    assert.deepEqual(preparedPrintPlates(f.root, f.manifest), [
+      { index: 1, name: "Shells", parts: ["left"] },
+      { index: 2, name: null, parts: ["right"] },
+    ]);
     assert.equal(preparedPrintProject(f.root, { parts: f.manifest.parts }), null);
     // A changed native project must be reverified, not flattened into a fallback.
     fs.appendFileSync(path.join(f.dir, "production.3mf"), "changed");
     assert.throws(() => preparedPrintProject(f.root, f.manifest), /Rebuild and verify/);
+    assert.throws(() => preparedPrintPlates(f.root, f.manifest), /Rebuild and verify/);
   } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
 });
 

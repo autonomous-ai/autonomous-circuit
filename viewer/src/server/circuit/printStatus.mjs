@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { casePrintStatus } from "./catalog.mjs";
-import { preparedPrintProject } from "./caseExport.mjs";
+import { checkedPrintProject } from "./caseExport.mjs";
 
 const MAX_LEDGER_BYTES = 8 * 1024 * 1024;
 const MAX_EVENT_BYTES = 32 * 1024;
@@ -121,31 +121,26 @@ export function readPrintEvents(root) {
 function checkedCase(root, stem) {
   const readiness = casePrintStatus(root, stem);
   if (readiness.state !== "passed") return { reason: readiness.reason || "Case print check has not passed" };
-  let manifest, report, bytes;
+  let manifest;
   try {
     const manifestFile = regularFile(root, "case/out/parts.json", MAX_MANIFEST_BYTES);
     const manifestBytes = fs.readFileSync(manifestFile);
     manifest = JSON.parse(manifestBytes);
     if (!manifest.printProject) return { reason: "No verified native print plates yet" };
-    bytes = preparedPrintProject(root, manifest);
-    const reportFile = path.relative(root, path.resolve(root, "case/out", manifest.printProject.report));
-    report = JSON.parse(fs.readFileSync(regularFile(root, reportFile.split(path.sep).join("/"), MAX_MANIFEST_BYTES)));
+    const checked = checkedPrintProject(root, manifest);
     const parts = manifest.parts.filter(part => part.printable !== false &&
       !/DO_NOT_PRINT/i.test(String(part.name || "")) && part.role !== "coupon");
-    const plateByName = new Map(report.plates.flatMap(plate => plate.parts.map(name => [name, plate])));
+    const plateByName = new Map(checked.plates.flatMap(plate => plate.parts.map(name => [name, plate])));
     const current = parts.map(part => {
-      const plate = plateByName.get(`${part.name}.stl`);
+      const plate = plateByName.get(part.name);
       const stl = regularFile(root, `case/out/${part.stl}`, 64 * 1024 * 1024);
       return { name: part.name, role: part.role || "other", revision: String(part.revision || manifest.revision || "unknown"),
-        stlSha256: sha(fs.readFileSync(stl)), plateIndex: plate.index,
-        plateName: typeof plate.name === "string" ? plate.name : null,
+        stlSha256: sha(fs.readFileSync(stl)), plateIndex: plate.index, plateName: plate.name,
         requiredQuantity: Number.isInteger(part.quantity) && part.quantity > 0 ? part.quantity : 1 };
     });
     return { source: { caseRevision: String(manifest.revision || "unknown"),
-      manifestSha256: sha(manifestBytes), projectSha256: sha(bytes), file: report.file,
-      verified: true }, parts: current, plates: report.plates.map(plate => ({
-        index: plate.index, name: typeof plate.name === "string" ? plate.name : null,
-        parts: plate.parts.map(name => name.replace(/\.stl$/, "")) })) };
+      manifestSha256: sha(manifestBytes), projectSha256: sha(checked.bytes), file: checked.file,
+      verified: true }, parts: current, plates: checked.plates };
   } catch (error) {
     return { reason: `Print project is not verified: ${error.message}` };
   }
