@@ -85,6 +85,61 @@ test("a checked case: coupon first and hidden from the assembly, every part down
   }
 });
 
+test("print plates group their exact parts while coupon and reference models stay separate", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  const names = (element) => [...element.querySelectorAll('[data-slot="case-part"]')].map((row) => row.dataset.part);
+  try {
+    const plate1 = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"]');
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    const other = ui.container.querySelector('[data-slot="case-other-parts"]');
+    assert.ok(plate1);
+    assert.ok(plate2);
+    assert.ok(other);
+    assert.match(plate1.textContent, /Plate 1.*Base and front links/s);
+    assert.match(plate2.textContent, /Plate 2.*Lid and rear links/s);
+    assert.deepEqual(names(plate1), ["front"]);
+    assert.deepEqual(names(plate2), ["back"]);
+    assert.deepEqual(names(other), ["coupon", "board_reference"]);
+    assert.deepEqual(names(ui.container), ["front", "back", "coupon", "board_reference"], "each model appears in exactly one group");
+
+    click(plate1.querySelector('[data-slot="case-part-toggle"]'));
+    assert.equal(sceneProps.at(-1).visible.front, false);
+    assert.equal(sceneProps.at(-1).visible.back, true);
+    assert.equal(sceneProps.at(-1).visible.coupon, false);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
+test("without verified plates the case keeps its flat parts list", () => {
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [] }), Scene: StubScene });
+  try {
+    assert.equal(ui.container.querySelector('[data-slot="case-plate"]'), null);
+    assert.deepEqual(
+      [...ui.container.querySelectorAll('[aria-label="Case parts"] [data-slot="case-part"]')].map((row) => row.dataset.part),
+      ["coupon", "back", "front"],
+    );
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
 test("one Print all click exports 3MF and opens it in Bambu; stale cases cannot print", async () => {
   const calls = [];
   const restore = __setTransportForTesting({
