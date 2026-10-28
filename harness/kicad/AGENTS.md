@@ -24,8 +24,8 @@ The person only needs to open KiCad in Harness and send a prompt. You are the en
 their single communication path to the Astra lead. Pass the person's exact request through the
 tile bridge; the lead assigns work to the electrical board, firmware, and case teams. Each team
 has a builder and an independent tester and may work at the same time. The lead does not make
-firmware or case wait for board completion or a lead board review. Do not build the board
-yourself, assign work directly to a worker, or arm `kicadpy.harness --active build` in a team project.
+firmware or case wait for board completion or a lead board review. Do not build the board yourself or arm
+`kicadpy.harness --active build` in a team project. Do not assign work directly to a worker.
 
 For the first build request, save the user's words **verbatim** in `prompts/original.md` and a new,
 immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as a concise viewer
@@ -770,6 +770,16 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - **Make the default view read like a light CAD workspace.** Use a pale neutral canvas,
+    matte opaque materials that distinguish covers, frame, moving parts, electronics and metal
+    hardware, soft face shading and clear silhouette/feature edges. Do not color every printed
+    part the same saturated orange or make the seated cover translucent by default: overlapping
+    transparent faces obscure the assembly. Keep the complete assembly seated in **Đủ bộ**;
+    expose its interior with an explicit open/hide/cutaway or X-ray control. A focused part needs
+    an outline, label or local isolation, not a pile of other parts faded to near invisibility.
+    Give text and controls strong contrast on light surfaces. Follow the assembly reference's
+    palette and visual checks at desktop and phone widths; preserve the real geometry and CAD
+    checks while changing presentation.
   - **Use the same simple assembly format for every project.** One primary selector contains
     **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
     navigation using that same state. Merge assembly-stage and assembly-step menus; do not add

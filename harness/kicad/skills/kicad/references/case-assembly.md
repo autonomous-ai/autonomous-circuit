@@ -261,6 +261,37 @@ universal design requirements.
   hardware visibility and real checked motion without a second mandatory menu. Record actual
   visual checks separately from source checks when a permitted viewer is unavailable.
 
+### Light CAD appearance for the Case overview
+
+- Give the embedded HTML a SketchUp-like **light modeling workspace**, independent of the
+  surrounding app theme. Start from a pale sky/neutral canvas (`#edf3f5`), a subtle ground/grid
+  (`#e3e9e8` / `#cbd6d9`) and white panels (`#ffffff`) with dark text (`#24313a`). Use a single
+  blue action/focus accent (`#1d668f`); keep controls readable with visible focus and disabled
+  states. Use at least 4.5:1 contrast for normal text and phone-sized controls with a minimum
+  44 px target. The grid or axes help orientation but stay quieter than the assembly.
+- Color **physical roles**, not every printable mesh alike: warm off-white covers (`#eee9df`),
+  light stone frame/base (`#d6cfc1`), muted blue-gray moving links (`#9ebcca`), neutral dark
+  metal fasteners (`#596872`), and restrained green/blue-gray electronics (`#4c806c` /
+  `#607d8b`). Wires may retain their actual red/black/blue identity. Adjacent parts must still
+  separate when their colors are similar; do not depend on hue alone to identify a part.
+- Render matte surfaces with a soft ambient plus directional light and darker silhouette and
+  mechanical feature edges (`#4e5d65`). For a software canvas renderer, shade faces from their
+  normals and draw only silhouettes/creases or real CAD edges, not every tessellation triangle.
+  For WebGL, use equivalent opaque materials, lighting and edge treatment. Keep the geometry,
+  seated positions, hardware IDs and motion transforms from the checked model; visual styling
+  must not become a second illustrative assembly.
+- **Đủ bộ** starts seated with opaque covers. When the cover blocks a joint or screw, use the
+  existing open/hide/cutaway control or a clearly labeled optional X-ray state for that local
+  inspection. Restrict low opacity to the chosen surface in X-ray mode; do not overlay multiple
+  colored transparent shells in the default view. Focusing an ID uses a clear outline, label,
+  camera or local isolation while the context remains legible; do not fade every unrelated part
+  to near-transparent. Keep selected hardware distinct from plastic and wires.
+- Open the regenerated `case/overview.html` in **Case → Overview** and inspect screenshots of
+  **Đủ bộ**, an interior assembly step and a selected fastener at desktop and phone widths. At
+  each size, confirm part boundaries, fastener/head/entry direction, labels, controls and the
+  open-cover state are readable without a dark or translucent color pile. Fix the generator and
+  regenerate if the saved view fails; source inspection alone is not a visual pass.
+
 ### Fasteners belong in the 3D overview
 
 - Include the actual bought-hardware instances in the assembled overview, with a recognizable
