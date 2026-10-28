@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { bambuConfigFile, readConfiguredBambuStatus } from "./bambuConfig.mjs";
+import { bambuConfigFile, readConfiguredBambuStatus, readConfiguredBambuStatusCached } from "./bambuConfig.mjs";
 
 const setup = () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "bambu-config-"));
@@ -48,5 +48,25 @@ test("missing Keychain code and malformed config fail closed", async () => {
       "keychain_access_code_missing");
     fs.writeFileSync(bambuConfigFile(f.env), "{}");
     assert.equal((await readConfiguredBambuStatus({ env: f.env })).account.reason, "invalid_config");
+  } finally { f.cleanup(); }
+});
+
+test("cached monitor returns the last observation while one refresh runs", async () => {
+  const f = setup();
+  try {
+    let clock = 0, calls = 0, release;
+    const read = () => { calls++; return calls === 1 ? Promise.resolve({ n: 1 }) : new Promise(resolve => { release = resolve; }); };
+    const opts = { env: f.env, read, now: () => clock };
+    assert.deepEqual(await readConfiguredBambuStatusCached(opts), { n: 1 });
+    assert.deepEqual(await readConfiguredBambuStatusCached(opts), { n: 1 });
+    assert.equal(calls, 1);
+    clock = 60_000;
+    assert.deepEqual(await readConfiguredBambuStatusCached(opts), { n: 1 });
+    assert.deepEqual(await readConfiguredBambuStatusCached(opts), { n: 1 });
+    assert.equal(calls, 2);
+    release({ n: 2 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(await readConfiguredBambuStatusCached(opts), { n: 2 });
+    assert.equal(calls, 2);
   } finally { f.cleanup(); }
 });

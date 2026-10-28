@@ -41,13 +41,14 @@ function fixture(t) {
   const refresh = () => {
     write("case/out/parts.json", manifest);
     const mechanical = { passed: true, scope: "handwired assembly", collisions: [],
-      partShas: { "frame.stl": fileSha("case/out/frame.stl"), "frame.step": fileSha("case/out/frame.step") } };
+      partShas: Object.fromEntries(manifest.parts.flatMap(part => [part.stl, part.step])
+      .map(name => [name, fileSha(`case/out/${name}`)])) };
     write("case/reports/mechanical.json", mechanical);
     write("case/reports/print-check.json", { passed: true, errors: [], stem: "main",
       meshValidation: "surface-v1", validationScope: "handwired-print", intentSha: null,
       verificationReport: "case/reports/mechanical.json",
       verificationSha: fileSha("case/reports/mechanical.json"),
-      partShas: Object.fromEntries(["parts.json", "frame.stl", "frame.step"].map(name =>
+      partShas: Object.fromEntries(["parts.json", ...manifest.parts.flatMap(part => [part.stl, part.step])].map(name =>
         [name, fileSha(`case/out/${name}`)])) });
   };
   refresh();
@@ -69,7 +70,18 @@ function fixture(t) {
     previous = event.sha256;
     return event;
   };
-  return { root, manifest, refresh, add, fileSha, project };
+  const addPart = (name, plates) => {
+    write(`case/out/${name}.stl`, `solid ${name}\nendsolid ${name}\n`);
+    write(`case/out/${name}.step`, `step ${name}`);
+    manifest.parts.push({ name, revision: "r1", role: "lid", stl: `${name}.stl`, step: `${name}.step`,
+      printable: true, quantity: 1 });
+    projectReport.meshes.push({ name: `${name}.stl`, canonicalSTLSha256: fileSha(`case/out/${name}.stl`),
+      printRotateDeg: [0, 0, 0] });
+    projectReport.plates = plates;
+    write("case/print/production-check.json", projectReport);
+    refresh();
+  };
+  return { root, manifest, refresh, add, addPart, fileSha, project };
 }
 
 test("verified prepared plates are available without treating a slicer export as a print", t => {
@@ -128,3 +140,17 @@ test("stale case and corrupt or linked journal never claim trusted inventory", t
   fs.symlinkSync(path.join(f.root, "case/out/parts.json"), path.join(f.root, "print/events.jsonl"));
   assert.equal(readPrintStatus(f.root).inventoryTrusted, false);
 });
+
+test("a plate is printed only when every part on it reaches its own quantity", t => {
+  const f = fixture(t);
+  f.addPart("lid", [{ index: 2, name: "MỚI — CẦN IN", parts: ["frame.stl", "lid.stl"] }]);
+  const frameSha = f.fileSha("case/out/frame.stl");
+  const frame = (ids) => ({ parts: [{ name: "frame", revision: "r1", sha256STL: frameSha, quantity: ids.length, instanceIds: ids }],
+    case: { revision: f.manifest.revision, manifestSha256: f.fileSha("case/out/parts.json"), printProjectSha256: sha(f.project) } });
+  f.add("user_confirmation", "printed", frame(["frame-1", "frame-2"]));
+  const result = readPrintStatus(f.root);
+  assert.equal(result.ready, true, result.reason);
+  assert.equal(result.parts.find(part => part.name === "frame").confirmedPrintedQuantity, 2);
+  assert.equal(result.plates[0].status, "partly_printed");
+});
+

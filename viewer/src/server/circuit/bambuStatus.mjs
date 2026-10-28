@@ -2,7 +2,8 @@
  * Experimental, unsupported Bambu LAN status reader. Bambu documents MQTT status
  * visibility, but does not support the wire protocol as a public integration API.
  * Credentials and the printer certificate pin must be supplied by the caller.
- * This module never reads Bambu Studio files and never sends printer commands.
+ * This module never reads Bambu Studio files and never sends printer commands;
+ * its only PUBLISH is the read-only `pushall` status request.
  */
 import crypto from "node:crypto";
 import net from "node:net";
@@ -95,6 +96,12 @@ function subscribePacket(serial) {
   return mqttPacket(0x82, Buffer.concat([packetId, utf8(`device/${serial}/report`), Buffer.from([0])]));
 }
 
+/** A1/P1 printers push only deltas; `pushall` asks for one full status report. */
+function pushallPacket(serial) {
+  const payload = Buffer.from(JSON.stringify({pushing: {sequence_id: "0", command: "pushall"}}));
+  return mqttPacket(0x30, Buffer.concat([utf8(`device/${serial}/request`), payload]));
+}
+
 function extractFrame(buffer) {
   if (buffer.length < 2) return null;
   let length = 0;
@@ -175,7 +182,7 @@ function constantTimePinMatch(actual, expected) {
 
 /**
  * One-shot passive status observation. A verified certificate is required before
- * the LAN access code is transmitted. No MQTT PUBLISH packets are sent.
+ * the LAN access code is transmitted. The only PUBLISH is a QoS 0 `pushall`.
  */
 export function readBambuStatus(input, {connectTls = tls.connect, now = () => new Date()} = {}) {
   const {host, serial, accessCode, certSha256, timeoutMs} = validateConfig(input);
@@ -239,6 +246,7 @@ export function readBambuStatus(input, {connectTls = tls.connect, now = () => ne
                 throw new BambuStatusError("mqtt_rejected");
               }
               subscribed = true;
+              socket.write(pushallPacket(serial));
             } else if (packetType === 3 && subscribed) { // PUBLISH, QoS 0 only
               if (((frame.type >> 1) & 3) !== 0 || frame.body.length < 2) {
                 throw new BambuStatusError("protocol_error");

@@ -14,7 +14,7 @@ Pair once on the Mac that runs the viewer:
 2. From this checkout, run `node scripts/setup-bambu-monitor.mjs` in a macOS terminal. Enter the IP and serial. The script displays the certificate fingerprint found at that IP and asks you to confirm the IP belongs to your printer. This is trust on first use; subsequent connections reject a changed certificate.
 3. Enter the LAN access code at the terminal's macOS `security` prompt. The setup stores the code in Keychain and saves only the IP, serial, display name, and pinned certificate fingerprint in `~/.autonomous-circuit/bambu-printers.json`.
 
-The viewer reads status over TLS from that pinned printer on a private IPv4 address. A changed certificate, missing Keychain code, offline printer, or absent status message shows as unavailable; print inventory remains usable. The monitor never reads Bambu Studio credentials or writes printer commands. Pairing is global to the Mac, so later projects reuse it.
+The viewer reads status over TLS from that pinned printer on a private IPv4 address. A changed certificate, missing Keychain code, offline printer, or absent status message shows as unavailable; print inventory remains usable. The monitor never reads Bambu Studio credentials or writes printer commands; its only message to the printer is the read-only `pushall` status request, because the A1 otherwise sends only partial updates. The viewer serves the last observation while one refresh runs, so the Case tab never waits on the printer. Pairing is global to the Mac, so later projects reuse it.
 
 ## Data boundaries
 

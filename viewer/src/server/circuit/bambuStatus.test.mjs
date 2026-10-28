@@ -123,7 +123,12 @@ test("subscribes to status only, merges partial reports, and returns sanitized s
     state: "printing", jobName: "plate_2", progressPercent: 24,
     remainingMinutes: 195, currentLayer: 42,
   });
-  assert.deepEqual(socket.writes.map(packet => packet[0]), [0x10, 0x82]);
+  assert.deepEqual(socket.writes.map(packet => packet[0]), [0x10, 0x82, 0x30]);
+  const pushall = socket.writes[2];
+  const topicLength = pushall.readUInt16BE(2);
+  assert.equal(pushall.subarray(4, 4 + topicLength).toString(), `device/${config.serial}/request`);
+  assert.deepEqual(JSON.parse(pushall.subarray(4 + topicLength).toString()),
+    {pushing: {sequence_id: "0", command: "pushall"}});
   assert.ok(!JSON.stringify(result).includes(config.accessCode));
 });
 

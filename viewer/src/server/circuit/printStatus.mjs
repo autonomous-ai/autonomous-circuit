@@ -216,10 +216,11 @@ export function readPrintStatus(root, stem = "main", { boardReady = true } = {})
   }
   const plates = (checked.plates || []).map(plate => {
     const members = plate.parts.map(name => partByName.get(name)).filter(Boolean);
-    const printed = members.reduce((n, part) => n + part.confirmedPrintedQuantity, 0);
-    const needed = members.reduce((n, part) => n + part.requiredQuantity, 0);
-    return { ...plate, status: !members.length ? "unknown" : printed === 0 ? "needs_print" :
-      printed >= needed ? "printed" : "partly_printed" };
+    // Every part needs its own quantity; extras of one part never cover another.
+    const done = members.every(part => part.confirmedPrintedQuantity >= part.requiredQuantity);
+    const started = members.some(part => part.confirmedPrintedQuantity > 0);
+    return { ...plate, status: !members.length ? "unknown" : done ? "printed" :
+      started ? "partly_printed" : "needs_print" };
   });
   return { ready, reason: ready ? null : ledgerError || checked.reason || "Native board is stale",
     source, parts, plates, jobs: [...jobsById.values()].slice(-50),

@@ -73,27 +73,29 @@ export async function readConfiguredBambuStatus({
   }
 }
 
+const FRESH_MS = 20_000;
 let cachedObservation = null;
-/** Share one short-lived LAN connection across simultaneous Case tab readers. */
-export async function readConfiguredBambuStatusCached({ env = process.env } = {}) {
+/**
+ * Share one short-lived LAN connection across Case tab readers. A stale value is
+ * returned at once while one refresh runs, so polling never waits on the printer.
+ */
+export async function readConfiguredBambuStatusCached({ env = process.env, read = readConfiguredBambuStatus, now = Date.now } = {}) {
   const file = bambuConfigFile(env);
   let version = "missing";
   try { const stat = fs.statSync(file); version = `${stat.mtimeMs}:${stat.size}`; } catch { /* absent */ }
   const key = `${file}:${version}`;
-  if (cachedObservation?.key === key) {
-    if (cachedObservation.promise) return cachedObservation.promise;
-    if (Date.now() < cachedObservation.until) return cachedObservation.value;
-  }
-  const promise = readConfiguredBambuStatus({ env });
-  cachedObservation = { key, promise, until: 0, value: null };
-  try {
-    const value = await promise;
-    if (cachedObservation?.promise === promise) cachedObservation = { key, promise: null, until: Date.now() + 8_000, value };
-    return value;
-  } catch (error) {
-    if (cachedObservation?.promise === promise) cachedObservation = null;
-    throw error;
-  }
+  const entry = cachedObservation?.key === key ? cachedObservation : null;
+  if (entry && now() < entry.until) return entry.value;
+  if (entry?.promise) return entry.value ?? entry.promise;
+  const promise = read({ env });
+  const next = { key, promise, until: 0, value: entry?.value ?? null };
+  cachedObservation = next;
+  promise.then(value => {
+    if (cachedObservation === next) cachedObservation = { key, promise: null, until: now() + FRESH_MS, value };
+  }, () => {
+    if (cachedObservation === next) cachedObservation = next.value ? { ...next, promise: null } : null;
+  });
+  return next.value ?? promise;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
