@@ -56,6 +56,27 @@ function useReportErrors(url, wanted) {
   return errors;
 }
 
+function usePrintStatus(projectId, boardName, hasCase) {
+  const [status, setStatus] = useState(null);
+  useEffect(() => {
+    setStatus(null);
+    if (!projectId || !hasCase) return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const next = await transport.print_status(projectId, boardName);
+        if (!cancelled) setStatus(next);
+      } catch (error) {
+        if (!cancelled) setStatus({ ready: false, reason: error.message || String(error), parts: [], plates: [], jobs: [], account: { state: "unavailable" } });
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 15_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [projectId, boardName, hasCase]);
+  return status;
+}
+
 function EmptyState({ hasContract, onOpenTab, className }) {
   return (
     <div data-slot="case-empty" className={cn("grid min-h-0 flex-1 place-items-center", className)}>
@@ -64,8 +85,8 @@ function EmptyState({ hasContract, onOpenTab, className }) {
         <p className="text-sm font-medium text-foreground">No case yet</p>
         <p className="text-sm leading-6 text-muted-foreground">
           {hasContract
-            ? "The board knows where its screen, buttons and ports are. The agent models a printable case around them after the firmware is built, and it shows up here."
-            : "The case comes after the board and its firmware: it is modelled around where the screen, buttons and ports actually are, so it waits for finished copper."}
+            ? "The case team uses the board's screen, button and port locations. Checked case parts appear here when ready."
+            : "The case team models the enclosure around the board's screen, buttons and ports. Checked parts appear here when ready."}
         </p>
         <button type="button" onClick={() => onOpenTab?.("firmware")} className="text-xs text-primary underline-offset-4 hover:underline">
           See the firmware
@@ -113,6 +134,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   const status = describeStatus(displayState, handwired ? readiness?.reason : enclosure?.reason);
   if (handwired && displayState === "passed") { status.title = "Handwired case checked"; status.detail = readiness.reason; }
   const errors = useReportErrors((handwired ? enclosure?.printReportUrl : enclosure?.reportUrl) || "", displayState === "failed");
+  const printStatus = usePrintStatus(projectId, boardName, Boolean(enclosure?.parts?.length));
   useEffect(() => { setShowBoard(!handwired); }, [handwired, projectId, boardName]);
 
   // New parts (a rebuild added a plunger): keep what the person chose, default the rest.
@@ -174,6 +196,35 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         </div> : null}
         {exportError ? <p role="alert" className="text-xs text-red-300">{exportError}</p> : null}
 
+        <section data-slot="case-print-team" className="rounded-xl border border-border/60 bg-card/30 px-3 py-2.5">
+          <p className="text-sm font-medium text-foreground">Print team</p>
+          {!printStatus ? <p className="mt-1 text-xs text-muted-foreground">Checking print records…</p> : (
+            <>
+              {!printStatus.ready ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{printStatus.reason || "A checked print project is needed before tracking plates."}</p> : (
+                <>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Ask the lead which plate to print. Tell the lead what finished and whether it fits; it records each part and revision.</p>
+                  <ul className="mt-2 space-y-1" aria-label="Print plates">
+                    {printStatus.plates.map(plate => (
+                      <li key={plate.index} data-slot="print-plate" className="flex justify-between gap-2 text-[11px]">
+                        <span className="truncate">{plate.name || `Plate ${plate.index}`}</span>
+                        <span className="shrink-0 text-muted-foreground">{plate.status === "printed" ? "confirmed printed" : plate.status === "partly_printed" ? "partly printed" : "needs print"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {printStatus.jobs.length ? <ul className="mt-2 space-y-1" aria-label="Printer observations">
+                {printStatus.jobs.map((job, index) => <li key={`${job.jobId || "job"}:${job.observedAt}:${index}`} data-slot="print-job" className="text-[11px] text-muted-foreground">
+                  {job.printerName || "Printer"}{job.jobName ? ` · ${job.jobName}` : ""} reports {job.status}{job.progressPct == null ? "" : ` · ${job.progressPct}%`}{job.currentLayer != null && job.totalLayers != null ? ` · layer ${job.currentLayer}/${job.totalLayers}` : ""}{job.remainingMinutes != null ? ` · ${job.remainingMinutes} min left` : ""}. {job.matchedParts?.length ? "Awaiting your part confirmation." : "Not linked to this case."}
+                </li>)}
+              </ul> : null}
+              {printStatus.account?.state === "connected" && printStatus.account.experimental ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">Live status from the experimental local Bambu monitor.</p> : null}
+              {printStatus.account?.state === "connected" && printStatus.account.reason === "no_status" ? <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Printer connected; waiting for its next status update.</p> : null}
+              {printStatus.account?.state !== "connected" ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{printStatus.account?.reason === "not_configured" ? "Pair the A1 once on this Mac for live progress. " : "Printer status is unavailable. "}The lead can still track what you confirm.</p> : null}
+            </>
+          )}
+        </section>
+
         {coupon ? (
           <div data-slot="case-coupon" className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5">
             <p className="text-sm font-medium text-foreground">Print the test-fit coupon first</p>
@@ -208,6 +259,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         <ul aria-label="Case parts" className="flex flex-col gap-1.5">
           {parts.map((part) => {
             const shown = visible[part.name] !== false;
+            const printPart = printStatus?.parts?.find(item => item.name === part.name);
             return (
               <li key={part.name} data-slot="case-part" data-part={part.name} className="rounded-lg border border-border/50 px-2.5 py-2">
                 <div className="flex items-center gap-2">
@@ -246,6 +298,11 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
                   ) : null}
                 </div>
                 <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{part.printable === false ? "Reference model · excluded from Print all." : `To print: ${printNote(part)}.`}</p>
+                {printPart ? <p data-slot="print-part-status" className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                  {printStatus.inventoryTrusted === false
+                    ? "Print records unavailable"
+                    : <>{printPart.plateIndex ? `Plate ${printPart.plateIndex} · ` : ""}{printPart.confirmedPrintedQuantity ? `Confirmed printed ×${printPart.confirmedPrintedQuantity}` : "No confirmed print"}{printPart.fitStatus === "fits" ? " · fits" : printPart.fitStatus === "failed" ? " · fit failed" : ""}</>}
+                </p> : null}
               </li>
             );
           })}

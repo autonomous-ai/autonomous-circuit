@@ -24,6 +24,8 @@ import { detect as firmwareDetect, flash as firmwareFlash } from "./firmwareFlas
 import { readWorkspacePrompts } from "./workspacePrompts.mjs";
 import { CASE_DIR, casePrintStatus, createCatalogService, FIRMWARE_DIR, isFirmwareSource, scanProjectCatalog, scanTeamPreview } from "./catalog.mjs";
 import { caseFile, preparedPrintProject, printAll3mf, safeName, saveExport } from "./caseExport.mjs";
+import { readPrintStatus } from "./printStatus.mjs";
+import { readConfiguredBambuStatusCached } from "./bambuConfig.mjs";
 import { readRevisions, recordEdit, revisionTrend } from "./revisions.mjs";
 import {
   createEditQueue,
@@ -783,6 +785,20 @@ export function createCircuitServices({
         if (error.statusCode) throw error;
         throw ipcError("CASE_EXPORT_FAILED", error.message, 400);
       }
+    },
+    print_status: async ({ id, stem = "main" }) => {
+      const projectId = requireProject(id), root = projects.projectDir(projectId);
+      if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(stem)) throw ipcError("INVALID_ARGS", "Choose a board", 400);
+      const readiness = casePrintStatus(root, stem);
+      const board = readiness.scope === "pcb"
+        ? scanProjectCatalog({ projectDir: root, projectId }).entries.find(entry => entry.file === `design/${stem}.kicad_pcb`)
+        : null;
+      const projectStatus = readPrintStatus(root, stem, {
+        boardReady: readiness.scope !== "pcb" || Boolean(board && !board.nativeStale),
+      });
+      const monitor = await readConfiguredBambuStatusCached({ env });
+      return { ...projectStatus, account: monitor.account,
+        jobs: [...projectStatus.jobs, ...monitor.jobs] };
     },
     export_open_bambu: async ({ path: target }) => {
       const dir = fs.realpathSync(exportDir(env));

@@ -38,9 +38,9 @@ test("no case yet: the tab says what comes first", () => {
     const empty = ui.container.querySelector('[data-slot="case-empty"]');
     assert.ok(empty);
     assert.match(empty.textContent, /No case yet/);
-    assert.match(empty.textContent, /waits for finished copper/);
+    assert.match(empty.textContent, /Checked parts appear here when ready/);
     ui.set({ artifact: { case: { state: "none", parts: [], contractUrl: "/c.json" } } });
-    assert.match(ui.container.textContent, /The board knows where its screen, buttons and ports are/);
+    assert.match(ui.container.textContent, /The case team uses the board's screen, button and port locations/);
     assert.deepEqual(ui.errors, []);
   } finally {
     ui.unmount();
@@ -83,6 +83,60 @@ test("a checked case: coupon first and hidden from the assembly, every part down
     restore();
     ui.unmount();
   }
+});
+
+test("printer observations stay distinct from user-confirmed printed parts", async () => {
+  const restore = __setTransportForTesting({
+    print_status: async () => ({
+      ready: true, reason: null,
+      source: { caseRevision: "v2", manifestSha256: "a".repeat(64), projectSha256: "b".repeat(64), file: "case/print/production.3mf", verified: true },
+      parts: [{ name: "front", role: "shell", stlSha256: "c".repeat(64), plateIndex: 1, plateName: "MỚI/SỬA — CẦN IN", confirmedPrintedQuantity: 0, fitStatus: "unknown" }],
+      plates: [{ index: 1, name: "MỚI/SỬA — CẦN IN", parts: ["front"], status: "needs_print" }],
+      jobs: [{ jobId: "job-1", status: "finish", progressPct: 100, observedAt: "2026-10-28T00:00:00Z", printerName: "A1", matchedParts: ["front"], source: "printer_observation" }],
+      account: { state: "connected", reason: null },
+    }),
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Awaiting your part confirmation/);
+    assert.match(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, /No confirmed print/);
+    assert.doesNotMatch(ui.container.querySelector('[data-slot="print-plate"]').textContent, /confirmed printed/);
+  } finally { ui.unmount(); restore(); }
+});
+
+test("an unreadable print journal does not claim zero confirmed parts", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: false, reason: "Print journal integrity check failed", inventoryTrusted: false,
+    source: null,
+    parts: [{ name: "front", role: "shell", stlSha256: "c".repeat(64), plateIndex: 1, plateName: "Current", confirmedPrintedQuantity: 0, fitStatus: "unknown" }],
+    plates: [], jobs: [], account: { state: "not_connected", reason: null },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    const status = ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent;
+    assert.match(status, /Print records unavailable/);
+    assert.doesNotMatch(status, /No confirmed print/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Print journal integrity check failed/);
+  } finally { ui.unmount(); restore(); }
+});
+
+test("a stale case still shows an ongoing unlinked printer job", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: false, reason: "Case needs recheck", source: null, parts: [], plates: [],
+    jobs: [{ jobId: "job-2", status: "printing", jobName: "other plate", progressPct: 30,
+      observedAt: "2026-10-28T00:00:00Z", printerName: "A1", matchedParts: [], source: "printer_lan" }],
+    account: { state: "connected", reason: null, experimental: true },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact("stale"), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Case needs recheck/);
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /printing · 30%/);
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Not linked to this case/);
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
+  } finally { ui.unmount(); restore(); }
 });
 
 test("one Print all click exports 3MF and opens it in Bambu; stale cases cannot print", async () => {

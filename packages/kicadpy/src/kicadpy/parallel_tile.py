@@ -48,7 +48,7 @@ PREVIEW_MAX_FILE = 4 * 1024 * 1024
 PREVIEW_MAX_TOTAL = 16 * 1024 * 1024
 SHA256 = re.compile(r'[0-9a-f]{64}')
 GIT_HEAD = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
-QUESTION_SUFFIXES = frozenset(('.json', '.md', '.txt', '.kicad_sch', '.kicad_pcb',
+QUESTION_SUFFIXES = frozenset(('.json', '.jsonl', '.md', '.txt', '.kicad_sch', '.kicad_pcb',
                                '.kicad_pro', '.c', '.h', '.cpp', '.ino', '.py',
                                '.scad', '.cq', '.svg', '.png', '.jpg', '.jpeg',
                                '.webp', '.pdf'))
@@ -714,6 +714,12 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                          f'need {need:g} GB; free space and retry')
     with _locked(workspace):
         state = _read_state(workspace)
+        previous_status = state.get('status')
+        previous_ready = state.get('teamReady') is True
+        pending_print_shas = list(state.get('pendingPrintNotes', []))
+        if any(not isinstance(sha, str) or not SHA256.fullmatch(sha)
+               for sha in pending_print_shas):
+            raise ValueError('Invalid pending print note identifier')
         prior_run = state.get('activeRun')
         contract_run = state.get('contractRun') if teams else None
         if resume_notes and not contract_run:
@@ -770,7 +776,9 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
             _PREVIEW_CACHE.clear()
         state.update(nextRun=number + 1, activeRun=run_id, status='running',
                      stage='initializing', error=None, maxRounds=max_rounds,
-                     roundsAttempted=0, replanRequired=False, teamReady=False)
+                     roundsAttempted=0, replanRequired=False,
+                     teamReady=previous_ready if teams and contract_run else False,
+                     printTeam=None)
         _save_state(workspace, state)
         _write_preview(workspace, _new_preview(run_id))
         try:
@@ -780,6 +788,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(1 if teams else max_rounds):
+                    print_notes = []
                     state.update(status='running', stage=f'planning-{attempt + 1}', error=None)
                     _save_state(workspace, state)
                     if teams and contract_run:
@@ -788,7 +797,11 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                         original = _control_path(workspace, 'team-runs', contract_run)
                         planned = parallel.adopt_contract(pilot_root, original)
                         if prior_run:
-                            planned['draftOriginRun'] = prior_run
+                            previous_pilot = json.loads((
+                                _control_path(workspace, 'team-runs', prior_run) /
+                                '.pilot/state.json').read_text())
+                            planned['draftOriginRun'] = previous_pilot.get('draftOriginRun', prior_run) \
+                                if previous_pilot.get('status') == 'print_only' else prior_run
                             carry_addenda(_control_path(workspace, 'team-runs', prior_run),
                                            pilot_root)
                         if resume_notes:
@@ -806,13 +819,29 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                             if not seen:
                                 raise ValueError('Prior release note tip is absent from carried chain')
                             roles = {role for entry in unseen for role in entry['routes']}
+                            print_notes = [entry for entry in unseen if 'print' in entry['routes']]
                             planned['assignedRoles'] = [role for role in parallel.ROLES
-                                                        if role in (roles or set(previous.get(
-                                                            'assignedRoles', parallel.ROLES)))]
+                                                        if role in (roles if unseen or
+                                                                    (previous_ready and pending_print_shas)
+                                                                    else set(previous.get(
+                                                                        'assignedRoles', parallel.ROLES)))]
                         else:
                             addendum = record_addendum(pilot_root, prompt_file, runner=runner,
                                                        source_assets=workspace)
-                            planned['assignedRoles'] = addendum['routes']
+                            planned['assignedRoles'] = [role for role in parallel.ROLES
+                                                        if role in addendum['routes']]
+                            if 'print' in addendum['routes']:
+                                print_notes = [addendum]
+                        if pending_print_shas:
+                            from .parallel_print import initial_print_note
+                            chain = load_addenda(pilot_root)
+                            pending_entries = {entry['sha256']: entry for entry in chain['entries']}
+                            pending_entries[planned['contractSha256']] = initial_print_note(pilot_root)
+                            if any(sha not in pending_entries for sha in pending_print_shas):
+                                raise ValueError('Pending print note absent from sealed history')
+                            print_notes = list({entry['sha256']: entry for entry in
+                                                [*(pending_entries[sha] for sha in pending_print_shas),
+                                                 *print_notes]}.values())
                         parallel.write(pilot_root / '.pilot/state.json', planned)
                     else:
                         options = {'execute': True, 'revise': attempt > 0}
@@ -833,6 +862,39 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                                      stage=terminal_stage.get(planned['status'], state['stage']),
                                      error='; '.join(planned.get('findings', [])), teamReady=False)
                         return state
+                    if teams:
+                        from .parallel_print import copy_ledger_to_pilot, run_print_team
+                        copy_ledger_to_pilot(workspace, pilot_root)
+                        if contract_run and not planned.get('assignedRoles'):
+                            # The lead assigned only print work. Preserve the last
+                            # checked design verdict while the print team runs.
+                            state.update(status=previous_status, stage='print',
+                                         teamReady=previous_ready, error=None)
+                            planned['status'] = 'print_only'
+                            planned['releaseNoteTipSha256'] = load_addenda(
+                                pilot_root, planned['contractSha256'])['tipSha256']
+                            # An incomplete design can still be resumed later.
+                            if not previous_ready and prior_run:
+                                previous_pilot = json.loads((
+                                    _control_path(workspace, 'team-runs', prior_run) /
+                                    '.pilot/state.json').read_text())
+                                planned['assignedRoles'] = previous_pilot.get(
+                                    'assignedRoles', list(parallel.ROLES))
+                            parallel.write(pilot_root / '.pilot/state.json', planned)
+                            results = []
+                            failed = []
+                            for entry in print_notes:
+                                try:
+                                    results.append(run_print_team(workspace, pilot_root, entry,
+                                                                  runner=runner))
+                                except Exception as exc:
+                                    results.append({'status': 'failed', 'error':
+                                                    f'{type(exc).__name__}: {exc}'})
+                                    failed.append(entry['sha256'])
+                            state['pendingPrintNotes'] = failed
+                            state['printTeam'] = {'ok': not failed, 'results': results, 'run': run_id}
+                            return state
+                        state['teamReady'] = False
                     state.update(roundsAttempted=attempt + 1,
                                  stage=f'building-{attempt + 1}', error=None)
                     _save_state(workspace, state)
@@ -878,6 +940,38 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                                  error='; '.join(finished.get('findings', [])),
                                  replanRequired=finished.get('replanRequired') is True,
                                  teamReady=finished['status'] == 'candidate_ready')
+                    if teams and print_notes and finished['status'] == 'candidate_ready':
+                        results = []
+                        failed = []
+                        for entry in print_notes:
+                            try:
+                                results.append(run_print_team(workspace, pilot_root, entry,
+                                                              runner=runner))
+                            except Exception as exc:
+                                results.append({'status': 'failed', 'error':
+                                                f'{type(exc).__name__}: {exc}'})
+                                failed.append(entry['sha256'])
+                        state['pendingPrintNotes'] = failed
+                        state['printTeam'] = {'ok': not failed, 'results': results, 'run': run_id}
+                    elif teams and print_notes:
+                        state['pendingPrintNotes'] = [entry['sha256'] for entry in print_notes]
+                        state['printTeam'] = {'ok': False, 'run': run_id,
+                                              'results': [{'status': 'pending',
+                                                           'summary': 'Design changes must pass before print coordination'}]}
+                    elif teams and not contract_run and finished['status'] == 'candidate_ready':
+                        from .parallel_print import _case_snapshot, initial_print_note
+                        try:
+                            if _case_snapshot(workspace) is None:
+                                result = {'status': 'unavailable',
+                                          'summary': 'Verified print project is not available yet'}
+                            else:
+                                result = run_print_team(workspace, pilot_root,
+                                                        initial_print_note(pilot_root), runner=runner)
+                        except Exception as exc:
+                            result = {'status': 'failed', 'error': f'{type(exc).__name__}: {exc}'}
+                            state['pendingPrintNotes'] = [finished['contractSha256']]
+                        state['printTeam'] = {'ok': result['status'] != 'failed',
+                                              'results': [result], 'run': run_id}
                     if finished['status'] in ('model_unavailable', 'execution_limit'):
                         return state  # capacity or time limits cannot be repaired by replanning
                     if finished['status'] == 'candidate_ready' or mirror_errors or attempt + 1 == max_rounds:
@@ -946,6 +1040,14 @@ def _question_evidence(workspace, view, pilot=None, pilot_state=None, _attempt=0
                                    file.relative_to(workspace).as_posix(), file))
                 if len(candidates) > 10000:
                     raise ValueError('Question evidence has too many project files')
+    # Physical confirmations are appended to the visible project after the
+    # integrated design checkpoint. Prefer that canonical ledger over a prior
+    # pilot's copied input, and verify its chain before showing it to the lead.
+    ledger = workspace / 'print/events.jsonl'
+    if ledger.exists() and isinstance(pilot_state, dict) and pilot_state.get('contractSha256'):
+        from .parallel_print import _read_ledger
+        _read_ledger(workspace, pilot_state['contractSha256'])
+        candidates.append(('print/events.jsonl', ledger))
     if pilot is not None and isinstance(pilot_state, dict) and pilot_state.get('contractSha256'):
         from .parallel_addendum import _asset_directory, load_addenda
         chain = load_addenda(pilot, pilot_state['contractSha256'])
@@ -955,7 +1057,7 @@ def _question_evidence(workspace, view, pilot=None, pilot_state=None, _attempt=0
                 candidates.append((f"sealed-note-assets/n{entry['sequence']:04}/{relative}", file))
                 if len(candidates) > 10000:
                     raise ValueError('Question evidence has too many project files')
-    priority = ('design/', 'firmware/', 'case/', 'engineering/', 'sealed-note-assets/',
+    priority = ('print/', 'design/', 'firmware/', 'case/', 'engineering/', 'sealed-note-assets/',
                 'current-attachments/', 'references/', 'prompts/assets/', 'boards/',
                 'tools/', 'build/')
     def evidence_order(item):
@@ -1091,7 +1193,8 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
             shutil.copy2(file, view / name)
     context = {'bridge': {key: bridge.get(key) for key in
                           ('status', 'stage', 'activeRun', 'contractRun', 'teamReady',
-                           'error', 'lastCheckpointStage')}}
+                           'error', 'lastCheckpointStage', 'printTeam',
+                           'pendingPrintNotes')}}
     run_id = bridge.get('activeRun')
     pilot = None
     pilot_state = None
@@ -1117,6 +1220,44 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
                 parallel.write(view / 'PILOT_RELEASE_NOTES.json', notes)
                 context['releaseNoteTipSha256'] = notes['tipSha256']
     _question_evidence(workspace, view, pilot, pilot_state)
+    from .parallel_print import LEDGER, _account_snapshot, _local_account_snapshot, _read_ledger
+    contract_sha = context.get('pilot', {}).get('contractSha256')
+    if contract_sha and (workspace / LEDGER).exists():
+        events = _read_ledger(workspace, contract_sha)
+        instances = {}
+        for event in events:
+            if event['kind'] != 'user_confirmation':
+                continue
+            for part in event['parts']:
+                for instance_id in part['instanceIds']:
+                    instances[instance_id] = (part['name'], part['revision'],
+                                              part['sha256STL'], event['status'])
+        inventory = {}
+        for name, revision, sha, reported_status in instances.values():
+            if reported_status not in ('printed', 'fit'):
+                continue
+            key = (name, revision, sha)
+            counts = inventory.setdefault(key, {'name': name, 'revision': revision,
+                                                 'sha256STL': sha, 'reportedPrinted': 0,
+                                                 'reportedFit': 0})
+            counts['reportedPrinted'] += 1
+            counts['reportedFit'] += reported_status == 'fit'
+        parallel.write(view / 'PRINT_INVENTORY.json', {
+            'status': 'verified_user_reports', 'contractSha256': contract_sha,
+            'eventCount': len(events), 'recentEvents': events[-20:],
+            'parts': sorted(inventory.values(), key=lambda item: (item['name'],
+                                                                  item['revision'],
+                                                                  item['sha256STL'])),
+            'note': 'User-reported physical instances only; compare STL hashes with current case before claiming current inventory.'
+        })
+    else:
+        parallel.write(view / 'PRINT_INVENTORY.json', {'status': 'unavailable',
+                                                        'eventCount': 0, 'parts': []})
+    try:
+        print_account = _account_snapshot(_local_account_snapshot())
+    except ValueError:
+        print_account = _account_snapshot(None)
+    parallel.write(view / 'PRINT_ACCOUNT_STATUS.json', print_account)
     parallel.write(view / 'TEAM_STATUS.json', context)
     before = parallel.snapshot(view)
     runtime = {'leadModel': parallel.LEAD, 'workerModel': parallel.WORKER,
@@ -1125,10 +1266,13 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
     schema = obj({'answer': STRING})
     request = ('You are the LEAD and the sole user-facing interface for this KiCad project. '
                'Answer the user question from TEAM_STATUS.json, PROJECT_EVIDENCE.json, '
-               'PROJECT_ARTIFACTS, NATIVE_CHECKS.json, NATIVE_VERDICT.json when present, '
+               'PROJECT_ARTIFACTS, PRINT_INVENTORY.json, PRINT_ACCOUNT_STATUS.json, NATIVE_CHECKS.json, '
+               'NATIVE_VERDICT.json when present, '
                'the original contract, release notes, and original user brief. Inspect the '
                'actual relevant files before answering. Be direct and state uncertainty '
-               'when evidence is missing. '
+               'when evidence is missing. The current LAN printer status does not prove '
+               'a physical part was printed or fits; only an explicit user confirmation '
+               'in the verified print/events.jsonl may support that claim. '
                'This is read-only: do not edit files, create a contract or release note, '
                'delegate, start workers, or claim a physical test.\n\nUSER QUESTION:\n' + question)
     runner = runner or parallel.codex
@@ -1179,7 +1323,7 @@ def resume(workspace, *, execute=False, runner=None, checker=None):
     contract_run = bridge.get('contractRun')
     if not contract_run:
         raise ValueError('No original sealed team contract to resume')
-    if bridge.get('status') == 'candidate_ready':
+    if bridge.get('status') == 'candidate_ready' and not bridge.get('pendingPrintNotes'):
         raise ValueError('The team is already ready; use start for a new user change')
     original = _control_path(workspace, 'team-runs', contract_run, '.pilot', 'prompt.txt')
     return start(workspace, original, execute=execute, runner=runner,
@@ -1235,8 +1379,9 @@ def main(argv=None):
             result = resume(args.workspace, execute=args.execute)
         else:
             result = status(args.workspace)
+        print_ok = result.get('printTeam') is None or result['printTeam'].get('ok') is not False
         ok = (args.command in ('sync', 'ask', 'note') or
-              result['status'] in ('candidate_ready', 'initialized', 'planned', 'idle'))
+              result['status'] in ('candidate_ready', 'initialized', 'planned', 'idle')) and print_ok
         print(json.dumps({'ok': ok, **result}, sort_keys=True))
         return 0 if ok else 2
     except (OSError, ValueError, json.JSONDecodeError) as exc:

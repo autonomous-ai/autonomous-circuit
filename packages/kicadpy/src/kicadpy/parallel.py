@@ -223,7 +223,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
                 name = PurePosixPath(member.name)
                 if name.is_absolute() or '..' in name.parts or member.issym() or member.islnk():
                     raise ValueError('Unsafe seed member')
-                if member.isfile() and (owns('solo', str(name)) or str(name) in ('README.md', 'project.json')):
+                if member.isfile() and (owns('solo', str(name)) or str(name) in ('README.md', 'project.json',
+                                                                                 'print/events.jsonl')):
                     total += member.size
                     if member.size > MAX_FILE or total > MAX_TOTAL or len(seed_files) >= MAX_FILES:
                         raise ValueError('Seed file too large')
@@ -865,7 +866,11 @@ def worker_prompt(state, role, stage):
                          'any mismatch during integration.' + FIRMWARE_CACHE_NOTE),
             'case': ('Build the functional case, mounts, covers, exports and checks from the initial '
                      'interface contract now. Check actual board geometry whenever available; report '
-                     'and repair any mismatch during integration.'),
+                     'and repair any mismatch during integration. Read print/events.jsonl when present '
+                     'as the read-only record of actual print confirmations and failures before '
+                     'repairing parts or assigning print plates. Keep case/PRINTED-INVENTORY.md '
+                     'as a case-owned derived human-readable summary; never infer a print from '
+                     'a printer job marked complete.'),
         }[role]
         return (
             'You are the BUILDER for the ' + role + ' team. Read AGENTS.md, PILOT_BRIEF.md, '

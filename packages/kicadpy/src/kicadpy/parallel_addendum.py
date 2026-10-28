@@ -20,8 +20,12 @@ import time
 from .parallel_contract import CONTRACT_SCHEMA, ROLES, STRING, array, digest, encoded, obj, validate
 
 
+PRINT_ROLE = 'print'
+LEAD_ROUTES = (*ROLES, PRINT_ROLE)
+
+
 ADDENDUM_SCHEMA = obj({
-    'routes': array({'type': 'string', 'enum': list(ROLES)}),
+    'routes': array({'type': 'string', 'enum': list(LEAD_ROUTES)}),
     'note': STRING,
     'changedFields': array({'type': 'string', 'enum': list(CONTRACT_SCHEMA['properties'])}),
 })
@@ -346,7 +350,7 @@ def _render_release_notes(contract_sha256, entries):
 
 def notes_for_role(directory, role):
     """Return verified, applicable release notes for worker and tester prompts."""
-    if role not in ROLES:
+    if role not in LEAD_ROUTES:
         raise ValueError('Unknown team role')
     chain = load_addenda(directory)
     entries = [entry for entry in chain['entries'] if role in entry['routes']]
@@ -475,7 +479,11 @@ def record_addendum(directory, user_prompt_path, *, runner=None, source_assets=N
                 f'{len(references)} reference file(s) are available in this isolated view. '
                 'Treat the exact new user message below as the highest-priority '
                 'product instruction. Write a concise release note and route it to every '
-                'responsible team among board, firmware, and case. For any baseline contract '
+                'responsible team among board, firmware, case, and print. Route requests '
+                'about starting or tracking a physical 3D print, printer account status, or '
+                'what has actually been printed to print. Route CAD, geometry, slicer project '
+                'or plate preparation changes to case as well. A print-only request does not '
+                'rebuild board, firmware or case. For any baseline contract '
                 'field changed by this message, name its top-level field in changedFields. '
                 'The latest note supersedes earlier notes and the base contract only for '
                 'those named fields. Leave unrelated requirements in force. Preserve uncertain '
@@ -501,6 +509,8 @@ def record_addendum(directory, user_prompt_path, *, runner=None, source_assets=N
                 raise ValueError('Lead must name unique responsible teams')
             if len(result['changedFields']) != len(set(result['changedFields'])):
                 raise ValueError('Lead repeated a changed contract field')
+            if result['routes'] == [PRINT_ROLE] and result['changedFields']:
+                raise ValueError('Print-only note cannot change a design contract field')
         _, current = parallel.load(root)
         if current['contractSha256'] != state['contractSha256']:
             raise ValueError('Contract changed while the lead routed the message')
