@@ -919,6 +919,26 @@ Prototype-ready is a design fact. Physical hardware remains untested until someo
 never claim a fit, a current or a temperature you did not measure. Never order, upload, pay, or
 say that anything was ordered: exporting a packet authorises nothing.
 
+## Publishing to a git repository
+
+Only when the person asks to publish or push the project. Push **sources, not outputs**:
+
+- **Commit** generators and scripts (`tools/`, `case/build.py`, firmware source), authored
+  inputs (KiCad schematic/PCB and libraries, specs, contracts, JSON/CSV inputs), docs, and the
+  person's reference photos (downscaled). **`.gitignore` every generated output**: STL, STEP,
+  3MF, Gerber/drill, zips, renders/GLB/PNG made by scripts, reports, `build/`, review snapshots,
+  firmware `.bin/.elf/.map`, overview HTML. Never commit vendor datasheets; link them.
+- **One root `build.sh`** regenerates every output in dependency order (board exports → board
+  STEP → case CAD → print plates/3MF → overview → firmware), with `set -euo pipefail`, a clear
+  message for each missing tool or environment variable, and no network installs. Generated
+  files must not pin hashes of other generated files that a rebuild cannot reproduce; recompute
+  such bindings inside the build.
+- **Prove it before pushing:** clone the commit into an empty temporary directory, run
+  `./build.sh`, and confirm it produces every output the README links and that the project's
+  checks pass. Report that run. If any step still needs a manual action, fix the pipeline or
+  name the step in the README; never push outputs to cover a gap.
+- Keep credentials out of the repository, and push only to the branch the person named.
+
 ## Reporting to the user
 
 Short, in plain language. What the board is, its size, how it is powered, what is on it, whether
