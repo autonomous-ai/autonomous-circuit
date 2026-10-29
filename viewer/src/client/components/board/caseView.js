@@ -46,6 +46,26 @@ export function orderParts(parts) {
   return [...(parts || [])].sort((a, b) => (rank[a.role] ?? 6) - (rank[b.role] ?? 6) || String(a.name).localeCompare(String(b.name)));
 }
 
+/** Place each model part under its verified print plate; keep test/reference parts separate. */
+export function groupPartsByPlate(parts, plates) {
+  const byName = new Map((parts || []).map((part) => [part.name, part]));
+  const assigned = new Set();
+  const groups = [];
+  for (const plate of plates || []) {
+    if (!Number.isInteger(plate?.index) || plate.index < 1 || !Array.isArray(plate.parts)) continue;
+    const members = [];
+    for (const name of plate.parts) {
+      const part = byName.get(name);
+      if (!part || assigned.has(name) || part.role === "coupon" || part.printable === false) continue;
+      members.push(part);
+      assigned.add(name);
+    }
+    if (members.length) groups.push({ index: plate.index, name: String(plate.name || `Plate ${plate.index}`), parts: members });
+  }
+  groups.sort((a, b) => a.index - b.index);
+  return { groups, other: (parts || []).filter((part) => !assigned.has(part.name)) };
+}
+
 /**
  * How far to pull a part out when exploded, along z, from where its centre sits
  * relative to the board: above the board goes up, below goes down. The coupon

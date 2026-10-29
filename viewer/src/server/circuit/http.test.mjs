@@ -1061,8 +1061,15 @@ test("Case exports save real STL/STEP/3MF files and only open exported 3MF in Ba
     const arranged=await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'});
     assert.equal(arranged.status,200,JSON.stringify(arranged.body));
     assert.deepEqual(fs.readFileSync(arranged.body.path),native);
+    const printStatus = await s.post('print_status',{id:'workspace',stem:'main'});
+    assert.equal(printStatus.status,200,JSON.stringify(printStatus.body));
+    assert.equal(printStatus.body.ready,true);
+    assert.equal(printStatus.body.parts[0].confirmedPrintedQuantity,0);
+    assert.deepEqual(printStatus.body.jobs,[]);
+    assert.equal(printStatus.body.account.state,'not_connected');
     fs.appendFileSync(path.join(root,'case/print/production.3mf'),'changed');
     assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,400,'stale prepared project must not fall back to flat export');
+    assert.equal((await s.post('print_status',{id:'workspace',stem:'main'})).body.ready,false);
     assert.equal((await s.post('export_case',{id:'workspace',stem:'other',format:'3mf'})).status,409);
     fs.appendFileSync(path.join(out,'front.stl'),'changed');
     assert.equal((await s.post('export_case',{id:'workspace',stem:'main',format:'3mf'})).status,409);

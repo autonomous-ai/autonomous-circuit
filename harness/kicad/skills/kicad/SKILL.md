@@ -270,7 +270,11 @@ screws/nuts/washers as recognizable 3D hardware with a separate
 default-on **Vít/tán** toggle. Selection must focus the real screw and its size/insertion path;
 local exploded/cutaway views explain nested joints and fixed/rotating parts. Derive hardware
 from the checked instance map and confirmed owned sizes, and keep it out of printable output.
-Verify the final controls and hardware coverage per the assembly reference. For a moving
+Use the assembly reference's light CAD palette: opaque, role-distinct materials, shaded faces,
+clear feature edges and high-contrast light controls. Keep X-ray/transparency optional rather
+than stacking translucent shells over the default assembly. Verify the saved **Đủ bộ**, an
+interior step and a focused fastener visually at desktop and phone widths, then verify the final
+controls and hardware coverage per the assembly reference. For a moving
 case, include controls for its checked axes and a stop/centre control; for a static case, keep
 inspection controls without invented motion. Make it a self-contained phone-friendly HTML
 file (embedded geometry/scripts/styles; no network or CDN), set manifest `overview` relative

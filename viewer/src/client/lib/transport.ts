@@ -658,8 +658,8 @@ export async function listenEvent<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Public command surface (one function per contract §2 endpoint). Deleted
-// families: slicer, printer, cloud, step, social, update, snapshots.
+// Public command surface (one function per contract §2 endpoint). Printer
+// control is absent; print_status is passive project and LAN status only.
 // ---------------------------------------------------------------------------
 
 const transportBase = {
@@ -706,6 +706,17 @@ const transportBase = {
   export_case: (id: string, stem: string, format: "stl" | "step" | "3mf", part?: string) =>
     invoke<{ path: string; filename: string; bytes: number; canOpenBambu?: boolean }>("export_case", { id, stem, format, ...(part ? { part } : {}) }),
   export_open_bambu: (path: string) => invoke<{ path: string }>("export_open_bambu", { path }),
+  print_status: (id: string, stem = "main") => invoke<{
+    ready: boolean;
+    reason: string | null;
+    inventoryTrusted?: boolean;
+    ledgerError?: string | null;
+    source: { caseRevision: string; manifestSha256: string; projectSha256: string; file: string; verified: true } | null;
+    parts: Array<{ name: string; role: string; stlSha256: string; plateIndex: number | null; plateName: string | null; confirmedPrintedQuantity: number; fitStatus: "unknown" | "fits" | "failed" | "modified" | "discarded" }>;
+    plates: Array<{ index: number; name: string | null; parts: string[]; status: "needs_print" | "partly_printed" | "printed" | "unknown" }>;
+    jobs: Array<{ jobId: string; status: string; jobName?: string | null; progressPct: number | null; remainingMinutes?: number | null; currentLayer?: number | null; totalLayers?: number | null; observedAt: string; printerName: string | null; matchedParts: string[]; source: "printer_observation" | "printer_lan" }>;
+    account: { state: "not_connected" | "connected" | "unavailable"; reason: string | null; experimental?: boolean };
+  }>("print_status", { id, stem }),
   build_revisions: (id: string, limit?: number) =>
     invoke<BuildHistory>("build_revisions", { id, ...(limit === undefined ? {} : { limit }) }),
 

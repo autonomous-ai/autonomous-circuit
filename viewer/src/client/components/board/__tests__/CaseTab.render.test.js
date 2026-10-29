@@ -38,9 +38,9 @@ test("no case yet: the tab says what comes first", () => {
     const empty = ui.container.querySelector('[data-slot="case-empty"]');
     assert.ok(empty);
     assert.match(empty.textContent, /No case yet/);
-    assert.match(empty.textContent, /waits for finished copper/);
+    assert.match(empty.textContent, /Checked parts appear here when ready/);
     ui.set({ artifact: { case: { state: "none", parts: [], contractUrl: "/c.json" } } });
-    assert.match(ui.container.textContent, /The board knows where its screen, buttons and ports are/);
+    assert.match(ui.container.textContent, /The case team uses the board's screen, button and port locations/);
     assert.deepEqual(ui.errors, []);
   } finally {
     ui.unmount();
@@ -81,6 +81,156 @@ test("a checked case: coupon first and hidden from the assembly, every part down
     assert.deepEqual(ui.errors, []);
   } finally {
     restore();
+    ui.unmount();
+  }
+});
+
+test("printer observations stay distinct from user-confirmed printed parts", async () => {
+  const restore = __setTransportForTesting({
+    print_status: async () => ({
+      ready: true, reason: null,
+      source: { caseRevision: "v2", manifestSha256: "a".repeat(64), projectSha256: "b".repeat(64), file: "case/print/production.3mf", verified: true },
+      parts: [{ name: "front", role: "shell", stlSha256: "c".repeat(64), plateIndex: 1, plateName: "MỚI/SỬA — CẦN IN", confirmedPrintedQuantity: 0, fitStatus: "unknown" }],
+      plates: [{ index: 1, name: "MỚI/SỬA — CẦN IN", parts: ["front"], status: "needs_print" }],
+      jobs: [{ jobId: "job-1", status: "finish", progressPct: 100, observedAt: "2026-10-28T00:00:00Z", printerName: "A1", matchedParts: ["front"], source: "printer_observation" }],
+      account: { state: "connected", reason: null },
+    }),
+  });
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [{ index: 1, name: "MỚI/SỬA — CẦN IN", parts: ["front"] }] }), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Awaiting your part confirmation/);
+    assert.match(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, /No confirmed print/);
+    const plateStatus = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"] [data-slot="print-plate"]').textContent;
+    assert.match(plateStatus, /Needs print/);
+    assert.doesNotMatch(plateStatus, /Confirmed printed/i);
+  } finally { ui.unmount(); restore(); }
+});
+
+test("an unreadable print journal does not claim zero confirmed parts", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: false, reason: "Print journal integrity check failed", inventoryTrusted: false,
+    source: null,
+    parts: [{ name: "front", role: "shell", stlSha256: "c".repeat(64), plateIndex: 1, plateName: "Current", confirmedPrintedQuantity: 0, fitStatus: "unknown" }],
+    plates: [], jobs: [], account: { state: "not_connected", reason: null },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    const status = ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent;
+    assert.match(status, /Print records unavailable/);
+    assert.doesNotMatch(status, /No confirmed print/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Print journal integrity check failed/);
+  } finally { ui.unmount(); restore(); }
+});
+
+test("a stale case still shows an ongoing unlinked printer job", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: false, reason: "Case needs recheck", source: null, parts: [], plates: [],
+    jobs: [{ jobId: "job-2", status: "printing", jobName: "other plate", progressPct: 30,
+      observedAt: "2026-10-28T00:00:00Z", printerName: "A1", matchedParts: [], source: "printer_lan" }],
+    account: { state: "connected", reason: null, experimental: true },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact("stale"), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Case needs recheck/);
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /printing · 30%/);
+    assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Not linked to this case/);
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
+  } finally { ui.unmount(); restore(); }
+});
+
+test("print plates group their exact parts while coupon and reference models stay separate", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  const names = (element) => [...element.querySelectorAll('[data-slot="case-part"]')].map((row) => row.dataset.part);
+  try {
+    const plate1 = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"]');
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    const other = ui.container.querySelector('[data-slot="case-other-parts"]');
+    assert.ok(plate1);
+    assert.ok(plate2);
+    assert.ok(other);
+    assert.match(plate1.textContent, /Plate 1.*Base and front links/s);
+    assert.match(plate2.textContent, /Plate 2.*Lid and rear links/s);
+    assert.deepEqual(names(plate1), ["front"]);
+    assert.deepEqual(names(plate2), ["back"]);
+    assert.deepEqual(names(other), ["coupon", "board_reference"]);
+    assert.deepEqual(names(ui.container), ["front", "back", "coupon", "board_reference"], "each model appears in exactly one group");
+
+    click(plate1.querySelector('[data-slot="case-part-toggle"]'));
+    assert.equal(sceneProps.at(-1).visible.front, false);
+    assert.equal(sceneProps.at(-1).visible.back, true);
+    assert.equal(sceneProps.at(-1).visible.coupon, false);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
+test("show only isolates one print plate and show all restores the assembly", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts,
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/projects/p/case/out/board_reference.stl?v=1-1", bytes: 12000 },
+  ];
+  const ui = mount(CaseTab, {
+    artifact: caseArtifact("passed", {
+      parts,
+      plates: [
+        { index: 1, name: "Base and front links", parts: ["front"] },
+        { index: 2, name: "Lid and rear links", parts: ["back"] },
+      ],
+    }),
+    Scene: StubScene,
+  });
+  try {
+    const plate2 = ui.container.querySelector('[data-slot="case-plate"][data-plate="2"]');
+    assert.ok(plate2);
+    click(plate2.querySelector('[data-slot="case-plate-focus"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: false,
+      back: true,
+      coupon: false,
+      board_reference: false,
+    });
+    click(ui.container.querySelector('[data-slot="case-show-all"]'));
+    assert.deepEqual(sceneProps.at(-1).visible, {
+      front: true,
+      back: true,
+      coupon: false,
+      board_reference: true,
+    });
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});
+
+test("without verified plates the case keeps its flat parts list", () => {
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [] }), Scene: StubScene });
+  try {
+    assert.equal(ui.container.querySelector('[data-slot="case-plate"]'), null);
+    assert.deepEqual(
+      [...ui.container.querySelectorAll('[aria-label="Case parts"] [data-slot="case-part"]')].map((row) => row.dataset.part),
+      ["coupon", "back", "front"],
+    );
+    assert.deepEqual(ui.errors, []);
+  } finally {
     ui.unmount();
   }
 });

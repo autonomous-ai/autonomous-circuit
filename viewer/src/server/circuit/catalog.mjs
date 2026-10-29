@@ -23,6 +23,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 
+import { preparedPrintPlates } from "./caseExport.mjs";
 import { skipDirNames } from "./projects.mjs";
 
 export const CATALOG_KINDS = new Set(["tsx", "json", "svg", "png", "zip", "csv", "md", "kicad_pcb"]);
@@ -340,7 +341,7 @@ function scanCase(rootDir, url, stem) {
   const manifest = readJson(path.join(outDir, "parts.json"));
   const hasContract = fs.existsSync(contract);
   if (!manifest && !hasContract) return null;
-  const result = { parts: [], ...caseStatus(rootDir, stem), printStatus: casePrintStatus(rootDir, stem) };
+  const result = { parts: [], plates: [], ...caseStatus(rootDir, stem), printStatus: casePrintStatus(rootDir, stem) };
   result.nativePCBCheckerApplies = manifest?.verification?.nativePCBCheckerApplies !== false;
   if (!result.nativePCBCheckerApplies) result.printReportUrl = url(path.join(rootDir, "case/reports/print-check.json"));
   if (hasContract) result.contractUrl = url(contract);
@@ -370,6 +371,10 @@ function scanCase(rootDir, url, stem) {
     if (Array.isArray(part.printRotateDeg)) member.printRotateDeg = part.printRotateDeg.slice(0, 3).map(Number);
     if (typeof part.supports === "boolean") member.supports = part.supports;
     result.parts.push(member);
+  }
+  if (manifest?.printProject && result.printStatus.state === "passed") {
+    try { result.plates = preparedPrintPlates(rootDir, manifest) || []; }
+    catch { /* Stale or unchecked print project: show parts without plate claims. */ }
   }
   return result;
 }
@@ -486,7 +491,10 @@ export function scanProjectCatalog({ projectDir, projectId }) {
     if (enclosure && entry.nativeStale && enclosure.state !== "none") {
       enclosure.state = "stale";
       enclosure.reason = "the board sources changed; publish the board and recheck the case";
-      if (enclosure.printStatus.scope === "pcb") enclosure.printStatus = { state: "stale", reason: enclosure.reason, scope: "pcb" };
+      if (enclosure.printStatus.scope === "pcb") {
+        enclosure.printStatus = { state: "stale", reason: enclosure.reason, scope: "pcb" };
+        enclosure.plates = [];
+      }
     }
     if (enclosure) entry.artifact.case = enclosure;
     entries.push(entry);

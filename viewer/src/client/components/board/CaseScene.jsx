@@ -31,13 +31,13 @@ import { explodeOffset } from "./caseView.js";
  */
 
 const ROLE_COLOR = {
-  shell: 0xd97757, // Claude orange: the body
-  lid: 0xd97757,
-  plunger: 0xf4f1ea,
-  membrane: 0xf4f1ea,
-  diffuser: 0xfff6d6,
-  bracket: 0x8a8f98,
-  coupon: 0xf2c94c,
+  shell: 0xe3d9c6,
+  lid: 0xf1eadb,
+  plunger: 0xc4d4d5,
+  membrane: 0xb6c9c9,
+  diffuser: 0xf4dda5,
+  bracket: 0x99b4c2,
+  coupon: 0xe2b866,
 };
 
 export default function CaseScene({
@@ -45,9 +45,9 @@ export default function CaseScene({
   parts = [],
   visible = {},
   exploded = false,
-  seeThrough = true,
+  seeThrough = false,
   showBoard = true,
-  background = "#0b0f14",
+  background = "#eaf0f2",
   className,
 }) {
   const hostRef = useRef(null);
@@ -100,11 +100,11 @@ export default function CaseScene({
       scene.background = new THREE.Color(background);
       const camera = new THREE.PerspectiveCamera(40, (host.clientWidth || 1) / (host.clientHeight || 1), 0.1, 10_000);
       camera.up.set(0, 0, 1); // the contract's z is "out of the board's top face"
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x30343a, 1.0));
-      const key = new THREE.DirectionalLight(0xffffff, 1.4);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c7cc, 1.15));
+      const key = new THREE.DirectionalLight(0xffffff, 1.25);
       key.position.set(1, -1.5, 2);
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.5);
       fill.position.set(-1.5, 1, -1);
       scene.add(fill);
       controls = new OrbitControls(camera, renderer.domElement);
@@ -119,10 +119,10 @@ export default function CaseScene({
         if (contract?.board) {
           const { widthMm: w, heightMm: h, thicknessMm: t } = contract.board;
           boardSpan = Math.max(w, h);
-          const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), new THREE.MeshStandardMaterial({ color: 0x1f6f43, roughness: 0.8 }));
+          const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), new THREE.MeshStandardMaterial({ color: 0x468a69, roughness: 0.8 }));
           slab.position.set(0, 0, -t / 2);
           boardGroup.add(slab);
-          const partMat = new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.6 });
+          const partMat = new THREE.MeshStandardMaterial({ color: 0x5d6c72, roughness: 0.7 });
           for (const p of contract.parts || []) {
             const [x0, y0, x1, y1] = p.boxMm || [];
             if (!(p.heightMm > 0) || ![x0, y0, x1, y1].every(Number.isFinite)) continue;
@@ -130,7 +130,7 @@ export default function CaseScene({
             box.position.set((x0 + x1) / 2, (y0 + y1) / 2, p.side === "bottom" ? -t - p.heightMm / 2 : p.heightMm / 2);
             boardGroup.add(box);
           }
-          const moduleMat = new THREE.MeshStandardMaterial({ color: 0x2f6fd0, transparent: true, opacity: 0.55, roughness: 0.5 });
+          const moduleMat = new THREE.MeshStandardMaterial({ color: 0x5f99ba, transparent: true, opacity: 0.65, roughness: 0.6 });
           for (const m of contract.modules || []) {
             const corners = m.outlineCornersMm || [];
             if (m.offboard || corners.length < 3) continue;
@@ -169,21 +169,37 @@ export default function CaseScene({
         geometry.computeVertexNormals();
         geometry.computeBoundingBox();
         const material = new THREE.MeshStandardMaterial({
-          color: ROLE_COLOR[part.role] ?? 0x9aa0a8,
-          roughness: 0.55,
+          color: ROLE_COLOR[part.role] ?? 0xb3c1c5,
+          roughness: 0.78,
           metalness: 0.0,
           side: THREE.DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
         });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.name = part.name;
+        const edges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(geometry, 35),
+          new THREE.LineBasicMaterial({ color: 0x60747c, transparent: true, opacity: 0.42, depthWrite: false }),
+        );
+        mesh.add(edges);
         scene.add(mesh);
         const bb = geometry.boundingBox;
-        meshes.set(part.name, { mesh, part, bounds: { min: bb.min.toArray(), max: bb.max.toArray() } });
+        meshes.set(part.name, { mesh, edges, part, bounds: { min: bb.min.toArray(), max: bb.max.toArray() } });
       }
 
       const assembled = new THREE.Box3();
       for (const { mesh, part } of meshes.values()) if (part.role !== "coupon") assembled.expandByObject(mesh);
       assembled.expandByObject(boardGroup);
+      const footprint = assembled.getSize(new THREE.Vector3());
+      const gridSize = Math.max(80, boardSpan * 2, footprint.x * 1.7, footprint.y * 1.7);
+      const grid = new THREE.GridHelper(gridSize, 16, 0xb6c6ca, 0xd4e0e2);
+      grid.rotation.x = Math.PI / 2;
+      grid.position.set((assembled.min.x + assembled.max.x) / 2, (assembled.min.y + assembled.max.y) / 2, assembled.min.z - Math.max(1.5, boardSpan * 0.025));
+      grid.material.transparent = true;
+      grid.material.opacity = 0.55;
+      scene.add(grid);
       const caseMaxX = assembled.max.x;
       const target = new THREE.Vector3();
       let radius = 1;
@@ -210,7 +226,7 @@ export default function CaseScene({
         apply({ visible: vis, exploded: ex, seeThrough: clear, showBoard: withBoard }) {
           const gap = Math.max(boardSpan * 0.45, 12);
           boardGroup.visible = withBoard;
-          for (const { mesh, part, bounds } of meshes.values()) {
+          for (const { mesh, edges, part, bounds } of meshes.values()) {
             mesh.visible = vis[part.name] !== false;
             const offset = ex || part.role === "coupon" ? explodeOffset(part, bounds, caseMaxX, gap) : [0, 0, 0];
             mesh.position.set(...offset);
@@ -219,6 +235,7 @@ export default function CaseScene({
             mesh.material.opacity = clear && shell ? 0.38 : 1;
             mesh.material.depthWrite = !(clear && shell);
             mesh.material.needsUpdate = true;
+            edges.material.opacity = clear && shell ? 0.2 : 0.42;
           }
           const couponShown = [...meshes.values()].some(({ mesh, part }) => part.role === "coupon" && mesh.visible);
           if (couponShown !== framedCoupon) {
@@ -276,14 +293,14 @@ export default function CaseScene({
     <div data-slot="case-scene" data-state={phase} className={cn("relative min-h-0 flex-1 overflow-hidden", className)} style={{ backgroundColor: background }}>
       <div ref={hostRef} className="absolute inset-0" />
       {phase === "ready" ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 font-mono text-[10px] leading-4 text-white/40">
+        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-white/65 px-2 py-1 font-mono text-[10px] leading-4 text-[#526872]">
           drag orbit · scroll zoom · right-drag pan
         </p>
       ) : (
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
-            <Box className="size-8 text-white/25" aria-hidden />
-            <p className="text-sm leading-6 text-white/60">
+            <Box className="size-8 text-[#8da4ad]" aria-hidden />
+            <p className="text-sm leading-6 text-[#526872]">
               {phase === "loading" ? "Loading the case…" : phase === "error" ? `The 3D view could not start: ${failure}` : "No parts to show."}
             </p>
           </div>

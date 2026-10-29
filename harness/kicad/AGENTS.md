@@ -22,10 +22,11 @@ design change. Harness puts that marker in **new Codex KiCad projects**. A proje
 the single-agent workflow below; never add the marker to an existing project or running session.
 The person only needs to open KiCad in Harness and send a prompt. You are the entry agent and
 their single communication path to the Astra lead. Pass the person's exact request through the
-tile bridge; the lead assigns work to the electrical board, firmware, and case teams. Each team
+tile bridge; the lead assigns design work to the electrical board, firmware, and case teams and
+physical print coordination to a separate 3D print team. Each design team
 has a builder and an independent tester and may work at the same time. The lead does not make
-firmware or case wait for board completion or a lead board review. Do not build the board
-yourself, assign work directly to a worker, or arm `kicadpy.harness --active build` in a team project.
+firmware or case wait for board completion or a lead board review. Do not build the board yourself or arm
+`kicadpy.harness --active build` in a team project. Do not assign work directly to a worker.
 
 For the first build request, save the user's words **verbatim** in `prompts/original.md` and a new,
 immutable UTF-8 file under `prompts/history/`. Maintain `prompts/current.md` as a concise viewer
@@ -42,7 +43,8 @@ immutable UTF-8 file under `prompts/history/`; do not combine it with old requir
 the lead to plan another base contract. Pass that file to the same `start` command below. The
 bridge reuses the exact first sealed contract and gives the new message plus earlier release notes
 to the lead. The lead writes an append-only supplemental release note, names which contract
-fields it changes, and routes it to the responsible board, firmware, and/or case team. Later
+fields it changes, and routes it to the responsible board, firmware, case, and/or print team. A
+print-only request must not start a board, firmware or case build. Later
 notes take precedence for the fields they name; unrelated original requirements remain. Update
 `prompts/current.md` to show the effective requirements for the viewer, but never use that
 summary as the follow-up input. Copy any newly attached image or reference into `prompts/assets/`
@@ -81,6 +83,15 @@ artifacts enter the main viewer only after host checks; a preview is never proof
 firmware, or case is ready. Report the bridge's `teamReady` value for the whole team. The viewer
 verdict's `ready` value describes native board readiness; it can be true before cross-team
 integration passes.
+
+When `status` includes `printTeam`, relay its question or finding to the person as the lead's
+print handoff. The print team can inspect a verified 3MF and a connected printer's sanitized
+status, but it never sends a job, operates hardware, or treats a completed printer job as a
+confirmed physical part. Ask the person which checked plate to print. Record an actual printed
+part only from the person's explicit confirmation through a new verbatim lead-routed message;
+the bridge writes append-only `print/events.jsonl` with part revision, mesh hash and evidence.
+Case workers read this ledger before repair and plate assignment. Waiting for a physical print
+does not revoke the checked design's `teamReady` value.
 
 The bridge owns its private pilot, role worktrees, native checks, and transfer of checked output
 to this viewer's workspace. Never edit `.pilot/`, role receipts, generated board files, or verdicts
@@ -770,6 +781,16 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
+  - **Make the default view read like a light CAD workspace.** Use a pale neutral canvas,
+    matte opaque materials that distinguish covers, frame, moving parts, electronics and metal
+    hardware, soft face shading and clear silhouette/feature edges. Do not color every printed
+    part the same saturated orange or make the seated cover translucent by default: overlapping
+    transparent faces obscure the assembly. Keep the complete assembly seated in **Đủ bộ**;
+    expose its interior with an explicit open/hide/cutaway or X-ray control. A focused part needs
+    an outline, label or local isolation, not a pile of other parts faded to near invisibility.
+    Give text and controls strong contrast on light surfaces. Follow the assembly reference's
+    palette and visual checks at desktop and phone widths; preserve the real geometry and CAD
+    checks while changing presentation.
   - **Use the same simple assembly format for every project.** One primary selector contains
     **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
     navigation using that same state. Merge assembly-stage and assembly-step menus; do not add
