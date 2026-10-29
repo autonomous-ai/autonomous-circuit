@@ -390,6 +390,18 @@ universal design requirements.
   project, not as an extra current-production instance; TEST ONLY remains separate. Preserve the
   existing `printProject` full-coverage validator. Update assignments when inventory, quantity or
   geometry changes, and never mark a print completed without evidence.
+- **Plate layout rules.** Within each ĐÃ IN / MỚI–SỬA group, split plates by filament first:
+  with several materials or colours, each plate holds one material/colour, never a mix. Then,
+  within one filament, group by size: large parts together and small parts together, instead of
+  scattering tiny parts between big ones; overflow goes to numbered plates in the same class.
+  **Prefer the printer's X axis:** after `printRotateDeg`, rotate each part only about Z so its
+  longest bed footprint runs along X. On a bed slinger such as the A1 the bed moves in Y, so a
+  tall or long part standing along Y rocks with every bed move. Lay rows of long parts side by
+  side along X. A part may stay along Y only when it cannot fit along X on that bed; record the
+  reason. The slicer's auto-arrange does not apply these rules, so set the Z rotation and
+  placement in the generator and verify the saved project. The verifier report records each
+  plate's filament and each part's bed footprint `[xMm, yMm]`; any part whose Y footprint
+  exceeds its X footprint needs that recorded reason.
 - Use the slicer's native arrange/export path when available (for Bambu, an installed CLI may
   arrange and export without sending a print). Reuse project-local generators and verify against
   current STEP/STL and `printRotateDeg`. Check each plate for overlap, out-of-bed parts, floating

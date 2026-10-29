@@ -312,7 +312,10 @@ play/retention separately from collision-free motion with a representative suppo
 
 Export a native slicer 3MF with the current production parts already oriented and distributed
 across the owner's real bed-sized plates, with brim/edge/part clearance. Preserve the known
-printer/material profile; state assumptions for unknown settings. Keep coupons in a separate
+printer/material profile; state assumptions for unknown settings. One filament per plate; within
+a filament, keep large parts together and small parts together; rotate each part about Z so
+its long side runs along printer X (bed slinger: the bed moves in Y). See the plate layout rules.
+Keep coupons in a separate
 TEST ONLY project and explain reuse versus reprint. Run the slicer's layout/mesh checks after
 the final repair, publish manifest `printProject` and its fresh verifier report as specified in
 `references/case-assembly.md`, and check the actual Print all export preserves those plates.
