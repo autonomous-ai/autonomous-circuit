@@ -21,6 +21,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -485,6 +486,89 @@ def _pilot_artifacts(pilot_workspace):
     return artifacts
 
 
+def _checkpoint_tree_matches_mirror(seed, commit, files):
+    """Verify the recorded Git checkpoint still has exactly the mirrored owned bytes."""
+    expected = {name: info for name, info in files.items() if name != VERDICT}
+    seen = set()
+    process = subprocess.Popen(['git', 'archive', commit], cwd=seed,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
+            for member in archive:
+                if member.issym() or member.islnk():
+                    raise ValueError('Checkpoint Git archive contains a symlink')
+                if not member.isfile() or not owns('solo', member.name):
+                    continue
+                info = expected.get(member.name)
+                if info is None or member.name in seen or \
+                        (info.get('bytes') is not None and member.size != info['bytes']) or \
+                        bool(member.mode & 0o111) != info.get('executable'):
+                    raise ValueError('Checkpoint Git tree differs from mirrored artifacts')
+                digest = hashlib.sha256()
+                with archive.extractfile(member) as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(block)
+                if digest.hexdigest() != info['sha256']:
+                    raise ValueError('Checkpoint Git tree differs from mirrored artifacts')
+                seen.add(member.name)
+        process.stdout.close()
+        error = process.stderr.read()
+        if process.wait() != 0 or seen != expected.keys():
+            raise ValueError('Checkpoint Git tree differs from mirrored artifacts: ' +
+                             error.decode(errors='replace')[-200:])
+    except BaseException:
+        if process.poll() is None:
+            process.kill()
+        process.stdout.close()
+        process.stderr.close()
+        process.wait()
+        raise
+    finally:
+        process.stderr.close()
+
+
+def _checkpoint_seed_commit(seed, state, seed_run):
+    """Use only a recorded checkpoint when a failed team repair left later imports."""
+    error = 'Prior integrated pilot commit changed since checkpoint'
+    if (state.get('status') != 'needs_revision' or state.get('activeRun') != seed_run or
+            state.get('lastMirroredRun') != seed_run or not state.get('contractRun') or
+            state.get('lastCheckpointStage') not in CHECKPOINT_STAGES):
+        raise ValueError(error)
+    pilot_file = seed.parent / '.pilot/state.json'
+    if pilot_file.is_symlink() or not pilot_file.is_file():
+        raise ValueError(error)
+    pilot = json.loads(pilot_file.read_text())
+    if pilot.get('status') != 'needs_revision' or pilot.get('mode') != 'teams':
+        raise ValueError(error)
+    checkpoint = state['sourceHead']
+    head = parallel.git(seed, 'rev-parse', 'HEAD')
+    if (parallel.git(seed, 'status', '--porcelain') or
+            _git_metadata_digest(seed) != state.get('sourceGitMetadataSha256') or
+            subprocess.run(['git', 'merge-base', '--is-ancestor', checkpoint, head],
+                           cwd=seed, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL).returncode != 0):
+        raise ValueError(error)
+    commits = parallel.git(seed, 'rev-list', '--reverse', f'{checkpoint}..{head}').splitlines()
+    if not 1 <= len(commits) <= 16:
+        raise ValueError(error)
+    parent = checkpoint
+    for commit in commits:
+        if parallel.git(seed, 'rev-list', '--parents', '-n', '1', commit).split() != [commit, parent]:
+            raise ValueError(error)
+        subject = parallel.git(seed, 'log', '-1', '--format=%s', commit)
+        if subject not in ('Integrate board', 'Integrate firmware', 'Integrate case'):
+            raise ValueError(error)
+        role = subject.removeprefix('Integrate ')
+        changed = subprocess.check_output(
+            ['git', 'diff-tree', '--no-commit-id', '--name-only', '-z', '-r', commit], cwd=seed)
+        names = [os.fsdecode(name) for name in changed.split(b'\0') if name]
+        if not names or any(not owns(role, name) for name in names):
+            raise ValueError(error)
+        parent = commit
+    _checkpoint_tree_matches_mirror(seed, checkpoint, state['files'])
+    return checkpoint
+
+
 def _journal_file(workspace):
     return workspace / '.circuit/team-mirror-journal.json'
 
@@ -743,17 +827,20 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
         if pilot_root.exists():
             raise ValueError('Team run directory already exists')
         seed = None
+        seed_commit = None
+        recovered_head = None
         seed_run = prior_run if teams and contract_run else state.get('lastMirroredRun')
         if seed_run:
             seed = _control_path(workspace, 'team-runs', seed_run, 'workspace')
             if not seed.is_dir() or parallel.git(seed, 'status', '--porcelain'):
                 raise ValueError('Prior integrated pilot is not a clean Git seed')
-            if (seed_run == state.get('lastMirroredRun') and state.get('sourceHead') is not None and
-                    parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead']):
-                raise ValueError('Prior integrated pilot commit changed since checkpoint')
             if (seed_run == state.get('lastMirroredRun') and state.get('sourceGitMetadataSha256') is not None and
                     _git_metadata_digest(seed) != state['sourceGitMetadataSha256']):
                 raise ValueError('Prior integrated pilot Git metadata changed since checkpoint')
+            if (seed_run == state.get('lastMirroredRun') and state.get('sourceHead') is not None and
+                    parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead']):
+                seed_commit = _checkpoint_seed_commit(seed, state, seed_run)
+                recovered_head = parallel.git(seed, 'rev-parse', 'HEAD')
         inputs = _control_path(workspace, 'team-inputs')
         inputs.mkdir(exist_ok=True)
         frozen_prompt = inputs / f'{run_id}.txt'
@@ -774,6 +861,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
         _clear_preview_media(workspace)
         with _PREVIEW_CACHE_LOCK:
             _PREVIEW_CACHE.clear()
+        state.pop('recoveredFromCheckpoint', None)
         state.update(nextRun=number + 1, activeRun=run_id, status='running',
                      stage='initializing', error=None, maxRounds=max_rounds,
                      roundsAttempted=0, replanRequired=False,
@@ -784,7 +872,14 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
         try:
             with _cancel_on_signal(pilot_root) as cancelled, _prevent_idle_sleep():
                 parallel.initialize(pilot_root, frozen_prompt, seed=seed,
+                                    seed_commit=seed_commit,
                                     mode='teams' if teams else 'parallel')
+                if seed_commit is not None:
+                    recovery = {'sourceRun': seed_run, 'checkpointHead': seed_commit,
+                                'uncheckpointedHead': recovered_head}
+                    parallel.write(pilot_root / '.pilot/recovery.json', recovery)
+                    state['recoveredFromCheckpoint'] = recovery
+                    _save_state(workspace, state)
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(1 if teams else max_rounds):
@@ -1275,12 +1370,15 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
                'in the verified print/events.jsonl may support that claim. '
                'This is read-only: do not edit files, create a contract or release note, '
                'delegate, start workers, or claim a physical test.\n\nUSER QUESTION:\n' + question)
-    runner = runner or parallel.codex
     for attempt, delay in enumerate((0, *parallel.CAPACITY_RETRY_DELAYS), 1):
         if delay:
             time.sleep(delay)
-        receipt = runner(root, runtime, 'ask', runtime['leadModel'], view,
-                         request, schema, True)
+        if runner is None:
+            receipt = parallel.codex(root, runtime, 'ask', runtime['leadModel'], view,
+                                     request, schema, True, skip_git_repo_check=True)
+        else:
+            receipt = runner(root, runtime, 'ask', runtime['leadModel'], view,
+                             request, schema, True)
         if parallel.snapshot(view) != before:
             raise ValueError('Read-only lead changed its question context')
         if not receipt.get('error'):

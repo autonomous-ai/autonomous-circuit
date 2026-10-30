@@ -336,6 +336,19 @@ class TeamBridgeTests(unittest.TestCase):
         pilot_state = {'revision': 1, 'contractSha256': 'contract-one'}
         return pilot_root, source, state, pilot_state
 
+    def checkpointed_needs_revision_pilot(self):
+        """A failed team run with a recorded, visible native checkpoint."""
+        pilot_root, source, state, pilot_state = self.staged_pilot()
+        parallel_tile._mirror(self.workspace, pilot_root, source, state, pilot_state,
+                              'board')
+        state.update(status='needs_revision', stage='complete', teamReady=False,
+                     contractRun='r001')
+        parallel_tile._save_state(self.workspace, state)
+        private = json.loads((pilot_root / '.pilot/state.json').read_text())
+        private.update(status='needs_revision', mode='teams')
+        parallel.write(pilot_root / '.pilot/state.json', private)
+        return pilot_root, source, state
+
     def test_progressive_checkpoints_publish_each_completed_role_and_board_approval(self):
         root, source, state, pilot_state = self.staged_pilot()
         mirror = lambda stage: parallel_tile._mirror(self.workspace, root, source, state,
@@ -544,6 +557,52 @@ class TeamBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
             self.run_team(followup)
         self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
+
+    def test_failed_team_uses_recorded_checkpoint_after_clean_role_import(self):
+        _, source, state = self.checkpointed_needs_revision_pilot()
+        checkpoint = state['sourceHead']
+        put(source, 'design/main.kicad_pro', 'later board repair')
+        parallel.commit(source, ['design/main.kicad_pro'], 'Integrate board')
+        put(source, 'firmware/main.c', 'integrated but not checkpointed firmware')
+        parallel.commit(source, ['firmware/main.c'], 'Integrate firmware')
+        head = parallel.git(source, 'rev-parse', 'HEAD')
+        self.assertNotEqual(head, checkpoint)
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+
+        seed_commit = parallel_tile._checkpoint_seed_commit(source, state, 'r001')
+        self.assertEqual(seed_commit, checkpoint)
+        self.assertEqual(parallel.git(source, 'rev-parse', 'HEAD'), head)
+        followup = self.base / 'checkpoint-seeded-pilot'
+        initialized = parallel.initialize(followup, self.first_brief, seed=source,
+                                          seed_commit=seed_commit)
+        self.assertEqual(initialized['seedCommit'], checkpoint)
+        self.assertEqual((followup / 'workspace/design/main.kicad_pro').read_text(),
+                         'checked board source')
+        self.assertFalse((followup / 'workspace/firmware/main.c').exists())
+
+    def test_failed_team_refuses_forged_unowned_import_after_checkpoint(self):
+        _, source, state = self.checkpointed_needs_revision_pilot()
+        put(source, 'README.md', 'not a role-owned artifact')
+        parallel.commit(source, ['README.md'], 'Integrate firmware')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            parallel_tile._checkpoint_seed_commit(source, state, 'r001')
+
+    def test_failed_team_refuses_import_message_for_wrong_role(self):
+        _, source, state = self.checkpointed_needs_revision_pilot()
+        put(source, 'case/frame.txt', 'case data under a firmware label')
+        parallel.commit(source, ['case/frame.txt'], 'Integrate firmware')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            parallel_tile._checkpoint_seed_commit(source, state, 'r001')
+
+    def test_failed_team_refuses_git_config_drift_after_valid_import(self):
+        _, source, state = self.checkpointed_needs_revision_pilot()
+        put(source, 'firmware/main.c', 'integrated firmware')
+        parallel.commit(source, ['firmware/main.c'], 'Integrate firmware')
+        with (source / '.git/config').open('a') as stream:
+            stream.write('\n[harmless]\nvalue = changed after checkpoint\n')
+        self.assertEqual(parallel.git(source, 'status', '--porcelain'), '')
+        with self.assertRaisesRegex(ValueError, 'changed since checkpoint'):
+            parallel_tile._checkpoint_seed_commit(source, state, 'r001')
 
     def test_followup_refuses_partial_checkpoint_if_sibling_changes_git_config(self):
         runner = BlockOneRoleRunner(self.workspace, 'case', 'firmware/main.c')

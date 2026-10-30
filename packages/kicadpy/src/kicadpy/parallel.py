@@ -14,6 +14,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import signal
 import subprocess
 import tarfile
@@ -190,7 +191,7 @@ def commit(workspace, names, message):
     return git(workspace, 'rev-parse', 'HEAD')
 
 
-def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
+def initialize(directory, prompt_file, *, instructions=None, seed=None, seed_commit=None, mode='parallel',
                lead_model=LEAD, worker_model=WORKER, timeout=1800):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
@@ -208,14 +209,26 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
              'skills/kicad/SKILL.md': (source / 'skills/kicad/SKILL.md').read_text()}
     for p in sorted((source / 'skills/kicad/references').glob('*.md')):
         texts['skills/kicad/references/' + p.name] = p.read_text()
-    seed_files, seed_commit = {}, None
+    seed_files = {}
+    if seed_commit is not None and (not seed or not isinstance(seed_commit, str) or
+                                    not re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', seed_commit)):
+        raise ValueError('Expected a seed repository and a full checkpoint commit')
     if seed:
         seed = Path(seed).resolve()
         if git(seed, 'rev-parse', '--show-toplevel') != str(seed) or git(seed, 'status', '--porcelain'):
             raise ValueError('Seed must be the root of a clean Git repository')
         if root.is_relative_to(seed):
             raise ValueError('Create the pilot outside the seed repository')
-        seed_commit = git(seed, 'rev-parse', 'HEAD')
+        head = git(seed, 'rev-parse', 'HEAD')
+        if seed_commit is None:
+            seed_commit = head
+        elif (subprocess.run(['git', 'cat-file', '-e', f'{seed_commit}^{{commit}}'],
+                             cwd=seed, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL).returncode != 0 or
+              subprocess.run(['git', 'merge-base', '--is-ancestor', seed_commit, head],
+                             cwd=seed, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL).returncode != 0):
+            raise ValueError('Checkpoint commit is not an ancestor of the clean seed')
         archive = subprocess.check_output(['git', 'archive', seed_commit], cwd=seed)
         total = 0
         with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
@@ -463,8 +476,11 @@ def _persist_attempt_receipt(root, receipt):
     write(file, receipt)
 
 
-def codex(root, state, stage, model, workspace, prompt, schema, readonly):
+def codex(root, state, stage, model, workspace, prompt, schema, readonly, *,
+          skip_git_repo_check=False):
     """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
+    if skip_git_repo_check and not readonly:
+        raise ValueError('Git repository check may be skipped only for a read-only call')
     job = _job_directory(root, state, stage)
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
@@ -474,6 +490,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
                '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
                '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+    if skip_git_repo_check:
+        command.insert(2, '--skip-git-repo-check')
     env = {k: v for k, v in os.environ.items() if not k.startswith('HARNESS_') and
            k not in ('CIRCUIT_WORKSPACE', 'CIRCUIT_SKILLS_DIR', 'CODEX_THREAD_ID')}
     tool_root = Path(state['toolchainRoot'])
@@ -1973,13 +1991,10 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
                     raise ValueError('Integration tester did not identify a repair owner')
                 dispatch(root, state, [(role, role) for role in ROLES if role in roles],
                          runner, checker=checker, on_progress=on_progress,
+                         on_import=accepted,
                          worktree_tag=f'integration-{repair_round}',
                          guidance={'native': checks, 'integration': integration})
-                if 'board' in roles:
-                    board_checks = publish_native(False)
-                    if not board_checks.get('passed'):
-                        raise ValueError('Repaired board failed integrated native check: ' +
-                                         json.dumps(board_checks.get('findings', [])))
+                # accepted() already checked and checkpointed each imported board.
                 checks = publish_native(True)
                 integration = team_integration_test(root, state, checks, runner)
             if not checks.get('passed') or integration['decision'] != 'approve':

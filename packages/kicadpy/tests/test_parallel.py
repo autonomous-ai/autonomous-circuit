@@ -724,6 +724,23 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertIsNone(lead['error'])
         invocation = json.loads((self.workspace / 'invocation.json').read_text())
         self.assertEqual(invocation['args'][invocation['args'].index('-s') + 1], 'read-only')
+        self.assertNotIn('--skip-git-repo-check', invocation['args'])
+
+    def test_git_repo_check_skip_is_read_only_opt_in(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        receipt = pilot.codex(self.root, self.state, 'review', pilot.LEAD, self.workspace,
+                              'read only', RESULT_SCHEMA, True,
+                              skip_git_repo_check=True)
+        self.assertIsNone(receipt['error'])
+        invocation = json.loads((self.workspace / 'invocation.json').read_text())
+        self.assertIn('--skip-git-repo-check', invocation['args'])
+        self.assertEqual(invocation['args'][invocation['args'].index('-s') + 1], 'read-only')
+        (self.workspace / 'invocation.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'only for a read-only call'):
+            pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                        'scoped task', RESULT_SCHEMA, False,
+                        skip_git_repo_check=True)
+        self.assertFalse((self.workspace / 'invocation.json').exists())
 
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA

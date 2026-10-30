@@ -260,6 +260,69 @@ class TeamFlowTests(unittest.TestCase):
         thread.join(timeout=15)
         self.assertEqual(result['state']['status'], 'candidate_ready')
 
+    def test_partial_integration_repair_checkpoints_imports_before_case_failure(self):
+        class RejectOnceRunner(TeamRunner):
+            def __init__(self):
+                super().__init__()
+                self.integration_reviews = 0
+
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = super().__call__(root, state, stage, model, workspace,
+                                           prompt, schema, readonly)
+                if stage == 'integration-test':
+                    self.integration_reviews += 1
+                    receipt['result'] = {
+                        'contractSha256': state['contractSha256'], 'decision': 'revise',
+                        'summary': 'Repair all three interfaces',
+                        'findings': [
+                            {'path': 'design/main.kicad_pro', 'message': 'Repair board'},
+                            {'path': 'firmware/main.c', 'message': 'Repair firmware'},
+                            {'path': 'case/frame.txt', 'message': 'Repair case'},
+                        ],
+                    }
+                return receipt
+
+        runner = RejectOnceRunner()
+        visible = self.base / 'partial-repair'
+        visible.mkdir()
+        for name in ('product.json', 'project.json'):
+            shutil.copy2(CARD / 'template' / name, visible / name)
+        put(visible, '.circuit/team-auto', '')
+        put(visible, '.harness/verdict.json', json.dumps({'ready': False}))
+
+        real_dispatch = parallel.dispatch
+        dispatches = 0
+
+        def partial_repair(root, state, jobs, runner, **kwargs):
+            nonlocal dispatches
+            dispatches += 1
+            if dispatches == 1:
+                return real_dispatch(root, state, jobs, runner, **kwargs)
+            self.assertEqual({role for role, _ in jobs}, {'board', 'firmware', 'case'})
+            integrated = Path(root) / 'workspace'
+            for role, name in (('board', 'design/main.kicad_pro'),
+                               ('firmware', 'firmware/main.c')):
+                put(integrated, name, f'{role} repaired')
+                parallel.commit(integrated, [name], f'Integrate {role}')
+                if kwargs.get('on_import') is not None:
+                    kwargs['on_import'](integrated, state, role)
+            raise ValueError('case repair remained open')
+
+        with patch.object(parallel, 'dispatch', side_effect=partial_repair):
+            result = parallel_tile.start(visible, self.prompt, execute=True,
+                                         runner=runner, checker=checker, teams=True)
+
+        self.assertEqual(dispatches, 2)
+        self.assertEqual(runner.integration_reviews, 1)
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertIn('case repair remained open', result['error'])
+        self.assertEqual(result['lastCheckpointStage'], 'firmware')
+        source = visible / '.circuit/team-runs/r001/workspace'
+        self.assertEqual(result['sourceHead'], parallel.git(source, 'rev-parse', 'HEAD'))
+        self.assertEqual((visible / 'design/main.kicad_pro').read_text(), 'board repaired')
+        self.assertEqual((visible / 'firmware/main.c').read_text(), 'firmware repaired')
+        self.assertFalse(result['teamReady'])
+
     def test_tester_rejection_returns_to_same_builder_worktree(self):
         class RepairRunner(TeamRunner):
             def __init__(self):
@@ -345,6 +408,21 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual([(stage, readonly) for stage, _, readonly, _ in self.runner.visits],
                          [('ask', True)])
         self.assertEqual(parallel_tile.status(visible)['status'], 'idle')
+
+    def test_default_lead_question_skips_git_check_only_in_read_only_view(self):
+        visible = self.base / 'question-without-git'
+        visible.mkdir()
+        question = put(self.base, 'question-without-git.txt', 'What is the status?')
+        observed = []
+
+        def lead(root, state, stage, model, view, prompt, schema, readonly, **kwargs):
+            observed.append((stage, readonly, kwargs, (view / '.git').exists()))
+            return {'error': None, 'result': {'answer': 'No team run yet.'}}
+
+        with patch.object(parallel, 'codex', side_effect=lead):
+            result = parallel_tile.ask(visible, question, execute=True)
+        self.assertEqual(result['answer'], 'No team run yet.')
+        self.assertEqual(observed, [('ask', True, {'skip_git_repo_check': True}, False)])
 
     def test_lead_question_can_read_actual_artifacts_and_native_checks(self):
         visible = self.base / 'evidence-project'
