@@ -409,6 +409,21 @@ class TeamFlowTests(unittest.TestCase):
                          [('ask', True)])
         self.assertEqual(parallel_tile.status(visible)['status'], 'idle')
 
+    def test_default_lead_question_skips_git_check_only_in_read_only_view(self):
+        visible = self.base / 'question-without-git'
+        visible.mkdir()
+        question = put(self.base, 'question-without-git.txt', 'What is the status?')
+        observed = []
+
+        def lead(root, state, stage, model, view, prompt, schema, readonly, **kwargs):
+            observed.append((stage, readonly, kwargs, (view / '.git').exists()))
+            return {'error': None, 'result': {'answer': 'No team run yet.'}}
+
+        with patch.object(parallel, 'codex', side_effect=lead):
+            result = parallel_tile.ask(visible, question, execute=True)
+        self.assertEqual(result['answer'], 'No team run yet.')
+        self.assertEqual(observed, [('ask', True, {'skip_git_repo_check': True}, False)])
+
     def test_lead_question_can_read_actual_artifacts_and_native_checks(self):
         visible = self.base / 'evidence-project'
         visible.mkdir()

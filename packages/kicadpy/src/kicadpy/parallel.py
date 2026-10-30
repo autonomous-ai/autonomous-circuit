@@ -476,8 +476,11 @@ def _persist_attempt_receipt(root, receipt):
     write(file, receipt)
 
 
-def codex(root, state, stage, model, workspace, prompt, schema, readonly):
+def codex(root, state, stage, model, workspace, prompt, schema, readonly, *,
+          skip_git_repo_check=False):
     """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
+    if skip_git_repo_check and not readonly:
+        raise ValueError('Git repository check may be skipped only for a read-only call')
     job = _job_directory(root, state, stage)
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
@@ -487,6 +490,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
                '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
                '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+    if skip_git_repo_check:
+        command.insert(2, '--skip-git-repo-check')
     env = {k: v for k, v in os.environ.items() if not k.startswith('HARNESS_') and
            k not in ('CIRCUIT_WORKSPACE', 'CIRCUIT_SKILLS_DIR', 'CODEX_THREAD_ID')}
     tool_root = Path(state['toolchainRoot'])

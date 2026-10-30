@@ -1370,12 +1370,15 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
                'in the verified print/events.jsonl may support that claim. '
                'This is read-only: do not edit files, create a contract or release note, '
                'delegate, start workers, or claim a physical test.\n\nUSER QUESTION:\n' + question)
-    runner = runner or parallel.codex
     for attempt, delay in enumerate((0, *parallel.CAPACITY_RETRY_DELAYS), 1):
         if delay:
             time.sleep(delay)
-        receipt = runner(root, runtime, 'ask', runtime['leadModel'], view,
-                         request, schema, True)
+        if runner is None:
+            receipt = parallel.codex(root, runtime, 'ask', runtime['leadModel'], view,
+                                     request, schema, True, skip_git_repo_check=True)
+        else:
+            receipt = runner(root, runtime, 'ask', runtime['leadModel'], view,
+                             request, schema, True)
         if parallel.snapshot(view) != before:
             raise ValueError('Read-only lead changed its question context')
         if not receipt.get('error'):
