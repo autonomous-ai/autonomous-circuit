@@ -90,6 +90,18 @@ class AddendumTests(unittest.TestCase):
         self.assertIn('## 1. board, case', release_notes)
         self.assertIn('## 2. firmware', release_notes)
 
+    def test_lead_routes_only_teams_whose_files_must_change(self):
+        prompts = []
+        inner = self.runner(['case'], 'Case only.', [])
+
+        def run(root, state, stage, model, workspace, prompt, schema, readonly):
+            prompts.append(prompt)
+            return inner(root, state, stage, model, workspace, prompt, schema, readonly)
+
+        notes.record_addendum(self.root, self.message('Thicken the lid posts.'), runner=run)
+        self.assertIn('whose owned files must change, and to no other', prompts[0])
+        self.assertIn('reaches firmware only when it changes', prompts[0])
+
     def test_tampering_or_reordering_breaks_chain(self):
         self.first_note()
         path = next((self.root / '.pilot/addenda').glob('n*.json'))

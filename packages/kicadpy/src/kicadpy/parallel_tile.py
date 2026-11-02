@@ -48,6 +48,9 @@ PREVIEW_MAX_FILE = 4 * 1024 * 1024
 PREVIEW_MAX_TOTAL = 16 * 1024 * 1024
 SHA256 = re.compile(r'[0-9a-f]{64}')
 GIT_HEAD = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
+RUN_ID = re.compile(r'r[0-9]{3,}')
+OWN_COMMITS = {'Integrate board': 'board', 'Integrate firmware': 'firmware', 'Integrate case': 'case',
+               'Record team native checks': 'solo', 'Publish checked team board': 'board'}
 QUESTION_SUFFIXES = frozenset(('.json', '.jsonl', '.md', '.txt', '.kicad_sch', '.kicad_pcb',
                                '.kicad_pro', '.c', '.h', '.cpp', '.ino', '.py',
                                '.scad', '.cq', '.svg', '.png', '.jpg', '.jpeg',
@@ -632,6 +635,44 @@ def _mirror(workspace, pilot_root, pilot_workspace, state, pilot_state, stage):
     _apply_journal(workspace, state, journal)
 
 
+def _only_own_commits_since(seed, checkpoint_head):
+    """A failed integration repair imports roles after the last checkpoint: accept only those."""
+    try:
+        finished = json.loads((seed.parent / '.pilot/state.json').read_text())
+        finished_at = finished['roundFinishedAt']
+        if finished.get('status') == 'running' or isinstance(finished_at, bool):
+            return False
+        parallel.git(seed, 'merge-base', '--is-ancestor', checkpoint_head, 'HEAD')
+        log = parallel.git(seed, 'log', '--format=%H%x00%P%x00%ct%x00%s', f'{checkpoint_head}..HEAD')
+        for line in log.splitlines():
+            sha, parents, committed, subject = line.split('\0', 3)
+            role = OWN_COMMITS.get(subject)
+            if role is None or len(parents.split()) != 1 or int(committed) > finished_at + 1:
+                return False
+            names = parallel.git(seed, 'diff-tree', '--no-commit-id', '--name-only', '-r', sha)
+            if any(not owns(role, name) for name in names.splitlines()):
+                return False
+        return True
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return False
+
+
+def _prune_old_runs(workspace, state):
+    """Drop the working copies of runs nothing can seed from again; receipts and logs stay."""
+    active = state.get('activeRun')
+    keep = {active, state.get('lastMirroredRun'), state.get('contractRun')}
+    try:
+        keep.add(json.loads((_control_path(workspace, 'team-runs', active) /
+                             '.pilot/state.json').read_text()).get('draftOriginRun'))
+        runs = _control_path(workspace, 'team-runs')
+        for run in runs.iterdir():
+            if RUN_ID.fullmatch(run.name) and run.name not in keep and not run.is_symlink():
+                for name in ('workers', 'workspace'):
+                    shutil.rmtree(run / name, ignore_errors=True)
+    except (OSError, ValueError, TypeError):
+        pass  # cleanup must never change the run's verdict
+
+
 @contextlib.contextmanager
 def _cancel_on_signal(pilot_root):
     old = {}
@@ -749,7 +790,8 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
             if not seed.is_dir() or parallel.git(seed, 'status', '--porcelain'):
                 raise ValueError('Prior integrated pilot is not a clean Git seed')
             if (seed_run == state.get('lastMirroredRun') and state.get('sourceHead') is not None and
-                    parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead']):
+                    parallel.git(seed, 'rev-parse', 'HEAD') != state['sourceHead'] and
+                    not _only_own_commits_since(seed, state['sourceHead'])):
                 raise ValueError('Prior integrated pilot commit changed since checkpoint')
             if (seed_run == state.get('lastMirroredRun') and state.get('sourceGitMetadataSha256') is not None and
                     _git_metadata_digest(seed) != state['sourceGitMetadataSha256']):
@@ -998,6 +1040,8 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
             preview['runStatus'] = state['status']
             preview['updatedAt'] = time.time()
             _write_preview(workspace, preview)
+            if teams:
+                _prune_old_runs(workspace, state)
 
 
 def status(workspace):

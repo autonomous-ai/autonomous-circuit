@@ -334,6 +334,29 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(entries[0]['userText'], followup_text)
         self.assertEqual(note['assignedRoles'], ['firmware'])
 
+    def test_followups_prune_old_copies_and_keep_working(self):
+        visible = self.base / 'visible'
+        visible.mkdir()
+        for name in ('product.json', 'project.json'):
+            shutil.copy2(CARD / 'template' / name, visible / name)
+        put(visible, '.circuit/team-auto', '')
+        put(visible, '.harness/verdict.json', json.dumps({'ready': False}))
+        first = parallel_tile.start(visible, self.prompt, execute=True,
+                                    runner=self.runner, checker=checker, teams=True)
+        self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
+        self.runner.wait_for_three = False
+        for number in range(2, 6):
+            followup = put(self.base, f'followup{number}.txt', f'Change sampling rate to {number}0 Hz.')
+            state = parallel_tile.start(visible, followup, execute=True,
+                                        runner=self.runner, checker=checker, teams=True)
+            self.assertEqual(state['status'], 'candidate_ready', state.get('error'))
+        runs = visible / '.circuit/team-runs'
+        # r001 holds the contract, r004 the drafts r005 started from.
+        self.assertEqual(sorted(p.parent.name for p in runs.glob('*/workspace')),
+                         ['r001', 'r004', 'r005'])
+        self.assertFalse((runs / 'r002/workers').exists())
+        self.assertTrue((runs / 'r002/.pilot/state.json').is_file())
+
     def test_question_goes_to_read_only_lead_before_contract(self):
         visible = self.base / 'question-project'
         visible.mkdir()
