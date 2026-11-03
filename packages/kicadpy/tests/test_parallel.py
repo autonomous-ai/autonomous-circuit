@@ -710,6 +710,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(args[args.index('-m') + 1], pilot.WORKER)
         self.assertEqual(args[args.index('-s') + 1], 'danger-full-access')
         self.assertIn('--ignore-user-config', args)
+        self.assertNotIn('--skip-git-repo-check', args)
         self.assertIn('--ephemeral', args)
         self.assertIn('approval_policy="never"', args)
         self.assertEqual(invocation['advisor'], 'off')
@@ -724,6 +725,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertIsNone(lead['error'])
         invocation = json.loads((self.workspace / 'invocation.json').read_text())
         self.assertEqual(invocation['args'][invocation['args'].index('-s') + 1], 'read-only')
+        self.assertIn('--skip-git-repo-check', invocation['args'])
 
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA

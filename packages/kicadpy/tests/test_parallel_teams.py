@@ -42,7 +42,7 @@ class TeamRunner:
                     name, expected = self.ask_expected_file
                     assert (workspace / name).read_bytes() == expected
                 result = {'answer': 'The lead has the current project context.'}
-            elif stage == 'lead-addendum-0001':
+            elif stage.startswith('lead-addendum-'):
                 result = {'routes': ['firmware'], 'note': 'Change firmware sampling rate.',
                           'changedFields': ['firmwareBehavior']}
             elif readonly:
@@ -291,6 +291,45 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(len(runner.board_paths), 2)
         self.assertEqual(runner.board_paths[0], runner.board_paths[1])
         self.assertFalse(any(stage.endswith('-advice') for stage, *_ in runner.visits))
+
+    def integration_repair(self, repairs):
+        class RejectOnceRunner(TeamRunner):
+            def __init__(self):
+                super().__init__()
+                self.wait_for_three = False
+                self.rejected = False
+
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                if self.rejected and stage == 'board':
+                    time.sleep(.3)  # siblings import first
+                receipt = super().__call__(root, state, stage, model, workspace,
+                                           prompt, schema, readonly)
+                if self.rejected and stage in repairs:
+                    put(workspace, repairs[stage], f'{stage} repaired')
+                if stage == 'integration-test' and not self.rejected:
+                    self.rejected = True
+                    checkpoints.append('rejected')
+                    receipt['result'] = {
+                        'contractSha256': state['contractSha256'], 'decision': 'revise',
+                        'summary': 'Repair the interface',
+                        'findings': [{'path': path, 'message': 'Repair'} for path in repairs.values()]}
+                return receipt
+
+        checkpoints = []
+        runner = RejectOnceRunner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        finished = parallel.run(self.root, execute=True, runner=runner, checker=checker,
+                                on_checkpoint=lambda _workspace, _state, stage: checkpoints.append(stage))
+        self.assertEqual(finished['status'], 'candidate_ready', finished['findings'])
+        return checkpoints[checkpoints.index('rejected') + 1:]
+
+    def test_integration_repair_checkpoints_each_imported_role(self):
+        repaired = self.integration_repair({'firmware': 'firmware/main.c', 'case': 'case/frame.txt'})
+        self.assertEqual(set(repaired[:2]), {'firmware', 'case'})
+
+    def test_integration_repair_never_checkpoints_an_unchecked_board(self):
+        repaired = self.integration_repair({'board': 'design/main.kicad_pro', 'firmware': 'firmware/main.c'})
+        self.assertEqual(repaired[0], 'board')
 
     def test_followup_adopts_identical_contract_without_a_new_plan(self):
         original = parallel.plan(self.root, execute=True, runner=self.runner)

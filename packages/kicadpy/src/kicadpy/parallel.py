@@ -469,8 +469,9 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
     output = job / 'answer.json'
-    command = ['codex', 'exec', '--ignore-user-config', '--ephemeral', '--json',
-               '-m', model, '-c', 'approval_policy="never"',
+    # Read-only lead views live outside Git; writable workers always run in a worktree.
+    command = ['codex', 'exec', '--ignore-user-config', *(['--skip-git-repo-check'] if readonly else []),
+               '--ephemeral', '--json', '-m', model, '-c', 'approval_policy="never"',
                '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
                '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
                '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
@@ -1973,15 +1974,14 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
                         roles = set(ROLES)
                 if not roles:
                     raise ValueError('Integration tester did not identify a repair owner')
+                if 'board' in roles:
+                    board_checks = None  # no sibling checkpoint may mirror an unchecked repaired board
                 dispatch(root, state, [(role, role) for role in ROLES if role in roles],
-                         runner, checker=checker, on_progress=on_progress,
+                         runner, checker=checker, on_progress=on_progress, on_import=accepted,
                          worktree_tag=f'integration-{repair_round}',
                          guidance={'native': checks, 'integration': integration})
-                if 'board' in roles:
-                    board_checks = publish_native(False)
-                    if not board_checks.get('passed'):
-                        raise ValueError('Repaired board failed integrated native check: ' +
-                                         json.dumps(board_checks.get('findings', [])))
+                if board_checks is None:
+                    raise ValueError('Repaired board produced no checked native handoff')
                 checks = publish_native(True)
                 integration = team_integration_test(root, state, checks, runner)
             if not checks.get('passed') or integration['decision'] != 'approve':

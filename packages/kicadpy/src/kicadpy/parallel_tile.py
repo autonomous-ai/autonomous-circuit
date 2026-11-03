@@ -640,7 +640,8 @@ def _only_own_commits_since(seed, checkpoint_head):
     try:
         finished = json.loads((seed.parent / '.pilot/state.json').read_text())
         finished_at = finished['roundFinishedAt']
-        if finished.get('status') == 'running' or isinstance(finished_at, bool):
+        if (finished.get('status') not in ('needs_revision', 'interrupted') or
+                finished.get('mode') != 'teams' or isinstance(finished_at, bool)):
             return False
         parallel.git(seed, 'merge-base', '--is-ancestor', checkpoint_head, 'HEAD')
         log = parallel.git(seed, 'log', '--format=%H%x00%P%x00%ct%x00%s', f'{checkpoint_head}..HEAD')
@@ -649,8 +650,9 @@ def _only_own_commits_since(seed, checkpoint_head):
             role = OWN_COMMITS.get(subject)
             if role is None or len(parents.split()) != 1 or int(committed) > finished_at + 1:
                 return False
-            names = parallel.git(seed, 'diff-tree', '--no-commit-id', '--name-only', '-r', sha)
-            if any(not owns(role, name) for name in names.splitlines()):
+            names = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-z', '-r', sha],
+                                            cwd=seed)
+            if any(not owns(role, os.fsdecode(name)) for name in names.split(b'\0') if name):
                 return False
         return True
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

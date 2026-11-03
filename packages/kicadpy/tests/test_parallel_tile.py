@@ -46,6 +46,9 @@ def contract():
     }
 
 
+FAILED_TEAM_RUN = {'status': 'needs_revision', 'mode': 'teams'}
+
+
 class FakeRunner:
     def __init__(self, visible, label='first', reject_stage=None):
         self.visible = visible
@@ -545,9 +548,12 @@ class TeamBridgeTests(unittest.TestCase):
             self.run_team(followup)
         self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
 
-    def commit_after_checkpoint(self, name, subject, committed_at=None):
+    def commit_after_checkpoint(self, name, subject, committed_at=None,
+                                status=FAILED_TEAM_RUN):
         source = self.workspace / '.circuit/team-runs/r001/workspace'
-        finished = parallel.status(source.parent)['roundFinishedAt']
+        pilot_state = parallel.status(source.parent)
+        finished = pilot_state['roundFinishedAt']
+        parallel.write(source.parent / '.pilot/state.json', {**pilot_state, **status})
         put(source, name, 'Imported by an integration repair')
         when = f'{int(finished if committed_at is None else committed_at)} +0000'
         with patch.dict(os.environ, {'GIT_COMMITTER_DATE': when}):
@@ -583,6 +589,20 @@ class TeamBridgeTests(unittest.TestCase):
         followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
         with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
             self.run_team(followup)
+
+    def test_followup_refuses_own_commit_subject_after_a_finished_ready_run(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        self.commit_after_checkpoint('design/main.kicad_pro', 'Integrate board',
+                                     status={'mode': 'teams'})
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            self.run_team(followup)
+
+    def test_seed_check_reads_non_ascii_owned_paths(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        source = self.commit_after_checkpoint('design/mạch.kicad_pro', 'Integrate board')
+        self.assertTrue(parallel_tile._only_own_commits_since(
+            source, parallel.git(source, 'rev-parse', 'HEAD~1')))
 
     def test_prune_keeps_the_contract_and_draft_origin_runs(self):
         runs = self.workspace / '.circuit/team-runs'
