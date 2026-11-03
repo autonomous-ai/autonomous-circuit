@@ -42,7 +42,7 @@ class TeamRunner:
                     name, expected = self.ask_expected_file
                     assert (workspace / name).read_bytes() == expected
                 result = {'answer': 'The lead has the current project context.'}
-            elif stage == 'lead-addendum-0001':
+            elif stage.startswith('lead-addendum-'):
                 result = {'routes': ['firmware'], 'note': 'Change firmware sampling rate.',
                           'changedFields': ['firmwareBehavior']}
             elif readonly:
@@ -292,6 +292,45 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(runner.board_paths[0], runner.board_paths[1])
         self.assertFalse(any(stage.endswith('-advice') for stage, *_ in runner.visits))
 
+    def integration_repair(self, repairs):
+        class RejectOnceRunner(TeamRunner):
+            def __init__(self):
+                super().__init__()
+                self.wait_for_three = False
+                self.rejected = False
+
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                if self.rejected and stage == 'board':
+                    time.sleep(.3)  # siblings import first
+                receipt = super().__call__(root, state, stage, model, workspace,
+                                           prompt, schema, readonly)
+                if self.rejected and stage in repairs:
+                    put(workspace, repairs[stage], f'{stage} repaired')
+                if stage == 'integration-test' and not self.rejected:
+                    self.rejected = True
+                    checkpoints.append('rejected')
+                    receipt['result'] = {
+                        'contractSha256': state['contractSha256'], 'decision': 'revise',
+                        'summary': 'Repair the interface',
+                        'findings': [{'path': path, 'message': 'Repair'} for path in repairs.values()]}
+                return receipt
+
+        checkpoints = []
+        runner = RejectOnceRunner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        finished = parallel.run(self.root, execute=True, runner=runner, checker=checker,
+                                on_checkpoint=lambda _workspace, _state, stage: checkpoints.append(stage))
+        self.assertEqual(finished['status'], 'candidate_ready', finished['findings'])
+        return checkpoints[checkpoints.index('rejected') + 1:]
+
+    def test_integration_repair_checkpoints_each_imported_role(self):
+        repaired = self.integration_repair({'firmware': 'firmware/main.c', 'case': 'case/frame.txt'})
+        self.assertEqual(set(repaired[:2]), {'firmware', 'case'})
+
+    def test_integration_repair_never_checkpoints_an_unchecked_board(self):
+        repaired = self.integration_repair({'board': 'design/main.kicad_pro', 'firmware': 'firmware/main.c'})
+        self.assertEqual(repaired[0], 'board')
+
     def test_followup_adopts_identical_contract_without_a_new_plan(self):
         original = parallel.plan(self.root, execute=True, runner=self.runner)
         with self.assertRaisesRegex(ValueError, 'immutable'):
@@ -333,6 +372,29 @@ class TeamFlowTests(unittest.TestCase):
         entries = chain.load_addenda(visible / '.circuit/team-runs/r002')['entries']
         self.assertEqual(entries[0]['userText'], followup_text)
         self.assertEqual(note['assignedRoles'], ['firmware'])
+
+    def test_followups_prune_old_copies_and_keep_working(self):
+        visible = self.base / 'visible'
+        visible.mkdir()
+        for name in ('product.json', 'project.json'):
+            shutil.copy2(CARD / 'template' / name, visible / name)
+        put(visible, '.circuit/team-auto', '')
+        put(visible, '.harness/verdict.json', json.dumps({'ready': False}))
+        first = parallel_tile.start(visible, self.prompt, execute=True,
+                                    runner=self.runner, checker=checker, teams=True)
+        self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
+        self.runner.wait_for_three = False
+        for number in range(2, 6):
+            followup = put(self.base, f'followup{number}.txt', f'Change sampling rate to {number}0 Hz.')
+            state = parallel_tile.start(visible, followup, execute=True,
+                                        runner=self.runner, checker=checker, teams=True)
+            self.assertEqual(state['status'], 'candidate_ready', state.get('error'))
+        runs = visible / '.circuit/team-runs'
+        # r001 holds the contract, r004 the drafts r005 started from.
+        self.assertEqual(sorted(p.parent.name for p in runs.glob('*/workspace')),
+                         ['r001', 'r004', 'r005'])
+        self.assertFalse((runs / 'r002/workers').exists())
+        self.assertTrue((runs / 'r002/.pilot/state.json').is_file())
 
     def test_question_goes_to_read_only_lead_before_contract(self):
         visible = self.base / 'question-project'

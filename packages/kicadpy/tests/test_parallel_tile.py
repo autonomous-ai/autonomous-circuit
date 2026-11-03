@@ -46,6 +46,9 @@ def contract():
     }
 
 
+FAILED_TEAM_RUN = {'status': 'needs_revision', 'mode': 'teams'}
+
+
 class FakeRunner:
     def __init__(self, visible, label='first', reject_stage=None):
         self.visible = visible
@@ -544,6 +547,79 @@ class TeamBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
             self.run_team(followup)
         self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
+
+    def commit_after_checkpoint(self, name, subject, committed_at=None,
+                                status=FAILED_TEAM_RUN):
+        source = self.workspace / '.circuit/team-runs/r001/workspace'
+        pilot_state = parallel.status(source.parent)
+        finished = pilot_state['roundFinishedAt']
+        parallel.write(source.parent / '.pilot/state.json', {**pilot_state, **status})
+        put(source, name, 'Imported by an integration repair')
+        when = f'{int(finished if committed_at is None else committed_at)} +0000'
+        with patch.dict(os.environ, {'GIT_COMMITTER_DATE': when}):
+            parallel.commit(source, [name], subject)
+        return source
+
+    def test_followup_seeds_from_integration_repair_commits_after_the_final_checkpoint(self):
+        # run_teams imports repaired roles without a checkpoint; if a sibling then fails, the
+        # run ends needs_revision with HEAD ahead of sourceHead and must not strand the project.
+        first = self.run_team()
+        self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
+        source = self.commit_after_checkpoint('design/main.kicad_pro', 'Integrate board')
+        head = parallel.git(source, 'rev-parse', 'HEAD')
+        self.assertNotEqual(head, first['sourceHead'])
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        second = self.run_team(followup)
+        self.assertEqual(second['status'], 'candidate_ready', second.get('error'))
+        next_state = parallel.status(self.workspace / '.circuit/team-runs/r002')
+        self.assertEqual(next_state['seedCommit'], head)
+
+    def test_followup_refuses_own_commit_subject_outside_that_roles_files(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        self.commit_after_checkpoint('case/build.py', 'Integrate board')
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            self.run_team(followup)
+
+    def test_followup_refuses_own_commit_subject_made_after_the_run_finished(self):
+        first = self.run_team()
+        self.assertEqual(first['status'], 'candidate_ready')
+        finished = parallel.status(self.workspace / '.circuit/team-runs/r001')['roundFinishedAt']
+        self.commit_after_checkpoint('design/main.kicad_pro', 'Integrate board', finished + 60)
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            self.run_team(followup)
+
+    def test_followup_refuses_own_commit_subject_after_a_finished_ready_run(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        self.commit_after_checkpoint('design/main.kicad_pro', 'Integrate board',
+                                     status={'mode': 'teams'})
+        followup = put(self.workspace, 'prompts/history/followup.md', 'Refine the cover.')
+        with self.assertRaisesRegex(ValueError, 'commit changed since checkpoint'):
+            self.run_team(followup)
+
+    def test_seed_check_reads_non_ascii_owned_paths(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        source = self.commit_after_checkpoint('design/mạch.kicad_pro', 'Integrate board')
+        self.assertTrue(parallel_tile._only_own_commits_since(
+            source, parallel.git(source, 'rev-parse', 'HEAD~1')))
+
+    def test_prune_keeps_the_contract_and_draft_origin_runs(self):
+        runs = self.workspace / '.circuit/team-runs'
+        for name in ('r001', 'r002', 'r003', 'r004', 'r005'):
+            (runs / name / 'workspace').mkdir(parents=True)
+            (runs / name / '.pilot').mkdir()
+        (runs / 'r005/.pilot/state.json').write_text(json.dumps({'draftOriginRun': 'r003'}))
+        parallel_tile._prune_old_runs(self.workspace, {'activeRun': 'r005', 'lastMirroredRun': 'r004',
+                                                       'contractRun': 'r002'})
+        self.assertEqual(sorted(p.parent.name for p in runs.glob('*/workspace')),
+                         ['r002', 'r003', 'r004', 'r005'])
+
+    def test_builders_are_told_to_scope_repair_checks(self):
+        state = {'contractSha256': 'a' * 64, 'mode': 'teams'}
+        prompt = parallel.worker_prompt(state, 'case', 'case')
+        self.assertIn('run only the checks that cover what you changed', prompt)
+        self.assertIn('do not rebuild a binary whose sources did not change', prompt)
 
     def test_followup_refuses_partial_checkpoint_if_sibling_changes_git_config(self):
         runner = BlockOneRoleRunner(self.workspace, 'case', 'firmware/main.c')
