@@ -124,9 +124,12 @@ def _tree_files(root, directory):
     if not base.is_dir():
         raise ValueError(f'Expected directory: {base}')
     for current, dirs, files in os.walk(base, followlinks=False):
-        for name in dirs + files:
-            if (Path(current) / name).is_symlink():
-                raise ValueError(f'Symlink in project-owned directory: {directory}')
+        # Same rules as the pilot snapshot: a worker's build/ scratch is never an artifact.
+        try:
+            dirs[:], files[:] = parallel._drop_scratch_links(root, current, dirs, files)
+        except ValueError as exc:
+            raise ValueError(f'Symlink in project-owned directory: {directory}') from exc
+        dirs[:] = [name for name in dirs if name not in parallel.SKIP]
         for name in files:
             file = Path(current) / name
             if not file.is_file():

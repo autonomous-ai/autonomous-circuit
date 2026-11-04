@@ -647,6 +647,22 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual(runner.visits, [])
         self.assertFalse((self.workspace / '.circuit/team-runs/r002').exists())
 
+    def test_tree_files_follows_snapshot_rules_for_build_scratch(self):
+        put(self.workspace, 'build/case/result.json', '{}')
+        put(self.workspace, 'build/case/browser/node_modules/pkg/index.js', 'x')
+        (self.workspace / 'build/case/browser/node_modules/.bin').mkdir()
+        (self.workspace / 'build/case/browser/node_modules/.bin/tool').symlink_to('../pkg/index.js')
+        (self.workspace / 'build/case/lock').symlink_to('host-1')
+        names = {file.relative_to(self.workspace).as_posix()
+                 for file in parallel_tile._tree_files(self.workspace, 'build/case')}
+        self.assertEqual(names, {'build/case/result.json'})
+
+    def test_tree_files_still_rejects_links_outside_build(self):
+        put(self.workspace, 'case/real.txt', 'x')
+        (self.workspace / 'case/link').symlink_to('real.txt')
+        with self.assertRaisesRegex(ValueError, 'Symlink'):
+            list(parallel_tile._tree_files(self.workspace, 'case'))
+
     def test_reference_assets_cannot_escape_through_a_symlinked_parent(self):
         external = self.base / 'external-prompts'
         shutil.move(self.workspace / 'prompts', external)

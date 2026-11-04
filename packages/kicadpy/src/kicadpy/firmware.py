@@ -20,6 +20,7 @@ the sources it was built from. The Flash button reads the same recipe, so "built
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ FIRMWARE_DIR = 'firmware'
 README = 'README.md'
 #: The Flash button's recipe (viewer firmwareFlash.mjs). Asked for, never required for `written`.
 RECIPE = 'flash.json'
+BUILD_PROOF = 'build-proof.json'
 SOURCE_SUFFIXES = frozenset({
     '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.ino', '.s', '.asm', '.ld',
     '.py', '.rs', '.js', '.ts', '.lua',
@@ -129,8 +131,48 @@ def binary(workspace: Path | str) -> Path | None:
     return None
 
 
+def _fingerprint(workspace: Path | str) -> dict | None:
+    """The bytes a build result depends on: the binary and every compiled source."""
+    target = binary(workspace)
+    try:
+        return {'binary': hashlib.sha256(target.read_bytes()).hexdigest(),
+                'sources': {rel: hashlib.sha256((Path(workspace) / rel).read_bytes()).hexdigest()
+                            for rel in sources(workspace) if compiles_into_binary(rel)}}
+    except (AttributeError, OSError):
+        return None
+
+
+def record_build(workspace: Path | str, built_in: Path | str) -> str | None:
+    """Keep a build's freshness once its files are copied, when `workspace` holds what `built_in` built.
+
+    Git checkouts and imports rewrite mtimes, and an identical rebuilt binary is not copied at
+    all. Returns the workspace-relative proof path, or None when nothing was proven.
+    """
+    target, proof = binary(workspace), _fingerprint(workspace)
+    if target is None or proof is None or not built(built_in) or proof != _fingerprint(built_in):
+        return None
+    path = target.parent / BUILD_PROOF
+    try:
+        rel = path.relative_to(Path(workspace))
+    except ValueError:
+        return None
+    path.write_text(json.dumps(proof, indent=1, sort_keys=True) + '\n', encoding='utf-8')
+    return rel.as_posix()
+
+
+def _proven(workspace: Path | str, target: Path) -> bool:
+    try:
+        proof = json.loads((target.parent / BUILD_PROOF).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return False
+    return proof == _fingerprint(workspace)
+
+
 def built(workspace: Path | str) -> bool:
-    """The recipe's binary exists, is not empty, and is no older than any compiled source."""
+    """The recipe's binary exists, is not empty, and is no older than any compiled source.
+
+    Identical bytes to a recorded build also count, whatever a copy did to the mtimes.
+    """
     target = binary(workspace)
     if target is None:
         return False
@@ -148,7 +190,7 @@ def built(workspace: Path | str) -> bool:
             newest = max(newest, (Path(workspace) / rel).stat().st_mtime)
         except OSError:
             continue
-    return stat.st_mtime >= newest
+    return stat.st_mtime >= newest or _proven(workspace, target)
 
 
 def firmware_built(workspace: Path | str) -> bool:

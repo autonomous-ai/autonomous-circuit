@@ -1,4 +1,6 @@
 """`firmware/` is written when the Firmware tab would show something: a README and a source; built when the recipe's binary exists."""
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +18,51 @@ class FirmwareWrittenTest(unittest.TestCase):
         path = self.ws / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+
+    def build_tree(self, root, source='int main;'):
+        for rel, text in (('firmware/flash.json', json.dumps({'family': 'rp2040', 'uf2': '../build/firmware/a.uf2'})),
+                          ('firmware/README.md', 'r'), ('firmware/main.c', source),
+                          ('build/firmware/a.uf2', 'compiled')):
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        os.utime(root / 'firmware/main.c', (100, 100))
+        os.utime(root / 'build/firmware/a.uf2', (200, 200))
+
+    def test_recorded_build_survives_a_checkout_that_reorders_mtimes(self):
+        self.build_tree(self.ws)
+        self.assertEqual(firmware.record_build(self.ws, self.ws), 'build/firmware/build-proof.json')
+        os.utime(self.ws / 'firmware/main.c', (300, 300))
+        self.assertTrue(firmware.built(self.ws))
+
+    def test_identical_rebuild_elsewhere_proves_the_receiving_tree(self):
+        self.build_tree(self.ws)
+        os.utime(self.ws / 'firmware/main.c', (300, 300))
+        self.assertFalse(firmware.built(self.ws))
+        with tempfile.TemporaryDirectory() as worker:
+            self.build_tree(Path(worker))
+            self.assertIsNotNone(firmware.record_build(self.ws, worker))
+        self.assertTrue(firmware.built(self.ws))
+
+    def test_recorded_build_never_covers_an_edited_source_or_binary(self):
+        self.build_tree(self.ws)
+        firmware.record_build(self.ws, self.ws)
+        (self.ws / 'firmware/main.c').write_text('int edited;')
+        os.utime(self.ws / 'firmware/main.c', (300, 300))
+        self.assertFalse(firmware.built(self.ws))
+        self.build_tree(self.ws)
+        (self.ws / 'build/firmware/a.uf2').write_text('other')
+        os.utime(self.ws / 'build/firmware/a.uf2', (50, 50))
+        self.assertFalse(firmware.built(self.ws))
+
+    def test_stale_worker_or_different_files_record_nothing(self):
+        self.build_tree(self.ws)
+        os.utime(self.ws / 'firmware/main.c', (300, 300))
+        self.assertIsNone(firmware.record_build(self.ws, self.ws))
+        self.assertFalse((self.ws / 'build/firmware/build-proof.json').exists())
+        with tempfile.TemporaryDirectory() as worker:
+            self.build_tree(Path(worker), source='int other;')
+            self.assertIsNone(firmware.record_build(self.ws, worker))
 
     def test_no_dir_empty_dir_or_readme_alone_is_not_written(self):
         self.assertFalse(firmware.firmware_written(self.ws))
