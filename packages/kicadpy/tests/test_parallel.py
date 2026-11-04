@@ -553,6 +553,15 @@ class PilotTests(unittest.TestCase):
         put(workspace, 'case/chrome/Local State', '{}')
         self.assertIn('case/chrome/Local State', pilot.snapshot(workspace))
 
+    def test_cancel_tolerates_an_exited_unreaped_job(self):
+        job = subprocess.Popen(['true'], start_new_session=True)
+        time.sleep(.3)  # exited but not reaped: macOS killpg answers EPERM here
+        with pilot.ACTIVE_LOCK:
+            pilot.ACTIVE[str(self.root)] = {job.pid}
+        self.addCleanup(pilot.ACTIVE.pop, str(self.root), None)
+        pilot.cancel_jobs(self.root)
+        job.wait()
+
     def test_job_end_reaps_detached_tools_of_that_worktree_only(self):
         worktree = self.root / 'workers/r001-case'
         spawn = lambda path: subprocess.Popen(

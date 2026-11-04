@@ -124,7 +124,7 @@ def cancel_jobs(root):
         for pid in list(ACTIVE.get(str(root), ())):
             try:
                 os.killpg(pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):  # macOS: EPERM for an exited, unreaped group
                 pass
 
 
@@ -546,7 +546,7 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
             # Include children left running after the CLI exited.
             try:
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
                 pass
             _reap_worktree_processes(root, workspace)
             if not io_complete:
@@ -1946,6 +1946,12 @@ def native_failure_roles(checks):
     return roles
 
 
+def _undelivered_roles(workspace):
+    # Top-level product.json comes from the project template, so only team directories count.
+    names = [name for name in snapshot(workspace) if '/' in name]
+    return {role for role in ROLES if not any(owns(role, name) for name in names)}
+
+
 def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=None,
               on_progress=None):
     """Run independent builder/tester teams, then reconcile their interfaces."""
@@ -1960,6 +1966,9 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
         assigned = state.get('assignedRoles', list(ROLES))
         if not isinstance(assigned, list) or not assigned or any(role not in ROLES for role in assigned):
             raise ValueError('Invalid lead team assignment')
+        # A note routed to one team on a new project cannot skip teams with nothing delivered yet.
+        missing = _undelivered_roles(workspace)
+        assigned = state['assignedRoles'] = [role for role in ROLES if role in assigned or role in missing]
         tip = load_addenda(root, state['contractSha256'])['tipSha256']
         state['status'], state['roundStartedAt'] = 'running', time.time()
         state['releaseNoteTipSha256'] = tip

@@ -164,6 +164,26 @@ class TeamFlowTests(unittest.TestCase):
         self.runner = TeamRunner()
         parallel.initialize(self.root, self.prompt, instructions=CARD, mode='teams')
 
+    def test_note_routed_to_one_team_on_an_empty_project_runs_every_team(self):
+        planned = parallel.plan(self.root, execute=True, runner=self.runner)
+        self.assertEqual(planned['status'], 'planned')
+        planned['assignedRoles'] = ['case']
+        parallel.write(self.root / '.pilot/state.json', planned)
+        result = parallel.run(self.root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(result['assignedRoles'], list(parallel.ROLES))
+        stages = [stage for stage, *_ in self.runner.visits]
+        self.assertEqual({stage for stage in stages if stage in parallel.ROLES}, set(parallel.ROLES))
+
+    def test_template_files_do_not_count_as_a_delivered_board(self):
+        workspace = self.base / 'fresh'
+        put(workspace, 'product.json', '{}')
+        put(workspace, 'project.json', '{}')
+        self.assertEqual(parallel._undelivered_roles(workspace), set(parallel.ROLES))
+        put(workspace, 'design/main.kicad_pcb', 'board')
+        put(workspace, 'case/out/parts.json', '{}')
+        self.assertEqual(parallel._undelivered_roles(workspace), {'firmware'})
+
     def test_all_three_builders_start_together_and_each_has_a_tester(self):
         planned = parallel.plan(self.root, execute=True, runner=self.runner)
         self.assertEqual(planned['status'], 'planned')
