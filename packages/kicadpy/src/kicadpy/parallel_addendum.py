@@ -389,7 +389,8 @@ def carry_addenda(source_root, target_root):
     with ExitStack() as locks:
         for root in sorted((source_root, target_root)):
             locks.enter_context(_addendum_lock(root))
-        source_root, source = parallel.load(source_root)
+        # Release notes are data: a pipeline update must not strand a project's follow-ups.
+        source_root, source = parallel.load(source_root, same_pipeline=False)
         target_root, target = parallel.load(target_root)
         if (source.get('revision') != 1 or target.get('revision') != 1 or
                 not source.get('contractFile') or not target.get('contractFile') or

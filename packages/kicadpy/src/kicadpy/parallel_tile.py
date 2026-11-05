@@ -459,6 +459,15 @@ def _visible_unchanged(workspace, state):
             raise ValueError('Initial native verdict changed outside the team')
 
 
+def _draft_origin_run(workspace, run):
+    """A run that stopped before any team started holds no drafts, so look behind it."""
+    runs = _control_path(workspace, 'team-runs')
+    for number in range(int(run[1:]), 0, -1):
+        if any((runs / f'r{number:03}' / '.pilot/rounds/1').glob('*-draft-base.json')):
+            return f'r{number:03}'
+    return run
+
+
 def _copy_assets(workspace, pilot_workspace, asset_manifest):
     names = []
     for name, info in sorted(asset_manifest.items()):
@@ -850,7 +859,7 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                                 _control_path(workspace, 'team-runs', prior_run) /
                                 '.pilot/state.json').read_text())
                             planned['draftOriginRun'] = previous_pilot.get('draftOriginRun', prior_run) \
-                                if previous_pilot.get('status') == 'print_only' else prior_run
+                                if previous_pilot.get('status') == 'print_only' else _draft_origin_run(workspace, prior_run)
                             carry_addenda(_control_path(workspace, 'team-runs', prior_run),
                                            pilot_root)
                         if resume_notes:

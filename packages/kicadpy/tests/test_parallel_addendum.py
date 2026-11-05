@@ -307,6 +307,21 @@ class AddendumTests(unittest.TestCase):
         self.assertEqual(pilot.git(target / 'workspace', 'rev-parse', 'HEAD'), original_head)
         self.assertIn('watchdog', notes.notes_for_role(target, 'firmware'))
 
+    def test_carry_reads_release_notes_from_a_run_on_an_older_pipeline(self):
+        first = self.first_note()
+        target = self.base / 'next-run'
+        pilot.initialize(target, self.prompt, instructions=ROOT / 'harness/kicad')
+        target_root, target_state = pilot.load(target)
+        source_contract = json.loads((self.root / 'workspace/PILOT_CONTRACT.json').read_text())
+        pilot.seal(target_root, target_state, source_contract['interfaces'])
+        pilot.write(target_root / '.pilot/state.json', target_state)
+        old = json.loads((self.root / '.pilot/state.json').read_text())
+        pilot.write(self.root / '.pilot/state.json', {**old, 'pipelineSha256': 'older'})
+        with self.assertRaisesRegex(ValueError, 'Pipeline/checker source changed'):
+            pilot.load(self.root)
+        carried = notes.carry_addenda(self.root, target)
+        self.assertEqual(carried['entries'][0]['sha256'], first['sha256'])
+
     def test_carry_rejects_a_different_original_contract(self):
         self.first_note()
         target = self.base / 'other-run'

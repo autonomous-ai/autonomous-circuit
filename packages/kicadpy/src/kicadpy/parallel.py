@@ -282,7 +282,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     return state
 
 
-def load(root):
+def load(root, *, same_pipeline=True):
+    """An earlier run read only for its records passes `same_pipeline=False`; it is not resumed."""
     root = Path(root).resolve()
     state = json.loads((root / '.pilot/state.json').read_text())
     if state.get('schema') != 1:
@@ -294,7 +295,7 @@ def load(root):
         raise ValueError('Prompt/instruction snapshot changed; use a new benchmark run')
     if (root / 'workspace/PILOT_BRIEF.md').read_text() != prompt:
         raise ValueError('Workspace brief changed')
-    if pipeline_sha(state['toolchainRoot']) != state['pipelineSha256']:
+    if same_pipeline and pipeline_sha(state['toolchainRoot']) != state['pipelineSha256']:
         raise ValueError('Pipeline/checker source changed; use a pinned checkout for this pilot')
     if (state.get('gitMetadataSha256') is not None and
             digest(_git_metadata_sha(root / 'workspace')) != state['gitMetadataSha256']):

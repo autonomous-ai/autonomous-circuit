@@ -508,6 +508,15 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertEqual((self.workspace / 'project.json').read_bytes(), project_metadata)
         self.assertEqual(parallel_tile.status(self.workspace)['pilot']['status'], 'candidate_ready')
 
+    def test_draft_origin_skips_a_run_that_stopped_before_any_team_started(self):
+        runs = self.workspace / '.circuit/team-runs'
+        put(runs / 'r004/.pilot/rounds/1', 'case-draft-base.json', '{}')
+        (runs / 'r005/.pilot').mkdir(parents=True)
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r005'), 'r004')
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r004'), 'r004')
+        put(runs / 'r005/.pilot/rounds/1', 'firmware-draft-base.json', '{}')
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r005'), 'r005')
+
     def test_followup_seeds_accepted_design_and_copies_attached_reference(self):
         first = self.run_team()
         self.assertEqual(first['status'], 'candidate_ready', first.get('error'))
