@@ -20,6 +20,9 @@ workflow from inside a pilot role worktree.
 If `.circuit/team-auto` exists in this workspace, this section governs every board build and
 design change. Harness puts that marker in **new Codex KiCad projects**. A project without it keeps
 the single-agent workflow below; never add the marker to an existing project or running session.
+When you write the project's top-level README, read `.pilot/tester-notes/` and
+`.pilot/lead-document-findings.json` in the latest run under `.circuit/team-runs/`, and list what
+they name in a short section on what the person may need to fix by hand.
 The person only needs to open KiCad in Harness and send a prompt. You are the entry agent and
 their single communication path to the Astra lead. Pass the person's exact request through the
 tile bridge; the lead assigns design work to the electrical board, firmware, and case teams and

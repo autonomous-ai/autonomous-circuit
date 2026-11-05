@@ -236,6 +236,9 @@ class TeamFlowTests(unittest.TestCase):
         prompts = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
         self.assertIn('one full review', prompts[0])
         self.assertIn('moving parts collide or jam', prompts[0])
+        self.assertIn('reversed battery polarity', prompts[0])
+        notes = json.loads((self.root / '.pilot/tester-notes/firmware.json').read_text())
+        self.assertEqual(notes['summary'], 'One blocker')  # a re-test does not replace the review
         self.assertNotIn('RE-TEST', prompts[0])
         self.assertIn('RE-TEST', prompts[1])
         self.assertIn('Wrong pin', prompts[1])
@@ -285,6 +288,7 @@ class TeamFlowTests(unittest.TestCase):
         root, state = parallel.load(self.root)
         self.assertIn('load-bearing walls', parallel.worker_prompt(state, 'case', 'case'))
         self.assertNotIn('load-bearing walls', parallel.worker_prompt(state, 'firmware', 'firmware'))
+        self.assertIn('every CPU core', parallel.worker_prompt(state, 'firmware', 'firmware'))
 
     def test_testers_use_their_own_model(self):
         root = self.base / 'split'

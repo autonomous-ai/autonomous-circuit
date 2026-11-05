@@ -1111,8 +1111,10 @@ def worker_prompt(state, role, stage):
             + ('Avoid thin parts hanging free: carry load through box sections or load-bearing walls. '
                if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
-            'budget expires. Publish useful drafts early. While repairing, run only the checks that '
-            'cover what you changed, then your full check suite once before you finish; do not '
+            'budget expires. Publish useful drafts early. Make slow checks you write use every CPU '
+            'core and skip work when their inputs have not changed. While repairing, run only the '
+            'checks that cover what you changed, at a coarser sampling when that still shows the '
+            'repair works, then your full check suite once before you finish; do not '
             'rebuild a binary whose sources did not change. A local pass is not final product readiness; '
             'the integration check reconciles all teams. If a sealed detail inside your own domain '
             'is wrong or infeasible (a datasheet contradicts an internal pin, an agent-chosen '
@@ -1432,7 +1434,8 @@ def _tester_model(state):
 
 TESTER_RULES = (
     'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
-    'cannot build, flash or do the core job in the brief; a limit in the brief on size, part count, '
+    'cannot build, flash or do the core job in the brief; an electrical fault can damage hardware or '
+    'is unsafe, such as reversed battery polarity; a limit in the brief on size, part count, '
     'screw count, print time or weight is exceeded; moving parts collide or jam, such as a leg hitting '
     'the body or a wheel that cannot turn, anywhere in their required travel; or a thin part hanging '
     'free will clearly break under load, since structure should be box sections or load-bearing walls. '
@@ -1448,6 +1451,11 @@ def _recheck_text(findings):
             'actual files, and do not report anything else. Return revise citing only those still '
             'open, or approve when all are fixed.\nFINDINGS TO RE-CHECK:\n' +
             json.dumps(findings, sort_keys=True) + '\n')
+
+
+def _save_tester_notes(root, stage, result):
+    """The first review's summary holds what a person can fix by hand; the lead reports it."""
+    write(Path(root) / '.pilot/tester-notes' / f'{stage}.json', {'stage': stage, 'summary': result['summary']})
 
 
 def _only_rechecked(result, findings):
@@ -1526,7 +1534,10 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         if (path.is_absolute() or '..' in path.parts or not owns(role, str(path)) or
                 (worktree / path).is_symlink()):
             raise ValueError('Team tester finding must cite its team-owned path')
-    return _only_rechecked(result, recheck) if recheck else result
+    if recheck:
+        return _only_rechecked(result, recheck)
+    _save_tester_notes(root, stage, result)
+    return result
 
 
 def dispatch(root, state, stages, runner, on_import=None, checker=None,
@@ -2185,7 +2196,10 @@ def team_integration_test(root, state, checks, runner, recheck=None):
                 (not owns('solo', str(path)) and str(path) != 'PILOT_CONTRACT.json') or
                 (workspace / path).is_symlink()):
             raise ValueError('Integration finding needs a team-owned path')
-    return _only_rechecked(result, recheck) if recheck else result
+    if recheck:
+        return _only_rechecked(result, recheck)
+    _save_tester_notes(root, 'integration', result)
+    return result
 
 
 def native_failure_roles(checks):
