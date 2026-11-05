@@ -636,6 +636,81 @@ def agent(root, state, stage, model, workspace, prompt, schema, readonly):
     return run_job(root, state, stage, model, workspace, prompt, schema, readonly)
 
 
+class _CommandClock(threading.Thread):
+    """Time each tool call from the live event file; neither CLI reports a duration."""
+
+    def __init__(self, events, log):
+        super().__init__(daemon=True)
+        self.events, self.log = Path(events), Path(log)
+        self.open = {}
+        self.count = 0
+        self.seconds = 0.0
+        self.offset = 0
+        self.done = threading.Event()
+
+    def _record(self, command, began, now, exit_code=None, unfinished=False):
+        seconds = round(now - began, 1)
+        self.count += 1
+        self.seconds += seconds
+        entry = {'command': command[:300], 'startedAt': began, 'seconds': seconds, 'exitCode': exit_code}
+        with self.log.open('a') as stream:
+            stream.write(json.dumps({**entry, 'unfinished': True} if unfinished else entry) + '\n')
+
+    def feed(self, line, now):
+        try:
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                return
+            item = event.get('item')
+            if isinstance(item, dict) and item.get('type') == 'command_execution':  # Codex
+                if event.get('type') == 'item.started':
+                    self.open[item['id']] = (item.get('command') or '', now)
+                elif event.get('type') == 'item.completed' and item['id'] in self.open:
+                    command, began = self.open.pop(item['id'])
+                    self._record(command, began, now, item.get('exit_code'))
+            message = event.get('message')
+            for block in (message.get('content') if isinstance(message, dict) else None) or ():  # Claude
+                if not isinstance(block, dict):
+                    continue
+                if block.get('type') == 'tool_use':
+                    tool_input = block.get('input') or {}
+                    self.open[block['id']] = (tool_input.get('command') or
+                                              f"{block.get('name')} {tool_input.get('file_path', '')}".strip(), now)
+                elif block.get('type') == 'tool_result' and block.get('tool_use_id') in self.open:
+                    command, began = self.open.pop(block['tool_use_id'])
+                    self._record(command, began, now)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return
+
+    def _read(self):
+        if not self.events.is_file():
+            return
+        with self.events.open(errors='replace') as stream:
+            stream.seek(self.offset)
+            while True:
+                position = stream.tell()
+                line = stream.readline()
+                if not line.endswith('\n'):
+                    self.offset = position
+                    return
+                self.feed(line, time.time())
+
+    def run(self):
+        while not self.done.wait(1):
+            self._read()
+
+    def finish(self):
+        """A tool still open at the end is what a timeout was waiting on, so keep it."""
+        self.done.set()
+        self.join(5)
+        self._read()
+        now = time.time()
+        for command, began in self.open.values():
+            self._record(command, began, now, unfinished=True)
+        self.open = {}
+        return {'count': self.count, 'seconds': round(self.seconds, 1)}
+
+
 def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, name,
                  answer, usage, capacity, exit_detail=lambda stdout: ''):
     began = time.time()
@@ -643,13 +718,19 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
     process = None
     io_complete = False
     interrupted = timed_out = False
+    # The CLI writes events straight to the job folder, so a running job can be inspected.
+    events = job / 'events.jsonl'
+    clock = _CommandClock(events, job / 'commands.jsonl')
+    clock.start()
     try:
-        process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+        with events.open('w') as event_stream:
+            process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=event_stream,
+                                       stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
         with ACTIVE_LOCK:
             ACTIVE.setdefault(str(root), set()).add(process.pid)
-        stdout, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
+        _, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
         io_complete = True
+        stdout = events.read_text(errors='replace')
         if process.returncode:
             raise ValueError(f'{name} exited {process.returncode}{exit_detail(stdout)}')
         result = answer(stdout)
@@ -668,20 +749,21 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
             _reap_worktree_processes(root, workspace)
             if not io_complete:
                 try:
-                    stdout, stderr = process.communicate(timeout=5)
+                    _, stderr = process.communicate(timeout=5)
                 except subprocess.TimeoutExpired as exc:
                     # A separately-sessioned tool must not hold the controller's pipes forever.
                     decode = lambda value: value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
-                    stdout, stderr = decode(exc.output), decode(exc.stderr)
-                    process.stdout.close()
+                    stderr = decode(exc.stderr)
                     process.stderr.close()
                     error = (error or '') + '; job pipes did not close after termination'
             with ACTIVE_LOCK:
                 ACTIVE.get(str(root), set()).discard(process.pid)
-        (job / 'events.jsonl').write_text(stdout)
-        (job / 'stderr.log').write_text(stderr)
+        if not io_complete and events.is_file():
+            stdout = events.read_text(errors='replace')
+        (job / 'stderr.log').write_text(stderr or '')
+        commands = clock.finish()
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
-               'usage': usage(stdout), 'result': result, 'error': error,
+               'usage': usage(stdout), 'commands': commands, 'result': result, 'error': error,
                'failureKind': ('interrupted' if interrupted else 'timeout' if timed_out else
                                'model_capacity' if error and process is not None and
                                process.returncode not in (None, 0) and capacity(stdout) else None),

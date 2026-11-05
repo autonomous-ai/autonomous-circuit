@@ -767,6 +767,8 @@ if not os.environ.get('PILOT_STUB_SKIP_INVOCATION'):
         'cmake': os.environ.get('KICAD_HARNESS_CMAKE'),
         'pioCore': os.environ.get('PLATFORMIO_CORE_DIR'),
     }))
+print(json.dumps({'type':'item.started','item':{'id':'item_1','type':'command_execution','command':'make check'}}), flush=True)
+print(json.dumps({'type':'item.completed','item':{'id':'item_1','type':'command_execution','command':'make check','exit_code':0}}), flush=True)
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
 if os.environ.get('PILOT_STUB_HANG'):
@@ -937,6 +939,50 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
             put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
             with self.assertRaisesRegex(ValueError, 'lead and tester'):
                 pilot.team_models(project)
+
+    def test_job_logs_each_command_with_its_time(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                              'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(receipt['commands']['count'], 1)
+        logged = (self.root / receipt['logDirectory'] / 'commands.jsonl').read_text().splitlines()
+        entry = json.loads(logged[0])
+        self.assertEqual((entry['command'], entry['exitCode']), ('make check', 0))
+        self.assertIn('turn.completed', (self.root / receipt['logDirectory'] / 'events.jsonl').read_text())
+
+    def command_clock(self):
+        job = self.base / 'clock'
+        job.mkdir()
+        return pilot._CommandClock(job / 'events.jsonl', job / 'commands.jsonl'), job / 'commands.jsonl'
+
+    def test_command_clock_times_codex_commands(self):
+        clock, log = self.command_clock()
+        item = {'id': 'i', 'type': 'command_execution', 'command': 'python check.py'}
+        clock.feed(json.dumps({'type': 'item.started', 'item': item}), 100)
+        clock.feed('not json', 101)
+        clock.feed(json.dumps({'type': 'item.completed', 'item': {**item, 'exit_code': 2}}), 160.5)
+        entry = json.loads(log.read_text())
+        self.assertEqual((entry['command'], entry['seconds'], entry['exitCode']), ('python check.py', 60.5, 2))
+
+    def test_command_clock_times_claude_tools(self):
+        clock, log = self.command_clock()
+        use = lambda block: json.dumps({'type': 'assistant', 'message': {'content': [block]}})
+        clock.feed(use({'type': 'tool_use', 'id': 'a', 'name': 'Bash', 'input': {'command': 'ls'}}), 10)
+        clock.feed(use({'type': 'tool_use', 'id': 'b', 'name': 'Read', 'input': {'file_path': 'x.md'}}), 10)
+        clock.feed(json.dumps({'type': 'user', 'message': {'content': [
+            {'type': 'tool_result', 'tool_use_id': 'b'}, {'type': 'tool_result', 'tool_use_id': 'a'}]}}), 13)
+        entries = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual([(e['command'], e['seconds']) for e in entries], [('Read x.md', 3), ('ls', 3)])
+
+    def test_command_clock_keeps_the_command_a_timeout_was_waiting_on(self):
+        clock, log = self.command_clock()
+        clock.feed(json.dumps({'type': 'item.started', 'item': {
+            'id': 'i', 'type': 'command_execution', 'command': 'sweep'}}), time.time() - 30)
+        clock.start()
+        self.assertEqual(clock.finish()['count'], 1)
+        entry = json.loads(log.read_text())
+        self.assertTrue(entry['unfinished'])
+        self.assertGreaterEqual(entry['seconds'], 29)
 
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
