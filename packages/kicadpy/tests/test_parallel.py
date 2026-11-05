@@ -826,6 +826,99 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(invocation['args'][invocation['args'].index('-s') + 1], 'read-only')
         self.assertIn('--skip-git-repo-check', invocation['args'])
 
+    def claude_stub(self):
+        stub = put(self.base, 'bin/claude', '#!' + sys.executable + '\n' + r"""
+import json, os, pathlib, sys
+args = sys.argv[1:]
+prompt = sys.stdin.read()
+blocked = False
+try:
+    pathlib.Path('tester-wrote-this').write_text('x')
+except OSError:
+    blocked = True
+pathlib.Path(os.environ['PILOT_STUB_OUT']).write_text(json.dumps({
+    'args': args, 'prompt': prompt, 'blocked': blocked,
+    'nested': os.environ.get('CLAUDECODE'), 'memory': os.environ.get('CLAUDE_CODE_DISABLE_CLAUDE_MDS'),
+    'advisor': os.environ.get('KICAD_ADVISOR')}))
+if os.environ.get('PILOT_STUB_OVERLOADED'):
+    print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': 529, 'result': 'Overloaded'}))
+    sys.exit(1)
+if os.environ.get('PILOT_STUB_NO_ANSWER'):
+    print(json.dumps({'type': 'result', 'is_error': False, 'result': 'prose only'}))
+    sys.exit(0)
+print('{"type":"result","note":"not json for the last line"')
+print(json.dumps({'type': 'assistant', 'message': 'overloaded'}))
+print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
+                  'structured_output': {'contractSha256': 'hash', 'stage': 'worker', 'summary': 'done', 'blockers': []},
+                  'modelUsage': {'claude-opus-5-5': {'inputTokens': 4, 'outputTokens': 20, 'thinkingTokens': 7,
+                                                     'cacheReadInputTokens': 60, 'cacheCreationInputTokens': 36}}}))
+""")
+        stub.chmod(0o755)
+        out = self.base / 'claude-invocation.json'
+        env = patch.dict(os.environ, {'PILOT_STUB_OUT': str(out), 'CLAUDECODE': '1'})
+        env.start()
+        self.addCleanup(env.stop)
+        return out
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_adapter_is_read_only_isolated_and_reports_codex_shaped_usage(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        receipt = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                              'read only', RESULT_SCHEMA, True)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual(receipt['result']['summary'], 'done')
+        self.assertEqual(receipt['usage'], {'input_tokens': 100, 'cached_input_tokens': 60, 'output_tokens': 20,
+                                            'reasoning_output_tokens': 7, 'cost_usd': 1.5})
+        seen = json.loads(out.read_text())
+        self.assertTrue(seen['blocked'])
+        self.assertFalse((self.workspace / 'tester-wrote-this').exists())
+        self.assertEqual(seen['prompt'], 'read only')
+        self.assertIsNone(seen['nested'])
+        self.assertEqual((seen['memory'], seen['advisor']), ('1', 'off'))
+        args = seen['args']
+        self.assertEqual(args[args.index('--model') + 1], 'claude-opus-5-5')
+        self.assertEqual(args[args.index('--setting-sources') + 1], '')
+        self.assertEqual(args[args.index('--permission-mode') + 1], 'dontAsk')
+        self.assertEqual(args[args.index('--tools') + 1], 'Read,Grep,Glob,Bash')
+        self.assertNotIn('--dangerously-skip-permissions', args)
+
+    def test_agent_keeps_gpt_models_on_codex(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        pilot.agent(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                    'scoped task', RESULT_SCHEMA, False)
+        self.assertTrue((self.workspace / 'invocation.json').is_file())
+
+    def test_claude_never_builds(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        with self.assertRaisesRegex(ValueError, 'read-only'):
+            pilot.agent(self.root, self.state, 'worker', 'claude-opus-5-5', self.workspace,
+                        'scoped task', RESULT_SCHEMA, False)
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_overload_is_capacity_and_missing_answer_is_an_error(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.claude_stub()
+        with patch.dict(os.environ, {'PILOT_STUB_OVERLOADED': '1'}):
+            busy = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                               'read only', RESULT_SCHEMA, True)
+        self.assertEqual(busy['failureKind'], 'model_capacity')
+        with patch.dict(os.environ, {'PILOT_STUB_NO_ANSWER': '1'}):
+            empty = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                                'read only', RESULT_SCHEMA, True)
+        self.assertIn('no structured answer', empty['error'])
+        self.assertIsNone(empty['failureKind'])
+
+    def test_team_models_defaults_override_and_bad_file(self):
+        project = self.base / 'project'
+        self.assertEqual(pilot.team_models(project), {'lead': pilot.LEAD, 'tester': pilot.WORKER})
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'tester': 'claude-opus-5-5'}))
+        self.assertEqual(pilot.team_models(project), {'lead': pilot.LEAD, 'tester': 'claude-opus-5-5'})
+        for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5']):
+            put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
+            with self.assertRaisesRegex(ValueError, 'lead and tester'):
+                pilot.team_models(project)
+
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         # Allow interpreter startup under host load; the child marker is delayed past this bound.

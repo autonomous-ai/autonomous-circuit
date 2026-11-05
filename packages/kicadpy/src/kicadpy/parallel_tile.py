@@ -830,8 +830,10 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
         _write_preview(workspace, _new_preview(run_id))
         try:
             with _cancel_on_signal(pilot_root) as cancelled, _prevent_idle_sleep():
+                models = parallel.team_models(workspace)
                 parallel.initialize(pilot_root, frozen_prompt, seed=seed,
-                                    mode='teams' if teams else 'parallel')
+                                    mode='teams' if teams else 'parallel',
+                                    lead_model=models['lead'], tester_model=models['tester'])
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(1 if teams else max_rounds):
@@ -1309,7 +1311,7 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
     parallel.write(view / 'PRINT_ACCOUNT_STATUS.json', print_account)
     parallel.write(view / 'TEAM_STATUS.json', context)
     before = parallel.snapshot(view)
-    runtime = {'leadModel': parallel.LEAD, 'workerModel': parallel.WORKER,
+    runtime = {'leadModel': parallel.team_models(workspace)['lead'], 'workerModel': parallel.WORKER,
                'toolchainRoot': str(tool_root), 'planAttempts': 0, 'revision': 0,
                'timeoutSeconds': 1800, 'jobs': []}
     schema = obj({'answer': STRING})
@@ -1324,7 +1326,7 @@ def ask(workspace, prompt_file, *, execute=False, runner=None):
                'in the verified print/events.jsonl may support that claim. '
                'This is read-only: do not edit files, create a contract or release note, '
                'delegate, start workers, or claim a physical test.\n\nUSER QUESTION:\n' + question)
-    runner = runner or parallel.codex
+    runner = runner or parallel.agent
     for attempt, delay in enumerate((0, *parallel.CAPACITY_RETRY_DELAYS), 1):
         if delay:
             time.sleep(delay)

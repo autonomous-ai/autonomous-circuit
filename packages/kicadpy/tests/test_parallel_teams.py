@@ -175,6 +175,55 @@ class TeamFlowTests(unittest.TestCase):
         stages = [stage for stage, *_ in self.runner.visits]
         self.assertEqual({stage for stage in stages if stage in parallel.ROLES}, set(parallel.ROLES))
 
+    def integration_findings(self, findings):
+        class Runner(TeamRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = TeamRunner.__call__(inner, root, state, stage, model, workspace,
+                                              prompt, schema, readonly)
+                if stage == 'integration-test':
+                    receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                         'summary': 'Reviewed', 'findings': findings}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        root, state = parallel.load(self.root)
+        return root, parallel.team_integration_test(root, state, {'passed': True}, runner)
+
+    def test_integration_finding_on_a_lead_document_does_not_end_the_run(self):
+        document = {'path': 'README.md', 'message': 'README is stale'}
+        root, result = self.integration_findings([document])
+        self.assertEqual((result['decision'], result['findings']), ('approve', []))
+        kept = json.loads((root / '.pilot/lead-document-findings.json').read_text())
+        self.assertEqual(kept, [document])
+
+    def test_integration_finding_on_a_team_file_survives_beside_a_lead_document(self):
+        real = {'path': 'firmware/main.c', 'message': 'Wrong pin'}
+        _, result = self.integration_findings([{'path': 'BOM.md', 'message': 'Stale'}, real])
+        self.assertEqual((result['decision'], result['findings']), ('revise', [real]))
+
+    def test_other_top_level_files_still_need_an_owner(self):
+        with self.assertRaisesRegex(ValueError, 'team-owned path'):
+            self.integration_findings([{'path': 'notes.txt', 'message': 'Stale'}])
+
+    def test_testers_use_their_own_model(self):
+        root = self.base / 'split'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',
+                            lead_model='claude-lead', tester_model='claude-tester')
+        parallel.plan(root, execute=True, runner=self.runner)
+        result = parallel.run(root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        models = {stage: model for stage, model, *_ in self.runner.visits}
+        self.assertEqual(models['plan'], 'claude-lead')
+        for stage in ('board-test', 'firmware-test', 'case-test', 'integration-test'):
+            self.assertEqual(models[stage], 'claude-tester')
+        for stage in ('board', 'firmware', 'case'):
+            self.assertEqual(models[stage], parallel.WORKER)
+        self.assertEqual(parallel.metrics(result)['testerModel'], 'claude-tester')
+
+    def test_an_older_run_without_a_tester_model_keeps_its_worker_model(self):
+        self.assertEqual(parallel._tester_model({'workerModel': 'worker'}), 'worker')
+
     def test_template_files_do_not_count_as_a_delivered_board(self):
         workspace = self.base / 'fresh'
         put(workspace, 'product.json', '{}')

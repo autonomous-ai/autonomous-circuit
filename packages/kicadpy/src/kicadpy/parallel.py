@@ -26,6 +26,8 @@ from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, R
 
 LEAD = 'gpt-6-astra'
 WORKER = 'gpt-6.1-sol'
+#: One project's lead/tester override, so two runs of one prompt can be compared.
+TEAM_MODELS = Path('.circuit') / 'team-models.json'
 # Match the existing tile: native KiCad/pcbnew/routing cannot use workspace-write (README).
 WORKER_SANDBOX = 'danger-full-access'
 SKIP = {'.git', '.circuit', '.harness', '.kicadpy', '__pycache__', 'node_modules'}
@@ -200,7 +202,7 @@ def commit(workspace, names, message):
 
 
 def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
-               lead_model=LEAD, worker_model=WORKER, timeout=1800):
+               lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
     if root.exists():
@@ -267,7 +269,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     names = sorted(snapshot(workspace))
     base = commit(workspace, names, 'Seed isolated KiCad pilot')
     state = {'schema': 1, 'status': 'initialized', 'mode': mode, 'leadModel': lead_model,
-             'workerModel': worker_model, 'timeoutSeconds': timeout, 'revision': 0,
+             'workerModel': worker_model, 'testerModel': tester_model or worker_model,
+             'timeoutSeconds': timeout, 'revision': 0,
              'workerSandbox': WORKER_SANDBOX,
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
              'planAttempts': 0, 'rounds': [],
@@ -490,18 +493,19 @@ def _reap_worktree_processes(root, worktree):
                 pass
 
 
-def codex(root, state, stage, model, workspace, prompt, schema, readonly):
-    """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
-    job = _job_directory(root, state, stage)
-    write(job / 'schema.json', schema)
-    (job / 'prompt.txt').write_text(prompt)
-    output = job / 'answer.json'
-    # Read-only lead views live outside Git; writable workers always run in a worktree.
-    command = ['codex', 'exec', '--ignore-user-config', *(['--skip-git-repo-check'] if readonly else []),
-               '--ephemeral', '--json', '-m', model, '-c', 'approval_policy="never"',
-               '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
-               '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
-               '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+def team_models(workspace):
+    """`{'lead', 'tester'}` for one project; absent keeps the defaults."""
+    path = Path(workspace) / TEAM_MODELS
+    if not path.is_file():
+        return {'lead': LEAD, 'tester': WORKER}
+    chosen = json.loads(path.read_text())
+    if not isinstance(chosen, dict) or set(chosen) - {'lead', 'tester'} or not all(
+            isinstance(model, str) and model.strip() for model in chosen.values()):
+        raise ValueError(f'{TEAM_MODELS} takes only string lead and tester models')
+    return {'lead': LEAD, 'tester': WORKER, **chosen}
+
+
+def _cli_env(root, state, workspace):
     env = {k: v for k, v in os.environ.items() if not k.startswith('HARNESS_') and
            k not in ('CIRCUIT_WORKSPACE', 'CIRCUIT_SKILLS_DIR', 'CODEX_THREAD_ID')}
     tool_root = Path(state['toolchainRoot'])
@@ -521,6 +525,108 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                PLATFORMIO_CORE_DIR=str(FIRMWARE_CACHE / 'platformio'),
                ARDUINO_DIRECTORIES_DATA=str(FIRMWARE_CACHE / 'arduino'),
                PIP_CACHE_DIR=str(FIRMWARE_CACHE / 'pip'))
+    return env
+
+
+def codex(root, state, stage, model, workspace, prompt, schema, readonly):
+    """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
+    job = _job_directory(root, state, stage)
+    write(job / 'schema.json', schema)
+    (job / 'prompt.txt').write_text(prompt)
+    output = job / 'answer.json'
+    # Read-only lead views live outside Git; writable workers always run in a worktree.
+    command = ['codex', 'exec', '--ignore-user-config', *(['--skip-git-repo-check'] if readonly else []),
+               '--ephemeral', '--json', '-m', model, '-c', 'approval_policy="never"',
+               '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
+               '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
+               '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+    return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command,
+                        _cli_env(root, state, workspace), 'Codex',
+                        lambda stdout: json.loads(output.read_text()), usage_of, capacity_event)
+
+
+def _claude_sandbox(workspace):
+    """Seatbelt profile standing in for Codex's read-only sandbox: only Claude's own state is writable."""
+    home = Path.home()
+    writable = ['/private/tmp', '/private/var/folders', '/dev', home / '.claude', home / 'Library/Caches']
+    allowed = ' '.join(f'(subpath "{path}")' for path in writable)
+    # The last matching rule wins, so a view under a temp directory is still protected.
+    return ('(version 1)(allow default)(deny file-write*)'
+            f'(allow file-write* {allowed} (regex "^{re.escape(str(home))}/\\.claude\\.json"))'
+            f'(deny file-write* (subpath "{Path(workspace).resolve()}"))')
+
+
+def _claude_result(text):
+    """The CLI's final result event, never text echoed from a prompt/tool."""
+    for line in reversed(text.splitlines()):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get('type') == 'result':
+            return event
+    return None
+
+
+def _claude_answer(stdout):
+    event = _claude_result(stdout)
+    if event is None or event.get('is_error') or not isinstance(event.get('structured_output'), dict):
+        raise ValueError('Claude returned no structured answer: ' +
+                         str((event or {}).get('result') or (event or {}).get('subtype'))[:300])
+    return event['structured_output']
+
+
+def claude_usage(text):
+    """Same fields as Codex: `input_tokens` counts everything sent, cached part included."""
+    event = _claude_result(text)
+    models = event.get('modelUsage') if event else None
+    if not isinstance(models, dict) or not models:
+        return None
+    read = sum(m.get('cacheReadInputTokens', 0) for m in models.values())
+    return {'input_tokens': read + sum(m.get('inputTokens', 0) + m.get('cacheCreationInputTokens', 0)
+                                       for m in models.values()),
+            'cached_input_tokens': read,
+            'output_tokens': sum(m.get('outputTokens', 0) for m in models.values()),
+            'reasoning_output_tokens': sum(m.get('thinkingTokens', 0) for m in models.values()),
+            'cost_usd': event.get('total_cost_usd')}
+
+
+def claude_capacity(text):
+    event = _claude_result(text)
+    return bool(event and event.get('is_error') and event.get('api_error_status') in (429, 500, 503, 529))
+
+
+def claude(root, state, stage, model, workspace, prompt, schema, readonly):
+    """A read-only lead or tester job on the Claude CLI; builders stay on Codex."""
+    if not readonly:
+        raise ValueError('Claude only runs read-only team jobs')
+    if not Path('/usr/bin/sandbox-exec').is_file():
+        raise ValueError('Claude team jobs need sandbox-exec to stay read-only')
+    job = _job_directory(root, state, stage)
+    write(job / 'schema.json', schema)
+    (job / 'prompt.txt').write_text(prompt)
+    tools = 'Read,Grep,Glob,Bash'
+    # Empty setting sources and the two switches keep this machine's hooks, memory and CLAUDE.md out.
+    command = ['/usr/bin/sandbox-exec', '-p', _claude_sandbox(workspace), 'claude', '-p',
+               '--model', model, '--effort', 'medium', '--output-format', 'stream-json', '--verbose',
+               '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
+               '--tools', tools, '--allowedTools', tools, '--permission-mode', 'dontAsk',
+               '--json-schema', json.dumps(schema)]
+    env = {k: v for k, v in _cli_env(root, state, workspace).items()
+           if k not in ('CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT')}
+    env.update(CLAUDE_CODE_DISABLE_AUTO_MEMORY='1', CLAUDE_CODE_DISABLE_CLAUDE_MDS='1')
+    return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, 'Claude',
+                        _claude_answer, claude_usage, claude_capacity)
+
+
+def agent(root, state, stage, model, workspace, prompt, schema, readonly):
+    """Route a job to the CLI that serves its model."""
+    run_job = claude if model.startswith('claude-') else codex
+    return run_job(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
+def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, name,
+                 answer, usage, capacity):
     began = time.time()
     stdout, stderr, result, error = '', '', None, None
     process = None
@@ -534,8 +640,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
         stdout, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
         io_complete = True
         if process.returncode:
-            raise ValueError(f'Codex exited {process.returncode}')
-        result = json.loads(output.read_text())
+            raise ValueError(f'{name} exited {process.returncode}')
+        result = answer(stdout)
         validate(result, schema)
     except (OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         error = str(exc) or type(exc).__name__
@@ -564,10 +670,10 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
         (job / 'events.jsonl').write_text(stdout)
         (job / 'stderr.log').write_text(stderr)
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
-               'usage': usage_of(stdout), 'result': result, 'error': error,
+               'usage': usage(stdout), 'result': result, 'error': error,
                'failureKind': ('interrupted' if interrupted else 'timeout' if timed_out else
                                'model_capacity' if error and process is not None and
-                               process.returncode not in (None, 0) and capacity_event(stdout) else None),
+                               process.returncode not in (None, 0) and capacity(stdout) else None),
                'logDirectory': str(job.relative_to(root))}
     write(job / 'receipt.json', receipt)
     return receipt
@@ -796,7 +902,7 @@ def _contract_field(interfaces, field):
     return value
 
 
-def plan(directory, *, execute=False, revise=False, contract_from=None, runner=codex):
+def plan(directory, *, execute=False, revise=False, contract_from=None, runner=agent):
     if not execute and not contract_from:
         raise ValueError('Model planning requires explicit --execute')
     root, state = load(directory)
@@ -1225,6 +1331,10 @@ def _apply_waivers(worktree, review, waivers):
     return {**review, 'findings': findings, 'decision': 'revise' if findings else 'approve'}
 
 
+def _tester_model(state):
+    return state.get('testerModel') or state['workerModel']
+
+
 def team_test(root, state, role, stage, worktree, checks, runner, *,
               stage_deadline=None, authorized_integration=None, integration_lock=None,
               waivers=()):
@@ -1253,8 +1363,8 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         + notes_for_role(root, role) + _waivers_text(list(waivers))
     )
     # `call` selects the lead model for read-only jobs; the team's tester uses
-    # the worker model and the same shared jobs list, independent of lead gates.
-    tester_state = {**state, 'leadModel': state['workerModel']}
+    # its own model and the same shared jobs list, independent of lead gates.
+    tester_state = {**state, 'leadModel': _tester_model(state)}
     receipt = call(root, tester_state, stage + '-test', worktree, prompt,
                    REVIEW_SCHEMA, True, runner,
                    authorized_integration=authorized_integration,
@@ -1876,6 +1986,18 @@ def repair_stages(state, cited, *, final):
             if role in roles]
 
 
+def _without_lead_documents(root, result):
+    """No team owns a top-level document, so one must not end a run; keep the finding for the lead."""
+    is_document = lambda finding: ('/' not in finding['path'] and
+                                   PurePosixPath(finding['path']).suffix.casefold() == '.md')
+    documents = [finding for finding in result['findings'] if is_document(finding)]
+    if not documents:
+        return result
+    write(Path(root) / '.pilot/lead-document-findings.json', documents)
+    kept = [finding for finding in result['findings'] if not is_document(finding)]
+    return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+
+
 def team_integration_test(root, state, checks, runner):
     """Read-only cross-team tester; the lead is free to handle user changes."""
     from .parallel_addendum import notes_for_role
@@ -1894,13 +2016,14 @@ def team_integration_test(root, state, checks, runner):
         'specific role-owned file or the intended missing path. Recorded team deviations '
         f'({", ".join(DEVIATIONS[role] for role in ROLES)}) supersede a sealed detail when all '
         'affected teams follow them; cite the lagging team, not the contract. '
-        'Cite PILOT_CONTRACT.json only '
+        'Top-level documents (README.md, BOM.md and the like) are written by the lead after '
+        'this gate, so never cite them. Cite PILOT_CONTRACT.json only '
         'when the original interface cannot be satisfied without a new user instruction. '
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
         + _waivers_text(load_waivers(root))
     )
-    tester_state = {**state, 'leadModel': state['workerModel']}
+    tester_state = {**state, 'leadModel': _tester_model(state)}
     receipt = call(root, tester_state, 'integration-test', workspace, prompt,
                    REVIEW_SCHEMA, True, runner)
     if receipt['error']:
@@ -1923,6 +2046,7 @@ def team_integration_test(root, state, checks, runner):
         raise ValueError('Integration tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
         raise ValueError('Integration tester rejected without cited findings')
+    result = _without_lead_documents(root, result)
     for finding in result['findings']:
         path = PurePosixPath(finding['path'])
         if (path.is_absolute() or '..' in path.parts or
@@ -1952,7 +2076,7 @@ def _undelivered_roles(workspace):
     return {role for role in ROLES if not any(owns(role, name) for name in names)}
 
 
-def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=None,
+def run_teams(directory, *, runner=agent, checker=native_check, on_checkpoint=None,
               on_progress=None):
     """Run independent builder/tester teams, then reconcile their interfaces."""
     from .parallel_addendum import _addendum_lock, load_addenda
@@ -2076,7 +2200,7 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
         return state
 
 
-def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None,
+def run(directory, *, execute=False, runner=agent, checker=native_check, on_checkpoint=None,
         on_progress=None):
     if not execute:
         raise ValueError('Paid/model execution requires explicit --execute')
@@ -2288,7 +2412,8 @@ def metrics(state):
     totals['fresh_input_tokens'] = totals['input_tokens'] - totals['cached_input_tokens']
     return {'schema': 1, 'mode': state['mode'], 'leadModel': state['leadModel'],
             'workerSandbox': state['workerSandbox'],
-            'workerModel': state['workerModel'], 'contractSha256': state.get('contractSha256'),
+            'workerModel': state['workerModel'], 'testerModel': _tester_model(state),
+            'contractSha256': state.get('contractSha256'),
             'promptSha256': state['promptSha256'], 'instructionsSha256': state['instructionsSha256'],
             'pipelineSha256': state['pipelineSha256'],
             'seedCommit': state['seedCommit'], 'repairRounds': max(0, state['revision'] - 1),
@@ -2326,6 +2451,7 @@ def main(argv=None):
     init.add_argument('--mode', choices=['parallel', 'sequential', 'solo', 'teams'], default='parallel')
     init.add_argument('--lead-model', default=LEAD)
     init.add_argument('--worker-model', default=WORKER)
+    init.add_argument('--tester-model')
     init.add_argument('--timeout', type=int, default=1800)
     for name in ('plan', 'run', 'status', 'metrics'):
         p = subs.add_parser(name)
@@ -2340,7 +2466,7 @@ def main(argv=None):
         if args.command == 'init':
             result = initialize(args.directory, args.prompt, instructions=args.instructions, seed=args.seed,
                                 mode=args.mode, lead_model=args.lead_model, worker_model=args.worker_model,
-                                timeout=args.timeout)
+                                tester_model=args.tester_model, timeout=args.timeout)
         elif args.command == 'plan':
             result = plan(args.directory, execute=args.execute, revise=args.revise, contract_from=args.contract_from)
         elif args.command == 'run':

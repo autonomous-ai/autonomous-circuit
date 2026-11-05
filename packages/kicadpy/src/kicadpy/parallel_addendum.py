@@ -449,7 +449,7 @@ def record_addendum(directory, user_prompt_path, *, runner=None, source_assets=N
     root, state = parallel.load(directory)
     if state.get('revision') != 1 or not state.get('contractFile'):
         raise ValueError('Create the one original contract before recording release notes')
-    runner = runner or parallel.codex
+    runner = runner or parallel.agent
     with _addendum_lock(root):
         root, state = parallel.load(root)
         if state.get('revision') != 1 or not state.get('contractFile'):

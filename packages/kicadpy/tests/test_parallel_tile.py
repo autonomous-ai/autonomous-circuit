@@ -202,6 +202,17 @@ class TeamBridgeTests(unittest.TestCase):
             runner=runner or FakeRunner(self.workspace), checker=checker or FakeChecker(),
             max_rounds=max_rounds)
 
+    def test_project_model_file_selects_lead_and_tester(self):
+        runner = FakeRunner(self.workspace)
+        (self.workspace / '.circuit').mkdir(exist_ok=True)
+        (self.workspace / parallel.TEAM_MODELS).write_text(
+            json.dumps({'lead': 'claude-lead', 'tester': 'claude-tester'}))
+        self.run_team(runner=runner)
+        run = sorted((self.workspace / '.circuit/team-runs').iterdir())[-1]
+        state = json.loads((run / '.pilot/state.json').read_text())
+        self.assertEqual((state['leadModel'], state['testerModel'], state['workerModel']),
+                         ('claude-lead', 'claude-tester', parallel.WORKER))
+
     def test_low_disk_refuses_before_creating_a_run(self):
         runner = FakeRunner(self.workspace)
         low = shutil._ntuple_diskusage(100 * 1024 ** 3, 99 * 1024 ** 3, 1024 ** 3)

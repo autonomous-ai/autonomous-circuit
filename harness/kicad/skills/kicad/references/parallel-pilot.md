@@ -75,6 +75,13 @@ The limit is per call, not a total token/dollar budget. Standalone `parallel ini
 the older `parallel` comparison mode; use `--mode teams` to exercise the bridge's independent
 team flow manually. Do not read the old `parallel` mode as the new tile behavior.
 
+One project can compare other lead/tester models: put `{"lead": "claude-opus-5-5", "tester":
+"claude-opus-5-5"}` in `<project>/.circuit/team-models.json` before the first run. Either key may be
+left out. `claude-*` models run on the Claude CLI at medium effort, read-only under `sandbox-exec`,
+without this machine's settings, hooks, memory or `CLAUDE.md`. Builders and the print team stay on
+the worker model. Top-level documents belong to the lead, so an integration finding on one is
+saved to `.pilot/lead-document-findings.json` and does not block the run.
+
 ## Contract and stages
 
 The lead produces a strict JSON interface contract: board outline, thickness and mounting
