@@ -274,6 +274,42 @@ class TeamFlowTests(unittest.TestCase):
         self.assertIn('one full review', integration[0])
         self.assertIn('RE-TEST', integration[1])
 
+    def test_a_finding_still_open_at_a_moved_line_stays_open(self):
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.reviews = 0
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if inner.reviews:
+                    inner.wait_for_three = False
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'firmware':
+                    put(workspace, 'firmware/main.c', f'repair {inner.reviews}')
+                if stage == 'firmware-test':
+                    inner.reviews += 1
+                    if inner.reviews < 3:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'Open', 'findings': [
+                                                 {'path': f'firmware/main.c:{10 + inner.reviews}',
+                                                  'message': 'Pin clash'}]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        firmware = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        self.assertEqual(len(firmware), 3)
+        self.assertIn('(line 11) Pin clash', firmware[1])
+
+    def test_cited_files_strips_only_a_line_suffix(self):
+        result = parallel._cited_files({'findings': [{'path': 'a/b.py:12', 'message': 'x'},
+                                                     {'path': 'a/b.py:12-20', 'message': 'y'},
+                                                     {'path': 'a/b.py', 'message': 'z'}]})
+        self.assertEqual([(item['path'], item['message']) for item in result['findings']],
+                         [('a/b.py', '(line 12) x'), ('a/b.py', '(line 12-20) y'), ('a/b.py', 'z')])
+
     def test_a_retest_with_nothing_to_check_makes_no_model_call(self):
         calls = []
         parallel.plan(self.root, execute=True, runner=self.runner)

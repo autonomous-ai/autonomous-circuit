@@ -1459,6 +1459,16 @@ def _save_tester_notes(root, stage, result):
     write(Path(root) / '.pilot/tester-notes' / f'{stage}.json', {'stage': stage, 'summary': result['summary']})
 
 
+def _cited_files(result):
+    """Testers may cite file:line, but lines move between rounds; everything downstream keys on the file."""
+    findings = []
+    for finding in result['findings']:
+        path, line = re.fullmatch(r'(.*?)(:\d+(?:[-:]\d+)?)?', finding['path']).groups()
+        message = f"(line {line[1:]}) {finding['message']}" if line else finding['message']
+        findings.append({**finding, 'path': path, 'message': message})
+    return {**result, 'findings': findings}
+
+
 def _only_rechecked(result, findings):
     """A re-test may not grow the list; an earlier review owned finding everything."""
     paths = {finding['path'] for finding in findings}
@@ -1526,6 +1536,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
                                             before_files, git_before, authorized_integration)
     if not safe:
         raise ValueError('Team tester changed Git metadata: ' + str(reason))
+    result = _cited_files(result)
     if result['decision'] == 'approve' and result['findings']:
         raise ValueError('Team tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
@@ -2186,6 +2197,7 @@ def team_integration_test(root, state, checks, runner, recheck=None):
                                     before_files, git_before)
     if not safe:
         raise ValueError('Integration tester changed Git metadata: ' + str(reason))
+    result = _cited_files(result)
     if result['decision'] == 'approve' and result['findings']:
         raise ValueError('Integration tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
