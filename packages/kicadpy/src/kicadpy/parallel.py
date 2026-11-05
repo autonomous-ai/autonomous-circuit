@@ -14,6 +14,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import signal
 import subprocess
 import tarfile
@@ -123,7 +124,7 @@ def cancel_jobs(root):
         for pid in list(ACTIVE.get(str(root), ())):
             try:
                 os.killpg(pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):  # macOS: EPERM for an exited, unreaped group
                 pass
 
 
@@ -140,12 +141,20 @@ def git(cwd, *args):
                                     *args], cwd=cwd, stderr=subprocess.PIPE).decode().strip()
 
 
+def _is_browser_profile(workspace, path):
+    """A leftover browser may keep writing its build/ profile after its job, so never hash one."""
+    return (path.relative_to(workspace).parts[0] == 'build' and not path.is_symlink() and
+            (os.path.lexists(path / 'SingletonLock') or os.path.lexists(path / 'Local State')))
+
+
 def _drop_scratch_links(workspace, directory, dirs, files):
     """Tools (headless Chrome profiles) leave symlinks in build/ scratch; skip those, reject the rest."""
     kept = ([], [])
     for bucket, names in zip(kept, (dirs, files)):
         for name in names:
             path = Path(directory) / name
+            if bucket is kept[0] and _is_browser_profile(workspace, path):
+                continue
             if name != '.git' and path.is_symlink():
                 if path.relative_to(workspace).parts[0] != 'build':
                     raise ValueError('Pilot snapshots do not support symlinks')
@@ -463,6 +472,24 @@ def _persist_attempt_receipt(root, receipt):
     write(file, receipt)
 
 
+def _reap_worktree_processes(root, worktree):
+    """Chrome and BambuStudio detach into their own process group, but their arguments name the worktree.
+
+    Only a job's private worker worktree: the integration workspace and the visible
+    project are also named by the controller, the lead tab and the viewer.
+    """
+    if not Path(worktree).is_relative_to(Path(root) / 'workers'):
+        return
+    pattern = re.escape(str(worktree)) + r'(/|[[:space:]]|$)'
+    found = subprocess.run(['pgrep', '-f', pattern], capture_output=True, text=True).stdout
+    for pid in found.split():
+        if int(pid) != os.getpid():
+            try:
+                os.kill(int(pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+
 def codex(root, state, stage, model, workspace, prompt, schema, readonly):
     """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
     job = _job_directory(root, state, stage)
@@ -519,8 +546,9 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
             # Include children left running after the CLI exited.
             try:
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
                 pass
+            _reap_worktree_processes(root, workspace)
             if not io_complete:
                 try:
                     stdout, stderr = process.communicate(timeout=5)
@@ -1586,7 +1614,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     os.utime(target, ns=(mtime, mtime))
                 else:
                     target.unlink()
-            commit(workspace, names, 'Integrate ' + stage)
+            from .firmware import record_build
+            proof = record_build(workspace, dest) if any(owns('firmware', name) for name in names) else None
+            commit(workspace, [*names, *([proof] if proof else [])], 'Integrate ' + stage)
             expected, expected_head = snapshot(workspace), git(workspace, 'rev-parse', 'HEAD')
             authorized_integration.append(_integration_git_state(root))
 
@@ -1699,7 +1729,6 @@ def native_check(workspace, complete):
     """Use the existing parsed native publisher, firmware freshness and case gates unchanged."""
     from .autofinish import inspect_board
     from .firmware import firmware_built, firmware_written
-    from .case import status
     (Path(workspace) / '.circuit').mkdir(exist_ok=True)
     passed, findings = inspect_board(workspace)
     if complete:
@@ -1707,7 +1736,7 @@ def native_check(workspace, complete):
             findings.append('Firmware is missing or its compiled binary is stale')
         if not (Path(workspace) / 'firmware/WIRING.md').is_file():
             findings.append('firmware/WIRING.md is missing')
-        case_state, reason = status(workspace)
+        case_state, reason = final_case_status(workspace)
         if case_state != 'passed':
             findings.append('Final case has not passed the existing native case check: ' + reason)
         if not (Path(workspace) / 'case/README.md').is_file():
@@ -1718,6 +1747,28 @@ def native_check(workspace, complete):
             findings.append('Prepared print project is not verified: ' + str(exc))
     return {'passed': passed and not findings, 'findings': findings,
             'scope': 'native-board-firmware-case' if complete else 'native-board', 'hardwareTested': False}
+
+
+def final_case_status(workspace):
+    """A handwired build has no PCB enclosure to fit: use the Case tab's print receipt status."""
+    from .case import status
+    try:
+        manifest = json.loads((Path(workspace) / 'case/out/parts.json').read_text())
+        handwired = manifest['verification']['nativePCBCheckerApplies'] is False
+    except (OSError, ValueError, KeyError, TypeError):
+        handwired = False
+    if not handwired:
+        return status(workspace)
+    module = Path(__file__).resolve().parents[4] / 'viewer/src/server/circuit/catalog.mjs'
+    script = """import {pathToFileURL} from 'node:url';
+const {casePrintStatus} = await import(pathToFileURL(process.argv[1]).href);
+console.log(JSON.stringify(casePrintStatus(process.argv[2], 'main')));"""
+    process = subprocess.run(['node', '--input-type=module', '-e', script, str(module), str(workspace)],
+                             text=True, capture_output=True, timeout=30)
+    if process.returncode:
+        return 'stale', 'handwired print status failed: ' + process.stderr[-400:]
+    report = json.loads(process.stdout)
+    return report['state'], report['reason']
 
 
 def check_plates(workspace):
@@ -1895,6 +1946,12 @@ def native_failure_roles(checks):
     return roles
 
 
+def _undelivered_roles(workspace):
+    # Top-level product.json comes from the project template, so only team directories count.
+    names = [name for name in snapshot(workspace) if '/' in name]
+    return {role for role in ROLES if not any(owns(role, name) for name in names)}
+
+
 def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=None,
               on_progress=None):
     """Run independent builder/tester teams, then reconcile their interfaces."""
@@ -1909,6 +1966,9 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
         assigned = state.get('assignedRoles', list(ROLES))
         if not isinstance(assigned, list) or not assigned or any(role not in ROLES for role in assigned):
             raise ValueError('Invalid lead team assignment')
+        # A note routed to one team on a new project cannot skip teams with nothing delivered yet.
+        missing = _undelivered_roles(workspace)
+        assigned = state['assignedRoles'] = [role for role in ROLES if role in assigned or role in missing]
         tip = load_addenda(root, state['contractSha256'])['tipSha256']
         state['status'], state['roundStartedAt'] = 'running', time.time()
         state['releaseNoteTipSha256'] = tip

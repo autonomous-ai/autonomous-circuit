@@ -409,6 +409,16 @@ test("asset routes: content-type, immutable caching with ?v, byte ranges, traver
     assert.equal(range.headers.get("content-range"), "bytes 2-5/10");
     assert.equal(await range.text(), "2345");
 
+    // An empty build file must not take the server down.
+    fs.writeFileSync(path.join(dir, "boards", "main_fab", "empty.zip"), "");
+    const empty = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/empty.zip`);
+    assert.equal(empty.status, 200);
+    assert.equal(await empty.text(), "");
+    const emptyRange = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/empty.zip`, {
+      headers: { range: "bytes=0-" },
+    });
+    assert.equal(emptyRange.status, 416);
+
     const suffix = await fetch(`${s.base}/projects/${project.id}/boards/main_fab/gerbers.zip`, {
       headers: { range: "bytes=-3" },
     });

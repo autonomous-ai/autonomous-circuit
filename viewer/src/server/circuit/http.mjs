@@ -1565,7 +1565,8 @@ export function createCircuitServices({
         res.statusCode = 200;
       }
       res.setHeader("content-length", String(end - start + 1));
-      if (String(req.method || "").toUpperCase() === "HEAD") {
+      // An empty file has end = -1, which createReadStream throws on and takes the server down.
+      if (String(req.method || "").toUpperCase() === "HEAD" || stats.size === 0) {
         res.end();
         return;
       }

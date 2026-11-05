@@ -1,7 +1,9 @@
 """Offline orchestration tests: no real models, native CAD, network or hardware."""
+import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -11,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from kicadpy import parallel as pilot
+from kicadpy.firmware import firmware_built
 from kicadpy.parallel_contract import validate_contract
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -480,6 +483,102 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(state['status'], 'candidate_ready', state['findings'])
         self.assertFalse((self.root / 'workspace/build/case/chrome-profile/SingletonLock').is_symlink())
         self.assertTrue((self.root / 'workspace/case/frame.txt').exists())
+
+    def write_handwired_case(self, workspace):
+        sha = lambda name: hashlib.sha256((workspace / name).read_bytes()).hexdigest()
+        put(workspace, 'case/out/frame.stl', 'solid frame')
+        put(workspace, 'case/out/frame.step', 'step frame')
+        put(workspace, 'case/out/parts.json', json.dumps({
+            'verification': {'nativePCBCheckerApplies': False, 'report': '../reports/mechanical.json'},
+            'parts': [{'name': 'frame', 'stl': 'frame.stl', 'step': 'frame.step'}]}))
+        put(workspace, 'case/reports/mechanical.json', json.dumps({
+            'passed': True, 'scope': 'handwired', 'collisions': [],
+            'partShas': {name: sha(f'case/out/{name}') for name in ('frame.stl', 'frame.step')}}))
+        put(workspace, 'case/reports/print-check.json', json.dumps({
+            'passed': True, 'errors': [], 'stem': 'main', 'meshValidation': 'surface-v1',
+            'validationScope': 'handwired-print', 'intentSha': None,
+            'verificationReport': 'case/reports/mechanical.json',
+            'verificationSha': sha('case/reports/mechanical.json'),
+            'partShas': {name: sha(f'case/out/{name}') for name in ('parts.json', 'frame.stl', 'frame.step')}}))
+
+    def test_final_case_status_uses_print_receipt_for_handwired_builds(self):
+        workspace = self.base / 'handwired'
+        self.write_handwired_case(workspace)
+        with patch('kicadpy.case.status', side_effect=AssertionError('PCB check on a handwired build')):
+            self.assertEqual(pilot.final_case_status(workspace)[0], 'passed')
+            put(workspace, 'case/out/frame.stl', 'solid changed')
+            self.assertEqual(pilot.final_case_status(workspace)[0], 'stale')
+
+    def test_final_case_status_keeps_the_pcb_check_for_pcb_builds(self):
+        workspace = self.base / 'pcb'
+        put(workspace, 'case/out/parts.json', json.dumps({'parts': []}))
+        with patch('kicadpy.case.status', return_value=('passed', 'native')) as native:
+            self.assertEqual(pilot.final_case_status(workspace), ('passed', 'native'))
+        native.assert_called_once()
+
+    def firmware_defect(self, *, rebuild):
+        def defect(stage, workspace, result):
+            if stage == 'firmware':
+                put(workspace, 'firmware/flash.json', json.dumps({'family': 'rp2040', 'uf2': 'a.bin'}))
+                os.utime(workspace / 'firmware/main.c', (300 if not rebuild else 100,) * 2)
+        return defect
+
+    def test_integrated_firmware_build_stays_fresh_after_mtimes_reorder(self):
+        self.plan()
+        self.fake.defect = self.firmware_defect(rebuild=True)
+        state = self.run_round()
+        self.assertEqual(state['status'], 'candidate_ready', state['findings'])
+        workspace = self.root / 'workspace'
+        self.assertIn('firmware/build-proof.json', pilot.git(workspace, 'ls-files'))
+        os.utime(workspace / 'firmware/main.c', (900, 900))
+        self.assertTrue(firmware_built(workspace))
+
+    def test_unbuilt_firmware_edit_gets_no_build_proof(self):
+        self.plan()
+        self.fake.defect = self.firmware_defect(rebuild=False)
+        self.run_round()
+        workspace = self.root / 'workspace'
+        self.assertFalse((workspace / 'firmware/build-proof.json').exists())
+        self.assertFalse(firmware_built(workspace))
+
+    def test_snapshot_ignores_a_live_browser_profile_only_in_build(self):
+        workspace = self.base / 'profile'
+        put(workspace, 'case/frame.txt', 'frame')
+        put(workspace, 'build/case/chrome/Local State', '{}')
+        put(workspace, 'build/case/chrome/Default/Cookies', 'first')
+        before = pilot.snapshot(workspace)
+        put(workspace, 'build/case/chrome/Default/Cookies', 'orphan still writing')
+        self.assertEqual(before, pilot.snapshot(workspace))
+        self.assertEqual(set(pilot._retry_files(workspace)), {'case/frame.txt'})
+        put(workspace, 'case/chrome/Local State', '{}')
+        self.assertIn('case/chrome/Local State', pilot.snapshot(workspace))
+
+    def test_cancel_tolerates_an_exited_unreaped_job(self):
+        job = subprocess.Popen(['true'], start_new_session=True)
+        time.sleep(.3)  # exited but not reaped: macOS killpg answers EPERM here
+        with pilot.ACTIVE_LOCK:
+            pilot.ACTIVE[str(self.root)] = {job.pid}
+        self.addCleanup(pilot.ACTIVE.pop, str(self.root), None)
+        pilot.cancel_jobs(self.root)
+        job.wait()
+
+    def test_job_end_reaps_detached_tools_of_that_worktree_only(self):
+        worktree = self.root / 'workers/r001-case'
+        spawn = lambda path: subprocess.Popen(
+            [sys.executable, '-c', 'import time; time.sleep(60)', f'--user-data-dir={path}/build/chrome'],
+            start_new_session=True)
+        tool, sibling = spawn(worktree), spawn(str(worktree) + '-2')
+        self.addCleanup(sibling.kill)
+        self.addCleanup(tool.kill)
+        time.sleep(.2)
+        pilot._reap_worktree_processes(self.root, self.root / 'workspace')
+        pilot._reap_worktree_processes(self.root, self.base)
+        self.assertIsNone(tool.poll())
+        pilot._reap_worktree_processes(self.root, worktree)
+        self.assertEqual(tool.wait(timeout=5), -signal.SIGKILL)
+        self.assertIsNone(sibling.poll())
+        sibling.kill()
+        sibling.wait()
 
     def test_snapshot_skips_build_links_but_rejects_source_links(self):
         workspace = self.base / 'links'
