@@ -206,6 +206,85 @@ class TeamFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'team-owned path'):
             self.integration_findings([{'path': 'notes.txt', 'message': 'Stale'}])
 
+    def test_first_review_states_blockers_and_a_retest_checks_only_its_list(self):
+        bug = {'path': 'firmware/main.c', 'message': 'Wrong pin'}
+
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.wait_for_three = False
+                inner.rounds = 0
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'firmware-test':
+                    inner.rounds += 1
+                    if inner.rounds == 1:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'One blocker', 'findings': [bug]}
+                    elif inner.rounds == 2:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'New idea', 'findings': [
+                                                 {'path': 'firmware/README.md', 'message': 'A new complaint'}]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.rounds, 2)  # the off-list complaint was dropped, not another round
+        prompts = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        self.assertIn('one full review', prompts[0])
+        self.assertNotIn('RE-TEST', prompts[0])
+        self.assertIn('RE-TEST', prompts[1])
+        self.assertIn('Wrong pin', prompts[1])
+        self.assertNotIn('one full review', prompts[1])
+
+    def test_integration_repair_rechecks_instead_of_reviewing_again(self):
+        bug = {'path': 'firmware/main.c', 'message': 'Pin clash'}
+
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.rejected = False
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if inner.rejected:
+                    inner.wait_for_three = False
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'integration-test' and not inner.rejected:
+                    inner.rejected = True
+                    receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                         'summary': 'Clash', 'findings': [bug]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        firmware = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        integration = [prompt for stage, _, _, prompt in runner.visits if stage == 'integration-test']
+        self.assertEqual(len(firmware), 2)
+        self.assertIn('RE-TEST', firmware[1])
+        self.assertIn('Pin clash', firmware[1])
+        self.assertIn('one full review', integration[0])
+        self.assertIn('RE-TEST', integration[1])
+
+    def test_a_retest_with_nothing_to_check_makes_no_model_call(self):
+        calls = []
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        root, state = parallel.load(self.root)
+        worktree = root / 'workspace'
+        result = parallel.team_test(root, state, 'firmware', 'firmware', worktree, {},
+                                    lambda *args: calls.append(args), recheck=[])
+        self.assertEqual((result['decision'], calls), ('approve', []))
+
+    def test_case_builder_is_told_to_avoid_thin_hanging_parts(self):
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        root, state = parallel.load(self.root)
+        self.assertIn('load-bearing walls', parallel.worker_prompt(state, 'case', 'case'))
+        self.assertNotIn('load-bearing walls', parallel.worker_prompt(state, 'firmware', 'firmware'))
+
     def test_testers_use_their_own_model(self):
         root = self.base / 'split'
         parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',

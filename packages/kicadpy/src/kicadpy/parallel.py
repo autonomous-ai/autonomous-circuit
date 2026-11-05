@@ -1108,6 +1108,8 @@ def worker_prompt(state, role, stage):
             f'inside {json.dumps(OWNED[role])}; other domains are read-only. Do not commit, push, '
             'delegate, order, print, flash, access hardware, alter gates or run the solo Stop loop. '
             'Your independent tester will inspect your actual files and may return concrete findings. '
+            + ('Avoid thin parts hanging free: carry load through box sections or load-bearing walls. '
+               if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
             'budget expires. Publish useful drafts early. While repairing, run only the checks that '
             'cover what you changed, then your full check suite once before you finish; do not '
@@ -1428,12 +1430,40 @@ def _tester_model(state):
     return state.get('testerModel') or state['workerModel']
 
 
+TESTER_RULES = (
+    'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
+    'cannot build, flash or do the core job in the brief; a limit in the brief on size, part count, '
+    'screw count, print time or weight is exceeded; or a thin part hanging free will clearly break '
+    'under load, since structure should be box sections or load-bearing walls. Do not block on small '
+    'dimensional misses a person can fix with pliers, a file or glue, or on labels, documentation, '
+    'overview drawings, report coverage or spare hardware the person can buy. List those as NOTES in '
+    'the summary instead. This is your one full review: inspect everything now and report every '
+    'blocker at once, because later rounds only re-check what you list here. ')
+
+
+def _recheck_text(findings):
+    return ('RE-TEST: this is not a new review. Check only whether each finding below is fixed in the '
+            'actual files, and do not report anything else. Return revise citing only those still '
+            'open, or approve when all are fixed.\nFINDINGS TO RE-CHECK:\n' +
+            json.dumps(findings, sort_keys=True) + '\n')
+
+
+def _only_rechecked(result, findings):
+    """A re-test may not grow the list; an earlier review owned finding everything."""
+    paths = {finding['path'] for finding in findings}
+    kept = [finding for finding in result['findings'] if finding['path'] in paths]
+    return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+
+
 def team_test(root, state, role, stage, worktree, checks, runner, *,
               stage_deadline=None, authorized_integration=None, integration_lock=None,
-              waivers=()):
+              waivers=(), recheck=None):
     """Give each builder an independent, read-only tester in its own team."""
     from .parallel_addendum import notes_for_role
 
+    if recheck is not None and not recheck:
+        return {'contractSha256': state['contractSha256'], 'decision': 'approve',
+                'summary': 'No tester findings to re-check', 'findings': []}
     before = snapshot(worktree)
     before_files = _retry_files(worktree)
     if integration_lock is None:
@@ -1451,6 +1481,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         'against the current instructions. The integration gate will reconcile other teams. '
         f'A deviation recorded in {DEVIATIONS[role]} with evidence and no unrecorded '
         'cross-team impact is not a defect; check that the files follow it. '
+        + (_recheck_text(recheck) if recheck else TESTER_RULES) +
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
         + notes_for_role(root, role) + _waivers_text(list(waivers))
@@ -1493,7 +1524,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         if (path.is_absolute() or '..' in path.parts or not owns(role, str(path)) or
                 (worktree / path).is_symlink()):
             raise ValueError('Team tester finding must cite its team-owned path')
-    return result
+    return _only_rechecked(result, recheck) if recheck else result
 
 
 def dispatch(root, state, stages, runner, on_import=None, checker=None,
@@ -1574,6 +1605,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                   if stage in LONG_STAGES else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
         deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
         advice_rounds = 0
+        # An integration repair re-checks only what the integration tester cited for this team.
+        recheck = ([finding for finding in guidance['integration']['findings'] if owns(role, finding['path'])]
+                   if isinstance(guidance, dict) and 'integration' in guidance else None)
         timeout_advised = False
         team_started = _stage_clock()
         waivers = [item for item in load_waivers(root) if item.get('stage') == stage]
@@ -1686,8 +1720,10 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     publish('checking', problem.get('blockers', ()) if problem else ())
                     test = team_test(root, state, role, stage, dest, checks or problem or {}, runner,
                                      authorized_integration=authorized_integration,
-                                     integration_lock=integration_lock, waivers=waivers)
+                                     integration_lock=integration_lock, waivers=waivers,
+                                     recheck=recheck)
                     test = _apply_waivers(dest, test, waivers)
+                    recheck = test['findings']
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}
                     if problem is None:
@@ -2091,7 +2127,7 @@ def _without_lead_documents(root, result):
     return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
 
 
-def team_integration_test(root, state, checks, runner):
+def team_integration_test(root, state, checks, runner, recheck=None):
     """Read-only cross-team tester; the lead is free to handle user changes."""
     from .parallel_addendum import notes_for_role
 
@@ -2112,6 +2148,7 @@ def team_integration_test(root, state, checks, runner):
         'Top-level documents (README.md, BOM.md and the like) are written by the lead after '
         'this gate, so never cite them. Cite PILOT_CONTRACT.json only '
         'when the original interface cannot be satisfied without a new user instruction. '
+        + (_recheck_text(recheck) if recheck else TESTER_RULES) +
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
         + _waivers_text(load_waivers(root))
@@ -2146,7 +2183,7 @@ def team_integration_test(root, state, checks, runner):
                 (not owns('solo', str(path)) and str(path) != 'PILOT_CONTRACT.json') or
                 (workspace / path).is_symlink()):
             raise ValueError('Integration finding needs a team-owned path')
-    return result
+    return _only_rechecked(result, recheck) if recheck else result
 
 
 def native_failure_roles(checks):
@@ -2260,7 +2297,8 @@ def run_teams(directory, *, runner=agent, checker=native_check, on_checkpoint=No
                 if board_checks is None:
                     raise ValueError('Repaired board produced no checked native handoff')
                 checks = publish_native(True)
-                integration = team_integration_test(root, state, checks, runner)
+                integration = team_integration_test(root, state, checks, runner,
+                                                     recheck=integration['findings'] or None)
             if not checks.get('passed') or integration['decision'] != 'approve':
                 raise ValueError('Cross-team integration remains open after bounded repairs: ' +
                                  json.dumps({'native': checks, 'review': integration}, sort_keys=True))
