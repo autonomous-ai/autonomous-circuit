@@ -548,7 +548,9 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
 def _claude_sandbox(workspace):
     """Seatbelt profile standing in for Codex's read-only sandbox: only Claude's own state is writable."""
     home = Path.home()
-    writable = ['/private/tmp', '/private/var/folders', '/dev', home / '.claude', home / 'Library/Caches']
+    # A refreshed login must reach the keychain: the old token stops working once a new one is issued.
+    writable = ['/private/tmp', '/private/var/folders', '/dev', home / '.claude', home / 'Library/Caches',
+                home / 'Library/Keychains']
     allowed = ' '.join(f'(subpath "{path}")' for path in writable)
     # The last matching rule wins, so a view under a temp directory is still protected.
     return ('(version 1)(allow default)(deny file-write*)'
@@ -592,8 +594,17 @@ def claude_usage(text):
 
 
 def claude_capacity(text):
+    """Busy or logged out: the model is unavailable, and the design is not at fault."""
     event = _claude_result(text)
-    return bool(event and event.get('is_error') and event.get('api_error_status') in (429, 500, 503, 529))
+    if not event or not event.get('is_error'):
+        return False
+    return (event.get('api_error_status') in (401, 429, 500, 503, 529) or
+            str(event.get('result')).startswith('Failed to authenticate'))
+
+
+def _claude_exit_detail(text):
+    event = _claude_result(text)
+    return f": {str(event.get('result'))[:300]}" if event and event.get('is_error') else ''
 
 
 def claude(root, state, stage, model, workspace, prompt, schema, readonly):
@@ -616,7 +627,7 @@ def claude(root, state, stage, model, workspace, prompt, schema, readonly):
            if k not in ('CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT')}
     env.update(CLAUDE_CODE_DISABLE_AUTO_MEMORY='1', CLAUDE_CODE_DISABLE_CLAUDE_MDS='1')
     return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, 'Claude',
-                        _claude_answer, claude_usage, claude_capacity)
+                        _claude_answer, claude_usage, claude_capacity, _claude_exit_detail)
 
 
 def agent(root, state, stage, model, workspace, prompt, schema, readonly):
@@ -626,7 +637,7 @@ def agent(root, state, stage, model, workspace, prompt, schema, readonly):
 
 
 def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, name,
-                 answer, usage, capacity):
+                 answer, usage, capacity, exit_detail=lambda stdout: ''):
     began = time.time()
     stdout, stderr, result, error = '', '', None, None
     process = None
@@ -640,7 +651,7 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
         stdout, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
         io_complete = True
         if process.returncode:
-            raise ValueError(f'{name} exited {process.returncode}')
+            raise ValueError(f'{name} exited {process.returncode}{exit_detail(stdout)}')
         result = answer(stdout)
         validate(result, schema)
     except (OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:

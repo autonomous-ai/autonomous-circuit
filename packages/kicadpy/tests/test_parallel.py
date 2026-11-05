@@ -843,6 +843,10 @@ pathlib.Path(os.environ['PILOT_STUB_OUT']).write_text(json.dumps({
 if os.environ.get('PILOT_STUB_OVERLOADED'):
     print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': 529, 'result': 'Overloaded'}))
     sys.exit(1)
+if os.environ.get('PILOT_STUB_LOGGED_OUT'):
+    print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': None,
+                      'result': 'Failed to authenticate: OAuth session expired and could not be refreshed'}))
+    sys.exit(1)
 if os.environ.get('PILOT_STUB_NO_ANSWER'):
     print(json.dumps({'type': 'result', 'is_error': False, 'result': 'prose only'}))
     sys.exit(0)
@@ -908,6 +912,21 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
                                 'read only', RESULT_SCHEMA, True)
         self.assertIn('no structured answer', empty['error'])
         self.assertIsNone(empty['failureKind'])
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_logout_is_not_a_design_failure_and_says_why(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.claude_stub()
+        with patch.dict(os.environ, {'PILOT_STUB_LOGGED_OUT': '1'}):
+            receipt = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                                  'read only', RESULT_SCHEMA, True)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertIn('Failed to authenticate', receipt['error'])
+
+    def test_claude_sandbox_lets_a_refreshed_login_reach_the_keychain(self):
+        profile = pilot._claude_sandbox(self.workspace)
+        self.assertIn(f'(subpath "{Path.home() / "Library/Keychains"}")', profile)
+        self.assertTrue(profile.endswith(f'(deny file-write* (subpath "{self.workspace.resolve()}"))'))
 
     def test_team_models_defaults_override_and_bad_file(self):
         project = self.base / 'project'
