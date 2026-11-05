@@ -1433,8 +1433,10 @@ def _tester_model(state):
 TESTER_RULES = (
     'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
     'cannot build, flash or do the core job in the brief; a limit in the brief on size, part count, '
-    'screw count, print time or weight is exceeded; or a thin part hanging free will clearly break '
-    'under load, since structure should be box sections or load-bearing walls. Do not block on small '
+    'screw count, print time or weight is exceeded; moving parts collide or jam, such as a leg hitting '
+    'the body or a wheel that cannot turn, anywhere in their required travel; or a thin part hanging '
+    'free will clearly break under load, since structure should be box sections or load-bearing walls. '
+    'Do not block on small '
     'dimensional misses a person can fix with pliers, a file or glue, or on labels, documentation, '
     'overview drawings, report coverage or spare hardware the person can buy. List those as NOTES in '
     'the summary instead. This is your one full review: inspect everything now and report every '

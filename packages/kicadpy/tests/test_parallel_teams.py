@@ -235,6 +235,7 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(runner.rounds, 2)  # the off-list complaint was dropped, not another round
         prompts = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
         self.assertIn('one full review', prompts[0])
+        self.assertIn('moving parts collide or jam', prompts[0])
         self.assertNotIn('RE-TEST', prompts[0])
         self.assertIn('RE-TEST', prompts[1])
         self.assertIn('Wrong pin', prompts[1])

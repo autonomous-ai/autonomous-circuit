@@ -85,8 +85,8 @@ the worker model. Top-level documents belong to the lead, so an integration find
 saved to `.pilot/lead-document-findings.json` and does not block the run.
 
 Testers review once. The first review must report every blocker at once: the product cannot be
-assembled, wired, printed, built or flashed, a stated limit is exceeded, or a thin hanging part will
-clearly break. Small misses a person can fix by hand, labels and documents go in the summary as
+assembled, wired, printed, built or flashed, a stated limit is exceeded, moving parts collide or jam
+in their required travel, or a thin hanging part will clearly break. Small misses a person can fix by hand, labels and documents go in the summary as
 NOTES. Later rounds re-check only the listed findings, and a finding on any other path is dropped.
 A new run starts with a new full review.
 
