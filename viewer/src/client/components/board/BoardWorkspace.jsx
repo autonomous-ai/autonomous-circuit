@@ -53,6 +53,7 @@ import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
 import TeamTab, { TeamStrip } from "./TeamTab.jsx";
+import SectionRail from "./SectionRail.jsx";
 import ProjectOverviewPreview, { safeProjectOverviewUrl } from "./ProjectOverviewPreview.jsx";
 import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
@@ -1248,22 +1249,22 @@ export default function BoardWorkspace({
           onToggleOpen={() => setTreeOpen((value) => !value)}
         />
 
-        <PartsPanel partsEntry={partsEntry} open={partsOpen} onToggle={() => setPartsOpen((value) => !value)} />
+        {selectedEntry ? (
+          <SectionRail groups={BOARD_GROUPS} activeGroup={activeGroup}
+            onSelect={id => setActiveTab(groupTabs.current[id])}
+            teamRunning={Boolean(teamPreview || teamRuns?.running)} />
+        ) : null}
+
+        {/* The parts list is the Board section's; the other sections do not need its strip. */}
+        {!selectedEntry || activeGroup === "electric" ? (
+          <PartsPanel partsEntry={partsEntry} open={partsOpen} onToggle={() => setPartsOpen((value) => !value)} />
+        ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
           {selectedEntry ? (
             <>
               <div className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
-                {BOARD_GROUPS.map(group => (
-                  <button key={group.id} type="button" data-slot="board-group" data-group={group.id}
-                    onClick={() => setActiveTab(groupTabs.current[group.id])}
-                    aria-current={activeGroup === group.id ? "true" : undefined}
-                    className={cn("shrink-0 rounded-md px-3 py-1 text-xs font-semibold",activeGroup === group.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                    {group.label}
-                    {group.id === "team" && (teamPreview || teamRuns?.running) ? <span data-slot="team-running-dot" aria-label="running" className="ml-1.5 inline-block size-1.5 rounded-full bg-emerald-500 align-middle" /> : null}
-                  </button>
-                ))}
-                <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
+                <span className="ml-1 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
                 <RevisionPager
                   className="ml-2"
                   revisions={revisionsApi.revisions}
@@ -1335,7 +1336,7 @@ export default function BoardWorkspace({
                 )}
               </div>
 
-              <nav aria-label={`${activeGroup} views`} className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
+              {TABS.filter(tab => tab.group === activeGroup).length < 2 ? null : <nav aria-label={`${activeGroup} views`} className="scrollbar-none flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 px-2">
                 {TABS.filter(tab => tab.group === activeGroup).map(tab => (
                   <button key={tab.id} type="button" data-slot="board-tab" data-tab={tab.id} onClick={() => setActiveTab(tab.id)}
                     aria-current={activeTab === tab.id ? "true" : undefined}
@@ -1343,7 +1344,7 @@ export default function BoardWorkspace({
                     {tab.label}
                   </button>
                 ))}
-              </nav>
+              </nav>}
 
               {/* The verdict lives above the panes and outside the tab switch:
                   "can I get this made?" does not stop mattering when you look

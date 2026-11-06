@@ -10,7 +10,7 @@ test('four primary sections route to the right content and remember their last s
   const group=id=>w.ui.container.querySelector(`[data-group="${id}"]`);
   const tab=id=>w.ui.container.querySelector(`[data-tab="${id}"]`);
   try {
-    assert.deepEqual([...w.ui.container.querySelectorAll('[data-slot="board-group"]')].map(x=>x.textContent.trim()),['Prompts','Electric','Case','Team']);
+    assert.deepEqual([...w.ui.container.querySelectorAll('[data-slot="board-group"]')].map(x=>x.textContent.trim()),['Brief','Board','Case','Team']);
     assert.equal(group('electric').getAttribute('aria-current'),'true');
     assert.ok(tab('schematic'));assert.equal(tab('prompt-current'),null);
     click(group('prompts'));for(let i=0;i<4;i++)await flush();
