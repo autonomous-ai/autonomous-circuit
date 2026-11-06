@@ -1,5 +1,6 @@
 """Offline orchestration tests: no real models, native CAD, network or hardware."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -771,6 +772,12 @@ print(json.dumps({'type':'item.started','item':{'id':'item_1','type':'command_ex
 print(json.dumps({'type':'item.completed','item':{'id':'item_1','type':'command_execution','command':'make check','exit_code':0}}), flush=True)
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
+for tick in range(int(os.environ.get('PILOT_STUB_TICKS', '0'))):
+    time.sleep(0.4)
+    print(json.dumps({'type':'item.completed','item':{'id':f'tick_{tick}','type':'reasoning'}}), flush=True)
+if os.environ.get('PILOT_STUB_NOISY'):
+    sys.stderr.write('x' * 300000)
+    sys.stderr.flush()
 if os.environ.get('PILOT_STUB_HANG'):
     code = "import pathlib,time;time.sleep(3);pathlib.Path('orphan-marker').write_text('orphan')"
     subprocess.Popen([sys.executable, '-c', code], cwd=workspace)
@@ -998,6 +1005,34 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertFalse((self.workspace / 'orphan-marker').exists())
         self.assertTrue((self.root / receipt['logDirectory'] / 'receipt.json').is_file())
 
+    def test_a_silent_job_is_stopped_as_a_stalled_timeout(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 60
+        with patch.dict(os.environ, {'PILOT_STUB_HANG': '1'}), patch.object(pilot, 'STALL_SECONDS', 1.5):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(receipt['failureKind'], 'timeout')
+        self.assertIn('Stalled', receipt['error'])
+        self.assertLess(receipt['seconds'], 15)
+
+    def test_a_job_that_keeps_writing_events_is_not_a_stall(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 60
+        with patch.dict(os.environ, {'PILOT_STUB_TICKS': '8'}), patch.object(pilot, 'STALL_SECONDS', 1.5):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        self.assertGreater(receipt['seconds'], 3)
+
+    def test_heavy_stderr_does_not_block_the_job(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 30
+        with patch.dict(os.environ, {'PILOT_STUB_NOISY': '1'}):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual(len((self.root / receipt['logDirectory'] / 'stderr.log').read_text()), 300000)
+
     def test_structured_capacity_failure_is_classified_and_attempt_logs_are_distinct(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         with patch.dict(os.environ, {'PILOT_STUB_CAPACITY': '1'}):
@@ -1045,14 +1080,16 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
 
         class InterruptedProcess:
             pid = 424242
+            args = ['codex']
             returncode = None
             calls = 0
+            stdin = io.StringIO()
 
-            def communicate(self, *args, **kwargs):
+            def wait(self, *args, **kwargs):
                 self.calls += 1
                 if self.calls == 1:
                     raise KeyboardInterrupt
-                return '', ''
+                return 0
 
         with patch.object(pilot.subprocess, 'Popen', return_value=InterruptedProcess()), \
              patch.object(pilot.os, 'killpg'):
@@ -1121,6 +1158,8 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(self.state['jobs'][1]['attemptTimeoutSeconds'], 600)
         self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 22)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_continues_on_fresh_owned_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1145,6 +1184,8 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertTrue(all(job['continuedPartialWork'] for job in self.state['jobs'][:3]))
         self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 40)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_stops_when_next_attempt_makes_no_new_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1167,6 +1208,8 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(receipt['retrySuppressed'],
                          'Timed-out worker made no owned file progress')
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_does_not_count_same_bytes_with_new_mtime(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1188,6 +1231,8 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(receipt['retrySuppressed'],
                          'Timed-out worker made no owned file progress')
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_continuation_obeys_three_hour_wall_budget(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1209,6 +1254,7 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')
         self.assertEqual(len(self.state['jobs']), 6)
 
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 10)
     def test_board_continuation_attempt_cap_is_explicit(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1231,6 +1277,7 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
                          'Board continuation attempt limit exhausted')
         self.assertEqual(len(self.state['jobs']), len(calls))
 
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 10)
     def test_case_gets_long_continuations_for_owned_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1338,6 +1385,8 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(limits[1], 595)
         self.assertEqual(clock[0], 2400)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_capacity_retries_keep_original_wall_budget(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()

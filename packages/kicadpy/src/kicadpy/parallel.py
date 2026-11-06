@@ -43,6 +43,10 @@ TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
 LONG_STAGES = ('board', 'case')
+# Board and case builders reread the whole project after every cut, so give each attempt an hour.
+LONG_STAGE_ATTEMPT_SECONDS = 60 * 60
+# No new CLI event for this long means the job hung. Measured quiet gaps in crab runs stay under 7 minutes.
+STALL_SECONDS = 15 * 60
 # One machine-wide firmware toolchain cache; per-worktree PlatformIO/SDK installs filled the disk.
 FIRMWARE_CACHE = Path(os.environ.get('CIRCUIT_FIRMWARE_CACHE',
                                      Path.home() / '.cache/autonomous-circuit/firmware'))
@@ -712,10 +716,35 @@ class _CommandClock(threading.Thread):
         return {'count': self.count, 'seconds': round(self.seconds, 1)}
 
 
+class JobStalled(subprocess.TimeoutExpired):
+    """A hung job counts as a timeout, so the usual continuation applies."""
+
+    def __str__(self):
+        return f'Stalled: no CLI output for {int(self.timeout)} s'
+
+
+def _wait_while_active(process, events, timeout):
+    deadline = time.monotonic() + timeout
+    last_size, last_change = -1, time.monotonic()
+    while True:
+        now = time.monotonic()
+        if now >= deadline:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        try:
+            return process.wait(timeout=min(1.0, deadline - now))
+        except subprocess.TimeoutExpired:
+            pass
+        size = events.stat().st_size if events.is_file() else 0
+        if size != last_size:
+            last_size, last_change = size, time.monotonic()
+        elif time.monotonic() - last_change > STALL_SECONDS:
+            raise JobStalled(process.args, STALL_SECONDS)
+
+
 def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, name,
                  answer, usage, capacity, exit_detail=lambda stdout: ''):
     began = time.time()
-    stdout, stderr, result, error = '', '', None, None
+    stdout, result, error = '', None, None
     process = None
     io_complete = False
     interrupted = timed_out = False
@@ -724,12 +753,18 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
     clock = _CommandClock(events, job / 'commands.jsonl')
     clock.start()
     try:
-        with events.open('w') as event_stream:
+        # stderr goes to a file: an undrained pipe would block the CLI and look like a stall.
+        with events.open('w') as event_stream, (job / 'stderr.log').open('w') as error_stream:
             process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=event_stream,
-                                       stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+                                       stderr=error_stream, text=True, env=env, start_new_session=True)
         with ACTIVE_LOCK:
             ACTIVE.setdefault(str(root), set()).add(process.pid)
-        _, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
+        try:
+            process.stdin.write(prompt)
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+        _wait_while_active(process, events, state['timeoutSeconds'])
         io_complete = True
         stdout = events.read_text(errors='replace')
         if process.returncode:
@@ -750,18 +785,17 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
             _reap_worktree_processes(root, workspace)
             if not io_complete:
                 try:
-                    _, stderr = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired as exc:
-                    # A separately-sessioned tool must not hold the controller's pipes forever.
-                    decode = lambda value: value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
-                    stderr = decode(exc.stderr)
-                    process.stderr.close()
-                    error = (error or '') + '; job pipes did not close after termination'
+                    process.stdin.close()
+                except (OSError, ValueError):
+                    pass
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    error = (error or '') + '; job did not exit after termination'
             with ACTIVE_LOCK:
                 ACTIVE.get(str(root), set()).discard(process.pid)
         if not io_complete and events.is_file():
             stdout = events.read_text(errors='replace')
-        (job / 'stderr.log').write_text(stderr or '')
         commands = clock.finish()
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
                'usage': usage(stdout), 'commands': commands, 'result': result, 'error': error,
@@ -829,9 +863,10 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             if timeout_guidance is not None:
                 retry_prompt += ('\nLEAD ADVICE ON THE PARTIAL WORK:\n' +
                                  json.dumps(timeout_guidance, sort_keys=True))
-        attempt_limit = min(((state['timeoutSeconds'] if long_stage else
+        full_attempt = LONG_STAGE_ATTEMPT_SECONDS if long_stage else state['timeoutSeconds']
+        attempt_limit = min(((full_attempt if long_stage else
                               TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
-                             state['timeoutSeconds']), remaining)
+                             full_attempt), remaining)
         attempt_state = {**state, 'timeoutSeconds': attempt_limit}
         try:
             receipt = runner(root, attempt_state, stage, model, workspace,

@@ -199,8 +199,8 @@ usage; completed sibling workers are called once. Exhausted capacity reports
 `model_unavailable`, without contract replanning.
 
 A worker timeout may continue in its own worktree only when it left role-owned partial work.
-The board stage can make up to six continuations, each bounded by the configured per-job timeout,
-only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
+The board and case builders get one hour per attempt (the configured per-job timeout still
+bounds testers, the lead and other workers) and can make up to six continuations, only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
 files does not count. Its controller wall deadline is three hours (or a longer explicitly
 configured initial per-job timeout), including capacity backoff. Other worker stages retain one
 600-second continuation and the original per-job timeout plus 600-second controller deadline.
@@ -226,7 +226,8 @@ from operating on the same pilot at once.
 
 Ctrl-C stops the current foreground call or kills the active worker process groups, retains
 available receipts and marks the round failed/interrupted. Timeouts also kill process groups
-and retain partial reported usage. SIGKILL/power loss cannot be cleaned up automatically: do
+and retain partial reported usage. A job whose CLI writes no event for 15 minutes is stopped as
+a stalled timeout and continues like any other timeout. SIGKILL/power loss cannot be cleaned up automatically: do
 not rerun an orphaned active pilot; inspect/stop its recorded CLI jobs and create a fresh pilot.
 No live-run daemon or existing pet process is involved.
 
