@@ -845,8 +845,15 @@ try:
     pathlib.Path('tester-wrote-this').write_text('x')
 except OSError:
     blocked = True
+protected_blocked = None
+if os.environ.get('PILOT_STUB_PROTECTED'):
+    try:
+        pathlib.Path(os.environ['PILOT_STUB_PROTECTED']).write_text('x')
+        protected_blocked = False
+    except OSError:
+        protected_blocked = True
 pathlib.Path(os.environ['PILOT_STUB_OUT']).write_text(json.dumps({
-    'args': args, 'prompt': prompt, 'blocked': blocked,
+    'args': args, 'prompt': prompt, 'blocked': blocked, 'protectedBlocked': protected_blocked,
     'nested': os.environ.get('CLAUDECODE'), 'memory': os.environ.get('CLAUDE_CODE_DISABLE_CLAUDE_MDS'),
     'advisor': os.environ.get('KICAD_ADVISOR')}))
 if os.environ.get('PILOT_STUB_OVERLOADED'):
@@ -902,11 +909,30 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
                     'scoped task', RESULT_SCHEMA, False)
         self.assertTrue((self.workspace / 'invocation.json').is_file())
 
-    def test_claude_never_builds(self):
+    def test_a_claude_builder_never_writes_the_integration_workspace(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
-        with self.assertRaisesRegex(ValueError, 'read-only'):
+        with self.assertRaisesRegex(ValueError, 'own worker worktree'):
             pilot.agent(self.root, self.state, 'worker', 'claude-opus-5-5', self.workspace,
                         'scoped task', RESULT_SCHEMA, False)
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_a_claude_builder_writes_its_worktree_only(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        worker = self.worker_worktree()
+        with patch.dict(os.environ, {'PILOT_STUB_PROTECTED': str(self.workspace / 'builder-wrote-this')}):
+            receipt = pilot.agent(self.root, self.state, 'case', 'claude-opus-5-5', worker,
+                                  'build the case', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        seen = json.loads(out.read_text())
+        self.assertFalse(seen['blocked'])
+        self.assertTrue((worker / 'tester-wrote-this').is_file())
+        self.assertTrue(seen['protectedBlocked'])
+        self.assertFalse((self.workspace / 'builder-wrote-this').exists())
+        args = seen['args']
+        self.assertEqual(args[args.index('--tools') + 1], 'Read,Edit,Write,Grep,Glob,Bash')
+        self.assertEqual(args[args.index('--effort') + 1], 'high')
+        self.assertIn('--no-sandbox', seen['prompt'])
 
     @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
     def test_claude_overload_is_capacity_and_missing_answer_is_an_error(self):
@@ -939,12 +965,20 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
 
     def test_team_models_defaults_override_and_bad_file(self):
         project = self.base / 'project'
-        self.assertEqual(pilot.team_models(project), {'lead': pilot.LEAD, 'tester': pilot.WORKER})
+        defaults = {'lead': pilot.LEAD, 'tester': pilot.WORKER, 'integrationTester': None,
+                    'builders': {}, 'testers': {}}
+        self.assertEqual(pilot.team_models(project), defaults)
         put(project, str(pilot.TEAM_MODELS), json.dumps({'tester': 'claude-opus-5-5'}))
-        self.assertEqual(pilot.team_models(project), {'lead': pilot.LEAD, 'tester': 'claude-opus-5-5'})
-        for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5']):
+        self.assertEqual(pilot.team_models(project), {**defaults, 'tester': 'claude-opus-5-5'})
+        chosen = {'builders': {'case': 'claude-opus-5-5'}, 'testers': {'case': pilot.WORKER},
+                  'integrationTester': 'claude-opus-5-5'}
+        put(project, str(pilot.TEAM_MODELS), json.dumps(chosen))
+        self.assertEqual(pilot.team_models(project), {**defaults, **chosen})
+        for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5'],
+                    {'builders': {'lid': 'claude-opus-5-5'}}, {'testers': {'case': ''}},
+                    {'builders': 'claude-opus-5-5'}):
             put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
-            with self.assertRaisesRegex(ValueError, 'lead and tester'):
+            with self.assertRaisesRegex(ValueError, 'integrationTester'):
                 pilot.team_models(project)
 
     def test_job_logs_each_command_with_its_time(self):

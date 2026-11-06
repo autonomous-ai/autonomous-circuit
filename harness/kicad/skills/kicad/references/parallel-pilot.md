@@ -77,11 +77,14 @@ team flow manually. Do not read the old `parallel` mode as the new tile behavior
 
 One project can compare other lead/tester models: put `{"lead": "claude-opus-5-5", "tester":
 "claude-opus-5-5"}` in `<project>/.circuit/team-models.json` before the first run. Either key may be
-left out. `claude-*` models run on the Claude CLI at medium effort, read-only under `sandbox-exec`
-(only Claude's own state and the login keychain stay writable), without this machine's settings,
-hooks, memory or `CLAUDE.md`. A Claude logout ends the run as `model_unavailable`, not as a design
-failure. Builders and the print team stay on
-the worker model. Top-level documents belong to the lead, so an integration finding on one is
+left out. One role can also swap models: `"builders": {"case": "claude-opus-5-5"}` and
+`"testers": {"case": "gpt-6.1-sol"}` pick that team's builder and tester, and `"integrationTester"`
+picks the final cross-team tester (default: `tester`). `claude-*` readers run on the Claude CLI at
+medium effort, read-only under `sandbox-exec` (only Claude's own state and the login keychain stay
+writable), without this machine's settings, hooks, memory or `CLAUDE.md`. A Claude builder runs at
+high effort with edit tools, and its sandbox also lets it write its own worker worktree and the
+shared toolchain caches, never the integration workspace or `.pilot`. A Claude logout ends the run
+as `model_unavailable`, not as a design failure. The print team stays on the worker model. Top-level documents belong to the lead, so an integration finding on one is
 saved to `.pilot/lead-document-findings.json` and does not block the run.
 
 Testers review once. The first review must report every blocker at once: the product cannot be

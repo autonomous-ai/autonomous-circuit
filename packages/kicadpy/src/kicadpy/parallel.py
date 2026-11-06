@@ -206,7 +206,8 @@ def commit(workspace, names, message):
 
 
 def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
-               lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800):
+               lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800,
+               builder_models=None, tester_models=None, integration_tester_model=None):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
     if root.exists():
@@ -274,6 +275,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     base = commit(workspace, names, 'Seed isolated KiCad pilot')
     state = {'schema': 1, 'status': 'initialized', 'mode': mode, 'leadModel': lead_model,
              'workerModel': worker_model, 'testerModel': tester_model or worker_model,
+             'builderModels': dict(builder_models or {}), 'testerModels': dict(tester_models or {}),
+             'integrationTesterModel': integration_tester_model,
              'timeoutSeconds': timeout, 'revision': 0,
              'workerSandbox': WORKER_SANDBOX,
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
@@ -499,15 +502,20 @@ def _reap_worktree_processes(root, worktree):
 
 
 def team_models(workspace):
-    """`{'lead', 'tester'}` for one project; absent keeps the defaults."""
+    """Models for one project: `lead`, `tester`, `integrationTester`, and per-role `builders`/`testers`."""
+    defaults = {'lead': LEAD, 'tester': WORKER, 'integrationTester': None, 'builders': {}, 'testers': {}}
     path = Path(workspace) / TEAM_MODELS
     if not path.is_file():
-        return {'lead': LEAD, 'tester': WORKER}
+        return defaults
     chosen = json.loads(path.read_text())
-    if not isinstance(chosen, dict) or set(chosen) - {'lead', 'tester'} or not all(
-            isinstance(model, str) and model.strip() for model in chosen.values()):
-        raise ValueError(f'{TEAM_MODELS} takes only string lead and tester models')
-    return {'lead': LEAD, 'tester': WORKER, **chosen}
+    model = lambda value: isinstance(value, str) and bool(value.strip())
+    by_role = lambda value: isinstance(value, dict) and set(value) <= set(ROLES) and all(map(model, value.values()))
+    if (not isinstance(chosen, dict) or set(chosen) - set(defaults) or
+            not all(model(chosen[key]) for key in ('lead', 'tester', 'integrationTester') if key in chosen) or
+            not all(by_role(chosen[key]) for key in ('builders', 'testers') if key in chosen)):
+        raise ValueError(f'{TEAM_MODELS} takes string lead, tester and integrationTester models, '
+                         'and builders/testers maps from board, firmware or case to a model')
+    return {**defaults, **chosen}
 
 
 def _cli_env(root, state, workspace):
@@ -550,17 +558,27 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                         lambda stdout: json.loads(output.read_text()), usage_of, capacity_event)
 
 
-def _claude_sandbox(workspace):
-    """Seatbelt profile standing in for Codex's read-only sandbox: only Claude's own state is writable."""
+def _claude_sandbox(workspace, root=None):
+    """Seatbelt profile standing in for Codex's sandbox: a reader writes only Claude's own state.
+
+    A builder (given `root`) may also write its own worktree and the shared toolchain caches,
+    but never the integration workspace or the controller's files.
+    """
     home = Path.home()
     # A refreshed login must reach the keychain: the old token stops working once a new one is issued.
     writable = ['/private/tmp', '/private/var/folders', '/dev', home / '.claude', home / 'Library/Caches',
                 home / 'Library/Keychains']
+    if root is not None:
+        # Headless Chrome keeps crash and profile state here even with its own --user-data-dir.
+        writable += [Path(workspace).resolve(), FIRMWARE_CACHE, home / '.cache',
+                     home / 'Library/Application Support/Google']
     allowed = ' '.join(f'(subpath "{path}")' for path in writable)
+    protected = ([Path(workspace).resolve()] if root is None else
+                 [Path(root).resolve() / 'workspace', Path(root).resolve() / '.pilot'])
     # The last matching rule wins, so a view under a temp directory is still protected.
     return ('(version 1)(allow default)(deny file-write*)'
             f'(allow file-write* {allowed} (regex "^{re.escape(str(home))}/\\.claude\\.json"))'
-            f'(deny file-write* (subpath "{Path(workspace).resolve()}"))')
+            + ''.join(f'(deny file-write* (subpath "{path}"))' for path in protected))
 
 
 def _claude_result(text):
@@ -612,19 +630,29 @@ def _claude_exit_detail(text):
     return f": {str(event.get('result'))[:300]}" if event and event.get('is_error') else ''
 
 
+# macOS refuses a second sandbox inside sandbox-exec, so Chrome's own sandbox cannot start.
+CLAUDE_BUILDER_NOTE = ('\n\nYour shell runs inside a macOS sandbox. Writes outside this worktree, temp '
+                       'folders and the toolchain caches are refused. Start headless Chrome with '
+                       '--no-sandbox, because its own sandbox cannot start inside this one.\n')
+
+
 def claude(root, state, stage, model, workspace, prompt, schema, readonly):
-    """A read-only lead or tester job on the Claude CLI; builders stay on Codex."""
-    if not readonly:
-        raise ValueError('Claude only runs read-only team jobs')
+    """A lead, tester or builder job on the Claude CLI, always inside a write-limiting sandbox."""
     if not Path('/usr/bin/sandbox-exec').is_file():
-        raise ValueError('Claude team jobs need sandbox-exec to stay read-only')
+        raise ValueError('Claude team jobs need sandbox-exec to limit what they write')
+    if not readonly and Path(workspace).resolve().parent != (Path(root) / 'workers').resolve():
+        raise ValueError('A Claude builder writes only in its own worker worktree')
     job = _job_directory(root, state, stage)
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
-    tools = 'Read,Grep,Glob,Bash'
+    tools = 'Read,Grep,Glob,Bash' if readonly else 'Read,Edit,Write,Grep,Glob,Bash'
+    if not readonly:
+        prompt += CLAUDE_BUILDER_NOTE
+    sandbox = _claude_sandbox(workspace) if readonly else _claude_sandbox(workspace, root)
     # Empty setting sources and the two switches keep this machine's hooks, memory and CLAUDE.md out.
-    command = ['/usr/bin/sandbox-exec', '-p', _claude_sandbox(workspace), 'claude', '-p',
-               '--model', model, '--effort', 'medium', '--output-format', 'stream-json', '--verbose',
+    command = ['/usr/bin/sandbox-exec', '-p', sandbox, 'claude', '-p',
+               '--model', model, '--effort', 'medium' if readonly else 'high',
+               '--output-format', 'stream-json', '--verbose',
                '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
                '--tools', tools, '--allowedTools', tools, '--permission-mode', 'dontAsk',
                '--json-schema', json.dumps(schema)]
@@ -810,7 +838,8 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
          authorized_integration=None, integration_lock=None, stage_deadline=None,
          on_timeout=None):
-    model = state['leadModel'] if readonly else state['workerModel']
+    model = (state['leadModel'] if readonly else
+             (state.get('builderModels') or {}).get(_stage_role(stage)) or state['workerModel'])
     # Board and case both iterate on heavy geometry/checks; give them long continuations.
     long_stage = stage in LONG_STAGES and not readonly
     stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if long_stage else
@@ -1464,8 +1493,13 @@ def _apply_waivers(worktree, review, waivers):
     return {**review, 'findings': findings, 'decision': 'revise' if findings else 'approve'}
 
 
-def _tester_model(state):
-    return state.get('testerModel') or state['workerModel']
+def _stage_role(stage):
+    return stage.removesuffix('-final')
+
+
+def _tester_model(state, role=None):
+    return ((state.get('testerModels') or {}).get(role) or state.get('testerModel') or
+            state['workerModel'])
 
 
 TESTER_RULES = (
@@ -1544,7 +1578,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
     )
     # `call` selects the lead model for read-only jobs; the team's tester uses
     # its own model and the same shared jobs list, independent of lead gates.
-    tester_state = {**state, 'leadModel': _tester_model(state)}
+    tester_state = {**state, 'leadModel': _tester_model(state, role)}
     receipt = call(root, tester_state, stage + '-test', worktree, prompt,
                    REVIEW_SCHEMA, True, runner,
                    authorized_integration=authorized_integration,
@@ -2213,7 +2247,7 @@ def team_integration_test(root, state, checks, runner, recheck=None):
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
         + _waivers_text(load_waivers(root))
     )
-    tester_state = {**state, 'leadModel': _tester_model(state)}
+    tester_state = {**state, 'leadModel': state.get('integrationTesterModel') or _tester_model(state)}
     receipt = call(root, tester_state, 'integration-test', workspace, prompt,
                    REVIEW_SCHEMA, True, runner)
     if receipt['error']:
@@ -2608,6 +2642,8 @@ def metrics(state):
     return {'schema': 1, 'mode': state['mode'], 'leadModel': state['leadModel'],
             'workerSandbox': state['workerSandbox'],
             'workerModel': state['workerModel'], 'testerModel': _tester_model(state),
+            'builderModels': state.get('builderModels') or {}, 'testerModels': state.get('testerModels') or {},
+            'integrationTesterModel': state.get('integrationTesterModel') or _tester_model(state),
             'contractSha256': state.get('contractSha256'),
             'promptSha256': state['promptSha256'], 'instructionsSha256': state['instructionsSha256'],
             'pipelineSha256': state['pipelineSha256'],

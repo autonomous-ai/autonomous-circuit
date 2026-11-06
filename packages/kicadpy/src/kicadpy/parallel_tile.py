@@ -842,7 +842,9 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                 models = parallel.team_models(workspace)
                 parallel.initialize(pilot_root, frozen_prompt, seed=seed,
                                     mode='teams' if teams else 'parallel',
-                                    lead_model=models['lead'], tester_model=models['tester'])
+                                    lead_model=models['lead'], tester_model=models['tester'],
+                                    builder_models=models['builders'], tester_models=models['testers'],
+                                    integration_tester_model=models['integrationTester'])
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(1 if teams else max_rounds):

@@ -341,6 +341,22 @@ class TeamFlowTests(unittest.TestCase):
             self.assertEqual(models[stage], parallel.WORKER)
         self.assertEqual(parallel.metrics(result)['testerModel'], 'claude-tester')
 
+    def test_one_role_can_swap_builder_and_tester_models(self):
+        root = self.base / 'swapped'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',
+                            lead_model='claude-lead', tester_model='claude-tester',
+                            builder_models={'case': 'claude-builder'}, tester_models={'case': 'sol-tester'},
+                            integration_tester_model='claude-final')
+        parallel.plan(root, execute=True, runner=self.runner)
+        result = parallel.run(root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        models = {stage: model for stage, model, *_ in self.runner.visits}
+        self.assertEqual((models['case'], models['case-test']), ('claude-builder', 'sol-tester'))
+        self.assertEqual((models['board'], models['firmware']), (parallel.WORKER, parallel.WORKER))
+        self.assertEqual((models['board-test'], models['firmware-test']), ('claude-tester', 'claude-tester'))
+        self.assertEqual(models['integration-test'], 'claude-final')
+        self.assertEqual(parallel.metrics(result)['builderModels'], {'case': 'claude-builder'})
+
     def test_an_older_run_without_a_tester_model_keeps_its_worker_model(self):
         self.assertEqual(parallel._tester_model({'workerModel': 'worker'}), 'worker')
 
