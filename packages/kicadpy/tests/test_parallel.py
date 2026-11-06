@@ -931,8 +931,11 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertFalse((self.workspace / 'builder-wrote-this').exists())
         args = seen['args']
         self.assertEqual(args[args.index('--tools') + 1], 'Read,Edit,Write,Grep,Glob,Bash')
-        self.assertEqual(args[args.index('--effort') + 1], 'high')
+        # High effort let an Opus case builder think for 34 minutes without writing a part.
+        self.assertEqual(args[args.index('--effort') + 1], 'medium')
         self.assertIn('--no-sandbox', seen['prompt'])
+        self.assertIn('first runnable version within your first ten minutes', seen['prompt'])
+        self.assertIn('Do not read the harness source code', seen['prompt'])
 
     @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
     def test_claude_overload_is_capacity_and_missing_answer_is_an_error(self):
