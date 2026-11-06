@@ -2,6 +2,7 @@ export const BOARD_GROUPS = Object.freeze([
   { id: 'prompts', label: 'Prompts', defaultTab: 'prompt-current' },
   { id: 'electric', label: 'Electric', defaultTab: 'overview' },
   { id: 'case', label: 'Case', defaultTab: 'case-overview' },
+  { id: 'team', label: 'Team', defaultTab: 'team' },
 ]);
 export const BOARD_TABS = Object.freeze([
   { id: 'prompt-current', label: 'Current prompt', group: 'prompts' },
@@ -17,6 +18,7 @@ export const BOARD_TABS = Object.freeze([
   { id: 'firmware', label: 'Firmware', group: 'electric' },
   { id: 'case-overview', label: 'Overview', group: 'case' },
   { id: 'case', label: '3D & Print', group: 'case' },
+  { id: 'team', label: 'Runs', group: 'team' },
 ]);
 export function groupForTab(tab) {
   return BOARD_TABS.find(item => item.id === tab)?.group || 'electric';

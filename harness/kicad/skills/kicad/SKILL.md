@@ -270,8 +270,9 @@ screws/nuts/washers as recognizable 3D hardware with a separate
 default-on **Vít/tán** toggle. Selection must focus the real screw and its size/insertion path;
 local exploded/cutaway views explain nested joints and fixed/rotating parts. Derive hardware
 from the checked instance map and confirmed owned sizes, and keep it out of printable output.
-Use the assembly reference's light CAD palette: opaque, role-distinct materials, shaded faces,
-clear feature edges and high-contrast light controls. Keep X-ray/transparency optional rather
+Use the assembly reference's CAD palette: opaque, role-distinct materials, shaded faces,
+clear feature edges and high-contrast controls, light by default and dark when the viewer opens it
+with `#theme=dark` (read the hash on load and on `hashchange`). Keep X-ray/transparency optional rather
 than stacking translucent shells over the default assembly. Verify the saved **Đủ bộ**, an
 interior step and a focused fastener visually at desktop and phone widths, then verify the final
 controls and hardware coverage per the assembly reference. For a moving

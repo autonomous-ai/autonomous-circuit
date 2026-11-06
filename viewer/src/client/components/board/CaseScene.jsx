@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Box } from "lucide-react";
 import { cn } from "@/ui/utils";
+import { useDarkMode } from "@/ui/use-dark-mode.js";
 import { boxCenterAndRadius, fitDistance } from "@/lib/threeFit.js";
 import { explodeOffset } from "./caseView.js";
 
@@ -25,7 +26,7 @@ import { explodeOffset } from "./caseView.js";
  *   exploded?: boolean,
  *   seeThrough?: boolean,
  *   showBoard?: boolean,
- *   background?: string,
+ *   background?: string,      // defaults to the app theme's scene colour
  *   className?: string,
  * }} props
  */
@@ -40,6 +41,13 @@ const ROLE_COLOR = {
   coupon: 0xe2b866,
 };
 
+// The floor follows the app theme like the CAD viewer's (--cad-viewer-*); the
+// parts keep their print colours in both.
+const SCENE_LOOK = {
+  light: { background: "#eaf0f2", ground: 0xb9c7cc, gridMajor: 0xb6c6ca, gridMinor: 0xd4e0e2 },
+  dark: { background: "#0e0f13", ground: 0x1d2229, gridMajor: 0x4b5563, gridMinor: 0x262b33 },
+};
+
 export default function CaseScene({
   contractUrl = "",
   parts = [],
@@ -47,9 +55,11 @@ export default function CaseScene({
   exploded = false,
   seeThrough = false,
   showBoard = true,
-  background = "#eaf0f2",
+  background: backgroundProp,
   className,
 }) {
+  const look = SCENE_LOOK[useDarkMode() ? "dark" : "light"];
+  const background = backgroundProp || look.background;
   const hostRef = useRef(null);
   const sceneRef = useRef(null); // { meshes: Map<name, {mesh, base, offset}>, board, applyLook }
   const [phase, setPhase] = useState(parts.length ? "loading" : "empty");
@@ -100,7 +110,7 @@ export default function CaseScene({
       scene.background = new THREE.Color(background);
       const camera = new THREE.PerspectiveCamera(40, (host.clientWidth || 1) / (host.clientHeight || 1), 0.1, 10_000);
       camera.up.set(0, 0, 1); // the contract's z is "out of the board's top face"
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c7cc, 1.15));
+      scene.add(new THREE.HemisphereLight(0xffffff, look.ground, 1.15));
       const key = new THREE.DirectionalLight(0xffffff, 1.25);
       key.position.set(1, -1.5, 2);
       scene.add(key);
@@ -194,7 +204,7 @@ export default function CaseScene({
       assembled.expandByObject(boardGroup);
       const footprint = assembled.getSize(new THREE.Vector3());
       const gridSize = Math.max(80, boardSpan * 2, footprint.x * 1.7, footprint.y * 1.7);
-      const grid = new THREE.GridHelper(gridSize, 16, 0xb6c6ca, 0xd4e0e2);
+      const grid = new THREE.GridHelper(gridSize, 16, look.gridMajor, look.gridMinor);
       grid.rotation.x = Math.PI / 2;
       grid.position.set((assembled.min.x + assembled.max.x) / 2, (assembled.min.y + assembled.max.y) / 2, assembled.min.z - Math.max(1.5, boardSpan * 0.025));
       grid.material.transparent = true;
@@ -283,7 +293,7 @@ export default function CaseScene({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partsKey, contractUrl, background]);
+  }, [partsKey, contractUrl, background, look]);
 
   useEffect(() => {
     sceneRef.current?.apply({ visible, exploded, seeThrough, showBoard });
@@ -293,14 +303,14 @@ export default function CaseScene({
     <div data-slot="case-scene" data-state={phase} className={cn("relative min-h-0 flex-1 overflow-hidden", className)} style={{ backgroundColor: background }}>
       <div ref={hostRef} className="absolute inset-0" />
       {phase === "ready" ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-white/65 px-2 py-1 font-mono text-[10px] leading-4 text-[#526872]">
+        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/70 px-2 py-1 font-mono text-[10px] leading-4 text-muted-foreground">
           drag orbit · scroll zoom · right-drag pan
         </p>
       ) : (
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
-            <Box className="size-8 text-[#8da4ad]" aria-hidden />
-            <p className="text-sm leading-6 text-[#526872]">
+            <Box className="size-8 text-muted-foreground" aria-hidden />
+            <p className="text-sm leading-6 text-muted-foreground">
               {phase === "loading" ? "Loading the case…" : phase === "error" ? `The 3D view could not start: ${failure}` : "No parts to show."}
             </p>
           </div>
