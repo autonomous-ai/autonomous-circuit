@@ -13,6 +13,8 @@ OWNED = {
 # Where a team records a sealed detail it had to change inside its own domain.
 DEVIATIONS = {'board': 'engineering/DEVIATIONS.md', 'firmware': 'firmware/DEVIATIONS.md',
               'case': 'case/DEVIATIONS.md'}
+# A builder's own map of its files, so a later job with no memory of the work starts from it.
+HANDOFF = {'board': 'engineering/HANDOFF.md', 'firmware': 'firmware/HANDOFF.md', 'case': 'case/HANDOFF.md'}
 
 
 def obj(properties):

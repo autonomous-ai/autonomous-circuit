@@ -856,6 +856,13 @@ pathlib.Path(os.environ['PILOT_STUB_OUT']).write_text(json.dumps({
     'args': args, 'prompt': prompt, 'blocked': blocked, 'protectedBlocked': protected_blocked,
     'nested': os.environ.get('CLAUDECODE'), 'memory': os.environ.get('CLAUDE_CODE_DISABLE_CLAUDE_MDS'),
     'advisor': os.environ.get('KICAD_ADVISOR')}))
+with open(os.environ['PILOT_STUB_OUT'] + '.all', 'a') as calls:
+    calls.write(json.dumps(args) + '\n')
+if '--resume' in args and os.environ.get('PILOT_STUB_LOST_SESSION'):
+    print(json.dumps({'type': 'result', 'is_error': True,
+                      'result': 'No conversation found with session ID: ' + args[args.index('--resume') + 1]}))
+    sys.exit(1)
+print(json.dumps({'type': 'system', 'subtype': 'init', 'session_id': 'sess-' + str(len(prompt))}))
 if os.environ.get('PILOT_STUB_OVERLOADED'):
     print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': 529, 'result': 'Overloaded'}))
     sys.exit(1)
@@ -931,8 +938,79 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertFalse((self.workspace / 'builder-wrote-this').exists())
         args = seen['args']
         self.assertEqual(args[args.index('--tools') + 1], 'Read,Edit,Write,Grep,Glob,Bash')
+        # The builder keeps its session so the team's next job can resume it; it starts fresh here.
+        self.assertNotIn('--no-session-persistence', args)
+        self.assertNotIn('--resume', args)
+        self.assertTrue(receipt['sessionId'].startswith('sess-'))
         self.assertEqual(args[args.index('--effort') + 1], 'high')
         self.assertIn('--no-sandbox', seen['prompt'])
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_a_claude_builder_resumes_the_team_session_and_starts_fresh_when_it_is_gone(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        worker = self.worker_worktree()
+        receipt = pilot.agent(self.root, {**self.state, 'resumeSession': 'sess-old'}, 'case',
+                              'claude-opus-5-5', worker, 'fix the lid', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        args = json.loads(out.read_text())['args']
+        self.assertEqual(args[args.index('--resume') + 1], 'sess-old')
+        with patch.dict(os.environ, {'PILOT_STUB_LOST_SESSION': '1'}):
+            receipt = pilot.agent(self.root, {**self.state, 'resumeSession': 'sess-gone'}, 'case',
+                                  'claude-opus-5-5', worker, 'fix the lid', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        calls = [json.loads(line) for line in Path(str(out) + '.all').read_text().splitlines()]
+        self.assertIn('sess-gone', calls[-2])
+        self.assertNotIn('--resume', calls[-1])
+        seen = json.loads(out.read_text())
+        self.assertEqual(seen['prompt'].count('macOS sandbox'), 1)
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_a_claude_reader_never_keeps_or_resumes_a_session(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        pilot.agent(self.root, {**self.state, 'resumeSession': 'sess-old'}, 'review', 'claude-opus-5-5',
+                    self.workspace, 'read only', RESULT_SCHEMA, True)
+        args = json.loads(out.read_text())['args']
+        self.assertIn('--no-session-persistence', args)
+        self.assertNotIn('--resume', args)
+
+    def test_call_hands_the_team_session_to_its_next_claude_job_in_the_same_revision(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        seen = []
+
+        def runner(root, state, stage, model, workspace, prompt, schema, readonly):
+            seen.append(state.get('resumeSession'))
+            return {'stage': stage, 'model': model, 'startedAt': 0, 'seconds': 1, 'usage': None,
+                    'result': {'contractSha256': 'h', 'stage': stage, 'summary': 's', 'blockers': []},
+                    'error': None, 'sessionId': f'sess-{len(seen)}'}
+
+        state = {**self.state, 'builderModels': {'case': 'claude-opus-5-5'}, 'jobs': [], 'revision': 1}
+        pilot.call(self.root, state, 'case', self.workspace, 'build', RESULT_SCHEMA, False, runner)
+        pilot.call(self.root, state, 'case', self.workspace, 'repair', RESULT_SCHEMA, False, runner)
+        pilot.call(self.root, state, 'board', self.workspace, 'build', RESULT_SCHEMA, False, runner)
+        self.assertEqual(seen[:2], [None, 'sess-1'])
+        self.assertIsNone(seen[2], 'a session belongs to one team')
+        state['revision'] = 2
+        pilot.call(self.root, state, 'case', self.workspace, 'build', RESULT_SCHEMA, False, runner)
+        self.assertIsNone(seen[3], 'a new contract revision starts fresh')
+
+    def test_repair_context_pastes_cited_lines_and_names_the_handoff(self):
+        tools = self.workspace / 'tools/case'
+        tools.mkdir(parents=True, exist_ok=True)
+        (tools / 'crab_geom.py').write_text(''.join(f'line {n}\n' for n in range(1, 301)))
+        (self.base / 'secret.txt').write_text('outside')
+        findings = [{'path': 'case/out/lid.step',
+                     'message': 'shelf blocks the board (tools/case/crab_geom.py:150-156); '
+                                'see ../secret.txt:1 and missing/file.py:3'}]
+        text = pilot._repair_context(self.workspace, 'case', findings)
+        self.assertIn('Read case/HANDOFF.md first', text)
+        self.assertIn('--- tools/case/crab_geom.py:142-164', text)
+        self.assertIn('  150  line 150', text)
+        self.assertNotIn('line 141', text)
+        self.assertNotIn('outside', text)
+        self.assertNotIn('missing/file.py', text)
+        self.assertEqual(pilot._cited_code(self.workspace, [{'message': 'no line cited'}]), '')
 
     @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
     def test_claude_overload_is_capacity_and_missing_answer_is_an_error(self):
@@ -1353,6 +1431,12 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
             state = {**self.state, 'mode': mode, 'contractSha256': 'hash'}
             self.assertIn('PLATFORMIO_CORE_DIR', pilot.worker_prompt(state, 'firmware', 'firmware'))
             self.assertNotIn('PLATFORMIO_CORE_DIR', pilot.worker_prompt(state, 'case', 'case'))
+
+    def test_team_builders_keep_a_handoff_note_for_the_next_job(self):
+        state = {**self.state, 'mode': 'teams', 'contractSha256': 'hash'}
+        for role, note in (('board', 'engineering/HANDOFF.md'), ('firmware', 'firmware/HANDOFF.md'),
+                           ('case', 'case/HANDOFF.md')):
+            self.assertIn(f'Keep {note} current', pilot.worker_prompt(state, role, role))
 
     def test_no_progress_timeout_is_terminal_and_combined_retries_are_capped(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA

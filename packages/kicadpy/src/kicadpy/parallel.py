@@ -22,7 +22,7 @@ import threading
 import time
 
 from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
-                                DEVIATIONS, OWNED, digest, encoded, owns, validate, validate_contract)
+                                DEVIATIONS, HANDOFF, OWNED, digest, encoded, owns, validate, validate_contract)
 
 LEAD = 'gpt-6-astra'
 WORKER = 'gpt-6.1-sol'
@@ -593,6 +593,18 @@ def _claude_result(text):
     return None
 
 
+def _session_of(stdout):
+    """The CLI session a job ran in, so the next job for the same team can resume it."""
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and isinstance(event.get('session_id'), str):
+            return event['session_id']
+    return None
+
+
 def _claude_answer(stdout):
     event = _claude_result(stdout)
     if event is None or event.get('is_error') or not isinstance(event.get('structured_output'), dict):
@@ -646,6 +658,10 @@ def claude(root, state, stage, model, workspace, prompt, schema, readonly):
     write(job / 'schema.json', schema)
     (job / 'prompt.txt').write_text(prompt)
     tools = 'Read,Grep,Glob,Bash' if readonly else 'Read,Edit,Write,Grep,Glob,Bash'
+    task = prompt
+    # A builder keeps its session so the team's next job (timeout retry, tester repair, integration
+    # repair) resumes with the code it wrote in memory instead of reading the whole worktree again.
+    resume = None if readonly else state.get('resumeSession')
     if not readonly:
         prompt += CLAUDE_BUILDER_NOTE
     sandbox = _claude_sandbox(workspace) if readonly else _claude_sandbox(workspace, root)
@@ -653,14 +669,21 @@ def claude(root, state, stage, model, workspace, prompt, schema, readonly):
     command = ['/usr/bin/sandbox-exec', '-p', sandbox, 'claude', '-p',
                '--model', model, '--effort', 'medium' if readonly else 'high',
                '--output-format', 'stream-json', '--verbose',
-               '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
+               *(['--no-session-persistence'] if readonly else []),
+               *(['--resume', resume] if resume else []),
+               '--setting-sources', '', '--strict-mcp-config',
                '--tools', tools, '--allowedTools', tools, '--permission-mode', 'dontAsk',
                '--json-schema', json.dumps(schema)]
     env = {k: v for k, v in _cli_env(root, state, workspace).items()
            if k not in ('CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT')}
     env.update(CLAUDE_CODE_DISABLE_AUTO_MEMORY='1', CLAUDE_CODE_DISABLE_CLAUDE_MDS='1')
-    return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, 'Claude',
-                        _claude_answer, claude_usage, claude_capacity, _claude_exit_detail)
+    receipt = _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, 'Claude',
+                           _claude_answer, claude_usage, claude_capacity, _claude_exit_detail)
+    if resume and receipt['error'] and 'No conversation found' in receipt['error']:
+        # The saved session is gone; start fresh and let the handoff note carry the work.
+        return claude(root, {**state, 'resumeSession': None}, stage, model, workspace, task, schema,
+                      readonly)
+    return receipt
 
 
 def agent(root, state, stage, model, workspace, prompt, schema, readonly):
@@ -827,12 +850,59 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
         commands = clock.finish()
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
                'usage': usage(stdout), 'commands': commands, 'result': result, 'error': error,
+               'sessionId': _session_of(stdout),
                'failureKind': ('interrupted' if interrupted else 'timeout' if timed_out else
                                'model_capacity' if error and process is not None and
                                process.returncode not in (None, 0) and capacity(stdout) else None),
                'logDirectory': str(job.relative_to(root))}
     write(job / 'receipt.json', receipt)
     return receipt
+
+
+def _builder_session(state, stage):
+    """The team's last Claude builder session in this contract revision, if any."""
+    saved = (state.get('builderSessions') or {}).get(_stage_role(stage))
+    if isinstance(saved, dict) and saved.get('revision') == state['revision']:
+        return saved.get('sessionId')
+    return None
+
+
+def _handoff_first(role):
+    if role not in HANDOFF:
+        return ''
+    return (f' Read {HANDOFF[role]} first if it exists; open other files only when you need them.')
+
+
+CITED_LINES = re.compile(r'([A-Za-z0-9_][\w./-]*\.[A-Za-z0-9]+):(\d+)(?:-(\d+))?')
+
+
+def _cited_code(worktree, findings, *, limit=6, margin=8, max_lines=80):
+    """Paste the lines a finding cites, so a repair job starts at the fault instead of re-reading."""
+    worktree = Path(worktree).resolve()
+    blocks, seen = [], set()
+    for name, first, last in CITED_LINES.findall(json.dumps(findings)):
+        if len(blocks) >= limit or (name, first, last) in seen:
+            continue
+        seen.add((name, first, last))
+        path = (worktree / name).resolve()
+        if '..' in PurePosixPath(name).parts or not path.is_relative_to(worktree) or not path.is_file():
+            continue
+        try:
+            lines = path.read_text(errors='replace').splitlines()
+        except OSError:
+            continue
+        start = max(int(first) - margin, 1)
+        end = min(int(last or first) + margin, len(lines), start + max_lines - 1)
+        if start > end:
+            continue
+        body = '\n'.join(f'{number:>5}  {lines[number - 1]}' for number in range(start, end + 1))
+        blocks.append(f'--- {name}:{start}-{end}\n{body}')
+    return ('\nCITED CODE (current worktree):\n' + '\n'.join(blocks) + '\n') if blocks else ''
+
+
+def _repair_context(worktree, role, findings):
+    return ('\nWhere to start:' + _handoff_first(role) + ' The finding cites the code below.' +
+            _cited_code(worktree, findings))
 
 
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
@@ -888,7 +958,8 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             retry_prompt += ('\n\nThe previous attempt stopped because ' + continuation + '. '
                              'This is the same sealed stage and isolated worktree. Inspect any existing '
                              'role-owned files, continue the unfinished work, and return the required '
-                             'stage result. Preserve completed work; do not change shared inputs.')
+                             'stage result. Preserve completed work; do not change shared inputs.' +
+                             _handoff_first(_stage_role(stage)))
             if timeout_guidance is not None:
                 retry_prompt += ('\nLEAD ADVICE ON THE PARTIAL WORK:\n' +
                                  json.dumps(timeout_guidance, sort_keys=True))
@@ -896,7 +967,8 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
         attempt_limit = min(((full_attempt if long_stage else
                               TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
                              full_attempt), remaining)
-        attempt_state = {**state, 'timeoutSeconds': attempt_limit}
+        attempt_state = {**state, 'timeoutSeconds': attempt_limit,
+                         'resumeSession': None if readonly else _builder_session(state, stage)}
         try:
             receipt = runner(root, attempt_state, stage, model, workspace,
                              retry_prompt, schema, readonly)
@@ -909,6 +981,9 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
         # Record usage before any retry checks so interruption cannot discard a paid attempt.
         with ACTIVE_LOCK:
             state['jobs'].append(receipt)
+            if not readonly and model.startswith('claude-') and receipt.get('sessionId'):
+                state.setdefault('builderSessions', {})[_stage_role(stage)] = {
+                    'sessionId': receipt['sessionId'], 'revision': state['revision']}
         previous_receipt = receipt
         kind = receipt.get('failureKind') if receipt.get('error') else None
         may_retry_capacity = (kind == 'model_capacity' and
@@ -1185,6 +1260,10 @@ def worker_prompt(state, role, stage):
             'is wrong or infeasible (a datasheet contradicts an internal pin, an agent-chosen '
             'size or limit cannot be met), choose the closest verified V0 option, record contract '
             f'text, change, evidence and cross-team impact in {DEVIATIONS[role]}, and continue. '
+            f'Keep {HANDOFF[role]} current in under 60 lines: what each file you own does, where '
+            'the key features live (function names and line ranges), the fastest check command '
+            'for each, and open assumptions. A later repair job may start without your memory '
+            'and reads it first. '
             'Keep cross-team pins, rails, outline and mounts unless no option exists. Report a '
             'blocker only for what needs the user (money, owned hardware, safety); preserve '
             'partial files. ' + task +
@@ -1683,7 +1762,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             prompt += ('\n\nLEAD REVIEW FINDINGS FOR SAME SEALED CONTRACT:\n' +
                        json.dumps(guidance, sort_keys=True) + '\nRepair the cited files in this '
                        'new worktree from the latest integrated checkpoint. Preserve the shared '
-                       'interface and run native checks before reporting completion.')
+                       'interface and run native checks before reporting completion.' +
+                       (_repair_context(dest, role, guidance) if state['mode'] == 'teams' else ''))
         if provenance['sources']:
             origin = (f"previous team run {provenance['originRun']}" if provenance['originRun'] else
                       f"revision {provenance['priorRevision']}")
@@ -1886,7 +1966,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                               ('\nLEAD RULING ON THE STUCK FINDINGS (follow it):\n' +
                                json.dumps(arbitration, sort_keys=True) if arbitration else '') +
                               '\nContinue in this same worktree. Repair actual files and rerun '
-                              'native checks. Preserve the original contract and release notes.')
+                              'native checks. Preserve the original contract and release notes.' +
+                              _repair_context(dest, role, test['findings']))
                     continue
                 if problem is None:
                     return role, stage, dest, pointer, receipt, checks, None
