@@ -163,16 +163,33 @@ function teamRunSummary(run, state) {
   const jobs = Array.isArray(state.jobs) ? state.jobs.filter(job => job && typeof job === "object") : [];
   const seconds = job => (Number.isFinite(job.seconds) && job.seconds > 0 ? job.seconds : 0);
   const issues = job => (Array.isArray(job.result?.findings) ? job.result.findings.length : 0);
+  const model = job => (typeof job?.model === "string" && /^[\w.-]{1,40}$/.test(job.model) ? job.model : null);
   const teams = {};
   for (const role of TEAM_ROLES) {
     const mine = jobs.filter(job => job.stage === role || job.stage === `${role}-test`);
+    const builds = mine.filter(job => job.stage === role);
     const tests = mine.filter(job => job.stage === `${role}-test` && typeof job.result?.decision === "string");
+    const revised = tests.findIndex(job => job.result.decision === "revise");
     teams[role] = {
       decision: tests.length ? String(tests.at(-1).result.decision).slice(0, 20) : null,
       seconds: Math.round(mine.reduce((sum, job) => sum + seconds(job), 0)),
       issues: tests.reduce((sum, job) => sum + issues(job), 0),
+      builds: builds.length, tests: tests.length,
+      // A repair is a build after the first "revise".
+      repairs: revised < 0 ? 0 : builds.filter(job => job.startedAt > tests[revised].startedAt).length,
+      builderModel: model(builds.at(-1)) || model({ model: state.builderModels?.[role] }) || model({ model: state.workerModel }),
+      testerModel: model(tests.at(-1)) || model({ model: state.testerModels?.[role] }) || model({ model: state.testerModel }),
     };
   }
+  const activity = jobs.filter(job => typeof job.stage === "string" && /^[a-z0-9-]{1,40}$/.test(job.stage)).slice(-15).reverse().map(job => ({
+    stage: job.stage,
+    at: Number.isFinite(job.startedAt) ? Math.round(job.startedAt + seconds(job)) : null,
+    seconds: Math.round(seconds(job)),
+    decision: typeof job.result?.decision === "string" ? String(job.result.decision).slice(0, 20) : null,
+    issues: issues(job),
+    failed: Boolean(job.failureKind || job.error),
+    model: model(job),
+  }));
   const integrationTests = jobs.filter(job => job.stage === "integration-test" && typeof job.result?.decision === "string");
   const createdAt = Number.isFinite(state.createdAt) ? state.createdAt : null;
   const finishedAt = Number.isFinite(state.roundFinishedAt) ? state.roundFinishedAt : null;
@@ -181,7 +198,7 @@ function teamRunSummary(run, state) {
     run, status: String(state.status || "unknown").slice(0, 40), startedAt: createdAt,
     seconds: createdAt && finishedAt && finishedAt >= createdAt ? Math.round(finishedAt - createdAt) : null,
     openIssues: open.length, reason: open.length ? open[0].slice(0, 200) : "",
-    teams,
+    teams, activity,
     integration: integrationTests.length ? {
       decision: String(integrationTests.at(-1).result.decision).slice(0, 20),
       issues: integrationTests.reduce((sum, job) => sum + issues(job), 0),

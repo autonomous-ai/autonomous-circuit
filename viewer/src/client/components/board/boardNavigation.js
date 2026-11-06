@@ -1,6 +1,6 @@
 export const BOARD_GROUPS = Object.freeze([
-  { id: 'prompts', label: 'Prompts', defaultTab: 'prompt-current' },
-  { id: 'electric', label: 'Electric', defaultTab: 'overview' },
+  { id: 'prompts', label: 'Brief', defaultTab: 'prompt-current' },
+  { id: 'electric', label: 'Board', defaultTab: 'overview' },
   { id: 'case', label: 'Case', defaultTab: 'case-overview' },
   { id: 'team', label: 'Team', defaultTab: 'team' },
 ]);

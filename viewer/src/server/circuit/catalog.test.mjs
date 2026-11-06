@@ -532,8 +532,8 @@ test("team runs stay in the catalog after the run is accepted, as numbers and de
   runState("r001", { status: "planning_failed", createdAt: 100, findings: ["Claude exited 71"], jobs: [{ stage: "plan", seconds: 1 }] });
   runState("r002", { status: "candidate_ready", createdAt: 200, roundFinishedAt: 7377, findings: [], contractFile: "/secret/path", jobs: [
     { stage: "board", seconds: 430 }, { stage: "board-test", seconds: 102, result: { decision: "approve", findings: [] } },
-    { stage: "case", seconds: 3600 }, { stage: "case-test", seconds: 406, result: { decision: "revise", findings: [{ file: "case/a.py" }] } },
-    { stage: "case", seconds: 694 }, { stage: "case-test", seconds: 56, result: { decision: "approve", findings: [] } },
+    { stage: "case", seconds: 3600, startedAt: 1000, model: "claude-opus-5-5" }, { stage: "case-test", seconds: 406, startedAt: 2000, result: { decision: "revise", findings: [{ file: "case/a.py" }] } },
+    { stage: "case", seconds: 694, startedAt: 3000, model: "claude-opus-5-5" }, { stage: "case-test", seconds: 56, startedAt: 4000, model: "gpt-6.1-sol", result: { decision: "approve", findings: [] } },
     { stage: "integration-test", seconds: 1150, result: { decision: "approve", findings: [] } },
   ] });
   fs.mkdirSync(path.join(dir, ".circuit/team-runs/r003"), { recursive: true });
@@ -546,7 +546,10 @@ test("team runs stay in the catalog after the run is accepted, as numbers and de
   assert.deepEqual(catalog.teamRuns.runs.map(run => run.run), ["r002", "r001"]);
   const [done, failed] = catalog.teamRuns.runs;
   assert.equal(done.seconds, 7177);
-  assert.deepEqual(done.teams.case, { decision: "approve", seconds: 4756, issues: 1 });
+  assert.deepEqual(done.teams.case, { decision: "approve", seconds: 4756, issues: 1, builds: 2, tests: 2, repairs: 1,
+    builderModel: "claude-opus-5-5", testerModel: "gpt-6.1-sol" });
+  assert.deepEqual(done.activity.map(item => [item.stage, item.decision, item.issues]),
+    [["integration-test", "approve", 0], ["case-test", "approve", 0], ["case", null, 0], ["case-test", "revise", 1], ["case", null, 0], ["board-test", "approve", 0], ["board", null, 0]]);
   assert.deepEqual(done.integration, { decision: "approve", issues: 0 });
   assert.doesNotMatch(JSON.stringify(catalog.teamRuns), /secret/);
   assert.equal(failed.reason, "Claude exited 71");
