@@ -26,9 +26,9 @@ import { defaultVisibility, describeStatus, formatBytes, groupPartsByPlate, orde
  */
 
 const TONE = {
-  good: { icon: CheckCircle2, className: "text-emerald-700" },
-  bad: { icon: AlertTriangle, className: "text-red-700" },
-  warn: { icon: RefreshCw, className: "text-amber-700" },
+  good: { icon: CheckCircle2, className: "text-emerald-700 dark:text-emerald-400" },
+  bad: { icon: AlertTriangle, className: "text-red-700 dark:text-red-400" },
+  warn: { icon: RefreshCw, className: "text-amber-700 dark:text-amber-400" },
   idle: { icon: Package, className: "text-muted-foreground" },
 };
 
@@ -192,7 +192,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           <button
             type="button" disabled={saving || !projectId} onClick={() => save("stl", part.name)}
             data-slot="case-download-stl"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-[#eef4f5] disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-40"
           >
             <Download className="size-3" aria-hidden />
             STL
@@ -201,7 +201,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
             <button
               type="button" disabled={saving || !projectId} onClick={() => save("step", part.name)}
               data-slot="case-download-step"
-              className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-[#eef4f5] disabled:opacity-40"
+              className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-40"
             >
               STEP
             </button>
@@ -218,8 +218,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   };
 
   return (
-    <div data-slot="case" className={cn("flex min-h-0 flex-1 bg-[#eef2f2] text-foreground", className)}
-      style={{ "--foreground": "#25333b", "--muted-foreground": "#5c6e76", "--border": "#d5dee1", "--card": "#ffffff", "--primary": "#266789", "--primary-foreground": "#ffffff" }}>
+    <div data-slot="case" className={cn("flex min-h-0 flex-1 bg-background text-foreground", className)}>
       <Scene
         contractUrl={enclosure.contractUrl || ""}
         parts={parts}
@@ -230,7 +229,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         className="min-h-0 flex-1"
       />
 
-      <aside className="scrollbar-thin flex w-[340px] max-w-[48%] shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-[#f8faf9] p-3">
+      <aside className="scrollbar-thin flex w-[340px] max-w-[48%] shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-muted/30 p-3">
         <div data-slot="case-status" data-state={displayState} className="flex gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm">
           <StatusIcon className={cn("mt-0.5 size-4 shrink-0", tone.className)} aria-hidden />
           <div className="min-w-0">
@@ -283,7 +282,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         </section>
 
         {coupon ? (
-          <div data-slot="case-coupon" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5">
+          <div data-slot="case-coupon" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 dark:border-amber-500/50 dark:bg-amber-500/10">
             <p className="text-sm font-medium text-foreground">Print the test-fit coupon first</p>
             <p className="text-xs leading-5 text-muted-foreground">
               A few minutes of print: the plate around the screen and the wall around the port. Hold it against the real board before printing the whole case.
@@ -322,12 +321,12 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
             <p className="-mt-2 text-[11px] leading-4 text-muted-foreground">These groups show which parts belong to each print plate. The 3D view shows their assembled position.</p>
             {activePlate !== null ? (
               <button type="button" data-slot="case-show-all" onClick={showAll}
-                className="self-start rounded-md border border-primary/40 bg-card px-2.5 py-1 text-xs font-medium text-primary hover:bg-[#eaf2f5]">
+                className="self-start rounded-md border border-primary/40 bg-card px-2.5 py-1 text-xs font-medium text-primary hover:bg-accent">
                 Show all assembly parts
               </button>
             ) : null}
             {plateParts.groups.map((group) => (
-              <section key={group.index} data-slot="case-plate" data-plate={group.index} className="rounded-xl border border-border bg-[#eaf1f3] p-2.5">
+              <section key={group.index} data-slot="case-plate" data-plate={group.index} className="rounded-xl border border-border bg-muted/50 p-2.5">
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary">Plate {group.index} · {group.parts.length} parts</p>
@@ -336,7 +335,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
                   </div>
                   <button type="button" data-slot="case-plate-focus" aria-pressed={activePlate === group.index ? "true" : "false"}
                     onClick={() => focusPlate(group)}
-                    className="shrink-0 rounded-md border border-primary/40 bg-card px-2 py-1 text-[11px] font-semibold text-primary hover:bg-[#dbeaf0]">
+                    className="shrink-0 rounded-md border border-primary/40 bg-card px-2 py-1 text-[11px] font-semibold text-primary hover:bg-accent">
                     Show only
                   </button>
                 </div>
@@ -346,7 +345,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
               </section>
             ))}
             {plateParts.other.length ? (
-              <section data-slot="case-other-parts" className="rounded-xl border border-border bg-[#f4f5f2] p-2.5">
+              <section data-slot="case-other-parts" className="rounded-xl border border-border bg-muted/40 p-2.5">
                 <h3 className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-foreground">Test & reference</h3>
                 <p className="mb-2 text-[11px] leading-4 text-muted-foreground">Not in the production plates above.</p>
                 <ul aria-label="Test and reference parts" className="flex flex-col gap-1.5">

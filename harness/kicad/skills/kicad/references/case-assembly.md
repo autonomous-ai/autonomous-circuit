@@ -261,10 +261,15 @@ universal design requirements.
   hardware visibility and real checked motion without a second mandatory menu. Record actual
   visual checks separately from source checks when a permitted viewer is unavailable.
 
-### Light CAD appearance for the Case overview
+### Light and dark CAD appearance for the Case overview
 
-- Give the embedded HTML a SketchUp-like **light modeling workspace**, independent of the
-  surrounding app theme. Start from a pale sky/neutral canvas (`#edf3f5`), a subtle ground/grid
+- **Follow the app theme.** The viewer opens the overview as `overview.html#theme=light` or
+  `#theme=dark` and changes only the hash when the person switches theme. Read it on load and on
+  `hashchange`; with no hash, use light. Dark keeps the same roles, lighting and edges on a dark
+  workspace: canvas `#0e0f13`, ground/grid `#1d2229` / `#3a414c`, panels `#161a22` with light
+  text (`#e6e9ef`), accent `#7fb0ff`, edges `#0b0d11`; part colors stay as below so a print still
+  reads as its filament. Check both themes at the same contrast bar.
+- Light is a SketchUp-like **light modeling workspace**. Start from a pale sky/neutral canvas (`#edf3f5`), a subtle ground/grid
   (`#e3e9e8` / `#cbd6d9`) and white panels (`#ffffff`) with dark text (`#24313a`). Use a single
   blue action/focus accent (`#1d668f`); keep controls readable with visible focus and disabled
   states. Use at least 4.5:1 contrast for normal text and phone-sized controls with a minimum

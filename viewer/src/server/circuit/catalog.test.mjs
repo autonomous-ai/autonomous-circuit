@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { printAll3mf } from "./caseExport.mjs";
-import { createCatalogService, scanProjectCatalog } from "./catalog.mjs";
+import { createCatalogService, scanProjectCatalog, scanTeamRuns } from "./catalog.mjs";
 
 function tmpdir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -521,4 +521,48 @@ test('firmware wiring guide stays discoverable beyond the source-list cap and ch
   const before=read();assert.equal(before.truncated,true);assert.match(before.wiringUrl,/firmware\/WIRING\.md\?v=/);
   fs.appendFileSync(wiring,'\nGround → GND');assert.notEqual(read().wiringUrl,before.wiringUrl);
   fs.unlinkSync(wiring);assert.equal(read().wiringUrl,undefined);
+});
+
+test("team runs stay in the catalog after the run is accepted, as numbers and decisions only", () => {
+  const dir = tmpdir("circuit-team-runs-");
+  const runState = (run, state) => {
+    fs.mkdirSync(path.join(dir, ".circuit/team-runs", run, ".pilot"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".circuit/team-runs", run, ".pilot/state.json"), JSON.stringify(state));
+  };
+  runState("r001", { status: "planning_failed", createdAt: 100, findings: ["Claude exited 71"], jobs: [{ stage: "plan", seconds: 1 }] });
+  runState("r002", { status: "candidate_ready", createdAt: 200, roundFinishedAt: 7377, findings: [], contractFile: "/secret/path", jobs: [
+    { stage: "board", seconds: 430 }, { stage: "board-test", seconds: 102, result: { decision: "approve", findings: [] } },
+    { stage: "case", seconds: 3600 }, { stage: "case-test", seconds: 406, result: { decision: "revise", findings: [{ file: "case/a.py" }] } },
+    { stage: "case", seconds: 694 }, { stage: "case-test", seconds: 56, result: { decision: "approve", findings: [] } },
+    { stage: "integration-test", seconds: 1150, result: { decision: "approve", findings: [] } },
+  ] });
+  fs.mkdirSync(path.join(dir, ".circuit/team-runs/r003"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r002", status: "candidate_ready", teamReady: true }));
+
+  const catalog = scanProjectCatalog({ projectDir: dir, projectId: "p1" });
+  assert.equal(catalog.teamPreview, undefined);
+  assert.equal(catalog.teamRuns.activeRun, "r002");
+  assert.equal(catalog.teamRuns.running, false);
+  assert.deepEqual(catalog.teamRuns.runs.map(run => run.run), ["r002", "r001"]);
+  const [done, failed] = catalog.teamRuns.runs;
+  assert.equal(done.seconds, 7177);
+  assert.deepEqual(done.teams.case, { decision: "approve", seconds: 4756, issues: 1 });
+  assert.deepEqual(done.integration, { decision: "approve", issues: 0 });
+  assert.doesNotMatch(JSON.stringify(catalog.teamRuns), /secret/);
+  assert.equal(failed.reason, "Claude exited 71");
+  assert.equal(failed.seconds, null);
+
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r002", status: "running" }));
+  assert.equal(scanTeamRuns(dir).running, true);
+});
+
+test("team run state outside the project or half-written is skipped", () => {
+  const dir = tmpdir("circuit-team-runs-");
+  const outside = tmpdir("circuit-team-outside-");
+  fs.writeFileSync(path.join(outside, "state.json"), JSON.stringify({ status: "candidate_ready", jobs: [] }));
+  fs.mkdirSync(path.join(dir, ".circuit/team-runs/r001/.pilot"), { recursive: true });
+  fs.symlinkSync(path.join(outside, "state.json"), path.join(dir, ".circuit/team-runs/r001/.pilot/state.json"));
+  fs.mkdirSync(path.join(dir, ".circuit/team-runs/r002/.pilot"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".circuit/team-runs/r002/.pilot/state.json"), "{\"status\":");
+  assert.equal(scanTeamRuns(dir), null);
 });

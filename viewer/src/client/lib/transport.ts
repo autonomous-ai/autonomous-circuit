@@ -100,6 +100,21 @@ export interface Catalog {
       media: { file: string; url: string }[];
     }>;
   };
+  /** Every team run, newest first; stays after the run is accepted. Tester decisions only. */
+  teamRuns?: {
+    activeRun: string;
+    running: boolean;
+    runs: {
+      run: string;
+      status: string;
+      startedAt: number | null;
+      seconds: number | null;
+      openIssues: number;
+      reason: string;
+      teams: Record<"board" | "firmware" | "case", { decision: string | null; seconds: number; issues: number }>;
+      integration: { decision: string; issues: number } | null;
+    }[];
+  };
 }
 
 export interface GenerationQueueItem {

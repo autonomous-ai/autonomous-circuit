@@ -781,14 +781,17 @@ board revision, not a moved footprint.
     controls to change the viewing angle, open/hide the shells, and show the wire paths when
     the design has them. Do not redraw a different illustrative model. References may appear
     in the overview but remain excluded from Print all; coupons are separate from the assembly.
-  - **Make the default view read like a light CAD workspace.** Use a pale neutral canvas,
+  - **Follow the app theme.** The viewer opens the overview with `#theme=light` or `#theme=dark`
+    and updates the hash when the theme changes; read it on load and on `hashchange` and switch
+    to the reference's dark workspace for `dark`. Without a hash, use light.
+  - **Make the light view read like a light CAD workspace.** Use a pale neutral canvas,
     matte opaque materials that distinguish covers, frame, moving parts, electronics and metal
     hardware, soft face shading and clear silhouette/feature edges. Do not color every printed
     part the same saturated orange or make the seated cover translucent by default: overlapping
     transparent faces obscure the assembly. Keep the complete assembly seated in **Đủ bộ**;
     expose its interior with an explicit open/hide/cutaway or X-ray control. A focused part needs
     an outline, label or local isolation, not a pile of other parts faded to near invisibility.
-    Give text and controls strong contrast on light surfaces. Follow the assembly reference's
+    Give text and controls strong contrast on light and dark surfaces. Follow the assembly reference's
     palette and visual checks at desktop and phone widths; preserve the real geometry and CAD
     checks while changing presentation.
   - **Use the same simple assembly format for every project.** One primary selector contains

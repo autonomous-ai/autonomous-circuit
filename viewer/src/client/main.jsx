@@ -318,6 +318,7 @@ function AppRoot() {
               boardEntries={boardEntries}
               projectOverviewUrl={catalog?.projectOverviewUrl || ""}
               teamPreview={catalog?.teamPreview || null}
+              teamRuns={catalog?.teamRuns || null}
               partsEntry={partsEntry}
               artifactActivity={artifactActivity}
               catalogHydrated={catalogHydrated}

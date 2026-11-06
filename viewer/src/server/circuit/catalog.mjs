@@ -155,6 +155,79 @@ export function scanTeamPreview(rootDir, projectId) {
            runStage: String(bridge.stage || "").slice(0, 80), verified: false, teams };
 }
 
+const TEAM_RUNS_MAX = 30;
+const TEAM_RUN_STATE_MAX = 8 * 1024 * 1024;
+const teamRunCache = new Map(); // state.json path → { key, summary }
+
+function teamRunSummary(run, state) {
+  const jobs = Array.isArray(state.jobs) ? state.jobs.filter(job => job && typeof job === "object") : [];
+  const seconds = job => (Number.isFinite(job.seconds) && job.seconds > 0 ? job.seconds : 0);
+  const issues = job => (Array.isArray(job.result?.findings) ? job.result.findings.length : 0);
+  const teams = {};
+  for (const role of TEAM_ROLES) {
+    const mine = jobs.filter(job => job.stage === role || job.stage === `${role}-test`);
+    const tests = mine.filter(job => job.stage === `${role}-test` && typeof job.result?.decision === "string");
+    teams[role] = {
+      decision: tests.length ? String(tests.at(-1).result.decision).slice(0, 20) : null,
+      seconds: Math.round(mine.reduce((sum, job) => sum + seconds(job), 0)),
+      issues: tests.reduce((sum, job) => sum + issues(job), 0),
+    };
+  }
+  const integrationTests = jobs.filter(job => job.stage === "integration-test" && typeof job.result?.decision === "string");
+  const createdAt = Number.isFinite(state.createdAt) ? state.createdAt : null;
+  const finishedAt = Number.isFinite(state.roundFinishedAt) ? state.roundFinishedAt : null;
+  const open = Array.isArray(state.findings) ? state.findings.filter(item => typeof item === "string") : [];
+  return {
+    run, status: String(state.status || "unknown").slice(0, 40), startedAt: createdAt,
+    seconds: createdAt && finishedAt && finishedAt >= createdAt ? Math.round(finishedAt - createdAt) : null,
+    openIssues: open.length, reason: open.length ? open[0].slice(0, 200) : "",
+    teams,
+    integration: integrationTests.length ? {
+      decision: String(integrationTests.at(-1).result.decision).slice(0, 20),
+      issues: integrationTests.reduce((sum, job) => sum + issues(job), 0),
+    } : null,
+  };
+}
+
+/**
+ * Every team run under `.circuit/team-runs/`, newest first, as plain numbers
+ * and decisions — no paths, no worker text beyond the first open issue. Unlike
+ * the preview this stays after the run is accepted, so the Team view keeps the
+ * last run and its history. Testers approved these; nothing here is verified.
+ */
+export function scanTeamRuns(rootDir) {
+  const runsDir = path.join(rootDir, ".circuit", "team-runs");
+  let names;
+  try {
+    if (!fs.lstatSync(runsDir).isDirectory()) return null;
+    names = fs.readdirSync(runsDir).filter(name => /^r[0-9]{3,}$/.test(name));
+  } catch { return null; }
+  let bridge = null;
+  try { bridge = JSON.parse(fs.readFileSync(path.join(rootDir, ".circuit/team-bridge.json"), "utf8")); } catch { /* no bridge */ }
+  const realRuns = (() => { try { return fs.realpathSync(runsDir) + path.sep; } catch { return null; } })();
+  if (!realRuns) return null;
+  const runs = [];
+  for (const name of names.sort().reverse().slice(0, TEAM_RUNS_MAX)) {
+    const file = path.join(runsDir, name, ".pilot", "state.json");
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.size > TEAM_RUN_STATE_MAX || !fs.realpathSync(file).startsWith(realRuns)) continue;
+    } catch { continue; }
+    const key = `${stat.mtimeMs}:${stat.size}`;
+    const cached = teamRunCache.get(file);
+    if (cached?.key === key) { runs.push(cached.summary); continue; }
+    try {
+      const summary = teamRunSummary(name, JSON.parse(fs.readFileSync(file, "utf8")));
+      teamRunCache.set(file, { key, summary });
+      runs.push(summary);
+    } catch { /* half-written state: skip this scan */ }
+  }
+  if (!runs.length) return null;
+  const activeRun = /^r[0-9]{3,}$/.test(bridge?.activeRun || "") ? bridge.activeRun : runs[0].run;
+  return { activeRun, running: bridge?.status === "running" && bridge?.teamReady !== true, runs };
+}
+
 /**
  * The firmware tree, `<root>/firmware/`, as the Firmware tab reads it: the
  * README (rendered on top) and every source file with a media URL, sorted by
@@ -421,6 +494,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
   // the tab that shows it hangs off whichever board is selected.
   const firmware = scanFirmware(rootDir, url);
   const teamPreview = scanTeamPreview(rootDir, projectId);
+  const teamRuns = scanTeamRuns(rootDir);
 
   // Native board source with a versioned, checked SVG bundle. Never offer
   // v1 Circuit JSON or a TSX edit path for a native board.
@@ -577,6 +651,7 @@ export function scanProjectCatalog({ projectDir, projectId }) {
     rootPath: rootDir,
     ...(projectOverview ? { projectOverviewUrl: url(projectOverview) } : {}),
     ...(teamPreview ? { teamPreview } : {}),
+    ...(teamRuns ? { teamRuns } : {}),
   };
 }
 

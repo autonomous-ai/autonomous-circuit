@@ -52,7 +52,7 @@ import { DEFAULT_ROTATION_STEP, commitRotateStep, rotateRefusal } from "./placem
 import { describeMove } from "./boardSource.js";
 import SchematicCanvas from "./SchematicCanvas.jsx";
 import StartHere from "./StartHere.jsx";
-import TeamProgress from "./TeamProgress.jsx";
+import TeamTab, { TeamStrip } from "./TeamTab.jsx";
 import ProjectOverviewPreview, { safeProjectOverviewUrl } from "./ProjectOverviewPreview.jsx";
 import LayerBar from "./LayerBar.jsx";
 import BoardInsightHud from "./BoardInsightHud.jsx";
@@ -71,7 +71,7 @@ const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
 // their own inspector, so the EDA panels along the bottom and the right would
 // be a second copy of the same numbers in the vocabulary the tab is avoiding.
-const PLAIN_TABS = new Set(["overview", "function", "firmware", "case", "case-overview", "prompt-current", "prompt-original"]);
+const PLAIN_TABS = new Set(["overview", "function", "firmware", "case", "case-overview", "prompt-current", "prompt-original", "team"]);
 
 /**
  * The board workspace — an Altium-shaped PCB tool with our chat on the side.
@@ -91,6 +91,7 @@ export default function BoardWorkspace({
   boardEntries = [],
   projectOverviewUrl = "",
   teamPreview = null,
+  teamRuns = null,
   partsEntry = null,
   artifactActivity = {},
   catalogHydrated = false,
@@ -1218,7 +1219,6 @@ export default function BoardWorkspace({
           KiCad v2 · Experimental · {selectedEntry.nativeStale ? "Source changed — rebuild previews to check this revision." : selectedEntry.nativeManufacturingVerified ? "Prototype packet verified; physical hardware is untested." : "Prototype manufacturing review is incomplete; see the reported findings."}
         </p>
       ) : null}
-      {selectedEntry && teamPreview ? <TeamProgress preview={teamPreview} compact /> : null}
       {catalogError ? (
         <p
           data-slot="board-catalog-error"
@@ -1260,6 +1260,7 @@ export default function BoardWorkspace({
                     aria-current={activeGroup === group.id ? "true" : undefined}
                     className={cn("shrink-0 rounded-md px-3 py-1 text-xs font-semibold",activeGroup === group.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
                     {group.label}
+                    {group.id === "team" && (teamPreview || teamRuns?.running) ? <span data-slot="team-running-dot" aria-label="running" className="ml-1.5 inline-block size-1.5 rounded-full bg-emerald-500 align-middle" /> : null}
                   </button>
                 ))}
                 <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">{boardName}</span>
@@ -1368,6 +1369,8 @@ export default function BoardWorkspace({
 
               <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
+                  {activeGroup === "prompts" ? <TeamStrip teamRuns={teamRuns} teamPreview={teamPreview} onOpen={() => setActiveTab("team")} /> : null}
+                  {activeTab === "team" ? <TeamTab teamRuns={teamRuns} teamPreview={teamPreview} className="min-h-0 flex-1" /> : null}
                   {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={promptChatMatchesProject ? requestText : ""} fallbackCurrentText={promptChatMatchesProject ? currentRequestText : ""} className="min-h-0 flex-1" /> : null}
                   {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
                   {activeTab === "overview" ? (
@@ -1536,7 +1539,7 @@ export default function BoardWorkspace({
               </div>
             </>
           ) : teamPreview ? (
-            <TeamProgress preview={teamPreview} />
+            <TeamTab teamRuns={teamRuns} teamPreview={teamPreview} />
           ) : unverifiedOverviewUrl ? (
             <ProjectOverviewPreview url={unverifiedOverviewUrl} className="min-h-0 flex-1" />
           ) : (

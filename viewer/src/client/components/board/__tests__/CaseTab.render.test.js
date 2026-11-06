@@ -342,3 +342,15 @@ test('a checked handwired assembly exports despite the irrelevant PCB report fai
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled,true);
   } finally {ui.unmount();restore();}
 });
+
+test("the case follows the app theme instead of forcing a light palette", () => {
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", boardName: "main", Scene: StubScene });
+  try {
+    const root = ui.container.querySelector('[data-slot="case"]');
+    assert.equal(root.getAttribute("style"), null, "no inline light colour tokens");
+    assert.doesNotMatch(ui.container.innerHTML, /bg-\[#/);
+    assert.match(ui.container.querySelector('[data-slot="case-coupon"]').className, /dark:bg-amber-500\/10/);
+  } finally {
+    ui.unmount();
+  }
+});
