@@ -631,9 +631,16 @@ def _claude_exit_detail(text):
 
 
 # macOS refuses a second sandbox inside sandbox-exec, so Chrome's own sandbox cannot start.
+# v17d/v17e: an Opus case builder at high effort spent 34 minutes in one think and wrote no CAD
+# before the 60-minute limit, so Claude builders run at medium and are told to build in small steps.
 CLAUDE_BUILDER_NOTE = ('\n\nYour shell runs inside a macOS sandbox. Writes outside this worktree, temp '
                        'folders and the toolchain caches are refused. Start headless Chrome with '
-                       '--no-sandbox, because its own sandbox cannot start inside this one.\n')
+                       '--no-sandbox, because its own sandbox cannot start inside this one.\n'
+                       '\nWork in small steps: write a first runnable version within your first ten '
+                       'minutes, run it, look at the result, then fix. Do not plan the whole design in '
+                       'one long think. Do not read the harness source code unless one of its commands '
+                       'fails and you need to know why.\n')
+CLAUDE_BUILDER_EFFORT = 'medium'
 
 
 def claude(root, state, stage, model, workspace, prompt, schema, readonly):
@@ -651,7 +658,7 @@ def claude(root, state, stage, model, workspace, prompt, schema, readonly):
     sandbox = _claude_sandbox(workspace) if readonly else _claude_sandbox(workspace, root)
     # Empty setting sources and the two switches keep this machine's hooks, memory and CLAUDE.md out.
     command = ['/usr/bin/sandbox-exec', '-p', sandbox, 'claude', '-p',
-               '--model', model, '--effort', 'medium' if readonly else 'high',
+               '--model', model, '--effort', 'medium' if readonly else CLAUDE_BUILDER_EFFORT,
                '--output-format', 'stream-json', '--verbose',
                '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
                '--tools', tools, '--allowedTools', tools, '--permission-mode', 'dontAsk',
