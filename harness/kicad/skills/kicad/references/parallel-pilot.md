@@ -75,6 +75,25 @@ The limit is per call, not a total token/dollar budget. Standalone `parallel ini
 the older `parallel` comparison mode; use `--mode teams` to exercise the bridge's independent
 team flow manually. Do not read the old `parallel` mode as the new tile behavior.
 
+One project can compare other lead/tester models: put `{"lead": "claude-opus-5-5", "tester":
+"claude-opus-5-5"}` in `<project>/.circuit/team-models.json` before the first run. Either key may be
+left out. One role can also swap models: `"builders": {"case": "claude-opus-5-5"}` and
+`"testers": {"case": "gpt-6.1-sol"}` pick that team's builder and tester, and `"integrationTester"`
+picks the final cross-team tester (default: `tester`). `claude-*` readers run on the Claude CLI at
+medium effort, read-only under `sandbox-exec` (only Claude's own state and the login keychain stay
+writable), without this machine's settings, hooks, memory or `CLAUDE.md`. A Claude builder runs at
+high effort with edit tools, and its sandbox also lets it write its own worker worktree and the
+shared toolchain caches, never the integration workspace or `.pilot`. A Claude logout ends the run
+as `model_unavailable`, not as a design failure. The print team stays on the worker model. Top-level documents belong to the lead, so an integration finding on one is
+saved to `.pilot/lead-document-findings.json` and does not block the run.
+
+Testers review once. The first review must report every blocker at once: the product cannot be
+assembled, wired, printed, built or flashed, an electrical fault can damage hardware or is unsafe, a
+stated limit is exceeded, moving parts collide or jam
+in their required travel, or a thin hanging part will clearly break. Small misses a person can fix by hand, labels and documents go in the summary as
+NOTES, saved in the run's `.pilot/tester-notes/`. Later rounds re-check only the listed findings, and a
+finding on any other path is dropped. A new run starts with a new full review.
+
 ## Contract and stages
 
 The lead produces a strict JSON interface contract: board outline, thickness and mounting
@@ -183,8 +202,8 @@ usage; completed sibling workers are called once. Exhausted capacity reports
 `model_unavailable`, without contract replanning.
 
 A worker timeout may continue in its own worktree only when it left role-owned partial work.
-The board stage can make up to six continuations, each bounded by the configured per-job timeout,
-only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
+The board and case builders get one hour per attempt (the configured per-job timeout still
+bounds testers, the lead and other workers) and can make up to six continuations, only if **each timed-out attempt changes owned-file contents**; touching or rebuilding identical
 files does not count. Its controller wall deadline is three hours (or a longer explicitly
 configured initial per-job timeout), including capacity backoff. Other worker stages retain one
 600-second continuation and the original per-job timeout plus 600-second controller deadline.
@@ -210,7 +229,8 @@ from operating on the same pilot at once.
 
 Ctrl-C stops the current foreground call or kills the active worker process groups, retains
 available receipts and marks the round failed/interrupted. Timeouts also kill process groups
-and retain partial reported usage. SIGKILL/power loss cannot be cleaned up automatically: do
+and retain partial reported usage. A job whose CLI writes no event for 15 minutes is stopped as
+a stalled timeout and continues like any other timeout. SIGKILL/power loss cannot be cleaned up automatically: do
 not rerun an orphaned active pilot; inspect/stop its recorded CLI jobs and create a fresh pilot.
 No live-run daemon or existing pet process is involved.
 

@@ -26,6 +26,8 @@ from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, R
 
 LEAD = 'gpt-6-astra'
 WORKER = 'gpt-6.1-sol'
+#: One project's lead/tester override, so two runs of one prompt can be compared.
+TEAM_MODELS = Path('.circuit') / 'team-models.json'
 # Match the existing tile: native KiCad/pcbnew/routing cannot use workspace-write (README).
 WORKER_SANDBOX = 'danger-full-access'
 SKIP = {'.git', '.circuit', '.harness', '.kicadpy', '__pycache__', 'node_modules'}
@@ -41,6 +43,10 @@ TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
 LONG_STAGES = ('board', 'case')
+# Board and case builders reread the whole project after every cut, so give each attempt an hour.
+LONG_STAGE_ATTEMPT_SECONDS = 60 * 60
+# No new CLI event for this long means the job hung. Measured quiet gaps in crab runs stay under 7 minutes.
+STALL_SECONDS = 15 * 60
 # One machine-wide firmware toolchain cache; per-worktree PlatformIO/SDK installs filled the disk.
 FIRMWARE_CACHE = Path(os.environ.get('CIRCUIT_FIRMWARE_CACHE',
                                      Path.home() / '.cache/autonomous-circuit/firmware'))
@@ -200,7 +206,8 @@ def commit(workspace, names, message):
 
 
 def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
-               lead_model=LEAD, worker_model=WORKER, timeout=1800):
+               lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800,
+               builder_models=None, tester_models=None, integration_tester_model=None):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
     if root.exists():
@@ -267,7 +274,10 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     names = sorted(snapshot(workspace))
     base = commit(workspace, names, 'Seed isolated KiCad pilot')
     state = {'schema': 1, 'status': 'initialized', 'mode': mode, 'leadModel': lead_model,
-             'workerModel': worker_model, 'timeoutSeconds': timeout, 'revision': 0,
+             'workerModel': worker_model, 'testerModel': tester_model or worker_model,
+             'builderModels': dict(builder_models or {}), 'testerModels': dict(tester_models or {}),
+             'integrationTesterModel': integration_tester_model,
+             'timeoutSeconds': timeout, 'revision': 0,
              'workerSandbox': WORKER_SANDBOX,
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
              'planAttempts': 0, 'rounds': [],
@@ -279,7 +289,8 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     return state
 
 
-def load(root):
+def load(root, *, same_pipeline=True):
+    """An earlier run read only for its records passes `same_pipeline=False`; it is not resumed."""
     root = Path(root).resolve()
     state = json.loads((root / '.pilot/state.json').read_text())
     if state.get('schema') != 1:
@@ -291,7 +302,7 @@ def load(root):
         raise ValueError('Prompt/instruction snapshot changed; use a new benchmark run')
     if (root / 'workspace/PILOT_BRIEF.md').read_text() != prompt:
         raise ValueError('Workspace brief changed')
-    if pipeline_sha(state['toolchainRoot']) != state['pipelineSha256']:
+    if same_pipeline and pipeline_sha(state['toolchainRoot']) != state['pipelineSha256']:
         raise ValueError('Pipeline/checker source changed; use a pinned checkout for this pilot')
     if (state.get('gitMetadataSha256') is not None and
             digest(_git_metadata_sha(root / 'workspace')) != state['gitMetadataSha256']):
@@ -490,18 +501,24 @@ def _reap_worktree_processes(root, worktree):
                 pass
 
 
-def codex(root, state, stage, model, workspace, prompt, schema, readonly):
-    """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
-    job = _job_directory(root, state, stage)
-    write(job / 'schema.json', schema)
-    (job / 'prompt.txt').write_text(prompt)
-    output = job / 'answer.json'
-    # Read-only lead views live outside Git; writable workers always run in a worktree.
-    command = ['codex', 'exec', '--ignore-user-config', *(['--skip-git-repo-check'] if readonly else []),
-               '--ephemeral', '--json', '-m', model, '-c', 'approval_policy="never"',
-               '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
-               '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
-               '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+def team_models(workspace):
+    """Models for one project: `lead`, `tester`, `integrationTester`, and per-role `builders`/`testers`."""
+    defaults = {'lead': LEAD, 'tester': WORKER, 'integrationTester': None, 'builders': {}, 'testers': {}}
+    path = Path(workspace) / TEAM_MODELS
+    if not path.is_file():
+        return defaults
+    chosen = json.loads(path.read_text())
+    model = lambda value: isinstance(value, str) and bool(value.strip())
+    by_role = lambda value: isinstance(value, dict) and set(value) <= set(ROLES) and all(map(model, value.values()))
+    if (not isinstance(chosen, dict) or set(chosen) - set(defaults) or
+            not all(model(chosen[key]) for key in ('lead', 'tester', 'integrationTester') if key in chosen) or
+            not all(by_role(chosen[key]) for key in ('builders', 'testers') if key in chosen)):
+        raise ValueError(f'{TEAM_MODELS} takes string lead, tester and integrationTester models, '
+                         'and builders/testers maps from board, firmware or case to a model')
+    return {**defaults, **chosen}
+
+
+def _cli_env(root, state, workspace):
     env = {k: v for k, v in os.environ.items() if not k.startswith('HARNESS_') and
            k not in ('CIRCUIT_WORKSPACE', 'CIRCUIT_SKILLS_DIR', 'CODEX_THREAD_ID')}
     tool_root = Path(state['toolchainRoot'])
@@ -521,21 +538,266 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
                PLATFORMIO_CORE_DIR=str(FIRMWARE_CACHE / 'platformio'),
                ARDUINO_DIRECTORIES_DATA=str(FIRMWARE_CACHE / 'arduino'),
                PIP_CACHE_DIR=str(FIRMWARE_CACHE / 'pip'))
+    return env
+
+
+def codex(root, state, stage, model, workspace, prompt, schema, readonly):
+    """One bounded CLI process. Preserve logs/usage even on model failure or timeout."""
+    job = _job_directory(root, state, stage)
+    write(job / 'schema.json', schema)
+    (job / 'prompt.txt').write_text(prompt)
+    output = job / 'answer.json'
+    # Read-only lead views live outside Git; writable workers always run in a worktree.
+    command = ['codex', 'exec', '--ignore-user-config', *(['--skip-git-repo-check'] if readonly else []),
+               '--ephemeral', '--json', '-m', model, '-c', 'approval_policy="never"',
+               '-c', 'model_reasoning_effort="medium"' if readonly else 'model_reasoning_effort="high"',
+               '-s', 'read-only' if readonly else WORKER_SANDBOX, '-C', str(workspace),
+               '--output-schema', str(job / 'schema.json'), '-o', str(output), '-']
+    return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command,
+                        _cli_env(root, state, workspace), 'Codex',
+                        lambda stdout: json.loads(output.read_text()), usage_of, capacity_event)
+
+
+def _claude_sandbox(workspace, root=None):
+    """Seatbelt profile standing in for Codex's sandbox: a reader writes only Claude's own state.
+
+    A builder (given `root`) may also write its own worktree and the shared toolchain caches,
+    but never the integration workspace or the controller's files.
+    """
+    home = Path.home()
+    # A refreshed login must reach the keychain: the old token stops working once a new one is issued.
+    writable = ['/private/tmp', '/private/var/folders', '/dev', home / '.claude', home / 'Library/Caches',
+                home / 'Library/Keychains']
+    if root is not None:
+        # Headless Chrome keeps crash and profile state here even with its own --user-data-dir.
+        writable += [Path(workspace).resolve(), FIRMWARE_CACHE, home / '.cache',
+                     home / 'Library/Application Support/Google']
+    allowed = ' '.join(f'(subpath "{path}")' for path in writable)
+    protected = ([Path(workspace).resolve()] if root is None else
+                 [Path(root).resolve() / 'workspace', Path(root).resolve() / '.pilot'])
+    # The last matching rule wins, so a view under a temp directory is still protected.
+    return ('(version 1)(allow default)(deny file-write*)'
+            f'(allow file-write* {allowed} (regex "^{re.escape(str(home))}/\\.claude\\.json"))'
+            + ''.join(f'(deny file-write* (subpath "{path}"))' for path in protected))
+
+
+def _claude_result(text):
+    """The CLI's final result event, never text echoed from a prompt/tool."""
+    for line in reversed(text.splitlines()):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get('type') == 'result':
+            return event
+    return None
+
+
+def _claude_answer(stdout):
+    event = _claude_result(stdout)
+    if event is None or event.get('is_error') or not isinstance(event.get('structured_output'), dict):
+        raise ValueError('Claude returned no structured answer: ' +
+                         str((event or {}).get('result') or (event or {}).get('subtype'))[:300])
+    return event['structured_output']
+
+
+def claude_usage(text):
+    """Same fields as Codex: `input_tokens` counts everything sent, cached part included."""
+    event = _claude_result(text)
+    models = event.get('modelUsage') if event else None
+    if not isinstance(models, dict) or not models:
+        return None
+    read = sum(m.get('cacheReadInputTokens', 0) for m in models.values())
+    return {'input_tokens': read + sum(m.get('inputTokens', 0) + m.get('cacheCreationInputTokens', 0)
+                                       for m in models.values()),
+            'cached_input_tokens': read,
+            'output_tokens': sum(m.get('outputTokens', 0) for m in models.values()),
+            'reasoning_output_tokens': sum(m.get('thinkingTokens', 0) for m in models.values()),
+            'cost_usd': event.get('total_cost_usd')}
+
+
+def claude_capacity(text):
+    """Busy or logged out: the model is unavailable, and the design is not at fault."""
+    event = _claude_result(text)
+    if not event or not event.get('is_error'):
+        return False
+    return (event.get('api_error_status') in (401, 429, 500, 503, 529) or
+            str(event.get('result')).startswith('Failed to authenticate'))
+
+
+def _claude_exit_detail(text):
+    event = _claude_result(text)
+    return f": {str(event.get('result'))[:300]}" if event and event.get('is_error') else ''
+
+
+# macOS refuses a second sandbox inside sandbox-exec, so Chrome's own sandbox cannot start.
+CLAUDE_BUILDER_NOTE = ('\n\nYour shell runs inside a macOS sandbox. Writes outside this worktree, temp '
+                       'folders and the toolchain caches are refused. Start headless Chrome with '
+                       '--no-sandbox, because its own sandbox cannot start inside this one.\n')
+
+
+def claude(root, state, stage, model, workspace, prompt, schema, readonly):
+    """A lead, tester or builder job on the Claude CLI, always inside a write-limiting sandbox."""
+    if not Path('/usr/bin/sandbox-exec').is_file():
+        raise ValueError('Claude team jobs need sandbox-exec to limit what they write')
+    if not readonly and Path(workspace).resolve().parent != (Path(root) / 'workers').resolve():
+        raise ValueError('A Claude builder writes only in its own worker worktree')
+    job = _job_directory(root, state, stage)
+    write(job / 'schema.json', schema)
+    (job / 'prompt.txt').write_text(prompt)
+    tools = 'Read,Grep,Glob,Bash' if readonly else 'Read,Edit,Write,Grep,Glob,Bash'
+    if not readonly:
+        prompt += CLAUDE_BUILDER_NOTE
+    sandbox = _claude_sandbox(workspace) if readonly else _claude_sandbox(workspace, root)
+    # Empty setting sources and the two switches keep this machine's hooks, memory and CLAUDE.md out.
+    command = ['/usr/bin/sandbox-exec', '-p', sandbox, 'claude', '-p',
+               '--model', model, '--effort', 'medium' if readonly else 'high',
+               '--output-format', 'stream-json', '--verbose',
+               '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
+               '--tools', tools, '--allowedTools', tools, '--permission-mode', 'dontAsk',
+               '--json-schema', json.dumps(schema)]
+    env = {k: v for k, v in _cli_env(root, state, workspace).items()
+           if k not in ('CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT')}
+    env.update(CLAUDE_CODE_DISABLE_AUTO_MEMORY='1', CLAUDE_CODE_DISABLE_CLAUDE_MDS='1')
+    return _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, 'Claude',
+                        _claude_answer, claude_usage, claude_capacity, _claude_exit_detail)
+
+
+def agent(root, state, stage, model, workspace, prompt, schema, readonly):
+    """Route a job to the CLI that serves its model."""
+    run_job = claude if model.startswith('claude-') else codex
+    return run_job(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
+class _CommandClock(threading.Thread):
+    """Time each tool call from the live event file; neither CLI reports a duration."""
+
+    def __init__(self, events, log):
+        super().__init__(daemon=True)
+        self.events, self.log = Path(events), Path(log)
+        self.open = {}
+        self.count = 0
+        self.seconds = 0.0
+        self.offset = 0
+        self.done = threading.Event()
+
+    def _record(self, command, began, now, exit_code=None, unfinished=False):
+        seconds = round(now - began, 1)
+        self.count += 1
+        self.seconds += seconds
+        entry = {'command': command[:300], 'startedAt': began, 'seconds': seconds, 'exitCode': exit_code}
+        with self.log.open('a') as stream:
+            stream.write(json.dumps({**entry, 'unfinished': True} if unfinished else entry) + '\n')
+
+    def feed(self, line, now):
+        try:
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                return
+            item = event.get('item')
+            if isinstance(item, dict) and item.get('type') == 'command_execution':  # Codex
+                if event.get('type') == 'item.started':
+                    self.open[item['id']] = (item.get('command') or '', now)
+                elif event.get('type') == 'item.completed' and item['id'] in self.open:
+                    command, began = self.open.pop(item['id'])
+                    self._record(command, began, now, item.get('exit_code'))
+            message = event.get('message')
+            for block in (message.get('content') if isinstance(message, dict) else None) or ():  # Claude
+                if not isinstance(block, dict):
+                    continue
+                if block.get('type') == 'tool_use':
+                    tool_input = block.get('input') or {}
+                    self.open[block['id']] = (tool_input.get('command') or
+                                              f"{block.get('name')} {tool_input.get('file_path', '')}".strip(), now)
+                elif block.get('type') == 'tool_result' and block.get('tool_use_id') in self.open:
+                    command, began = self.open.pop(block['tool_use_id'])
+                    self._record(command, began, now)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return
+
+    def _read(self):
+        if not self.events.is_file():
+            return
+        with self.events.open(errors='replace') as stream:
+            stream.seek(self.offset)
+            while True:
+                position = stream.tell()
+                line = stream.readline()
+                if not line.endswith('\n'):
+                    self.offset = position
+                    return
+                self.feed(line, time.time())
+
+    def run(self):
+        while not self.done.wait(1):
+            self._read()
+
+    def finish(self):
+        """A tool still open at the end is what a timeout was waiting on, so keep it."""
+        self.done.set()
+        self.join(5)
+        self._read()
+        now = time.time()
+        for command, began in self.open.values():
+            self._record(command, began, now, unfinished=True)
+        self.open = {}
+        return {'count': self.count, 'seconds': round(self.seconds, 1)}
+
+
+class JobStalled(subprocess.TimeoutExpired):
+    """A hung job counts as a timeout, so the usual continuation applies."""
+
+    def __str__(self):
+        return f'Stalled: no CLI output for {int(self.timeout)} s'
+
+
+def _wait_while_active(process, events, timeout):
+    deadline = time.monotonic() + timeout
+    last_size, last_change = -1, time.monotonic()
+    while True:
+        now = time.monotonic()
+        if now >= deadline:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        try:
+            return process.wait(timeout=min(1.0, deadline - now))
+        except subprocess.TimeoutExpired:
+            pass
+        size = events.stat().st_size if events.is_file() else 0
+        if size != last_size:
+            last_size, last_change = size, time.monotonic()
+        elif time.monotonic() - last_change > STALL_SECONDS:
+            raise JobStalled(process.args, STALL_SECONDS)
+
+
+def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, command, env, name,
+                 answer, usage, capacity, exit_detail=lambda stdout: ''):
     began = time.time()
-    stdout, stderr, result, error = '', '', None, None
+    stdout, result, error = '', None, None
     process = None
     io_complete = False
     interrupted = timed_out = False
+    # The CLI writes events straight to the job folder, so a running job can be inspected.
+    events = job / 'events.jsonl'
+    clock = _CommandClock(events, job / 'commands.jsonl')
+    clock.start()
     try:
-        process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+        # stderr goes to a file: an undrained pipe would block the CLI and look like a stall.
+        with events.open('w') as event_stream, (job / 'stderr.log').open('w') as error_stream:
+            process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE, stdout=event_stream,
+                                       stderr=error_stream, text=True, env=env, start_new_session=True)
         with ACTIVE_LOCK:
             ACTIVE.setdefault(str(root), set()).add(process.pid)
-        stdout, stderr = process.communicate(prompt, timeout=state['timeoutSeconds'])
+        try:
+            process.stdin.write(prompt)
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+        _wait_while_active(process, events, state['timeoutSeconds'])
         io_complete = True
+        stdout = events.read_text(errors='replace')
         if process.returncode:
-            raise ValueError(f'Codex exited {process.returncode}')
-        result = json.loads(output.read_text())
+            raise ValueError(f'{name} exited {process.returncode}{exit_detail(stdout)}')
+        result = answer(stdout)
         validate(result, schema)
     except (OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         error = str(exc) or type(exc).__name__
@@ -551,23 +813,23 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
             _reap_worktree_processes(root, workspace)
             if not io_complete:
                 try:
-                    stdout, stderr = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired as exc:
-                    # A separately-sessioned tool must not hold the controller's pipes forever.
-                    decode = lambda value: value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
-                    stdout, stderr = decode(exc.output), decode(exc.stderr)
-                    process.stdout.close()
-                    process.stderr.close()
-                    error = (error or '') + '; job pipes did not close after termination'
+                    process.stdin.close()
+                except (OSError, ValueError):
+                    pass
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    error = (error or '') + '; job did not exit after termination'
             with ACTIVE_LOCK:
                 ACTIVE.get(str(root), set()).discard(process.pid)
-        (job / 'events.jsonl').write_text(stdout)
-        (job / 'stderr.log').write_text(stderr)
+        if not io_complete and events.is_file():
+            stdout = events.read_text(errors='replace')
+        commands = clock.finish()
     receipt = {'stage': stage, 'model': model, 'startedAt': began, 'seconds': time.time() - began,
-               'usage': usage_of(stdout), 'result': result, 'error': error,
+               'usage': usage(stdout), 'commands': commands, 'result': result, 'error': error,
                'failureKind': ('interrupted' if interrupted else 'timeout' if timed_out else
                                'model_capacity' if error and process is not None and
-                               process.returncode not in (None, 0) and capacity_event(stdout) else None),
+                               process.returncode not in (None, 0) and capacity(stdout) else None),
                'logDirectory': str(job.relative_to(root))}
     write(job / 'receipt.json', receipt)
     return receipt
@@ -576,7 +838,8 @@ def codex(root, state, stage, model, workspace, prompt, schema, readonly):
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
          authorized_integration=None, integration_lock=None, stage_deadline=None,
          on_timeout=None):
-    model = state['leadModel'] if readonly else state['workerModel']
+    model = (state['leadModel'] if readonly else
+             (state.get('builderModels') or {}).get(_stage_role(stage)) or state['workerModel'])
     # Board and case both iterate on heavy geometry/checks; give them long continuations.
     long_stage = stage in LONG_STAGES and not readonly
     stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if long_stage else
@@ -629,9 +892,10 @@ def call(root, state, stage, workspace, prompt, schema, readonly, runner,
             if timeout_guidance is not None:
                 retry_prompt += ('\nLEAD ADVICE ON THE PARTIAL WORK:\n' +
                                  json.dumps(timeout_guidance, sort_keys=True))
-        attempt_limit = min(((state['timeoutSeconds'] if long_stage else
+        full_attempt = LONG_STAGE_ATTEMPT_SECONDS if long_stage else state['timeoutSeconds']
+        attempt_limit = min(((full_attempt if long_stage else
                               TIMEOUT_CONTINUATION_SECONDS) if short_timeout else
-                             state['timeoutSeconds']), remaining)
+                             full_attempt), remaining)
         attempt_state = {**state, 'timeoutSeconds': attempt_limit}
         try:
             receipt = runner(root, attempt_state, stage, model, workspace,
@@ -796,7 +1060,7 @@ def _contract_field(interfaces, field):
     return value
 
 
-def plan(directory, *, execute=False, revise=False, contract_from=None, runner=codex):
+def plan(directory, *, execute=False, revise=False, contract_from=None, runner=agent):
     if not execute and not contract_from:
         raise ValueError('Model planning requires explicit --execute')
     root, state = load(directory)
@@ -909,9 +1173,13 @@ def worker_prompt(state, role, stage):
             f'inside {json.dumps(OWNED[role])}; other domains are read-only. Do not commit, push, '
             'delegate, order, print, flash, access hardware, alter gates or run the solo Stop loop. '
             'Your independent tester will inspect your actual files and may return concrete findings. '
+            + ('Avoid thin parts hanging free: carry load through box sections or load-bearing walls. '
+               if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
-            'budget expires. Publish useful drafts early. While repairing, run only the checks that '
-            'cover what you changed, then your full check suite once before you finish; do not '
+            'budget expires. Publish useful drafts early. Make slow checks you write use every CPU '
+            'core and skip work when their inputs have not changed. While repairing, run only the '
+            'checks that cover what you changed, at a coarser sampling when that still shows the '
+            'repair works, then your full check suite once before you finish; do not '
             'rebuild a binary whose sources did not change. A local pass is not final product readiness; '
             'the integration check reconciles all teams. If a sealed detail inside your own domain '
             'is wrong or infeasible (a datasheet contradicts an internal pin, an agent-chosen '
@@ -1225,12 +1493,67 @@ def _apply_waivers(worktree, review, waivers):
     return {**review, 'findings': findings, 'decision': 'revise' if findings else 'approve'}
 
 
+def _stage_role(stage):
+    return stage.removesuffix('-final')
+
+
+def _tester_model(state, role=None):
+    return ((state.get('testerModels') or {}).get(role) or state.get('testerModel') or
+            state['workerModel'])
+
+
+TESTER_RULES = (
+    'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
+    'cannot build, flash or do the core job in the brief; an electrical fault can damage hardware or '
+    'is unsafe, such as reversed battery polarity; a limit in the brief on size, part count, '
+    'screw count, print time or weight is exceeded; moving parts collide or jam, such as a leg hitting '
+    'the body or a wheel that cannot turn, anywhere in their required travel; or a thin part hanging '
+    'free will clearly break under load, since structure should be box sections or load-bearing walls. '
+    'Do not block on small '
+    'dimensional misses a person can fix with pliers, a file or glue, or on labels, documentation, '
+    'overview drawings, report coverage or spare hardware the person can buy. List those as NOTES in '
+    'the summary instead. This is your one full review: inspect everything now and report every '
+    'blocker at once, because later rounds only re-check what you list here. ')
+
+
+def _recheck_text(findings):
+    return ('RE-TEST: this is not a new review. Check only whether each finding below is fixed in the '
+            'actual files, and do not report anything else. Return revise citing only those still '
+            'open, or approve when all are fixed.\nFINDINGS TO RE-CHECK:\n' +
+            json.dumps(findings, sort_keys=True) + '\n')
+
+
+def _save_tester_notes(root, stage, result):
+    """The first review's summary holds what a person can fix by hand; the lead reports it."""
+    write(Path(root) / '.pilot/tester-notes' / f'{stage}.json', {'stage': stage, 'summary': result['summary']})
+
+
+def _cited_files(result):
+    """Testers may cite file:line, but lines move between rounds; everything downstream keys on the file."""
+    findings = []
+    for finding in result['findings']:
+        path, line = re.fullmatch(r'(.*?)(:\d+(?:[-:]\d+)?)?', finding['path']).groups()
+        message = f"(line {line[1:]}) {finding['message']}" if line else finding['message']
+        findings.append({**finding, 'path': path, 'message': message})
+    return {**result, 'findings': findings}
+
+
+def _only_rechecked(result, findings):
+    """A re-test may not grow the list; an earlier review owned finding everything."""
+    paths = {finding['path'] for finding in findings}
+    kept = [finding for finding in result['findings'] if finding['path'] in paths]
+    return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+
+
 def team_test(root, state, role, stage, worktree, checks, runner, *,
               stage_deadline=None, authorized_integration=None, integration_lock=None,
-              waivers=()):
+              waivers=(), recheck=None):
     """Give each builder an independent, read-only tester in its own team."""
     from .parallel_addendum import notes_for_role
 
+    if recheck is not None and not recheck:
+        return {'contractSha256': state['contractSha256'], 'decision': 'approve',
+                'summary': 'No tester findings to re-check', 'findings': []}
     before = snapshot(worktree)
     before_files = _retry_files(worktree)
     if integration_lock is None:
@@ -1248,13 +1571,14 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         'against the current instructions. The integration gate will reconcile other teams. '
         f'A deviation recorded in {DEVIATIONS[role]} with evidence and no unrecorded '
         'cross-team impact is not a defect; check that the files follow it. '
+        + (_recheck_text(recheck) if recheck else TESTER_RULES) +
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
         + notes_for_role(root, role) + _waivers_text(list(waivers))
     )
     # `call` selects the lead model for read-only jobs; the team's tester uses
-    # the worker model and the same shared jobs list, independent of lead gates.
-    tester_state = {**state, 'leadModel': state['workerModel']}
+    # its own model and the same shared jobs list, independent of lead gates.
+    tester_state = {**state, 'leadModel': _tester_model(state, role)}
     receipt = call(root, tester_state, stage + '-test', worktree, prompt,
                    REVIEW_SCHEMA, True, runner,
                    authorized_integration=authorized_integration,
@@ -1281,6 +1605,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
                                             before_files, git_before, authorized_integration)
     if not safe:
         raise ValueError('Team tester changed Git metadata: ' + str(reason))
+    result = _cited_files(result)
     if result['decision'] == 'approve' and result['findings']:
         raise ValueError('Team tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
@@ -1290,6 +1615,9 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         if (path.is_absolute() or '..' in path.parts or not owns(role, str(path)) or
                 (worktree / path).is_symlink()):
             raise ValueError('Team tester finding must cite its team-owned path')
+    if recheck:
+        return _only_rechecked(result, recheck)
+    _save_tester_notes(root, stage, result)
     return result
 
 
@@ -1371,6 +1699,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                   if stage in LONG_STAGES else state['timeoutSeconds'] + TIMEOUT_CONTINUATION_SECONDS)
         deadline = min(_stage_clock() + budget, stage_deadline) if stage_deadline else _stage_clock() + budget
         advice_rounds = 0
+        # An integration repair re-checks only what the integration tester cited for this team.
+        recheck = ([finding for finding in guidance['integration']['findings'] if owns(role, finding['path'])]
+                   if isinstance(guidance, dict) and 'integration' in guidance else None)
         timeout_advised = False
         team_started = _stage_clock()
         waivers = [item for item in load_waivers(root) if item.get('stage') == stage]
@@ -1483,8 +1814,10 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     publish('checking', problem.get('blockers', ()) if problem else ())
                     test = team_test(root, state, role, stage, dest, checks or problem or {}, runner,
                                      authorized_integration=authorized_integration,
-                                     integration_lock=integration_lock, waivers=waivers)
+                                     integration_lock=integration_lock, waivers=waivers,
+                                     recheck=recheck)
                     test = _apply_waivers(dest, test, waivers)
+                    recheck = test['findings']
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}
                     if problem is None:
@@ -1876,7 +2209,19 @@ def repair_stages(state, cited, *, final):
             if role in roles]
 
 
-def team_integration_test(root, state, checks, runner):
+def _without_lead_documents(root, result):
+    """No team owns a top-level document, so one must not end a run; keep the finding for the lead."""
+    is_document = lambda finding: ('/' not in finding['path'] and
+                                   PurePosixPath(finding['path']).suffix.casefold() == '.md')
+    documents = [finding for finding in result['findings'] if is_document(finding)]
+    if not documents:
+        return result
+    write(Path(root) / '.pilot/lead-document-findings.json', documents)
+    kept = [finding for finding in result['findings'] if not is_document(finding)]
+    return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+
+
+def team_integration_test(root, state, checks, runner, recheck=None):
     """Read-only cross-team tester; the lead is free to handle user changes."""
     from .parallel_addendum import notes_for_role
 
@@ -1894,13 +2239,15 @@ def team_integration_test(root, state, checks, runner):
         'specific role-owned file or the intended missing path. Recorded team deviations '
         f'({", ".join(DEVIATIONS[role] for role in ROLES)}) supersede a sealed detail when all '
         'affected teams follow them; cite the lagging team, not the contract. '
-        'Cite PILOT_CONTRACT.json only '
+        'Top-level documents (README.md, BOM.md and the like) are written by the lead after '
+        'this gate, so never cite them. Cite PILOT_CONTRACT.json only '
         'when the original interface cannot be satisfied without a new user instruction. '
+        + (_recheck_text(recheck) if recheck else TESTER_RULES) +
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'NATIVE CHECKS: {json.dumps(checks, sort_keys=True)}\n{notes}'
         + _waivers_text(load_waivers(root))
     )
-    tester_state = {**state, 'leadModel': state['workerModel']}
+    tester_state = {**state, 'leadModel': state.get('integrationTesterModel') or _tester_model(state)}
     receipt = call(root, tester_state, 'integration-test', workspace, prompt,
                    REVIEW_SCHEMA, True, runner)
     if receipt['error']:
@@ -1919,16 +2266,21 @@ def team_integration_test(root, state, checks, runner):
                                     before_files, git_before)
     if not safe:
         raise ValueError('Integration tester changed Git metadata: ' + str(reason))
+    result = _cited_files(result)
     if result['decision'] == 'approve' and result['findings']:
         raise ValueError('Integration tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
         raise ValueError('Integration tester rejected without cited findings')
+    result = _without_lead_documents(root, result)
     for finding in result['findings']:
         path = PurePosixPath(finding['path'])
         if (path.is_absolute() or '..' in path.parts or
                 (not owns('solo', str(path)) and str(path) != 'PILOT_CONTRACT.json') or
                 (workspace / path).is_symlink()):
             raise ValueError('Integration finding needs a team-owned path')
+    if recheck:
+        return _only_rechecked(result, recheck)
+    _save_tester_notes(root, 'integration', result)
     return result
 
 
@@ -1952,7 +2304,7 @@ def _undelivered_roles(workspace):
     return {role for role in ROLES if not any(owns(role, name) for name in names)}
 
 
-def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=None,
+def run_teams(directory, *, runner=agent, checker=native_check, on_checkpoint=None,
               on_progress=None):
     """Run independent builder/tester teams, then reconcile their interfaces."""
     from .parallel_addendum import _addendum_lock, load_addenda
@@ -2043,7 +2395,8 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
                 if board_checks is None:
                     raise ValueError('Repaired board produced no checked native handoff')
                 checks = publish_native(True)
-                integration = team_integration_test(root, state, checks, runner)
+                integration = team_integration_test(root, state, checks, runner,
+                                                     recheck=integration['findings'] or None)
             if not checks.get('passed') or integration['decision'] != 'approve':
                 raise ValueError('Cross-team integration remains open after bounded repairs: ' +
                                  json.dumps({'native': checks, 'review': integration}, sort_keys=True))
@@ -2076,7 +2429,7 @@ def run_teams(directory, *, runner=codex, checker=native_check, on_checkpoint=No
         return state
 
 
-def run(directory, *, execute=False, runner=codex, checker=native_check, on_checkpoint=None,
+def run(directory, *, execute=False, runner=agent, checker=native_check, on_checkpoint=None,
         on_progress=None):
     if not execute:
         raise ValueError('Paid/model execution requires explicit --execute')
@@ -2288,7 +2641,10 @@ def metrics(state):
     totals['fresh_input_tokens'] = totals['input_tokens'] - totals['cached_input_tokens']
     return {'schema': 1, 'mode': state['mode'], 'leadModel': state['leadModel'],
             'workerSandbox': state['workerSandbox'],
-            'workerModel': state['workerModel'], 'contractSha256': state.get('contractSha256'),
+            'workerModel': state['workerModel'], 'testerModel': _tester_model(state),
+            'builderModels': state.get('builderModels') or {}, 'testerModels': state.get('testerModels') or {},
+            'integrationTesterModel': state.get('integrationTesterModel') or _tester_model(state),
+            'contractSha256': state.get('contractSha256'),
             'promptSha256': state['promptSha256'], 'instructionsSha256': state['instructionsSha256'],
             'pipelineSha256': state['pipelineSha256'],
             'seedCommit': state['seedCommit'], 'repairRounds': max(0, state['revision'] - 1),
@@ -2326,6 +2682,7 @@ def main(argv=None):
     init.add_argument('--mode', choices=['parallel', 'sequential', 'solo', 'teams'], default='parallel')
     init.add_argument('--lead-model', default=LEAD)
     init.add_argument('--worker-model', default=WORKER)
+    init.add_argument('--tester-model')
     init.add_argument('--timeout', type=int, default=1800)
     for name in ('plan', 'run', 'status', 'metrics'):
         p = subs.add_parser(name)
@@ -2340,7 +2697,7 @@ def main(argv=None):
         if args.command == 'init':
             result = initialize(args.directory, args.prompt, instructions=args.instructions, seed=args.seed,
                                 mode=args.mode, lead_model=args.lead_model, worker_model=args.worker_model,
-                                timeout=args.timeout)
+                                tester_model=args.tester_model, timeout=args.timeout)
         elif args.command == 'plan':
             result = plan(args.directory, execute=args.execute, revise=args.revise, contract_from=args.contract_from)
         elif args.command == 'run':

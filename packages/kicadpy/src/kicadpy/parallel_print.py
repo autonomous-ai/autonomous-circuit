@@ -476,7 +476,7 @@ def run_print_team(workspace, pilot_root, release_note, *, runner=None, account_
                      'CASE_EVIDENCE.json', 'ACCOUNT_STATUS.json', 'PRINT_EVENTS.json')
         parallel.git(view, '-c', 'user.name=KiCad Print', '-c', 'user.email=print@localhost',
                      'commit', '-qm', 'Snapshot print evidence')
-        runner = runner or parallel.codex
+        runner = runner or parallel.agent
         prompt = (
             'You are the 3D PRINT PLANNER, assigned by the lead. Read the exact USER_NOTE.md, '
             'original sealed contract, verified CASE_EVIDENCE.json, ACCOUNT_STATUS.json, '

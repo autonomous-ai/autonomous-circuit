@@ -175,6 +175,191 @@ class TeamFlowTests(unittest.TestCase):
         stages = [stage for stage, *_ in self.runner.visits]
         self.assertEqual({stage for stage in stages if stage in parallel.ROLES}, set(parallel.ROLES))
 
+    def integration_findings(self, findings):
+        class Runner(TeamRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = TeamRunner.__call__(inner, root, state, stage, model, workspace,
+                                              prompt, schema, readonly)
+                if stage == 'integration-test':
+                    receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                         'summary': 'Reviewed', 'findings': findings}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        root, state = parallel.load(self.root)
+        return root, parallel.team_integration_test(root, state, {'passed': True}, runner)
+
+    def test_integration_finding_on_a_lead_document_does_not_end_the_run(self):
+        document = {'path': 'README.md', 'message': 'README is stale'}
+        root, result = self.integration_findings([document])
+        self.assertEqual((result['decision'], result['findings']), ('approve', []))
+        kept = json.loads((root / '.pilot/lead-document-findings.json').read_text())
+        self.assertEqual(kept, [document])
+
+    def test_integration_finding_on_a_team_file_survives_beside_a_lead_document(self):
+        real = {'path': 'firmware/main.c', 'message': 'Wrong pin'}
+        _, result = self.integration_findings([{'path': 'BOM.md', 'message': 'Stale'}, real])
+        self.assertEqual((result['decision'], result['findings']), ('revise', [real]))
+
+    def test_other_top_level_files_still_need_an_owner(self):
+        with self.assertRaisesRegex(ValueError, 'team-owned path'):
+            self.integration_findings([{'path': 'notes.txt', 'message': 'Stale'}])
+
+    def test_first_review_states_blockers_and_a_retest_checks_only_its_list(self):
+        bug = {'path': 'firmware/main.c', 'message': 'Wrong pin'}
+
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.wait_for_three = False
+                inner.rounds = 0
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'firmware-test':
+                    inner.rounds += 1
+                    if inner.rounds == 1:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'One blocker', 'findings': [bug]}
+                    elif inner.rounds == 2:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'New idea', 'findings': [
+                                                 {'path': 'firmware/README.md', 'message': 'A new complaint'}]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.rounds, 2)  # the off-list complaint was dropped, not another round
+        prompts = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        self.assertIn('one full review', prompts[0])
+        self.assertIn('moving parts collide or jam', prompts[0])
+        self.assertIn('reversed battery polarity', prompts[0])
+        notes = json.loads((self.root / '.pilot/tester-notes/firmware.json').read_text())
+        self.assertEqual(notes['summary'], 'One blocker')  # a re-test does not replace the review
+        self.assertNotIn('RE-TEST', prompts[0])
+        self.assertIn('RE-TEST', prompts[1])
+        self.assertIn('Wrong pin', prompts[1])
+        self.assertNotIn('one full review', prompts[1])
+
+    def test_integration_repair_rechecks_instead_of_reviewing_again(self):
+        bug = {'path': 'firmware/main.c', 'message': 'Pin clash'}
+
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.rejected = False
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if inner.rejected:
+                    inner.wait_for_three = False
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'integration-test' and not inner.rejected:
+                    inner.rejected = True
+                    receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                         'summary': 'Clash', 'findings': [bug]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        firmware = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        integration = [prompt for stage, _, _, prompt in runner.visits if stage == 'integration-test']
+        self.assertEqual(len(firmware), 2)
+        self.assertIn('RE-TEST', firmware[1])
+        self.assertIn('Pin clash', firmware[1])
+        self.assertIn('one full review', integration[0])
+        self.assertIn('RE-TEST', integration[1])
+
+    def test_a_finding_still_open_at_a_moved_line_stays_open(self):
+        class Runner(TeamRunner):
+            def __init__(inner):
+                super().__init__()
+                inner.reviews = 0
+
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if inner.reviews:
+                    inner.wait_for_three = False
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'firmware':
+                    put(workspace, 'firmware/main.c', f'repair {inner.reviews}')
+                if stage == 'firmware-test':
+                    inner.reviews += 1
+                    if inner.reviews < 3:
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                             'summary': 'Open', 'findings': [
+                                                 {'path': f'firmware/main.c:{10 + inner.reviews}',
+                                                  'message': 'Pin clash'}]}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        firmware = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
+        self.assertEqual(len(firmware), 3)
+        self.assertIn('(line 11) Pin clash', firmware[1])
+
+    def test_cited_files_strips_only_a_line_suffix(self):
+        result = parallel._cited_files({'findings': [{'path': 'a/b.py:12', 'message': 'x'},
+                                                     {'path': 'a/b.py:12-20', 'message': 'y'},
+                                                     {'path': 'a/b.py', 'message': 'z'}]})
+        self.assertEqual([(item['path'], item['message']) for item in result['findings']],
+                         [('a/b.py', '(line 12) x'), ('a/b.py', '(line 12-20) y'), ('a/b.py', 'z')])
+
+    def test_a_retest_with_nothing_to_check_makes_no_model_call(self):
+        calls = []
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        root, state = parallel.load(self.root)
+        worktree = root / 'workspace'
+        result = parallel.team_test(root, state, 'firmware', 'firmware', worktree, {},
+                                    lambda *args: calls.append(args), recheck=[])
+        self.assertEqual((result['decision'], calls), ('approve', []))
+
+    def test_case_builder_is_told_to_avoid_thin_hanging_parts(self):
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        root, state = parallel.load(self.root)
+        self.assertIn('load-bearing walls', parallel.worker_prompt(state, 'case', 'case'))
+        self.assertNotIn('load-bearing walls', parallel.worker_prompt(state, 'firmware', 'firmware'))
+        self.assertIn('every CPU core', parallel.worker_prompt(state, 'firmware', 'firmware'))
+
+    def test_testers_use_their_own_model(self):
+        root = self.base / 'split'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',
+                            lead_model='claude-lead', tester_model='claude-tester')
+        parallel.plan(root, execute=True, runner=self.runner)
+        result = parallel.run(root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        models = {stage: model for stage, model, *_ in self.runner.visits}
+        self.assertEqual(models['plan'], 'claude-lead')
+        for stage in ('board-test', 'firmware-test', 'case-test', 'integration-test'):
+            self.assertEqual(models[stage], 'claude-tester')
+        for stage in ('board', 'firmware', 'case'):
+            self.assertEqual(models[stage], parallel.WORKER)
+        self.assertEqual(parallel.metrics(result)['testerModel'], 'claude-tester')
+
+    def test_one_role_can_swap_builder_and_tester_models(self):
+        root = self.base / 'swapped'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',
+                            lead_model='claude-lead', tester_model='claude-tester',
+                            builder_models={'case': 'claude-builder'}, tester_models={'case': 'sol-tester'},
+                            integration_tester_model='claude-final')
+        parallel.plan(root, execute=True, runner=self.runner)
+        result = parallel.run(root, execute=True, runner=self.runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        models = {stage: model for stage, model, *_ in self.runner.visits}
+        self.assertEqual((models['case'], models['case-test']), ('claude-builder', 'sol-tester'))
+        self.assertEqual((models['board'], models['firmware']), (parallel.WORKER, parallel.WORKER))
+        self.assertEqual((models['board-test'], models['firmware-test']), ('claude-tester', 'claude-tester'))
+        self.assertEqual(models['integration-test'], 'claude-final')
+        self.assertEqual(parallel.metrics(result)['builderModels'], {'case': 'claude-builder'})
+
+    def test_an_older_run_without_a_tester_model_keeps_its_worker_model(self):
+        self.assertEqual(parallel._tester_model({'workerModel': 'worker'}), 'worker')
+
     def test_template_files_do_not_count_as_a_delivered_board(self):
         workspace = self.base / 'fresh'
         put(workspace, 'product.json', '{}')

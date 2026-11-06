@@ -302,7 +302,10 @@ class RetryIntegrityTests(unittest.TestCase):
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
         self.assertEqual(runner.calls['case'], 3)
         case_jobs = [job for job in result['jobs'] if job['stage'] == 'case']
-        self.assertEqual([job['attemptTimeoutSeconds'] for job in case_jobs], [1800, 1800, 1800])
+        self.assertEqual([job['attemptTimeoutSeconds'] for job in case_jobs], [3600, 3600, 3600])
+        other_jobs = [job for job in result['jobs'] if job['stage'] not in parallel.LONG_STAGES]
+        self.assertTrue(other_jobs)
+        self.assertEqual({job['attemptTimeoutSeconds'] for job in other_jobs}, {1800})
 
     def test_second_timeout_stops_but_imports_completed_sibling(self):
         class TimedOutTwice(fixture.Fake):

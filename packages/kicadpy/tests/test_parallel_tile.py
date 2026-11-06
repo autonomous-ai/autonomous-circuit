@@ -202,6 +202,29 @@ class TeamBridgeTests(unittest.TestCase):
             runner=runner or FakeRunner(self.workspace), checker=checker or FakeChecker(),
             max_rounds=max_rounds)
 
+    def test_project_model_file_selects_lead_and_tester(self):
+        runner = FakeRunner(self.workspace)
+        (self.workspace / '.circuit').mkdir(exist_ok=True)
+        (self.workspace / parallel.TEAM_MODELS).write_text(
+            json.dumps({'lead': 'claude-lead', 'tester': 'claude-tester'}))
+        self.run_team(runner=runner)
+        run = sorted((self.workspace / '.circuit/team-runs').iterdir())[-1]
+        state = json.loads((run / '.pilot/state.json').read_text())
+        self.assertEqual((state['leadModel'], state['testerModel'], state['workerModel']),
+                         ('claude-lead', 'claude-tester', parallel.WORKER))
+
+    def test_project_model_file_selects_a_role_builder_and_the_final_tester(self):
+        runner = FakeRunner(self.workspace)
+        (self.workspace / '.circuit').mkdir(exist_ok=True)
+        (self.workspace / parallel.TEAM_MODELS).write_text(json.dumps({
+            'builders': {'case': 'claude-builder'}, 'testers': {'case': 'sol-tester'},
+            'integrationTester': 'claude-final'}))
+        self.run_team(runner=runner)
+        run = sorted((self.workspace / '.circuit/team-runs').iterdir())[-1]
+        state = json.loads((run / '.pilot/state.json').read_text())
+        self.assertEqual((state['builderModels'], state['testerModels'], state['integrationTesterModel']),
+                         ({'case': 'claude-builder'}, {'case': 'sol-tester'}, 'claude-final'))
+
     def test_low_disk_refuses_before_creating_a_run(self):
         runner = FakeRunner(self.workspace)
         low = shutil._ntuple_diskusage(100 * 1024 ** 3, 99 * 1024 ** 3, 1024 ** 3)
@@ -496,6 +519,15 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertFalse((self.workspace / '.git').exists())
         self.assertEqual((self.workspace / 'project.json').read_bytes(), project_metadata)
         self.assertEqual(parallel_tile.status(self.workspace)['pilot']['status'], 'candidate_ready')
+
+    def test_draft_origin_skips_a_run_that_stopped_before_any_team_started(self):
+        runs = self.workspace / '.circuit/team-runs'
+        put(runs / 'r004/.pilot/rounds/1', 'case-draft-base.json', '{}')
+        (runs / 'r005/.pilot').mkdir(parents=True)
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r005'), 'r004')
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r004'), 'r004')
+        put(runs / 'r005/.pilot/rounds/1', 'firmware-draft-base.json', '{}')
+        self.assertEqual(parallel_tile._draft_origin_run(self.workspace, 'r005'), 'r005')
 
     def test_followup_seeds_accepted_design_and_copies_attached_reference(self):
         first = self.run_team()

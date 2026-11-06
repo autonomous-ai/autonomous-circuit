@@ -1,5 +1,6 @@
 """Offline orchestration tests: no real models, native CAD, network or hardware."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -767,8 +768,16 @@ if not os.environ.get('PILOT_STUB_SKIP_INVOCATION'):
         'cmake': os.environ.get('KICAD_HARNESS_CMAKE'),
         'pioCore': os.environ.get('PLATFORMIO_CORE_DIR'),
     }))
+print(json.dumps({'type':'item.started','item':{'id':'item_1','type':'command_execution','command':'make check'}}), flush=True)
+print(json.dumps({'type':'item.completed','item':{'id':'item_1','type':'command_execution','command':'make check','exit_code':0}}), flush=True)
 print(json.dumps({'type':'turn.completed','usage':{
     'input_tokens':100,'cached_input_tokens':60,'output_tokens':20}}), flush=True)
+for tick in range(int(os.environ.get('PILOT_STUB_TICKS', '0'))):
+    time.sleep(0.4)
+    print(json.dumps({'type':'item.completed','item':{'id':f'tick_{tick}','type':'reasoning'}}), flush=True)
+if os.environ.get('PILOT_STUB_NOISY'):
+    sys.stderr.write('x' * 300000)
+    sys.stderr.flush()
 if os.environ.get('PILOT_STUB_HANG'):
     code = "import pathlib,time;time.sleep(3);pathlib.Path('orphan-marker').write_text('orphan')"
     subprocess.Popen([sys.executable, '-c', code], cwd=workspace)
@@ -826,6 +835,196 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(invocation['args'][invocation['args'].index('-s') + 1], 'read-only')
         self.assertIn('--skip-git-repo-check', invocation['args'])
 
+    def claude_stub(self):
+        stub = put(self.base, 'bin/claude', '#!' + sys.executable + '\n' + r"""
+import json, os, pathlib, sys
+args = sys.argv[1:]
+prompt = sys.stdin.read()
+blocked = False
+try:
+    pathlib.Path('tester-wrote-this').write_text('x')
+except OSError:
+    blocked = True
+protected_blocked = None
+if os.environ.get('PILOT_STUB_PROTECTED'):
+    try:
+        pathlib.Path(os.environ['PILOT_STUB_PROTECTED']).write_text('x')
+        protected_blocked = False
+    except OSError:
+        protected_blocked = True
+pathlib.Path(os.environ['PILOT_STUB_OUT']).write_text(json.dumps({
+    'args': args, 'prompt': prompt, 'blocked': blocked, 'protectedBlocked': protected_blocked,
+    'nested': os.environ.get('CLAUDECODE'), 'memory': os.environ.get('CLAUDE_CODE_DISABLE_CLAUDE_MDS'),
+    'advisor': os.environ.get('KICAD_ADVISOR')}))
+if os.environ.get('PILOT_STUB_OVERLOADED'):
+    print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': 529, 'result': 'Overloaded'}))
+    sys.exit(1)
+if os.environ.get('PILOT_STUB_LOGGED_OUT'):
+    print(json.dumps({'type': 'result', 'is_error': True, 'api_error_status': None,
+                      'result': 'Failed to authenticate: OAuth session expired and could not be refreshed'}))
+    sys.exit(1)
+if os.environ.get('PILOT_STUB_NO_ANSWER'):
+    print(json.dumps({'type': 'result', 'is_error': False, 'result': 'prose only'}))
+    sys.exit(0)
+print('{"type":"result","note":"not json for the last line"')
+print(json.dumps({'type': 'assistant', 'message': 'overloaded'}))
+print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
+                  'structured_output': {'contractSha256': 'hash', 'stage': 'worker', 'summary': 'done', 'blockers': []},
+                  'modelUsage': {'claude-opus-5-5': {'inputTokens': 4, 'outputTokens': 20, 'thinkingTokens': 7,
+                                                     'cacheReadInputTokens': 60, 'cacheCreationInputTokens': 36}}}))
+""")
+        stub.chmod(0o755)
+        out = self.base / 'claude-invocation.json'
+        env = patch.dict(os.environ, {'PILOT_STUB_OUT': str(out), 'CLAUDECODE': '1'})
+        env.start()
+        self.addCleanup(env.stop)
+        return out
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_adapter_is_read_only_isolated_and_reports_codex_shaped_usage(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        receipt = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                              'read only', RESULT_SCHEMA, True)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual(receipt['result']['summary'], 'done')
+        self.assertEqual(receipt['usage'], {'input_tokens': 100, 'cached_input_tokens': 60, 'output_tokens': 20,
+                                            'reasoning_output_tokens': 7, 'cost_usd': 1.5})
+        seen = json.loads(out.read_text())
+        self.assertTrue(seen['blocked'])
+        self.assertFalse((self.workspace / 'tester-wrote-this').exists())
+        self.assertEqual(seen['prompt'], 'read only')
+        self.assertIsNone(seen['nested'])
+        self.assertEqual((seen['memory'], seen['advisor']), ('1', 'off'))
+        args = seen['args']
+        self.assertEqual(args[args.index('--model') + 1], 'claude-opus-5-5')
+        self.assertEqual(args[args.index('--setting-sources') + 1], '')
+        self.assertEqual(args[args.index('--permission-mode') + 1], 'dontAsk')
+        self.assertEqual(args[args.index('--tools') + 1], 'Read,Grep,Glob,Bash')
+        self.assertNotIn('--dangerously-skip-permissions', args)
+
+    def test_agent_keeps_gpt_models_on_codex(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        pilot.agent(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                    'scoped task', RESULT_SCHEMA, False)
+        self.assertTrue((self.workspace / 'invocation.json').is_file())
+
+    def test_a_claude_builder_never_writes_the_integration_workspace(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        with self.assertRaisesRegex(ValueError, 'own worker worktree'):
+            pilot.agent(self.root, self.state, 'worker', 'claude-opus-5-5', self.workspace,
+                        'scoped task', RESULT_SCHEMA, False)
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_a_claude_builder_writes_its_worktree_only(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        out = self.claude_stub()
+        worker = self.worker_worktree()
+        with patch.dict(os.environ, {'PILOT_STUB_PROTECTED': str(self.workspace / 'builder-wrote-this')}):
+            receipt = pilot.agent(self.root, self.state, 'case', 'claude-opus-5-5', worker,
+                                  'build the case', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        seen = json.loads(out.read_text())
+        self.assertFalse(seen['blocked'])
+        self.assertTrue((worker / 'tester-wrote-this').is_file())
+        self.assertTrue(seen['protectedBlocked'])
+        self.assertFalse((self.workspace / 'builder-wrote-this').exists())
+        args = seen['args']
+        self.assertEqual(args[args.index('--tools') + 1], 'Read,Edit,Write,Grep,Glob,Bash')
+        self.assertEqual(args[args.index('--effort') + 1], 'high')
+        self.assertIn('--no-sandbox', seen['prompt'])
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_overload_is_capacity_and_missing_answer_is_an_error(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.claude_stub()
+        with patch.dict(os.environ, {'PILOT_STUB_OVERLOADED': '1'}):
+            busy = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                               'read only', RESULT_SCHEMA, True)
+        self.assertEqual(busy['failureKind'], 'model_capacity')
+        with patch.dict(os.environ, {'PILOT_STUB_NO_ANSWER': '1'}):
+            empty = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                                'read only', RESULT_SCHEMA, True)
+        self.assertIn('no structured answer', empty['error'])
+        self.assertIsNone(empty['failureKind'])
+
+    @unittest.skipUnless(Path('/usr/bin/sandbox-exec').is_file(), 'needs macOS sandbox-exec')
+    def test_claude_logout_is_not_a_design_failure_and_says_why(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.claude_stub()
+        with patch.dict(os.environ, {'PILOT_STUB_LOGGED_OUT': '1'}):
+            receipt = pilot.agent(self.root, self.state, 'review', 'claude-opus-5-5', self.workspace,
+                                  'read only', RESULT_SCHEMA, True)
+        self.assertEqual(receipt['failureKind'], 'model_capacity')
+        self.assertIn('Failed to authenticate', receipt['error'])
+
+    def test_claude_sandbox_lets_a_refreshed_login_reach_the_keychain(self):
+        profile = pilot._claude_sandbox(self.workspace)
+        self.assertIn(f'(subpath "{Path.home() / "Library/Keychains"}")', profile)
+        self.assertTrue(profile.endswith(f'(deny file-write* (subpath "{self.workspace.resolve()}"))'))
+
+    def test_team_models_defaults_override_and_bad_file(self):
+        project = self.base / 'project'
+        defaults = {'lead': pilot.LEAD, 'tester': pilot.WORKER, 'integrationTester': None,
+                    'builders': {}, 'testers': {}}
+        self.assertEqual(pilot.team_models(project), defaults)
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'tester': 'claude-opus-5-5'}))
+        self.assertEqual(pilot.team_models(project), {**defaults, 'tester': 'claude-opus-5-5'})
+        chosen = {'builders': {'case': 'claude-opus-5-5'}, 'testers': {'case': pilot.WORKER},
+                  'integrationTester': 'claude-opus-5-5'}
+        put(project, str(pilot.TEAM_MODELS), json.dumps(chosen))
+        self.assertEqual(pilot.team_models(project), {**defaults, **chosen})
+        for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5'],
+                    {'builders': {'lid': 'claude-opus-5-5'}}, {'testers': {'case': ''}},
+                    {'builders': 'claude-opus-5-5'}):
+            put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
+            with self.assertRaisesRegex(ValueError, 'integrationTester'):
+                pilot.team_models(project)
+
+    def test_job_logs_each_command_with_its_time(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                              'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(receipt['commands']['count'], 1)
+        logged = (self.root / receipt['logDirectory'] / 'commands.jsonl').read_text().splitlines()
+        entry = json.loads(logged[0])
+        self.assertEqual((entry['command'], entry['exitCode']), ('make check', 0))
+        self.assertIn('turn.completed', (self.root / receipt['logDirectory'] / 'events.jsonl').read_text())
+
+    def command_clock(self):
+        job = self.base / 'clock'
+        job.mkdir()
+        return pilot._CommandClock(job / 'events.jsonl', job / 'commands.jsonl'), job / 'commands.jsonl'
+
+    def test_command_clock_times_codex_commands(self):
+        clock, log = self.command_clock()
+        item = {'id': 'i', 'type': 'command_execution', 'command': 'python check.py'}
+        clock.feed(json.dumps({'type': 'item.started', 'item': item}), 100)
+        clock.feed('not json', 101)
+        clock.feed(json.dumps({'type': 'item.completed', 'item': {**item, 'exit_code': 2}}), 160.5)
+        entry = json.loads(log.read_text())
+        self.assertEqual((entry['command'], entry['seconds'], entry['exitCode']), ('python check.py', 60.5, 2))
+
+    def test_command_clock_times_claude_tools(self):
+        clock, log = self.command_clock()
+        use = lambda block: json.dumps({'type': 'assistant', 'message': {'content': [block]}})
+        clock.feed(use({'type': 'tool_use', 'id': 'a', 'name': 'Bash', 'input': {'command': 'ls'}}), 10)
+        clock.feed(use({'type': 'tool_use', 'id': 'b', 'name': 'Read', 'input': {'file_path': 'x.md'}}), 10)
+        clock.feed(json.dumps({'type': 'user', 'message': {'content': [
+            {'type': 'tool_result', 'tool_use_id': 'b'}, {'type': 'tool_result', 'tool_use_id': 'a'}]}}), 13)
+        entries = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual([(e['command'], e['seconds']) for e in entries], [('Read x.md', 3), ('ls', 3)])
+
+    def test_command_clock_keeps_the_command_a_timeout_was_waiting_on(self):
+        clock, log = self.command_clock()
+        clock.feed(json.dumps({'type': 'item.started', 'item': {
+            'id': 'i', 'type': 'command_execution', 'command': 'sweep'}}), time.time() - 30)
+        clock.start()
+        self.assertEqual(clock.finish()['count'], 1)
+        entry = json.loads(log.read_text())
+        self.assertTrue(entry['unfinished'])
+        self.assertGreaterEqual(entry['seconds'], 29)
+
     def test_timeout_retains_partial_usage_and_kills_child_process(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         # Allow interpreter startup under host load; the child marker is delayed past this bound.
@@ -839,6 +1038,34 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         time.sleep(3.1)
         self.assertFalse((self.workspace / 'orphan-marker').exists())
         self.assertTrue((self.root / receipt['logDirectory'] / 'receipt.json').is_file())
+
+    def test_a_silent_job_is_stopped_as_a_stalled_timeout(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 60
+        with patch.dict(os.environ, {'PILOT_STUB_HANG': '1'}), patch.object(pilot, 'STALL_SECONDS', 1.5):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertEqual(receipt['failureKind'], 'timeout')
+        self.assertIn('Stalled', receipt['error'])
+        self.assertLess(receipt['seconds'], 15)
+
+    def test_a_job_that_keeps_writing_events_is_not_a_stall(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 60
+        with patch.dict(os.environ, {'PILOT_STUB_TICKS': '8'}), patch.object(pilot, 'STALL_SECONDS', 1.5):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        self.assertGreater(receipt['seconds'], 3)
+
+    def test_heavy_stderr_does_not_block_the_job(self):
+        from kicadpy.parallel_contract import RESULT_SCHEMA
+        self.state['timeoutSeconds'] = 30
+        with patch.dict(os.environ, {'PILOT_STUB_NOISY': '1'}):
+            receipt = pilot.codex(self.root, self.state, 'worker', pilot.WORKER, self.workspace,
+                                  'scoped task', RESULT_SCHEMA, False)
+        self.assertIsNone(receipt['error'])
+        self.assertEqual(len((self.root / receipt['logDirectory'] / 'stderr.log').read_text()), 300000)
 
     def test_structured_capacity_failure_is_classified_and_attempt_logs_are_distinct(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
@@ -887,14 +1114,16 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
 
         class InterruptedProcess:
             pid = 424242
+            args = ['codex']
             returncode = None
             calls = 0
+            stdin = io.StringIO()
 
-            def communicate(self, *args, **kwargs):
+            def wait(self, *args, **kwargs):
                 self.calls += 1
                 if self.calls == 1:
                     raise KeyboardInterrupt
-                return '', ''
+                return 0
 
         with patch.object(pilot.subprocess, 'Popen', return_value=InterruptedProcess()), \
              patch.object(pilot.os, 'killpg'):
@@ -963,6 +1192,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(self.state['jobs'][1]['attemptTimeoutSeconds'], 600)
         self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 22)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_continues_on_fresh_owned_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -987,6 +1218,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertTrue(all(job['continuedPartialWork'] for job in self.state['jobs'][:3]))
         self.assertEqual(pilot.metrics(self.state)['reportedUsage']['input_tokens'], 40)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_stops_when_next_attempt_makes_no_new_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1009,6 +1242,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(receipt['retrySuppressed'],
                          'Timed-out worker made no owned file progress')
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_timeout_does_not_count_same_bytes_with_new_mtime(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1030,6 +1265,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(receipt['retrySuppressed'],
                          'Timed-out worker made no owned file progress')
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_continuation_obeys_three_hour_wall_budget(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1051,6 +1288,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(receipt['retrySuppressed'], 'Stage execution budget exhausted')
         self.assertEqual(len(self.state['jobs']), 6)
 
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 10)
     def test_board_continuation_attempt_cap_is_explicit(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1073,6 +1311,7 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
                          'Board continuation attempt limit exhausted')
         self.assertEqual(len(self.state['jobs']), len(calls))
 
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 10)
     def test_case_gets_long_continuations_for_owned_progress(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
@@ -1180,6 +1419,8 @@ pathlib.Path(args[args.index('-o') + 1]).write_text(json.dumps({
         self.assertEqual(limits[1], 595)
         self.assertEqual(clock[0], 2400)
 
+    # Continuation rules, measured on the old half-hour attempt.
+    @patch.object(pilot, 'LONG_STAGE_ATTEMPT_SECONDS', 1800)
     def test_board_capacity_retries_keep_original_wall_budget(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA
         worker = self.worker_worktree()
