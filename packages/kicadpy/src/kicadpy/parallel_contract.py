@@ -44,6 +44,12 @@ CONTRACT_SCHEMA = obj({
 RESULT_SCHEMA = obj({'contractSha256': STRING, 'stage': STRING, 'summary': STRING, 'blockers': array(STRING)})
 REVIEW_SCHEMA = obj({'contractSha256': STRING, 'decision': {'type': 'string', 'enum': ['approve', 'revise']},
                      'summary': STRING, 'findings': array(obj({'path': STRING, 'message': STRING}))})
+# A re-test answers per earlier finding: recheckOf is that finding's 1-based number in the re-test
+# prompt, so a finding still open stays open when the tester now cites a different file.
+RECHECK_SCHEMA = obj({'contractSha256': STRING, 'decision': {'type': 'string', 'enum': ['approve', 'revise']},
+                      'summary': STRING,
+                      'findings': array(obj({'recheckOf': {'type': 'integer'}, 'path': STRING, 'message': STRING})),
+                      'newIssues': array(obj({'path': STRING, 'message': STRING}))})
 ADVICE_SCHEMA = obj({'contractSha256': STRING,
                      'stage': STRING,
                      'decision': {'type': 'string',
@@ -80,6 +86,9 @@ def validate(value, schema):
     elif kind == 'number':
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError('Expected finite number')
+    elif kind == 'integer':
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError('Expected integer')
     if 'enum' in schema and value not in schema['enum']:
         raise ValueError('Unexpected enum value')
 

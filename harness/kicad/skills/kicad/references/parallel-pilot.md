@@ -91,8 +91,9 @@ Testers review once. The first review must report every blocker at once: the pro
 assembled, wired, printed, built or flashed, an electrical fault can damage hardware or is unsafe, a
 stated limit is exceeded, moving parts collide or jam
 in their required travel, or a thin hanging part will clearly break. Small misses a person can fix by hand, labels and documents go in the summary as
-NOTES, saved in the run's `.pilot/tester-notes/`. Later rounds re-check only the listed findings, and a
-finding on any other path is dropped. A new run starts with a new full review.
+NOTES, saved in the run's `.pilot/tester-notes/`. Later rounds re-check only the listed findings. A
+finding still open stays open even if it now cites a different file. Anything new does not block: it
+is saved in `.pilot/tester-notes/<stage>-retest.json`. A new run starts with a new full review.
 
 ## Contract and stages
 

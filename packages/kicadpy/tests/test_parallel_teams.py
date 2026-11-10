@@ -1,4 +1,5 @@
 """The new team pipeline runs independently without recreating its contract."""
+import functools
 import os
 import json
 from pathlib import Path
@@ -10,13 +11,33 @@ import unittest
 from unittest.mock import patch
 
 from kicadpy import parallel, parallel_tile
+from kicadpy.parallel_contract import RECHECK_SCHEMA
 from test_parallel import CARD, contract, put
 
 # Unit runs must not depend on the developer machine's free disk.
 os.environ.setdefault('CIRCUIT_TEAM_MIN_FREE_GB', '0')
 
 
+def _answers_retest(call):
+    """Scripted testers write first-review results; a re-test numbers each finding it keeps open."""
+    @functools.wraps(call)
+    def wrapped(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        receipt = call(self, root, state, stage, model, workspace, prompt, schema, readonly)
+        result = receipt.get('result')
+        if schema is RECHECK_SCHEMA and result and 'newIssues' not in result:
+            result['findings'] = [{'recheckOf': number, **finding}
+                                  for number, finding in enumerate(result['findings'], 1)]
+            result['newIssues'] = []
+        return receipt
+    return wrapped
+
+
 class TeamRunner:
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if '__call__' in cls.__dict__:
+            cls.__call__ = _answers_retest(cls.__dict__['__call__'])
+
     def __init__(self):
         self.visits = []
         self.lock = threading.Lock()
@@ -154,6 +175,9 @@ class DisputeRunner(TeamRunner):
         return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
 
 
+TeamRunner.__call__ = _answers_retest(TeamRunner.__call__)
+
+
 class TeamFlowTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -223,8 +247,8 @@ class TeamFlowTests(unittest.TestCase):
                         receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
                                              'summary': 'One blocker', 'findings': [bug]}
                     elif inner.rounds == 2:
-                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
-                                             'summary': 'New idea', 'findings': [
+                        receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'approve',
+                                             'summary': 'New idea', 'findings': [], 'newIssues': [
                                                  {'path': 'firmware/README.md', 'message': 'A new complaint'}]}
                 return receipt
 
@@ -302,6 +326,52 @@ class TeamFlowTests(unittest.TestCase):
         firmware = [prompt for stage, _, _, prompt in runner.visits if stage == 'firmware-test']
         self.assertEqual(len(firmware), 3)
         self.assertIn('(line 11) Pin clash', firmware[1])
+
+    def retest(self, reply, old):
+        class Runner(TeamRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = TeamRunner.__call__(inner, root, state, stage, model, workspace,
+                                              prompt, schema, readonly)
+                if stage == 'integration-test':
+                    receipt['result'] = {'contractSha256': state['contractSha256'], **reply}
+                return receipt
+
+        runner = Runner()
+        parallel.plan(self.root, execute=True, runner=runner)
+        root, state = parallel.load(self.root)
+        return root, parallel.team_integration_test(root, state, {'passed': True}, runner, recheck=old)
+
+    def test_a_finding_still_open_in_another_file_stays_open(self):
+        old = [{'path': 'case/model.py', 'message': 'PCB cannot be inserted'}]
+        moved = {'path': 'design/main.kicad_pcb', 'message': 'PCB outline blocks insertion'}
+        _, result = self.retest({'decision': 'revise', 'summary': 'Open', 'newIssues': [],
+                                 'findings': [{'recheckOf': 1, **moved}]}, old)
+        self.assertEqual((result['decision'], result['findings']), ('revise', [moved]))
+
+    def test_a_new_issue_on_a_retest_is_recorded_and_does_not_block(self):
+        old = [{'path': 'case/model.py', 'message': 'Leg hits body'}]
+        new = {'path': 'case/model.py', 'message': 'Lid rib now touches knee'}
+        root, result = self.retest({'decision': 'approve', 'summary': 'Fixed', 'findings': [],
+                                    'newIssues': [new]}, old)
+        self.assertEqual((result['decision'], result['findings']), ('approve', []))
+        saved = json.loads((root / '.pilot/tester-notes/integration-retest.json').read_text())
+        self.assertEqual(saved['newIssues'], [new])
+
+    def test_a_finding_with_an_unknown_number_becomes_a_note(self):
+        old = [{'path': 'case/model.py', 'message': 'Leg hits body'}]
+        stray = {'path': 'firmware/main.c', 'message': 'Unrelated'}
+        root, result = self.retest({'decision': 'revise', 'summary': 'Open', 'newIssues': [],
+                                    'findings': [{'recheckOf': 2, **stray}]}, old)
+        self.assertEqual((result['decision'], result['findings']), ('approve', []))
+        saved = json.loads((root / '.pilot/tester-notes/integration-retest.json').read_text())
+        self.assertEqual(saved['newIssues'], [stray])
+
+    def test_retest_notes_accumulate_without_duplicates(self):
+        first, second = ({'path': 'a', 'message': 'one'}, {'path': 'b', 'message': 'two'})
+        parallel._save_retest_notes(self.base, 'case', {'newIssues': [first]})
+        parallel._save_retest_notes(self.base, 'case', {'newIssues': [first, second]})
+        saved = json.loads((self.base / '.pilot/tester-notes/case-retest.json').read_text())
+        self.assertEqual(saved['newIssues'], [first, second])
 
     def test_cited_files_strips_only_a_line_suffix(self):
         result = parallel._cited_files({'findings': [{'path': 'a/b.py:12', 'message': 'x'},
