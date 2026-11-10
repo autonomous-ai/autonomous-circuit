@@ -21,7 +21,7 @@ import tarfile
 import threading
 import time
 
-from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
+from .parallel_contract import (ADVICE_SCHEMA, CONTRACT_SCHEMA, RECHECK_SCHEMA, RESULT_SCHEMA, REVIEW_SCHEMA, ROLES,
                                 DEVIATIONS, HANDOFF, OWNED, digest, encoded, owns, validate, validate_contract)
 
 LEAD = 'gpt-6-astra'
@@ -1603,10 +1603,13 @@ TESTER_RULES = (
 
 
 def _recheck_text(findings):
-    return ('RE-TEST: this is not a new review. Check only whether each finding below is fixed in the '
-            'actual files, and do not report anything else. Return revise citing only those still '
-            'open, or approve when all are fixed.\nFINDINGS TO RE-CHECK:\n' +
-            json.dumps(findings, sort_keys=True) + '\n')
+    numbered = [{'number': number, **finding} for number, finding in enumerate(findings, 1)]
+    return ('RE-TEST: this is not a new review. Check whether each numbered finding below is fixed in '
+            'the actual files. Return revise with one entry in findings per finding still open, '
+            'recheckOf set to its number; cite the file that holds the defect now, even if it differs '
+            'from the file listed. Approve when all are fixed. Any other defect you notice goes in '
+            'newIssues, never in findings: it does not block this re-test.\nFINDINGS TO RE-CHECK:\n' +
+            json.dumps(numbered, sort_keys=True) + '\n')
 
 
 def _save_tester_notes(root, stage, result):
@@ -1625,10 +1628,31 @@ def _cited_files(result):
 
 
 def _only_rechecked(result, findings):
-    """A re-test may not grow the list; an earlier review owned finding everything."""
-    paths = {finding['path'] for finding in findings}
-    kept = [finding for finding in result['findings'] if finding['path'] in paths]
-    return {**result, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+    """A re-test may not grow the list, but a finding still open stays open wherever it now lives."""
+    kept, notes = [], list(result['newIssues'])
+    for finding in result['findings']:
+        cited = {'path': finding['path'], 'message': finding['message']}
+        if 1 <= finding['recheckOf'] <= len(findings):
+            kept.append(cited)
+        else:
+            notes.append(cited)
+    return {**result, 'findings': kept, 'newIssues': notes, 'decision': 'revise' if kept else 'approve'}
+
+
+def _save_retest_notes(root, stage, result):
+    """What a re-test noticed but may not block on, kept across rounds for the lead to report."""
+    path = Path(root) / '.pilot/tester-notes' / f'{stage}-retest.json'
+    issues = json.loads(path.read_text())['newIssues'] if path.exists() else []
+    for issue in result['newIssues']:
+        if issue not in issues:
+            issues.append(issue)
+    write(path, {'stage': stage, 'newIssues': issues})
+
+
+def _finish_recheck(root, stage, result, findings):
+    result = _only_rechecked(result, findings)
+    _save_retest_notes(root, stage, result)
+    return result
 
 
 def team_test(root, state, role, stage, worktree, checks, runner, *,
@@ -1665,8 +1689,9 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
     # `call` selects the lead model for read-only jobs; the team's tester uses
     # its own model and the same shared jobs list, independent of lead gates.
     tester_state = {**state, 'leadModel': _tester_model(state, role)}
+    schema = RECHECK_SCHEMA if recheck else REVIEW_SCHEMA
     receipt = call(root, tester_state, stage + '-test', worktree, prompt,
-                   REVIEW_SCHEMA, True, runner,
+                   schema, True, runner,
                    authorized_integration=authorized_integration,
                    integration_lock=integration_lock,
                    stage_deadline=stage_deadline)
@@ -1679,7 +1704,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
             raise ModelCapacityExhausted(job_error(receipt))
         raise ValueError(job_error(receipt))
     result = receipt['result']
-    validate(result, REVIEW_SCHEMA)
+    validate(result, schema)
     if result['contractSha256'] != state['contractSha256'] or snapshot(worktree) != before:
         raise ValueError('Team tester changed files or reviewed another contract')
     if integration_lock is None:
@@ -1702,7 +1727,7 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
                 (worktree / path).is_symlink()):
             raise ValueError('Team tester finding must cite its team-owned path')
     if recheck:
-        return _only_rechecked(result, recheck)
+        return _finish_recheck(root, stage, result, recheck)
     _save_tester_notes(root, stage, result)
     return result
 
@@ -2336,8 +2361,9 @@ def team_integration_test(root, state, checks, runner, recheck=None):
         + _waivers_text(load_waivers(root))
     )
     tester_state = {**state, 'leadModel': state.get('integrationTesterModel') or _tester_model(state)}
+    schema = RECHECK_SCHEMA if recheck else REVIEW_SCHEMA
     receipt = call(root, tester_state, 'integration-test', workspace, prompt,
-                   REVIEW_SCHEMA, True, runner)
+                   schema, True, runner)
     if receipt['error']:
         if receipt.get('failureKind') == 'interrupted':
             raise JobInterrupted(job_error(receipt))
@@ -2347,7 +2373,7 @@ def team_integration_test(root, state, checks, runner, recheck=None):
             raise ModelCapacityExhausted(job_error(receipt))
         raise ValueError(job_error(receipt))
     result = receipt['result']
-    validate(result, REVIEW_SCHEMA)
+    validate(result, schema)
     if result['contractSha256'] != state['contractSha256'] or snapshot(workspace) != before:
         raise ValueError('Integration tester changed files or reviewed another contract')
     safe, reason, _ = _retry_safety(root, workspace, 'integration-test', True,
@@ -2367,7 +2393,7 @@ def team_integration_test(root, state, checks, runner, recheck=None):
                 (workspace / path).is_symlink()):
             raise ValueError('Integration finding needs a team-owned path')
     if recheck:
-        return _only_rechecked(result, recheck)
+        return _finish_recheck(root, 'integration', result, recheck)
     _save_tester_notes(root, 'integration', result)
     return result
 
