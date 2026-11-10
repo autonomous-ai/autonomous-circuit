@@ -392,9 +392,20 @@ class TeamFlowTests(unittest.TestCase):
     def test_case_builder_is_told_to_avoid_thin_hanging_parts(self):
         parallel.plan(self.root, execute=True, runner=self.runner)
         root, state = parallel.load(self.root)
-        self.assertIn('load-bearing walls', parallel.worker_prompt(state, 'case', 'case'))
-        self.assertNotIn('load-bearing walls', parallel.worker_prompt(state, 'firmware', 'firmware'))
+        self.assertIn('hanging free', parallel.worker_prompt(state, 'case', 'case'))
+        self.assertNotIn('hanging free', parallel.worker_prompt(state, 'firmware', 'firmware'))
         self.assertIn('every CPU core', parallel.worker_prompt(state, 'firmware', 'firmware'))
+
+    def test_case_is_an_open_skeleton_and_skin_waits_for_a_request(self):
+        parallel.plan(self.root, execute=True, runner=self.runner)
+        root, state = parallel.load(self.root)
+        for stage in ('case', 'case-final'):
+            prompt = parallel.worker_prompt(state, 'case', stage)
+            self.assertIn('open skeleton', prompt)
+            self.assertNotIn('box sections', prompt)
+            self.assertIn('only if the brief', prompt)
+        self.assertIn('closed box', parallel.TESTER_RULES)
+        self.assertNotIn('box sections', parallel.TESTER_RULES)
 
     def test_testers_use_their_own_model(self):
         root = self.base / 'split'
