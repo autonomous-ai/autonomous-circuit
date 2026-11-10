@@ -698,14 +698,15 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
-- **Frame first → devices, fasteners and joints → checked mechanism → case covers.** For a new
-  robot/moving device, the exposed structural frame must locate and hold its devices/joints
-  without relying on decorative covers. Place real devices, fixing seats, screw/nut access and
-  wires on the frame; check insertion, retention, play and motion first. Then attach removable
-  covers to defined frame mounts and recheck full travel with all ribs, hardware and wires.
+- **Open skeleton first → devices, fasteners and joints → checked mechanism → covers only on
+  request.** For a new robot/moving device, build an open skeleton of braced bars and
+  cross-members, not a closed box, closed cups or sheet walls; leave several open wire routes.
+  It must locate and hold its devices/joints without relying on covers. Place real devices, fixing seats, screw/nut access and
+  wires on the frame; check insertion, retention, play and motion first. Only if the person asks
+  for skin, attach removable covers to defined frame mounts and recheck full travel with all ribs, hardware and wires.
   Repair an interfering cover before changing proven mounts. Keep the exposed subassembly and
   this assembly order visible in the guide/overview. Preserve existing printed structures in
-  repairs; a simple structural base may serve as the frame without adding redundant parts.
+  repairs; a simple open base may serve as the frame without adding redundant parts.
   Define the fixed/moving groups, real axes and actuator/horn connections.
   Prefer direct stock-horn connections when the owned actuator can deliver the required
   control. Keep electronics out of joint travel and preserve the board's existing contract.

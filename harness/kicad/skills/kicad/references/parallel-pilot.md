@@ -249,7 +249,7 @@ brief, instructions and seed, and reuse its sealed plan without paying for anoth
 
 `sequential` uses identical role worktrees/stages but executes worker calls in sequence;
 this isolates concurrency rather than changing handoffs. `solo` uses one Sol builder for the
-initial board→firmware→frame stage, then one Sol for reconciliation/covers after the same
+initial board→firmware→frame stage, then one Sol for reconciliation (covers only on request) after the same
 native/lead checkpoint. It is a **contract-conditioned single-builder control**, not the old
 self-planning single-Sol tile or a persistent chat. Lead still plans and reviews. Neither
 control is launched by the normal Harness bridge. Reusing a plan records its source and excludes the original

@@ -1171,7 +1171,7 @@ def plan(directory, *, execute=False, revise=False, contract_from=None, runner=a
             'assumptions as targets, not sealed limits. '
             if state['mode'] == 'teams' else
             'Give disjoint board, firmware and case/frame tasks. Frame and device mounts first; '
-            'outer covers follow integration. '
+            'add covers only if the brief asks for them. '
         )
         prompt = ('You are the LEAD planning an isolated native KiCad experiment. Read AGENTS.md and '
                   'the supplied product brief. Do not modify files or run hardware. Publish a complete '
@@ -1239,7 +1239,7 @@ def worker_prompt(state, role, stage):
             'firmware': ('Build the complete firmware and firmware/WIRING.md from the initial interface '
                          'contract now. Check actual board outputs whenever available; report and repair '
                          'any mismatch during integration.' + FIRMWARE_CACHE_NOTE),
-            'case': ('Build the functional case, mounts, covers, exports and checks from the initial '
+            'case': ('Build the open skeleton frame, mounts, exports and checks from the initial '
                      'interface contract now. Check actual board geometry whenever available; report '
                      'and repair any mismatch during integration. Read print/events.jsonl when present '
                      'as the read-only record of actual print confirmations and failures before '
@@ -1255,8 +1255,7 @@ def worker_prompt(state, role, stage):
             f'inside {json.dumps(OWNED[role])}; other domains are read-only. Do not commit, push, '
             'delegate, order, print, flash, access hardware, alter gates or run the solo Stop loop. '
             'Your independent tester will inspect your actual files and may return concrete findings. '
-            + ('Avoid thin parts hanging free: carry load through box sections or load-bearing walls. '
-               if role == 'case' else '') +
+            + (SKELETON_RULE if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
             'budget expires. Publish useful drafts early. Make slow checks you write use every CPU '
             'core and skip work when their inputs have not changed. While repairing, run only the '
@@ -1284,18 +1283,19 @@ def worker_prompt(state, role, stage):
                         'against its real pins and power rails and the shared contract; include firmware/WIRING.md.'
                         + FIRMWARE_CACHE_NOTE,
             'case': 'Use the checked, published board/STEP and its actual device placement to build the '
-                    'functional frame/device/joint mounts. Keep covers for the integration stage.',
-            'solo': 'Build board, firmware and functional frame in that order; defer cosmetic covers to integration.'}[role]
+                    'open skeleton frame and device/joint mounts. Add no covers at this stage.',
+            'solo': 'Build board, firmware and open skeleton frame in that order. ' + SKELETON_RULE}[role]
     if role == 'solo' and stage.endswith('-final'):
         task = ('Reconcile firmware/WIRING against the actual published netlist and rebuild. Then '
-                'complete removable covers, full-travel checks, interactive overview and arranged '
+                'add removable covers only if the brief or a release note explicitly asks; complete '
+                'full-travel checks, interactive overview and arranged '
                 'production/TEST slicer projects from the actual board/STEP. Preserve board interfaces; '
                 'run native firmware and case checks.')
     elif stage.endswith('-final'):
         task = ('Reconcile firmware pins/power/behavior and WIRING against the actual published netlist and rebuild.'
                 if role == 'firmware' else
-                'Use the actual published board/STEP and checked functional frame. Add removable covers, '
-                'check full travel with all ribs/hardware/wires, generate the interactive overview and '
+                'Use the actual published board/STEP and checked skeleton frame. Add removable covers '
+                'only if the brief or a release note explicitly asks. Check full travel with all ribs/hardware/wires, generate the interactive overview and '
                 'native arranged production/TEST slicer projects; run the real case checks.')
     allowed = [p for r in (ROLES if role == 'solo' else (role,)) for p in OWNED[r]]
     return ('This is a SCOPED WORKER stage of an experimental KiCad team, not a request to finish other '
@@ -1588,13 +1588,19 @@ def _tester_model(state, role=None):
             state['workerModel'])
 
 
+SKELETON_RULE = ('Build the structure like bones: an open skeleton of braced bars and cross-members, not a closed '
+                 'box, closed cups or sheet walls. Carry load through short, braced bars with no thin part hanging '
+                 'free. If one wire route is blocked another must be open, so leave several open routes that pass '
+                 'the real connector housings. Every device must be held by the frame alone. Add skin, covers or '
+                 'an enclosure only if the brief or a release note explicitly asks. ')
 TESTER_RULES = (
     'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
     'cannot build, flash or do the core job in the brief; an electrical fault can damage hardware or '
     'is unsafe, such as reversed battery polarity; a limit in the brief on size, part count, '
     'screw count, print time or weight is exceeded; moving parts collide or jam, such as a leg hitting '
     'the body or a wheel that cannot turn, anywhere in their required travel; or a thin part hanging '
-    'free will clearly break under load, since structure should be box sections or load-bearing walls. '
+    'free will clearly break under load; or the structure is a closed box, closed cups or sheet walls '
+    'instead of an open skeleton of braced bars, unless the brief or a release note asks for an enclosure. '
     'Do not block on small '
     'dimensional misses a person can fix with pliers, a file or glue, or on labels, documentation, '
     'overview drawings, report coverage or spare hardware the person can buy. List those as NOTES in '

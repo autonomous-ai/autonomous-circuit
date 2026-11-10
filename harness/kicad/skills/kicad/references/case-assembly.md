@@ -70,10 +70,12 @@ universal design requirements.
 
 ## Build order: frame → mounted devices and joints → covers
 
-- **Design the functional frame first.** For a new robot/moving device, establish the load-bearing
-  base and moving frames before the outer case. The uncovered frame must locate and retain the
+- **Design an open skeleton first.** For a new robot/moving device, build the base and moving
+  frames from braced bars and cross-members, like bones, not a closed box, closed cups or sheet
+  walls. Leave several open wire routes that pass the real connector housings, so a blocked route
+  has an alternative. Add skin only when the person asks for it. The uncovered frame must locate and retain the
   devices and joints; cosmetic covers must not be the missing support that makes a loose frame
-  or device stay in place. A simple structural base may itself serve as the frame; do not add
+  or device stay in place. A simple open base may itself serve as the frame; do not add
   redundant parts to a static device or rebuild a working printed base to follow this sequence.
 - Place the actual device/module envelopes on that frame: board, screen, actuators/horns and
   owned peripherals. Define their seats, fixing points, fastener/nut capture, insertion/removal
@@ -94,8 +96,8 @@ universal design requirements.
   removed. Make that exposed assembly visible in the guide/overview. Supply representative frame
   fit tests when needed; keep physical results pending if unavailable, without inventing a new
   automatic gate or blocking the CAD workflow on an unperformed bench test.
-- Only after those structural CAD checks pass, design the case **as covers attached to that
-  frame**, using defined locating surfaces and sturdy removable screw/latch connections. Keep
+- Only if the person asks for skin, and after those structural CAD checks pass, design the
+  case **as covers attached to that frame**, using defined locating surfaces and sturdy removable screw/latch connections. Keep
   ports, moving envelopes and service access clear. Do not relocate proven mounts/joints merely
   to fit a decorative shape, or add a ridge/boss that becomes an accidental motion stop.
 - Attach the covers in the model and repeat the full assembly/motion/wire/tool checks, including
