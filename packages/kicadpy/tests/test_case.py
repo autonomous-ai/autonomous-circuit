@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from kicadpy import case, enclosure
+from kicadpy import case, case_measure, enclosure
 
 try:
     import cadquery as cq
@@ -59,6 +59,16 @@ def kinds(report):
 
 
 class StatusWithoutCadQueryTest(unittest.TestCase):
+    def report_state(self, report):
+        return case._state_of(report)[0]
+
+    def test_four_levels_reach_the_status(self):
+        check = {'check': 'walls:lid', 'message': 'x'}
+        self.assertEqual(self.report_state({'passed': True, 'verdict': 'pass', 'checks': []}), 'passed')
+        self.assertEqual(self.report_state({'passed': True, 'verdict': 'review', 'checks': [{**check, 'level': 'review'}]}), 'passed')
+        self.assertEqual(self.report_state({'passed': False, 'verdict': 'unverified', 'checks': [{**check, 'level': 'unverified'}]}), 'unverified')
+        self.assertEqual(self.report_state({'passed': False, 'verdict': 'fail', 'errors': [{}]}), 'failed')
+
     def test_none_stale_failed_passed(self):
         with tempfile.TemporaryDirectory() as tmp:
             ws, _ = workspace('pet', tmp)
@@ -281,6 +291,108 @@ if __name__ == '__main__':
     unittest.main()
 
 
+class VerdictTest(unittest.TestCase):
+    def test_what_was_not_measured_outranks_a_review_and_a_failure_outranks_both(self):
+        level = lambda *levels: case_measure.verdict([{'level': item} for item in levels])
+        self.assertEqual(level(), 'pass')
+        self.assertEqual(level('pass', 'review'), 'review')
+        self.assertEqual(level('review', 'unverified'), 'unverified')
+        self.assertEqual(level('unverified', 'fail'), 'fail')
+
+    def test_export_tolerance_is_a_tenth_of_the_clearance_within_bounds(self):
+        self.assertAlmostEqual(case_measure.tolerance_for(0.2), 0.02)
+        self.assertEqual(case_measure.tolerance_for(0.05), 0.01)
+        self.assertEqual(case_measure.tolerance_for(2.0), 0.05)
+
+
+@unittest.skipIf(cq is None, 'CadQuery is not installed')
+class MeasuredTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+
+    def stl(self, name, solid):
+        path = self.dir / f'{name}.stl'
+        cq.exporters.export(solid, str(path), tolerance=0.02, angularTolerance=0.1)
+        return path
+
+    def test_a_thick_block_passes_and_a_thin_web_is_located(self):
+        block = cq.Workplane('XY').box(20, 20, 10)
+        self.assertEqual(case_measure.check_walls('block', self.stl('block', block), 0.4)['level'], 'pass')
+        slot = cq.Workplane('XY').box(18, 30, 30).translate((-0.8 - 9, 0, 6))
+        result = case_measure.check_walls('web', self.stl('web', block.cut(slot)), 0.4)
+        self.assertEqual(result['level'], 'pass', 'a 9 mm web')
+        thin = block.cut(cq.Workplane('XY').box(19.4, 19.4, 30).translate((0, 0, 1.5)).intersect(cq.Workplane('XY').box(40, 40, 40)))
+        result = case_measure.check_walls('thin', self.stl('thin', thin), 0.4)
+        self.assertEqual(result['level'], 'review', result['message'])
+        self.assertLess(result['thinnest'][0]['thicknessMm'], 0.75)
+
+    def test_a_declared_skin_is_not_a_finding(self):
+        block = cq.Workplane('XY').box(20, 20, 10)
+        thin = block.cut(cq.Workplane('XY').box(19.4, 19.4, 30).translate((0, 0, 1.5)))
+        skin = {'part': 'thin', 'centerMm': [0, 0, 0], 'radiusMm': 40, 'reason': 'light window'}
+        self.assertEqual(case_measure.check_walls('thin', self.stl('thin', thin), 0.4, [skin])['level'], 'pass')
+
+    def test_an_unreadable_mesh_is_unverified_not_passed(self):
+        (self.dir / 'bad.stl').write_text('not a mesh')
+        self.assertEqual(case_measure.check_walls('bad', self.dir / 'bad.stl', 0.4)['level'], 'unverified')
+
+    def arm(self, gap):
+        base = cq.Workplane('XY').box(20, 20, 10, centered=(True, True, False)).val()
+        arm = cq.Workplane('XY').box(20, 4, 4, centered=(False, True, False)).translate((10 + gap, 0, 2)).val()
+        return {'base': base, 'arm': arm}
+
+    def sweep(self, gap, **joint):
+        shapes = self.arm(gap)
+        spec = {'name': 'j', 'originMm': [50, 0, 0], 'axis': [0, 0, 1], 'rangeDeg': [0, 0], 'moves': ['arm'],
+                'clearOf': ['base'], 'minClearanceMm': 0.5, **joint}
+        return case_measure.check_joints(cq, [spec], shapes.__getitem__)[0]
+
+    def test_a_gap_is_failed_reviewed_or_passed_against_its_limit(self):
+        self.assertEqual(self.sweep(0.2)['level'], 'fail')
+        self.assertEqual(self.sweep(0.6)['level'], 'review')
+        self.assertEqual(self.sweep(5.0)['level'], 'pass')
+
+    def test_the_sweep_finds_a_collision_only_reached_at_the_end_of_travel(self):
+        result = self.sweep(5.0, originMm=[15, 0, 0], rangeDeg=[0, 180])
+        self.assertEqual(result['level'], 'fail', result['message'])
+        self.assertEqual(result['closest']['gapMm'], 0.0)
+
+    def test_a_declared_contact_is_not_a_collision(self):
+        self.assertEqual(self.sweep(0.0, allowContact=[['arm', 'base']])['level'], 'unverified', 'nothing else to clear')
+
+    def test_a_child_joint_rides_on_its_parent(self):
+        shapes = self.arm(5.0)
+        hip = {'name': 'hip', 'originMm': [100, 0, 0], 'axis': [0, 0, 1], 'rangeDeg': [0, 0], 'moves': [], 'clearOf': ['base']}
+        knee = {'name': 'knee', 'parent': 'hip', 'originMm': [35, 0, 0], 'axis': [0, 0, 1], 'rangeDeg': [0, 0],
+                'moves': ['arm'], 'clearOf': ['base']}
+        moved = {**hip, 'rangeDeg': [-180, 180]}
+        self.assertEqual(case_measure.check_joints(cq, [hip, knee], shapes.__getitem__)[1]['level'], 'pass')
+        self.assertEqual(case_measure.check_joints(cq, [moved, knee], shapes.__getitem__)[1]['level'], 'pass', 'orbits clear of the base')
+
+    def test_a_bad_declaration_is_unverified(self):
+        self.assertEqual(self.sweep(5.0, moves=['missing'])['level'], 'unverified')
+
+    def wires(self, *routes):
+        box = cq.Workplane('XY').box(20, 20, 20).val()
+        wire = {'name': 'w', 'clearDiameterMm': 8.0, 'routes': [{'name': str(i), 'pointsMm': r} for i, r in enumerate(routes)]}
+        return case_measure.check_wires(cq, [wire], [('box', box)])[0]
+
+    def test_a_wire_needs_a_second_open_route(self):
+        through = [[-30, 0, 0], [30, 0, 0]]
+        above, beside = [[-30, 0, 30], [30, 0, 30]], [[-30, 30, 0], [30, 30, 0]]
+        self.assertEqual(self.wires(through)['level'], 'fail')
+        self.assertEqual(self.wires(through, above)['level'], 'review')
+        self.assertEqual(self.wires(above, beside)['level'], 'pass')
+        self.assertEqual(self.wires([[0, 0, 30]])['level'], 'unverified')
+
+    def test_a_fit_needs_a_coupon_in_the_test_kit(self):
+        manifest = {'parts': [{'name': 'coupon', 'role': 'coupon'}, {'name': 'lid', 'role': 'lid'}]}
+        levels = [r['level'] for r in case_measure.check_fits([{'name': 'a', 'testPart': 'coupon'}, {'name': 'b', 'testPart': 'lid'}], manifest)]
+        self.assertEqual(levels, ['pass', 'review'])
+
+
 @unittest.skipIf(cq is None, 'CadQuery is not installed')
 class HandwiredPrintTest(unittest.TestCase):
     def setUp(self):
@@ -303,8 +415,10 @@ class HandwiredPrintTest(unittest.TestCase):
     def test_print_passes_without_blessing_pcb_and_without_pcb_contract(self):
         self.assertFalse(case.check(self.ws, write=False)['passed'], 'this box collides with the native PCB')
         (self.ws / 'boards/main.enclosure.json').unlink()
+        (self.ws / 'case/interfaces.json').write_text(json.dumps({'joints': [], 'wires': [], 'fits': []}))
         result = case.check_print(self.ws)
         self.assertTrue(result['passed'], result['errors'])
+        self.assertEqual(result['verdict'], 'pass', result['checks'])
         self.assertEqual(result['validationScope'], 'handwired-print')
         self.assertEqual(result['verificationSha'], case.sha(self.mechanical))
         self.assertIn('parts.json', result['partShas'])
@@ -317,6 +431,13 @@ class HandwiredPrintTest(unittest.TestCase):
         self.bind()
         with (self.out / 'front.stl').open('a') as f: f.write('\nchanged')
         with self.assertRaises(ValueError): case.check_print(self.ws)
+
+    def test_undeclared_joints_wires_and_fits_are_unverified(self):
+        result = case.check_print(self.ws, write=False)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['verdict'], 'unverified')
+        self.assertEqual(result['errors'], [])
+        self.assertEqual({c['check'] for c in result['checks'] if c['level'] == 'unverified'}, {'joints', 'wires', 'fits'})
 
     def test_matching_bounds_cannot_hide_filled_stl_hole(self):
         box = cq.Workplane('XY').box(20, 20, 2)

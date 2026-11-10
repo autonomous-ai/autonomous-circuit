@@ -68,6 +68,22 @@ universal design requirements.
   instances, with pending/obsolete/test-only items identified separately. Keep usable real
   production parts from test kits in the inventory; decorative coupons remain TEST ONLY.
 
+## What the checker measures
+
+`kicadpy.case` measures the exported files and reports `verdict` and `checks` with four levels:
+`pass`, `review` (a person looks), `unverified` (could not be measured or was not declared, never a
+pass) and `fail`. It scans walls on every printed part. Declare the rest in `case/interfaces.json`;
+the format is at the top of `packages/kicadpy/src/kicadpy/case_measure.py`:
+
+- `joints`: origin, axis, range, parts moved, parts to clear and minimum clearance (default 0.5 mm).
+  A child joint names its `parent`, and every combination is swept.
+- `wires`: at least two routes per wire, open for the real plug. One open route is a review.
+- `fits`: every mate a person must make, with the coupon part that tests it.
+- `skins`: deliberate thin areas, so a real thin wall still stands out.
+
+A handwired build must declare `joints`, `wires` and `fits`, using `[]` where there are none. Export
+STL at about a tenth of the smallest clearance (`angularTolerance=0.1`, `tolerance=0.02` for a 0.2 mm fit).
+
 ## Build order: frame → mounted devices and joints → covers
 
 - **Design an open skeleton first.** For a new robot/moving device, build the base and moving

@@ -13,6 +13,8 @@ export function describeStatus(state, reason = "") {
       return { tone: "good", title: "Fits the board", detail: "Checked against this board: nothing collides and every screen, button and port has its opening." };
     case "failed":
       return { tone: "bad", title: "Does not fit yet", detail: `${reason || "The check found errors"} — the agent fixes the model and checks again.` };
+    case "unverified":
+      return { tone: "warn", title: "Not fully measured", detail: `${reason || "Part of the case could not be measured"}. Do not count it as a pass.` };
     case "stale":
       return { tone: "warn", title: "Needs a recheck", detail: `${reason || "Something changed since the last check"}. Do not print until it is checked again.` };
     default:

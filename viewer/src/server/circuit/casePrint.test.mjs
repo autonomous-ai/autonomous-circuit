@@ -26,6 +26,12 @@ function fixture(t) {
   return {root, out, reports, sha, save, manifest, mechanical, receipt};
 }
 
+test('a receipt with something unmeasured is unverified, not passed or failed', t => {
+  const f=fixture(t);
+  f.save('case/reports/print-check.json', {...f.receipt, passed:false, verdict:'unverified'});
+  assert.equal(casePrintStatus(f.root,'main').state,'unverified');
+});
+
 test('handwired print readiness does not certify PCB fit or require a PCB publication', t => {
   const f=fixture(t);
   assert.equal(casePrintStatus(f.root,'main').state,'passed');

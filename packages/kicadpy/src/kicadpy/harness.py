@@ -98,7 +98,7 @@ def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firm
     did not look, and written alone counts). It never touches `ready`: the summary names it so the
     pane can say the board is done and the code is not, or is written but was never built.
 
-    Case — `case` is `kicadpy.case.status` ('none', 'stale', 'failed', 'passed') — is pending
+    Case — `case` is `kicadpy.case.status` ('none', 'stale', 'failed', 'unverified', 'passed') — is pending
     until the firmware is done, then active until a fresh case check passed ('failed' marks it
     failed), then done. Like Firmware, it never touches `ready`.
     """
@@ -145,7 +145,8 @@ def verdict(sidecars: list[tuple[str, dict]], *, active: str | None = None, firm
         if firmware_done and case == 'passed':
             summary = 'Prototype-ready — physical hardware untested'
         elif firmware_done:
-            summary = {'failed': 'Prototype-ready — the case does not fit yet', 'stale': 'Prototype-ready — the case needs a recheck'}.get(
+            summary = {'failed': 'Prototype-ready — the case does not fit yet', 'stale': 'Prototype-ready — the case needs a recheck',
+                       'unverified': 'Prototype-ready — part of the case could not be measured'}.get(
                 case, 'Prototype-ready — case not built yet')
         elif firmware:
             summary = 'Prototype-ready — firmware written, not built'

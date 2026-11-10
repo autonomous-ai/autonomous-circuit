@@ -11,6 +11,8 @@ test("only a passing check says the case fits; stale and failed say not to print
   assert.equal(describeStatus("failed", "2 case errors").tone, "bad");
   assert.match(describeStatus("failed", "2 case errors").detail, /^2 case errors/);
   assert.match(describeStatus("stale", "the board changed since the case was checked").detail, /Do not print/);
+  assert.equal(describeStatus("unverified", "part of the case could not be measured").tone, "warn");
+  assert.match(describeStatus("unverified").detail, /Do not count it as a pass/);
   assert.equal(describeStatus(undefined).title, "No case yet");
 });
 

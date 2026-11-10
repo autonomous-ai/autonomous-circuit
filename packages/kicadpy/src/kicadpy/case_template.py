@@ -30,6 +30,8 @@ import json
 import math
 from pathlib import Path
 
+from .case_measure import tolerance_for
+
 WALL = 1.6
 CLEARANCE = 0.6      # board edge to wall, and above the tallest part
 MARGIN = 0.5         # around every opening
@@ -174,7 +176,7 @@ def build_box(workspace='.', wall=WALL, clearance=CLEARANCE):
     out.mkdir(parents=True, exist_ok=True)
     manifest = {'contractSha': _sha(contract_file), 'generator': 'kicadpy.case_template.build_box', 'parts': []}
     for name, (role, solid) in shapes(contract, wall, clearance).items():
-        cq.exporters.export(solid, str(out / f'{name}.stl'))
+        cq.exporters.export(solid, str(out / f'{name}.stl'), tolerance=tolerance_for(clearance), angularTolerance=0.1)
         cq.exporters.export(solid, str(out / f'{name}.step'))
         rotate = [180, 0, 0] if name in ('front', 'coupon') else [0, 0, 0]   # face plate down, no supports
         manifest['parts'].append({'name': name, 'role': role, 'stl': f'{name}.stl', 'step': f'{name}.step',

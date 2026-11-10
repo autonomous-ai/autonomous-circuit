@@ -377,6 +377,7 @@ export function caseStatus(rootDir, stem) {
   } catch {
     return { state: "stale", reason: "the case files could not be read" };
   }
+  if (report.verdict === "unverified") return { state: "unverified", reason: "part of the case could not be measured" };
   if (report.passed !== true) {
     const n = Array.isArray(report.errors) ? report.errors.length : 0;
     return { state: "failed", reason: n === 1 ? "1 case error" : `${n} case errors` };
@@ -414,6 +415,7 @@ export function casePrintStatus(rootDir, stem = "main") {
       const file = caseMember(out, member);
       if (!file || hashes[member] !== sha256File(file)) return stale(`case/out/${member} changed since print validation`);
     }
+    if (report.verdict === "unverified") return { state: "unverified", reason: "part of the case could not be measured", scope: "handwired" };
     if (report.passed !== true || report.errors?.length) return { state: "failed", reason: "the printable meshes need fixing", scope: "handwired" };
     return { state: "passed", reason: "Handwired mechanical report and printable surfaces checked. Print the test-fit coupon first; fit has not been tested on hardware.", scope: "handwired" };
   } catch { return stale("the handwired print evidence could not be read"); }
