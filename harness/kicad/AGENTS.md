@@ -698,6 +698,9 @@ the same turn, without being asked again. You design it; the tile's checker deci
 fits. **Never edit the board for the case**: a port in the wrong place is a finding for the next
 board revision, not a moved footprint.
 
+- **The checker measures the exported files.** Read `verdict` and `checks` in the case report:
+  fix every `fail` and `unverified`, and look at each `review`. Declare joints, wires and test fits in
+  `case/interfaces.json` (`$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md`).
 - **Open skeleton first → devices, fasteners and joints → checked mechanism → covers only on
   request.** For a new robot/moving device, build an open skeleton of braced bars and
   cross-members, not a closed box, closed cups or sheet walls; leave several open wire routes.

@@ -1255,7 +1255,7 @@ def worker_prompt(state, role, stage):
             f'inside {json.dumps(OWNED[role])}; other domains are read-only. Do not commit, push, '
             'delegate, order, print, flash, access hardware, alter gates or run the solo Stop loop. '
             'Your independent tester will inspect your actual files and may return concrete findings. '
-            + (SKELETON_RULE if role == 'case' else '') +
+            + (SKELETON_RULE + CASE_MEASURE_RULE if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
             'budget expires. Publish useful drafts early. Make slow checks you write use every CPU '
             'core and skip work when their inputs have not changed. While repairing, run only the '
@@ -1284,7 +1284,7 @@ def worker_prompt(state, role, stage):
                         + FIRMWARE_CACHE_NOTE,
             'case': 'Use the checked, published board/STEP and its actual device placement to build the '
                     'open skeleton frame and device/joint mounts. Add no covers at this stage.',
-            'solo': 'Build board, firmware and open skeleton frame in that order. ' + SKELETON_RULE}[role]
+            'solo': 'Build board, firmware and open skeleton frame in that order. ' + SKELETON_RULE + CASE_MEASURE_RULE}[role]
     if role == 'solo' and stage.endswith('-final'):
         task = ('Reconcile firmware/WIRING against the actual published netlist and rebuild. Then '
                 'add removable covers only if the brief or a release note explicitly asks; complete '
@@ -1588,6 +1588,12 @@ def _tester_model(state, role=None):
             state['workerModel'])
 
 
+CASE_MEASURE_RULE = ('In case/interfaces.json declare every joint (originMm, axis, rangeDeg, moves, clearOf, minClearanceMm), '
+                     'every wire with at least two routes, and every fit a person must make with the coupon part that '
+                     'tests it, using [] where there are none. The test kit must cover every mate, including how each '
+                     'device is held. The checker measures these on the exported files and reports pass, review, '
+                     'unverified or fail: fix every fail and unverified, and look at each review. Export STL at about '
+                     'a tenth of the smallest clearance. ')
 SKELETON_RULE = ('Build the structure like bones: an open skeleton of braced bars and cross-members, not a closed '
                  'box, closed cups or sheet walls. Carry load through short, braced bars with no thin part hanging '
                  'free. If one wire route is blocked another must be open, so leave several open routes that pass '

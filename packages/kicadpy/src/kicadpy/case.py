@@ -29,6 +29,10 @@ What a fresh, passing report means:
   of 0.8 mm or less), a USB-C plug corridor to the outside, a button reached by a plunger or a
   membrane, a key's plate cutout, a touch pad under at most its wall limit of plastic;
 - every mounting hole has material around it (a boss or a clamp), or a warning says it does not.
+
+Each report also holds `checks` and a `verdict` of pass, review, unverified or fail (case_measure):
+walls scanned on every printed part, and the joints, wire routes and test fits declared in
+case/interfaces.json. Something that could not be measured is unverified, and is not a pass.
 """
 from __future__ import annotations
 
@@ -38,6 +42,8 @@ import math
 from pathlib import Path
 import sys
 import time
+
+from . import case_measure
 
 OUT = Path('case') / 'out'
 REPORT = Path('case') / 'reports' / 'case-check.json'
@@ -61,8 +67,8 @@ def contract_path(workspace):
 def status(workspace):
     """Without CadQuery: does a fresh, passing check exist? -> (state, reason).
 
-    state is 'none' (no case yet), 'stale' (board or parts changed since the check), 'failed', or
-    'passed'. Read by the verdict and the Stop hook.
+    state is 'none' (no case yet), 'stale' (board or parts changed since the check), 'failed',
+    'unverified' (something could not be measured), or 'passed'. Read by the verdict and the Stop hook.
     """
     workspace = Path(workspace)
     report_path = workspace / REPORT
@@ -81,8 +87,18 @@ def status(workspace):
         path = workspace / OUT / name
         if not path.exists() or sha(path) != digest:
             return 'stale', f'case/out/{name} changed since the case was checked'
+    return _state_of(report)
+
+
+def _state_of(report):
+    if report.get('verdict') == case_measure.UNVERIFIED:
+        names = [c['check'] for c in report.get('checks') or [] if c.get('level') == case_measure.UNVERIFIED]
+        return 'unverified', f"not measured: {', '.join(names)}"
     if not report.get('passed'):
         return 'failed', f"{len(report.get('errors') or [])} case error(s)"
+    if report.get('verdict') == case_measure.REVIEW:
+        count = sum(c.get('level') == case_measure.REVIEW for c in report.get('checks') or [])
+        return 'passed', f'the case fits and opens; {count} measurement(s) need a person to look'
     return 'passed', 'the case fits the board and opens for every interface'
 
 
@@ -187,11 +203,13 @@ def _poly(cq, corners, z0, z1):
     return cq.Workplane('XY').polyline([tuple(c) for c in corners]).close().extrude(max(z1 - z0, 0.01)).translate((0, 0, z0))
 
 
-def _volume(a, b):
+def _volume(a, b, failures=None):
     try:
         inter = a.intersect(b)
         return sum(s.Volume() for s in inter.solids().vals())
-    except Exception:  # an empty or degenerate intersection
+    except Exception as exc:  # the kernel gave up: that is not the same as no overlap
+        if failures is not None:
+            failures.append(str(exc))
         return 0.0
 
 
@@ -253,8 +271,9 @@ def probe(cq, contract, item, reach):
     return _box(cq, cx, cy, size[0], size[1], z0, z1, angle)
 
 
-def check_parts(workspace, manifest, bed):
+def check_parts(workspace, manifest, bed, measured=None):
     """Validate printable STEP/STL and bed fit independently of PCB placement."""
+    measured = [] if measured is None else measured
     cq = _cq()
     errors = []
     manifest_path = workspace / OUT / "parts.json"
@@ -303,6 +322,12 @@ def check_parts(workspace, manifest, bed):
             else:
                 try:
                     distance = mesh_surface_error(stl, shape.val())
+                    if distance > case_measure.MESH_REVIEW_MM:
+                        measured.append(case_measure.item(f'mesh:{name}', case_measure.REVIEW, f'{name}: the STL is up to {distance:.2f} mm off '
+                                                          'the STEP. Export it at about a tenth of the smallest clearance', part=name, errorMm=round(distance, 3)))
+                    else:
+                        measured.append(case_measure.item(f'mesh:{name}', case_measure.PASS, f'{name}: the STL is within {distance:.2f} mm of the STEP',
+                                                          part=name, errorMm=round(distance, 3)))
                     if distance > MESH_FRAME_TOL_MM:
                         errors.append({'kind': 'case_mesh_geometry_mismatch', 'part': name,
                                        'message': f'{name}: STL surface differs from STEP by {distance:.2f} mm. Export both from the same assembled solid'})
@@ -326,6 +351,29 @@ def check_parts(workspace, manifest, bed):
     return solids, part_shas, errors
 
 
+def _measure(cq, workspace, manifest, intent, solids, require):
+    """The checker's own measurements of the exported files."""
+    out = workspace / OUT
+    parts = {part.get('name'): part for part in manifest.get('parts') or []}
+    nozzle = float((intent.get('printer') or {}).get('nozzleMm') or case_measure.DEFAULT_NOZZLE_MM)
+    skins = intent.get('skins') or ()
+    results = [case_measure.check_walls(name, out / parts[name]['stl'], nozzle, skins) for name, _, _ in solids]
+    return results + case_measure.declared(cq, workspace, out, manifest, intent, solids, require)
+
+
+def _outcome(errors, warnings, measured):
+    """Fold the measurements into the report: failures block, and so does what was not measured."""
+    for entry in measured:
+        if entry['level'] == case_measure.FAIL:
+            errors.append({'kind': 'case_measured_' + entry['check'].split(':')[0], 'message': entry['message']})
+        elif entry['level'] in (case_measure.REVIEW, case_measure.UNVERIFIED):
+            warnings.append({'kind': f"case_{entry['level']}_" + entry['check'].split(':')[0], 'message': entry['message']})
+    level = case_measure.verdict(measured)
+    if errors:
+        level = case_measure.FAIL
+    return {'passed': level in (case_measure.PASS, case_measure.REVIEW), 'verdict': level, 'checks': measured}
+
+
 def check(workspace, write=True):
     """Run every check; write the report. Returns the report."""
     cq = _cq()
@@ -347,13 +395,14 @@ def check(workspace, write=True):
         errors.append({'kind': 'case_built_from_old_board', 'message': 'case/out/parts.json was built from an older '
                        'enclosure.json; rebuild the case from the current board'})
 
-    solids, part_shas, part_errors = check_parts(workspace, manifest, bed)
+    measured, kernel_failures = [], []
+    solids, part_shas, part_errors = check_parts(workspace, manifest, bed, measured)
     errors.extend(part_errors)
 
     # 1. Nothing goes into the board, a part, or a module.
     for label, keep in keepouts(cq, contract):
         for name, role, shape in solids:
-            vol = _volume(shape, keep)
+            vol = _volume(shape, keep, kernel_failures)
             if vol > CONTACT_MM3:
                 errors.append({'kind': 'case_collides', 'part': name, 'with': label,
                                'message': f'{name} goes {vol:.1f} mm3 into {label}'})
@@ -365,7 +414,7 @@ def check(workspace, write=True):
             continue
         column = probe(cq, contract, item, reach)
         sx, sy = item.get('sizeMm') or [2.0, 2.0]
-        blocked = [(name, role, _volume(shape, column)) for name, role, shape in solids]
+        blocked = [(name, role, _volume(shape, column, kernel_failures)) for name, role, shape in solids]
         blocked = [(n, r, v) for n, r, v in blocked if v > 0.05]
         label = f"{item['name']} ({item['kind']})"
         if item['kind'] == 'touch':
@@ -392,12 +441,17 @@ def check(workspace, write=True):
     t = contract['board']['thicknessMm']
     for hole in contract['mountingHoles']:
         ring = _box(cq, hole['xMm'], hole['yMm'], 6.0, 6.0, -t - 8.0, 8.0)
-        if not any(_volume(shape, ring) > 0.5 for _, _, shape in solids):
+        if not any(_volume(shape, ring, kernel_failures) > 0.5 for _, _, shape in solids):
             warnings.append({'kind': 'case_hole_unused', 'hole': hole['name'],
                              'message': f"{hole['name']} has no boss or clamp around it"})
 
     import cadquery
-    report = {'schema': 1, 'meshValidation': 'surface-v1', 'passed': not errors, 'errors': errors, 'warnings': warnings,
+    if kernel_failures:
+        measured.append(case_measure.item('overlap', case_measure.UNVERIFIED,
+                                          f'{len(kernel_failures)} overlap measurement(s) failed: {kernel_failures[0]}'))
+    measured.extend(_measure(cq, workspace, manifest, intent, solids, require=False))
+    outcome = _outcome(errors, warnings, measured)
+    report = {'schema': 1, 'meshValidation': 'surface-v1', **outcome, 'errors': errors, 'warnings': warnings,
               'contract': str(contract_file.relative_to(workspace)), 'contractSha': sha(contract_file),
               'partShas': part_shas, 'parts': [n for n, _, _ in solids], 'bedMm': bed,
               'checkedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'cadquery': cadquery.__version__}
@@ -448,14 +502,17 @@ def check_print(workspace, write=True, stem='main'):
     intent_digest = sha(intent_file) if intent_file.exists() else None
     intent = json.loads(intent_file.read_text()) if intent_file.exists() else {}
     bed = (intent.get('printer') or {}).get('bedMm') or DEFAULT_BED
-    solids, part_shas, errors = check_parts(workspace, manifest, bed)
+    measured, warnings = [], []
+    solids, part_shas, errors = check_parts(workspace, manifest, bed, measured)
+    measured.extend(_measure(_cq(), workspace, manifest, intent, solids, require=True))
+    outcome = _outcome(errors, warnings, measured)
     # Reject concurrent edits to the evidence or any mesh during validation.
     if (digest != sha(report_file) or manifest_digest != sha(workspace / OUT / 'parts.json') or
             intent_digest != (sha(intent_file) if intent_file.exists() else None) or
             any(sha(workspace / OUT / name) != value for name, value in part_shas.items())):
         raise ValueError('Case changed during print validation; run check-print again')
     report = {'schema': 1, 'meshValidation': 'surface-v1', 'validationScope': 'handwired-print',
-              'stem': stem, 'passed': not errors, 'errors': errors, 'warnings': [],
+              'stem': stem, **outcome, 'errors': errors, 'warnings': warnings,
               'scope': mechanical['scope'], 'hardwareTested': False,
               'verificationReport': str(report_file.relative_to(workspace)), 'verificationSha': digest,
               'partShas': part_shas, 'intentSha': intent_digest,
@@ -483,7 +540,7 @@ def main(argv=None):
         print(f"  ✗ {e['kind']}: {e['message']}")
     for w in report['warnings']:
         print(f"  ! {w['kind']}: {w['message']}")
-    print(json.dumps({'ok': True, 'passed': report['passed'], 'errors': len(report['errors']),
+    print(json.dumps({'ok': True, 'passed': report['passed'], 'verdict': report['verdict'], 'errors': len(report['errors']),
                       'warnings': len(report['warnings']), 'report': str(Path('case/reports/print-check.json') if argv[0] == 'check-print' else REPORT)}))
     return 0 if report['passed'] else 1
 
