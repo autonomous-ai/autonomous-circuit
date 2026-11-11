@@ -266,12 +266,13 @@ export default function BoardTreeSidebar({
       <button
         type="button"
         onClick={onToggleOpen}
-        title="Show project tree"
+        title="Show projects and search"
         aria-label="Show project tree"
         data-slot="board-tree-toggle"
         className="flex w-9 shrink-0 flex-col items-center gap-2 border-r border-border/60 py-3 text-muted-foreground transition-colors hover:text-foreground"
       >
         <PanelLeftOpen className="size-4" aria-hidden />
+        <Search className="size-4" aria-hidden />
         <CircuitBoard className="size-4" aria-hidden />
       </button>
     );

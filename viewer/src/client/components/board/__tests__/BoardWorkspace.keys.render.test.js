@@ -63,6 +63,12 @@ async function openBoard() {
  * the canvas hit-testing already has its own file.
  */
 async function selectComponent(workspace) {
+  // The project tree starts collapsed on a first visit; open it like a person would.
+  const reopen = workspace.ui.container.querySelector('[data-slot="board-tree-toggle"]');
+  if (reopen) {
+    click(reopen);
+    await workspace.settle(1);
+  }
   const rowEndingIn = (suffix) =>
     [...workspace.ui.container.querySelectorAll('[data-slot="board-tree-row"]')]
       .find((row) => row.dataset.nodeId.endsWith(suffix));

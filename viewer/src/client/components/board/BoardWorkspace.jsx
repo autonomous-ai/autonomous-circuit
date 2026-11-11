@@ -67,6 +67,7 @@ import {
   partsByLcsc,
   sanitizeProduct,
 } from "./boardData.js";
+import { readStoredTreeOpen, writeStoredTreeOpen } from "./treeOpenPreference.js";
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
@@ -112,7 +113,7 @@ export default function BoardWorkspace({
   viewerOnly = false,
 }) {
   const [selectedFile, setSelectedFile] = useState("");
-  const [treeOpen, setTreeOpen] = useState(true);
+  const [treeOpen, setTreeOpen] = useState(readStoredTreeOpen);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sidecar, setSidecar] = useState(null);
   const [circuit, setCircuit] = useState(null);
@@ -1246,7 +1247,7 @@ export default function BoardWorkspace({
           onSelect={handleSelect}
           onReadProjectCatalog={readProjectCatalog}
           open={treeOpen}
-          onToggleOpen={() => setTreeOpen((value) => !value)}
+          onToggleOpen={() => setTreeOpen((value) => writeStoredTreeOpen(!value))}
         />
 
         {selectedEntry ? (
