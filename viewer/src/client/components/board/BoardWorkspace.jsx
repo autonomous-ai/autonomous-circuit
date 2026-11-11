@@ -1184,13 +1184,16 @@ export default function BoardWorkspace({
     </div>
   );
 
+  const nativeStartHereShown = nativeProject && !selectedEntry && !teamPreview && !unverifiedOverviewUrl && !stagePending;
+
   return (
     <div data-slot="board-workspace" className="flex h-full w-full flex-col bg-background">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/60 px-2.5">
         <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous Circuit</span>
         {/* "Experimental" is said once: the banner below when a native board is open
-            (it also says how far that board is checked), this badge otherwise. */}
-        {nativeProject && selectedEntry?.sourceKind !== "kicad-native" ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
+            (it also says how far that board is checked), the empty stage's own line
+            when that is showing, this badge otherwise. */}
+        {nativeProject && selectedEntry?.sourceKind !== "kicad-native" && !nativeStartHereShown ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
         <ProjectMenu />
         {catalogRefreshing ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Refreshing catalog" />

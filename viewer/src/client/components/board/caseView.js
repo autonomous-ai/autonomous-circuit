@@ -111,7 +111,7 @@ export function downloadName(board, part, ext) {
 // are near enough to be mistaken side by side (two blues read as one part).
 export const PART_PALETTE = [
   0x4f9de8, 0xf0a23a, 0x9b72d8, 0x2fb5a6, 0xe0609f,
-  0x8bbd3e, 0xe6d34a, 0xd9534f, 0xa0663a, 0xa9c4d6,
+  0x8bbd3e, 0xe6d34a, 0xd9534f, 0xa0663a, 0x36c9e0,
 ];
 /** Test coupons: printed alone, first — a quiet sand, not a part colour. */
 export const COUPON_COLOR = 0xc9b48a;

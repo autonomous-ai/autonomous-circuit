@@ -126,6 +126,7 @@ test("an unreadable print journal does not claim zero confirmed parts", async ()
     assert.match(status, /Print records unavailable/);
     assert.doesNotMatch(status, /No confirmed print/);
     assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Print journal integrity check failed/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /records unavailable/, "the closed card still says something is wrong");
   } finally { ui.unmount(); restore(); }
 });
 
@@ -140,6 +141,7 @@ test("a stale case still shows an ongoing unlinked printer job", async () => {
   try {
     await flush();
     assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Case needs recheck/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /not tracking yet/);
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /printing · 30%/);
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Not linked to this case/);
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);

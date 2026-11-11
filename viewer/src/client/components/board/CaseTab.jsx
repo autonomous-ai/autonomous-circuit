@@ -263,9 +263,14 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
       ? `${printStatus.account?.reason === "not_configured" ? "Pair the A1 once on this Mac for live progress. " : "Printer status is unavailable. "}The lead can still track what you confirm.`
       : "",
   ].filter(Boolean).join(" ");
+  // The one word on the card: a broken or unready record first (that blocks
+  // tracking), then the printer link.
+  const printTeamProblem = Boolean(printStatus) && (printStatus.inventoryTrusted === false || !printStatus.ready);
   const printerState = !printStatus ? "checking…"
-    : printStatus.account?.state === "connected" ? "printer connected"
-      : printStatus.account?.reason === "not_configured" ? "printer not paired" : "no printer status";
+    : printStatus.inventoryTrusted === false ? "records unavailable"
+      : !printStatus.ready ? "not tracking yet"
+        : printStatus.account?.state === "connected" ? "printer connected"
+          : printStatus.account?.reason === "not_configured" ? "printer not paired" : "no printer status";
 
   return (
     <div data-slot="case" className={cn("flex min-h-0 flex-1 bg-background text-foreground", className)}>
@@ -330,7 +335,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         </div> : null}
         {exportError ? <p role="alert" className="text-xs text-red-700">{exportError}</p> : null}
 
-        <Explained slot="case-print-team" icon={<Printer className="size-4 shrink-0 text-muted-foreground" aria-hidden />} title="Print team" aside={printerState}
+        <Explained slot="case-print-team" icon={<Printer className={cn("size-4 shrink-0", printTeamProblem ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} aria-hidden />} title="Print team" aside={printerState}
           footer={printStatus?.jobs?.length ? <ul className="mt-1.5 space-y-1" aria-label="Printer observations">
             {printStatus.jobs.map((job, index) => <li key={`${job.jobId || "job"}:${job.observedAt}:${index}`} data-slot="print-job" className="text-[11px] text-muted-foreground">
               {job.printerName || "Printer"}{job.jobName ? ` · ${job.jobName}` : ""} reports {job.status}{job.progressPct == null ? "" : ` · ${job.progressPct}%`}{job.currentLayer != null && job.totalLayers != null ? ` · layer ${job.currentLayer}/${job.totalLayers}` : ""}{job.remainingMinutes != null ? ` · ${job.remainingMinutes} min left` : ""}. {job.matchedParts?.length ? "Awaiting your part confirmation." : "Not linked to this case."}
