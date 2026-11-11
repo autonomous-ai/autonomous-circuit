@@ -3,7 +3,7 @@ import { Box } from "lucide-react";
 import { cn } from "@/ui/utils";
 import { useDarkMode } from "@/ui/use-dark-mode.js";
 import { boxCenterAndRadius, fitDistance } from "@/lib/threeFit.js";
-import { explodeOffset } from "./caseView.js";
+import { explodeOffset, isPrintedPart, partColors, viewDirection } from "./caseView.js";
 
 /**
  * The case in 3D, around the board it was built for.
@@ -26,20 +26,20 @@ import { explodeOffset } from "./caseView.js";
  *   exploded?: boolean,
  *   seeThrough?: boolean,
  *   showBoard?: boolean,
+ *   onSize?: (sizeMm: number[]|null) => void, // assembled printed parts, once loaded
  *   background?: string,      // defaults to the app theme's scene colour
  *   className?: string,
  * }} props
  */
 
-const ROLE_COLOR = {
-  shell: 0xe3d9c6,
-  lid: 0xf1eadb,
-  plunger: 0xc4d4d5,
-  membrane: 0xb6c9c9,
-  diffuser: 0xf4dda5,
-  bracket: 0x99b4c2,
-  coupon: 0xe2b866,
-};
+// Each part has its own colour (caseView.partColors), the same one the parts
+// list shows as a swatch, so "which piece is that" is answered by looking.
+
+const VIEWS = [
+  ["iso", "Iso"],
+  ["top", "Top"],
+  ["front", "Front"],
+];
 
 // The floor follows the app theme like the CAD viewer's (--cad-viewer-*); the
 // parts keep their print colours in both.
@@ -55,6 +55,7 @@ export default function CaseScene({
   exploded = false,
   seeThrough = false,
   showBoard = true,
+  onSize,
   background: backgroundProp,
   className,
 }) {
@@ -64,6 +65,9 @@ export default function CaseScene({
   const sceneRef = useRef(null); // { meshes: Map<name, {mesh, base, offset}>, board, applyLook }
   const [phase, setPhase] = useState(parts.length ? "loading" : "empty");
   const [failure, setFailure] = useState("");
+  const [view, setView] = useState("iso");
+  const onSizeRef = useRef(onSize);
+  onSizeRef.current = onSize;
   const partsKey = parts.map((p) => `${p.name}|${p.role}|${p.stlUrl}`).join("\n");
 
   useEffect(() => {
@@ -80,6 +84,9 @@ export default function CaseScene({
     let observer = null;
     setPhase("loading");
     setFailure("");
+    setView("iso");
+    onSizeRef.current?.(null);
+    const colors = partColors(parts);
 
     (async () => {
       let THREE, STLLoader, OrbitControls;
@@ -179,7 +186,7 @@ export default function CaseScene({
         geometry.computeVertexNormals();
         geometry.computeBoundingBox();
         const material = new THREE.MeshStandardMaterial({
-          color: ROLE_COLOR[part.role] ?? 0xb3c1c5,
+          color: colors[part.name] ?? 0xb3c1c5,
           roughness: 0.78,
           metalness: 0.0,
           side: THREE.DoubleSide,
@@ -200,7 +207,12 @@ export default function CaseScene({
       }
 
       const assembled = new THREE.Box3();
-      for (const { mesh, part } of meshes.values()) if (part.role !== "coupon") assembled.expandByObject(mesh);
+      const printed = new THREE.Box3();
+      for (const { mesh, part } of meshes.values()) {
+        if (part.role !== "coupon") assembled.expandByObject(mesh);
+        if (isPrintedPart(part)) printed.expandByObject(mesh);
+      }
+      if (!printed.isEmpty()) onSizeRef.current?.(printed.getSize(new THREE.Vector3()).toArray());
       assembled.expandByObject(boardGroup);
       const footprint = assembled.getSize(new THREE.Vector3());
       const gridSize = Math.max(80, boardSpan * 2, footprint.x * 1.7, footprint.y * 1.7);
@@ -214,14 +226,17 @@ export default function CaseScene({
       const target = new THREE.Vector3();
       let radius = 1;
       // Frame what is on screen: the assembly, plus the coupon when it is shown beside it.
-      const home = () => {
+      let lastView = "iso";
+      const home = (preset = lastView) => {
+        lastView = preset;
         const all = assembled.clone();
         for (const { mesh, part } of meshes.values()) if (part.role === "coupon" && mesh.visible) all.expandByObject(mesh);
         const fit = boxCenterAndRadius(all.min.toArray(), all.max.toArray());
         target.set(...fit.center);
         radius = fit.radius;
-        const distance = fitDistance(radius * 1.25, camera.fov, camera.aspect);
-        const dir = new THREE.Vector3(0.55, -0.9, 0.75).normalize().multiplyScalar(distance);
+        // A small margin: the model should fill the view, not float in it.
+        const distance = fitDistance(radius * 1.05, camera.fov, camera.aspect);
+        const dir = new THREE.Vector3(...viewDirection(preset)).multiplyScalar(distance);
         camera.position.copy(target).add(dir);
         controls.target.copy(target);
         camera.near = Math.max(0.05, radius / 200);
@@ -233,6 +248,7 @@ export default function CaseScene({
       sceneRef.current = {
         meshes,
         board: boardGroup,
+        home,
         apply({ visible: vis, exploded: ex, seeThrough: clear, showBoard: withBoard }) {
           const gap = Math.max(boardSpan * 0.45, 12);
           boardGroup.visible = withBoard;
@@ -299,13 +315,41 @@ export default function CaseScene({
     sceneRef.current?.apply({ visible, exploded, seeThrough, showBoard });
   }, [visible, exploded, seeThrough, showBoard]);
 
+  const goTo = (preset) => {
+    setView(preset);
+    sceneRef.current?.home(preset);
+  };
+
   return (
     <div data-slot="case-scene" data-state={phase} className={cn("relative min-h-0 flex-1 overflow-hidden", className)} style={{ backgroundColor: background }}>
       <div ref={hostRef} className="absolute inset-0" />
       {phase === "ready" ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/70 px-2 py-1 font-mono text-[10px] leading-4 text-muted-foreground">
-          drag orbit · scroll zoom · right-drag pan
-        </p>
+        <>
+          <div data-slot="case-views" className="absolute bottom-2 right-2 flex gap-1">
+            {VIEWS.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                data-slot="case-view"
+                data-view={id}
+                aria-pressed={view === id ? "true" : "false"}
+                onClick={() => goTo(id)}
+                className={cn(
+                  "rounded-md border px-2 py-1 text-[11px] font-medium backdrop-blur transition-colors",
+                  view === id ? "border-primary/50 bg-primary/20 text-foreground" : "border-border bg-background/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p
+            className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/70 px-2 py-1 font-mono text-[10px] leading-4 text-muted-foreground"
+            title="drag to orbit · scroll to zoom · right-drag to pan"
+          >
+            drag · scroll · right-drag
+          </p>
+        </>
       ) : (
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">

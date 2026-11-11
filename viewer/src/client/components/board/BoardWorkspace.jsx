@@ -67,6 +67,7 @@ import {
   partsByLcsc,
   sanitizeProduct,
 } from "./boardData.js";
+import { readStoredTreeOpen, writeStoredTreeOpen } from "./treeOpenPreference.js";
 
 const CANVAS_TABS = new Set(["split", "schematic", "pcb"]);
 // Tabs that explain the board in words. They carry their own findings list and
@@ -112,7 +113,7 @@ export default function BoardWorkspace({
   viewerOnly = false,
 }) {
   const [selectedFile, setSelectedFile] = useState("");
-  const [treeOpen, setTreeOpen] = useState(true);
+  const [treeOpen, setTreeOpen] = useState(readStoredTreeOpen);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sidecar, setSidecar] = useState(null);
   const [circuit, setCircuit] = useState(null);
@@ -1183,11 +1184,16 @@ export default function BoardWorkspace({
     </div>
   );
 
+  const nativeStartHereShown = nativeProject && !selectedEntry && !teamPreview && !unverifiedOverviewUrl && !stagePending;
+
   return (
     <div data-slot="board-workspace" className="flex h-full w-full flex-col bg-background">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/60 px-2.5">
         <span className="px-1 text-sm font-semibold tracking-tight text-foreground">Autonomous Circuit</span>
-        {nativeProject ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
+        {/* "Experimental" is said once: the banner below when a native board is open
+            (it also says how far that board is checked), the empty stage's own line
+            when that is showing, this badge otherwise. */}
+        {nativeProject && selectedEntry?.sourceKind !== "kicad-native" && !nativeStartHereShown ? <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700">KiCad v2 · Experimental</span> : null}
         <ProjectMenu />
         {catalogRefreshing ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Refreshing catalog" />
@@ -1246,7 +1252,7 @@ export default function BoardWorkspace({
           onSelect={handleSelect}
           onReadProjectCatalog={readProjectCatalog}
           open={treeOpen}
-          onToggleOpen={() => setTreeOpen((value) => !value)}
+          onToggleOpen={() => setTreeOpen((value) => writeStoredTreeOpen(!value))}
         />
 
         {selectedEntry ? (

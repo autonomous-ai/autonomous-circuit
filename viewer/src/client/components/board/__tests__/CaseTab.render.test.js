@@ -65,7 +65,9 @@ test("a checked case: coupon first and hidden from the assembly, every part down
     assert.equal(stl.tagName, "BUTTON", "the webview must not navigate to STL bytes");
     assert.ok(front.querySelector('[data-slot="case-download-step"]'));
     assert.equal(rows[1].querySelector('[data-slot="case-download-step"]'), null, "no STEP on disk, no link");
-    assert.match(front.textContent, /flip it face down on the bed, no supports/);
+    // How to print is a hover tooltip on the row, not a line of text under it.
+    assert.match(front.getAttribute("title"), /flip it face down on the bed, no supports/);
+    assert.doesNotMatch(front.textContent, /flip it face down/);
 
     const last = sceneProps.at(-1);
     assert.equal(last.contractUrl, "/projects/p/boards/main.enclosure.json?v=1-1");
@@ -100,7 +102,10 @@ test("printer observations stay distinct from user-confirmed printed parts", asy
   try {
     await flush();
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Awaiting your part confirmation/);
-    assert.match(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, /No confirmed print/);
+    // Nothing printed yet is said in the row's tooltip, not on a line of its own.
+    assert.equal(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]'), null);
+    assert.match(ui.container.querySelector('[data-part="front"]').getAttribute("title"), /No confirmed print/);
+    assert.doesNotMatch(ui.container.querySelector('[data-part="front"]').getAttribute("title"), /Confirmed printed/);
     const plateStatus = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"] [data-slot="print-plate"]').textContent;
     assert.match(plateStatus, /Needs print/);
     assert.doesNotMatch(plateStatus, /Confirmed printed/i);
@@ -121,6 +126,7 @@ test("an unreadable print journal does not claim zero confirmed parts", async ()
     assert.match(status, /Print records unavailable/);
     assert.doesNotMatch(status, /No confirmed print/);
     assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Print journal integrity check failed/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /records unavailable/, "the closed card still says something is wrong");
   } finally { ui.unmount(); restore(); }
 });
 
@@ -135,6 +141,7 @@ test("a stale case still shows an ongoing unlinked printer job", async () => {
   try {
     await flush();
     assert.match(ui.container.querySelector('[data-slot="case-print-team"]').textContent, /Case needs recheck/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /not tracking yet/);
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /printing · 30%/);
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Not linked to this case/);
     assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').disabled, true);
@@ -353,4 +360,72 @@ test("the case follows the app theme instead of forcing a light palette", () => 
   } finally {
     ui.unmount();
   }
+});
+
+test("one-line cards: the explanation sits behind a ? disclosure, not on the card", () => {
+  const ui = mount(CaseTab, { artifact: caseArtifact("stale", { reason: "the board changed since the case was checked" }), projectId: "p", Scene: StubScene });
+  try {
+    const status = ui.container.querySelector('[data-slot="case-status"]');
+    assert.equal(status.querySelector("summary").textContent, "Needs a recheck");
+    const details = status.querySelector("details");
+    assert.equal(details.open, false, "closed until asked");
+    assert.match(details.textContent, /Do not print/);
+    assert.match(ui.container.querySelector('[data-slot="case-print-all"]').getAttribute("title"), /Saves a 3MF/);
+    assert.doesNotMatch(ui.container.textContent, /These groups show which parts belong/);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.unmount(); }
+});
+
+test("summary chips over the 3D view, from data only; the size arrives from the loaded scene", () => {
+  sceneProps.length = 0;
+  const parts = [
+    ...caseArtifact().case.parts.map((p) => (p.name === "back" ? { ...p, supports: true } : p)),
+    { name: "board_reference", role: "reference", printable: false, stlUrl: "/r.stl", bytes: 1 },
+  ];
+  const ui = mount(CaseTab, { artifact: caseArtifact("unverified", { parts, plates: [{ index: 1, name: "A", parts: ["front", "back"] }] }), Scene: StubScene });
+  const chips = () => [...ui.container.querySelectorAll('[data-slot="case-chip"]')].map((c) => c.textContent);
+  try {
+    assert.deepEqual(chips(), ["2 parts", "1 need support", "1 plate", "Unverified"]);
+    sceneProps.at(-1).onSize([100.2, 60.7, 30]);
+    ui.set({});
+    assert.deepEqual(chips(), ["2 parts", "100 × 61 × 30 mm", "1 need support", "1 plate", "Unverified"]);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.unmount(); }
+});
+
+test("each part row has a colour swatch and a show checkbox; plate titles are the short description", () => {
+  sceneProps.length = 0;
+  const longName = "MỚI/SỬA — CẦN IN — Khung xương MỚI A1V4-r5 (khung dưới, khung trên) — CHỌN IN PLATE NÀY — PETG — A1V4-r5";
+  const ui = mount(CaseTab, { artifact: caseArtifact("passed", { plates: [{ index: 1, name: longName, parts: ["front", "back"] }] }), Scene: StubScene });
+  try {
+    const title = ui.container.querySelector('[data-slot="case-plate-title"]');
+    assert.equal(title.textContent, "Khung xương MỚI A1V4-r5 (khung dưới, khung trên)");
+    assert.equal(title.getAttribute("title"), longName, "the full name is the tooltip");
+    assert.match(title.className, /line-clamp-2/);
+    assert.equal(ui.container.querySelector('[data-slot="case-plate-tag"]').textContent, "MỚI/SỬA");
+
+    const swatches = [...ui.container.querySelectorAll('[data-slot="case-part-swatch"]')].map((s) => s.style.backgroundColor);
+    assert.equal(swatches.length, 3);
+    assert.notEqual(swatches[0], swatches[1], "front and back are told apart by colour");
+    const toggle = ui.container.querySelector('[data-part="front"] [data-slot="case-part-toggle"]');
+    assert.equal(toggle.type, "checkbox");
+    assert.equal(toggle.checked, true);
+    click(toggle);
+    assert.equal(sceneProps.at(-1).visible.front, false);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.unmount(); }
+});
+
+test("a part with a print record that says something keeps its visible line", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: true, reason: null, source: null,
+    parts: [{ name: "front", role: "shell", confirmedPrintedQuantity: 2, fitStatus: "fits" }],
+    plates: [], jobs: [], account: { state: "not_connected", reason: "not_configured" },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.equal(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, "Confirmed printed ×2 · fits");
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /printer not paired/);
+  } finally { ui.unmount(); restore(); }
 });

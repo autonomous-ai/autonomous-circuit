@@ -403,7 +403,9 @@ STL at about a tenth of the smallest clearance (`angularTolerance=0.1`, `toleran
   **ĐÃ IN — GIỮ LẠI** (already printed) and **MỚI/SỬA — CẦN IN** (new/updated). Never mix the groups
   on a plate; add numbered plates within each group on overflow. Give plates actual native names
   visible in Bambu, including current variant/revision; a project filename or guide label alone
-  is insufficient. Open/reinspect the saved 3MF and verify names, grouping and exactly-once total
+  is insufficient. Keep each plate name short (≤ 40 characters): the group words, a short part
+  description and the revision, e.g. `MỚI/SỬA — CẦN IN — Khung xương A1V4-r5`; material,
+  "select this plate" instructions and other notes go in the guide, not the name. Open/reinspect the saved 3MF and verify names, grouping and exactly-once total
   current-manifest coverage. List plate names and part IDs/quantities in the guide, telling the
   person which new plates to select without asking them to reprint the old plates.
   Printed status changes plate assignment, **never object inclusion**: do not drop printed

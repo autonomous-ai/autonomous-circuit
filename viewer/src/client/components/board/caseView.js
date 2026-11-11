@@ -102,3 +102,148 @@ export function downloadName(board, part, ext) {
   const clean = (s) => String(s || "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "") || "part";
   return `${clean(board)}-${clean(part)}.${ext}`;
 }
+
+// ---------------------------------------------------------------------------
+// Colour per part. Every printed part gets its own colour so the 3D view reads
+// as parts, not one grey lump; the list shows the same colour as a swatch.
+// Mid-tone, saturated enough for the dark scene (#0e0f13) and dark enough for
+// the light one (#eaf0f2); none is the board's green (0x468a69), and no two
+// are near enough to be mistaken side by side (two blues read as one part).
+export const PART_PALETTE = [
+  0x4f9de8, 0xf0a23a, 0x9b72d8, 0x2fb5a6, 0xe0609f,
+  0x8bbd3e, 0xe6d34a, 0xd9534f, 0xa0663a, 0x36c9e0,
+];
+/** Test coupons: printed alone, first — a quiet sand, not a part colour. */
+export const COUPON_COLOR = 0xc9b48a;
+/** Reference models (bought parts, DO_NOT_PRINT): grey, they are not printed. */
+export const REFERENCE_COLOR = 0x7d8a90;
+
+function isReference(part) {
+  return part?.printable === false || part?.role === "reference";
+}
+
+function hashName(name) {
+  let h = 2166136261;
+  for (const ch of String(name)) h = Math.imul(h ^ ch.codePointAt(0), 16777619) >>> 0;
+  return h;
+}
+
+/**
+ * `{ [part name]: 0xRRGGBB }`. A name hashes to a palette slot; a slot already
+ * taken moves to the next free one, taking names in sorted order, so a given set
+ * of parts always gets the same colours and no two share one until the palette
+ * runs out (then colours repeat).
+ */
+export function partColors(parts) {
+  const colors = {};
+  const taken = new Set();
+  const names = [];
+  for (const part of parts || []) {
+    if (part?.role === "coupon") colors[part.name] = COUPON_COLOR;
+    else if (isReference(part)) colors[part.name] = REFERENCE_COLOR;
+    else names.push(String(part.name));
+  }
+  for (const name of [...new Set(names)].sort()) {
+    let slot = hashName(name) % PART_PALETTE.length;
+    if (taken.size < PART_PALETTE.length) while (taken.has(slot)) slot = (slot + 1) % PART_PALETTE.length;
+    taken.add(slot);
+    colors[name] = PART_PALETTE[slot];
+  }
+  return colors;
+}
+
+export function cssColor(color) {
+  return `#${(Number(color) >>> 0).toString(16).padStart(6, "0").slice(-6)}`;
+}
+
+/** A part that is printed as part of the product: not a test coupon, not a reference model. */
+export function isPrintedPart(part) {
+  return part?.role !== "coupon" && !isReference(part);
+}
+
+// ---------------------------------------------------------------------------
+// The summary chips over the 3D view. Only what the data says: a chip whose
+// number is not known is left out, never guessed.
+const STATUS_CHIP = {
+  passed: { label: "Pass", tone: "good" },
+  unverified: { label: "Unverified", tone: "warn" },
+  stale: { label: "Review", tone: "warn" },
+  failed: { label: "Fail", tone: "bad" },
+};
+
+/**
+ * @param {{ parts?: object[], plates?: object[], state?: string, sizeMm?: number[]|null }} input
+ * @returns {Array<{ id: string, label: string, title: string, tone?: string }>}
+ */
+export function summaryChips({ parts = [], plates = [], state = "", sizeMm = null } = {}) {
+  const chips = [];
+  const printed = (parts || []).filter(isPrintedPart);
+  if (printed.length) {
+    chips.push({ id: "parts", label: `${printed.length} ${printed.length === 1 ? "part" : "parts"}`, title: "Parts to print. Test coupons and reference models are not counted." });
+  }
+  if (Array.isArray(sizeMm) && sizeMm.length === 3 && sizeMm.every((v) => Number.isFinite(v) && v > 0)) {
+    chips.push({ id: "size", label: `${sizeMm.map((v) => Math.round(v)).join(" × ")} mm`, title: "Overall size of the assembled printed parts (width × depth × height)." });
+  }
+  const known = printed.filter((part) => typeof part.supports === "boolean");
+  if (known.length) {
+    const need = known.filter((part) => part.supports).length;
+    const unknown = printed.length - known.length;
+    chips.push({
+      id: "supports",
+      label: need ? `${need} need support` : "No supports",
+      title: `Parts that need supports in the slicer${unknown ? ` (${unknown} part${unknown === 1 ? "" : "s"} not stated)` : ""}.`,
+    });
+  }
+  const plateCount = (plates || []).length;
+  if (plateCount) chips.push({ id: "plates", label: `${plateCount} ${plateCount === 1 ? "plate" : "plates"}`, title: "Print plates in the Print all project." });
+  const status = STATUS_CHIP[state];
+  if (status) chips.push({ id: "status", label: status.label, tone: status.tone, title: describeStatus(state).title });
+  return chips;
+}
+
+// ---------------------------------------------------------------------------
+// Plate titles. Agents write names like
+//   "MỚI/SỬA — CẦN IN — Khung xương MỚI A1V4-r5 (khung dưới, khung trên) — CHỌN IN PLATE NÀY — PETG — A1V4-r5"
+// which is a status, an instruction, a material and a revision around one
+// description. The rule, simple on purpose:
+//   1. split on " — " (spaced em dash); a name without one is shown as is;
+//   2. drop segments written in capitals (status words and instructions:
+//      "MỚI/SỬA", "CẦN IN", "CHỌN IN PLATE NÀY"), segments that are only a
+//      filament ("PETG", "PLA") and segments that are only a revision ("A1V4-r5", "r5", "v2");
+//   3. show the longest segment left; if none is left, show the whole name.
+// The first capitals segment (when short) is kept as a small tag, so "new" and
+// "already printed" plates still read apart; the full name is the tooltip.
+const MATERIAL = /^(PLA\+?|PETG|ABS|ASA|TPU|PA(\d+)?(-CF)?|PC|PVA|HIPS|NYLON|CF)( ?(\+|-)? ?[A-Z]*)?$/i;
+const REVISION = /^([A-Za-z0-9]+-)?[rv]\d+[a-z]?$|^rev\.? ?\d+$/i;
+
+function isCapitals(segment) {
+  return /\p{L}/u.test(segment) && segment === segment.toLocaleUpperCase("vi");
+}
+
+export function plateTitle(name) {
+  const full = String(name || "").trim();
+  const segments = full.split(" — ").map((s) => s.trim()).filter(Boolean);
+  if (segments.length < 2) return { title: full, tag: "", full };
+  const kept = segments.filter((s) => !isCapitals(s) && !MATERIAL.test(s) && !REVISION.test(s));
+  const title = kept.length ? kept.reduce((a, b) => (b.length > a.length ? b : a)) : full;
+  const first = segments[0];
+  const tag = kept.length && isCapitals(first) && first.length <= 16 ? first : "";
+  return { title, tag, full };
+}
+
+// ---------------------------------------------------------------------------
+// Camera presets for the case view, as directions from the target to the camera
+// in the contract frame (+z out of the board's top face, which is the camera's
+// up). "Top" leans a hair toward -y: looking straight down +z is parallel to
+// `up`, and lookAt then has no defined roll.
+export const CAMERA_VIEWS = {
+  iso: [0.55, -0.9, 0.75],
+  top: [0, -0.001, 1],
+  front: [0, -1, 0],
+};
+
+export function viewDirection(view) {
+  const v = CAMERA_VIEWS[view] || CAMERA_VIEWS.iso;
+  const len = Math.hypot(...v);
+  return v.map((x) => x / len);
+}

@@ -4,7 +4,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { defaultVisibility, describeStatus, downloadName, explodeOffset, orderParts, printNote, roleLabel } from "../caseView.js";
+import {
+  COUPON_COLOR, cssColor, defaultVisibility, describeStatus, downloadName, explodeOffset, orderParts, PART_PALETTE,
+  partColors, plateTitle, printNote, REFERENCE_COLOR, roleLabel, summaryChips, viewDirection,
+} from "../caseView.js";
 
 test("only a passing check says the case fits; stale and failed say not to print yet", () => {
   assert.equal(describeStatus("passed").title, "Fits the board");
@@ -48,4 +51,82 @@ test("a print rotation is said in words", () => {
 test("download names are safe and say which board", () => {
   assert.equal(downloadName("main", "plunger_SW1", "stl"), "main-plunger_SW1.stl");
   assert.equal(downloadName("my board", "../front", "step"), "my-board-front.step");
+});
+
+test("every printed part gets its own colour, stable for the same set; coupons and references stay muted", () => {
+  const parts = ["frame_lower", "frame_upper", "thigh_FL", "thigh_FR", "thigh_RL", "thigh_RR", "foot_FL", "foot_FR", "foot_RL", "foot_RR"]
+    .map((name) => ({ name, role: "other" }));
+  parts.push({ name: "coupon", role: "coupon" }, { name: "ref_DO_NOT_PRINT_servos", role: "other", printable: false });
+  const colors = partColors(parts);
+  const printed = parts.slice(0, 10).map((p) => colors[p.name]);
+  assert.equal(new Set(printed).size, 10, "ten parts, ten colours");
+  assert.ok(printed.every((c) => PART_PALETTE.includes(c)));
+  assert.equal(colors.coupon, COUPON_COLOR);
+  assert.equal(colors.ref_DO_NOT_PRINT_servos, REFERENCE_COLOR);
+  assert.deepEqual(partColors([...parts].reverse()), colors, "order of the list does not change colours");
+  assert.equal(cssColor(0x4f9de8), "#4f9de8");
+  assert.equal(cssColor(0x0000ff), "#0000ff");
+});
+
+test("more parts than colours: every part still gets a palette colour", () => {
+  const parts = Array.from({ length: PART_PALETTE.length + 3 }, (_, i) => ({ name: `p${i}`, role: "other" }));
+  const colors = partColors(parts);
+  assert.equal(Object.keys(colors).length, parts.length);
+  assert.equal(new Set(Object.values(colors)).size, PART_PALETTE.length);
+});
+
+test("summary chips say only what the data has", () => {
+  const parts = [
+    { name: "front", role: "shell", supports: true },
+    { name: "back", role: "shell", supports: false },
+    { name: "leg", role: "other" },
+    { name: "coupon", role: "coupon", supports: true },
+    { name: "ref", role: "other", printable: false },
+  ];
+  const chips = summaryChips({ parts, plates: [{ index: 1 }, { index: 2 }], state: "passed", sizeMm: [120.4, 80.6, 45] });
+  assert.deepEqual(chips.map((c) => [c.id, c.label]), [
+    ["parts", "3 parts"],
+    ["size", "120 × 81 × 45 mm"],
+    ["supports", "1 need support"],
+    ["plates", "2 plates"],
+    ["status", "Pass"],
+  ]);
+  assert.match(chips.find((c) => c.id === "supports").title, /1 part not stated/);
+  assert.equal(chips.find((c) => c.id === "status").tone, "good");
+
+  // Nothing known about supports, no plates, no size yet, no check: no chips for them.
+  const bare = summaryChips({ parts: [{ name: "a", role: "shell" }], plates: [], state: "none", sizeMm: null });
+  assert.deepEqual(bare.map((c) => c.label), ["1 part"]);
+  assert.equal(summaryChips({ parts: [{ name: "a", role: "shell", supports: false }] })[1].label, "No supports");
+  assert.equal(summaryChips({ sizeMm: [NaN, 1, 1] }).length, 0);
+});
+
+test("the four check results become four chips", () => {
+  const status = (state) => summaryChips({ state }).find((c) => c.id === "status");
+  assert.deepEqual([status("passed").label, status("stale").label, status("unverified").label, status("failed").label],
+    ["Pass", "Review", "Unverified", "Fail"]);
+  assert.equal(status("failed").tone, "bad");
+  assert.equal(status("unverified").tone, "warn");
+  assert.equal(status(undefined), undefined);
+});
+
+test("a plate title keeps the description, not the status words, material or revision", () => {
+  const name = "MỚI/SỬA — CẦN IN — Khung xương MỚI A1V4-r5 (khung dưới, khung trên) — CHỌN IN PLATE NÀY — PETG — A1V4-r5";
+  assert.deepEqual(plateTitle(name), { title: "Khung xương MỚI A1V4-r5 (khung dưới, khung trên)", tag: "MỚI/SỬA", full: name });
+  assert.equal(plateTitle("ĐÃ IN — GIỮ LẠI — Chân trước — PLA — r3").title, "Chân trước");
+  assert.equal(plateTitle("ĐÃ IN — GIỮ LẠI — Chân trước — PLA — r3").tag, "ĐÃ IN");
+  // A plain name, or one made only of status words, is shown whole.
+  assert.deepEqual(plateTitle("Base and front links"), { title: "Base and front links", tag: "", full: "Base and front links" });
+  assert.equal(plateTitle("MỚI/SỬA — CẦN IN").title, "MỚI/SỬA — CẦN IN");
+  assert.equal(plateTitle("MỚI/SỬA — CẦN IN").tag, "");
+  assert.equal(plateTitle("Legs — small parts").title, "small parts");
+  assert.equal(plateTitle(undefined).title, "");
+});
+
+test("camera presets are unit directions; top is not parallel to the up axis", () => {
+  for (const view of ["iso", "top", "front", "nonsense"]) assert.ok(Math.abs(Math.hypot(...viewDirection(view)) - 1) < 1e-9);
+  assert.deepEqual(viewDirection("front"), [0, -1, 0]);
+  const top = viewDirection("top");
+  assert.ok(top[2] > 0.999 && top[1] < 0, "top looks down, leaning a hair toward -y");
+  assert.deepEqual(viewDirection("nonsense"), viewDirection("iso"));
 });
