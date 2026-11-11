@@ -942,11 +942,18 @@ Only when the person asks to publish or push the project. Push **sources, not ou
   STEP → case CAD → print plates/3MF → overview → firmware), with `set -euo pipefail`, a clear
   message for each missing tool or environment variable, and no network installs. Generated
   files must not pin hashes of other generated files that a rebuild cannot reproduce; recompute
-  such bindings inside the build.
-- **Prove it before pushing:** clone the commit into an empty temporary directory, run
-  `./build.sh`, and confirm it produces every output the README links and that the project's
-  checks pass. Report that run. If any step still needs a manual action, fix the pipeline or
-  name the step in the README; never push outputs to cover a gap.
+  such bindings inside the build. It takes optional stage names (`board`, `case`, `firmware`)
+  and builds only those, plus what they read from earlier outputs; with no names it builds all.
+- **Prove it before pushing:** clone the commit into an empty temporary directory and build it
+  there. Rebuild only what changed: when the commits since the last fully proven push touch one
+  team's sources, run just that team's stage (for example `./build.sh firmware`) and its checks.
+  Run the full `./build.sh` on the first push, when a change crosses teams (pins, rails,
+  connectors, board outline or STEP, mounting holes), or when the person asks. Confirm the
+  outputs the README links for the stages you ran and that their checks pass. Report which
+  stages ran and the commit of the last full build. If any step still needs a manual action,
+  fix the pipeline or name the step in the README; never push outputs to cover a gap.
+- **Fix only in the responsible team.** A firmware request is done by firmware and rebuilds
+  firmware; do not rerun board or case work whose files did not change.
 - Keep credentials out of the repository, and push only to the branch the person named.
 
 ## Reporting to the user
