@@ -107,13 +107,14 @@ export function downloadName(board, part, ext) {
 // Colour per part. Every printed part gets its own colour so the 3D view reads
 // as parts, not one grey lump; the list shows the same colour as a swatch.
 // Mid-tone, saturated enough for the dark scene (#0e0f13) and dark enough for
-// the light one (#eaf0f2); none is the board's green (0x468a69).
+// the light one (#eaf0f2); none is the board's green (0x468a69), and no two
+// are near enough to be mistaken side by side (two blues read as one part).
 export const PART_PALETTE = [
-  0x4f9de8, 0xe0785c, 0x9b72d8, 0x2fb5a6, 0xf0a23a, 0xe0609f,
-  0x8bbd3e, 0x5c78d9, 0xd2b04c, 0x48c0e0, 0xc4643f, 0xb48be0,
+  0x4f9de8, 0xf0a23a, 0x9b72d8, 0x2fb5a6, 0xe0609f,
+  0x8bbd3e, 0xe6d34a, 0xd9534f, 0xa0663a, 0xa9c4d6,
 ];
-/** Test coupons: printed alone, first — a quiet amber, not a part colour. */
-export const COUPON_COLOR = 0xb89f72;
+/** Test coupons: printed alone, first — a quiet sand, not a part colour. */
+export const COUPON_COLOR = 0xc9b48a;
 /** Reference models (bought parts, DO_NOT_PRINT): grey, they are not printed. */
 export const REFERENCE_COLOR = 0x7d8a90;
 

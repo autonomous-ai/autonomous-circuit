@@ -205,12 +205,18 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
     const shown = visible[part.name] !== false;
     const printPart = printStatus?.parts?.find((item) => item.name === part.name);
     const howToPrint = part.printable === false ? "Reference model · excluded from Print all." : `To print: ${printNote(part)}.`;
+    // The print record gets its own line only when it says something; "No confirmed
+    // print" on every row of a new case is noise, so that one is in the tooltip.
+    const printLine = !printPart ? ""
+      : printStatus.inventoryTrusted === false ? "Print records unavailable"
+        : `${printPart.confirmedPrintedQuantity ? `Confirmed printed ×${printPart.confirmedPrintedQuantity}` : "No confirmed print"}${printPart.fitStatus === "fits" ? " · fits" : printPart.fitStatus === "failed" ? " · fit failed" : ""}`;
+    const printNews = printStatus?.inventoryTrusted === false || Boolean(printPart?.confirmedPrintedQuantity) || ["fits", "failed"].includes(printPart?.fitStatus);
     return (
       <li
         key={part.name}
         data-slot="case-part"
         data-part={part.name}
-        title={`${part.name} · ${roleLabel(part.role)} · ${formatBytes(part.bytes)}\n${howToPrint}`}
+        title={`${part.name} · ${roleLabel(part.role)} · ${formatBytes(part.bytes)}\n${howToPrint}${printLine ? `\n${printLine}` : ""}`}
         className="rounded-lg border border-border bg-card px-2 py-1.5"
       >
         <div className="flex items-center gap-2">
@@ -242,11 +248,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
             </button>
           ) : null}
         </div>
-        {printPart ? <p data-slot="print-part-status" className="mt-0.5 pl-[3.25rem] text-[11px] leading-4 text-muted-foreground">
-          {printStatus.inventoryTrusted === false
-            ? "Print records unavailable"
-            : <>{printPart.confirmedPrintedQuantity ? `Confirmed printed ×${printPart.confirmedPrintedQuantity}` : "No confirmed print"}{printPart.fitStatus === "fits" ? " · fits" : printPart.fitStatus === "failed" ? " · fit failed" : ""}</>}
-        </p> : null}
+        {printLine && printNews ? <p data-slot="print-part-status" className="mt-0.5 pl-[3.25rem] text-[11px] leading-4 text-muted-foreground">{printLine}</p> : null}
       </li>
     );
   };
@@ -385,9 +387,9 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
                   <div className="mb-1.5 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span>Plate {group.index} · {group.parts.length} parts</span>
+                        <span className="whitespace-nowrap">Plate {group.index} · {group.parts.length} parts</span>
                         {plate.tag ? <span data-slot="case-plate-tag" className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary">{plate.tag}</span> : null}
-                        {printedPlate(group.index) ? <span data-slot="print-plate">· {printedPlate(group.index)}</span> : null}
+                        {printedPlate(group.index) ? <span data-slot="print-plate" className="whitespace-nowrap">{printedPlate(group.index)}</span> : null}
                       </p>
                       <h3 data-slot="case-plate-title" title={plate.full} className="mt-0.5 line-clamp-2 break-words text-sm leading-5 text-foreground">{plate.title}</h3>
                     </div>

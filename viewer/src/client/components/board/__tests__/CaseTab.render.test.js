@@ -102,7 +102,10 @@ test("printer observations stay distinct from user-confirmed printed parts", asy
   try {
     await flush();
     assert.match(ui.container.querySelector('[data-slot="print-job"]').textContent, /Awaiting your part confirmation/);
-    assert.match(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, /No confirmed print/);
+    // Nothing printed yet is said in the row's tooltip, not on a line of its own.
+    assert.equal(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]'), null);
+    assert.match(ui.container.querySelector('[data-part="front"]').getAttribute("title"), /No confirmed print/);
+    assert.doesNotMatch(ui.container.querySelector('[data-part="front"]').getAttribute("title"), /Confirmed printed/);
     const plateStatus = ui.container.querySelector('[data-slot="case-plate"][data-plate="1"] [data-slot="print-plate"]').textContent;
     assert.match(plateStatus, /Needs print/);
     assert.doesNotMatch(plateStatus, /Confirmed printed/i);
@@ -409,4 +412,18 @@ test("each part row has a colour swatch and a show checkbox; plate titles are th
     assert.equal(sceneProps.at(-1).visible.front, false);
     assert.deepEqual(ui.errors, []);
   } finally { ui.unmount(); }
+});
+
+test("a part with a print record that says something keeps its visible line", async () => {
+  const restore = __setTransportForTesting({ print_status: async () => ({
+    ready: true, reason: null, source: null,
+    parts: [{ name: "front", role: "shell", confirmedPrintedQuantity: 2, fitStatus: "fits" }],
+    plates: [], jobs: [], account: { state: "not_connected", reason: "not_configured" },
+  }) });
+  const ui = mount(CaseTab, { artifact: caseArtifact(), projectId: "p", Scene: StubScene });
+  try {
+    await flush();
+    assert.equal(ui.container.querySelector('[data-part="front"] [data-slot="print-part-status"]').textContent, "Confirmed printed ×2 · fits");
+    assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /printer not paired/);
+  } finally { ui.unmount(); restore(); }
 });
