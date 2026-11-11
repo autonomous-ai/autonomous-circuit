@@ -143,6 +143,7 @@ class DisputeRunner(TeamRunner):
         self.builder_obeys = builder_obeys
         self.firmware_prompts = []
         self.advice_problems = []
+        self.advice_models = []
 
     def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
         if stage == 'firmware':
@@ -156,6 +157,7 @@ class DisputeRunner(TeamRunner):
                                    'summary': 'Kept my design', 'blockers': []}}
         if stage == 'firmware-advice':
             self.advice_problems.append(prompt)
+            self.advice_models.append(model)
             return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
                     'usage': None, 'error': None,
                     'result': {'contractSha256': state['contractSha256'], 'stage': 'firmware',
@@ -491,6 +493,26 @@ class TeamFlowTests(unittest.TestCase):
         self.assertEqual(len(runner.firmware_prompts), 3)
         self.assertNotIn('LEAD RULING', runner.firmware_prompts[1])
         self.assertIn('LEAD RULING', runner.firmware_prompts[2])
+
+    def test_an_advisor_model_answers_in_place_of_the_lead(self):
+        root = self.base / 'advised'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams',
+                            lead_model='claude-lead', advisor_model='claude-advisor')
+        runner = DisputeRunner('repair')
+        parallel.plan(root, execute=True, runner=runner)
+        result = parallel.run(root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        models = {stage: model for stage, model, *_ in runner.visits}
+        self.assertEqual((models['plan'], runner.advice_models), ('claude-lead', ['claude-advisor']))
+        self.assertEqual(parallel.metrics(result)['advisorModel'], 'claude-advisor')
+
+    def test_without_an_advisor_model_the_lead_advises(self):
+        runner = DisputeRunner('repair')
+        parallel.plan(self.root, execute=True, runner=runner)
+        result = parallel.run(self.root, execute=True, runner=runner, checker=checker)
+        models = {stage: model for stage, model, *_ in runner.visits}
+        self.assertEqual(runner.advice_models, [models['plan']])
+        self.assertEqual(parallel.metrics(result)['advisorModel'], models['plan'])
 
     def test_lead_waiver_closes_a_dispute_and_reaches_integration(self):
         runner = DisputeRunner('waive', builder_obeys=False)

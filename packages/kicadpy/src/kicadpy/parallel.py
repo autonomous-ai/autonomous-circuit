@@ -207,7 +207,8 @@ def commit(workspace, names, message):
 
 def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
                lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800,
-               builder_models=None, tester_models=None, integration_tester_model=None):
+               builder_models=None, tester_models=None, integration_tester_model=None,
+               advisor_model=None):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
     if root.exists():
@@ -276,7 +277,7 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
     state = {'schema': 1, 'status': 'initialized', 'mode': mode, 'leadModel': lead_model,
              'workerModel': worker_model, 'testerModel': tester_model or worker_model,
              'builderModels': dict(builder_models or {}), 'testerModels': dict(tester_models or {}),
-             'integrationTesterModel': integration_tester_model,
+             'integrationTesterModel': integration_tester_model, 'advisorModel': advisor_model,
              'timeoutSeconds': timeout, 'revision': 0,
              'workerSandbox': WORKER_SANDBOX,
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
@@ -502,8 +503,9 @@ def _reap_worktree_processes(root, worktree):
 
 
 def team_models(workspace):
-    """Models for one project: `lead`, `tester`, `integrationTester`, and per-role `builders`/`testers`."""
-    defaults = {'lead': LEAD, 'tester': WORKER, 'integrationTester': None, 'builders': {}, 'testers': {}}
+    """Models for one project: `lead`, `tester`, `integrationTester`, `advisor`, and per-role `builders`/`testers`."""
+    defaults = {'lead': LEAD, 'tester': WORKER, 'integrationTester': None, 'advisor': None,
+                'builders': {}, 'testers': {}}
     path = Path(workspace) / TEAM_MODELS
     if not path.is_file():
         return defaults
@@ -511,9 +513,10 @@ def team_models(workspace):
     model = lambda value: isinstance(value, str) and bool(value.strip())
     by_role = lambda value: isinstance(value, dict) and set(value) <= set(ROLES) and all(map(model, value.values()))
     if (not isinstance(chosen, dict) or set(chosen) - set(defaults) or
-            not all(model(chosen[key]) for key in ('lead', 'tester', 'integrationTester') if key in chosen) or
+            not all(model(chosen[key]) for key in ('lead', 'tester', 'integrationTester', 'advisor')
+                    if key in chosen) or
             not all(by_role(chosen[key]) for key in ('builders', 'testers') if key in chosen)):
-        raise ValueError(f'{TEAM_MODELS} takes string lead, tester and integrationTester models, '
+        raise ValueError(f'{TEAM_MODELS} takes string lead, tester, integrationTester and advisor models, '
                          'and builders/testers maps from board, firmware or case to a model')
     return {**defaults, **chosen}
 
@@ -1492,7 +1495,10 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         'still must pass native checks and lead review. '
         f'Return contractSha256={state["contractSha256"]}, stage={stage}.\n'
         'PROBLEM:\n' + json.dumps(problem, sort_keys=True))
-    receipt = call(root, state, stage + '-advice', worktree, prompt, ADVICE_SCHEMA, True,
+    # `call` selects the lead model for read-only jobs; an advisor model, when the
+    # project names one, answers in the lead's place on the same shared jobs list.
+    advisor_state = {**state, 'leadModel': state.get('advisorModel') or state['leadModel']}
+    receipt = call(root, advisor_state, stage + '-advice', worktree, prompt, ADVICE_SCHEMA, True,
                    runner, authorized_integration=authorized_integration,
                    integration_lock=integration_lock, stage_deadline=stage_deadline)
     if receipt['error']:
@@ -2807,6 +2813,7 @@ def metrics(state):
             'workerModel': state['workerModel'], 'testerModel': _tester_model(state),
             'builderModels': state.get('builderModels') or {}, 'testerModels': state.get('testerModels') or {},
             'integrationTesterModel': state.get('integrationTesterModel') or _tester_model(state),
+            'advisorModel': state.get('advisorModel') or state['leadModel'],
             'contractSha256': state.get('contractSha256'),
             'promptSha256': state['promptSha256'], 'instructionsSha256': state['instructionsSha256'],
             'pipelineSha256': state['pipelineSha256'],

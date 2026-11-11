@@ -1093,17 +1093,17 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
     def test_team_models_defaults_override_and_bad_file(self):
         project = self.base / 'project'
         defaults = {'lead': pilot.LEAD, 'tester': pilot.WORKER, 'integrationTester': None,
-                    'builders': {}, 'testers': {}}
+                    'advisor': None, 'builders': {}, 'testers': {}}
         self.assertEqual(pilot.team_models(project), defaults)
         put(project, str(pilot.TEAM_MODELS), json.dumps({'tester': 'claude-opus-5-5'}))
         self.assertEqual(pilot.team_models(project), {**defaults, 'tester': 'claude-opus-5-5'})
         chosen = {'builders': {'case': 'claude-opus-5-5'}, 'testers': {'case': pilot.WORKER},
-                  'integrationTester': 'claude-opus-5-5'}
+                  'integrationTester': 'claude-opus-5-5', 'advisor': 'claude-fable-5-1'}
         put(project, str(pilot.TEAM_MODELS), json.dumps(chosen))
         self.assertEqual(pilot.team_models(project), {**defaults, **chosen})
         for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5'],
                     {'builders': {'lid': 'claude-opus-5-5'}}, {'testers': {'case': ''}},
-                    {'builders': 'claude-opus-5-5'}):
+                    {'builders': 'claude-opus-5-5'}, {'advisor': ''}):
             put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
             with self.assertRaisesRegex(ValueError, 'integrationTester'):
                 pilot.team_models(project)
