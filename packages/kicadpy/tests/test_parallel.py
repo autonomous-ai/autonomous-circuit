@@ -698,6 +698,52 @@ class PilotTests(unittest.TestCase):
         self.assertTrue((snapshot / 'manufacturing.json').is_file())
         self.assertTrue(project.store.is_relative_to(self.root / '.kicadpy'))
 
+    def test_passed_board_check_is_reused_until_a_board_file_changes(self):
+        workspace = self.root / 'workspace'
+        put(workspace, 'design/main.kicad_pcb', 'pcb v1')
+        put(workspace, 'firmware/crab.ino', 'fw v1')
+        calls = []
+
+        def publish(ws):
+            calls.append(1)
+            put(ws, 'boards/main/gerbers.zip', 'out')
+            return True, []
+
+        with patch('kicadpy.autofinish.inspect_board', side_effect=publish):
+            self.assertEqual(pilot.checked_board(workspace), (True, []))
+            self.assertEqual(pilot.checked_board(workspace), (True, []))
+            self.assertEqual(len(calls), 1)
+            put(workspace, 'firmware/crab.ino', 'fw v2')
+            self.assertEqual(pilot.checked_board(workspace), (True, []))
+            self.assertEqual(len(calls), 1)
+            put(workspace, 'design/main.kicad_pcb', 'pcb v2')
+            pilot.checked_board(workspace)
+            self.assertEqual(len(calls), 2)
+            put(workspace, 'boards/main/gerbers.zip', 'edited by hand')
+            pilot.checked_board(workspace)
+            self.assertEqual(len(calls), 3)
+        self.assertTrue(pilot.owns('board', pilot.BOARD_CHECK_RECORD))
+
+    def test_failed_board_check_is_never_reused(self):
+        workspace = self.root / 'workspace'
+        put(workspace, 'design/main.kicad_pcb', 'pcb')
+        with patch('kicadpy.autofinish.inspect_board', return_value=(False, ['DRC'])) as run:
+            self.assertEqual(pilot.checked_board(workspace), (False, ['DRC']))
+            self.assertEqual(pilot.checked_board(workspace), (False, ['DRC']))
+            self.assertEqual(run.call_count, 2)
+        self.assertFalse((workspace / pilot.BOARD_CHECK_RECORD).exists())
+
+    def test_board_check_record_is_ignored_when_kicadpy_code_changes(self):
+        workspace = self.root / 'workspace'
+        put(workspace, 'design/main.kicad_pcb', 'pcb')
+        with patch('kicadpy.autofinish.inspect_board', return_value=(True, [])) as run:
+            pilot.checked_board(workspace)
+            record = workspace / pilot.BOARD_CHECK_RECORD
+            saved = json.loads(record.read_text())
+            record.write_text(json.dumps({**saved, 'key': 'older kicadpy'}))
+            pilot.checked_board(workspace)
+            self.assertEqual(run.call_count, 2)
+
     def test_native_checker_consumes_tuple_case_status_and_real_firmware_gate(self):
         workspace = self.root / 'workspace'
         put(workspace, 'firmware/WIRING.md', 'pins')

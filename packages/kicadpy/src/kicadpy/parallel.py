@@ -2183,12 +2183,49 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
     return stage_checks
 
 
+# Republishing every board takes minutes. A firmware or case change leaves the board files alone,
+# so a passed board check is reused while every board-owned file and kicadpy's own code still match.
+BOARD_CHECK_RECORD = 'build/board/native-check.json'
+
+
+def _board_check_key(workspace):
+    digest = hashlib.sha256()
+    files = snapshot(workspace)
+    for name in sorted(files):
+        if owns('board', name) and name != BOARD_CHECK_RECORD:
+            digest.update(f"{name}\0{files[name]['sha256']}\n".encode())
+    code = Path(__file__).resolve().parent
+    for file in sorted(code.rglob('*.py')):
+        digest.update(f"{file.relative_to(code).as_posix()}\0".encode())
+        digest.update(hashlib.sha256(file.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def checked_board(workspace):
+    """Run the native board publisher unless the last passed run saw exactly these files."""
+    from .autofinish import inspect_board
+    record = Path(workspace) / BOARD_CHECK_RECORD
+    try:
+        saved = json.loads(record.read_text())
+    except (OSError, ValueError):
+        saved = None
+    if isinstance(saved, dict) and saved.get('passed') is True and saved.get('key') == _board_check_key(workspace):
+        return True, []
+    passed, findings = inspect_board(workspace)
+    if passed:
+        # The publisher rewrites its outputs, so the key is taken after it ran.
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(json.dumps({'passed': True, 'key': _board_check_key(workspace)}, indent=2) + '\n')
+    else:
+        record.unlink(missing_ok=True)
+    return passed, findings
+
+
 def native_check(workspace, complete):
     """Use the existing parsed native publisher, firmware freshness and case gates unchanged."""
-    from .autofinish import inspect_board
     from .firmware import firmware_built, firmware_written
     (Path(workspace) / '.circuit').mkdir(exist_ok=True)
-    passed, findings = inspect_board(workspace)
+    passed, findings = checked_board(workspace)
     if complete:
         if not firmware_written(workspace) or not firmware_built(workspace):
             findings.append('Firmware is missing or its compiled binary is stale')
