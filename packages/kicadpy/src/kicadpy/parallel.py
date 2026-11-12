@@ -2834,6 +2834,10 @@ def native_check(workspace, complete):
             check_plates(workspace)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             findings.append('Prepared print project is not verified: ' + str(exc))
+        from .case_checks import plate_names
+        names = plate_names(workspace)
+        if names and names['level'] == 'fail':
+            findings.append(names['message'])
     return {'passed': passed and not findings, 'findings': findings,
             'scope': 'native-board-firmware-case' if complete else 'native-board', 'hardwareTested': False}
 
