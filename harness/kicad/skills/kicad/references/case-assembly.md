@@ -465,11 +465,13 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
   body and other reused prints; do not leave them out of that list merely because they already
   exist physically. Bought hardware/electronics reference models remain nonprintable as before.
 - Use the printed inventory to partition plates **within that same complete project** into
-  **ĐÃ IN — GIỮ LẠI** (already printed) and **MỚI/SỬA — CẦN IN** (new/updated). Never mix the groups
+  **ĐÃ IN — GIỮ LẠI** (already printed) and **MỚI-SỬA — CẦN IN** (new/updated). Never mix the groups
   on a plate; add numbered plates within each group on overflow. Give plates actual native names
   visible in Bambu, including current variant/revision; a project filename or guide label alone
   is insufficient. Keep each plate name short (≤ 40 characters): the group words, a short part
-  description and the revision, e.g. `MỚI/SỬA — CẦN IN — Khung xương A1V4-r5`; material,
+  description and the revision, e.g. `MỚI-SỬA — CẦN IN — Khung xương A1V4-r5`. Plate and
+  object names must not contain `/ \ : * ? " < > |`: Bambu Studio refuses to open a 3MF with
+  them, and the harness case check fails it. Material,
   "select this plate" instructions and other notes go in the guide, not the name. Open/reinspect the saved 3MF and verify names, grouping and exactly-once total
   current-manifest coverage. List plate names and part IDs/quantities in the guide, telling the
   person which new plates to select without asking them to reprint the old plates.
@@ -480,7 +482,7 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
   project, not as an extra current-production instance; TEST ONLY remains separate. Preserve the
   existing `printProject` full-coverage validator. Update assignments when inventory, quantity or
   geometry changes, and never mark a print completed without evidence.
-- **Plate layout rules.** Within each ĐÃ IN / MỚI–SỬA group, split plates by filament first:
+- **Plate layout rules.** Within each ĐÃ IN / MỚI-SỬA group, split plates by filament first:
   with several materials or colours, each plate holds one material/colour, never a mix. Then,
   within one filament, group by size: large parts together and small parts together, instead of
   scattering tiny parts between big ones; overflow goes to numbered plates in the same class.

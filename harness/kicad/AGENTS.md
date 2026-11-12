@@ -897,7 +897,9 @@ board revision, not a moved footprint.
   "Ready-arranged slicer projects" contract. Do not send anything to a printer.
   **Print all is one complete 3MF**, retaining every current production part, including those
   already printed. Within that same file, separate plates named **ĐÃ IN — GIỮ LẠI** and
-  **MỚI/SỬA — CẦN IN**; add numbered plates within each group on overflow, never mix groups.
+  **MỚI-SỬA — CẦN IN**; add numbered plates within each group on overflow, never mix groups.
+  Plate and object names must not contain `/ \ : * ? " < > |`: Bambu Studio refuses to open
+  the 3MF (the harness case check fails such names).
   Inside each group: one filament/colour per plate; large parts with large and small with small;
   each part's long side along printer X (rotate about Z only), never along Y unless it cannot fit.
   Verify these names in the saved project opened in Bambu. Printed inventory controls plate

@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zipfile
 
 from kicadpy import case_checks
 
@@ -184,6 +185,41 @@ class CaseChecksTests(unittest.TestCase):
         self.assertEqual([call[0][1] for call in runner.calls], ['tools/case/t.py'])
         self.declare({'name': 'x', 'script': 'tools/case/x.py', 'report': 'case/reports/x.json', 'parts': 'frame'})
         self.assertEqual(self.run_checks(FakeRunner())['verdict'], 'fail')
+
+    def print_project(self, plates, objects=('frame',)):
+        put(self.root, 'case/out/parts.json', json.dumps(
+            {'parts': [], 'printProject': {'file': 'print/all.3mf', 'report': 'print/all.json'}}))
+        config = '<config>' + ''.join(
+            f'<object id="{i}"><metadata key="name" value="{name}"/></object>'
+            for i, name in enumerate(objects)) + ''.join(
+            f'<plate><metadata key="plater_id" value="{i + 1}"/>'
+            f'<metadata key="plater_name" value="{name}"/></plate>' for i, name in enumerate(plates)) + '</config>'
+        (self.root / 'case/out/print').mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(self.root / 'case/out/print/all.3mf', 'w') as archive:
+            archive.writestr('Metadata/model_settings.config', config)
+
+    def test_a_plate_name_bambu_refuses_fails(self):
+        self.print_project(['ĐÃ IN — GIỮ LẠI', 'MỚI/SỬA — CẦN IN'], objects=('frame', 'leg:1'))
+        entry = self.by_name(self.run_checks(FakeRunner()))['plate-names']
+        self.assertEqual(entry['level'], 'fail')
+        self.assertIn('plate "MỚI/SỬA — CẦN IN"', entry['message'])
+        self.assertIn('object "leg:1"', entry['message'])
+        self.assertNotIn('ĐÃ IN', entry['message'])
+
+    def test_clean_plate_names_pass(self):
+        self.print_project(['ĐÃ IN — GIỮ LẠI', 'MỚI-SỬA — CẦN IN — Khung A1V4-r5'])
+        entry = self.by_name(self.run_checks(FakeRunner()))['plate-names']
+        self.assertEqual(entry['level'], 'pass')
+
+    def test_no_print_project_is_skipped_not_failed(self):
+        self.assertNotIn('plate-names', self.by_name(self.run_checks(FakeRunner())))
+        put(self.root, 'case/out/parts.json', json.dumps(
+            {'parts': [], 'printProject': {'file': 'print/missing.3mf', 'report': 'r.json'}}))
+        self.assertIsNone(case_checks.plate_names(self.root))
+        put(self.root, 'case/out/print/broken.3mf', 'not a zip')
+        put(self.root, 'case/out/parts.json', json.dumps(
+            {'parts': [], 'printProject': {'file': 'print/broken.3mf', 'report': 'r.json'}}))
+        self.assertEqual(case_checks.plate_names(self.root)['level'], 'unverified')
 
     def test_brief_keeps_only_what_a_prompt_needs(self):
         summary = self.run_checks(FakeRunner())
