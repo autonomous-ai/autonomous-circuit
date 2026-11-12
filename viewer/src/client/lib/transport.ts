@@ -28,6 +28,13 @@ export interface AppInfo {
 }
 
 // Circuit's catalog kinds (contract §2): `tsx | json | svg | png | zip | csv | md`.
+/** case/stages.json as the viewer reads it: waiting, working, testing, valid, note or done. */
+export type CaseStages = {
+  current: string | null;
+  stages: { name: "simple" | "moving" | "joints" | "lid"; status: string; parts: string[] }[];
+  parts: Record<string, { stage: string; group: "frame" | "glue-on" | "moving" | "joints" | "lid"; status: string }>;
+};
+
 export type CatalogKind =
   | "kicad_pcb"
   | "tsx"
@@ -100,6 +107,8 @@ export interface Catalog {
       media: { file: string; url: string }[];
       /** case only: the case worker's exported STL parts, an unverified draft. */
       models?: { name: string; role: string; bytes: number; printable: boolean; stlUrl: string }[];
+      /** case only: the build waterfall's stage and part status chips (case/stages.json). */
+      stages?: CaseStages | null;
     }>;
   };
   /** Every team run, newest first; stays after the run is accepted. Tester decisions only. */

@@ -363,6 +363,7 @@ def _preview_progress(workspace, pilot_root, role, stage, source_path, status, f
             'findings': findings, 'updatedAt': time.time()}
     if role == 'case':
         team['models'] = models or (previous.get('models', []) if retain_previous else [])
+        team['stages'] = _preview_stages(resolved)
     data['teams'][role] = team
     data['updatedAt'] = time.time()
     _write_preview(workspace, data)
@@ -402,6 +403,34 @@ def _copy_preview(workspace, source_root, role, name, info, maximum, copied):
     finally:
         temporary.unlink(missing_ok=True)
     return entry
+
+
+PREVIEW_STAGES_MAX = 256 * 1024
+
+
+def _preview_stages(source_root):
+    """The harness-written case/stages.json of the case worker (status chips), validated; or None."""
+    from .case_waterfall import GROUPS, STATUS_FILE, STATUSES
+    from .case_checks import STAGES
+    file = source_root / STATUS_FILE
+    try:
+        if file.is_symlink() or not file.is_file() or file.stat().st_size > PREVIEW_STAGES_MAX:
+            return None
+        data = json.loads(file.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get('stages'), list):
+        return None
+    stages = [{'name': item['name'], 'status': item['status'],
+               'parts': [part[:120] for part in item.get('parts', []) if isinstance(part, str)][:200]}
+              for item in data['stages'][:len(STAGES)]
+              if isinstance(item, dict) and item.get('name') in STAGES and item.get('status') in STATUSES
+              and isinstance(item.get('parts', []), list)]
+    parts = {name[:120]: {'stage': info['stage'], 'group': info['group'], 'status': info['status']}
+             for name, info in list((data.get('parts') or {}).items())[:400]
+             if isinstance(name, str) and isinstance(info, dict) and info.get('stage') in STAGES
+             and info.get('group') in GROUPS and info.get('status') in STATUSES}
+    return {'stages': stages, 'parts': parts, 'current': data.get('current') if data.get('current') in STAGES else None}
 
 
 class _PreviewChanged(ValueError):

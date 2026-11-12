@@ -284,6 +284,7 @@ export function resolveCase(accepted, teamPreview = null, teamRuns = null) {
         printStatus: { state: "draft", reason: "a draft is not printable" },
         parts: models.map((m) => ({ name: String(m.name), role: String(m.role || "other"), stlUrl: m.stlUrl,
           bytes: Number(m.bytes) || 0, printable: m.printable !== false })),
+        stages: team.stages || null,
         plates: [],
         drawings: [],
       },
@@ -293,4 +294,46 @@ export function resolveCase(accepted, teamPreview = null, teamRuns = null) {
     };
   }
   return { enclosure: accepted || null, draft: null, drawing: running, run };
+}
+
+/** The case waterfall's part groups, in build order, with their names in the parts list. */
+export const STAGE_GROUPS = [
+  { id: "frame", stage: "simple", label: "Khung" },
+  { id: "glue-on", stage: "simple", label: "Khay dán" },
+  { id: "moving", stage: "moving", label: "Chân" },
+  { id: "joints", stage: "joints", label: "Khớp" },
+  { id: "lid", stage: "lid", label: "Nắp" },
+];
+
+/** A part's (or stage's) status chip from case/stages.json. */
+export const PART_STATUS = {
+  waiting: { label: "Chờ", tone: "", title: "Waiting: a later stage, not drawn yet." },
+  working: { label: "Đang vẽ", tone: "warn", title: "Working: the case team is drawing it." },
+  testing: { label: "Đang kiểm", tone: "warn", title: "Testing: the harness and the tester are checking it." },
+  valid: { label: "Đạt", tone: "good", title: "Valid: it passed its checks; it is not reworked." },
+  note: { label: "Ghi chú", tone: "bad", title: "Note: two repair tries did not pass; it is on the notes list (case/NOTES.md)." },
+  done: { label: "Xong", tone: "good", title: "Done: the whole case passed." },
+};
+
+/**
+ * Parts grouped by waterfall stage, each group with its stage status; parts the status does
+ * not list stay in `other`. Null without a status file (the plain parts list then).
+ */
+export function stageGroups(parts = [], stages = null) {
+  if (!stages || !Array.isArray(stages.stages) || !stages.stages.length) return null;
+  const byStage = Object.fromEntries(stages.stages.map((item) => [item.name, item.status]));
+  const info = stages.parts || {};
+  const groups = STAGE_GROUPS.map((group) => ({
+    ...group,
+    status: byStage[group.stage] || null,
+    parts: parts.filter((part) => info[part.name]?.group === group.id),
+  })).filter((group) => group.parts.length);
+  const other = parts.filter((part) => !STAGE_GROUPS.some((group) => group.id === info[part.name]?.group));
+  return { groups, other };
+}
+
+/** The status of one part, or null when the status file does not list it. */
+export function partStatus(stages, name) {
+  const status = stages?.parts?.[name]?.status;
+  return PART_STATUS[status] ? status : null;
 }

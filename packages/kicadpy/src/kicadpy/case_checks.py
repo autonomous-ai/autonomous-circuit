@@ -13,6 +13,10 @@ from an exit code:
                                    "report": "case/reports/mechanical.json",
                                    "timeoutSeconds": 900}]}
 
+For the build waterfall (kicadpy.case_waterfall) each check names its `stage` (simple,
+moving, joints or lid; simple by default) and a moving-part check its `kind` (print or
+motion), and a top-level `stages` object lists the parts of each stage that applies.
+
 A report with `verdict` (pass, review, unverified, fail) or a boolean `passed` gives the level.
 A report that is missing, unreadable or not rewritten by this run is unverified: what could not
 be measured is never a pass. A script must rewrite its report even when it skips work because
@@ -38,6 +42,8 @@ NATIVE_TIMEOUT_SECONDS = 900
 MAX_CHECKS = 12
 SCRIPT_ROOTS = ('case/', 'tools/case/')
 MESSAGE_CHARS = 300
+STAGES = ('simple', 'moving', 'joints', 'lid')   # the build order; see case_waterfall
+KINDS = ('print', 'motion')
 
 
 def worst(levels):
@@ -101,9 +107,22 @@ def declared(worktree):
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
             problems.append(f'{name}: timeoutSeconds must be a positive number')
             continue
+        stage = item.get('stage', STAGES[0])
+        if stage not in STAGES:
+            problems.append(f'{name}: stage must be one of {", ".join(STAGES)}')
+            continue
+        kind = item.get('kind', 'check')
+        if kind != 'check' and kind not in KINDS:
+            problems.append(f'{name}: kind must be print or motion')
+            continue
+        parts = item.get('parts', [])
+        if not isinstance(parts, list) or not all(isinstance(part, str) for part in parts):
+            problems.append(f'{name}: parts must be a list of part names')
+            continue
         names.add(name)
         checks.append({'name': name, 'script': script, 'args': args, 'report': report,
-                       'timeoutSeconds': min(float(timeout), MAX_TIMEOUT_SECONDS)})
+                       'timeoutSeconds': min(float(timeout), MAX_TIMEOUT_SECONDS),
+                       'stage': stage, 'kind': kind, 'parts': parts[:200]})
     if len(items) > MAX_CHECKS:
         problems.append(f'{CHECKS_FILE} declares more than {MAX_CHECKS} checks; the rest were not run')
     return checks, problems
@@ -198,11 +217,14 @@ def _native(worktree, env, case_python, runner, timeout, prefix=()):
 
 
 def run(worktree, env, *, case_python, runner=run_process, total_seconds=TOTAL_SECONDS,
-        native_timeout=NATIVE_TIMEOUT_SECONDS, prefix=()):
+        native_timeout=NATIVE_TIMEOUT_SECONDS, prefix=(), reuse=None):
     """Run every declared case check and the native checker; return the summary.
 
     `prefix` wraps each command, e.g. in the builder's sandbox: the scripts are agent-written.
+    `reuse` {check name: (level, message)}: checks of parts that passed and are frozen are not
+    run again; their recorded result stands (the build waterfall's closed stages).
     """
+    reuse = reuse or {}
     worktree = Path(worktree)
     began = time.monotonic()
     env = {**env, 'MPLCONFIGDIR': str(worktree / 'build/case/mpl')}
@@ -213,11 +235,17 @@ def run(worktree, env, *, case_python, runner=run_process, total_seconds=TOTAL_S
                               f'{CHECKS_FILE} declares no mechanical checks; joints, clearances and '
                               'wire routes were not measured by the harness'))
     for check in checks:
+        if check['name'] in reuse:
+            level, message = reuse[check['name']]
+            results.append(_entry(check['name'], level, f'reused: {message}', script=check['script'],
+                                  report=check['report'], stage=check['stage'], kind=check['kind'],
+                                  reused=True))
+            continue
         remaining = total_seconds - (time.monotonic() - began)
         if remaining <= 1:
             results.append(_entry(check['name'], case_measure.UNVERIFIED,
                                   f'not run: the {total_seconds:.0f} s case check budget was spent',
-                                  script=check['script']))
+                                  script=check['script'], stage=check['stage'], kind=check['kind']))
             continue
         timeout = min(check['timeoutSeconds'], remaining)
         started_ns, start = time.time_ns(), time.monotonic()
@@ -225,7 +253,8 @@ def run(worktree, env, *, case_python, runner=run_process, total_seconds=TOTAL_S
             code, output = runner([*prefix, case_python, check['script'], *check['args']], worktree, env, timeout)
         except OSError as exc:
             results.append(_entry(check['name'], case_measure.UNVERIFIED, f'could not start: {exc}',
-                                  time.monotonic() - start, script=check['script']))
+                                  time.monotonic() - start, script=check['script'],
+                                  stage=check['stage'], kind=check['kind']))
             continue
         seconds = time.monotonic() - start
         if code is None:
@@ -235,7 +264,8 @@ def run(worktree, env, *, case_python, runner=run_process, total_seconds=TOTAL_S
             if level == case_measure.UNVERIFIED:
                 message = f'{message} (exit {code}): {_tail(output)}'
         results.append(_entry(check['name'], level, message, seconds,
-                              script=check['script'], report=check['report']))
+                              script=check['script'], report=check['report'],
+                              stage=check['stage'], kind=check['kind']))
     results.append(_native(worktree, env, case_python, runner, native_timeout, prefix))
     return {'schema': 1, 'verdict': worst(entry['level'] for entry in results), 'checks': results,
             'seconds': round(time.monotonic() - began, 1),
@@ -246,5 +276,6 @@ def brief(summary):
     """The compact form a prompt carries."""
     return {'verdict': summary['verdict'], 'cached': bool(summary.get('cached')),
             'report': summary.get('report'),
-            'checks': [{key: entry[key] for key in ('name', 'level', 'message', 'seconds')}
+            'checks': [{key: entry[key] for key in ('name', 'level', 'message', 'seconds', 'stage')
+                        if key in entry}
                        for entry in summary['checks']]}

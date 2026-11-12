@@ -158,6 +158,33 @@ class CaseChecksTests(unittest.TestCase):
         code, output = case_checks.run_process([sys.executable, '-c', 'print("hi")'], self.root, {}, 10)
         self.assertEqual((code, output.strip()), (0, 'hi'))
 
+    def test_each_check_carries_its_waterfall_stage_and_kind(self):
+        self.declare({'name': 'print', 'script': 'tools/case/p.py', 'report': 'case/reports/p.json'},
+                     {'name': 'sweep', 'script': 'tools/case/s.py', 'report': 'case/reports/s.json',
+                      'stage': 'moving', 'kind': 'motion'})
+        entries = self.by_name(self.run_checks(FakeRunner()))
+        self.assertEqual((entries['print']['stage'], entries['print']['kind']), ('simple', 'check'))
+        self.assertEqual((entries['sweep']['stage'], entries['sweep']['kind']), ('moving', 'motion'))
+        self.declare({'name': 'a', 'script': 'tools/case/a.py', 'report': 'case/reports/a.json', 'stage': 'covers'},
+                     {'name': 'b', 'script': 'tools/case/b.py', 'report': 'case/reports/b.json', 'kind': 'fit'})
+        summary = self.run_checks(FakeRunner())
+        self.assertEqual(summary['verdict'], 'fail')
+        messages = [entry['message'] for entry in summary['checks'] if entry['name'] == 'checks.json']
+        self.assertIn('stage must be one of', messages[0])
+        self.assertIn('kind must be print or motion', messages[1])
+
+    def test_a_reused_check_is_not_run_again(self):
+        self.declare({'name': 'frame', 'script': 'tools/case/f.py', 'report': 'case/reports/f.json', 'parts': ['frame']},
+                     {'name': 'tray', 'script': 'tools/case/t.py', 'report': 'case/reports/t.json'})
+        runner = FakeRunner({'tools/case/t.py': {'case/reports/t.json': {'passed': True}}})
+        summary = self.run_checks(runner, reuse={'frame': ('pass', 'fits')})
+        entries = self.by_name(summary)
+        self.assertEqual((entries['frame']['level'], entries['frame']['message']), ('pass', 'reused: fits'))
+        self.assertTrue(entries['frame']['reused'])
+        self.assertEqual([call[0][1] for call in runner.calls], ['tools/case/t.py'])
+        self.declare({'name': 'x', 'script': 'tools/case/x.py', 'report': 'case/reports/x.json', 'parts': 'frame'})
+        self.assertEqual(self.run_checks(FakeRunner())['verdict'], 'fail')
+
     def test_brief_keeps_only_what_a_prompt_needs(self):
         summary = self.run_checks(FakeRunner())
         brief = case_checks.brief({**summary, 'report': '.pilot/case-checks/x.json'})

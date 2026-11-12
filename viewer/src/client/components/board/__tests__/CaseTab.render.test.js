@@ -488,3 +488,31 @@ test("a run with nothing exported yet says the team is still drawing, not that t
     ui.unmount();
   }
 });
+
+test("the parts list groups the waterfall stages and shows each part's status chip, draft or accepted", async () => {
+  const stages = { current: "moving", stages: [{ name: "simple", status: "valid", parts: ["shell", "tray"] }, { name: "moving", status: "testing", parts: ["leg"] }],
+    parts: { shell: { stage: "simple", group: "frame", status: "valid" }, tray: { stage: "simple", group: "glue-on", status: "valid" },
+      leg: { stage: "moving", group: "moving", status: "testing" } } };
+  const preview = { run: "r002", teams: { case: { status: "draft", stage: "case", stages, models: ["shell", "tray", "leg"].map((name) => (
+    { name, role: "other", stlUrl: `/projects/p/.circuit/team-previews/current/case/case/out/${name}.stl?v=1`, bytes: 10, printable: true })) } } };
+  const ui = mount(CaseTab, { artifact: {}, teamPreview: preview, Scene: StubScene });
+  try {
+    const groups = [...ui.container.querySelectorAll('[data-slot="case-stage-group"]')];
+    assert.deepEqual(groups.map((g) => g.dataset.group), ["frame", "glue-on", "moving"]);
+    assert.match(groups[1].textContent, /Khay dán/);
+    assert.equal(groups[2].querySelector('[data-slot="case-stage-chip"]').textContent, "Đang kiểm");
+    const chips = Object.fromEntries([...ui.container.querySelectorAll('[data-slot="case-part"]')].map((row) =>
+      [row.dataset.part, row.querySelector('[data-slot="case-part-chip"]')?.textContent]));
+    assert.deepEqual(chips, { shell: "Đạt", tray: "Đạt", leg: "Đang kiểm" });
+    // the accepted case carries its own case/stages.json: done parts read Xong
+    ui.set({ artifact: caseArtifact("passed", { stages: { stages: [{ name: "simple", status: "done", parts: ["front", "back"] }],
+      parts: { front: { stage: "simple", group: "frame", status: "done" }, back: { stage: "simple", group: "frame", status: "done" } } } }), Scene: StubScene });
+    await flush();
+    assert.deepEqual([...ui.container.querySelectorAll('[data-slot="case-stage-group"]')].map((g) => g.dataset.group), ["frame", "other"]);
+    assert.equal(ui.container.querySelector('[data-part="front"] [data-slot="case-part-chip"]').textContent, "Xong");
+    assert.equal(ui.container.querySelector('[data-part="coupon"] [data-slot="case-part-chip"]'), null);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+  }
+});

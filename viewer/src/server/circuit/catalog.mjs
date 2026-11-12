@@ -153,7 +153,7 @@ export function scanTeamPreview(rootDir, projectId) {
     teams[role] = { status: source.status, stage: String(source.stage || "").slice(0, 80),
                     verified: false, findings: Array.isArray(source.findings)
                       ? source.findings.filter(item => typeof item === "string").slice(0, 5).map(item => item.slice(0, 500)) : [],
-                    files, media, ...(role === "case" ? { models } : {}) };
+                    files, media, ...(role === "case" ? { models, stages: caseStages(source.stages) } : {}) };
   }
   return { run: preview.run, runStatus: String(bridge.status || preview.runStatus || "running").slice(0, 50),
            runStage: String(bridge.stage || "").slice(0, 80), verified: false, teams };
@@ -368,6 +368,28 @@ function caseMember(outDir, name) {
 
 const CASE_MAX_DRAWINGS = 40;
 
+const CASE_STAGES = ["simple", "moving", "joints", "lid"];
+const CASE_GROUPS = ["frame", "glue-on", "moving", "joints", "lid"];
+const CASE_PART_STATUSES = new Set(["waiting", "working", "testing", "valid", "note", "done"]);
+
+/**
+ * The case waterfall's stage status (harness-written case/stages.json, or its copy on the team
+ * preview): per stage and per part, the status chip the parts list shows. Unknown values drop.
+ */
+export function caseStages(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.stages)) return null;
+  const stages = data.stages.slice(0, CASE_STAGES.length).filter(item => item && CASE_STAGES.includes(item.name) &&
+    CASE_PART_STATUSES.has(item.status)).map(item => ({ name: item.name, status: item.status,
+    parts: (Array.isArray(item.parts) ? item.parts : []).filter(part => typeof part === "string").slice(0, 200).map(part => part.slice(0, 120)) }));
+  const parts = {};
+  for (const [name, info] of Object.entries(data.parts && typeof data.parts === "object" ? data.parts : {}).slice(0, 400)) {
+    if (info && CASE_STAGES.includes(info.stage) && CASE_GROUPS.includes(info.group) && CASE_PART_STATUSES.has(info.status)) {
+      parts[name.slice(0, 120)] = { stage: info.stage, group: info.group, status: info.status };
+    }
+  }
+  return stages.length ? { stages, parts, current: CASE_STAGES.includes(data.current) ? data.current : null } : null;
+}
+
 /** Engineering sheets the harness drew from the exported STEP files (case/out/drawings/index.json). */
 function caseDrawings(outDir, url) {
   const dir = path.join(outDir, "drawings");
@@ -495,6 +517,8 @@ function scanCase(rootDir, url, stem) {
   }
 
   result.drawings = caseDrawings(outDir, url);
+  const stages = caseStages(readJson(path.join(rootDir, CASE_DIR, "stages.json")));
+  if (stages) result.stages = stages;
   const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
   if (fs.existsSync(intent)) result.intentUrl = url(intent);
   const report = path.join(rootDir, CASE_REPORT);

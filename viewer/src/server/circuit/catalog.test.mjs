@@ -77,6 +77,7 @@ test("the case team's draft STL parts ride on the team preview, bounded and neve
   assert.deepEqual(models.map(m => [m.name, m.printable]), [["shell", true], ["ref_DO_NOT_PRINT_servo", false]]);
   assert.match(models[0].stlUrl, /\/projects\/p1\/\.circuit\/team-previews\/current\/case\/case\/out\/shell\.stl\?v=/);
   assert.equal(catalog.teamPreview.teams.board.models, undefined);
+  assert.equal(catalog.teamPreview.teams.case.stages, null);
   fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "candidate_ready", teamReady: true }));
   assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "p1" }).teamPreview, undefined);
 });
@@ -531,6 +532,11 @@ test('Case lists the harness-drawn engineering sheets kept inside case/out/drawi
   const drawings=read().drawings;
   assert.deepEqual(drawings.map(d=>[d.name,d.title,d.kind]),[['assembly','Crab — assembly','assembly'],['frame','frame ×2','part']]);
   assert.match(drawings[0].url,/case\/out\/drawings\/assembly\.svg\?v=/);
+  // the waterfall's stage status rides on the accepted case
+  assert.equal(read().stages,undefined);
+  fs.writeFileSync(path.join(dir,'case/stages.json'),JSON.stringify({finished:true,stages:[{name:'simple',status:'done',parts:['frame']}],
+    parts:{frame:{stage:'simple',group:'frame',status:'done'}}}));
+  assert.deepEqual(read().stages.parts.frame,{stage:'simple',group:'frame',status:'done'});
 });
 
 test('project overview is available before a board only from an explicit confined HTML manifest member', t => {
@@ -617,4 +623,15 @@ test("team run state outside the project or half-written is skipped", () => {
   fs.mkdirSync(path.join(dir, ".circuit/team-runs/r002/.pilot"), { recursive: true });
   fs.writeFileSync(path.join(dir, ".circuit/team-runs/r002/.pilot/state.json"), "{\"status\":");
   assert.equal(scanTeamRuns(dir), null);
+});
+
+test("case stage status: only known stages, groups and statuses reach the parts list", async () => {
+  const { caseStages } = await import("./catalog.mjs");
+  assert.equal(caseStages(null), null);
+  assert.equal(caseStages({ stages: [] }), null);
+  const stages = caseStages({ current: "moving", stages: [{ name: "simple", status: "valid", parts: ["frame", 3] },
+    { name: "covers", status: "valid" }, { name: "moving", status: "great" }],
+    parts: { frame: { stage: "simple", group: "frame", status: "valid" }, x: { stage: "simple", group: "skin", status: "valid" } } });
+  assert.deepEqual(stages, { current: "moving", stages: [{ name: "simple", status: "valid", parts: ["frame"] }],
+    parts: { frame: { stage: "simple", group: "frame", status: "valid" } } });
 });

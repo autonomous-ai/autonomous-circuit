@@ -1273,6 +1273,8 @@ def worker_prompt(state, role, stage):
                     'available; report and repair any mismatch during integration. Read print/events.jsonl '
                     'when present as the read-only record of actual print confirmations and failures before '
                     'repairing parts. ' + CASE_DOCS_SPLIT)
+        if role == 'case' and stage == 'case':
+            task += CASE_WATERFALL_RULE
         checking = (CASE_AUTO_CHECK_RULE if role == 'case' else
                     'While repairing, run only the '
                     'checks that cover what you changed, at a coarser sampling when that still shows the '
@@ -1512,6 +1514,10 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         'facts or parts cannot currently be verified. Only for a team_dispute (builder and '
         'tester stuck on the same files) you may choose waive when the tester\'s finding is '
         'unreasonable for this contract; cite each waived file as an action with the reason. '
+        'For a case_waterfall_end (every case stage is closed, with notes or a failing native check) '
+        'choose waive to accept the notes as the person\'s list, or repair with actions naming only the '
+        'exact case/out part files (or a stage name) that must change, minimally, with the reason; '
+        'that is the only time a passed part may change; a waive cites case/NOTES.md. '
         'Never waive a native, safety or polarity defect. For decisions other than interface_change, '
         'changedFields must be empty. Each action must cite an existing file in this worktree; '
         'for a failed final native check it may instead name the exact missing artifact inside '
@@ -1562,7 +1568,7 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
                                   sum(owns(role, action['path']) for role in ROLES) == 1)
         if not path.is_file() and not missing_final_artifact:
             raise ValueError('Lead advice must cite an existing worker file')
-    if advice['decision'] == 'waive' and problem.get('kind') != 'team_dispute':
+    if advice['decision'] == 'waive' and problem.get('kind') not in ('team_dispute', 'case_waterfall_end'):
         raise ValueError('Lead may waive only a stuck tester finding')
     if advice['decision'] == 'interface_change':
         # Leads cite paths such as "interfaces.pins[8].pin"; replan by top-level field.
@@ -1622,7 +1628,7 @@ def _tester_model(state, role=None):
 CASE_MEASURE_RULE = ('In case/interfaces.json declare every joint (originMm, axis, rangeDeg, moves, clearOf, minClearanceMm), '
                      'every wire with at least two routes, and every fit a person must make with the coupon part that '
                      'tests it, using [] where there are none. The test kit must cover every mate, including how each '
-                     'device is held. The checker measures these on the exported files and reports pass, review, '
+                     'device is held or glued on. The checker measures these on the exported files and reports pass, review, '
                      'unverified or fail: fix every fail and unverified, and look at each review. Export STL at about '
                      'a tenth of the smallest clearance. ')
 CASE_DOCS = 'case-docs'
@@ -1639,18 +1645,39 @@ CASE_TESTER_NOTE = (
     'NATIVE CHECK caseAutoCheck holds the case checks the harness itself ran on this worktree: the '
     'scripts declared in case/checks.json and kicadpy.case check. A fail is a measured defect; '
     'unverified means it was not measured and is never a pass; review needs your look. Open the cited '
-    'report files for detail; do not rerun long sweeps. ')
+    'report files for detail; do not rerun long sweeps. When caseWaterfall is present the case is built '
+    'stage by stage: review only its current stage and that stage\'s parts; a stage that is closed is '
+    'frozen and its notes are on the person\'s list, so never ask for a closed part to change and never '
+    'block on a note; on a followUp review only the new parts. A separate holder or tray glued on with 502 (CA glue) is a valid way to hold a '
+    'device; do not ask for the frame to be redrawn, or for slots or pegs, instead. ')
 CASE_DOCS_TESTER_NOTE = (
     'Print plates, slicing, case/overview.html, case/README.md and assembly steps are made after your '
     'approval by a separate case-docs member; do not cite their absence. ')
 CASE_DOCS_SPLIT = ('A separate case-docs member arranges the print plates, slices them, and writes '
                    'case/overview.html, case/README.md, assembly steps and case/PRINTED-INVENTORY.md after '
                    'your CAD passes its tester; do not do those. ')
+GLUE_ON_RULE = ('Build modular: when a battery, board or other device has no place, do not redraw the frame '
+                'and do not reserve slots or pegs for it; draw a separate small holder or tray module that the '
+                'person glues onto the frame with 502 (CA glue), with a flat glue face. Keep it simple. ')
+CASE_WATERFALL_RULE = (
+    'Build the case as a light waterfall, one stage per turn, in this order: simple parts (the frame or box '
+    'and small parts, including glue-on holders), then moving parts, then joints and snap fits, then a lid '
+    'only if the brief or a release note asks. In case/checks.json declare "stages": {"simple": {"parts": '
+    '[part names]}, ...} for the stages that apply, and give every check its "stage" (and for a moving part '
+    '"kind": "print" for printability or "motion" for the collision, jam and envelope sweep) and the '
+    '"parts" it tests; list glue-on holders under "glueOn" in the simple stage. Simple parts '
+    'need a printability and defect check. Build only the current stage, then end your turn: the harness '
+    'checks it right away. A check gets two repair tries, then the harness writes a NOTE in case/NOTES.md '
+    '(the one list the person reads; never edit it) and moves to the next stage. Never rework a part of a '
+    'stage that is closed; the harness restores any change, and does not rerun its checks. Only the lead, '
+    'at the very end, may let a passed part change. On a follow-up request ("add X") build and check only '
+    'the new part; list an earlier part under "rework" in case/checks.json only when the request names it. '
+    'Do exactly what was asked, nothing extra. ')
 SKELETON_RULE = ('Build the structure like bones: an open skeleton of braced bars and cross-members, not a closed '
                  'box, closed cups or sheet walls. Carry load through short, braced bars with no thin part hanging '
                  'free. If one wire route is blocked another must be open, so leave several open routes that pass '
-                 'the real connector housings. Every device must be held by the frame alone. Add skin, covers or '
-                 'an enclosure only if the brief or a release note explicitly asks. ')
+                 'the real connector housings. Every device must be held by the frame or by a glue-on module. Add '
+                 'skin, covers or an enclosure only if the brief or a release note explicitly asks. ' + GLUE_ON_RULE)
 TESTER_RULES = (
     'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
     'cannot build, flash or do the core job in the brief; an electrical fault can damage hardware or '
@@ -1837,12 +1864,26 @@ def _case_check_inputs(worktree):
     digest = hashlib.sha256(_case_cad_digest(worktree).encode())
     for name, info in sorted(snapshot(worktree).items()):
         if (owns('case', name) and not name.startswith(('case/out/', 'case/reports/', 'build/case/')) and
-                name not in CASE_DOCS_FILES and not name.startswith(CASE_DOCS_DIRS)):
+                name not in CASE_DOCS_FILES and not name.startswith(CASE_DOCS_DIRS) and
+                name not in ('case/NOTES.md', 'case/stages.json')):  # the waterfall's own files
             digest.update(name.encode() + b'\0' + info['sha256'].encode())
     return digest.hexdigest()
 
 
-def run_case_checks(worktree, env, case_python, root=None):
+def _earlier_case_fits(workspace):
+    """Does the accepted case still fit the current board? Only then is a follow-up scoped to new parts."""
+    from .case import status
+    from .case_checks import handwired
+    try:
+        if handwired(workspace):
+            report = json.loads((Path(workspace) / 'case/reports/print-check.json').read_text())
+            return report.get('verdict', 'pass' if report.get('passed') else 'fail') in ('pass', 'review')
+        return status(workspace)[0] == 'passed'
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def run_case_checks(worktree, env, case_python, root=None, reuse=None):
     """The machine-run case checks; tests replace this.
 
     The scripts are agent-written, so on macOS they run in the same sandbox as a Claude builder:
@@ -1851,7 +1892,7 @@ def run_case_checks(worktree, env, case_python, root=None):
     from . import case_checks
     prefix = (['/usr/bin/sandbox-exec', '-p', _claude_sandbox(worktree, root)]
               if root is not None and Path('/usr/bin/sandbox-exec').is_file() else [])
-    return case_checks.run(worktree, env, case_python=case_python, prefix=prefix)
+    return case_checks.run(worktree, env, case_python=case_python, prefix=prefix, reuse=reuse)
 
 
 def run_case_drawings(worktree, env, case_python, root=None):
@@ -1893,7 +1934,9 @@ def case_docs_prompt(state, stage, attempt):
         'sources as they are; the controller rejects a change to the checked parts. Your task: arrange '
         'the native production and TEST print plates from the actual parts (bound in '
         'case/out/parts.json printProject), slice them, and write case/overview.html (the interactive '
-        'overview), case/README.md (the assembly and overview entry point), case/assembly_steps.json and '
+        'overview), case/README.md (the assembly and overview entry point, which '
+        'links case/NOTES.md: the harness\'s one list of notes for the person, which you never edit), '
+        'case/assembly_steps.json and '
         'case/PRINTED-INVENTORY.md. Read print/events.jsonl when present as the read-only record of '
         'actual print confirmations and failures before assigning plates; never infer a print from a '
         'printer job marked complete. The harness drew engineering sheets from the exported STEP files '
@@ -1990,6 +2033,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         # An integration repair re-checks only what the integration tester cited for this team.
         recheck = ([finding for finding in guidance['integration']['findings'] if owns(role, finding['path'])]
                    if isinstance(guidance, dict) and 'integration' in guidance else None)
+        recheck_from_integration = recheck
         timeout_advised = False
         team_started = _stage_clock()
         waivers = [item for item in load_waivers(root) if item.get('stage') == stage]
@@ -1998,6 +2042,10 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         docs_on = case_team and bool(state.get('caseDocsModel'))
         auto_check, check_runs, docs_runs = None, 0, 0
         drawings = None
+        # The case build waterfall (case_waterfall): engaged once case/checks.json declares stages.
+        waterfall, waterfall_turns = None, 0
+        waterfall_file = root / '.pilot/case-waterfall' / f'{dest.name}.json'
+        waterfall_stash = root / '.pilot/case-waterfall' / f'{dest.name}-frozen'
         # With a case-docs member, findings on its files wait for its turn instead of the CAD loop.
         docs_findings = []
         if docs_on and recheck:
@@ -2039,7 +2087,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                 raise ExternalBlocker(advice['summary'])
             return advice
 
-        def case_auto_check():
+        def case_auto_check(reuse=None):
             """Run the declared case checks and the native case checker; no model is involved."""
             nonlocal auto_check, check_runs
             inputs = _case_check_inputs(dest)
@@ -2054,7 +2102,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             tool_root = Path(state['toolchainRoot'])
             try:
                 summary = run_case_checks(dest, _cli_env(root, state, dest),
-                                          str(tool_root / 'harness/kicad/toolchain/case-python'), root)
+                                          str(tool_root / 'harness/kicad/toolchain/case-python'), root,
+                                          **({'reuse': reuse} if reuse else {}))
             finally:
                 _reap_worktree_processes(root, dest)
             if any(not owns('case', name) for name in changed(before_check, snapshot(dest))):
@@ -2166,6 +2215,219 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             case_auto_check()
             return None
 
+        def waterfall_save(phase=None):
+            """Persist the ledger out of the builder's reach; regenerate the notes list and the stage status."""
+            from . import case_waterfall
+            write(waterfall_file, waterfall)
+            status = case_waterfall.status_document(waterfall, phase, case_waterfall.glue_on(dest))
+            for name, text in ((case_waterfall.NOTES_FILE, case_waterfall.notes_markdown(waterfall)),
+                               (case_waterfall.STATUS_FILE, json.dumps(status, indent=1, sort_keys=True) + '\n')):
+                target = dest / name
+                if target.is_symlink():
+                    target.unlink()
+                if not target.is_file() or target.read_text(errors='replace') != text:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(text)
+
+        def waterfall_freeze(name, parts=None, source=None):
+            """A closed stage's parts are frozen: their bytes are stashed for restoring."""
+            from . import case_waterfall
+            source = source or dest
+            names = waterfall['parts'].get(name, []) if parts is None else parts
+            for part, path in case_waterfall.part_paths(source, names):
+                data = (source / path).read_bytes()
+                blob = hashlib.sha256(data).hexdigest()
+                waterfall_stash.mkdir(parents=True, exist_ok=True)
+                (waterfall_stash / blob).write_bytes(data)
+                stage_of = next((key for key, members in waterfall['parts'].items() if part in members), name)
+                waterfall['frozen'][path] = {'digest': case_waterfall.digest(source / path), 'blob': blob,
+                                             'stage': stage_of, 'part': part}
+
+        def waterfall_restore():
+            """Undo a change to a frozen part; it is never reworked, and the note says so."""
+            from . import case_waterfall
+            for path, frozen in sorted(waterfall['frozen'].items()):
+                target = dest / path
+                if target.is_file() and not target.is_symlink() and \
+                        case_waterfall.digest(target) == frozen['digest']:
+                    continue
+                if target.is_symlink():
+                    target.unlink()
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((waterfall_stash / frozen['blob']).read_bytes())
+                case_waterfall.note(waterfall, frozen['stage'], 'frozen',
+                                    f'{path} passed earlier and was changed by a later turn; restored')
+
+        def waterfall_review(name, blockers):
+            """The tester looks at the current stage only; frozen and docs findings do not block it."""
+            nonlocal docs_findings
+            from . import case_waterfall
+            from .case_checks import brief
+            evidence = {'caseAutoCheck': brief(auto_check), 'caseWaterfall': case_waterfall.brief(waterfall)}
+            if blockers:
+                evidence['blockers'] = blockers
+            publish('checking')
+            test = team_test(root, state, role, stage, dest, evidence, runner,
+                             authorized_integration=authorized_integration,
+                             integration_lock=integration_lock, waivers=waivers, recheck=recheck)
+            test = _apply_waivers(dest, test, waivers)
+            kept = []
+            for item in test['findings']:
+                if docs_on and _case_docs_path(item['path']):
+                    if item not in docs_findings:
+                        docs_findings.append(item)
+                elif item['path'] in waterfall['frozen']:
+                    case_waterfall.note(waterfall, waterfall['frozen'][item['path']]['stage'], 'tester',
+                                        f"{item['path']}: {item['message']}")
+                else:
+                    kept.append(item)
+            return {**test, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
+
+        def waterfall_prompt(extra):
+            from . import case_waterfall
+            return (worker_prompt(state, role, stage) + '\n\n' + notes_for_role(root, role) +
+                    case_waterfall.prompt_text(waterfall) + extra + case_checks_text() +
+                    '\nContinue in this same worktree. The harness reruns the case checks after your turn. '
+                    'Preserve the original contract and release notes.')
+
+        def waterfall_turn(result):
+            """One case builder turn under the waterfall: ('prompt', text), ('passed', None) or None (old loop)."""
+            nonlocal waterfall, waterfall_turns, recheck, deadline, advice_rounds
+            from . import case_waterfall
+            from .case_checks import brief
+            if waterfall is not None and waterfall.get('finished'):
+                return None
+            stages, problems = case_waterfall.plan(dest)
+            if waterfall is None and waterfall_file.is_file():
+                try:  # a retried job on the same worktree keeps its closed stages
+                    waterfall = json.loads(waterfall_file.read_text())
+                except (OSError, ValueError):
+                    waterfall = None
+            if waterfall is None:
+                if not stages:
+                    return None
+                waterfall = case_waterfall.start(stages)
+                # A follow-up ("add X") after an accepted case: what it closed stays closed and frozen.
+                try:
+                    earlier_status = json.loads((workspace / case_waterfall.STATUS_FILE).read_text())
+                except (OSError, ValueError):
+                    earlier_status = None
+                earlier = (case_waterfall.previous_parts(earlier_status) - set(case_waterfall.rework(dest))
+                           if _earlier_case_fits(workspace) else set())
+                if earlier:
+                    waterfall_freeze('simple', sorted(earlier), workspace)
+                    case_waterfall.seed(waterfall, earlier_status, case_waterfall.frozen_parts(waterfall))
+            elif stages:
+                case_waterfall.update_plan(waterfall, stages)
+            waterfall_turns += 1
+            waterfall['turns'] = waterfall_turns
+            waterfall_restore()
+            waterfall_save('testing')  # the viewer shows the stage under test while the checks run
+            from .case_checks import declared
+            case_auto_check(case_waterfall.reuse_for(waterfall, declared(dest)[0]))
+            name = case_waterfall.current(waterfall)
+            for blocker in result['blockers']:
+                case_waterfall.note(waterfall, name or 'lid', 'blocker', blocker)
+            extra = ('\nFIX THE STAGE PLAN IN case/checks.json: ' + '; '.join(problems)) if problems else ''
+            if name is not None:
+                keys = case_waterfall.stage_keys(auto_check, name)
+                review = None
+                if not case_waterfall.machine_open(waterfall, name, keys):
+                    review = waterfall_review(name, result['blockers'])
+                status = case_waterfall.advance(waterfall, name, keys, review)
+                if status == 'open' and review is None and not case_waterfall.machine_open(waterfall, name, keys):
+                    # The failing checks just ran out of tries (now notes): the tester looks right away.
+                    review = waterfall_review(name, result['blockers'])
+                    status = case_waterfall.advance(waterfall, name, keys, review)
+                if status != 'open':
+                    case_waterfall.record_checks(waterfall, name, auto_check)
+                    waterfall_freeze(name)
+                    recheck = None  # a new stage gets a full look, never an empty auto-approval
+                elif review is not None:
+                    recheck = review['findings']
+                if _stage_clock() - team_started > TEAM_ROLE_WALL_SECONDS or \
+                        waterfall_turns >= case_waterfall.MAX_TURNS:
+                    case_waterfall.close_all(waterfall, 'the case team ran out of its time or turn budget')
+                if not case_waterfall.done(waterfall):
+                    if status == 'open':
+                        extra += ('\nSTAGE CHECK RESULT: ' + json.dumps(
+                            {key: {'level': level, 'message': message} for key, (level, message) in keys.items()},
+                            sort_keys=True))
+                        if review is not None and review['findings']:
+                            extra += ('\nINDEPENDENT TESTER FINDINGS FOR THIS STAGE:\n' +
+                                      json.dumps(review, sort_keys=True) +
+                                      _repair_context(dest, role, review['findings']))
+                        publish('needs_revision', [f'{name}: {message}' for key, (level, message)
+                                                   in keys.items() if level in case_waterfall.FAILING] or
+                                (review or {}).get('findings', []))
+                    else:
+                        publish('draft', [f'{name} {status}; next {case_waterfall.current(waterfall)}'])
+                    waterfall_save()
+                    deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
+                                else _stage_clock() + budget)
+                    return 'prompt', waterfall_prompt(extra)
+            # Every stage is closed: the end step, then the old path (drawings, case-docs).
+            if waterfall['end'] == 'repair' and not waterfall['endTurn']:
+                waterfall['endTurn'] = True
+                for entry in auto_check['checks']:
+                    if entry['level'] in case_waterfall.FAILING:
+                        case_waterfall.note(waterfall, entry.get('stage', 'lid'), entry['name'],
+                                            'still failing after the lead\'s end repair: ' + entry['message'])
+            elif waterfall['end'] is None:
+                native = next((entry for entry in auto_check['checks'] if entry['name'] == 'native'), None)
+                if waterfall['notes'] or (native and native['level'] in case_waterfall.FAILING):
+                    advice = advise(root, state, stage, dest,
+                                    {'kind': 'case_waterfall_end', 'waterfall': case_waterfall.brief(waterfall),
+                                     'caseAutoCheck': brief(auto_check)},
+                                    runner, stage_deadline=_stage_clock() + TIMEOUT_ADVICE_SECONDS,
+                                    authorized_integration=authorized_integration,
+                                    integration_lock=integration_lock)
+                    with ACTIVE_LOCK:
+                        state['advisorCalls'] = state.get('advisorCalls', 0) + 1
+                    if advice['decision'] == 'interface_change':
+                        raise ContractRevisionRequired(advice['summary'] + ': ' +
+                                                       ', '.join(advice['changedFields']),
+                                                       advice['changedFields'])
+                    if advice['decision'] == 'external_blocker':
+                        raise ExternalBlocker(advice['summary'])
+                    actions = advice['actions'] if advice['decision'] == 'repair' else []
+                    waterfall['end'] = 'repair' if actions else 'waive'
+                    waterfall['endSummary'] = advice['summary'][:500]
+                    if actions:
+                        # Only now may a passed part change: exactly the files the lead names.
+                        named = {action['path'] for action in actions}
+                        for path in [path for path, frozen in waterfall['frozen'].items()
+                                     if path in named or frozen['stage'] in named]:
+                            del waterfall['frozen'][path]
+                        recheck = None
+                        waterfall_save()
+                        deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
+                                    else _stage_clock() + budget)
+                        publish('needs_revision', [advice['summary']])
+                        return 'prompt', waterfall_prompt(
+                            '\nLEAD END REVIEW (one minimal repair; change only what it names, '
+                            'and say why in case/DEVIATIONS.md):\n' + json.dumps(advice, sort_keys=True))
+                else:
+                    waterfall['end'] = 'clean'
+            waterfall['finished'] = True
+            waterfall_save()
+            # Plates, slicing, README and overview come after the CAD: the case-docs member, or with
+            # none configured the builder's model in the same geometry-locked docs turn.
+            case_drawings()
+            problem = case_docs()
+            waterfall_save()  # the case-docs member never owns the notes list
+            if problem is None:
+                publish('passed')
+                return 'passed', None
+            # A case-docs blocker after the waterfall: the old bounded repair loop takes over.
+            advice_rounds += 1
+            publish('needs_revision', [str(problem)])
+            return 'prompt', (worker_prompt(state, role, stage) + '\n\n' + notes_for_role(root, role) +
+                              '\nCASE-DOCS BLOCKERS (repair the geometry they cite; this is the very end, '
+                              'so a passed part may change minimally, with the reason in case/DEVIATIONS.md):\n' +
+                              json.dumps(problem, sort_keys=True) + case_checks_text() +
+                              '\nContinue in this same worktree. The harness reruns the case checks after your turn.')
+
         try:
             publish('queued')
             while True:
@@ -2213,6 +2475,15 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                        for name in changed(baseline, after_worker)):
                     raise ValueError('Late repair changed a protected board artifact')
                 publish('draft', result['blockers'])
+                # The waterfall builds the case once; an integration repair or the final pass
+                # repairs what was cited, on the old loop.
+                if case_team and stage == 'case' and recheck_from_integration is None:
+                    outcome = waterfall_turn(result)
+                    if outcome is not None:
+                        if outcome[0] == 'passed':
+                            return role, stage, dest, pointer, receipt, None, None
+                        prompt = outcome[1]
+                        continue
                 problem = None
                 checks = None
                 if result['blockers']:
