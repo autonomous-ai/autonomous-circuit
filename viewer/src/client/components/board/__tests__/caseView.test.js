@@ -153,3 +153,19 @@ test("an accepted case wins; otherwise the case team's draft parts show as an un
   assert.match(drawingMessage("r002"), /still drawing \(run r002\)/);
   assert.equal(DRAFT_PRINT_LABEL, "Đang vẽ… chưa in được");
 });
+
+test("waterfall status groups parts as Khung, Khay dán, Chân, Khớp, Nắp with a chip each", async () => {
+  const { stageGroups, partStatus, PART_STATUS } = await import("../caseView.js");
+  const parts = [{ name: "frame" }, { name: "battery_tray" }, { name: "leg_FL" }, { name: "pin" }, { name: "coupon" }];
+  const stages = { stages: [{ name: "simple", status: "valid" }, { name: "moving", status: "note" }, { name: "joints", status: "working" }],
+    parts: { frame: { stage: "simple", group: "frame", status: "valid" }, battery_tray: { stage: "simple", group: "glue-on", status: "valid" },
+      leg_FL: { stage: "moving", group: "moving", status: "note" }, pin: { stage: "joints", group: "joints", status: "working" } } };
+  const grouped = stageGroups(parts, stages);
+  assert.deepEqual(grouped.groups.map((g) => [g.label, g.status, g.parts.map((p) => p.name)]),
+    [["Khung", "valid", ["frame"]], ["Khay dán", "valid", ["battery_tray"]], ["Chân", "note", ["leg_FL"]], ["Khớp", "working", ["pin"]]]);
+  assert.deepEqual(grouped.other.map((p) => p.name), ["coupon"]);
+  assert.equal(stageGroups(parts, null), null);
+  assert.equal(partStatus(stages, "leg_FL"), "note");
+  assert.equal(partStatus(stages, "coupon"), null);
+  assert.deepEqual(Object.values(PART_STATUS).map((s) => s.label), ["Chờ", "Đang vẽ", "Đang kiểm", "Đạt", "Ghi chú", "Xong"]);
+});

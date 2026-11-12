@@ -4,7 +4,7 @@ import { cn } from "@/ui/utils";
 import CaseScene from "./CaseScene.jsx";
 import { transport } from "@/lib/transport.ts";
 import {
-  cssColor, defaultVisibility, describeStatus, DRAFT_PRINT_LABEL, drawingMessage, formatBytes, groupPartsByPlate, orderParts, partColors, plateTitle, printNote, resolveCase, roleLabel, summaryChips,
+  cssColor, defaultVisibility, describeStatus, DRAFT_PRINT_LABEL, drawingMessage, formatBytes, PART_STATUS, partStatus, stageGroups, groupPartsByPlate, orderParts, partColors, plateTitle, printNote, resolveCase, roleLabel, summaryChips,
 } from "./caseView.js";
 
 /**
@@ -111,6 +111,18 @@ function usePrintStatus(projectId, boardName, hasCase) {
   return status;
 }
 
+/** A waterfall status chip: Đang vẽ, Đang kiểm, Đạt, Ghi chú, Xong. */
+function StatusChip({ status, slot = "case-part-chip" }) {
+  const chip = PART_STATUS[status];
+  if (!chip) return null;
+  return (
+    <span data-slot={slot} data-status={status} title={chip.title}
+      className={cn("shrink-0 rounded-full border px-1.5 text-[10px] font-medium leading-4", CHIP_TONE[chip.tone] || "border-border text-muted-foreground")}>
+      {chip.label}
+    </span>
+  );
+}
+
 function EmptyState({ hasContract, drawing, run, onOpenTab, className }) {
   return (
     <div data-slot="case-empty" data-drawing={drawing ? "true" : undefined} className={cn("grid min-h-0 flex-1 place-items-center", className)}>
@@ -191,6 +203,7 @@ export default function CaseTab({ artifact = null, teamPreview = null, teamRuns 
   const tone = TONE[status.tone] || TONE.idle;
   const StatusIcon = tone.icon;
   const coupon = parts.find((p) => p.role === "coupon");
+  const byStage = stageGroups(parts, enclosure.stages);
   const chips = summaryChips({ parts, plates: plateParts.groups, state: displayState, sizeMm });
   const focusPlate = (group) => {
     setVisible(Object.fromEntries(parts.map((part) => [part.name, group.parts.some((member) => member.name === part.name)])));
@@ -234,6 +247,7 @@ export default function CaseTab({ artifact = null, teamPreview = null, teamRuns 
           />
           <span data-slot="case-part-swatch" aria-hidden className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: cssColor(colors[part.name]) }} />
           <p className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{part.name}</p>
+          <StatusChip status={partStatus(enclosure.stages, part.name)} />
           <button
             type="button" disabled={saving || !projectId || Boolean(draft)} onClick={() => save("stl", part.name)}
             data-slot="case-download-stl" title={draft ? "A draft cannot be saved: wait for the case team to finish" : "Save this part as STL"}
@@ -432,7 +446,28 @@ export default function CaseTab({ artifact = null, teamPreview = null, teamRuns 
         ) : (
           <div className="flex flex-col gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-foreground">Case parts</h2>
-            <ul aria-label="Case parts" className="flex flex-col gap-1">{parts.map(partRow)}</ul>
+            {byStage ? (
+              <>
+                {byStage.groups.map((group) => (
+                  <section key={group.id} data-slot="case-stage-group" data-group={group.id} className="flex flex-col gap-1">
+                    <h3 className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+                      <span>{group.label}</span>
+                      <span className="text-muted-foreground">· {group.parts.length}</span>
+                      <StatusChip status={group.status} slot="case-stage-chip" />
+                    </h3>
+                    <ul aria-label={`${group.label} parts`} className="flex flex-col gap-1">{group.parts.map(partRow)}</ul>
+                  </section>
+                ))}
+                {byStage.other.length ? (
+                  <section data-slot="case-stage-group" data-group="other" className="flex flex-col gap-1">
+                    <h3 className="text-[11px] font-semibold text-foreground">Khác</h3>
+                    <ul aria-label="Other parts" className="flex flex-col gap-1">{byStage.other.map(partRow)}</ul>
+                  </section>
+                ) : null}
+              </>
+            ) : (
+              <ul aria-label="Case parts" className="flex flex-col gap-1">{parts.map(partRow)}</ul>
+            )}
           </div>
         )}
       </aside>

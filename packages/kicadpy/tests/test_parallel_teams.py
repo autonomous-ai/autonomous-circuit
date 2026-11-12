@@ -2,6 +2,7 @@
 import functools
 import os
 import json
+import re
 from pathlib import Path
 import shutil
 import tempfile
@@ -895,6 +896,60 @@ class CaseCrewRunner(TeamRunner):
         return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
 
 
+class WaterfallRunner(CaseCrewRunner):
+    """A case builder that works stage by stage; `script` gives each stage's check levels per turn."""
+
+    PARTS = {'simple': ['frame', 'battery_tray'], 'moving': ['leg'], 'joints': ['pin']}
+
+    def __init__(self, script, advice=None, rework_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.script = {key: list(levels) for key, levels in script.items()}
+        self.advice = advice
+        self.rework_at = rework_at
+        self.stages_seen = []
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        if stage == 'case':
+            with self.lock:
+                self.prompts.setdefault(stage, []).append(prompt)
+                self.order.append((stage, model))
+            turn = len(self.prompts['case'])
+            match = re.search(r'Current stage: (\w+)', prompt)
+            current = match.group(1) if match else ('*' if 'Every stage is closed' in prompt else 'simple')
+            self.stages_seen.append(current)
+            parts = [{'name': name, 'role': 'other', 'stl': name + '.stl'}
+                     for names in self.PARTS.values() for name in names]
+            put(workspace, 'case/out/parts.json', json.dumps({'parts': parts}))
+            for names in self.PARTS.values():
+                for name in names:
+                    path = workspace / 'case/out' / (name + '.stl')
+                    if not path.exists():
+                        put(workspace, f'case/out/{name}.stl', f'solid {name}')
+            if self.rework_at == turn:
+                put(workspace, 'case/out/frame.stl', 'solid frame reworked')
+            checks = [{'name': f'{name}-{kind}', 'script': 'tools/case/check.py', 'report': 'case/r.json',
+                       'stage': name, 'parts': self.PARTS.get(name, []), **({'kind': kind} if kind != 'check' else {})}
+                      for name, kind in self.script]
+            stages = {name: {'parts': names} for name, names in self.PARTS.items()}
+            stages.setdefault('simple', {})['glueOn'] = [name for name in self.PARTS.get('simple', [])
+                                                         if 'tray' in name]
+            put(workspace, 'case/checks.json', json.dumps({'stages': stages, 'checks': checks}))
+            put(workspace, 'tools/case/check.py', 'pass\n')
+            levels = {f'{name}-{kind}': (levels.pop(0) if len(levels) > 1 else levels[0])
+                      for (name, kind), levels in self.script.items() if current in (name, '*')}
+            put(workspace, 'case/levels.json', json.dumps(levels))
+            put(workspace, 'case/frame.txt', 'case output ' + str(turn))
+            return _receipt(stage, model, {'contractSha256': state['contractSha256'], 'stage': stage,
+                                           'summary': 'stage ' + current, 'blockers': []})
+        if stage == 'case-advice':
+            with self.lock:
+                self.prompts.setdefault(stage, []).append(prompt)
+                self.order.append((stage, model))
+            return _receipt(stage, model, {'contractSha256': state['contractSha256'], 'stage': 'case',
+                                           'changedFields': [], **self.advice})
+        return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
 class CaseCrewTests(unittest.TestCase):
     """v17e: the case builder did CAD, sweeps, plates, slicing and docs alone for 2.5 h."""
 
@@ -943,6 +998,182 @@ class CaseCrewTests(unittest.TestCase):
         self.assertEqual(json.loads(reports[0].read_text())['verdict'], 'fail')
         # board and firmware keep their own checks
         self.assertNotIn('caseAutoCheck', runner.prompts['firmware-test'][0])
+
+
+    def waterfall_checks(self):
+        """Each check reports what the builder's script says for the stage it just built."""
+        self.reused = []
+
+        def run(worktree, env, case_python, root=None, reuse=None):
+            self.check_calls.append((Path(worktree), case_python, env.get('KICAD_CASE_PYTHON')))
+            self.reused.append(sorted(reuse or {}))
+            declared = json.loads((Path(worktree) / 'case/checks.json').read_text())['checks']
+            levels = json.loads((Path(worktree) / 'case/levels.json').read_text())
+            checks = [{'name': item['name'], 'stage': item['stage'], 'kind': item.get('kind', 'check'),
+                       'level': levels.get(item['name'], 'pass'),
+                       'message': 'leg hits body at 40 deg' if 'motion' in item['name'] else 'ok',
+                       'seconds': 1.0} for item in declared]
+            checks.append({'name': 'native', 'level': 'pass', 'message': 'fits', 'seconds': 1.0})
+            return {'schema': 1, 'verdict': 'pass', 'seconds': 1.0, 'checkedAt': 'now', 'checks': checks}
+        return patch.object(parallel, 'run_case_checks', side_effect=run)
+
+    def test_waterfall_builds_stage_by_stage_notes_after_two_tries_and_never_reworks(self):
+        runner = WaterfallRunner({('simple', 'check'): ['fail', 'pass'],
+                                  ('moving', 'print'): ['pass'],
+                                  ('moving', 'motion'): ['fail', 'fail', 'fail', 'pass'],
+                                  ('joints', 'check'): ['fail', 'fail', 'fail', 'pass'],
+                                  ('lid', 'check'): ['fail', 'pass']},
+                                 advice={'decision': 'waive', 'summary': 'Accept the notes',
+                                         'actions': [{'path': 'case/NOTES.md', 'message': 'the notes stand'}]},
+                                 rework_at=4)
+        runner.PARTS = {**WaterfallRunner.PARTS, 'lid': ['lid']}
+        with self.waterfall_checks():
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        # simple: build + 1 repair; moving: build + 2 repairs, then a NOTE; joints the same; lid + 1
+        self.assertEqual(runner.stages_seen, ['simple', 'simple', 'moving', 'moving', 'moving',
+                                              'joints', 'joints', 'joints', 'lid', 'lid'])
+        # more builder turns than the old repair bound (8 rounds), and no "remains open"
+        self.assertEqual(len(runner.prompts['case']), 10)
+        # with no case-docs member the builder's model still makes plates and the README, after the CAD
+        case_order = [stage for stage, _ in runner.order if stage.startswith('case')]
+        self.assertEqual(case_order[-1], 'case-docs')
+        self.assertIn('case/NOTES.md', runner.prompts['case-docs'][0])
+        self.assertEqual((root / 'workspace/case/README.md').read_text(), 'Assembly guide by docs')
+        first = runner.prompts['case'][0]
+        self.assertIn('light waterfall', first)
+        self.assertIn('502 (CA glue)', first)
+        self.assertIn('do not reserve slots or pegs', first)
+        self.assertIn('Current stage: moving', runner.prompts['case'][2])
+        self.assertIn('Closed stages (never rework their parts', runner.prompts['case'][2])
+        self.assertIn('case/out/frame.stl', runner.prompts['case'][2])
+        # the tester waits while a machine check fails, and every stage gets a full look
+        tests = runner.prompts['case-test']
+        self.assertEqual(len(tests), 4)
+        self.assertTrue(all('caseWaterfall' in prompt for prompt in tests))
+        self.assertIn('review only its current stage', tests[0])
+        self.assertTrue(all('RE-TEST' not in prompt for prompt in tests))
+        # one end review by the lead, with the notes
+        self.assertEqual(len(runner.prompts['case-advice']), 1)
+        self.assertIn('case_waterfall_end', runner.prompts['case-advice'][0])
+        workspace = root / 'workspace'
+        # the frame passed in the simple stage: the moving-stage rework was undone
+        self.assertEqual((workspace / 'case/out/frame.stl').read_text(), 'solid frame')
+        notes = (workspace / 'case/NOTES.md').read_text()
+        self.assertIn('Moving parts** (motion): still failing after 2 repair tries', notes)
+        self.assertIn('leg hits body at 40 deg', notes)
+        self.assertIn('Joints and snap fits** (check)', notes)
+        self.assertIn('frame.stl passed earlier and was changed by a later turn; restored', notes)
+        self.assertIn('Lead review at the end: waive', notes)
+        ledger = json.loads((root / '.pilot/case-waterfall/r001-case.json').read_text())
+        self.assertEqual({name: entry['status'] for name, entry in ledger['stages'].items()},
+                         {'simple': 'passed', 'moving': 'noted', 'joints': 'noted', 'lid': 'passed'})
+        # a closed stage's checks are reused, not rerun
+        self.assertEqual(self.reused[0], [])
+        self.assertEqual(self.reused[2], ['simple-check'])
+        self.assertEqual(self.reused[-1], ['joints-check', 'moving-motion', 'moving-print', 'simple-check'])
+        # the status the viewer's parts list reads
+        status = json.loads((workspace / 'case/stages.json').read_text())
+        self.assertTrue(status['finished'])
+        self.assertEqual([(item['name'], item['status']) for item in status['stages']],
+                         [('simple', 'done'), ('moving', 'note'), ('joints', 'note'), ('lid', 'done')])
+        self.assertEqual(status['parts']['battery_tray'], {'stage': 'simple', 'group': 'glue-on', 'status': 'done'})
+        self.assertEqual(status['parts']['frame']['group'], 'frame')
+        self.assertEqual(status['parts']['leg'], {'stage': 'moving', 'group': 'moving', 'status': 'note'})
+        self.assertEqual(status['checks']['simple-check'], ['pass', 'ok'])
+
+    def test_waterfall_end_repair_may_change_only_the_parts_the_lead_names(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
+                                 advice={'decision': 'repair', 'summary': 'Trim the frame for the leg',
+                                         'actions': [{'path': 'case/out/frame.stl', 'message': 'trim 2 mm'}]},
+                                 rework_at=5)
+        runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
+        with self.waterfall_checks():
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'moving', 'moving', '*'])  # '*': the end repair
+        self.assertIn('LEAD END REVIEW', runner.prompts['case'][4])
+        self.assertIn('trim 2 mm', runner.prompts['case'][4])
+        self.assertEqual(len(runner.prompts['case-advice']), 1)
+        workspace = root / 'workspace'
+        self.assertEqual((workspace / 'case/out/frame.stl').read_text(), 'solid frame reworked')
+        notes = (workspace / 'case/NOTES.md').read_text()
+        self.assertIn("still failing after the lead's end repair", notes)
+        self.assertIn('Lead review at the end: repair', notes)
+
+    def test_a_follow_up_builds_and_checks_only_the_new_part(self):
+        with patch.object(parallel, '_earlier_case_fits', return_value=True):
+            self.follow_up(fits=True)
+
+    def test_a_follow_up_after_the_board_changed_rebuilds_every_stage(self):
+        with patch.object(parallel, '_earlier_case_fits', return_value=False):
+            self.follow_up(fits=False)
+
+    def follow_up(self, fits):
+        root = self.base / 'follow-up'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams')
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['pass'],
+                                  ('joints', 'check'): ['pass']}, rework_at=1,
+                                 advice={'decision': 'waive', 'summary': 'Fine',
+                                         'actions': [{'path': 'case/NOTES.md', 'message': 'restored rework'}]})
+        runner.PARTS = {'simple': ['frame', 'battery_tray', 'cable_tray'], 'moving': ['leg'], 'joints': ['pin']}
+        parallel.plan(root, execute=True, runner=runner)
+        workspace = root / 'workspace'
+        # the accepted earlier case: every part done, its checks' results recorded
+        earlier = ['frame', 'battery_tray', 'leg', 'pin']
+        put(workspace, 'case/out/parts.json', json.dumps({'parts': [
+            {'name': name, 'role': 'other', 'stl': name + '.stl'} for name in earlier]}))
+        for name in earlier:
+            put(workspace, f'case/out/{name}.stl', f'solid {name}')
+        put(workspace, 'case/stages.json', json.dumps({'schema': 1, 'finished': True, 'parts': {
+            name: {'stage': stage, 'group': stage, 'status': 'done'}
+            for stage, names in (('simple', ['frame', 'battery_tray']), ('moving', ['leg']), ('joints', ['pin']))
+            for name in names}, 'checks': {'moving-motion': ['pass', 'clear'], 'joints-check': ['pass', 'ok']}}))
+        parallel.commit(workspace, ['case/out/parts.json', 'case/stages.json'] +
+                        [f'case/out/{name}.stl' for name in earlier], 'Accepted earlier case')
+        with self.waterfall_checks():
+            result = parallel.run(root, execute=True, runner=runner, checker=checker)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        if not fits:  # the earlier case no longer fits the board: nothing is frozen, all stages run
+            self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints'])
+            self.assertEqual(self.reused[0], [])
+            return
+        # only the stage with the new part is built; the others were closed by the earlier run
+        self.assertEqual(runner.stages_seen, ['simple'])
+        self.assertIn('On a follow-up request ("add X") build and check only the new part', runner.prompts['case'][0])
+        self.assertIn('"followUp": true', runner.prompts['case-advice'][0])
+        self.assertEqual(self.reused[0], ['joints-check', 'moving-motion'])
+        # the first turn reworked the frame anyway: it is restored, and noted
+        self.assertEqual((workspace / 'case/out/frame.stl').read_text(), 'solid frame')
+        notes = (workspace / 'case/NOTES.md').read_text()
+        self.assertIn('frame.stl passed earlier and was changed by a later turn; restored', notes)
+        status = json.loads((workspace / 'case/stages.json').read_text())
+        self.assertEqual(status['parts']['cable_tray']['group'], 'glue-on')
+
+    def test_a_follow_up_is_scoped_only_while_the_earlier_case_still_fits(self):
+        workspace = self.base / 'ws'
+        self.assertFalse(parallel._earlier_case_fits(workspace))  # no case, no report
+        put(workspace, 'case/out/parts.json', json.dumps({'parts': [], 'verification': {'nativePCBCheckerApplies': False}}))
+        self.assertFalse(parallel._earlier_case_fits(workspace))
+        put(workspace, 'case/reports/print-check.json', json.dumps({'passed': True, 'verdict': 'review'}))
+        self.assertTrue(parallel._earlier_case_fits(workspace))
+        put(workspace, 'case/reports/print-check.json', json.dumps({'passed': False}))
+        self.assertFalse(parallel._earlier_case_fits(workspace))
+        with patch('kicadpy.case.status', return_value=('passed', 'fits')):
+            put(workspace, 'case/out/parts.json', json.dumps({'parts': []}))
+            self.assertTrue(parallel._earlier_case_fits(workspace))
+        with patch('kicadpy.case.status', return_value=('stale', 'the board changed')):
+            self.assertFalse(parallel._earlier_case_fits(workspace))
+
+    def test_a_clean_waterfall_needs_no_lead_review(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'print'): ['pass'],
+                                  ('moving', 'motion'): ['pass'], ('joints', 'check'): ['pass']})
+        with self.waterfall_checks():
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints'])
+        self.assertNotIn('case-advice', runner.prompts)
+        self.assertIn('No notes: every stage passed', (root / 'workspace/case/NOTES.md').read_text())
 
     def test_builder_is_told_not_to_run_long_sweeps_itself(self):
         root = self.base / 'prompt'

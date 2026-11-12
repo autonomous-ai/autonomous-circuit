@@ -720,6 +720,15 @@ board revision, not a moved footprint.
   Photos establish layout ideas, not dimensions, servo capability or proven fit. Deliver a
   small mating subassembly to test a changed joint before replacing the whole printed kit;
   physical results remain pending until supplied. See the case-assembly reference below.
+- **In a team the case is a light waterfall.** Simple parts (frame/box, small parts, glue-on
+  holders) → moving parts → joints and snap fits → lid only on request; one stage per turn,
+  checked by the harness right away. Two repair tries per check, then a NOTE in `case/NOTES.md`
+  (the one list the person reads) and the next stage; a stage over its time cap moves on the
+  same way. A passed part is frozen and never reworked; only the lead, once at the end, may let
+  one change. A device without a place gets a separate holder or tray glued on with 502 (CA
+  glue), not a redrawn frame and not reserved slots or pegs. A follow-up request ("add X") builds
+  and checks only the new module; earlier parts and their check results stand. Do exactly what
+  was asked, nothing extra.
 - **Simple, rugged, serviceable mechanics are the default.** Use the fewest practical parts,
   direct joints, stock hardware and accessible fasteners. Favor mounts tolerant of the stated
   print/measurement uncertainty and assembly with ordinary tools. Do not invent cams, gear trains,

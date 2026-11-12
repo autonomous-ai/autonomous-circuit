@@ -105,6 +105,38 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
 - When the team has a case-docs member (`caseDocs` in `.circuit/team-models.json`), print plates,
   slicing, `overview.html`, `README.md` and the assembly steps are its work, done after your CAD
   passes. Leave them to it.
+- **Build as a light waterfall, one stage per turn**, in this order: simple parts (the frame or
+  box and small parts, glue-on holders included) → moving parts → joints and snap fits → a lid only
+  when the brief or a release note asks. Declare the stages that apply and give each check its
+  `stage`, the `parts` it tests and, for a moving part, its `kind`:
+
+  ```json
+  {"stages": {"simple": {"parts": ["frame", "battery_tray"], "glueOn": ["battery_tray"]},
+              "moving": {"parts": ["leg_FL", "leg_FR"]}, "joints": {"parts": ["hip_pin"]}},
+   "checks": [{"name": "print", "stage": "simple", "parts": ["frame", "battery_tray"], ...},
+              {"name": "legs-print", "stage": "moving", "kind": "print", ...},
+              {"name": "legs-sweep", "stage": "moving", "kind": "motion", ...}]}
+  ```
+
+  Build only the current stage, then end your turn: the harness checks it right away (simple
+  parts: printable, no defects; moving parts: printable, and no collision, jam or envelope
+  overrun over the sweep; joints: the fit). Each check gets **two repair tries**; then the
+  harness writes a NOTE in `case/NOTES.md` and moves to the next stage. A stage over its time
+  cap is noted and closed too. Never rework a part of a closed stage: the harness restores any
+  change and does not rerun its checks. Only at the very end, when something still fails, does
+  the lead decide, once, whether a passed part may change (minimally, with the reason in
+  `case/DEVIATIONS.md`).
+- `case/NOTES.md` is the **one notes list** the person reads, and `case/stages.json` holds each
+  stage's and part's status. The harness writes both; never edit them. The README links the notes.
+  The viewer groups the parts list as Khung / Khay dán / Chân / Khớp / Nắp, with a chip on each part:
+  Đang vẽ (working), Đang kiểm (testing), Đạt (valid), Ghi chú (note) or Xong (done).
+- **Modular, glue-on.** When a battery, board or other device has no place, do not redraw the
+  frame and do not reserve slots or pegs. Draw a separate small holder or tray with a flat glue
+  face; the person glues it on with 502 (CA glue). Keep it simple.
+- **A follow-up ("add X", "vẽ thêm X")** builds and checks only the new module: printable, and it
+  fits where it glues or mounts. Parts an earlier run closed stay frozen and their check results are
+  reused. List an earlier part under `"rework"` in `case/checks.json` only when the request names it.
+  Do exactly what was asked, nothing extra.
 - After your CAD passes its tester, the harness draws engineering sheets from the exported STEP
   files: `case/out/drawings/assembly.svg`, one sheet per printed design, and `index.json`. Each
   A3 sheet has top/front/right views with overall dimensions and hole sizes, an iso view, a parts

@@ -224,6 +224,11 @@ provide the binary/Flash recipe. Flashing does not authorize motors, printing or
 ## The case (`kicadpy.case`)
 
 Before modeling or repairing, read [Case assembly and print handoff](references/case-assembly.md).
+In a team, the case is built as a light waterfall: simple parts → moving parts → joints and fits →
+lid, one stage per turn, each checked right away, two repair tries per check, then a NOTE in
+`case/NOTES.md` and the next stage. A passed part is never reworked. A device without a place gets a
+separate glue-on holder (502 CA glue), never a redrawn frame or reserved slots. A follow-up builds
+and checks only the new module. See "In a team" in the case-assembly reference.
 Use this build order: **frame → mounted devices, fasteners and joints → structural checks →
 case covers → complete-assembly checks**. For a new robot/moving device, the uncovered frame
 must hold and locate the devices/joints. Place real envelopes, fixing/nut seats, tool access and

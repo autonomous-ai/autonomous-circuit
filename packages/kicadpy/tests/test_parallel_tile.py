@@ -456,6 +456,18 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertIn('servo2', (self.workspace / again[1]['path']).read_text())
         # board and firmware previews carry no models
         self.assertNotIn('models', preview['teams']['board'])
+        self.assertIsNone(team['stages'])  # no waterfall status yet
+        put(draft, 'case/stages.json', json.dumps({'current': 'moving', 'stages': [
+            {'name': 'simple', 'status': 'valid', 'parts': ['shell']},
+            {'name': 'moving', 'status': 'working', 'parts': ['leg']},
+            {'name': 'covers', 'status': 'valid', 'parts': []}],
+            'parts': {'shell': {'stage': 'simple', 'group': 'frame', 'status': 'valid'},
+                      'leg': {'stage': 'moving', 'group': 'moving', 'status': 'bogus'}}}))
+        stages = parallel_tile._preview_progress(
+            self.workspace, root, 'case', 'case', draft, 'draft', [])['teams']['case']['stages']
+        self.assertEqual([item['name'] for item in stages['stages']], ['simple', 'moving'])
+        self.assertEqual(stages['parts'], {'shell': {'stage': 'simple', 'group': 'frame', 'status': 'valid'}})
+        self.assertEqual(stages['current'], 'moving')
         # a mesh rewritten mid-copy keeps its earlier copy; the rest and the status still update
         put(draft, 'case/out/shell.stl', 'solid shell3\nendsolid shell3\n')
         put(draft, 'case/out/servo.stl', 'solid servo3\nendsolid servo3\n')
