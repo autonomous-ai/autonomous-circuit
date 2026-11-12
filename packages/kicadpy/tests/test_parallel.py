@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from kicadpy import parallel as pilot
@@ -787,6 +788,13 @@ class PilotTests(unittest.TestCase):
                 self.assertFalse(pilot.native_check(workspace, True)['passed'])
             with patch('kicadpy.case.status', return_value=('stale', 'board changed')):
                 self.assertFalse(pilot.native_check(workspace, True)['passed'])
+            put(workspace, 'case/out/parts.json', json.dumps({'printProject': {'file': 'all.3mf'}}))
+            with zipfile.ZipFile(workspace / 'case/out/all.3mf', 'w') as archive:
+                archive.writestr('Metadata/model_settings.config',
+                                 '<config><plate><metadata key="plater_name" value="MỚI/SỬA"/></plate></config>')
+            result = pilot.native_check(workspace, True)
+            self.assertFalse(result['passed'])
+            self.assertIn('MỚI/SỬA', ' '.join(result['findings']))
 
 
 class ContractTests(unittest.TestCase):

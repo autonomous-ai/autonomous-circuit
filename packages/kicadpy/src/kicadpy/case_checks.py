@@ -30,6 +30,8 @@ from pathlib import Path, PurePosixPath
 import signal
 import subprocess
 import time
+import xml.etree.ElementTree as ET
+import zipfile
 
 from . import case_measure
 
@@ -44,6 +46,7 @@ SCRIPT_ROOTS = ('case/', 'tools/case/')
 MESSAGE_CHARS = 300
 STAGES = ('simple', 'moving', 'joints', 'lid')   # the build order; see case_waterfall
 KINDS = ('print', 'motion')
+FORBIDDEN_NAME_CHARS = '/\\:*?"<>|'   # Bambu Studio refuses to open a 3MF with these in names
 
 
 def worst(levels):
@@ -175,6 +178,44 @@ def report_level(path, started_ns):
     return level, detail
 
 
+def plate_names(worktree):
+    """Plate and object names of the Print all 3MF (manifest printProject); None when absent.
+
+    Bambu Studio refuses a project whose plate name holds a forbidden character, so the
+    person cannot open Print all at all. No declared or readable 3MF is skipped, not failed.
+    """
+    out = Path(worktree) / 'case/out'
+    try:
+        project = json.loads((out / 'parts.json').read_text(encoding='utf-8')).get('printProject')
+        relative = project.get('file') if isinstance(project, dict) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(relative, str) or not relative.endswith('.3mf'):
+        return None
+    file = out / relative
+    if not file.is_file() or not file.resolve().is_relative_to(Path(worktree).resolve()):
+        return None
+    try:
+        with zipfile.ZipFile(file) as archive:
+            config = archive.read('Metadata/model_settings.config')
+    except (OSError, KeyError, zipfile.BadZipFile) as exc:
+        return _entry('plate-names', case_measure.UNVERIFIED,
+                      f'could not read plate names from case/out/{relative}: {exc}')
+    try:
+        root = ET.fromstring(config)
+    except ET.ParseError as exc:
+        return _entry('plate-names', case_measure.UNVERIFIED, f'Metadata/model_settings.config: {exc}')
+    names = [(kind, item.get('value', ''))
+             for kind, element, key in (('plate', 'plate', 'plater_name'), ('object', 'object', 'name'))
+             for node in root.iter(element) for item in node.findall('metadata') if item.get('key') == key]
+    bad = [f'{kind} "{name}"' for kind, name in names if any(char in name for char in FORBIDDEN_NAME_CHARS)]
+    if bad:
+        return _entry('plate-names', case_measure.FAIL,
+                      f'rename {", ".join(bad)} in case/out/{relative}: Bambu Studio refuses names '
+                      f'with {" ".join(FORBIDDEN_NAME_CHARS)} (write "MỚI-SỬA", not "MỚI/SỬA")')
+    return _entry('plate-names', case_measure.PASS, f'{len(names)} plate/object names are Bambu-safe')
+
+
 def handwired(worktree):
     try:
         manifest = json.loads((Path(worktree) / 'case/out/parts.json').read_text())
@@ -266,6 +307,9 @@ def run(worktree, env, *, case_python, runner=run_process, total_seconds=TOTAL_S
         results.append(_entry(check['name'], level, message, seconds,
                               script=check['script'], report=check['report'],
                               stage=check['stage'], kind=check['kind']))
+    names = plate_names(worktree)
+    if names:
+        results.append(names)
     results.append(_native(worktree, env, case_python, runner, native_timeout, prefix))
     return {'schema': 1, 'verdict': worst(entry['level'] for entry in results), 'checks': results,
             'seconds': round(time.monotonic() - began, 1),
