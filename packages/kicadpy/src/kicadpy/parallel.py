@@ -2545,6 +2545,10 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     publish('checking', problem.get('blockers', ()) if problem else ())
                     evidence = ({'caseAutoCheck': brief(auto_check), **(problem or {})} if case_team else
                                 checks or problem or {})
+                    native = (next((entry for entry in auto_check['checks'] if entry['name'] == 'native'), None)
+                              if case_team else None)
+                    if native and _waiting_for_board_contract(dest, native):
+                        evidence['waitingForBoard'] = WAITING_FOR_BOARD_TESTER
                     test = team_test(root, state, role, stage, dest, evidence, runner,
                                      authorized_integration=authorized_integration,
                                      integration_lock=integration_lock, waivers=waivers,
