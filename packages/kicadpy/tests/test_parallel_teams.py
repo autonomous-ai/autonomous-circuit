@@ -1002,6 +1002,36 @@ class CaseCrewTests(unittest.TestCase):
         self.assertNotIn('caseAutoCheck', runner.prompts['firmware-test'][0])
 
 
+    def foreign_tester(self, findings):
+        class ForeignTester(CaseCrewRunner):
+            def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+                if stage == 'case-test' and not getattr(self, 'foreign_done', False):
+                    self.foreign_done = True
+                    return _receipt(stage, model, {'contractSha256': state['contractSha256'],
+                                                   'decision': 'revise', 'summary': 'Board map missing',
+                                                   'findings': findings})
+                return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+        return ForeignTester()
+
+    def test_tester_finding_on_another_teams_file_becomes_a_note(self):
+        board = {'path': 'boards/main.enclosure.json', 'message': 'not published yet'}
+        runner = self.foreign_tester([board, {'path': 'case/frame.txt', 'message': 'leg hits'}])
+        stderr = io.StringIO()
+        with self.fake_checks('pass'), contextlib.redirect_stderr(stderr):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertIn("dropped finding on 'boards/main.enclosure.json'", stderr.getvalue())
+        self.assertEqual(json.loads((root / '.pilot/tester-notes/case-dropped.json').read_text()), [board])
+        self.assertEqual(json.loads((root / '.pilot/metrics.json').read_text())['testerFindingsDropped'], 1)
+        self.assertNotIn('boards/main.enclosure.json', runner.prompts['case'][1].split('TESTER FINDINGS')[-1])
+
+    def test_tester_with_only_foreign_findings_still_fails_as_before(self):
+        runner = self.foreign_tester([{'path': 'boards/main.enclosure.json', 'message': 'not published'}])
+        with self.fake_checks('pass'):
+            _, result = self.start(runner)
+        self.assertNotEqual(result['status'], 'candidate_ready')
+        self.assertIn('Team tester finding must cite its team-owned path', json.dumps(result['findings']))
+
     def waterfall_checks(self, native=('pass', 'fits')):
         """Each check reports what the builder's script says for the stage it just built."""
         self.reused = []

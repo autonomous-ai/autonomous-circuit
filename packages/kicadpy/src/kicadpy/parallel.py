@@ -1834,11 +1834,31 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         raise ValueError('Team tester approved unresolved findings')
     if result['decision'] == 'revise' and not result['findings']:
         raise ValueError('Team tester rejected without file-cited findings')
+    # A finding on another team's file (a case tester citing the board's unpublished
+    # boards/main.enclosure.json) is a note for the integration tester, not a run-ending error.
+    kept, dropped = [], []
     for finding in result['findings']:
         path = PurePosixPath(finding['path'])
         if (path.is_absolute() or '..' in path.parts or not owns(role, str(path)) or
                 (worktree / path).is_symlink()):
+            dropped.append(finding)
+        else:
+            kept.append(finding)
+    if dropped:
+        if not kept:
             raise ValueError('Team tester finding must cite its team-owned path')
+        for finding in dropped:
+            print(f'[kicadpy] {stage} tester: dropped finding on {finding["path"]!r}: '
+                  'not a team-owned path', file=sys.stderr)
+        notes = Path(root) / '.pilot/tester-notes' / f'{stage}-dropped.json'
+        try:
+            earlier = json.loads(notes.read_text())
+        except (OSError, ValueError):
+            earlier = []
+        write(notes, earlier + dropped)
+        with ACTIVE_LOCK:
+            state['testerFindingsDropped'] = state.get('testerFindingsDropped', 0) + len(dropped)
+        result = {**result, 'findings': kept}
     if recheck:
         return _finish_recheck(root, stage, result, recheck)
     _save_tester_notes(root, stage, result)
@@ -3524,6 +3544,7 @@ def metrics(state):
             'seedCommit': state['seedCommit'], 'repairRounds': max(0, state['revision'] - 1),
             'advisorCalls': state.get('advisorCalls', 0),
             'adviceActionsDropped': state.get('adviceActionsDropped', 0),
+            'testerFindingsDropped': state.get('testerFindingsDropped', 0),
             'wallSeconds': state.get('planningSeconds', 0) + sum(r['seconds'] for r in state['rounds']),
             'elapsedSinceInitSeconds': state.get('roundFinishedAt', time.time()) - state['createdAt'],
             'rounds': state['rounds'], 'planAttempts': state['planAttempts'],
