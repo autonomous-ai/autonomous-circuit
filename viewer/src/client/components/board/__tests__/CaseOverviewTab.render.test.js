@@ -24,3 +24,16 @@ test("the iframe switches its theme hash when the app goes dark", async () => {
     document.documentElement.classList.remove("dark");
   }
 });
+
+test("engineering drawings open from a row of links above the overview", () => {
+  const ui = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html", drawings: [
+    { name: "assembly", title: "Crab — assembly", kind: "assembly", url: "/p/case/out/drawings/assembly.svg?v=1" },
+    { name: "frame_lower", title: "frame_lower", kind: "part", url: "/p/case/out/drawings/frame_lower.svg?v=1" }] } } });
+  try {
+    const links = [...ui.container.querySelectorAll('[data-slot="case-drawings"] a')];
+    assert.deepEqual(links.map(a => [a.textContent, a.getAttribute("href")]),
+      [["Assembly", "/p/case/out/drawings/assembly.svg?v=1"], ["frame_lower", "/p/case/out/drawings/frame_lower.svg?v=1"]]);
+  } finally { ui.unmount(); }
+  const empty = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html" } } });
+  try { assert.equal(empty.container.querySelector('[data-slot="case-drawings"]'), null); } finally { empty.unmount(); }
+});

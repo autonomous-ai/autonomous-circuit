@@ -1802,6 +1802,8 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
 CASE_DOCS_FILES = ('case/README.md', 'case/overview.html', 'case/assembly_steps.json',
                    'case/PRINTED-INVENTORY.md')
 CASE_DOCS_DIRS = ('case/print/', 'case/images/', 'case/docs/', 'tools/case/docs/')
+CASE_DRAWINGS = 'case/out/drawings/'
+CASE_DRAWINGS_SECONDS = 900
 # parts.json fields the docs member may set: the print binding and the overview link.
 CASE_DOCS_MANIFEST_KEYS = ('printProject', 'overview')
 
@@ -1824,7 +1826,7 @@ def _case_cad_digest(worktree):
             except (OSError, ValueError):
                 data = info['sha256'].encode()
             digest.update(name.encode() + b'\0' + hashlib.sha256(data).digest())
-        elif name.startswith('case/out/') or name == 'case/interfaces.json':
+        elif (name.startswith('case/out/') and not name.startswith(CASE_DRAWINGS)) or name == 'case/interfaces.json':
             digest.update(name.encode() + b'\0' + info['sha256'].encode())
     return digest.hexdigest()
 
@@ -1852,6 +1854,33 @@ def run_case_checks(worktree, env, case_python, root=None):
     return case_checks.run(worktree, env, case_python=case_python, prefix=prefix)
 
 
+def run_case_drawings(worktree, env, case_python, root=None):
+    """Engineering drawing sheets from the exported STEP files; None when nothing is exported. Tests replace this."""
+    from . import case_checks
+    if not (Path(worktree) / 'case/out/parts.json').is_file():
+        return None
+    prefix = (['/usr/bin/sandbox-exec', '-p', _claude_sandbox(worktree, root)]
+              if root is not None and Path('/usr/bin/sandbox-exec').is_file() else [])
+    began = time.monotonic()
+    try:
+        code, output = case_checks.run_process([*prefix, case_python, '-m', 'kicadpy.case_drawing', '.'],
+                                               worktree, {**env, 'MPLCONFIGDIR': str(Path(worktree) / 'build/case/mpl')},
+                                               CASE_DRAWINGS_SECONDS)
+    except OSError as exc:
+        return {'ok': False, 'error': f'could not start kicadpy.case_drawing: {exc}', 'seconds': 0}
+    seconds = round(time.monotonic() - began, 1)
+    if code is None:
+        return {'ok': False, 'error': f'timed out after {CASE_DRAWINGS_SECONDS} s', 'seconds': seconds}
+    for line in reversed(output.splitlines()):
+        try:
+            answer = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(answer, dict) and 'ok' in answer:
+            return {**answer, 'seconds': seconds}
+    return {'ok': False, 'error': 'no result: ' + output[-300:], 'seconds': seconds}
+
+
 def case_docs_prompt(state, stage, attempt):
     return (
         'You are the CASE-DOCS member of the case team. The case builder\'s CAD, exported parts in '
@@ -1867,8 +1896,10 @@ def case_docs_prompt(state, stage, attempt):
         'overview), case/README.md (the assembly and overview entry point), case/assembly_steps.json and '
         'case/PRINTED-INVENTORY.md. Read print/events.jsonl when present as the read-only record of '
         'actual print confirmations and failures before assigning plates; never infer a print from a '
-        'printer job marked complete. Put scripts you write in tools/case/docs/; reuse the builder\'s '
-        'scripts where they exist. If a geometry defect stops a plate, a slice or an assembly step, '
+        'printer job marked complete. The harness drew engineering sheets from the exported STEP files '
+        'in case/out/drawings/ (index.json lists them: one assembly sheet and one per printed part); '
+        'link or show them in case/README.md and the overview, and never edit them. Put scripts you '
+        'write in tools/case/docs/; reuse the builder\'s scripts where they exist. If a geometry defect stops a plate, a slice or an assembly step, '
         'return it in blockers for the case builder instead of repairing CAD. '
         + (f'This is run {attempt}: the CAD changed since your last run; update every output that '
            'depends on it. ' if attempt > 1 else '') +
@@ -1964,6 +1995,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         case_team = state['mode'] == 'teams' and role == 'case'
         docs_on = case_team and bool(state.get('caseDocsModel'))
         auto_check, check_runs, docs_runs = None, 0, 0
+        drawings = None
         # With a case-docs member, findings on its files wait for its turn instead of the CAD loop.
         docs_findings = []
         if docs_on and recheck:
@@ -2045,6 +2077,38 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     'needs a look; open the cited report files for detail):\n' +
                     json.dumps(brief(auto_check), sort_keys=True))
 
+        def case_drawings():
+            """Draw the approved parts; a failure is reported, never blocks the stage."""
+            nonlocal drawings
+            if not case_team:
+                return None
+            before_draw = snapshot(dest)
+            with integration_lock:
+                draw_files = _retry_files(dest)
+                draw_git = _retry_git_metadata(root, dest)
+            tool_root = Path(state['toolchainRoot'])
+            try:
+                result = run_case_drawings(dest, _cli_env(root, state, dest),
+                                           str(tool_root / 'harness/kicad/toolchain/case-python'), root)
+            finally:
+                _reap_worktree_processes(root, dest)
+            if any(not name.startswith(CASE_DRAWINGS) for name in changed(before_draw, snapshot(dest))):
+                raise ValueError('Case drawings wrote outside case/out/drawings/')
+            with integration_lock:
+                safe, reason, _ = _retry_safety(root, dest, stage, False, draw_files,
+                                                draw_git, authorized_integration)
+            if not safe:
+                raise ValueError('Case drawings changed Git metadata: ' + str(reason))
+            if result is not None:
+                drawings = result
+                write(root / '.pilot/case-checks' / f'{dest.name}-drawings.json', result)
+            return result
+
+        def cad_passed():
+            """The CAD passed its tester: draw it, then hand it to the case-docs member when there is one."""
+            case_drawings()
+            return case_docs() if docs_on else None
+
         def case_docs():
             """After the CAD passed: the case-docs member's turn. None when done, else blockers for the CAD."""
             nonlocal docs_runs, recheck, docs_findings
@@ -2054,6 +2118,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             cad_before = _case_cad_digest(dest)
             docs_prompt = (case_docs_prompt(state, docs_stage, docs_runs) + '\n\n' +
                            notes_for_role(root, role) + case_checks_text())
+            if drawings is not None and not drawings.get('ok'):
+                docs_prompt += ('\nThe engineering drawings could not be made this time (' +
+                                str(drawings.get('error'))[:300] + '); leave them out.')
             if docs_findings:
                 docs_prompt += ('\n\nTESTER FINDINGS ON YOUR FILES (fix each):\n' +
                                 json.dumps(docs_findings, sort_keys=True))
@@ -2185,8 +2252,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     recheck = test['findings']
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}
-                    if problem is None and docs_on:
-                        problem = case_docs()
+                    if problem is None and case_team:
+                        problem = cad_passed()
                     if problem is None:
                         publish('passed')
                         return role, stage, dest, pointer, receipt, checks, None
@@ -2235,7 +2302,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                 write(root / '.pilot/waivers' / f'{stage}.json', waivers)
                                 test = _apply_waivers(dest, test, waivers)
                                 if test['decision'] == 'approve':
-                                    problem = case_docs() if docs_on else None
+                                    problem = cad_passed() if case_team else None
                                     if problem is None:
                                         publish('passed')
                                         return role, stage, dest, pointer, receipt, checks, None

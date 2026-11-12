@@ -1069,6 +1069,58 @@ class CaseCrewTests(unittest.TestCase):
         self.assertEqual(parallel._builder_model({**state, 'caseDocsModel': None}, 'case-docs'), 'opus')
         self.assertEqual(parallel._builder_model(state, 'firmware'), parallel.WORKER)
 
+    def fake_drawings(self, result=None, outside=False):
+        calls = []
+
+        def draw(worktree, env, case_python, root=None):
+            calls.append(Path(worktree))
+            put(worktree, 'case/out/drawings/assembly.svg', '<svg/>')
+            put(worktree, 'case/out/drawings/index.json', json.dumps({'schema': 1, 'sheets': []}))
+            if outside:
+                put(worktree, 'case/README.md', 'drawn over')
+            return result or {'ok': True, 'sheets': 1, 'cached': False}
+        return calls, patch.object(parallel, 'run_case_drawings', side_effect=draw)
+
+    def test_approved_cad_is_drawn_before_case_docs(self):
+        class Runner(CaseCrewRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if stage == 'case-docs':
+                    inner.saw_sheet = (Path(workspace) / 'case/out/drawings/assembly.svg').is_file()
+                return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+        runner = Runner(case_test_revise=1)
+        calls, drawing = self.fake_drawings()
+        with self.fake_checks('pass'), drawing:
+            root, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(len(calls), 1)  # only once the tester approved, not after the rejected turn
+        self.assertTrue(runner.saw_sheet)
+        self.assertIn('case/out/drawings/', runner.prompts['case-docs'][0])
+        self.assertTrue((root / 'workspace/case/out/drawings/assembly.svg').is_file())
+        self.assertTrue(json.loads((root / '.pilot/case-checks/r001-case-drawings.json').read_text())['ok'])
+
+    def test_drawings_also_run_for_a_single_case_builder(self):
+        calls, drawing = self.fake_drawings()
+        with self.fake_checks('pass'), drawing:
+            root, result = self.start(CaseCrewRunner())
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(len(calls), 1)
+        self.assertTrue((root / 'workspace/case/out/drawings/index.json').is_file())
+
+    def test_a_failed_drawing_is_reported_to_docs_and_does_not_block(self):
+        runner = CaseCrewRunner()
+        _, drawing = self.fake_drawings({'ok': False, 'error': 'STEP holds no solid'})
+        with self.fake_checks('pass'), drawing:
+            _, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertIn('could not be made this time (STEP holds no solid)', runner.prompts['case-docs'][0])
+
+    def test_drawings_may_write_only_their_folder(self):
+        _, drawing = self.fake_drawings(outside=True)
+        with self.fake_checks('pass'), drawing:
+            _, result = self.start(CaseCrewRunner())
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertIn('Case drawings wrote outside', ' '.join(result['findings']))
+
     def test_agent_written_checks_run_in_the_builder_sandbox(self):
         worktree, root = self.base / 'root/workers/r001-case', self.base / 'root'
         put(worktree, 'tools/case/mech.py', 'pass')
@@ -1096,6 +1148,7 @@ class CaseCrewTests(unittest.TestCase):
                                                          'overview': '../overview.html'}))
         put(worktree, 'case/README.md', 'docs')
         put(worktree, 'case/reports/mech.json', '{}')
+        put(worktree, 'case/out/drawings/assembly.svg', '<svg/>')
         self.assertEqual(parallel._case_cad_digest(worktree), before)
         self.assertEqual(parallel._case_check_inputs(worktree), inputs)
         put(worktree, 'tools/case/mech_check.py', 'new sweep')
