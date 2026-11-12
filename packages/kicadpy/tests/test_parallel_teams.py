@@ -1211,6 +1211,62 @@ class CaseCrewTests(unittest.TestCase):
         self.assertNotIn('case-docs', runner.prompts)
         self.assertIsNone(result['caseDocsModel'])
 
+    def test_case_check_and_final_gate_use_a_contract_rebuilt_from_the_case_intent(self):
+        """dog-nautilus r001: the case set bodyToward for U1/J7, but boards/main.enclosure.json is
+        board-owned and only the board stage rebuilt it, so every case check read the old contract."""
+        import hashlib
+        from kicadpy import case, enclosure
+
+        def render(workspace, pcb=None, inspect=None):
+            intent = Path(workspace) / 'case/interfaces.json'
+            doc = {'pcb': Path(pcb).read_text(),
+                   'intent': json.loads(intent.read_text()) if intent.is_file() else None}
+            return Path(workspace) / 'boards/main.enclosure.json', json.dumps(doc) + '\n'
+
+        class Runner(CaseCrewRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                receipt = super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+                if stage == 'board':  # the publisher writes the contract from the board's own copy
+                    put(workspace, 'design/main.kicad_pcb', 'pcb')
+                    target, text = render(workspace, workspace / 'design/main.kicad_pcb')
+                    put(workspace, 'boards/main.enclosure.json', text)
+                if stage == 'case':
+                    put(workspace, 'case/out/parts.json', '{"parts": []}')
+                    put(workspace, 'case/interfaces.json',
+                        json.dumps({'U1': {'bodyToward': 'v%d' % len(inner.prompts['case'])}}))
+                if stage == 'integration-test' and not inner.revised:
+                    inner.revised = True
+                    receipt['result'] = {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                         'summary': 'U1 faces the wrong way',
+                                         'findings': [{'path': 'case/interfaces.json', 'message': 'U1 away'}]}
+                return receipt
+
+        seen = []
+
+        def run(worktree, env, case_python, root=None):
+            contract = Path(worktree) / 'boards/main.enclosure.json'
+            seen.append(json.loads(contract.read_text()) if contract.is_file() else None)
+            if contract.is_file():
+                put(Path(worktree), 'case/reports/case-check.json', json.dumps({
+                    'contractSha': hashlib.sha256(contract.read_bytes()).hexdigest(),
+                    'meshValidation': 'surface-v1', 'passed': True, 'verdict': 'pass', 'partShas': {}}))
+            return {'schema': 1, 'verdict': 'pass', 'seconds': 1.0, 'checkedAt': 'now',
+                    'checks': [{'name': 'native', 'level': 'pass', 'message': 'fits', 'seconds': 1.0}]}
+
+        runner = Runner()
+        runner.revised = False
+        with patch.object(enclosure, 'render', side_effect=render), \
+             patch.object(parallel, 'run_case_checks', side_effect=run):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        # The integration repair changed the intent; its check read the contract rebuilt from it.
+        fresh = {'pcb': 'pcb', 'intent': {'U1': {'bodyToward': 'v2'}}}
+        self.assertEqual(seen[-1], fresh)
+        workspace = root / 'workspace'
+        self.assertEqual(json.loads(parallel.git(workspace, 'show', 'HEAD:boards/main.enclosure.json')), fresh)
+        self.assertEqual(parallel.git(workspace, 'status', '--porcelain'), '')
+        self.assertEqual(case.status(workspace)[0], 'passed')
+
     def test_case_docs_member_runs_after_the_cad_passes(self):
         runner = CaseCrewRunner(case_test_revise=1)
         with self.fake_checks('pass'):

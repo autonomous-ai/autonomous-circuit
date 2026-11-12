@@ -772,7 +772,10 @@ def _only_own_commits_since(seed, checkpoint_head):
                 return False
             names = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-z', '-r', sha],
                                             cwd=seed)
-            if any(not owns(role, os.fsdecode(name)) for name in names.split(b'\0') if name):
+            # A case import also commits the case contract the controller rebuilt from its intent.
+            if any(not owns(role, os.fsdecode(name)) and
+                   not (role == 'case' and parallel.CASE_CONTRACT.match(os.fsdecode(name)))
+                   for name in names.split(b'\0') if name):
                 return False
         return True
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

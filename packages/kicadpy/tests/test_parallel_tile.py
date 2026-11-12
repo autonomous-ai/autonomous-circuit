@@ -710,6 +710,20 @@ class TeamBridgeTests(unittest.TestCase):
         self.assertTrue(parallel_tile._only_own_commits_since(
             source, parallel.git(source, 'rev-parse', 'HEAD~1')))
 
+    def test_seed_check_accepts_the_case_contract_rebuilt_with_a_case_import(self):
+        self.assertEqual(self.run_team()['status'], 'candidate_ready')
+        source = self.commit_after_checkpoint('case/interfaces.json', 'Integrate case')
+        put(source, 'boards/main.enclosure.json', 'rebuilt by the controller')
+        with patch.dict(os.environ, {'GIT_COMMITTER_DATE': f"{int(parallel.status(source.parent)['roundFinishedAt'])} +0000"}):
+            parallel.commit(source, ['boards/main.enclosure.json'], 'Integrate case')
+        self.assertTrue(parallel_tile._only_own_commits_since(
+            source, parallel.git(source, 'rev-parse', 'HEAD~2')))
+        put(source, 'boards/main.board.json', 'a real board file')
+        with patch.dict(os.environ, {'GIT_COMMITTER_DATE': f"{int(parallel.status(source.parent)['roundFinishedAt'])} +0000"}):
+            parallel.commit(source, ['boards/main.board.json'], 'Integrate case')
+        self.assertFalse(parallel_tile._only_own_commits_since(
+            source, parallel.git(source, 'rev-parse', 'HEAD~3')))
+
     def test_prune_keeps_the_contract_and_draft_origin_runs(self):
         runs = self.workspace / '.circuit/team-runs'
         for name in ('r001', 'r002', 'r003', 'r004', 'r005'):

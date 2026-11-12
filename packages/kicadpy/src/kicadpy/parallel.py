@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 import re
 import signal
 import subprocess
+import sys
 import tarfile
 import threading
 import time
@@ -2002,6 +2003,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         jobs.append((role, stage, dest, pointer, provenance))
     integration_lock = threading.Lock()
     authorized_integration = [_integration_git_state(root)]
+    controller_files = {}  # dest -> {name: sha256} the controller itself rebuilt there
 
     def one(job):
         role, stage, dest, pointer, provenance = job
@@ -2095,6 +2097,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                 auto_check = {**auto_check, 'cached': True}
                 return auto_check
             publish('checking')
+            controller_files.setdefault(dest, {}).update(refresh_case_contract(dest))
             before_check = snapshot(dest)
             with integration_lock:
                 check_files = _retry_files(dest)
@@ -2200,7 +2203,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                                 docs_git, authorized_integration)
             if not safe:
                 raise ValueError('Unsafe or unowned case docs output: ' + str(reason))
-            names = changed(baseline, snapshot(dest))
+            names = changed(baseline, _hide_controller_files(snapshot(dest), baseline, controller_files.get(dest)))
             if any(not owns(role, name) for name in names) or any(
                     owns(protected, name) for protected in protected_roles for name in names):
                 raise ValueError('Case docs changed a contract/shared/unowned file')
@@ -2468,7 +2471,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                                     initial_git, authorized_integration)
                 if not safe:
                     raise ValueError('Unsafe or unowned worker output: ' + str(reason))
-                after_worker = snapshot(dest)
+                after_worker = _hide_controller_files(snapshot(dest), baseline, controller_files.get(dest))
                 if any(not owns(role, name) for name in changed(baseline, after_worker)):
                     raise ValueError('Worker changed a contract/shared/unowned file')
                 if any(owns(protected, name) for protected in protected_roles
@@ -2662,6 +2665,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     os.utime(target, ns=(mtime, mtime))
                 else:
                     target.unlink()
+            if any(owns('board', name) or name == 'case/interfaces.json' for name in names):
+                # The controller, never a worker diff, makes the integrated case contract.
+                names = [*names, *sorted(set(refresh_case_contract(workspace)) - set(names))]
             from .firmware import record_build
             proof = record_build(workspace, dest) if any(owns('firmware', name) for name in names) else None
             commit(workspace, [*names, *([proof] if proof else [])], 'Integrate ' + stage)
@@ -2710,7 +2716,7 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                 raise ValueError('Worker changed its Git worktree pointer')
             if git(dest, 'rev-parse', 'HEAD') != base:
                 raise ValueError('Worker committed or moved HEAD')
-            after = snapshot(dest)
+            after = _hide_controller_files(snapshot(dest), baseline, controller_files.get(dest))
             names = changed(baseline, after)
             if any(not owns(role, n) for n in names):
                 raise ValueError('Worker changed a contract/shared/unowned file')
@@ -2773,6 +2779,56 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
     return stage_checks
 
 
+# boards/<stem>.enclosure.json is board-owned but derived from the PCB, parts.json and the case's own
+# case/interfaces.json. The sandboxed case cannot run KiCad, so the controller rebuilds it.
+CASE_CONTRACT = re.compile(r'^boards/[^/]+\.enclosure\.json$')
+_CASE_CONTRACT_SEEN = {}
+
+
+def refresh_case_contract(worktree):
+    """Rebuild each published case contract from this worktree's own inputs; {name: sha256} rewritten.
+
+    Skips an unpublished board and unchanged inputs; a failure leaves the old file (the case check
+    then reports it) and never raises. Tests replace this.
+    """
+    from . import enclosure
+    worktree = Path(worktree)
+    written = {}
+    for contract in sorted((worktree / 'boards').glob('*.enclosure.json')):
+        name = contract.relative_to(worktree).as_posix()
+        pcb = worktree / 'design' / (contract.name.removesuffix('.enclosure.json') + '.kicad_pcb')
+        if not CASE_CONTRACT.match(name) or not pcb.is_file() or contract.is_symlink():
+            continue
+
+        def inputs():
+            key = hashlib.sha256()
+            for source in (pcb, worktree / 'parts.json', worktree / 'design/parts.json',
+                           worktree / enclosure.INTENT, contract, Path(enclosure.__file__)):
+                key.update(hashlib.sha256(source.read_bytes()).digest() if source.is_file() else b'-')
+            return key.hexdigest()
+        try:
+            if _CASE_CONTRACT_SEEN.get(str(contract)) == inputs():
+                continue
+            if enclosure.refresh(worktree, pcb) is not None:
+                written[name] = hashlib.sha256(contract.read_bytes()).hexdigest()
+            _CASE_CONTRACT_SEEN[str(contract)] = inputs()
+        except Exception as exc:  # noqa: BLE001 - reported, never raised
+            print(f'[kicadpy] case contract not refreshed in {worktree}: {exc}', file=sys.stderr)
+    return written
+
+
+def _hide_controller_files(files, baseline, written):
+    """A worker's snapshot with the controller's own rebuilt contract (exact bytes) shown as baseline."""
+    files = dict(files)
+    for name, sha in (written or {}).items():
+        if name in files and files[name]['sha256'] == sha:
+            if name in baseline:
+                files[name] = baseline[name]
+            else:
+                del files[name]
+    return files
+
+
 # Republishing every board takes minutes. A firmware or case change leaves the board files alone,
 # so a passed board check is reused while every board-owned file and kicadpy's own code still match.
 BOARD_CHECK_RECORD = 'build/board/native-check.json'
@@ -2782,7 +2838,8 @@ def _board_check_key(workspace):
     digest = hashlib.sha256()
     files = snapshot(workspace)
     for name in sorted(files):
-        if owns('board', name) and name != BOARD_CHECK_RECORD:
+        # The case contract is derived (it moves with case/interfaces.json); its inputs are hashed.
+        if owns('board', name) and name != BOARD_CHECK_RECORD and not CASE_CONTRACT.match(name):
             digest.update(f"{name}\0{files[name]['sha256']}\n".encode())
     code = Path(__file__).resolve().parent
     for file in sorted(code.rglob('*.py')):
