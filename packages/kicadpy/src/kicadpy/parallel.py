@@ -1558,17 +1558,32 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         raise ValueError('Read-only lead advice changed Git metadata: ' + str(reason))
     if not advice['actions']:
         raise ValueError('Lead advice needs at least one file-cited action')
+    # One bad citation (dog-nautilus-v2 r001 cited a sibling worker's "../r001-board/...") must
+    # not end the run: drop it and keep the advice when another action still cites a real file.
+    valid, dropped = [], []
     for action in advice['actions']:
         relative = PurePosixPath(action['path'])
         path = (worktree / action['path']).resolve()
         if (relative.is_absolute() or '..' in relative.parts or
                 not path.is_relative_to(worktree.resolve())):
-            raise ValueError('Lead advice action path escapes worktree')
+            dropped.append((action, 'Lead advice action path escapes worktree'))
+            continue
         missing_final_artifact = (problem.get('kind') == 'native_final_check' and
                                   not path.exists() and
                                   sum(owns(role, action['path']) for role in ROLES) == 1)
         if not path.is_file() and not missing_final_artifact:
-            raise ValueError('Lead advice must cite an existing worker file')
+            dropped.append((action, 'Lead advice must cite an existing worker file'))
+            continue
+        valid.append(action)
+    if not valid:
+        raise ValueError(dropped[0][1])
+    if dropped:
+        for action, reason in dropped:
+            print(f'[kicadpy] {stage} advice: dropped action {action["path"]!r}: {reason}',
+                  file=sys.stderr)
+        with ACTIVE_LOCK:
+            state['adviceActionsDropped'] = state.get('adviceActionsDropped', 0) + len(dropped)
+        advice['actions'] = valid
     if advice['decision'] == 'waive' and problem.get('kind') not in ('team_dispute', 'case_waterfall_end'):
         raise ValueError('Lead may waive only a stuck tester finding')
     if advice['decision'] == 'interface_change':
@@ -1770,7 +1785,11 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         'missing outputs, claim physical tests or weaken native gates. Inspect concrete '
         'engineering evidence and return file-cited defects. For a missing expected output, '
         'cite its intended path inside this role. Approve only when this team task is done '
-        'against the current instructions. The integration gate will reconcile other teams. '
+        'against the current instructions. Your reference is the lead\'s sealed PILOT_CONTRACT.json '
+        '(and its release notes), not another team\'s outputs: test this team\'s own stage against '
+        'it. An output another team has not published yet is never a defect here; at most a note. '
+        'The lead\'s integration tester reviews everything together at the end (board map against '
+        'case, pins against firmware) and only real collisions there are defects. '
         f'A deviation recorded in {DEVIATIONS[role]} with evidence and no unrecorded '
         'cross-team impact is not a defect; check that the files follow it. '
         + (_recheck_text(recheck) if recheck else TESTER_RULES) +
@@ -2269,6 +2288,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             evidence = {'caseAutoCheck': brief(auto_check), 'caseWaterfall': case_waterfall.brief(waterfall)}
             if blockers:
                 evidence['blockers'] = blockers
+            native = next((entry for entry in auto_check['checks'] if entry['name'] == 'native'), None)
+            if native and _waiting_for_board_contract(dest, native):
+                evidence['waitingForBoard'] = WAITING_FOR_BOARD_TESTER
             publish('checking')
             test = team_test(root, state, role, stage, dest, evidence, runner,
                              authorized_integration=authorized_integration,
@@ -2378,10 +2400,18 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                             'still failing after the lead\'s end repair: ' + entry['message'])
             elif waterfall['end'] is None:
                 native = next((entry for entry in auto_check['checks'] if entry['name'] == 'native'), None)
-                if waterfall['notes'] or (native and native['level'] in case_waterfall.FAILING):
+                native_failing = bool(native and native['level'] in case_waterfall.FAILING)
+                waiting_board = native_failing and _waiting_for_board_contract(dest, native)
+                if waiting_board:
+                    # The board team runs in parallel and has not published its enclosure yet: the
+                    # case cannot fix that, and the integration native check still runs this check.
+                    native_failing = False
+                    waterfall['endSummary'] = WAITING_FOR_BOARD
+                if waterfall['notes'] or native_failing:
                     advice = advise(root, state, stage, dest,
                                     {'kind': 'case_waterfall_end', 'waterfall': case_waterfall.brief(waterfall),
-                                     'caseAutoCheck': brief(auto_check)},
+                                     'caseAutoCheck': brief(auto_check),
+                                     **({'waitingForBoard': WAITING_FOR_BOARD} if waiting_board else {})},
                                     runner, stage_deadline=_stage_clock() + TIMEOUT_ADVICE_SECONDS,
                                     authorized_integration=authorized_integration,
                                     integration_lock=integration_lock)
@@ -2815,6 +2845,26 @@ def refresh_case_contract(worktree):
         except Exception as exc:  # noqa: BLE001 - reported, never raised
             print(f'[kicadpy] case contract not refreshed in {worktree}: {exc}', file=sys.stderr)
     return written
+
+
+WAITING_FOR_BOARD = ('native case check waits for the board team to publish boards/*.enclosure.json; '
+                     'the integration native check runs it')
+
+
+WAITING_FOR_BOARD_TESTER = (
+    'The board team runs in parallel and has not published boards/*.enclosure.json yet, so the native '
+    'case check is unverified, not failed. Test this stage against the sealed PILOT_CONTRACT.json '
+    'interfaces (board outline and mounts, module positionMm/sizeMm, mechanicalEnvelopeMm). Do not '
+    'raise the missing board map or the unverified native check as a finding: the integration native '
+    'check measures the board against the case once the board is published.')
+
+
+def _waiting_for_board_contract(worktree, native):
+    """True when the native case check is unverified only because no board enclosure is published yet."""
+    from .case_checks import handwired
+    worktree = Path(worktree)
+    return (native.get('level') == 'unverified' and not handwired(worktree) and
+            not any((worktree / 'boards').glob('*.enclosure.json')))
 
 
 def _hide_controller_files(files, baseline, written):
@@ -3469,6 +3519,7 @@ def metrics(state):
             'pipelineSha256': state['pipelineSha256'],
             'seedCommit': state['seedCommit'], 'repairRounds': max(0, state['revision'] - 1),
             'advisorCalls': state.get('advisorCalls', 0),
+            'adviceActionsDropped': state.get('adviceActionsDropped', 0),
             'wallSeconds': state.get('planningSeconds', 0) + sum(r['seconds'] for r in state['rounds']),
             'elapsedSinceInitSeconds': state.get('roundFinishedAt', time.time()) - state['createdAt'],
             'rounds': state['rounds'], 'planAttempts': state['planAttempts'],

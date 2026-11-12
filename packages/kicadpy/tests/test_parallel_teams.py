@@ -1,5 +1,7 @@
 """The new team pipeline runs independently without recreating its contract."""
+import contextlib
 import functools
+import io
 import os
 import json
 import re
@@ -1000,7 +1002,7 @@ class CaseCrewTests(unittest.TestCase):
         self.assertNotIn('caseAutoCheck', runner.prompts['firmware-test'][0])
 
 
-    def waterfall_checks(self):
+    def waterfall_checks(self, native=('pass', 'fits')):
         """Each check reports what the builder's script says for the stage it just built."""
         self.reused = []
 
@@ -1013,7 +1015,7 @@ class CaseCrewTests(unittest.TestCase):
                        'level': levels.get(item['name'], 'pass'),
                        'message': 'leg hits body at 40 deg' if 'motion' in item['name'] else 'ok',
                        'seconds': 1.0} for item in declared]
-            checks.append({'name': 'native', 'level': 'pass', 'message': 'fits', 'seconds': 1.0})
+            checks.append({'name': 'native', 'level': native[0], 'message': native[1], 'seconds': 1.0})
             return {'schema': 1, 'verdict': 'pass', 'seconds': 1.0, 'checkedAt': 'now', 'checks': checks}
         return patch.object(parallel, 'run_case_checks', side_effect=run)
 
@@ -1100,6 +1102,75 @@ class CaseCrewTests(unittest.TestCase):
         notes = (workspace / 'case/NOTES.md').read_text()
         self.assertIn("still failing after the lead's end repair", notes)
         self.assertIn('Lead review at the end: repair', notes)
+
+    NO_ENCLOSURE = ('unverified', 'report was not written: no boards/*.enclosure.json: '
+                    'publish the board first (python -m kicadpy.enclosure .)')
+
+    def test_end_advice_drops_an_action_that_cites_a_sibling_worktree(self):
+        """dog-nautilus-v2 r001: one of four lead actions cited ../r001-board/...; it ended the run."""
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
+                                 advice={'decision': 'waive', 'summary': 'Accept the notes',
+                                         'actions': [{'path': '../r001-board/boards/main.enclosure.json',
+                                                      'message': 'board must publish'},
+                                                     {'path': '/etc/hosts', 'message': 'absolute'},
+                                                     {'path': 'case/NOTES.md', 'message': 'the notes stand'}]})
+        runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
+        stderr = io.StringIO()
+        with self.waterfall_checks(), contextlib.redirect_stderr(stderr):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertEqual(len(runner.prompts['case-advice']), 1)
+        self.assertIn('Lead review at the end: waive', (root / 'workspace/case/NOTES.md').read_text())
+        self.assertIn("dropped action '../r001-board/boards/main.enclosure.json'", stderr.getvalue())
+        self.assertEqual(json.loads((root / '.pilot/metrics.json').read_text())['adviceActionsDropped'], 2)
+
+    def test_end_advice_with_no_valid_action_still_fails_as_before(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
+                                 advice={'decision': 'waive', 'summary': 'Accept the notes',
+                                         'actions': [{'path': '../r001-board/boards/main.enclosure.json',
+                                                      'message': 'board must publish'}]})
+        runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
+        with self.waterfall_checks(), contextlib.redirect_stderr(io.StringIO()):
+            root, result = self.start(runner)
+        self.assertNotEqual(result['status'], 'candidate_ready')
+        self.assertIn('Lead advice action path escapes worktree', json.dumps(result['findings']))
+
+    def test_native_check_waiting_for_the_parallel_board_asks_no_end_advice(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass']},
+                                 advice={'decision': 'external_blocker', 'summary': 'Board not published',
+                                         'actions': [{'path': 'case/NOTES.md', 'message': 'wait'}]})
+        runner.PARTS = {'simple': ['frame']}
+        with self.waterfall_checks(native=self.NO_ENCLOSURE):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertNotIn('case-advice', runner.prompts)
+        notes = (root / 'workspace/case/NOTES.md').read_text()
+        self.assertIn('Lead review at the end: clean', notes)
+        self.assertIn('waits for the board team to publish', notes)
+
+    def test_tester_hears_that_the_board_map_is_not_published_yet(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass']})
+        runner.PARTS = {'simple': ['frame']}
+        with self.waterfall_checks(native=self.NO_ENCLOSURE):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        tester = runner.prompts['case-test'][0]
+        self.assertIn('waitingForBoard', tester)
+        self.assertIn('sealed PILOT_CONTRACT.json', tester)
+        self.assertIn('never a defect here', tester)
+
+    def test_only_an_unpublished_board_map_counts_as_waiting(self):
+        worktree = self.base / 'wt'
+        unverified = {'name': 'native', 'level': 'unverified', 'message': 'x'}
+        put(worktree, 'case/out/parts.json', json.dumps({'parts': []}))
+        self.assertTrue(parallel._waiting_for_board_contract(worktree, unverified))
+        self.assertFalse(parallel._waiting_for_board_contract(worktree, {**unverified, 'level': 'fail'}))
+        put(worktree, 'case/out/parts.json', json.dumps(
+            {'parts': [], 'verification': {'nativePCBCheckerApplies': False}}))
+        self.assertFalse(parallel._waiting_for_board_contract(worktree, unverified))  # handwired
+        put(worktree, 'case/out/parts.json', json.dumps({'parts': []}))
+        put(worktree, 'boards/main.enclosure.json', '{}')
+        self.assertFalse(parallel._waiting_for_board_contract(worktree, unverified))  # published
 
     def test_a_follow_up_builds_and_checks_only_the_new_part(self):
         with patch.object(parallel, '_earlier_case_fits', return_value=True):
