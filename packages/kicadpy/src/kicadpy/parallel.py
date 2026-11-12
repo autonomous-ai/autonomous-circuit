@@ -1674,19 +1674,21 @@ CASE_WATERFALL_RULE = (
     'at the very end, may let a passed part change. On a follow-up request ("add X") build and check only '
     'the new part; list an earlier part under "rework" in case/checks.json only when the request names it. '
     'Do exactly what was asked, nothing extra. ')
-SKELETON_RULE = ('Build the structure like bones: an open skeleton of braced bars and cross-members, not a closed '
-                 'box, closed cups or sheet walls. Carry load through short, braced bars with no thin part hanging '
-                 'free. If one wire route is blocked another must be open, so leave several open routes that pass '
-                 'the real connector housings. Every device must be held by the frame or by a glue-on module. Add '
-                 'skin, covers or an enclosure only if the brief or a release note explicitly asks. ' + GLUE_ON_RULE)
+SKELETON_RULE = ('Build the frame as one plain rectangular box: a floor and straight walls, and nothing inside it. '
+                 'No internal rails, cross-members, ribs, decorative X, diagonal or triangle bracing or patterned '
+                 'cutouts; plain rectangular openings in a wall are fine where wires or access need them. Servo '
+                 'mounts and leg, wheel or pivot pads are part of the box frame; every other device sits on its own '
+                 'small glue-on holder. Carry load through the walls and floor with no thin part hanging free. '
+                 'Leave open wire routes that pass the real connector housings. Add a lid, skin or cover only if '
+                 'the brief or a release note explicitly asks. ' + GLUE_ON_RULE)
 TESTER_RULES = (
     'Block only on defects that stop the product: it cannot be assembled, wired or printed; firmware '
     'cannot build, flash or do the core job in the brief; an electrical fault can damage hardware or '
     'is unsafe, such as reversed battery polarity; a limit in the brief on size, part count, '
     'screw count, print time or weight is exceeded; moving parts collide or jam, such as a leg hitting '
     'the body or a wheel that cannot turn, anywhere in their required travel; or a thin part hanging '
-    'free will clearly break under load; or the structure is a closed box, closed cups or sheet walls '
-    'instead of an open skeleton of braced bars, unless the brief or a release note asks for an enclosure. '
+    'free will clearly break under load; or the frame is not one plain box (internal rails, ribs or '
+    'decorative bracing inside it, or devices without a holder). '
     'Do not block on small '
     'dimensional misses a person can fix with pliers, a file or glue, or on labels, documentation, '
     'overview drawings, report coverage or spare hardware the person can buy. List those as NOTES in '

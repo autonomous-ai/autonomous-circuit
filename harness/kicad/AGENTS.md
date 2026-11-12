@@ -705,9 +705,11 @@ board revision, not a moved footprint.
 - **The checker measures the exported files.** Read `verdict` and `checks` in the case report:
   fix every `fail` and `unverified`, and look at each `review`. Declare joints, wires and test fits in
   `case/interfaces.json` (`$CIRCUIT_SKILLS_DIR/kicad/references/case-assembly.md`).
-- **Open skeleton first → devices, fasteners and joints → checked mechanism → covers only on
-  request.** For a new robot/moving device, build an open skeleton of braced bars and
-  cross-members, not a closed box, closed cups or sheet walls; leave several open wire routes.
+- **Plain box frame first → devices, fasteners and joints → checked mechanism → covers only on
+  request.** For a new robot/moving device, the frame is one plain rectangular box (floor and
+  straight walls) with nothing inside: no internal rails, ribs or decorative X/diagonal/triangle
+  bracing or patterned cutouts. Servo mounts and leg/wheel/pivot pads are part of the box; other
+  devices sit on small glue-on holders; leave open wire routes.
   It must locate and hold its devices/joints without relying on covers. Place real devices, fixing seats, screw/nut access and
   wires on the frame; check insertion, retention, play and motion first. Only if the person asks
   for skin, attach removable covers to defined frame mounts and recheck full travel with all ribs, hardware and wires.
