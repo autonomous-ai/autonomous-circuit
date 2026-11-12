@@ -146,13 +146,11 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
 
 ## Build order: frame → mounted devices and joints → covers
 
-- **Design an open skeleton first.** For a new robot/moving device, build the base and moving
-  frames from braced bars and cross-members, like bones, not a closed box, closed cups or sheet
-  walls. Leave several open wire routes that pass the real connector housings, so a blocked route
-  has an alternative. Add skin only when the person asks for it. The uncovered frame must locate and retain the
-  devices and joints; cosmetic covers must not be the missing support that makes a loose frame
-  or device stay in place. A simple open base may itself serve as the frame; do not add
-  redundant parts to a static device or rebuild a working printed base to follow this sequence.
+- **Frame = one plain box.** For a new robot/moving device, the frame is a plain rectangular box:
+  a floor and straight walls, nothing inside it: no internal rails, cross-members, ribs, decorative
+  X/diagonal/triangle bracing or patterned cutouts. Plain rectangular wall openings are fine for
+  wires and access. Servo mounts and leg, wheel or pivot pads are part of the box; every other
+  device sits on its own small glue-on holder. Add a lid or skin only when the person asks.
 - Place the actual device/module envelopes on that frame: board, screen, actuators/horns and
   owned peripherals. Define their seats, fixing points, fastener/nut capture, insertion/removal
   order and tool access while the structure is exposed. Route connectors and real wire bundles

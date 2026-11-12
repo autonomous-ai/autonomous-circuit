@@ -404,10 +404,13 @@ class TeamFlowTests(unittest.TestCase):
         root, state = parallel.load(self.root)
         for stage in ('case', 'case-final'):
             prompt = parallel.worker_prompt(state, 'case', stage)
-            self.assertIn('open skeleton', prompt)
+            self.assertIn('one plain rectangular box', prompt)
             self.assertNotIn('box sections', prompt)
             self.assertIn('only if the brief', prompt)
-        self.assertIn('closed box', parallel.TESTER_RULES)
+            self.assertIn('nothing inside it', prompt)
+            self.assertIn('Servo mounts and leg, wheel or pivot pads are part of the box frame', prompt)
+            self.assertNotIn('braced bars', prompt)
+        self.assertIn('not one plain box', parallel.TESTER_RULES)
         self.assertNotIn('box sections', parallel.TESTER_RULES)
 
     def test_testers_use_their_own_model(self):
