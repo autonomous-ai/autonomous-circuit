@@ -1009,10 +1009,49 @@ class CaseCrewTests(unittest.TestCase):
             _, result = self.start(runner, case_docs_model='docs-model')
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
         stages = [stage for stage, _ in runner.order if stage.startswith('case')]
-        # the re-test has no tester findings to re-check, so it makes no model call
-        self.assertEqual(stages, ['case', 'case-test', 'case-docs', 'case', 'case-docs'])
+        # the CAD repair goes back past its tester, which re-checks exactly the docs blocker
+        self.assertEqual(stages, ['case', 'case-test', 'case-docs', 'case', 'case-test', 'case-docs'])
         self.assertIn('Frame does not fit plate 1', runner.prompts['case'][1])
+        self.assertIn('RE-TEST', runner.prompts['case-test'][1])
+        self.assertIn('case-docs blocker: Frame does not fit plate 1', runner.prompts['case-test'][1])
         self.assertIn('This is run 2', runner.prompts['case-docs'][1])
+
+    def test_cad_tester_findings_on_docs_files_go_to_the_docs_member(self):
+        class Runner(CaseCrewRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if stage == 'case-test' and 'case-test' not in inner.prompts:
+                    inner.prompts['case-test'] = [prompt]
+                    inner.order.append((stage, model))
+                    return _receipt(stage, model, {
+                        'contractSha256': state['contractSha256'], 'decision': 'revise', 'summary': 'Docs',
+                        'findings': [{'path': 'case/README.md', 'message': 'README skips step 3'}]})
+                return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+        runner = Runner()
+        with self.fake_checks('pass'):
+            _, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        stages = [stage for stage, _ in runner.order if stage.startswith('case')]
+        self.assertEqual(stages, ['case', 'case-test', 'case-docs'])
+        self.assertIn('README skips step 3', runner.prompts['case-docs'][0])
+
+    def test_integration_finding_on_a_docs_file_reaches_the_docs_member(self):
+        class Runner(CaseCrewRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if stage == 'integration-test' and 'integration-test' not in inner.prompts:
+                    inner.prompts['integration-test'] = [prompt]
+                    return _receipt(stage, model, {
+                        'contractSha256': state['contractSha256'], 'decision': 'revise', 'summary': 'Overview',
+                        'findings': [{'path': 'case/overview.html', 'message': 'Overview misses the hip screws'}]})
+                return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+        runner = Runner()
+        with self.fake_checks('pass'):
+            _, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        stages = [stage for stage, _ in runner.order if stage.startswith('case')]
+        # the repair's CAD tester has nothing of its own to re-check; docs gets the finding
+        self.assertEqual(stages, ['case', 'case-test', 'case-docs', 'case', 'case-docs'])
+        self.assertIn('TESTER FINDINGS ON YOUR FILES', runner.prompts['case-docs'][1])
+        self.assertIn('Overview misses the hip screws', runner.prompts['case-docs'][1])
 
     def test_case_docs_may_not_change_the_checked_parts(self):
         runner = CaseCrewRunner(docs_touches_part=True)

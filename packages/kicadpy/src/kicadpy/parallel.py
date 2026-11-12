@@ -1806,6 +1806,10 @@ CASE_DOCS_DIRS = ('case/print/', 'case/images/', 'case/docs/', 'tools/case/docs/
 CASE_DOCS_MANIFEST_KEYS = ('printProject', 'overview')
 
 
+def _case_docs_path(name):
+    return name in CASE_DOCS_FILES or name.startswith(CASE_DOCS_DIRS)
+
+
 def _case_cad_digest(worktree):
     """What the case tester approved: exported parts, their manifest entries and the declared interfaces."""
     worktree = Path(worktree)
@@ -1960,6 +1964,11 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         case_team = state['mode'] == 'teams' and role == 'case'
         docs_on = case_team and bool(state.get('caseDocsModel'))
         auto_check, check_runs, docs_runs = None, 0, 0
+        # With a case-docs member, findings on its files wait for its turn instead of the CAD loop.
+        docs_findings = []
+        if docs_on and recheck:
+            docs_findings = [item for item in recheck if _case_docs_path(item['path'])]
+            recheck = [item for item in recheck if not _case_docs_path(item['path'])]
 
         def publish(status, findings=()):
             if on_progress is not None and state['mode'] == 'teams':
@@ -2038,13 +2047,16 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
 
         def case_docs():
             """After the CAD passed: the case-docs member's turn. None when done, else blockers for the CAD."""
-            nonlocal docs_runs
+            nonlocal docs_runs, recheck, docs_findings
             docs_runs += 1
             docs_stage = CASE_DOCS + stage.removeprefix('case')
             publish('draft')
             cad_before = _case_cad_digest(dest)
             docs_prompt = (case_docs_prompt(state, docs_stage, docs_runs) + '\n\n' +
                            notes_for_role(root, role) + case_checks_text())
+            if docs_findings:
+                docs_prompt += ('\n\nTESTER FINDINGS ON YOUR FILES (fix each):\n' +
+                                json.dumps(docs_findings, sort_keys=True))
             if guidance is not None:
                 docs_prompt += ('\n\nLEAD REVIEW FINDINGS FOR SAME SEALED CONTRACT:\n' +
                                 json.dumps(guidance, sort_keys=True))
@@ -2076,7 +2088,11 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                 raise ValueError('Case docs changed a contract/shared/unowned file')
             if _case_cad_digest(dest) != cad_before:
                 raise ValueError('Case docs changed the checked parts in case/out/ or case/interfaces.json')
+            docs_findings = []
             if docs['blockers']:
+                # The CAD builder repairs geometry; its tester then re-checks exactly these.
+                recheck = [{'path': 'case/out/parts.json', 'message': 'case-docs blocker: ' + blocker}
+                           for blocker in docs['blockers']]
                 return {'kind': 'case_docs_blockers', 'blockers': docs['blockers']}
             case_auto_check()
             return None
@@ -2161,6 +2177,11 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                      integration_lock=integration_lock, waivers=waivers,
                                      recheck=recheck)
                     test = _apply_waivers(dest, test, waivers)
+                    if docs_on:
+                        kept = [item for item in test['findings'] if not _case_docs_path(item['path'])]
+                        docs_findings += [item for item in test['findings'] if _case_docs_path(item['path'])
+                                          and item not in docs_findings]
+                        test = {**test, 'findings': kept, 'decision': 'revise' if kept else 'approve'}
                     recheck = test['findings']
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}

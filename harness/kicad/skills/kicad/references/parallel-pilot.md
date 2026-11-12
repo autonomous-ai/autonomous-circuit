@@ -93,7 +93,9 @@ and the check scripts. After its tester approves, case-docs works in the same wo
 the print plates, slices them, and writes `case/overview.html`, `case/README.md`, the assembly
 steps and `case/PRINTED-INVENTORY.md`. It may not change `case/out/` (only the `printProject` and
 `overview` entries of `parts.json`) or `case/interfaces.json`. A blocker it reports goes back to the
-case builder, and then case-docs runs again. Without the key, one case builder does everything, as
+case builder, the case tester re-checks it, and then case-docs runs again. The case tester reviews
+the CAD only. A tester or integration finding on a docs file (README, overview, assembly steps,
+`case/print/`) goes to case-docs. Without the key, one case builder does everything, as
 before. The native, final-case, plate and integration gates are unchanged.
 
 After every case builder turn, the controller runs the case checks itself, with no model call: the
