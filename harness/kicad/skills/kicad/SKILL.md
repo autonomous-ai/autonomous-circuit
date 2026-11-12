@@ -264,7 +264,12 @@ Errors: `case_collides`, `case_interface_blocked`, `case_touch_wall`, `case_part
 
 ### Interactive overview — immediately after the 3D build
 
-Every case build also generates `case/overview.html`, automatically in the same turn. Use the
+Every case build also generates `case/overview.html`, automatically in the same turn, from the
+shared template: write the step data in `case/assembly_steps.json` (ordered steps with `title`,
+`show`/`focus` part globs, `hw` groups `{ids, what, count, entry}`, `action`, `camera`) and run
+`"$KICAD_CASE_PYTHON" -m kicadpy.case_overview .`. It embeds the exported STL meshes and the drawing sheets, and gives every
+project the same chip row **Đủ bộ · 1 · 2 · … · N** with Trước/Sau. Never hand-write the HTML or
+use a `<select>` for steps; fix the data or the template instead. Use the
 actual assembled geometry, component labels, shell visibility and wire paths. Include bought
 screws/nuts/washers as recognizable 3D hardware with a separate
 default-on **Vít/tán** toggle. Selection must focus the real screw and its size/insertion path;
@@ -284,8 +289,8 @@ to `case/out/` (`"../overview.html"`), and verify it in **Case → Overview**. A
 Call the overview generator from `case/build.py` so final model repairs regenerate it too.
 The animation never replaces CAD checks or physical fit tests. See AGENTS.md, "Case".
 
-Use one consistent overview layout across projects: a single **Đủ bộ / Bước 1…N** selector
-with previous/next navigation. Each step automatically scopes the 3D view and a **Vít/tán bước
+Use one consistent overview layout across projects: the template's **Đủ bộ · 1 · … · N** chip
+row with Trước/Sau. Each step automatically scopes the 3D view and a **Vít/tán bước
 này** card (IDs, size/factory label, count, nuts, entry direction and action); selecting a screw
 keeps the current step. Đủ bộ shows the complete seated product and total hardware summary.
 Do not maintain separate assembly-stage, step and fastener-group workflows. Keep camera

@@ -27,7 +27,9 @@ The person only needs to open KiCad in Harness and send a prompt. You are the en
 their single communication path to the Astra lead. Pass the person's exact request through the
 tile bridge; the lead assigns design work to the electrical board, firmware, and case teams and
 physical print coordination to a separate 3D print team. Each design team
-has a builder and an independent tester and may work at the same time. The lead does not make
+has a builder and an independent tester and may work at the same time. The harness itself runs the
+case team's declared checks after every case turn. A project can also add a case-docs member that
+makes the plates, slicing, overview and README after the CAD passes (see parallel-pilot.md). The lead does not make
 firmware or case wait for board completion or a lead board review. Do not build the board yourself or arm
 `kicadpy.harness --active build` in a team project. Do not assign work directly to a worker.
 
@@ -779,9 +781,11 @@ board revision, not a moved footprint.
   whose extent differs from its STEP (`case_mesh_frame_mismatch`). A flipped STL once passed a
   check of its STEP and drew the board outside its own case in the Case tab (2026-10-12).
 - **Immediately after drawing/building the case in 3D, make its interactive overview in the
-  same turn.** Do this automatically, without waiting for another request. Write a reproducible
-  generator (for example `tools/render_case_overview.py`) and have `case/build.py` regenerate
-  `case/overview.html` after exporting the assembled STEP/STL. Set the `overview` field in
+  same turn.** Do this automatically, without waiting for another request. Do not write the HTML:
+  fill `case/assembly_steps.json` and run `"$KICAD_CASE_PYTHON" -m kicadpy.case_overview .` (the shared template:
+  a chip row **Đủ bộ · 1 · … · N** with Trước/Sau, per-step Vít/tán card, camera buttons, Chi tiết
+  closed, light/dark from the hash, embedded meshes and drawing sheets), and have `case/build.py`
+  rerun it after exporting the assembled STEP/STL. Set the `overview` field in
   `case/out/parts.json` to `"../overview.html"`; an existing motion-specific file is
   also valid when the manifest points to it (for example `"../motion/motion-view.html"`).
   - Use the actual final assembly geometry, in its assembled frame, with component labels and
@@ -801,8 +805,8 @@ board revision, not a moved footprint.
     Give text and controls strong contrast on light and dark surfaces. Follow the assembly reference's
     palette and visual checks at desktop and phone widths; preserve the real geometry and CAD
     checks while changing presentation.
-  - **Use the same simple assembly format for every project.** One primary selector contains
-    **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
+  - **Use the same simple assembly format for every project.** One chip row (never a `<select>`)
+    contains **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
     navigation using that same state. Merge assembly-stage and assembly-step menus; do not add
     an independent fastener-group workflow. Each selected step automatically shows its parts,
     real 3D hardware and a compact **Vít/tán bước này** card: IDs, size/factory label, quantity,

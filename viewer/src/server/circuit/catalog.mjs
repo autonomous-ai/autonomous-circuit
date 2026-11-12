@@ -334,6 +334,24 @@ function caseMember(outDir, name) {
   return full;
 }
 
+const CASE_MAX_DRAWINGS = 40;
+
+/** Engineering sheets the harness drew from the exported STEP files (case/out/drawings/index.json). */
+function caseDrawings(outDir, url) {
+  const dir = path.join(outDir, "drawings");
+  const index = readJson(path.join(dir, "index.json"));
+  if (!Array.isArray(index?.sheets)) return [];
+  const drawings = [];
+  for (const sheet of index.sheets.slice(0, CASE_MAX_DRAWINGS)) {
+    const file = caseMember(dir, sheet?.svg);
+    if (!file || path.extname(file).toLowerCase() !== ".svg") continue;
+    try { if (!fs.realpathSync(file).startsWith(fs.realpathSync(dir) + path.sep)) continue; } catch { continue; }
+    drawings.push({ name: String(sheet.name || path.basename(file, ".svg")), title: String(sheet.title || sheet.name || ""),
+      kind: sheet.kind === "assembly" ? "assembly" : "part", url: url(file) });
+  }
+  return drawings;
+}
+
 /** Resolve an agent-authored overview only when it is an HTML file inside case/. */
 function caseOverviewFile(rootDir, member) {
   if (typeof member !== "string" || !member.trim()) return null;
@@ -444,6 +462,7 @@ function scanCase(rootDir, url, stem) {
     if (file) { result.overviewUrl = url(file); break; }
   }
 
+  result.drawings = caseDrawings(outDir, url);
   const intent = path.join(rootDir, CASE_DIR, "interfaces.json");
   if (fs.existsSync(intent)) result.intentUrl = url(intent);
   const report = path.join(rootDir, CASE_REPORT);

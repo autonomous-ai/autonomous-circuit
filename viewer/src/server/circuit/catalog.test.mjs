@@ -484,6 +484,24 @@ test('Case overview discovers the motion demo or an explicit confined manifest f
   fs.symlinkSync(path.join(dir,'outside.html'),path.join(dir,'case/link.html'));fs.writeFileSync(manifest,JSON.stringify({parts:[],overview:'../link.html'}));assert.equal(read().overviewUrl,undefined);
 });
 
+test('Case lists the harness-drawn engineering sheets kept inside case/out/drawings', t => {
+  const dir=tmpdir('circuit-case-drawings-');t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(dir,'design'));fs.mkdirSync(path.join(dir,'boards'));fs.mkdirSync(path.join(dir,'case/out/drawings'),{recursive:true});
+  fs.writeFileSync(path.join(dir,'design/main.kicad_pcb'),'(kicad_pcb)');fs.writeFileSync(path.join(dir,'boards/main.board.json'),JSON.stringify({source:{engine:'kicad-native',file:'design/main.kicad_pcb'}}));
+  fs.writeFileSync(path.join(dir,'case/out/parts.json'),JSON.stringify({parts:[]}));
+  const read=()=>scanProjectCatalog({projectDir:dir,projectId:'p'}).entries.find(e=>e.file==='design/main.kicad_pcb').artifact.case;
+  assert.deepEqual(read().drawings,[]);
+  fs.writeFileSync(path.join(dir,'case/out/drawings/assembly.svg'),'<svg/>');fs.writeFileSync(path.join(dir,'case/out/drawings/frame.svg'),'<svg/>');
+  fs.writeFileSync(path.join(dir,'case/out/parts.json.svg'),'<svg/>');
+  fs.writeFileSync(path.join(dir,'case/out/drawings/index.json'),JSON.stringify({schema:1,sheets:[
+    {name:'assembly',title:'Crab — assembly',kind:'assembly',svg:'assembly.svg'},
+    {name:'frame',title:'frame ×2',kind:'part',svg:'frame.svg'},
+    {name:'escape',svg:'../parts.json.svg'},{name:'missing',svg:'gone.svg'},{name:'html',svg:'index.json'}]}));
+  const drawings=read().drawings;
+  assert.deepEqual(drawings.map(d=>[d.name,d.title,d.kind]),[['assembly','Crab — assembly','assembly'],['frame','frame ×2','part']]);
+  assert.match(drawings[0].url,/case\/out\/drawings\/assembly\.svg\?v=/);
+});
+
 test('project overview is available before a board only from an explicit confined HTML manifest member', t => {
   const dir = tmpdir('circuit-project-overview-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

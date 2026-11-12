@@ -1111,7 +1111,7 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
     def test_team_models_defaults_override_and_bad_file(self):
         project = self.base / 'project'
         defaults = {'lead': pilot.LEAD, 'tester': pilot.WORKER, 'integrationTester': None,
-                    'advisor': None, 'builders': {}, 'testers': {}}
+                    'advisor': None, 'builders': {}, 'testers': {}, 'caseDocs': False}
         self.assertEqual(pilot.team_models(project), defaults)
         put(project, str(pilot.TEAM_MODELS), json.dumps({'tester': 'claude-opus-5-5'}))
         self.assertEqual(pilot.team_models(project), {**defaults, 'tester': 'claude-opus-5-5'})
@@ -1121,10 +1121,25 @@ print(json.dumps({'type': 'result', 'is_error': False, 'total_cost_usd': 1.5,
         self.assertEqual(pilot.team_models(project), {**defaults, **chosen})
         for bad in ({'worker': 'claude-opus-5-5'}, {'lead': ''}, ['claude-opus-5-5'],
                     {'builders': {'lid': 'claude-opus-5-5'}}, {'testers': {'case': ''}},
-                    {'builders': 'claude-opus-5-5'}, {'advisor': ''}):
+                    {'builders': 'claude-opus-5-5'}, {'advisor': ''}, {'caseDocs': ''},
+                    {'caseDocs': 3}, {'builders': {'case-docs': 'claude-opus-5-5'}}):
             put(project, str(pilot.TEAM_MODELS), json.dumps(bad))
             with self.assertRaisesRegex(ValueError, 'integrationTester'):
                 pilot.team_models(project)
+
+    def test_case_docs_member_is_off_unless_chosen(self):
+        project = self.base / 'project'
+        self.assertIsNone(pilot.case_docs_model(pilot.team_models(project)))
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'caseDocs': False}))
+        self.assertIsNone(pilot.case_docs_model(pilot.team_models(project)))
+        # true keeps the case builder's model, so only the split changes
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'caseDocs': True,
+                                                         'builders': {'case': 'claude-opus-5-5'}}))
+        self.assertEqual(pilot.case_docs_model(pilot.team_models(project)), 'claude-opus-5-5')
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'caseDocs': True}))
+        self.assertEqual(pilot.case_docs_model(pilot.team_models(project)), pilot.WORKER)
+        put(project, str(pilot.TEAM_MODELS), json.dumps({'caseDocs': 'claude-sonnet-5-5'}))
+        self.assertEqual(pilot.case_docs_model(pilot.team_models(project)), 'claude-sonnet-5-5')
 
     def test_job_logs_each_command_with_its_time(self):
         from kicadpy.parallel_contract import RESULT_SCHEMA

@@ -12,7 +12,7 @@ kicadpy = "kicadpy.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 [tool.setuptools.package-data]
-kicadpy = ["data/*.json"]
+kicadpy = ["data/*.json", "assets/*.html"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "../circuitpy/src"]
 testpaths = ["tests"]
