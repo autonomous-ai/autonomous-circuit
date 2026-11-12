@@ -155,6 +155,8 @@ class FilesTests(unittest.TestCase):
         text = wf.prompt_text(ledger)
         self.assertIn('Current stage: simple', text)
         self.assertIn('Build or repair ONLY this stage', text)
+        self.assertIn('kicadpy.case_build', text)
+        self.assertIn('Never rm -rf case/out', text)
         ledger['stages']['simple']['status'] = 'noted'
         ledger['frozen']['case/out/frame.stl'] = {'stage': 'simple'}
         wf.note(ledger, 'simple', 'check', 'warps at the corner', now=1)

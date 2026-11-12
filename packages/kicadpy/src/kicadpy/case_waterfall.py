@@ -48,6 +48,9 @@ STAGE_TITLES = {'simple': 'Simple parts (frame/box and small parts)', 'moving': 
                 'joints': 'Joints and snap fits', 'lid': 'Lid'}
 FAILING = (case_measure.FAIL, case_measure.UNVERIFIED)
 MAX_NOTES = 200
+BUILD_RULE = ('Build with the cached builder (kicadpy.case_build in case/build.py): it rebuilds only the '
+              'parts whose code or inputs changed; use --only <part> for a scoped fix. Never rm -rf case/out '
+              'and never --force unless the person asked for a full rebuild.')
 
 
 def plan(worktree):
@@ -270,6 +273,7 @@ def prompt_text(ledger):
         if entry['fails']:
             text.append('Failed so far: ' + json.dumps(entry['fails'], sort_keys=True) +
                         f'; a check gets {MAX_REPAIRS} repair tries, then it is noted and the team moves on.')
+    text.append(BUILD_RULE)
     if closed:
         text.append('Closed stages (never rework their parts; the harness restores any change): ' +
                     ', '.join(f"{name} {ledger['stages'][name]['status']}" for name in closed) + '.')
