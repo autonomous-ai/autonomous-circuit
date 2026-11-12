@@ -415,6 +415,68 @@ class TeamBridgeTests(unittest.TestCase):
             parallel_tile._preview_progress(self.workspace, root, 'board', 'board',
                                             self.workspace, 'draft', [])
 
+    def test_case_preview_mirrors_the_whole_wip_model_bounded_and_unverified(self):
+        root, _, _, _ = self.staged_pilot()
+        draft = root / 'workers/r001-case'
+        put(draft, 'case/out/parts.json', json.dumps({'parts': [
+            {'name': 'shell', 'role': 'shell', 'stl': 'shell.stl'},
+            {'name': 'ref_DO_NOT_PRINT_servo', 'role': 'other', 'stl': 'servo.stl'},
+            {'name': 'lid', 'role': 'lid', 'stl': 'lid.stl'}]}))
+        for name in ('lid', 'shell', 'servo'):
+            put(draft, f'case/out/{name}.stl', f'solid {name}\nendsolid {name}\n')
+        put(draft, 'case/out/huge.stl', 'x')
+        os.truncate(draft / 'case/out/huge.stl', parallel_tile.PREVIEW_MODEL_MAX_FILE + 1)
+        before_verdict = (self.workspace / '.harness/verdict.json').read_bytes()
+        preview = parallel_tile._preview_progress(
+            self.workspace, root, 'case', 'case', draft, 'draft', [])
+        team = preview['teams']['case']
+        self.assertFalse(team['verified'])
+        self.assertEqual(team['media'], [])  # no images: the 3D is the evidence
+        models = team['models']
+        self.assertEqual([m['name'] for m in models], ['shell', 'ref_DO_NOT_PRINT_servo', 'lid'])
+        self.assertEqual([m['printable'] for m in models], [True, False, True])
+        self.assertEqual(models[2]['role'], 'lid')
+        for model in models:
+            self.assertTrue(model['path'].startswith('.circuit/team-previews/current/case/case/out/'))
+            self.assertEqual((self.workspace / model['path']).read_bytes(),
+                             (draft / model['file']).read_bytes())
+        # nothing reaches the accepted tree or the verdict
+        self.assertFalse((self.workspace / 'case/out/shell.stl').exists())
+        self.assertEqual((self.workspace / '.harness/verdict.json').read_bytes(), before_verdict)
+        # an unchanged part is not copied again; a removed part leaves the preview
+        shell = self.workspace / models[0]['path']
+        stamp = shell.stat().st_mtime_ns
+        (draft / 'case/out/lid.stl').unlink()
+        put(draft, 'case/out/servo.stl', 'solid servo2\nendsolid servo2\n')
+        again = parallel_tile._preview_progress(
+            self.workspace, root, 'case', 'case', draft, 'checking', [])['teams']['case']['models']
+        self.assertEqual([m['name'] for m in again], ['shell', 'ref_DO_NOT_PRINT_servo'])
+        self.assertEqual(shell.stat().st_mtime_ns, stamp)
+        self.assertFalse((self.workspace / models[2]['path']).exists())
+        self.assertIn('servo2', (self.workspace / again[1]['path']).read_text())
+        # board and firmware previews carry no models
+        self.assertNotIn('models', preview['teams']['board'])
+        # a mesh rewritten mid-copy keeps its earlier copy; the rest and the status still update
+        put(draft, 'case/out/shell.stl', 'solid shell3\nendsolid shell3\n')
+        put(draft, 'case/out/servo.stl', 'solid servo3\nendsolid servo3\n')
+        real_info = parallel_tile._file_info
+
+        def moving(path, **kwargs):
+            info = real_info(path, **kwargs)
+            if kwargs.get('maximum') and 'servo3' in Path(path).read_text():
+                return {**info, 'sha256': '0' * 64}
+            return info
+
+        with patch.object(parallel_tile, '_file_info', side_effect=moving):
+            busy = parallel_tile._preview_progress(
+                self.workspace, root, 'case', 'case', draft, 'needs_revision', ['hip collides'])
+        team = busy['teams']['case']
+        self.assertEqual(team['status'], 'needs_revision')
+        self.assertEqual([m['name'] for m in team['models']], ['shell', 'ref_DO_NOT_PRINT_servo'])
+        self.assertIn('shell3', (self.workspace / team['models'][0]['path']).read_text())
+        self.assertIn('servo2', (self.workspace / team['models'][1]['path']).read_text())
+        self.assertNotIn('previewError', busy)
+
     def test_worker_preview_rejects_symlink_destination(self):
         root, _, _, _ = self.staged_pilot()
         draft = root / 'roles/board-draft'

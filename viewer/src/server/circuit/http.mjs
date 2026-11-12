@@ -1466,10 +1466,13 @@ export function createCircuitServices({
       // hash-checked image bytes that the unverified progress card lists.
       const preview = scanTeamPreview(fs.realpathSync(projectRoot), projectId);
       const allowed = preview && Object.values(preview.teams).some(team =>
-        team.media.some(item => new URL(item.url, "http://localhost").pathname === pathname));
+        [...team.media, ...(team.models || []).map(model => ({ url: model.stlUrl }))]
+          .some(item => new URL(item.url, "http://localhost").pathname === pathname));
       if (!allowed) throw ipcError("FORBIDDEN", "Pilot control files are private", 403);
     }
-    const contentType = assetContentType(path.relative(projectRoot, candidate), candidate);
+    // A listed case draft mesh lives under .circuit/, not case/: same STL type, nothing else.
+    const contentType = assetContentType(path.relative(projectRoot, candidate), candidate) ||
+      (privatePilotAsset && path.extname(candidate).toLowerCase() === ".stl" ? "model/stl" : null);
     if (!contentType) {
       return null;
     }

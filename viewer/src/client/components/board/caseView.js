@@ -17,6 +17,8 @@ export function describeStatus(state, reason = "") {
       return { tone: "warn", title: "Not fully measured", detail: `${reason || "Part of the case could not be measured"}. Do not count it as a pass.` };
     case "stale":
       return { tone: "warn", title: "Needs a recheck", detail: `${reason || "Something changed since the last check"}. Do not print until it is checked again.` };
+    case "draft":
+      return { tone: "warn", title: "Đang làm · chưa duyệt", detail: `${reason || "The case team is still modelling"}. A draft: not checked, not printable.` };
     default:
       return { tone: "idle", title: "No case yet", detail: "The agent models the case after the firmware is built." };
   }
@@ -169,6 +171,7 @@ const STATUS_CHIP = {
   unverified: { label: "Unverified", tone: "warn" },
   stale: { label: "Review", tone: "warn" },
   failed: { label: "Fail", tone: "bad" },
+  draft: { label: "Draft", tone: "warn" },
 };
 
 /**
@@ -246,4 +249,48 @@ export function viewDirection(view) {
   const v = CAMERA_VIEWS[view] || CAMERA_VIEWS.iso;
   const len = Math.hypot(...v);
   return v.map((x) => x / len);
+}
+
+/** What the Case tabs say while a team run is on and no draft part is exported yet. */
+export function drawingMessage(run) {
+  return `The case team is still drawing${run ? ` (run ${run})` : ""}. Its parts appear here, marked as a draft, as soon as they are exported.`;
+}
+
+/** The label on a disabled Print all while the case is a draft. */
+export const DRAFT_PRINT_LABEL = "Đang vẽ… chưa in được";
+
+/**
+ * Which case the Case tabs show. An accepted case with parts always wins; with
+ * none, the case team's draft parts from the running team preview are shown as
+ * an unverified draft (state "draft", never printable or exportable).
+ *
+ * @returns {{ enclosure: object|null, draft: { run: string, badge: string }|null, drawing: boolean, run: string }}
+ *   `drawing`: a team run is active but nothing is there to show yet.
+ */
+export function resolveCase(accepted, teamPreview = null, teamRuns = null) {
+  const run = String(teamPreview?.run || (teamRuns?.running ? teamRuns.activeRun || "" : ""));
+  const running = Boolean(teamPreview || teamRuns?.running);
+  if (Array.isArray(accepted?.parts) && accepted.parts.length) return { enclosure: accepted, draft: null, drawing: false, run };
+  const team = teamPreview?.teams?.case;
+  const models = Array.isArray(team?.models) ? team.models.filter((m) => m && typeof m.stlUrl === "string") : [];
+  if (models.length) {
+    const badge = `Đang làm · chưa duyệt${run ? ` (run ${run})` : ""}`;
+    return {
+      enclosure: {
+        state: "draft",
+        reason: team.stage ? `The case team is still on ${team.stage}` : "",
+        contractUrl: accepted?.contractUrl || "",
+        nativePCBCheckerApplies: accepted?.nativePCBCheckerApplies !== false,
+        printStatus: { state: "draft", reason: "a draft is not printable" },
+        parts: models.map((m) => ({ name: String(m.name), role: String(m.role || "other"), stlUrl: m.stlUrl,
+          bytes: Number(m.bytes) || 0, printable: m.printable !== false })),
+        plates: [],
+        drawings: [],
+      },
+      draft: { run, badge },
+      drawing: false,
+      run,
+    };
+  }
+  return { enclosure: accepted || null, draft: null, drawing: running, run };
 }

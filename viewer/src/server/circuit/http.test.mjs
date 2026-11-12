@@ -716,6 +716,23 @@ test("viewer-only: only hash-listed worker preview images are served from .circu
     assert.equal((await fetch(`${s.base}/projects/workspace/boards/private-state.json`)).status, 403);
     fs.writeFileSync(path.join(ws, rel), "tampered");
     assert.equal((await fetch(`${s.base}/projects/workspace/${rel}`)).status, 403);
+    // The case team's draft STL parts are served only while the preview lists them.
+    const model = ".circuit/team-previews/current/case/case/out/shell.stl";
+    fs.mkdirSync(path.dirname(path.join(ws, model)), { recursive: true });
+    fs.writeFileSync(path.join(ws, model), "solid shell");
+    const listed = JSON.parse(fs.readFileSync(path.join(ws, ".circuit/team-preview.json"), "utf8"));
+    listed.teams.case = { ...listed.teams.case, status: "draft", models: [{ file: "case/out/shell.stl", path: model,
+      name: "shell", role: "shell", printable: true, bytes: 11, sha256: "0".repeat(64) }] };
+    fs.writeFileSync(path.join(ws, ".circuit/team-preview.json"), JSON.stringify(listed));
+    s.services.catalog.refresh("workspace");
+    const withModel = await s.post("catalog_read");
+    assert.equal(withModel.body.teamPreview.teams.case.models.length, 1);
+    const mesh = await fetch(`${s.base}/projects/workspace/${model}`);
+    assert.equal(mesh.status, 200);
+    assert.equal(await mesh.text(), "solid shell");
+    const unlisted = ".circuit/team-previews/current/case/case/out/other.stl";
+    fs.writeFileSync(path.join(ws, unlisted), "solid other");
+    assert.equal((await fetch(`${s.base}/projects/workspace/${unlisted}`)).status, 403);
   } finally {
     s.close();
   }

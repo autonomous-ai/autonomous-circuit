@@ -46,6 +46,12 @@ PREVIEW_MEDIA_SUFFIXES = frozenset(('.svg', '.png'))
 PREVIEW_MAX_FILES = 8
 PREVIEW_MAX_FILE = 4 * 1024 * 1024
 PREVIEW_MAX_TOTAL = 16 * 1024 * 1024
+# The case team's work-in-progress 3D: its exported STL parts, with their own bounds.
+# Shown as an unverified draft only; never part of the accepted tree or the verdict.
+PREVIEW_MODEL_DIR = 'case/out/'
+PREVIEW_MODEL_MAX_FILES = 120
+PREVIEW_MODEL_MAX_FILE = 32 * 1024 * 1024
+PREVIEW_MODEL_MAX_TOTAL = 192 * 1024 * 1024
 SHA256 = re.compile(r'[0-9a-f]{64}')
 GIT_HEAD = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
 RUN_ID = re.compile(r'r[0-9]{3,}')
@@ -331,6 +337,10 @@ def _preview_progress(workspace, pilot_root, role, stage, source_path, status, f
     baseline = _preview_snapshot(root / 'workspace', role)
     changed = sorted(name for name, info in candidate.items()
                      if owns(role, name) and baseline.get(name, {}).get('sha256') != info['sha256'])
+    data = _read_preview(workspace, pilot_root.name)
+    previous = data['teams'].get(role, {})
+    copied = {item.get('path'): item.get('sha256')
+              for item in previous.get('media', []) + previous.get('models', []) if isinstance(item, dict)}
     media = []
     total = 0
     for name in changed:
@@ -341,45 +351,114 @@ def _preview_progress(workspace, pilot_root, role, stage, source_path, status, f
             break
         if total + info['bytes'] > PREVIEW_MAX_TOTAL:
             continue
-        source_file = _safe_target(resolved, name)
-        target_name = f'.circuit/team-previews/current/{role}/{name}'
-        target = workspace / target_name
-        current = workspace
-        parts = PurePosixPath(target_name).parts
-        for part in parts[:-1]:
-            current = current / part
-            if current.is_symlink():
-                raise ValueError('Symlink in preview destination path')
-            if current.exists() and not current.is_dir():
-                raise ValueError('Non-directory preview destination path')
-            current.mkdir(exist_ok=True)
-        if target.is_symlink():
-            raise ValueError('Symlink in preview destination path')
-        fd, temporary_name = tempfile.mkstemp(prefix='.team-preview-', dir=target.parent)
-        os.close(fd)
-        temporary = Path(temporary_name)
-        try:
-            shutil.copyfile(source_file, temporary)
-            if _file_info(temporary, maximum=PREVIEW_MAX_FILE)['sha256'] != info['sha256']:
-                raise ValueError('Worker preview changed while copying')
-            os.replace(temporary, target)
-            target.chmod(0o644)
-        finally:
-            temporary.unlink(missing_ok=True)
-        media.append({'file': name, 'path': target_name,
-                      'sha256': info['sha256'], 'bytes': info['bytes']})
+        media.append(_copy_preview(workspace, resolved, role, name, info, PREVIEW_MAX_FILE, copied))
         total += info['bytes']
-    data = _read_preview(workspace, pilot_root.name)
-    previous = data['teams'].get(role, {})
+    models = []
+    if role == 'case' and any(name.startswith(PREVIEW_MODEL_DIR) for name in changed):
+        models = _preview_models(workspace, resolved, candidate, copied, previous.get('models', []))
     retain_previous = status in ('checking', 'passed')
-    data['teams'][role] = {'stage': stage, 'status': status, 'verified': False,
-                           'files': changed[:60] or (previous.get('files', []) if retain_previous else []),
-                           'media': media or (previous.get('media', []) if retain_previous else []),
-                           'findings': findings, 'updatedAt': time.time()}
+    team = {'stage': stage, 'status': status, 'verified': False,
+            'files': changed[:60] or (previous.get('files', []) if retain_previous else []),
+            'media': media or (previous.get('media', []) if retain_previous else []),
+            'findings': findings, 'updatedAt': time.time()}
+    if role == 'case':
+        team['models'] = models or (previous.get('models', []) if retain_previous else [])
+    data['teams'][role] = team
     data['updatedAt'] = time.time()
     _write_preview(workspace, data)
-    _prune_preview_media(workspace, role, data['teams'][role]['media'])
+    _prune_preview_media(workspace, role, team['media'] + team.get('models', []))
     return data
+
+
+def _copy_preview(workspace, source_root, role, name, info, maximum, copied):
+    """Copy one worker file into the preview tree; reuse a copy of the same bytes."""
+    target_name = f'.circuit/team-previews/current/{role}/{name}'
+    target = workspace / target_name
+    current = workspace
+    parts = PurePosixPath(target_name).parts
+    for part in parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError('Symlink in preview destination path')
+        if current.exists() and not current.is_dir():
+            raise ValueError('Non-directory preview destination path')
+        current.mkdir(exist_ok=True)
+    if target.is_symlink():
+        raise ValueError('Symlink in preview destination path')
+    entry = {'file': name, 'path': target_name, 'sha256': info['sha256'], 'bytes': info['bytes']}
+    # A case has dozens of parts and the watcher runs every few seconds: copy only changed bytes.
+    if copied.get(target_name) == info['sha256'] and target.is_file() and target.stat().st_size == info['bytes']:
+        return entry
+    source_file = _safe_target(source_root, name)
+    fd, temporary_name = tempfile.mkstemp(prefix='.team-preview-', dir=target.parent)
+    os.close(fd)
+    temporary = Path(temporary_name)
+    try:
+        shutil.copyfile(source_file, temporary)
+        if _file_info(temporary, maximum=maximum)['sha256'] != info['sha256']:
+            raise _PreviewChanged('Worker preview changed while copying')
+        os.replace(temporary, target)
+        target.chmod(0o644)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return entry
+
+
+class _PreviewChanged(ValueError):
+    """The worker rewrote a file while the preview copied it."""
+
+
+def _preview_models(workspace, source_root, candidate, copied, previous=()):
+    """The case worker's exported STL parts, in its parts.json order, bounded.
+
+    Every current part is shown (not only the changed ones) so the draft is the
+    whole model. Names and roles come from the worker's unchecked manifest and
+    are display hints only.
+    """
+    previous = {item['file']: item for item in previous
+                if isinstance(item, dict) and isinstance(item.get('file'), str)
+                and isinstance(item.get('path'), str) and isinstance(item.get('bytes'), int)
+                and item['path'] == f".circuit/team-previews/current/case/{item['file']}"
+                and '..' not in PurePosixPath(item['path']).parts}
+    described = {}
+    try:
+        manifest = json.loads((source_root / PREVIEW_MODEL_DIR / 'parts.json').read_text())
+        for part in manifest.get('parts', []) if isinstance(manifest, dict) else []:
+            if isinstance(part, dict) and isinstance(part.get('stl'), str):
+                described.setdefault(PREVIEW_MODEL_DIR + part['stl'], part)
+    except (OSError, ValueError, AttributeError):
+        pass
+    names = [name for name in candidate
+             if name.startswith(PREVIEW_MODEL_DIR) and name.lower().endswith('.stl')]
+    order = {name: index for index, name in enumerate(described)}
+    names.sort(key=lambda name: (order.get(name, len(order)), name))
+    models, total = [], 0
+    for name in names:
+        info = candidate[name]
+        if info['bytes'] > PREVIEW_MODEL_MAX_FILE or total + info['bytes'] > PREVIEW_MODEL_MAX_TOTAL:
+            continue
+        if len(models) >= PREVIEW_MODEL_MAX_FILES:
+            break
+        part = described.get(name, {})
+        label = part.get('name') if isinstance(part.get('name'), str) else PurePosixPath(name).stem
+        role = part.get('role') if isinstance(part.get('role'), str) else 'other'
+        try:
+            entry = _copy_preview(workspace, source_root, 'case', name, info, PREVIEW_MODEL_MAX_FILE, copied)
+        except _PreviewChanged:
+            # A case export rewrites dozens of meshes in a burst: one still being written
+            # keeps its earlier copy (or waits for the next tick) instead of failing the preview.
+            earlier = previous.get(name)
+            target = workspace / earlier['path'] if earlier else None
+            if target is not None and target.is_file() and not target.is_symlink() \
+                    and target.stat().st_size == earlier['bytes']:
+                models.append(earlier)
+                total += earlier['bytes']
+            continue
+        entry.update(name=label[:120], role=role[:40],
+                     printable=part.get('printable') is not False and 'DO_NOT_PRINT' not in label.upper())
+        models.append(entry)
+        total += info['bytes']
+    return models
 
 
 def _prune_preview_media(workspace, role, retained):

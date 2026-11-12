@@ -4,7 +4,7 @@ import { cn } from "@/ui/utils";
 import CaseScene from "./CaseScene.jsx";
 import { transport } from "@/lib/transport.ts";
 import {
-  cssColor, defaultVisibility, describeStatus, formatBytes, groupPartsByPlate, orderParts, partColors, plateTitle, printNote, roleLabel, summaryChips,
+  cssColor, defaultVisibility, describeStatus, DRAFT_PRINT_LABEL, drawingMessage, formatBytes, groupPartsByPlate, orderParts, partColors, plateTitle, printNote, resolveCase, roleLabel, summaryChips,
 } from "./caseView.js";
 
 /**
@@ -20,6 +20,8 @@ import {
  *
  * @param {{
  *   artifact?: object|null,   // catalog entry.artifact; reads .case
+ *   teamPreview?: object|null, // catalog.teamPreview: the case team's unverified draft parts
+ *   teamRuns?: object|null,    // catalog.teamRuns: is a run active
  *   boardName?: string,
  *   onOpenTab?: (id: string) => void,
  *   Scene?: Function,         // the 3D view; tests pass a stub (no WebGL in node)
@@ -109,14 +111,14 @@ function usePrintStatus(projectId, boardName, hasCase) {
   return status;
 }
 
-function EmptyState({ hasContract, onOpenTab, className }) {
+function EmptyState({ hasContract, drawing, run, onOpenTab, className }) {
   return (
-    <div data-slot="case-empty" className={cn("grid min-h-0 flex-1 place-items-center", className)}>
+    <div data-slot="case-empty" data-drawing={drawing ? "true" : undefined} className={cn("grid min-h-0 flex-1 place-items-center", className)}>
       <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
         <Package className="size-6 text-muted-foreground" aria-hidden />
-        <p className="text-sm font-medium text-foreground">No case yet</p>
+        <p className="text-sm font-medium text-foreground">{drawing ? "Đang vẽ case…" : "No case yet"}</p>
         <p className="text-sm leading-6 text-muted-foreground">
-          {hasContract
+          {drawing ? drawingMessage(run) : hasContract
             ? "The case team uses the board's screen, button and port locations. Checked case parts appear here when ready."
             : "The case team models the enclosure around the board's screen, buttons and ports. Checked parts appear here when ready."}
         </p>
@@ -128,8 +130,8 @@ function EmptyState({ hasContract, onOpenTab, className }) {
   );
 }
 
-export default function CaseTab({ artifact = null, boardName = "board", projectId = "", onOpenTab, Scene = CaseScene, className }) {
-  const enclosure = artifact?.case || null;
+export default function CaseTab({ artifact = null, teamPreview = null, teamRuns = null, boardName = "board", projectId = "", onOpenTab, Scene = CaseScene, className }) {
+  const { enclosure, draft, drawing, run } = resolveCase(artifact?.case || null, teamPreview, teamRuns);
   const parts = useMemo(() => orderParts(enclosure?.parts || []), [enclosure?.parts]);
   const plateParts = useMemo(() => groupPartsByPlate(parts, enclosure?.plates), [parts, enclosure?.plates]);
   const partsKey = parts.map((p) => p.name).join("|");
@@ -146,6 +148,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   const context = useRef(""); context.current = `${projectId}|${boardName}`;
   useEffect(() => { setSaved(null); setExportError(""); setSaving(false); }, [projectId, boardName]);
   const save = async (format, part) => {
+    if (draft) return; // a draft is never exported or printed
     const startedIn = context.current;
     setSaving(true); setExportError("");
     try {
@@ -169,8 +172,9 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   const displayState = handwired ? readiness?.state : enclosure?.state;
   const status = describeStatus(displayState, handwired ? readiness?.reason : enclosure?.reason);
   if (handwired && displayState === "passed") { status.title = "Handwired case checked"; status.detail = readiness.reason; }
+  if (draft) status.title = draft.badge;
   const errors = useReportErrors((handwired ? enclosure?.printReportUrl : enclosure?.reportUrl) || "", displayState === "failed");
-  const printStatus = usePrintStatus(projectId, boardName, Boolean(enclosure?.parts?.length));
+  const printStatus = usePrintStatus(projectId, boardName, Boolean(enclosure?.parts?.length) && !draft);
   useEffect(() => { setShowBoard(!handwired); }, [handwired, projectId, boardName]);
 
   // New parts (a rebuild added a plunger): keep what the person chose, default the rest.
@@ -181,7 +185,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
   }, [partsKey]);
 
   if (!enclosure || !parts.length) {
-    return <EmptyState hasContract={Boolean(enclosure?.contractUrl)} onOpenTab={onOpenTab} className={className} />;
+    return <EmptyState hasContract={Boolean(enclosure?.contractUrl)} drawing={drawing} run={run} onOpenTab={onOpenTab} className={className} />;
   }
 
   const tone = TONE[status.tone] || TONE.idle;
@@ -231,8 +235,8 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           <span data-slot="case-part-swatch" aria-hidden className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: cssColor(colors[part.name]) }} />
           <p className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{part.name}</p>
           <button
-            type="button" disabled={saving || !projectId} onClick={() => save("stl", part.name)}
-            data-slot="case-download-stl" title="Save this part as STL"
+            type="button" disabled={saving || !projectId || Boolean(draft)} onClick={() => save("stl", part.name)}
+            data-slot="case-download-stl" title={draft ? "A draft cannot be saved: wait for the case team to finish" : "Save this part as STL"}
             className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-40"
           >
             <Download className="size-3" aria-hidden />
@@ -240,7 +244,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           </button>
           {part.stepUrl ? (
             <button
-              type="button" disabled={saving || !projectId} onClick={() => save("step", part.name)}
+              type="button" disabled={saving || !projectId || Boolean(draft)} onClick={() => save("step", part.name)}
               data-slot="case-download-step" title="Save this part as STEP"
               className="inline-flex items-center rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-40"
             >
@@ -285,6 +289,12 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           onSize={setSizeMm}
           className="min-h-0 flex-1"
         />
+        {draft ? (
+          <p data-slot="case-draft-badge" role="status"
+            className="pointer-events-none absolute bottom-2 left-2 rounded-full border border-amber-500/60 bg-amber-50/90 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 backdrop-blur dark:bg-amber-500/15 dark:text-amber-200">
+            {draft.badge}
+          </p>
+        ) : null}
         {chips.length ? (
           <ul data-slot="case-chips" aria-label="Case summary" className="pointer-events-none absolute left-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5">
             {chips.map((chip) => (
@@ -308,7 +318,7 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
       <aside className="scrollbar-thin flex w-[300px] max-w-[42%] shrink-0 flex-col gap-2.5 overflow-y-auto border-l border-border bg-muted/30 p-3">
         <Explained slot="case-status" state={displayState} icon={<StatusIcon className={cn("size-4 shrink-0", tone.className)} aria-hidden />} title={status.title}>
           <p>{status.detail}</p>
-          <p className="mt-1">Checked in the model, not yet on a desk: a print is the only test of a fit.</p>
+          <p className="mt-1">{draft ? "The parts the case team has exported so far. Nothing here has been checked yet." : "Checked in the model, not yet on a desk: a print is the only test of a fit."}</p>
         </Explained>
 
         {errors.length ? (
@@ -321,12 +331,12 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
           </ul>
         ) : null}
 
-        <button type="button" data-slot="case-print-all" disabled={saving || !projectId || readiness?.state !== "passed"} onClick={() => save("3mf")}
-          title="Saves a 3MF and opens Bambu Studio when available. Printable parts laid out separately; reference models excluded. Choose your printer in the slicer, then slice."
+        <button type="button" data-slot="case-print-all" data-draft={draft ? "true" : undefined} disabled={saving || !projectId || Boolean(draft) || readiness?.state !== "passed"} onClick={() => save("3mf")}
+          title={draft ? "Not ready to print: this is the case team's unchecked draft." : "Saves a 3MF and opens Bambu Studio when available. Printable parts laid out separately; reference models excluded. Choose your printer in the slicer, then slice."}
           className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 text-sm font-medium disabled:opacity-40">
-          {saving ? "Preparing…" : "Print all · Bambu Studio"}
+          {draft ? DRAFT_PRINT_LABEL : saving ? "Preparing…" : "Print all · Bambu Studio"}
         </button>
-        {saved ? <div data-slot="case-saved" className="rounded-md border border-border bg-card px-2 py-2 text-xs break-all">
+        {saved && !draft ? <div data-slot="case-saved" className="rounded-md border border-border bg-card px-2 py-2 text-xs break-all">
           Saved: {saved.path}
           <div className="mt-1 flex flex-wrap gap-2">
             <button type="button" disabled={saving} onClick={() => openSaved(transport.export_reveal)} className="underline disabled:opacity-40">Show in Finder</button>
@@ -335,14 +345,14 @@ export default function CaseTab({ artifact = null, boardName = "board", projectI
         </div> : null}
         {exportError ? <p role="alert" className="text-xs text-red-700">{exportError}</p> : null}
 
-        <Explained slot="case-print-team" icon={<Printer className={cn("size-4 shrink-0", printTeamProblem ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} aria-hidden />} title="Print team" aside={printerState}
+        {draft ? null : <Explained slot="case-print-team" icon={<Printer className={cn("size-4 shrink-0", printTeamProblem ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} aria-hidden />} title="Print team" aside={printerState}
           footer={printStatus?.jobs?.length ? <ul className="mt-1.5 space-y-1" aria-label="Printer observations">
             {printStatus.jobs.map((job, index) => <li key={`${job.jobId || "job"}:${job.observedAt}:${index}`} data-slot="print-job" className="text-[11px] text-muted-foreground">
               {job.printerName || "Printer"}{job.jobName ? ` · ${job.jobName}` : ""} reports {job.status}{job.progressPct == null ? "" : ` · ${job.progressPct}%`}{job.currentLayer != null && job.totalLayers != null ? ` · layer ${job.currentLayer}/${job.totalLayers}` : ""}{job.remainingMinutes != null ? ` · ${job.remainingMinutes} min left` : ""}. {job.matchedParts?.length ? "Awaiting your part confirmation." : "Not linked to this case."}
             </li>)}
           </ul> : null}>
           {printTeamDetail ? <p>{printTeamDetail}</p> : null}
-        </Explained>
+        </Explained>}
 
         {coupon ? (
           <div data-slot="case-coupon" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-500/50 dark:bg-amber-500/10">

@@ -85,7 +85,9 @@ If `note` says the run already finalized, send that same message once through `s
 
 The bridge publishes labelled, unverified team previews as workers make progress. Checked
 artifacts enter the main viewer only after host checks; a preview is never proof that the board,
-firmware, or case is ready. Report the bridge's `teamReady` value for the whole team. The viewer
+firmware, or case is ready. The case preview also carries the case worker's exported STL parts,
+so the Case tabs draw the draft model badged "Đang làm · chưa duyệt" with Print all and every
+export switched off; an accepted case always replaces it. Report the bridge's `teamReady` value for the whole team. The viewer
 verdict's `ready` value describes native board readiness; it can be true before cross-team
 integration passes.
 

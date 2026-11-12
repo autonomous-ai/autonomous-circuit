@@ -1379,7 +1379,7 @@ export default function BoardWorkspace({
                   {activeGroup === "prompts" ? <TeamStrip teamRuns={teamRuns} teamPreview={teamPreview} onOpen={() => setActiveTab("team")} /> : null}
                   {activeTab === "team" ? <TeamTab teamRuns={teamRuns} teamPreview={teamPreview} className="min-h-0 flex-1" /> : null}
                   {activeGroup === "prompts" ? <PromptsTab projectId={currentProjectId || ""} original={activeTab === "prompt-original"} fallbackText={promptChatMatchesProject ? requestText : ""} fallbackCurrentText={promptChatMatchesProject ? currentRequestText : ""} className="min-h-0 flex-1" /> : null}
-                  {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
+                  {activeTab === "case-overview" ? <CaseOverviewTab artifact={artifact} teamPreview={teamPreview} teamRuns={teamRuns} onOpenTab={setActiveTab} className="min-h-0 flex-1" /> : null}
                   {activeTab === "overview" ? (
                     <OverviewTab
                       sidecar={effectiveSidecar}
@@ -1451,7 +1451,7 @@ export default function BoardWorkspace({
                     />
                   ) : null}
                   {activeTab === "case" ? (
-                    <CaseTab artifact={artifact} boardName={selectedStem} projectId={currentProjectId || ""} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
+                    <CaseTab artifact={artifact} teamPreview={teamPreview} teamRuns={teamRuns} boardName={selectedStem} projectId={currentProjectId || ""} onOpenTab={setActiveTab} className="min-h-0 flex-1" />
                   ) : null}
                   {activeTab === "firmware" ? (
                     <FirmwareTab

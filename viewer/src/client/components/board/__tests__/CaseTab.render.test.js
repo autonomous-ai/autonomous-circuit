@@ -429,3 +429,62 @@ test("a part with a print record that says something keeps its visible line", as
     assert.match(ui.container.querySelector('[data-slot="case-print-team"] summary').textContent, /printer not paired/);
   } finally { ui.unmount(); restore(); }
 });
+
+const draftPreview = { run: "r001", teams: { case: { status: "draft", stage: "case", verified: false, models: [
+  { name: "shell", role: "shell", stlUrl: "/projects/p/.circuit/team-previews/current/case/case/out/shell.stl?v=1-1", bytes: 900, printable: true },
+  { name: "ref_DO_NOT_PRINT_servo", role: "other", stlUrl: "/projects/p/.circuit/team-previews/current/case/case/out/servo.stl?v=1-1", bytes: 300, printable: false },
+] } } };
+
+test("a draft from the running team renders in 3D, badged, and cannot be printed or exported", async () => {
+  sceneProps.length = 0;
+  const calls = [];
+  const restore = __setTransportForTesting({
+    export_case: async (...args) => { calls.push(["export", ...args]); return { path: "/x.3mf", canOpenBambu: true }; },
+    export_open_bambu: async (...args) => { calls.push(["bambu", ...args]); },
+    print_status: async (...args) => { calls.push(["status", ...args]); return { ready: false, parts: [], plates: [], jobs: [] }; },
+  });
+  const ui = mount(CaseTab, { artifact: { case: { state: "none", parts: [], contractUrl: "/c.json" } }, teamPreview: draftPreview,
+    projectId: "p", boardName: "main", Scene: StubScene });
+  try {
+    await flush();
+    assert.equal(ui.container.querySelector('[data-slot="case-empty"]'), null);
+    const scene = sceneProps.at(-1);
+    assert.deepEqual(scene.parts.map((p) => p.name).sort(), ["ref_DO_NOT_PRINT_servo", "shell"]);
+    assert.equal(scene.contractUrl, "/c.json");
+    assert.equal(ui.container.querySelector('[data-slot="case-draft-badge"]').textContent, "Đang làm · chưa duyệt (run r001)");
+    assert.equal(ui.container.querySelector('[data-slot="case-status"]').dataset.state, "draft");
+    const printAll = ui.container.querySelector('[data-slot="case-print-all"]');
+    assert.equal(printAll.disabled, true);
+    assert.equal(printAll.textContent, "Đang vẽ… chưa in được");
+    assert.match(printAll.getAttribute("title"), /Not ready to print/);
+    for (const button of ui.container.querySelectorAll('[data-slot="case-download-stl"]')) assert.equal(button.disabled, true);
+    click(printAll);
+    for (const button of ui.container.querySelectorAll('[data-slot="case-download-stl"]')) click(button);
+    await flush();
+    assert.deepEqual(calls, [], "no export, no Bambu Studio, no print tracking for a draft");
+    assert.equal(ui.container.querySelector('[data-slot="case-open-bambu"]'), null);
+    assert.equal(ui.container.querySelector('[data-slot="case-print-team"]'), null);
+    // once the case is accepted, it wins over the draft and printing comes back
+    ui.set({ artifact: caseArtifact(), teamPreview: draftPreview, projectId: "p", boardName: "main", Scene: StubScene });
+    await flush();
+    assert.equal(ui.container.querySelector('[data-slot="case-draft-badge"]'), null);
+    assert.equal(ui.container.querySelector('[data-slot="case-print-all"]').textContent, "Print all · Bambu Studio");
+    assert.deepEqual(sceneProps.at(-1).parts.map((p) => p.name).sort(), ["back", "coupon", "front"]);
+    assert.deepEqual(ui.errors, []);
+  } finally {
+    ui.unmount();
+    restore();
+  }
+});
+
+test("a run with nothing exported yet says the team is still drawing, not that there is no case", () => {
+  const ui = mount(CaseTab, { artifact: {}, teamPreview: { run: "r004", teams: { case: { status: "draft", models: [] } } }, Scene: StubScene });
+  try {
+    const empty = ui.container.querySelector('[data-slot="case-empty"]');
+    assert.equal(empty.dataset.drawing, "true");
+    assert.match(empty.textContent, /still drawing \(run r004\)/);
+    assert.doesNotMatch(empty.textContent, /No case yet/);
+  } finally {
+    ui.unmount();
+  }
+});
