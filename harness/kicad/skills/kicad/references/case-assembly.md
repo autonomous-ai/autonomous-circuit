@@ -105,6 +105,12 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
 - When the team has a case-docs member (`caseDocs` in `.circuit/team-models.json`), print plates,
   slicing, `overview.html`, `README.md` and the assembly steps are its work, done after your CAD
   passes. Leave them to it.
+- After your CAD passes its tester, the harness draws engineering sheets from the exported STEP
+  files: `case/out/drawings/assembly.svg`, one sheet per printed design, and `index.json`. Each
+  A3 sheet has top/front/right views with overall dimensions and hole sizes, an iso view, a parts
+  list with bought parts marked, and a title block. Never edit them. Link them from the README; the
+  viewer lists them under **Case → Overview → Drawings**. Outside a team, run
+  `"$KICAD_CASE_PYTHON" -m kicadpy.case_drawing .` after exporting the parts.
 
 ## Build order: frame → mounted devices and joints → covers
 
@@ -270,8 +276,13 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
 
 ### One assembly navigation format for every project
 
-- Use the same labels, order and layout for existing dog/pet and future overviews. The primary
-  selector starts with **Đủ bộ**, followed by **Bước 1 — <việc ráp>** through **Bước N — <việc
+- Generate the page with `"$KICAD_CASE_PYTHON" -m kicadpy.case_overview .` from `case/assembly_steps.json` and
+  `case/out/parts.json`; the shared template (`packages/kicadpy/src/kicadpy/assets/case-overview.html`)
+  holds the markup, so a project only supplies data. A part may list `covers: [globs]` in parts.json
+  so a merged reference mesh answers step globs such as `hw_B*`; separate `hw_<ID>` meshes let an ID
+  click focus the real screw.
+- Use the same labels, order and layout for existing dog/pet and future overviews. The chip
+  row (not a dropdown) starts with **Đủ bộ**, followed by **Bước 1 — <việc ráp>** through **Bước N — <việc
   ráp>** in actual assembly order; previous/next buttons use the same selected state. Do not
   expose separate stage, assembly-step and fastener-group workflows that the person must align.
 - Drive this navigation from one canonical ordered step list shared with the current assembly
@@ -290,7 +301,7 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
   controls under a clearly labeled **Chi tiết** disclosure, initially closed. An ID click may
   open its local detail. Keep **Vít/tán** visible by default. Leaving a step or returning to Đủ
   bộ resets illustrative offsets and focus; changing the camera must not change the step.
-- Keep common shell/control markup in a reusable generator/template and vary the step data,
+- Keep common shell/control markup in the shared template and vary only the step data,
   geometry and confirmed hardware by project. Within the shipped skill, it must be self-contained;
   project generators must not import code from another workspace or depend on a live repo checkout.
   Simplifying the UI does not authorize CAD changes, omitted hardware, merged mechanical actions

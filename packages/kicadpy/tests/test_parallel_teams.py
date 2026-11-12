@@ -995,6 +995,8 @@ class CaseCrewTests(unittest.TestCase):
         docs = runner.prompts['case-docs'][0]
         self.assertIn('CASE-DOCS', docs)
         self.assertIn('print/events.jsonl', docs)
+        self.assertIn('kicadpy.case_overview', docs)
+        self.assertIn('never hand-write the overview HTML', docs)
         self.assertIn('AUTOMATIC CASE CHECKS', docs)
         workspace = root / 'workspace'
         self.assertEqual((workspace / 'case/README.md').read_text(), 'Assembly guide by docs')

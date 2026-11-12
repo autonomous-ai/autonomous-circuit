@@ -102,7 +102,9 @@ After every case builder turn, the controller runs the case checks itself, with 
 scripts the builder declares in `case/checks.json`, then `kicadpy.case check` (or `check-print` for
 a handwired case). Each runs in its own subprocess with a timeout. Every check gets `pass`, `review`,
 `unverified` or `fail`, read from the report it writes. A report that is missing, unreadable or not
-rewritten counts as unverified, never as a pass. The result is saved in `.pilot/case-checks/` and a
+rewritten counts as unverified, never as a pass. Once the CAD passes its tester, the controller
+also draws A3 engineering sheets from the exported STEP files into `case/out/drawings/`
+(`kicadpy.case_drawing`). A failed drawing is reported to case-docs and does not block. The result is saved in `.pilot/case-checks/` and a
 summary goes to the case tester and the builder's repair prompt. Unchanged case inputs reuse the last
 result.
 

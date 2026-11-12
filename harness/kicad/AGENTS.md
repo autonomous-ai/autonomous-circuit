@@ -781,9 +781,11 @@ board revision, not a moved footprint.
   whose extent differs from its STEP (`case_mesh_frame_mismatch`). A flipped STL once passed a
   check of its STEP and drew the board outside its own case in the Case tab (2026-10-12).
 - **Immediately after drawing/building the case in 3D, make its interactive overview in the
-  same turn.** Do this automatically, without waiting for another request. Write a reproducible
-  generator (for example `tools/render_case_overview.py`) and have `case/build.py` regenerate
-  `case/overview.html` after exporting the assembled STEP/STL. Set the `overview` field in
+  same turn.** Do this automatically, without waiting for another request. Do not write the HTML:
+  fill `case/assembly_steps.json` and run `"$KICAD_CASE_PYTHON" -m kicadpy.case_overview .` (the shared template:
+  a chip row **Đủ bộ · 1 · … · N** with Trước/Sau, per-step Vít/tán card, camera buttons, Chi tiết
+  closed, light/dark from the hash, embedded meshes and drawing sheets), and have `case/build.py`
+  rerun it after exporting the assembled STEP/STL. Set the `overview` field in
   `case/out/parts.json` to `"../overview.html"`; an existing motion-specific file is
   also valid when the manifest points to it (for example `"../motion/motion-view.html"`).
   - Use the actual final assembly geometry, in its assembled frame, with component labels and
@@ -803,8 +805,8 @@ board revision, not a moved footprint.
     Give text and controls strong contrast on light and dark surfaces. Follow the assembly reference's
     palette and visual checks at desktop and phone widths; preserve the real geometry and CAD
     checks while changing presentation.
-  - **Use the same simple assembly format for every project.** One primary selector contains
-    **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
+  - **Use the same simple assembly format for every project.** One chip row (never a `<select>`)
+    contains **Đủ bộ**, then **Bước 1 — <việc ráp>** through **Bước N — <việc ráp>**, with previous/next
     navigation using that same state. Merge assembly-stage and assembly-step menus; do not add
     an independent fastener-group workflow. Each selected step automatically shows its parts,
     real 3D hardware and a compact **Vít/tán bước này** card: IDs, size/factory label, quantity,
