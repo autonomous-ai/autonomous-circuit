@@ -2215,7 +2215,11 @@ def checked_board(workspace):
         saved = json.loads(record.read_text())
     except (OSError, ValueError):
         saved = None
-    if isinstance(saved, dict) and saved.get('passed') is True and saved.get('key') == _board_check_key(workspace):
+    # The verdict lives outside the board's files, so a copied workspace can carry the
+    # record without it; the publisher must run again to write it.
+    published = (Path(workspace) / '.harness/verdict.json').is_file()
+    if (published and isinstance(saved, dict) and saved.get('passed') is True and
+            saved.get('key') == _board_check_key(workspace)):
         return True, []
     passed, findings = inspect_board(workspace)
     if passed:
