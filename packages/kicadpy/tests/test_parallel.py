@@ -707,6 +707,7 @@ class PilotTests(unittest.TestCase):
         def publish(ws):
             calls.append(1)
             put(ws, 'boards/main/gerbers.zip', 'out')
+            put(ws, '.harness/verdict.json', '{"ready": true}')
             return True, []
 
         with patch('kicadpy.autofinish.inspect_board', side_effect=publish):
@@ -723,6 +724,23 @@ class PilotTests(unittest.TestCase):
             pilot.checked_board(workspace)
             self.assertEqual(len(calls), 3)
         self.assertTrue(pilot.owns('board', pilot.BOARD_CHECK_RECORD))
+
+    def test_passed_board_check_reruns_when_its_verdict_is_missing(self):
+        workspace = self.root / 'workspace'
+        put(workspace, 'design/main.kicad_pcb', 'pcb v1')
+        calls = []
+
+        def publish(ws):
+            calls.append(1)
+            put(ws, '.harness/verdict.json', '{"ready": true}')
+            return True, []
+
+        with patch('kicadpy.autofinish.inspect_board', side_effect=publish):
+            self.assertEqual(pilot.checked_board(workspace), (True, []))
+            (workspace / '.harness/verdict.json').unlink()
+            self.assertEqual(pilot.checked_board(workspace), (True, []))
+            self.assertEqual(len(calls), 2)
+        self.assertTrue((workspace / '.harness/verdict.json').is_file())
 
     def test_failed_board_check_is_never_reused(self):
         workspace = self.root / 'workspace'
