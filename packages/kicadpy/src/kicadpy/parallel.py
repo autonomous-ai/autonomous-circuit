@@ -42,7 +42,7 @@ MAX_STAGE_ATTEMPTS = 4
 TIMEOUT_CONTINUATION_SECONDS = 600
 BOARD_STAGE_WALL_SECONDS = 3 * 60 * 60
 BOARD_MAX_TIMEOUT_CONTINUATIONS = 6
-LONG_STAGES = ('board', 'case')
+LONG_STAGES = ('board', 'case', 'case-docs')
 # Board and case builders reread the whole project after every cut, so give each attempt an hour.
 LONG_STAGE_ATTEMPT_SECONDS = 60 * 60
 # No new CLI event for this long means the job hung. Measured quiet gaps in crab runs stay under 7 minutes.
@@ -208,7 +208,7 @@ def commit(workspace, names, message):
 def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='parallel',
                lead_model=LEAD, worker_model=WORKER, tester_model=None, timeout=1800,
                builder_models=None, tester_models=None, integration_tester_model=None,
-               advisor_model=None):
+               advisor_model=None, case_docs_model=None):
     """Create a new experiment; seed is a clean Git revision, never the live working tree."""
     root = Path(directory).resolve()
     if root.exists():
@@ -278,7 +278,7 @@ def initialize(directory, prompt_file, *, instructions=None, seed=None, mode='pa
              'workerModel': worker_model, 'testerModel': tester_model or worker_model,
              'builderModels': dict(builder_models or {}), 'testerModels': dict(tester_models or {}),
              'integrationTesterModel': integration_tester_model, 'advisorModel': advisor_model,
-             'timeoutSeconds': timeout, 'revision': 0,
+             'caseDocsModel': case_docs_model, 'timeoutSeconds': timeout, 'revision': 0,
              'workerSandbox': WORKER_SANDBOX,
              'seedCommit': seed_commit, 'baseCommit': base, 'jobs': [], 'createdAt': time.time(),
              'planAttempts': 0, 'rounds': [],
@@ -503,9 +503,11 @@ def _reap_worktree_processes(root, worktree):
 
 
 def team_models(workspace):
-    """Models for one project: `lead`, `tester`, `integrationTester`, `advisor`, and per-role `builders`/`testers`."""
+    """Models for one project: `lead`, `tester`, `integrationTester`, `advisor`, per-role `builders`/`testers`,
+    and `caseDocs`: true (the case builder's model) or a model splits plates, slicing, overview and README
+    off the case builder into a case-docs member. Absent or false keeps one case builder."""
     defaults = {'lead': LEAD, 'tester': WORKER, 'integrationTester': None, 'advisor': None,
-                'builders': {}, 'testers': {}}
+                'builders': {}, 'testers': {}, 'caseDocs': False}
     path = Path(workspace) / TEAM_MODELS
     if not path.is_file():
         return defaults
@@ -515,10 +517,20 @@ def team_models(workspace):
     if (not isinstance(chosen, dict) or set(chosen) - set(defaults) or
             not all(model(chosen[key]) for key in ('lead', 'tester', 'integrationTester', 'advisor')
                     if key in chosen) or
-            not all(by_role(chosen[key]) for key in ('builders', 'testers') if key in chosen)):
+            not all(by_role(chosen[key]) for key in ('builders', 'testers') if key in chosen) or
+            not (isinstance(chosen.get('caseDocs', False), bool) or model(chosen.get('caseDocs')))):
         raise ValueError(f'{TEAM_MODELS} takes string lead, tester, integrationTester and advisor models, '
-                         'and builders/testers maps from board, firmware or case to a model')
+                         'builders/testers maps from board, firmware or case to a model, '
+                         'and caseDocs true, false or a model')
     return {**defaults, **chosen}
+
+
+def case_docs_model(models):
+    """The case-docs member's model, or None when the case team has one builder (the default)."""
+    chosen = models.get('caseDocs')
+    if chosen is True:
+        return (models.get('builders') or {}).get('case') or WORKER
+    return chosen.strip() if isinstance(chosen, str) and chosen.strip() else None
 
 
 def _cli_env(root, state, workspace):
@@ -869,6 +881,12 @@ def _bounded_cli(root, state, stage, model, workspace, prompt, schema, job, comm
     return receipt
 
 
+def _builder_model(state, stage):
+    if _stage_role(stage) == CASE_DOCS:
+        return state.get('caseDocsModel') or _builder_model(state, 'case')
+    return (state.get('builderModels') or {}).get(_stage_role(stage)) or state['workerModel']
+
+
 def _builder_session(state, stage):
     """The team's last Claude builder session in this contract revision, if any."""
     saved = (state.get('builderSessions') or {}).get(_stage_role(stage))
@@ -918,8 +936,7 @@ def _repair_context(worktree, role, findings):
 def call(root, state, stage, workspace, prompt, schema, readonly, runner,
          authorized_integration=None, integration_lock=None, stage_deadline=None,
          on_timeout=None):
-    model = (state['leadModel'] if readonly else
-             (state.get('builderModels') or {}).get(_stage_role(stage)) or state['workerModel'])
+    model = state['leadModel'] if readonly else _builder_model(state, stage)
     # Board and case both iterate on heavy geometry/checks; give them long continuations.
     long_stage = stage in LONG_STAGES and not readonly
     stage_budget = (max(state['timeoutSeconds'], BOARD_STAGE_WALL_SECONDS) if long_stage else
@@ -1250,6 +1267,16 @@ def worker_prompt(state, role, stage):
                      'as a case-owned derived human-readable summary; never infer a print from '
                      'a printer job marked complete.'),
         }[role]
+        if role == 'case' and state.get('caseDocsModel'):
+            task = ('Build the open skeleton frame, mounts, exported parts in case/out/ and their check '
+                    'scripts from the initial interface contract now. Check actual board geometry whenever '
+                    'available; report and repair any mismatch during integration. Read print/events.jsonl '
+                    'when present as the read-only record of actual print confirmations and failures before '
+                    'repairing parts. ' + CASE_DOCS_SPLIT)
+        checking = (CASE_AUTO_CHECK_RULE if role == 'case' else
+                    'While repairing, run only the '
+                    'checks that cover what you changed, at a coarser sampling when that still shows the '
+                    'repair works, then your full check suite once before you finish; ')
         return (
             'You are the BUILDER for the ' + role + ' team. Read AGENTS.md, PILOT_BRIEF.md, '
             'PILOT_CONTRACT.json and the KiCad tool card. The initial contract was sealed once; '
@@ -1261,9 +1288,7 @@ def worker_prompt(state, role, stage):
             + (SKELETON_RULE + CASE_MEASURE_RULE if role == 'case' else '') +
             'Continue in the same worktree until the role task is complete or the bounded execution '
             'budget expires. Publish useful drafts early. Make slow checks you write use every CPU '
-            'core and skip work when their inputs have not changed. While repairing, run only the '
-            'checks that cover what you changed, at a coarser sampling when that still shows the '
-            'repair works, then your full check suite once before you finish; do not '
+            'core and skip work when their inputs have not changed. ' + checking + 'do not '
             'rebuild a binary whose sources did not change. A local pass is not final product readiness; '
             'the integration check reconciles all teams. If a sealed detail inside your own domain '
             'is wrong or infeasible (a datasheet contradicts an internal pin, an agent-chosen '
@@ -1600,6 +1625,27 @@ CASE_MEASURE_RULE = ('In case/interfaces.json declare every joint (originMm, axi
                      'device is held. The checker measures these on the exported files and reports pass, review, '
                      'unverified or fail: fix every fail and unverified, and look at each review. Export STL at about '
                      'a tenth of the smallest clearance. ')
+CASE_DOCS = 'case-docs'
+CASE_AUTO_CHECK_RULE = (
+    'Declare every mechanical check script you write (joint sweeps, clearances, wire routes, fits) in '
+    'case/checks.json as {"checks": [{"name", "script" (a .py file in case/ or tools/case/), "args", '
+    '"report" (a .json file the script writes with verdict pass, review, unverified or fail, or passed '
+    'true/false), "timeoutSeconds"}]}. After every turn the harness itself runs them, then kicadpy.case '
+    'check (check-print for a handwired case), each in a subprocess with a timeout, and gives you and your '
+    'tester the results. A report not rewritten by that run counts as unverified, so rewrite it even when '
+    'a script skips unchanged work. Do not run long sweeps or your full check suite yourself and wait on '
+    'them; run a quick or coarse check only when you need it to see that a repair works; ')
+CASE_TESTER_NOTE = (
+    'NATIVE CHECK caseAutoCheck holds the case checks the harness itself ran on this worktree: the '
+    'scripts declared in case/checks.json and kicadpy.case check. A fail is a measured defect; '
+    'unverified means it was not measured and is never a pass; review needs your look. Open the cited '
+    'report files for detail; do not rerun long sweeps. ')
+CASE_DOCS_TESTER_NOTE = (
+    'Print plates, slicing, case/overview.html, case/README.md and assembly steps are made after your '
+    'approval by a separate case-docs member; do not cite their absence. ')
+CASE_DOCS_SPLIT = ('A separate case-docs member arranges the print plates, slices them, and writes '
+                   'case/overview.html, case/README.md, assembly steps and case/PRINTED-INVENTORY.md after '
+                   'your CAD passes its tester; do not do those. ')
 SKELETON_RULE = ('Build the structure like bones: an open skeleton of braced bars and cross-members, not a closed '
                  'box, closed cups or sheet walls. Carry load through short, braced bars with no thin part hanging '
                  'free. If one wire route is blocked another must be open, so leave several open routes that pass '
@@ -1700,6 +1746,8 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         f'A deviation recorded in {DEVIATIONS[role]} with evidence and no unrecorded '
         'cross-team impact is not a defect; check that the files follow it. '
         + (_recheck_text(recheck) if recheck else TESTER_RULES) +
+        (CASE_TESTER_NOTE if role == 'case' and state['mode'] == 'teams' else '') +
+        (CASE_DOCS_TESTER_NOTE if role == 'case' and state.get('caseDocsModel') else '') +
         f'Return contractSha256={state["contractSha256"]}.\n'
         f'ROLE: {role}\nSTAGE: {stage}\nNATIVE CHECK: {json.dumps(checks, sort_keys=True)}\n'
         + notes_for_role(root, role) + _waivers_text(list(waivers))
@@ -1748,6 +1796,79 @@ def team_test(root, state, role, stage, worktree, checks, runner, *,
         return _finish_recheck(root, stage, result, recheck)
     _save_tester_notes(root, stage, result)
     return result
+
+
+# Files the case-docs member writes; a change there alone never re-runs the CAD checks.
+CASE_DOCS_FILES = ('case/README.md', 'case/overview.html', 'case/assembly_steps.json',
+                   'case/PRINTED-INVENTORY.md')
+CASE_DOCS_DIRS = ('case/print/', 'case/images/', 'case/docs/', 'tools/case/docs/')
+# parts.json fields the docs member may set: the print binding and the overview link.
+CASE_DOCS_MANIFEST_KEYS = ('printProject', 'overview')
+
+
+def _case_cad_digest(worktree):
+    """What the case tester approved: exported parts, their manifest entries and the declared interfaces."""
+    worktree = Path(worktree)
+    digest = hashlib.sha256()
+    for name, info in sorted(snapshot(worktree).items()):
+        if name == 'case/out/parts.json':
+            try:
+                manifest = json.loads((worktree / name).read_text())
+                manifest = {key: value for key, value in manifest.items()
+                            if key not in CASE_DOCS_MANIFEST_KEYS} if isinstance(manifest, dict) else manifest
+                data = json.dumps(manifest, sort_keys=True).encode()
+            except (OSError, ValueError):
+                data = info['sha256'].encode()
+            digest.update(name.encode() + b'\0' + hashlib.sha256(data).digest())
+        elif name.startswith('case/out/') or name == 'case/interfaces.json':
+            digest.update(name.encode() + b'\0' + info['sha256'].encode())
+    return digest.hexdigest()
+
+
+def _case_check_inputs(worktree):
+    """Everything the case checks read; reports, scratch and docs outputs are left out."""
+    worktree = Path(worktree)
+    digest = hashlib.sha256(_case_cad_digest(worktree).encode())
+    for name, info in sorted(snapshot(worktree).items()):
+        if (owns('case', name) and not name.startswith(('case/out/', 'case/reports/', 'build/case/')) and
+                name not in CASE_DOCS_FILES and not name.startswith(CASE_DOCS_DIRS)):
+            digest.update(name.encode() + b'\0' + info['sha256'].encode())
+    return digest.hexdigest()
+
+
+def run_case_checks(worktree, env, case_python, root=None):
+    """The machine-run case checks; tests replace this.
+
+    The scripts are agent-written, so on macOS they run in the same sandbox as a Claude builder:
+    they may write the worker worktree, never the integration workspace or the controller's files.
+    """
+    from . import case_checks
+    prefix = (['/usr/bin/sandbox-exec', '-p', _claude_sandbox(worktree, root)]
+              if root is not None and Path('/usr/bin/sandbox-exec').is_file() else [])
+    return case_checks.run(worktree, env, case_python=case_python, prefix=prefix)
+
+
+def case_docs_prompt(state, stage, attempt):
+    return (
+        'You are the CASE-DOCS member of the case team. The case builder\'s CAD, exported parts in '
+        'case/out/ and check scripts passed the case tester. Read AGENTS.md, PILOT_BRIEF.md, '
+        'PILOT_CONTRACT.json, the KiCad tool card and its case-assembly reference, then case/HANDOFF.md. '
+        'Never edit the contract or release notes. Work only inside ["case/", "tools/case/", "build/case/"]; '
+        'other domains are read-only. Do not commit, push, delegate, order, print, flash, access '
+        'hardware or alter gates. Do not change geometry: leave every file in case/out/ except the '
+        'printProject and overview entries of case/out/parts.json, case/interfaces.json and the CAD '
+        'sources as they are; the controller rejects a change to the checked parts. Your task: arrange '
+        'the native production and TEST print plates from the actual parts (bound in '
+        'case/out/parts.json printProject), slice them, and write case/overview.html (the interactive '
+        'overview), case/README.md (the assembly and overview entry point), case/assembly_steps.json and '
+        'case/PRINTED-INVENTORY.md. Read print/events.jsonl when present as the read-only record of '
+        'actual print confirmations and failures before assigning plates; never infer a print from a '
+        'printer job marked complete. Put scripts you write in tools/case/docs/; reuse the builder\'s '
+        'scripts where they exist. If a geometry defect stops a plate, a slice or an assembly step, '
+        'return it in blockers for the case builder instead of repairing CAD. '
+        + (f'This is run {attempt}: the CAD changed since your last run; update every output that '
+           'depends on it. ' if attempt > 1 else '') +
+        f'\nReturn stage={stage}, contractSha256={state["contractSha256"]}, concise summary and blockers.')
 
 
 def dispatch(root, state, stages, runner, on_import=None, checker=None,
@@ -1836,6 +1957,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
         team_started = _stage_clock()
         waivers = [item for item in load_waivers(root) if item.get('stage') == stage]
         last_cited, arbitrated, history = {}, set(), []
+        case_team = state['mode'] == 'teams' and role == 'case'
+        docs_on = case_team and bool(state.get('caseDocsModel'))
+        auto_check, check_runs, docs_runs = None, 0, 0
 
         def publish(status, findings=()):
             if on_progress is not None and state['mode'] == 'teams':
@@ -1871,6 +1995,91 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
             if advice['decision'] == 'external_blocker':
                 raise ExternalBlocker(advice['summary'])
             return advice
+
+        def case_auto_check():
+            """Run the declared case checks and the native case checker; no model is involved."""
+            nonlocal auto_check, check_runs
+            inputs = _case_check_inputs(dest)
+            if auto_check is not None and auto_check.get('inputsSha256') == inputs:
+                auto_check = {**auto_check, 'cached': True}
+                return auto_check
+            publish('checking')
+            before_check = snapshot(dest)
+            with integration_lock:
+                check_files = _retry_files(dest)
+                check_git = _retry_git_metadata(root, dest)
+            tool_root = Path(state['toolchainRoot'])
+            try:
+                summary = run_case_checks(dest, _cli_env(root, state, dest),
+                                          str(tool_root / 'harness/kicad/toolchain/case-python'), root)
+            finally:
+                _reap_worktree_processes(root, dest)
+            if any(not owns('case', name) for name in changed(before_check, snapshot(dest))):
+                raise ValueError('Case checks wrote outside case-owned artifacts')
+            with integration_lock:
+                safe, reason, _ = _retry_safety(root, dest, stage, False, check_files,
+                                                check_git, authorized_integration)
+            if not safe:
+                raise ValueError('Case checks changed Git metadata: ' + str(reason))
+            check_runs += 1
+            report = Path('.pilot/case-checks') / f'{dest.name}-{check_runs:02}.json'
+            auto_check = {**summary, 'inputsSha256': inputs, 'cached': False, 'report': str(report)}
+            write(root / report, auto_check)
+            return auto_check
+
+        def case_checks_text():
+            from .case_checks import brief
+            if auto_check is None:
+                return ''
+            return ('\nAUTOMATIC CASE CHECKS (run by the harness on this worktree after your last turn; '
+                    'fail is a measured defect, unverified was not measured and is not a pass, review '
+                    'needs a look; open the cited report files for detail):\n' +
+                    json.dumps(brief(auto_check), sort_keys=True))
+
+        def case_docs():
+            """After the CAD passed: the case-docs member's turn. None when done, else blockers for the CAD."""
+            nonlocal docs_runs
+            docs_runs += 1
+            docs_stage = CASE_DOCS + stage.removeprefix('case')
+            publish('draft')
+            cad_before = _case_cad_digest(dest)
+            docs_prompt = (case_docs_prompt(state, docs_stage, docs_runs) + '\n\n' +
+                           notes_for_role(root, role) + case_checks_text())
+            if guidance is not None:
+                docs_prompt += ('\n\nLEAD REVIEW FINDINGS FOR SAME SEALED CONTRACT:\n' +
+                                json.dumps(guidance, sort_keys=True))
+            with integration_lock:
+                docs_files = _retry_files(dest)
+                docs_git = _retry_git_metadata(root, dest)
+            docs_receipt = call(root, state, docs_stage, dest, docs_prompt, RESULT_SCHEMA, False, runner,
+                                authorized_integration=authorized_integration,
+                                integration_lock=integration_lock, stage_deadline=deadline)
+            if docs_receipt['error']:
+                kind = docs_receipt.get('failureKind')
+                error = {'interrupted': JobInterrupted, 'timeout': ExecutionLimitExhausted,
+                         'model_capacity': ModelCapacityExhausted}.get(kind, ValueError)
+                raise error('Case docs: ' + job_error(docs_receipt))
+            validate(docs_receipt['result'], RESULT_SCHEMA)
+            docs = docs_receipt['result']
+            if docs['contractSha256'] != state['contractSha256'] or docs['stage'] != docs_stage:
+                raise ValueError('Case docs answered for another contract/stage')
+            if (dest / '.git').read_bytes() != pointer or git(dest, 'rev-parse', 'HEAD') != base:
+                raise ValueError('Case docs changed the Git worktree pointer or HEAD')
+            with integration_lock:
+                safe, reason, _ = _retry_safety(root, dest, docs_stage, False, docs_files,
+                                                docs_git, authorized_integration)
+            if not safe:
+                raise ValueError('Unsafe or unowned case docs output: ' + str(reason))
+            names = changed(baseline, snapshot(dest))
+            if any(not owns(role, name) for name in names) or any(
+                    owns(protected, name) for protected in protected_roles for name in names):
+                raise ValueError('Case docs changed a contract/shared/unowned file')
+            if _case_cad_digest(dest) != cad_before:
+                raise ValueError('Case docs changed the checked parts in case/out/ or case/interfaces.json')
+            if docs['blockers']:
+                return {'kind': 'case_docs_blockers', 'blockers': docs['blockers']}
+            case_auto_check()
+            return None
 
         try:
             publish('queued')
@@ -1940,9 +2149,14 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                         raise ValueError('Native board check changed Git metadata: ' + str(reason))
                     if not checks.get('passed'):
                         problem = {'kind': 'native_board_check', 'checks': checks}
+                if case_team:
+                    from .case_checks import brief
+                    case_auto_check()
                 if state['mode'] == 'teams':
                     publish('checking', problem.get('blockers', ()) if problem else ())
-                    test = team_test(root, state, role, stage, dest, checks or problem or {}, runner,
+                    evidence = ({'caseAutoCheck': brief(auto_check), **(problem or {})} if case_team else
+                                checks or problem or {})
+                    test = team_test(root, state, role, stage, dest, evidence, runner,
                                      authorized_integration=authorized_integration,
                                      integration_lock=integration_lock, waivers=waivers,
                                      recheck=recheck)
@@ -1950,6 +2164,8 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     recheck = test['findings']
                     if test['decision'] == 'revise' and problem is None:
                         problem = {'kind': 'team_tester', 'review': test}
+                    if problem is None and docs_on:
+                        problem = case_docs()
                     if problem is None:
                         publish('passed')
                         return role, stage, dest, pointer, receipt, checks, None
@@ -1998,9 +2214,12 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                 write(root / '.pilot/waivers' / f'{stage}.json', waivers)
                                 test = _apply_waivers(dest, test, waivers)
                                 if test['decision'] == 'approve':
-                                    publish('passed')
-                                    return role, stage, dest, pointer, receipt, checks, None
-                                problem = {'kind': 'team_tester', 'review': test}
+                                    problem = case_docs() if docs_on else None
+                                    if problem is None:
+                                        publish('passed')
+                                        return role, stage, dest, pointer, receipt, checks, None
+                                else:
+                                    problem = {'kind': 'team_tester', 'review': test}
                         history.append({'round': advice_rounds + 1, 'summary': test['summary'],
                                         'paths': sorted(cited)})
                     advice_rounds += 1
@@ -2015,8 +2234,12 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                               json.dumps(problem, sort_keys=True) +
                               ('\nLEAD RULING ON THE STUCK FINDINGS (follow it):\n' +
                                json.dumps(arbitration, sort_keys=True) if arbitration else '') +
-                              '\nContinue in this same worktree. Repair actual files and rerun '
-                              'native checks. Preserve the original contract and release notes.' +
+                              case_checks_text() +
+                              ('\nContinue in this same worktree. Repair actual files; the harness '
+                               'reruns the case checks after your turn. ' if case_team else
+                               '\nContinue in this same worktree. Repair actual files and rerun '
+                               'native checks. ') +
+                              'Preserve the original contract and release notes.' +
                               _repair_context(dest, role, test['findings']))
                     continue
                 if problem is None:
@@ -2816,6 +3039,7 @@ def metrics(state):
             'workerSandbox': state['workerSandbox'],
             'workerModel': state['workerModel'], 'testerModel': _tester_model(state),
             'builderModels': state.get('builderModels') or {}, 'testerModels': state.get('testerModels') or {},
+            'caseDocsModel': state.get('caseDocsModel'),
             'integrationTesterModel': state.get('integrationTesterModel') or _tester_model(state),
             'advisorModel': state.get('advisorModel') or state['leadModel'],
             'contractSha256': state.get('contractSha256'),

@@ -84,6 +84,28 @@ the format is at the top of `packages/kicadpy/src/kicadpy/case_measure.py`:
 A handwired build must declare `joints`, `wires` and `fits`, using `[]` where there are none. Export
 STL at about a tenth of the smallest clearance (`angularTolerance=0.1`, `tolerance=0.02` for a 0.2 mm fit).
 
+### In a team: the harness runs the long checks, you declare them
+
+In a team project, declare every mechanical check script you write (joint sweeps, clearances, wire
+routes, assembly access) in `case/checks.json`. After each of your turns the controller runs them,
+then `kicadpy.case check`, each with a timeout, and shows you and your tester the result:
+
+```json
+{"checks": [{"name": "mechanical", "script": "tools/case/mech_check.py", "args": ["--force"],
+             "report": "case/reports/mechanical.json", "timeoutSeconds": 900}]}
+```
+
+- `script` is a `.py` file in `case/` or `tools/case/`, run with `$KICAD_CASE_PYTHON` from the
+  worktree root. `report` is a `.json` file in `case/` or `build/case/`, and the script must write
+  it with `verdict` (`pass`, `review`, `unverified`, `fail`) or `passed: true/false`.
+- Rewrite the report on every run, even when the script skips unchanged work from its cache. A
+  report that was not rewritten counts as unverified.
+- Do not run long sweeps or the full suite yourself and then wait on them. Run a quick or coarse
+  check only when you need it to see that a repair works. The harness runs the full set.
+- When the team has a case-docs member (`caseDocs` in `.circuit/team-models.json`), print plates,
+  slicing, `overview.html`, `README.md` and the assembly steps are its work, done after your CAD
+  passes. Leave them to it.
+
 ## Build order: frame → mounted devices and joints → covers
 
 - **Design an open skeleton first.** For a new robot/moving device, build the base and moving

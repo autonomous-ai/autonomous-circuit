@@ -845,7 +845,8 @@ def start(workspace, prompt_file, *, execute=False, runner=None, checker=None,
                                     lead_model=models['lead'], tester_model=models['tester'],
                                     builder_models=models['builders'], tester_models=models['testers'],
                                     integration_tester_model=models['integrationTester'],
-                                    advisor_model=models['advisor'])
+                                    advisor_model=models['advisor'],
+                                    case_docs_model=parallel.case_docs_model(models))
                 pilot_workspace = pilot_root / 'workspace'
                 _copy_assets(workspace, pilot_workspace, assets)
                 for attempt in range(1 if teams else max_rounds):

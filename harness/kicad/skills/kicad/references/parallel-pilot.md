@@ -87,6 +87,23 @@ shared toolchain caches, never the integration workspace or `.pilot`. A Claude l
 as `model_unavailable`, not as a design failure. The print team stays on the worker model. Top-level documents belong to the lead, so an integration finding on one is
 saved to `.pilot/lead-document-findings.json` and does not block the run.
 
+The case team can split in two: `"caseDocs": true` (the case builder's model) or `"caseDocs":
+"<model>"` adds a **case-docs** member. The case builder then makes only the CAD, the exported parts
+and the check scripts. After its tester approves, case-docs works in the same worktree: it arranges
+the print plates, slices them, and writes `case/overview.html`, `case/README.md`, the assembly
+steps and `case/PRINTED-INVENTORY.md`. It may not change `case/out/` (only the `printProject` and
+`overview` entries of `parts.json`) or `case/interfaces.json`. A blocker it reports goes back to the
+case builder, and then case-docs runs again. Without the key, one case builder does everything, as
+before. The native, final-case, plate and integration gates are unchanged.
+
+After every case builder turn, the controller runs the case checks itself, with no model call: the
+scripts the builder declares in `case/checks.json`, then `kicadpy.case check` (or `check-print` for
+a handwired case). Each runs in its own subprocess with a timeout. Every check gets `pass`, `review`,
+`unverified` or `fail`, read from the report it writes. A report that is missing, unreadable or not
+rewritten counts as unverified, never as a pass. The result is saved in `.pilot/case-checks/` and a
+summary goes to the case tester and the builder's repair prompt. Unchanged case inputs reuse the last
+result.
+
 Testers review once. The first review must report every blocker at once: the product cannot be
 assembled, wired, printed, built or flashed, an electrical fault can damage hardware or is unsafe, a
 stated limit is exceeded, moving parts collide or jam

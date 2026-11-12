@@ -649,8 +649,12 @@ class TeamBridgeTests(unittest.TestCase):
 
     def test_builders_are_told_to_scope_repair_checks(self):
         state = {'contractSha256': 'a' * 64, 'mode': 'teams'}
-        prompt = parallel.worker_prompt(state, 'case', 'case')
+        prompt = parallel.worker_prompt(state, 'board', 'board')
         self.assertIn('run only the checks that cover what you changed', prompt)
+        self.assertIn('do not rebuild a binary whose sources did not change', prompt)
+        # The harness runs the case's long checks; the case builder only runs quick ones.
+        prompt = parallel.worker_prompt(state, 'case', 'case')
+        self.assertIn('run a quick or coarse check only when you need it', prompt)
         self.assertIn('do not rebuild a binary whose sources did not change', prompt)
 
     def test_followup_refuses_partial_checkpoint_if_sibling_changes_git_config(self):

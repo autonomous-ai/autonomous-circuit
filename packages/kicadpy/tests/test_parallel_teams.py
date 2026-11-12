@@ -467,7 +467,9 @@ class TeamFlowTests(unittest.TestCase):
             self.assertIn(role + '-test', stages)
             self.assertLess(stages.index(role), stages.index(role + '-test'))
             self.assertIn(role, [p[0] for p in previews])
-        self.assertEqual(checkpoints, ['board', 'final'])
+        # A role that finishes after the checked board is mirrored too; which one does is timing.
+        self.assertEqual((checkpoints[0], checkpoints[-1]), ('board', 'final'))
+        self.assertLessEqual(set(checkpoints[1:-1]), {'firmware', 'case'})
         self.assertNotIn('board-review', stages)
         self.assertNotIn('structure-review', stages)
         self.assertNotIn('final-review', stages)
@@ -846,6 +848,221 @@ class TeamFlowTests(unittest.TestCase):
         second = parallel_tile.resume(visible, execute=True, runner=runner, checker=checker)
         self.assertEqual(second['status'], 'candidate_ready', second.get('error'))
         self.assertTrue(runner.saw_draft)
+
+
+
+def _receipt(stage, model, result, error=None):
+    return {'stage': stage, 'model': model, 'startedAt': time.time(), 'seconds': .01,
+            'usage': None, 'result': result, 'error': error}
+
+
+class CaseCrewRunner(TeamRunner):
+    """The case builder exports parts; an optional case-docs member writes plates and the README."""
+
+    def __init__(self, docs_blockers=(), docs_touches_part=False, case_test_revise=0):
+        super().__init__()
+        self.wait_for_three = False
+        self.docs_blockers = list(docs_blockers)
+        self.docs_touches_part = docs_touches_part
+        self.case_test_revise = case_test_revise
+        self.prompts = {}
+        self.order = []
+
+    def __call__(self, root, state, stage, model, workspace, prompt, schema, readonly):
+        with self.lock:
+            self.prompts.setdefault(stage, []).append(prompt)
+            self.order.append((stage, model))
+        if stage == 'case':
+            put(workspace, 'case/out/frame.stl', 'solid frame ' + str(len(self.prompts['case'])))
+            put(workspace, 'case/frame.txt', 'case output')
+            if not state.get('caseDocsModel'):
+                put(workspace, 'case/README.md', 'Assembly guide')
+            return _receipt(stage, model, {'contractSha256': state['contractSha256'], 'stage': stage,
+                                           'summary': 'CAD done', 'blockers': []})
+        if stage == 'case-test' and self.case_test_revise:
+            self.case_test_revise -= 1
+            return _receipt(stage, model, {'contractSha256': state['contractSha256'], 'decision': 'revise',
+                                           'summary': 'Leg hits body',
+                                           'findings': [{'path': 'case/frame.txt', 'message': 'leg hits'}]})
+        if stage == 'case-docs':
+            put(workspace, 'case/README.md', 'Assembly guide by docs')
+            put(workspace, 'case/print/production.3mf', 'plate')
+            if self.docs_touches_part:
+                put(workspace, 'case/out/frame.stl', 'docs moved a part')
+            blockers = [self.docs_blockers.pop(0)] if self.docs_blockers else []
+            return _receipt(stage, model, {'contractSha256': state['contractSha256'], 'stage': stage,
+                                           'summary': 'Plates and README', 'blockers': blockers})
+        return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+
+
+class CaseCrewTests(unittest.TestCase):
+    """v17e: the case builder did CAD, sweeps, plates, slicing and docs alone for 2.5 h."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.prompt = put(self.base, 'prompt.txt', 'Build a robot with firmware and case.')
+        self.check_calls = []
+
+    def fake_checks(self, verdict='fail'):
+        def run(worktree, env, case_python, root=None):
+            self.check_calls.append((Path(worktree), case_python, env.get('KICAD_CASE_PYTHON')))
+            return {'schema': 1, 'verdict': verdict, 'seconds': 1.0, 'checkedAt': 'now',
+                    'checks': [{'name': 'mech', 'level': verdict, 'message': 'leg-body 0.1 mm at hip 40',
+                                'seconds': 1.0},
+                               {'name': 'native', 'level': 'pass', 'message': 'fits', 'seconds': 1.0}]}
+        return patch.object(parallel, 'run_case_checks', side_effect=run)
+
+    def start(self, runner, **models):
+        root = self.base / ('run-' + str(len(list(self.base.iterdir()))))
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams', **models)
+        parallel.plan(root, execute=True, runner=runner)
+        return root, parallel.run(root, execute=True, runner=runner, checker=checker)
+
+    def test_harness_runs_case_checks_and_both_tester_and_repair_see_them(self):
+        runner = CaseCrewRunner(case_test_revise=1)
+        with self.fake_checks():
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        tester = runner.prompts['case-test'][0]
+        self.assertIn('caseAutoCheck', tester)
+        self.assertIn('leg-body 0.1 mm at hip 40', tester)
+        self.assertIn('never a pass', tester)
+        repair = runner.prompts['case'][1]
+        self.assertIn('AUTOMATIC CASE CHECKS', repair)
+        self.assertIn('leg-body 0.1 mm at hip 40', repair)
+        self.assertIn('the harness reruns the case checks', repair)
+        # one run per builder turn, each kept as a report for the lead and the person
+        self.assertEqual(len(self.check_calls), 2)
+        worktree, case_python, env_python = self.check_calls[0]
+        self.assertEqual(case_python, env_python)
+        self.assertTrue(case_python.endswith('harness/kicad/toolchain/case-python'))
+        reports = sorted((root / '.pilot/case-checks').glob('*.json'))
+        self.assertEqual([path.name for path in reports], ['r001-case-01.json', 'r001-case-02.json'])
+        self.assertEqual(json.loads(reports[0].read_text())['verdict'], 'fail')
+        # board and firmware keep their own checks
+        self.assertNotIn('caseAutoCheck', runner.prompts['firmware-test'][0])
+
+    def test_builder_is_told_not_to_run_long_sweeps_itself(self):
+        root = self.base / 'prompt'
+        parallel.initialize(root, self.prompt, instructions=CARD, mode='teams')
+        parallel.plan(root, execute=True, runner=TeamRunner())
+        _, state = parallel.load(root)
+        case_prompt = parallel.worker_prompt(state, 'case', 'case')
+        self.assertIn('case/checks.json', case_prompt)
+        self.assertIn('Do not run long sweeps', case_prompt)
+        self.assertNotIn('full check suite once before you finish', case_prompt)
+        self.assertIn('full check suite once before you finish', parallel.worker_prompt(state, 'board', 'board'))
+        # one case builder by default: it still owns plates, overview and README
+        self.assertNotIn('case-docs', case_prompt)
+
+    def test_unchanged_case_inputs_reuse_the_last_check(self):
+        class Runner(CaseCrewRunner):
+            def __call__(inner, root, state, stage, model, workspace, prompt, schema, readonly):
+                if stage == 'case' and len(inner.prompts.get('case', [])) >= 1:
+                    inner.prompts['case'].append(prompt)  # the repair changes nothing
+                    return _receipt(stage, model, {'contractSha256': state['contractSha256'],
+                                                   'stage': stage, 'summary': 'Nothing to change',
+                                                   'blockers': []})
+                return super().__call__(root, state, stage, model, workspace, prompt, schema, readonly)
+        runner = Runner(case_test_revise=1)
+        with self.fake_checks():
+            _, result = self.start(runner)
+        self.assertEqual(len(self.check_calls), 1)
+        self.assertIn('"cached": true', runner.prompts['case-test'][1])
+
+    def test_without_case_docs_no_docs_member_runs(self):
+        runner = CaseCrewRunner()
+        with self.fake_checks('pass'):
+            _, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertNotIn('case-docs', runner.prompts)
+        self.assertIsNone(result['caseDocsModel'])
+
+    def test_case_docs_member_runs_after_the_cad_passes(self):
+        runner = CaseCrewRunner(case_test_revise=1)
+        with self.fake_checks('pass'):
+            root, result = self.start(runner, builder_models={'case': 'claude-opus-5-5'},
+                                      case_docs_model='claude-sonnet-5-5')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        stages = [stage for stage, _ in runner.order if stage.startswith('case')]
+        self.assertEqual(stages, ['case', 'case-test', 'case', 'case-test', 'case-docs'])
+        models = dict(runner.order)
+        self.assertEqual((models['case'], models['case-docs']), ('claude-opus-5-5', 'claude-sonnet-5-5'))
+        self.assertIn('case-docs member', runner.prompts['case'][0])
+        self.assertIn('do not cite their absence', runner.prompts['case-test'][0])
+        docs = runner.prompts['case-docs'][0]
+        self.assertIn('CASE-DOCS', docs)
+        self.assertIn('print/events.jsonl', docs)
+        self.assertIn('AUTOMATIC CASE CHECKS', docs)
+        workspace = root / 'workspace'
+        self.assertEqual((workspace / 'case/README.md').read_text(), 'Assembly guide by docs')
+        self.assertTrue((workspace / 'case/print/production.3mf').is_file())
+        self.assertEqual(parallel.metrics(result)['caseDocsModel'], 'claude-sonnet-5-5')
+        # docs left the CAD alone, so its outputs did not re-run the checks
+        self.assertEqual(len(self.check_calls), 2)
+
+    def test_case_docs_blocker_goes_back_to_the_cad_builder_then_docs_again(self):
+        runner = CaseCrewRunner(docs_blockers=['Frame does not fit plate 1 at 220 mm'])
+        with self.fake_checks('pass'):
+            _, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        stages = [stage for stage, _ in runner.order if stage.startswith('case')]
+        # the re-test has no tester findings to re-check, so it makes no model call
+        self.assertEqual(stages, ['case', 'case-test', 'case-docs', 'case', 'case-docs'])
+        self.assertIn('Frame does not fit plate 1', runner.prompts['case'][1])
+        self.assertIn('This is run 2', runner.prompts['case-docs'][1])
+
+    def test_case_docs_may_not_change_the_checked_parts(self):
+        runner = CaseCrewRunner(docs_touches_part=True)
+        with self.fake_checks('pass'):
+            _, result = self.start(runner, case_docs_model='docs-model')
+        self.assertEqual(result['status'], 'needs_revision')
+        self.assertIn('Case docs changed the checked parts', ' '.join(result['findings']))
+
+    def test_case_docs_true_uses_the_case_builder_model(self):
+        root = self.base / 'models'
+        put(root, str(parallel.TEAM_MODELS), json.dumps({'caseDocs': True, 'builders': {'case': 'opus'}}))
+        state = {'caseDocsModel': parallel.case_docs_model(parallel.team_models(root)),
+                 'builderModels': {'case': 'opus'}, 'workerModel': parallel.WORKER}
+        self.assertEqual(parallel._builder_model(state, 'case-docs'), 'opus')
+        self.assertEqual(parallel._builder_model({**state, 'caseDocsModel': None}, 'case-docs'), 'opus')
+        self.assertEqual(parallel._builder_model(state, 'firmware'), parallel.WORKER)
+
+    def test_agent_written_checks_run_in_the_builder_sandbox(self):
+        worktree, root = self.base / 'root/workers/r001-case', self.base / 'root'
+        put(worktree, 'tools/case/mech.py', 'pass')
+        put(worktree, 'case/checks.json', json.dumps({'checks': [
+            {'name': 'mech', 'script': 'tools/case/mech.py', 'report': 'case/reports/mech.json'}]}))
+        seen = []
+        with patch('kicadpy.case_checks.run_process',
+                   side_effect=lambda argv, *a: seen.append(argv) or (0, '')):
+            from kicadpy import case_checks
+            with patch.object(case_checks, 'run', wraps=case_checks.run) as wrapped:
+                parallel.run_case_checks(worktree, {}, 'case-python', root)
+        prefix = wrapped.call_args.kwargs['prefix']
+        if Path('/usr/bin/sandbox-exec').is_file():
+            self.assertEqual(prefix[:2], ['/usr/bin/sandbox-exec', '-p'])
+            self.assertIn(f'(deny file-write* (subpath "{root.resolve() / ".pilot"}"))', prefix[2])
+            self.assertIn(f'(deny file-write* (subpath "{root.resolve() / "workspace"}"))', prefix[2])
+
+    def test_cad_digest_ignores_the_print_binding_but_not_a_part(self):
+        worktree = self.base / 'digest'
+        put(worktree, 'case/out/parts.json', json.dumps({'parts': [{'name': 'a'}]}))
+        put(worktree, 'case/out/a.stl', 'solid a')
+        before = parallel._case_cad_digest(worktree)
+        inputs = parallel._case_check_inputs(worktree)
+        put(worktree, 'case/out/parts.json', json.dumps({'parts': [{'name': 'a'}], 'printProject': {'p': 1},
+                                                         'overview': '../overview.html'}))
+        put(worktree, 'case/README.md', 'docs')
+        put(worktree, 'case/reports/mech.json', '{}')
+        self.assertEqual(parallel._case_cad_digest(worktree), before)
+        self.assertEqual(parallel._case_check_inputs(worktree), inputs)
+        put(worktree, 'tools/case/mech_check.py', 'new sweep')
+        self.assertNotEqual(parallel._case_check_inputs(worktree), inputs)
+        put(worktree, 'case/out/a.stl', 'solid a moved')
+        self.assertNotEqual(parallel._case_cad_digest(worktree), before)
 
 
 if __name__ == '__main__':

@@ -27,7 +27,9 @@ The person only needs to open KiCad in Harness and send a prompt. You are the en
 their single communication path to the Astra lead. Pass the person's exact request through the
 tile bridge; the lead assigns design work to the electrical board, firmware, and case teams and
 physical print coordination to a separate 3D print team. Each design team
-has a builder and an independent tester and may work at the same time. The lead does not make
+has a builder and an independent tester and may work at the same time. The harness itself runs the
+case team's declared checks after every case turn. A project can also add a case-docs member that
+makes the plates, slicing, overview and README after the CAD passes (see parallel-pilot.md). The lead does not make
 firmware or case wait for board completion or a lead board review. Do not build the board yourself or arm
 `kicadpy.harness --active build` in a team project. Do not assign work directly to a worker.
 
