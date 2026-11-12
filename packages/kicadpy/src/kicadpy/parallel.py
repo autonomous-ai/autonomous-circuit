@@ -2413,6 +2413,13 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                     deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
                                 else _stage_clock() + budget)
                     return 'prompt', waterfall_prompt(extra)
+            ask = case_waterfall.next_stage_text(waterfall)
+            if ask:
+                publish('draft', [f'{", ".join(waterfall["plan"])} closed; asking for the next stage'])
+                waterfall_save()
+                deadline = (min(_stage_clock() + budget, stage_deadline) if stage_deadline
+                            else _stage_clock() + budget)
+                return 'prompt', waterfall_prompt(extra + ask)
             # Every stage is closed: the end step, then the old path (drawings, case-docs).
             if waterfall['end'] == 'repair' and not waterfall['endTurn']:
                 waterfall['endTurn'] = True

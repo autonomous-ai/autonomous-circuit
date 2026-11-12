@@ -186,8 +186,28 @@ def advance(ledger, stage, keys, review=None, now=None, elapsed=None):
     return entry['status']
 
 
+def next_stage_text(ledger):
+    """Every declared stage closed but later stages were never declared: ask the builder once.
+
+    A builder often declares only the stage it is building. Without this the waterfall would end
+    after the frame and the moving parts, joints and lid would be built with no stage gate or chips.
+    Asked again only after the builder declared something new; never after the time ran out or on
+    a follow-up request."""
+    missing = [name for name in STAGES if name not in ledger['stages']]
+    if not missing or ledger.get('outOfTime') or ledger.get('followUp') or not done(ledger):
+        return None
+    if ledger.get('askedNext') == ledger['plan']:
+        return None
+    ledger['askedNext'] = list(ledger['plan'])
+    return ('\nNEXT STAGE: every declared stage is closed. If the brief needs any of ' + ', '.join(missing) +
+            f' ({", ".join(STAGE_TITLES[name] for name in missing)}), add the NEXT one in order with its '
+            f'parts and checks to {CHECKS_FILE} "stages", build only it, export it and end your turn. '
+            'If none of them applies, change nothing and end your turn.')
+
+
 def close_all(ledger, reason, now=None):
     """The team's wall clock ran out: note every open stage and move to the end."""
+    ledger['outOfTime'] = True
     for name in ledger['plan']:
         entry = ledger['stages'][name]
         if entry['status'] == 'open':
@@ -265,7 +285,8 @@ def prompt_text(ledger):
     frozen = sorted(ledger['frozen'])
     text = ['\nCASE WATERFALL (the harness tracks it; follow it):']
     if stage is None:
-        text.append('Every stage is closed. Change only what the lead advice below names.')
+        text.append('Every stage is closed. Change only what the lead advice below names.'
+                    if ledger.get('end') else 'Every declared stage is closed; their parts stay as they are.')
     else:
         entry = ledger['stages'][stage]
         text.append(f'Current stage: {stage} ({STAGE_TITLES[stage]}), parts {ledger["parts"].get(stage, [])}. '
