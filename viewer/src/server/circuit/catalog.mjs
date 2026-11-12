@@ -48,6 +48,9 @@ const FIRMWARE_MAX_FILES = 200;
 const TEAM_ROLES = ["board", "firmware", "case"];
 const TEAM_STATUSES = new Set(["queued", "draft", "checking", "passed", "needs_revision", "blocked"]);
 const TEAM_PREVIEW_MAX_FILE = 4 * 1024 * 1024;
+// The case team's draft STL parts (kicadpy parallel_tile PREVIEW_MODEL_*).
+const TEAM_PREVIEW_MAX_MODELS = 120;
+const TEAM_PREVIEW_MAX_MODEL = 32 * 1024 * 1024;
 
 /** Is this basename one the firmware tree surfaces (text a person reads)? */
 export function isFirmwareSource(name) {
@@ -146,13 +149,42 @@ export function scanTeamPreview(rootDir, projectId) {
       media.push({ file: String(item.file || "").slice(0, 240),
                    url: mediaUrl(projectId, name, candidate) });
     }
+    const models = role === "case" ? teamPreviewModels(rootDir, projectId, source.models) : [];
     teams[role] = { status: source.status, stage: String(source.stage || "").slice(0, 80),
                     verified: false, findings: Array.isArray(source.findings)
                       ? source.findings.filter(item => typeof item === "string").slice(0, 5).map(item => item.slice(0, 500)) : [],
-                    files, media };
+                    files, media, ...(role === "case" ? { models } : {}) };
   }
   return { run: preview.run, runStatus: String(bridge.status || preview.runStatus || "running").slice(0, 50),
            runStage: String(bridge.stage || "").slice(0, 80), verified: false, teams };
+}
+
+/**
+ * The case worker's draft 3D parts, copied by the harness. Unverified display
+ * only: the path stays inside the case preview tree and the size matches the
+ * manifest (the harness replaces each copy atomically, so hashing dozens of
+ * meshes on every scan buys nothing).
+ */
+function teamPreviewModels(rootDir, projectId, list) {
+  const models = [];
+  const prefix = path.join(rootDir, ".circuit", "team-previews", "current", "case") + path.sep;
+  for (const item of Array.isArray(list) ? list.slice(0, TEAM_PREVIEW_MAX_MODELS) : []) {
+    const name = item?.path;
+    if (typeof name !== "string" || !name.startsWith(".circuit/team-previews/current/case/") ||
+        !/\.stl$/i.test(name) || name.split("/").some(part => !part || part === "." || part === "..") ||
+        !Number.isSafeInteger(item.bytes) || item.bytes <= 0 || item.bytes > TEAM_PREVIEW_MAX_MODEL) continue;
+    const candidate = path.resolve(rootDir, name);
+    if (!candidate.startsWith(prefix)) continue;
+    try {
+      const stat = fs.lstatSync(candidate);
+      if (!stat.isFile() || stat.size !== item.bytes || !fs.realpathSync(candidate).startsWith(prefix)) continue;
+    } catch { continue; }
+    const label = String(item.name || path.basename(name, ".stl")).slice(0, 120);
+    models.push({ name: label, role: String(item.role || "other").slice(0, 40), bytes: item.bytes,
+                  printable: item.printable !== false && !/DO_NOT_PRINT/i.test(label),
+                  stlUrl: mediaUrl(projectId, name, candidate) });
+  }
+  return models;
 }
 
 const TEAM_RUNS_MAX = 30;

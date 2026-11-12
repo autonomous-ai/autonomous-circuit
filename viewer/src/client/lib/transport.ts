@@ -98,6 +98,8 @@ export interface Catalog {
       findings: string[];
       files: string[];
       media: { file: string; url: string }[];
+      /** case only: the case worker's exported STL parts, an unverified draft. */
+      models?: { name: string; role: string; bytes: number; printable: boolean; stlUrl: string }[];
     }>;
   };
   /** Every team run, newest first; stays after the run is accepted. Tester decisions only. */

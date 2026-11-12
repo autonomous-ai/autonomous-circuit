@@ -50,6 +50,37 @@ function seedProject(dir) {
   fs.writeFileSync(path.join(dir, "boards", "main_fab", "board.glb"), "glb");
 }
 
+test("the case team's draft STL parts ride on the team preview, bounded and never as an accepted case", () => {
+  const dir = tmpdir("circuit-team-case-preview-");
+  const stl = name => `.circuit/team-previews/current/case/case/out/${name}.stl`;
+  for (const name of ["shell", "servo"]) {
+    fs.mkdirSync(path.dirname(path.join(dir, stl(name))), { recursive: true });
+    fs.writeFileSync(path.join(dir, stl(name)), `solid ${name}`);
+  }
+  fs.mkdirSync(path.join(dir, ".circuit/team-runs/r001/workers/r001-case/case/out"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".circuit/team-runs/r001/workers/r001-case/case/out/private.stl"), "solid private");
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "running", teamReady: false }));
+  const queued = { status: "queued", stage: null, verified: false, files: [], media: [], findings: [] };
+  const model = (name, extra = {}) => ({ file: `case/out/${name}.stl`, path: stl(name), name, role: "shell",
+    printable: true, bytes: `solid ${name}`.length, sha256: "0".repeat(64), ...extra });
+  const preview = { schema: 1, run: "r001", teams: { board: queued, firmware: queued, case: {
+    status: "draft", stage: "case", verified: false, files: [], media: [], findings: [], models: [
+      model("shell"), model("servo", { name: "ref_DO_NOT_PRINT_servo", printable: true }),
+      model("gone"), model("private", { path: ".circuit/team-runs/r001/workers/r001-case/case/out/private.stl" }),
+      model("shell", { path: ".circuit/team-previews/current/case/../board/x.stl" }),
+      model("shell", { bytes: 1 }),
+    ] } } };
+  fs.writeFileSync(path.join(dir, ".circuit/team-preview.json"), JSON.stringify(preview));
+  const catalog = scanProjectCatalog({ projectDir: dir, projectId: "p1" });
+  assert.deepEqual(catalog.entries, []);
+  const models = catalog.teamPreview.teams.case.models;
+  assert.deepEqual(models.map(m => [m.name, m.printable]), [["shell", true], ["ref_DO_NOT_PRINT_servo", false]]);
+  assert.match(models[0].stlUrl, /\/projects\/p1\/\.circuit\/team-previews\/current\/case\/case\/out\/shell\.stl\?v=/);
+  assert.equal(catalog.teamPreview.teams.board.models, undefined);
+  fs.writeFileSync(path.join(dir, ".circuit/team-bridge.json"), JSON.stringify({ activeRun: "r001", status: "candidate_ready", teamReady: true }));
+  assert.equal(scanProjectCatalog({ projectDir: dir, projectId: "p1" }).teamPreview, undefined);
+});
+
 test("team preview stays separate from accepted catalog entries and rejects changed media", () => {
   const dir = tmpdir("circuit-team-preview-");
   const mediaPath = ".circuit/team-previews/current/board/boards/main_review/_pcb.svg";

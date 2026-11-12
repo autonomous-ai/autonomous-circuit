@@ -130,3 +130,26 @@ test("camera presets are unit directions; top is not parallel to the up axis", (
   assert.ok(top[2] > 0.999 && top[1] < 0, "top looks down, leaning a hair toward -y");
   assert.deepEqual(viewDirection("nonsense"), viewDirection("iso"));
 });
+
+test("an accepted case wins; otherwise the case team's draft parts show as an unprintable draft", async () => {
+  const { resolveCase, drawingMessage, DRAFT_PRINT_LABEL } = await import("../caseView.js");
+  const preview = { run: "r001", teams: { case: { status: "draft", stage: "case", models: [
+    { name: "shell", role: "shell", stlUrl: "/p/.circuit/team-previews/current/case/case/out/shell.stl?v=1", bytes: 10, printable: true },
+    { name: "ref_DO_NOT_PRINT_servo", role: "other", stlUrl: "/p/servo.stl?v=1", bytes: 5, printable: false }] } } };
+  const accepted = { state: "passed", parts: [{ name: "front", stlUrl: "/p/case/out/front.stl" }] };
+  assert.equal(resolveCase(accepted, preview).enclosure, accepted);
+  assert.equal(resolveCase(accepted, preview).draft, null);
+  const wip = resolveCase({ state: "none", parts: [], contractUrl: "/c.json" }, preview);
+  assert.equal(wip.enclosure.state, "draft");
+  assert.equal(wip.enclosure.contractUrl, "/c.json");
+  assert.equal(wip.draft.badge, "Đang làm · chưa duyệt (run r001)");
+  assert.deepEqual(wip.enclosure.parts.map((p) => [p.name, p.printable]), [["shell", true], ["ref_DO_NOT_PRINT_servo", false]]);
+  assert.equal(wip.enclosure.printStatus.state, "draft");
+  assert.equal(describeStatus("draft").tone, "warn");
+  assert.deepEqual(resolveCase(null, { run: "r002", teams: { case: { models: [] } } }),
+    { enclosure: null, draft: null, drawing: true, run: "r002" });
+  assert.equal(resolveCase(null, null, { running: true, activeRun: "r003" }).drawing, true);
+  assert.equal(resolveCase(null, null, { running: false }).drawing, false);
+  assert.match(drawingMessage("r002"), /still drawing \(run r002\)/);
+  assert.equal(DRAFT_PRINT_LABEL, "Đang vẽ… chưa in được");
+});

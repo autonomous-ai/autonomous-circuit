@@ -37,3 +37,37 @@ test("engineering drawings open from a row of links above the overview", () => {
   const empty = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html" } } });
   try { assert.equal(empty.container.querySelector('[data-slot="case-drawings"]'), null); } finally { empty.unmount(); }
 });
+
+const overviewScene = [];
+function StubScene(props) { overviewScene.push(props); return null; }
+const draftPreview = { run: "r007", teams: { case: { status: "draft", models: [
+  { name: "shell", role: "shell", stlUrl: "/p/.circuit/team-previews/current/case/case/out/shell.stl?v=1", bytes: 9, printable: true }] } } };
+
+test("with no accepted case the overview shows the team's draft model under a badge", () => {
+  overviewScene.length = 0;
+  const ui = mount(CaseOverviewTab, { artifact: {}, teamPreview: draftPreview, Scene: StubScene });
+  try {
+    assert.equal(ui.container.querySelector("iframe"), null);
+    assert.ok(ui.container.querySelector('[data-slot="case-overview-draft"]'));
+    assert.equal(ui.container.querySelector('[data-slot="case-draft-badge"]').textContent, "Đang làm · chưa duyệt (run r007)");
+    assert.deepEqual(overviewScene.at(-1).parts.map(p => p.name), ["shell"]);
+    assert.doesNotMatch(ui.container.textContent, /No case overview yet/);
+  } finally { ui.unmount(); }
+});
+
+test("an accepted overview wins over a draft; an active run with nothing yet says the team is drawing", () => {
+  const accepted = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html", parts: [{ name: "a", stlUrl: "/a.stl" }] } },
+    teamPreview: draftPreview, Scene: StubScene });
+  try {
+    assert.ok(accepted.container.querySelector("iframe"));
+    assert.equal(accepted.container.querySelector('[data-slot="case-draft-badge"]'), null);
+  } finally { accepted.unmount(); }
+  const drawing = mount(CaseOverviewTab, { artifact: {}, teamRuns: { running: true, activeRun: "r008", runs: [] }, Scene: StubScene });
+  try {
+    const empty = drawing.container.querySelector('[data-slot="case-overview-empty"]');
+    assert.match(empty.textContent, /still drawing \(run r008\)/);
+    assert.doesNotMatch(empty.textContent, /No case overview yet/);
+  } finally { drawing.unmount(); }
+  const idle = mount(CaseOverviewTab, { artifact: {}, Scene: StubScene });
+  try { assert.match(idle.container.textContent, /No case overview yet/); } finally { idle.unmount(); }
+});
