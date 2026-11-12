@@ -781,9 +781,35 @@ board revision, not a moved footprint.
   product (`kicadpy.case_template.shapes(contract)` returns the CadQuery solids to start from):
   a character, rounded corners, a stand, a lanyard slot. Keep the frame: model **assembled, in
   the contract's frame**, one origin, never a second one.
+- **Once the case has more than the template's parts, build per part with the cached builder**
+  (`kicadpy.case_build`): register each part as a function returning its solid and call `main()`.
+  ```python
+  from kicadpy.case_build import CaseBuild
+  build = CaseBuild(__file__, stl_tolerance=0.05, manifest={'stage': 'simple'})
+
+  @build.part('frame', role='shell', note='prints floor-down, no supports')
+  def frame():
+      ...
+
+  build.add_parts(PARTS)            # or a {name: {'fn': ..., 'role': ...}} table
+  if __name__ == '__main__':
+      build.main()
+  ```
+  It rebuilds only a part whose code changed (its function and every helper, constant, class and
+  `tools/case/` module it reaches), whose input files changed (the contract, `case/interfaces.json`,
+  and `inputs=[...]` for any other file the part reads) or whose `case/out` files are missing or
+  edited; every other part is skipped. Parts the waterfall closed (`case/stages.json` valid, done
+  or note) are never rebuilt, even when a helper they use changed (`--plan` says so); rebuild one
+  with `--only <part>` only when the lead allowed it to change, and a follow-up's `"rework"` parts
+  rebuild normally. It writes `case/out/parts.json` itself, keeping `printProject` and
+  `overview`. **A passed part is never rebuilt or retested; only new and changed parts are.** For a
+  scoped fix, edit that part and rerun the build (or `--only <part>`); `--plan` says what would
+  rebuild and why. Never `rm -rf case/out` and never `--force` unless the person asked for a full
+  rebuild: that re-exports every part and makes every check run again.
 - **Build and check** with the tile's CadQuery:
   ```bash
-  "$KICAD_CASE_PYTHON" case/build.py               # -> case/out/*.stl, *.step, parts.json
+  "$KICAD_CASE_PYTHON" case/build.py               # -> case/out/*.stl, *.step, parts.json (changed parts only)
+  "$KICAD_CASE_PYTHON" case/build.py --only lid    # just this part
   "$KICAD_CASE_PYTHON" -m kicadpy.case check .     # -> case/reports/case-check.json
   ```
   `case/out/parts.json` lists every part (`name`, `role`: shell, lid, plunger, membrane,

@@ -118,6 +118,11 @@ then `kicadpy.case check`, each with a timeout, and shows you and your tester th
               {"name": "legs-sweep", "stage": "moving", "kind": "motion", ...}]}
   ```
 
+  Build with the cached builder (`kicadpy.case_build`, see the tool card): it rebuilds only the
+  parts whose code or inputs changed and never a closed stage's parts. For a repair, change the
+  failing part and rerun the build (or `--only <part>`); never `rm -rf case/out` or `--force`
+  for a scoped fix. Make declared checks scoped (`"parts": [...]`) and quick to skip when their
+  part's files did not change.
   Build only the current stage, then end your turn: the harness checks it right away (simple
   parts: printable, no defects; moving parts: printable, and no collision, jam or envelope
   overrun over the sweep; joints: the fit). Each check gets **two repair tries**; then the
