@@ -797,7 +797,9 @@ board revision, not a moved footprint.
   `tools/case/` module it reaches), whose input files changed (the contract, `case/interfaces.json`,
   and `inputs=[...]` for any other file the part reads) or whose `case/out` files are missing or
   edited; every other part is skipped. Parts the waterfall closed (`case/stages.json` valid, done
-  or note) are never rebuilt. It writes `case/out/parts.json` itself, keeping `printProject` and
+  or note) are never rebuilt, even when a helper they use changed (`--plan` says so); rebuild one
+  with `--only <part>` only when the lead allowed it to change, and a follow-up's `"rework"` parts
+  rebuild normally. It writes `case/out/parts.json` itself, keeping `printProject` and
   `overview`. **A passed part is never rebuilt or retested; only new and changed parts are.** For a
   scoped fix, edit that part and rerun the build (or `--only <part>`); `--plan` says what would
   rebuild and why. Never `rm -rf case/out` and never `--force` unless the person asked for a full

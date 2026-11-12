@@ -307,8 +307,15 @@ class CaseBuild:
         parts = self._read_json(self.root / STATUS_FILE).get('parts')
         if not isinstance(parts, dict):
             return set()
-        return {name for name, info in parts.items()
-                if isinstance(info, dict) and info.get('status') in FROZEN_STATUSES}
+        closed = {name for name, info in parts.items()
+                  if isinstance(info, dict) and info.get('status') in FROZEN_STATUSES}
+        # A follow-up's "rework" (case/checks.json) names earlier parts the person asked to change:
+        # the earlier run's case/stages.json still says done for them until the harness rewrites it.
+        return closed - set(self._rework())
+
+    def _rework(self):
+        names = self._read_json(self.root / 'case/checks.json').get('rework', [])
+        return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
 
     def _paths(self, name):
         return self.out / f'{name}.step', self.out / f'{name}.stl'
@@ -338,10 +345,14 @@ class CaseBuild:
             if force:
                 decisions[name] = ('build', '--force')
                 continue
-            if name in frozen and step.is_file() and stl.is_file():
-                decisions[name] = ('frozen', 'closed by the waterfall (case/stages.json)')
-                continue
             keys[name], info = self.key(name)
+            if name in frozen and step.is_file() and stl.is_file():
+                if record.get('key') == keys[name] or not record:
+                    decisions[name] = ('frozen', 'closed by the waterfall (case/stages.json)')
+                else:
+                    decisions[name] = ('frozen', 'code changed but the waterfall closed it; kept as it is. '
+                                       f'Only if the lead allowed this part to change: --only {name}')
+                continue
             if info['unread']:
                 decisions[name] = ('build', 'could not read all it depends on: ' + ', '.join(info['unread'][:3]))
             elif not record:
@@ -384,10 +395,13 @@ class CaseBuild:
             cache.pop(name)
             self._remove(name)
 
-        result = {'built': [], 'cached': [], 'frozen': [], 'failed': [], 'missing': [], 'seconds': {}}
+        result = {'built': [], 'cached': [], 'frozen': [], 'frozenChanged': [], 'failed': [], 'missing': [],
+                  'seconds': {}}
         for name, (action, reason) in decisions.items():
             if action != 'build':
                 result[action].append(name)
+                if action == 'frozen' and reason.startswith('code changed'):
+                    result['frozenChanged'].append(name)
                 log(f'{action:7} {name}: {reason}')
                 continue
             step, stl = self._paths(name)
@@ -440,7 +454,9 @@ class CaseBuild:
         result['changed'] = bool(result['built'] or result['failed'])
         log(f"case/build.py: {len(result['built'])} built, {len(result['cached'])} cached, "
             f"{len(result['frozen'])} frozen, {len(result['failed'])} failed"
-            + (f", {len(result['missing'])} never built" if result['missing'] else ''))
+            + (f", {len(result['missing'])} never built" if result['missing'] else '')
+            + (f"; closed parts kept although their code changed: {', '.join(result['frozenChanged'])}"
+               if result['frozenChanged'] else ''))
         return result
 
     def main(self, argv=None):

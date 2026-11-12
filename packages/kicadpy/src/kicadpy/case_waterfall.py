@@ -50,7 +50,8 @@ FAILING = (case_measure.FAIL, case_measure.UNVERIFIED)
 MAX_NOTES = 200
 BUILD_RULE = ('Build with the cached builder (kicadpy.case_build in case/build.py): it rebuilds only the '
               'parts whose code or inputs changed; use --only <part> for a scoped fix. Never rm -rf case/out '
-              'and never --force unless the person asked for a full rebuild.')
+              'and never --force unless the person asked for a full rebuild. A closed part is kept even when '
+              'its code changed; rebuild it with --only <part> only when the lead allowed it to change.')
 
 
 def plan(worktree):

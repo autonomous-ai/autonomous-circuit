@@ -206,10 +206,23 @@ class CaseBuildTests(unittest.TestCase):
         result, exporter = self.build(module)
         self.assertEqual(sorted(exporter.calls), ['buck_tray', 'charger_tray', 'coupon_b'])
         self.assertEqual(sorted(result['frozen']), ['coupon_a', 'frame'])
+        self.assertEqual(sorted(result['frozenChanged']), ['coupon_a', 'frame'])
         _, exporter = self.build(module)        # no loop: frozen parts stay put
         self.assertEqual(exporter.calls, [])
         _, exporter = self.build(module, only=['frame'])
         self.assertEqual(exporter.calls, ['frame'])
+
+    def test_unchanged_frozen_part_is_plain_frozen_and_rework_parts_rebuild(self):
+        self.build(self.load())
+        (self.root / 'case/stages.json').write_text(json.dumps(
+            {'parts': {'frame': {'status': 'done'}, 'charger_tray': {'status': 'done'}}}))
+        result, _ = self.build(self.load())
+        self.assertEqual(sorted(result['frozen']), ['charger_tray', 'frame'])
+        self.assertEqual(result['frozenChanged'], [])
+        (self.root / 'case/checks.json').write_text(json.dumps({'rework': ['charger_tray']}))
+        result, exporter = self.build(self.load(**{'TRAY_W = 20.0': 'TRAY_W = 23.0'}))
+        self.assertEqual(exporter.calls, ['charger_tray'])
+        self.assertEqual(result['frozen'], ['frame'])
 
     def test_removed_part_loses_its_files_and_entry(self):
         self.build(self.load())
