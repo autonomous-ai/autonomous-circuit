@@ -725,6 +725,17 @@ class PilotTests(unittest.TestCase):
             self.assertEqual(len(calls), 3)
         self.assertTrue(pilot.owns('board', pilot.BOARD_CHECK_RECORD))
 
+    def test_derived_case_contract_does_not_invalidate_the_board_check(self):
+        # The controller rebuilds boards/<stem>.enclosure.json when the case edits case/interfaces.json.
+        workspace = self.root / 'workspace'
+        put(workspace, 'design/main.kicad_pcb', 'pcb v1')
+        put(workspace, 'boards/main.enclosure.json', '{"intent": 1}')
+        key = pilot._board_check_key(workspace)
+        put(workspace, 'boards/main.enclosure.json', '{"intent": 2}')
+        self.assertEqual(pilot._board_check_key(workspace), key)
+        put(workspace, 'boards/main.board.json', '{"sidecar": 2}')
+        self.assertNotEqual(pilot._board_check_key(workspace), key)
+
     def test_passed_board_check_reruns_when_its_verdict_is_missing(self):
         workspace = self.root / 'workspace'
         put(workspace, 'design/main.kicad_pcb', 'pcb v1')

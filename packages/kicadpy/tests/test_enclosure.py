@@ -221,6 +221,22 @@ class WriteTest(unittest.TestCase):
             self.assertEqual(next(i for i in doc['interfaces'] if i['refs'] == ['J2'])['status'], 'confirmed')
             self.assertEqual(sorted(p.name for p in (ws / 'design').iterdir()), ['main.kicad_pcb'])
 
+    def test_refresh_rewrites_only_when_the_case_intent_changes_the_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / 'design').mkdir()
+            pcb = ws / 'design' / 'main.kicad_pcb'
+            pcb.write_text('(kicad_pcb)')
+            (ws / 'case').mkdir()
+            target = enclosure.write(ws, inspect=lambda pcb: fixture('pet'))
+            stamp = target.stat().st_mtime_ns, target.stat().st_ino
+            self.assertIsNone(enclosure.refresh(ws, pcb, inspect=lambda pcb: fixture('pet')))
+            self.assertEqual((target.stat().st_mtime_ns, target.stat().st_ino), stamp)
+            (ws / 'case' / 'interfaces.json').write_text(json.dumps({'interfaces': {'J2': {'confirm': True}}}))
+            self.assertEqual(enclosure.refresh(ws, pcb, inspect=lambda pcb: fixture('pet')), target)
+            doc = json.loads(target.read_text())
+            self.assertEqual(next(i for i in doc['interfaces'] if i['refs'] == ['J2'])['status'], 'confirmed')
+
     def test_case_folder_is_not_a_design_input(self):
         # kicadpy's revision manifest of a workspace: design/, engineering/ and root JSONs only.
         # Writing the intent after the board went green must not change it (it would mark the

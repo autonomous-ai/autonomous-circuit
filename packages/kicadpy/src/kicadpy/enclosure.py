@@ -470,8 +470,8 @@ def _json(path):
         return None
 
 
-def write(workspace, pcb=None, inspect=None):
-    """Regenerate `boards/<stem>.enclosure.json` from the board on disk. Returns its path."""
+def render(workspace, pcb=None, inspect=None):
+    """The contract text for the board on disk, without writing it: (target path, text)."""
     from . import toolchain
     workspace = Path(workspace)
     pcb = Path(pcb) if pcb else next((workspace / 'design').glob('*.kicad_pcb'))
@@ -480,9 +480,30 @@ def write(workspace, pcb=None, inspect=None):
     intent = _json(workspace / INTENT)
     doc = build(state, parts_doc=parts_doc, intent=intent, stem=pcb.stem)
     target = workspace / 'boards' / f'{pcb.stem}.enclosure.json'
+    return target, json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + '\n'
+
+
+def write(workspace, pcb=None, inspect=None):
+    """Regenerate `boards/<stem>.enclosure.json` from the board on disk. Returns its path."""
+    return _replace(*render(workspace, pcb, inspect))
+
+
+def refresh(workspace, pcb, inspect=None):
+    """Rewrite the contract only when its bytes would change (the case intent moved). Returns
+    the path when it was rewritten, else None; an unchanged file keeps its inode and mtime."""
+    target, text = render(workspace, pcb, inspect)
+    try:
+        if target.read_bytes() == text.encode('utf-8'):
+            return None
+    except OSError:
+        pass
+    return _replace(target, text)
+
+
+def _replace(target, text):
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix('.json.tmp')
-    tmp.write_text(json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + '\n', encoding='utf-8')
+    tmp.write_text(text, encoding='utf-8')
     os.replace(tmp, target)
     return target
 
