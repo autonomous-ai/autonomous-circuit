@@ -920,7 +920,8 @@ class WaterfallRunner(CaseCrewRunner):
                 self.order.append((stage, model))
             turn = len(self.prompts['case'])
             match = re.search(r'Current stage: (\w+)', prompt)
-            current = match.group(1) if match else ('*' if 'Every stage is closed' in prompt else 'simple')
+            current = match.group(1) if match else ('*' if 'Every stage is closed' in prompt else
+                                                    'next' if 'NEXT STAGE:' in prompt else 'simple')
             self.stages_seen.append(current)
             parts = [{'name': name, 'role': 'other', 'stl': name + '.stl'}
                      for names in self.PARTS.values() for name in names]
@@ -1121,14 +1122,16 @@ class CaseCrewTests(unittest.TestCase):
         runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
                                  advice={'decision': 'repair', 'summary': 'Trim the frame for the leg',
                                          'actions': [{'path': 'case/out/frame.stl', 'message': 'trim 2 mm'}]},
-                                 rework_at=5)
+                                 rework_at=6)
         runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
         with self.waterfall_checks():
             root, result = self.start(runner)
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
-        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'moving', 'moving', '*'])  # '*': the end repair
-        self.assertIn('LEAD END REVIEW', runner.prompts['case'][4])
-        self.assertIn('trim 2 mm', runner.prompts['case'][4])
+        # 'next': asked once whether joints or lid apply (nothing new declared), '*': the end repair
+        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'moving', 'moving', 'next', '*'])
+        self.assertIn('NEXT STAGE:', runner.prompts['case'][4])
+        self.assertIn('LEAD END REVIEW', runner.prompts['case'][5])
+        self.assertIn('trim 2 mm', runner.prompts['case'][5])
         self.assertEqual(len(runner.prompts['case-advice']), 1)
         workspace = root / 'workspace'
         self.assertEqual((workspace / 'case/out/frame.stl').read_text(), 'solid frame reworked')
@@ -1239,7 +1242,7 @@ class CaseCrewTests(unittest.TestCase):
             result = parallel.run(root, execute=True, runner=runner, checker=checker)
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
         if not fits:  # the earlier case no longer fits the board: nothing is frozen, all stages run
-            self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints'])
+            self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints', 'next'])  # 'next': asked once about the lid
             self.assertEqual(self.reused[0], [])
             return
         # only the stage with the new part is built; the others were closed by the earlier run
@@ -1275,7 +1278,7 @@ class CaseCrewTests(unittest.TestCase):
         with self.waterfall_checks():
             root, result = self.start(runner)
         self.assertEqual(result['status'], 'candidate_ready', result['findings'])
-        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints'])
+        self.assertEqual(runner.stages_seen, ['simple', 'moving', 'joints', 'next'])  # 'next': asked once about the lid
         self.assertNotIn('case-advice', runner.prompts)
         self.assertIn('No notes: every stage passed', (root / 'workspace/case/NOTES.md').read_text())
 

@@ -126,6 +126,27 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(ledger['parts']['moving'], ['leg', 'arm'])
         self.assertEqual(ledger['plan'], ['simple', 'moving', 'joints', 'lid'])
 
+    def test_only_simple_declared_asks_once_for_the_next_stage(self):
+        ledger = wf.start({'simple': ['frame']})
+        ledger['stages']['simple']['status'] = 'passed'
+        text = wf.next_stage_text(ledger)
+        self.assertIn('moving, joints, lid', text)
+        self.assertIsNone(wf.next_stage_text(ledger))  # nothing new declared: the end step follows
+        wf.update_plan(ledger, {'simple': ['frame'], 'moving': ['leg']})
+        self.assertIsNone(wf.next_stage_text(ledger))  # moving is open: build it first
+        self.assertEqual(wf.current(ledger), 'moving')
+        ledger['stages']['moving']['status'] = 'passed'
+        self.assertIn('joints, lid', wf.next_stage_text(ledger))
+
+    def test_no_next_stage_question_after_time_ran_out_or_with_every_stage(self):
+        ledger = wf.start({'simple': ['frame']})
+        wf.close_all(ledger, 'out of time', now=5)
+        self.assertIsNone(wf.next_stage_text(ledger))
+        ledger = wf.start({'simple': ['frame'], 'moving': ['leg'], 'joints': ['pin'], 'lid': ['lid']})
+        for entry in ledger['stages'].values():
+            entry['status'] = 'passed'
+        self.assertIsNone(wf.next_stage_text(ledger))
+
 
 class FilesTests(unittest.TestCase):
     def setUp(self):
