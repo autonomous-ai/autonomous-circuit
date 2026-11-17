@@ -39,7 +39,8 @@ test('Case overview embeds the actual HTML with an isolated script-only sandbox 
   const tabs=[];const ui=mount(CaseOverviewTab,{artifact:{case:{overviewUrl:'/projects/p/case/motion/motion-view.html?v=1'}},onOpenTab:tab=>tabs.push(tab)});
   try {
     const frame=ui.container.querySelector('iframe');assert.equal(frame.getAttribute('sandbox'),'allow-scripts');assert.match(frame.getAttribute('src'),/motion-view/);
-    assert.match(ui.container.querySelector('a').href,/motion-view/);click(ui.container.querySelector('button'));assert.deepEqual(tabs,['case']);
+    assert.equal(ui.container.querySelector('a'),null);assert.ok(ui.container.querySelector('[data-slot="case-open-overview"]'));
+    click(ui.container.querySelector('button.ml-auto'));assert.deepEqual(tabs,['case']);
     ui.set({artifact:{}});assert.equal(ui.container.querySelector('iframe'),null);assert.match(ui.container.textContent,/No case overview yet/);
   }finally{ui.unmount();}
 });

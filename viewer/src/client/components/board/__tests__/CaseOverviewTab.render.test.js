@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import React from "react";
 
 import { flush, mount } from "../../../test/render.js";
 import CaseOverviewTab, { themedOverviewUrl } from "../CaseOverviewTab.jsx";
@@ -36,6 +37,27 @@ test("engineering drawings open from a row of links above the overview", () => {
   } finally { ui.unmount(); }
   const empty = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html" } } });
   try { assert.equal(empty.container.querySelector('[data-slot="case-drawings"]'), null); } finally { empty.unmount(); }
+});
+
+test("Open overview and drawings open in the app and Back or Escape returns", async () => {
+  const ui = mount(CaseOverviewTab, { artifact: { case: { overviewUrl: "/p/case/overview.html", drawings: [
+    { name: "assembly", title: "Crab — assembly", kind: "assembly", url: "/p/case/out/drawings/assembly.svg?v=1" }] } } });
+  const full = () => ui.container.querySelector('[data-slot="case-full-view"]');
+  try {
+    assert.equal(ui.container.querySelector('a[target="_blank"]'), null);
+    React.act(() => ui.container.querySelector('[data-slot="case-open-overview"]').click());
+    await flush();
+    assert.match(full().querySelector("iframe").getAttribute("src"), /^\/p\/case\/overview\.html#theme=/);
+    React.act(() => full().querySelector('[data-slot="case-full-view-back"]').click());
+    await flush();
+    assert.equal(full(), null);
+    React.act(() => ui.container.querySelector('[data-slot="case-drawings"] a').click());
+    await flush();
+    assert.equal(full().querySelector("iframe").getAttribute("src"), "/p/case/out/drawings/assembly.svg?v=1");
+    React.act(() => window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
+    await flush();
+    assert.equal(full(), null);
+  } finally { ui.unmount(); }
 });
 
 const overviewScene = [];
