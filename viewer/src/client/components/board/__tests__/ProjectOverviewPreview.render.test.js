@@ -36,7 +36,11 @@ test("native project shows unverified overview until a board entry arrives", asy
     assert.equal(preview.querySelector("iframe")?.getAttribute("src"), url);
     assert.equal(preview.querySelector("iframe")?.getAttribute("sandbox"), "allow-scripts");
     assert.equal(preview.querySelector("iframe")?.getAttribute("referrerpolicy"), "no-referrer");
-    assert.equal(preview.querySelector("a")?.getAttribute("href"), url);
+    assert.equal(preview.querySelector("a"), null, "no new-tab link: it has no way back in an embedded pane");
+    React.act(() => preview.querySelector('[data-slot="project-open-overview"]').click());
+    assert.equal(w.find('[data-slot="case-full-view"] iframe')?.getAttribute("src"), url);
+    React.act(() => w.find('[data-slot="case-full-view-back"]').click());
+    assert.equal(w.find('[data-slot="case-full-view"]'), null);
     assert.equal(w.find('[data-slot="board-empty-state"]'), null);
 
     w.ui.set({ boardEntries: [boardEntry] });
