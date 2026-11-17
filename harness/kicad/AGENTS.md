@@ -879,6 +879,12 @@ board revision, not a moved footprint.
     **Case → Overview** and verify its controls, moving groups and wire paths before finishing;
     then rerun the applicable case/print checks. Do not stop at a static 3D render or an
     unrelated HTML link.
+  - **The viewer shows only this workspace.** Make every case change, including a quick
+    add-on part drawn by the lead and work started in another git worktree or a published
+    repository, land in this workspace's `case/` before you report it. List the part in
+    `case/out/parts.json` (STL, STEP, plate), rerun `case/build.py` or the overview command
+    so `case/overview.html` shows it, then tell the user to look at **Case → Overview**. Never
+    hand the user a separate CAD-viewer link, localhost port or file path as the preview.
 - **The checker is the tile's.** It reads your STEP files, never your code, and fails a case
   that goes into the board, a part or a seated module (`case_collides`), covers an interface
   (`case_interface_blocked`), puts more than the pad's limit of plastic over a touch pad
