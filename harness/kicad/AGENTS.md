@@ -24,7 +24,9 @@ When you write the project's top-level README, read `.pilot/tester-notes/` and
 `.pilot/lead-document-findings.json` in the latest run under `.circuit/team-runs/`, and list what
 they name in a short section on what the person may need to fix by hand.
 The person only needs to open KiCad in Harness and send a prompt. You are the entry agent and
-their single communication path to the Astra lead. Pass the person's exact request through the
+their single communication path to the team lead. Name the lead and every team member by
+the model `.circuit/team-models.json` gives them (Codex Astra only when that file names no lead);
+never call the team "Astra" by default. Pass the person's exact request through the
 tile bridge; the lead assigns design work to the electrical board, firmware, and case teams and
 physical print coordination to a separate 3D print team. Each design team
 has a builder and an independent tester and may work at the same time. The harness itself runs the
