@@ -1036,12 +1036,14 @@ class CaseCrewTests(unittest.TestCase):
         self.assertNotEqual(result['status'], 'candidate_ready')
         self.assertIn('Team tester finding must cite its team-owned path', json.dumps(result['findings']))
 
-    def waterfall_checks(self, native=('pass', 'fits')):
+    def waterfall_checks(self, native=('pass', 'fits'), stray=None):
         """Each check reports what the builder's script says for the stage it just built."""
         self.reused = []
 
         def run(worktree, env, case_python, root=None, reuse=None):
             self.check_calls.append((Path(worktree), case_python, env.get('KICAD_CASE_PYTHON')))
+            if stray:  # a file the check itself leaves behind, e.g. the slicer's receipt
+                (Path(worktree) / stray[0]).write_text(stray[1])
             self.reused.append(sorted(reuse or {}))
             declared = json.loads((Path(worktree) / 'case/checks.json').read_text())['checks']
             levels = json.loads((Path(worktree) / 'case/levels.json').read_text())
@@ -1138,6 +1140,49 @@ class CaseCrewTests(unittest.TestCase):
         notes = (workspace / 'case/NOTES.md').read_text()
         self.assertIn("still failing after the lead's end repair", notes)
         self.assertIn('Lead review at the end: repair', notes)
+
+    def test_end_repair_may_name_a_whole_stage(self):
+        """Gym-device r005/r006: the lead named the stage "moving", as the prompt allows; it ended the run."""
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
+                                 advice={'decision': 'repair', 'summary': 'Reopen the moving stage',
+                                         'actions': [{'path': 'moving', 'message': 'merge duplicate checks'}]},
+                                 rework_at=6)
+        runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
+        stderr = io.StringIO()
+        with self.waterfall_checks(), contextlib.redirect_stderr(stderr):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertIn('LEAD END REVIEW', runner.prompts['case'][-1])
+        self.assertIn('merge duplicate checks', runner.prompts['case'][-1])
+        self.assertNotIn('dropped action', stderr.getvalue())
+
+    def test_a_stage_name_is_not_a_file_outside_the_end_review(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass'], ('moving', 'motion'): ['fail']},
+                                 advice={'decision': 'waive', 'summary': 'Accept the notes',
+                                         'actions': [{'path': 'moving', 'message': 'the notes stand'}]})
+        runner.PARTS = {'simple': ['frame'], 'moving': ['leg']}
+        with self.waterfall_checks(), contextlib.redirect_stderr(io.StringIO()):
+            root, result = self.start(runner)
+        self.assertNotEqual(result['status'], 'candidate_ready')
+        self.assertIn('Lead advice must cite an existing worker file', json.dumps(result['findings']))
+
+    def test_case_checks_may_leave_the_slicer_receipt(self):
+        """Gym-device r004/r007: Bambu Studio's result.json in the worktree root ended the run."""
+        runner = WaterfallRunner({('simple', 'check'): ['pass']})
+        runner.PARTS = {'simple': ['frame']}
+        receipt = json.dumps({'error_string': 'Success.', 'return_code': 0})
+        with self.waterfall_checks(stray=('result.json', receipt)):
+            root, result = self.start(runner)
+        self.assertEqual(result['status'], 'candidate_ready', result['findings'])
+        self.assertFalse((root / 'workspace/result.json').exists())
+
+    def test_case_checks_still_may_not_write_other_files_outside_case(self):
+        runner = WaterfallRunner({('simple', 'check'): ['pass']})
+        runner.PARTS = {'simple': ['frame']}
+        with self.waterfall_checks(stray=('result.json', '{"not": "a receipt"}')):
+            root, result = self.start(runner)
+        self.assertNotEqual(result['status'], 'candidate_ready')
+        self.assertIn('Case checks wrote outside case-owned artifacts', json.dumps(result['findings']))
 
     NO_ENCLOSURE = ('unverified', 'report was not written: no boards/*.enclosure.json: '
                     'publish the board first (python -m kicadpy.enclosure .)')

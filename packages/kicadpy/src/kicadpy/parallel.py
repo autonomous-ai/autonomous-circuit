@@ -1560,8 +1560,15 @@ def advise(root, state, stage, worktree, problem, runner, *, stage_deadline=None
         raise ValueError('Lead advice needs at least one file-cited action')
     # One bad citation (dog-nautilus-v2 r001 cited a sibling worker's "../r001-board/...") must
     # not end the run: drop it and keep the advice when another action still cites a real file.
+    # A case_waterfall_end repair may name a whole stage ("moving"), as the prompt allows and the
+    # waterfall applies; Gym-device r005/r006 lost the advice because only files were accepted.
+    stages = (set((problem.get('waterfall') or {}).get('plan') or [])
+              if problem.get('kind') == 'case_waterfall_end' else set())
     valid, dropped = [], []
     for action in advice['actions']:
+        if advice['decision'] == 'repair' and action['path'] in stages:
+            valid.append(action)
+            continue
         relative = PurePosixPath(action['path'])
         path = (worktree / action['path']).resolve()
         if (relative.is_absolute() or '..' in relative.parts or
@@ -2150,6 +2157,9 @@ def dispatch(root, state, stages, runner, on_import=None, checker=None,
                                           **({'reuse': reuse} if reuse else {}))
             finally:
                 _reap_worktree_processes(root, dest)
+            # A slicing check leaves Bambu/Orca's result.json in the worktree root (Gym-device r004,
+            # r007); drop that tool receipt before judging what the checks wrote.
+            _drop_slicer_receipt(dest, check_files)
             if any(not owns('case', name) for name in changed(before_check, snapshot(dest))):
                 raise ValueError('Case checks wrote outside case-owned artifacts')
             with integration_lock:
